@@ -41,7 +41,7 @@ erDiagram
         varchar avatar "max 500"
         varchar avatar_public_id "max 100"
         enum role "PET_OWNER|STAFF|CLINIC_MANAGER|CLINIC_OWNER|ADMIN"
-        enum specialty "VET|GROOMER (nullable, STAFF only)"
+        enum specialty "MEDICAL|GROOMER (nullable, STAFF only)"
         decimal rating_avg "precision(2,1) STAFF only"
         int rating_count "STAFF only"
         varchar fcm_token "max 500"
@@ -411,7 +411,7 @@ erDiagram
 | `avatar` | VARCHAR(500) | | Avatar URL |
 | `avatar_public_id` | VARCHAR(100) | | Cloudinary public ID |
 | `role` | ENUM | NOT NULL | PET_OWNER, STAFF, CLINIC_MANAGER, CLINIC_OWNER, ADMIN |
-| `specialty` | ENUM | nullable | VET, GROOMER (STAFF role only) |
+| `specialty` | ENUM | nullable | MEDICAL, GROOMER (STAFF role only) |
 | `rating_avg` | DECIMAL(2,1) | | Average rating (STAFF only) |
 | `rating_count` | INTEGER | | Total ratings received (STAFF only) |
 | `fcm_token` | VARCHAR(500) | | Firebase Cloud Messaging token |
@@ -1031,7 +1031,7 @@ erDiagram
 | # | Enum | Values | Used By |
 |---|------|--------|---------|
 | 1 | Role | PET_OWNER, STAFF, CLINIC_MANAGER, CLINIC_OWNER, ADMIN | User.role |
-| 2 | StaffSpecialty | VET, GROOMER | User.specialty |
+| 2 | StaffSpecialty | MEDICAL, GROOMER | User.specialty |
 | 3 | ClinicStatus | PENDING, APPROVED, REJECTED, SUSPENDED | Clinic.status |
 | 4 | PetSpecies | DOG, CAT, BIRD, RABBIT, HAMSTER, FISH, OTHER | Pet.species |
 | 5 | ServiceCategory | GROOMING_SPA, VACCINATION, CHECK_UP, SURGERY, DENTAL, DERMATOLOGY, OTHER | ClinicService.serviceCategory |
@@ -1232,7 +1232,7 @@ Shares PK with Clinic (1:1). Ensures one pricing config per clinic without addit
 Clinic.operating_hours stored as JSONB map. Flexible schema for varying weekly schedules without a separate table.
 
 ### Decision 8: Service-Level Staff Assignment
-`booking_services.assigned_staff_id` allows different staff for different services in the same booking (e.g., VET for check-up, GROOMER for spa).
+`booking_services.assigned_staff_id` allows different staff for different services in the same booking (e.g., MEDICAL for check-up, GROOMER for spa).
 
 ---
 

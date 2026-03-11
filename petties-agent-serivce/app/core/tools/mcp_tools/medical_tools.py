@@ -423,12 +423,18 @@ async def pet_knowledge_search(
     """
     try:
         from app.core.rag.rag_engine import get_rag_engine
+        from app.core.rag.query_expander import get_query_expander
 
         rag = get_rag_engine()
 
-        # Query knowledge base directly — no query rewriting, no classification
+        # Expand short queries for better RAG recall
+        expander = get_query_expander()
+        search_query = await expander.expand_query(query, pet_type=pet_type)
+        query_expanded = search_query != query
+
+        # Query knowledge base with (possibly expanded) query
         results = await rag.query(
-            query=query,
+            query=search_query,
             top_k=top_k,
             min_score=min_score,
         )
@@ -445,11 +451,13 @@ async def pet_knowledge_search(
         ]
 
         logger.info(
-            f"pet_knowledge_search: Found {len(results)} results for query: {query[:50]}..."
+            f"pet_knowledge_search: Found {len(results)} results "
+            f"(expanded={query_expanded}) for query: {query[:50]}..."
         )
 
         return {
             "query": query,
+            "expanded_query": search_query if query_expanded else None,
             "pet_type": pet_type,
             "results": formatted_results,
             "sources_used": len(formatted_results),

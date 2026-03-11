@@ -91,6 +91,9 @@ public class TrackingService {
 
             log.debug("Updated location for booking {}: lat={}, lng={}, distance={}km, eta={}min",
                     bookingId, latitude, longitude, distanceKm, etaMinutes);
+        } else {
+            log.warn("Cannot calculate distance/ETA for booking {}: home coordinates are null (homeLat={}, homeLong={})",
+                    bookingId, booking.getHomeLat(), booking.getHomeLong());
         }
 
         // 5. Save to Redis with expiration

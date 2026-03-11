@@ -108,6 +108,51 @@ export interface QueryResult {
     score: number
 }
 
+// ===== AI INSIGHTS TYPES =====
+
+export interface FeedbackStatsResponse {
+    total: number
+    period_days: number
+    by_type: Record<string, number>
+    by_category: Record<string, number>
+    positive_rate: number
+    error?: string
+}
+
+export interface KGStatsResponse {
+    success: boolean
+    total_triplets: number
+    unique_entities: number
+    relation_types: string[]
+    sample_triplets?: Array<{ subject: string; predicate: string; object: string }>
+}
+
+export interface KGBuildResponse {
+    success: boolean
+    message: string
+    documents_processed: number
+    documents_skipped: number[]
+    triplets_extracted: number
+    processing_time_ms: number
+}
+
+export interface CaseMemoryStatsResponse {
+    success: boolean
+    total_cases: number
+    collection_status: string
+    [key: string]: unknown
+}
+
+export interface CaseMemoryPruneResponse {
+    success: boolean
+    message: string
+    pruned_count: number
+    criteria: {
+        max_feedback_below: number
+        older_than_days: number
+    }
+}
+
 export type ChatContextType = 'BUSINESS_CHAT' | 'PLAYGROUND_TEST'
 
 export interface CreateChatSessionRequest {
@@ -426,6 +471,68 @@ export const chatApi = {
     }
 }
 
+// ===== FEEDBACK API =====
+
+export const feedbackApi = {
+    async getStats(days: number = 30): Promise<FeedbackStatsResponse> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/chat/feedback/stats?days=${days}`)
+        if (!response.ok) throw new Error('Không thể lấy thống kê feedback')
+        return response.json()
+    }
+}
+
+// ===== KNOWLEDGE GRAPH API =====
+
+export const kgApi = {
+    async getStats(): Promise<KGStatsResponse> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/kg-stats`)
+        if (!response.ok) throw new Error('Không thể lấy thống kê Knowledge Graph')
+        return response.json()
+    },
+
+    async build(documentIds?: number[], maxTriplets: number = 10): Promise<KGBuildResponse> {
+        const params = new URLSearchParams()
+        if (documentIds?.length) {
+            documentIds.forEach(id => params.append('document_ids', String(id)))
+        }
+        params.set('max_triplets', String(maxTriplets))
+
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/build-kg?${params.toString()}`, {
+            method: 'POST'
+        })
+        if (!response.ok) {
+            const err = await response.json().catch(() => null)
+            throw new Error(err?.detail || 'Không thể xây dựng Knowledge Graph')
+        }
+        return response.json()
+    }
+}
+
+// ===== CASE MEMORY API =====
+
+export const caseMemoryApi = {
+    async getStats(): Promise<CaseMemoryStatsResponse> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/case-memory/stats`)
+        if (!response.ok) throw new Error('Không thể lấy thống kê Case Memory')
+        return response.json()
+    },
+
+    async prune(olderThanDays: number = 90, maxFeedbackBelow: number = 0): Promise<CaseMemoryPruneResponse> {
+        const params = new URLSearchParams({
+            older_than_days: String(olderThanDays),
+            max_feedback_below: String(maxFeedbackBelow)
+        })
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/case-memory/prune?${params.toString()}`, {
+            method: 'POST'
+        })
+        if (!response.ok) {
+            const err = await response.json().catch(() => null)
+            throw new Error(err?.detail || 'Không thể dọn dẹp Case Memory')
+        }
+        return response.json()
+    }
+}
+
 // ===== WEBSOCKET =====
 
 /**
@@ -458,5 +565,5 @@ export const createChatWebSocket = (sessionId: string, contextType?: string): We
     return new WebSocket(fullWsUrl)
 }
 
-export default { agentApi, toolApi, knowledgeApi, chatApi, createChatWebSocket }
+export default { agentApi, toolApi, knowledgeApi, chatApi, feedbackApi, kgApi, caseMemoryApi, createChatWebSocket }
 

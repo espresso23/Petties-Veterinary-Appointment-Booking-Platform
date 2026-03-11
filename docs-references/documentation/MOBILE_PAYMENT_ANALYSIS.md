@@ -45,7 +45,7 @@ As requested, the "Create Test Booking" feature has been removed from the fronte
 With the test logic removed and Backend ready, the next steps for the Mobile App are:
 
 1.  **Implement Real Booking Flow**:
-    -   Create a "Booking" or "Appointment" screen where users can select Clinic -> Vet -> Date/Time -> Service.
+    -   Create a "Booking" or "Appointment" screen where users can select Clinic -> Staff -> Date/Time -> Service.
     -   This flow should interact with a strictly defined `BookingService` (to be implemented if missing).
 
 2.  **Integrate Payment into Booking**:

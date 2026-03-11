@@ -86,7 +86,7 @@ flowchart TD
 
 **Đáp án:** Có. ERD trong PETTIES_ERD_DIAGRAM.md phản ánh đầy đủ với Mermaid Crow's Foot, gồm **28+ thực thể** và quan hệ rõ ràng.
 
-- **PostgreSQL (Core + Auth):** USER, CLINIC, CLINIC_IMAGE, MASTER_SERVICE, SERVICE, SERVICE_WEIGHT_PRICE, PET, VET_SHIFT, SLOT, BOOKING_SLOT, BOOKING, BOOKING_SERVICE, PAYMENT, REVIEW, NOTIFICATION, CHAT_CONVERSATION, CHAT_MESSAGE, REFRESH_TOKEN, BLACKLISTED_TOKEN, USER_REPORT.
+- **PostgreSQL (Core + Auth):** USER, CLINIC, CLINIC_IMAGE, MASTER_SERVICE, SERVICE, SERVICE_WEIGHT_PRICE, PET, STAFF_SHIFT, SLOT, BOOKING_SLOT, BOOKING, BOOKING_SERVICE, PAYMENT, REVIEW, NOTIFICATION, CHAT_CONVERSATION, CHAT_MESSAGE, REFRESH_TOKEN, BLACKLISTED_TOKEN, USER_REPORT.
 - **MongoDB:** EMR_RECORD, VACCINATION_RECORD (và các embedded: prescriptions, images).
 - **AI Service (PostgreSQL + MongoDB):**
     - **PostgreSQL:** AGENT, TOOL, PROMPT_VERSION, KNOWLEDGE_DOCUMENT, SYSTEM_SETTING.
@@ -101,10 +101,10 @@ flowchart TD
 
 **Đáp án:** Có. Các entity chính có trạng thái và luồng trạng thái được mô tả tương ứng state diagram.
 
-- **BOOKING:** Trạng thái PENDING → ASSIGNED → CONFIRMED → (CHECK_IN) → IN_PROGRESS → CHECK_OUT → COMPLETED; các nhánh CANCELLED, NO_SHOW; với HOME_VISIT có thêm ON_THE_WAY, ARRIVED. ERD §2.10 mô tả Status Flow và Completion Dependency (payment, EMR).
+- **BOOKING:** Trạng thái chuẩn là PENDING → CONFIRMED → IN_PROGRESS → COMPLETED; các nhánh phụ gồm CANCELLED, NO_SHOW. Các thao tác như `check-in`, `start-moving`, `arrived`, `checkout` chỉ là action hoặc event, không phải state. Với SOS vẫn có nhánh đặc thù `SEARCHING → PENDING_CLINIC_CONFIRM → CONFIRMED`.
 - **USER:** status (ACTIVE | SUSPENDED | PENDING), role (PET_OWNER | STAFF | CLINIC_MANAGER | CLINIC_OWNER | ADMIN).
 - **CLINIC:** status (PENDING | APPROVED | REJECTED | SUSPENDED).
-- **VET_SHIFT:** status (SCHEDULED | COMPLETED | CANCELLED); **SLOT:** status (AVAILABLE | BOOKED | BLOCKED).
+- **STAFF_SHIFT:** status (SCHEDULED | COMPLETED | CANCELLED); **SLOT:** status (AVAILABLE | BOOKED | BLOCKED).
 - **PAYMENT:** status (PENDING | PAID | REFUNDED | FAILED).
 
 Các enum và trường này đủ để mô hình hóa state và behavior trong state diagram.
@@ -114,19 +114,12 @@ Các enum và trường này đủ để mô hình hóa state và behavior trong
 ```mermaid
 stateDiagram-v2
     [*] --> PENDING
-    PENDING --> ASSIGNED: Assign vet
-    ASSIGNED --> CONFIRMED: Pet owner confirm
-    CONFIRMED --> CHECK_IN: Check-in at clinic
-    CONFIRMED --> ON_THE_WAY: Home visit start travel
-    ON_THE_WAY --> ARRIVED: Staff arrived
-    ARRIVED --> CHECK_IN: Check-in
-    CHECK_IN --> IN_PROGRESS: Start examination
-    IN_PROGRESS --> CHECK_OUT: Finish service
-    CHECK_OUT --> COMPLETED: Payment done
+    PENDING --> CONFIRMED: Clinic confirm booking
+    CONFIRMED --> IN_PROGRESS: check-in / start-moving
+    IN_PROGRESS --> IN_PROGRESS: arrived (update timestamp only)
+    IN_PROGRESS --> COMPLETED: checkout + payment
     PENDING --> CANCELLED: Cancel
-    ASSIGNED --> CANCELLED: Cancel
     CONFIRMED --> CANCELLED: Cancel
-    CHECK_IN --> NO_SHOW: No show
     IN_PROGRESS --> NO_SHOW: No show
     COMPLETED --> [*]
     CANCELLED --> [*]

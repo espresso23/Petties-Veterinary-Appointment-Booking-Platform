@@ -72,7 +72,6 @@ class _BookingSelectDateTimeScreenState
       bottomNavigationBar: PetOwnerBottomNav(
         currentIndex: 2,
         onTap: (index) => handlePetOwnerNavTap(context, index),
-        showAiBubble: false,
       ),
     );
   }

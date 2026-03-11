@@ -55,7 +55,6 @@ Các tài liệu khác trong `/documentation`:
 - `PETTIES_ERD_DIAGRAM.md` - ERD Diagram đầy đủ của hệ thống
 - `PETTIES_MVP_ERD.md` - ERD cho phiên bản MVP
 - `PETTIES_MVP_HAPPY_FLOWS.md` - Happy Flow cho MVP
-- `VET_SCHEDULING_STRATEGY.md` - Chiến lược lên lịch cho Nhân viên thú y
 
 ### 🧪 Testing (`/testing`)
 Tài liệu về Testing strategy và test cases:

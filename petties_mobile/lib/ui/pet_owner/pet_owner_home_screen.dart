@@ -8,6 +8,7 @@ import '../../data/services/pet_service.dart';
 import '../../data/models/pet.dart';
 import '../clinics/clinic_search_view.dart';
 import '../booking/my_bookings_tab.dart';
+import '../chat/ai_chat_bubble.dart';
 import '../common/pet_owner_bottom_nav.dart';
 
 /// Pet Owner Home Screen - Neobrutalism Style
@@ -143,11 +144,11 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
                   : [],
             ),
       body: SafeArea(child: bodyContent),
+      floatingActionButton: const AiChatBubble(),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: PetOwnerBottomNav(
         currentIndex: _currentIndex,
         onTap: _onTabTapped,
-        showAiBubble: true, // ✅ Hiển thị AI Chat Bubble
-        showAiNotificationDot: false,
       ),
     );
   }

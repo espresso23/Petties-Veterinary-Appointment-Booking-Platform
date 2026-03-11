@@ -470,7 +470,6 @@ class _SosRequestScreenState extends State<SosRequestScreen> {
           PetOwnerBottomNav(
             currentIndex: 2,
             onTap: (index) => handlePetOwnerNavTap(context, index),
-            showAiBubble: false,
           ),
         ],
       ),

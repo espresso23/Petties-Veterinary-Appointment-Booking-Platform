@@ -452,7 +452,7 @@ Các tính năng được phân nhóm theo chức năng và mức độ ưu tiê
 | **KB-01** | **Document Upload** | Upload tài liệu (PDF, DOCX, TXT, MD) cho RAG. LlamaIndex xử lý chunking. | **✅ Done** |
 | **KB-02** | **Indexing Status** | Theo dõi trạng thái indexing: parsing → chunking → embedding → Qdrant. | **✅ Done** |
 | **KB-03** | **RAG Retrieval Test** | Admin nhập query test để xem RAG trả về chunks nào từ knowledge base. | **✅ Done** |
-| **KB-04** | **Query Expansion** | LLM tu dong mo rong query ngan gon truoc khi RAG search. Tang recall cho cau hoi ngan cua bac si. | **✅ Done** |
+| **KB-04** | **Query Expansion** | LLM tu dong mo rong query ngan gon truoc khi RAG search. Tang recall cho cau hoi ngan cua Staff. | **✅ Done** |
 | **KB-05** | **Knowledge Graph Index** | LlamaIndex KG extract triplets (trieu chung->benh->loai) tu tai lieu. Hybrid query RAG + KG. | **Planned (Phase 2)** |
 | **KB-06** | **Visual Case Memory** | Luu mo ta hinh anh + chan doan + feedback vao Qdrant. Tim case tuong tu cho lan sau. | **✅ Done** |
 | **KB-07** | **Feedback Loop & Case Embedding** | Thu thap feedback (thumbs up/down), embed confirmed cases vao Case Memory. | **✅ Done** |

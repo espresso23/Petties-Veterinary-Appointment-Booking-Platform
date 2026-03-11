@@ -39,7 +39,7 @@ Enum role {
 }
 
 Enum staff_specialty {
-  VET
+  MEDICAL
   GROOMER
 }
 

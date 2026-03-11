@@ -937,7 +937,7 @@
 > **As a** Staff, **I want to** view my personal work schedule on my mobile  
 > **So that** I know when and where I need to work each day
 
-**Sprint:** S5 | **Verified Files:** `vet_schedule_screen.dart`, `vet_home_screen.dart`
+**Sprint:** S5 | **Verified Files:** `staff_schedule_screen.dart`, `staff_home_screen.dart`
 
 | Sub-task | Assignee | Effort | Status |
 |----------|----------|--------|--------|
@@ -1134,7 +1134,7 @@
 
 #### Acceptance Criteria:
 1. **Add Incurred Service:**
-   - Có thể thêm dịch vụ khi booking đang CONFIRMED, ASSIGNED, IN_PROGRESS (trước khi CHECKOUT)
+   - Có thể thêm dịch vụ khi booking đang CONFIRMED hoặc IN_PROGRESS (trước khi checkout)
    - Chọn từ danh sách dịch vụ của clinic
    - Nhập số lượng (quantity)
    - Ghi chú lý do (optional)

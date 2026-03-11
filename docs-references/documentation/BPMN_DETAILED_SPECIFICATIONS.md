@@ -74,7 +74,7 @@
 
 | # | Element Type | Element Name | Description | Outgoing |
 |---|--------------|--------------|-------------|----------|
-| 24 | **Service Task** | Cập nhật Booking | Status: PENDING → ASSIGNED, vet_id = selected_vet | → Send Task 25 |
+| 24 | **Service Task** | Cập nhật Booking | Status: PENDING → CONFIRMED, staff_id = selected_staff | → Send Task 25 |
 | 25 | **Send Task** | Thông báo Nhân viên | Push notification → Staff: "Bạn có lịch hẹn mới" | → Receive Task 26 |
 
 #### POOL: Staff (Mobile App / Web)
@@ -90,7 +90,7 @@
 
 | # | Element Type | Element Name | Description | Outgoing |
 |---|--------------|--------------|-------------|----------|
-| 24 | **Service Task** | Cập nhật Booking | Status: PENDING → CONFIRMED, vet_id = selected_vet | → Send Task 25 |
+| 24 | **Service Task** | Cập nhật Booking | Status: PENDING → CONFIRMED, staff_id = selected_staff | → Send Task 25 |
 | 25 | **Send Task** | Thông báo Pet Owner + Staff | Push: "Lịch hẹn đã xác nhận" + "Bạn có lịch hẹn mới" | → End Event 26 |
 | 26 | **End Event** | Booking Confirmed | Kết thúc thành công | - |
 
@@ -214,7 +214,7 @@
 
 | # | Element Type | Element Name | Description | Outgoing |
 |---|--------------|--------------|-------------|----------|
-| 18 | **Service Task** | Lưu EMR vào DB | Insert EMR record: symptoms, diagnosis, treatment, prescription, vet_notes | → Task 19 (Staff) |
+| 18 | **Service Task** | Lưu EMR vào DB | Insert EMR record: symptoms, diagnosis, treatment, prescription, staff_notes | → Task 19 (Staff) |
 
 #### POOL: Staff (Checkout)
 
@@ -253,8 +253,8 @@
 | 32 | **Exclusive Gateway** | Pet Owner đánh giá? | Chờ 30 giây hoặc user action | → Task 33 (Rating) hoặc → Task 34 (Skip) |
 | 33 | **User Task** | Chọn số sao cho Staff | Select 1-5 stars | → Service Task 35 |
 | 34 | **User Task** | Bỏ qua đánh giá | Click Skip hoặc timeout | → Service Task 36 |
-| 35 | **Service Task** | Lưu Staff Rating | Save: vet_rating = stars, vet_rated = true, tính lại vet average | → End Event 37 |
-| 36 | **Service Task** | Đánh dấu không đánh giá | vet_rated = false | → End Event 37 |
+| 35 | **Service Task** | Lưu Staff Rating | Save: staff_rating = stars, staff_rated = true, tính lại staff average | → End Event 37 |
+| 36 | **Service Task** | Đánh dấu không đánh giá | staff_rated = false | → End Event 37 |
 | 37 | **End Event** | Staff Review Done | Kết thúc subprocess Staff Review | → Timer 38 |
 
 #### 2.4.2 Clinic Review (Delayed - sau 24h)
@@ -289,7 +289,7 @@
 
 | Data Object | Type | Description |
 |-------------|------|-------------|
-| EMRData | Input | symptoms, diagnosis, treatment_plan, prescription, vet_notes |
+| EMRData | Input | symptoms, diagnosis, treatment_plan, prescription, staff_notes |
 | VaccinationData | Input | vaccine_name, dose, date, next_due_date |
 | ReceiptData | Output | booking_id, services, total_amount, payment_info |
 | VetRatingData | Input | stars (1-5) |

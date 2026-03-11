@@ -36,7 +36,7 @@ class SosTrackingScreen extends StatefulWidget {
 
 class _SosTrackingScreenState extends State<SosTrackingScreen>
     with WidgetsBindingObserver {
-  static const bool _kDebugTracking = false; // Bật true khi cần debug chi tiết
+  static const bool _kDebugTracking = true; // Bật true khi cần debug chi tiết
 
   static const double _kSheetMinSize = 0.18;
   // Sheet dạng Grab-style:
@@ -169,6 +169,9 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
     if (_booking?.bookingId == null) return;
 
     _trackingHandler = (location) {
+      if (_kDebugTracking) {
+        debugPrint('[SOS Tracking][WS] Nhận dữ liệu mới: arrived=${location.arrived}, lat=${location.latitude}, lng=${location.longitude}');
+      }
       if (!mounted) return;
 
       if (location.arrived) {
@@ -191,6 +194,9 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
       // Cập nhật ETA & khoảng cách
       double? distance;
       if (_booking?.homeLat != null && _booking?.homeLong != null) {
+        if (_kDebugTracking) {
+          debugPrint('[SOS Tracking] Đang tính toán khoảng cách: Staff(${location.latitude}, ${location.longitude}) -> Home(${_booking!.homeLat}, ${_booking!.homeLong})');
+        }
         distance = _computeDistanceKm(
           LatLng(location.latitude, location.longitude),
           LatLng(_booking!.homeLat!, _booking!.homeLong!),

@@ -67,7 +67,7 @@ flowchart TB
         
         subgraph "USER LAYER"
             PO["🐾 Pet Owner"]
-            ST["👨‍⚕️ Staff/Vet"]
+            ST["👨‍⚕️ Staff"]
             CM["👨‍💼 Clinic Manager"]
             CO["🏥 Clinic Owner"]
         end
@@ -297,7 +297,7 @@ flowchart TB
     subgraph "STAFF CLINICAL IMAGE ANALYSIS"
         direction LR
         
-        Start(["👨‍⚕️ Staff/Vet"])
+        Start(["👨‍⚕️ Staff"])
         
         Start --> Upload["📸 Upload examination image\n(Skin, Eye, Wound, Oral, etc.)"]
         
@@ -756,11 +756,11 @@ sequenceDiagram
     Database-->>Agent: Complex: 3 surgeries requiring specialist
     
     Note over Agent: REASONING
-    Agent->>Agent: "45 bookings cần ~4 vets/ngày peak"
-    Agent->>Agent: "Hiện có 3 vets → CẦN THÊM 1 VET"
+    Agent->>Agent: "45 bookings cần ~4 staff/ngày peak"
+    Agent->>Agent: "Hiện có 3 staff → CẦN THÊM 1 STAFF"
     
     Note over Agent: ACTION
-    Agent->>Database: get_vet_skills()
+    Agent->>Database: get_staff_skills()
     Database-->>Agent: Dr. Smith: Surgery specialist
     
     Agent->>Agent: "Dr. Smith có thể handle surgeries"
@@ -1052,8 +1052,8 @@ flowchart TB
         Level2 --> L2A1 --> L2A2 --> L2A3 --> L2A4
         
         subgraph "HUMAN APPROVAL REQUIRED"
-            HAP1["✅ Vet must acknowledge"]
-            HAP2["✅ Vet confirms treatment"]
+            HAP1["✅ Staff must acknowledge"]
+            HAP2["✅ Staff confirms treatment"]
             HAP3["✅ Booking confirmed"]
         end
         
@@ -1101,7 +1101,7 @@ sequenceDiagram
     Agent->>Owner: 
         🚨 **EMERGENCY DETECTED**
         
-        Chúng tôi đã thông báo cho tất cả bác sĩ trực tuyến.
+        Chúng tôi đã thông báo cho tất cả Staff trực tuyến.
         
         📞 Trong khi chờ đợi:
         1. Giữ bình tĩnh
@@ -1112,17 +1112,17 @@ sequenceDiagram
         📍 Vị trí của bạn: [GPS shared]
         🏥 Clinic gần nhất: [3.2 km - 8 phút]
         
-        Bác sĩ sẽ liên lạc trong 2 phút.
+        Staff sẽ liên lạc trong 2 phút.
     
-    Note over Vets: VET RESPONSE
-    Vets->>System: Acknowledge emergency
-    Vets->>System: Confirm SOS booking
+    Note over Staffs: STAFF RESPONSE
+    Staffs->>System: Acknowledge emergency
+    Staffs->>System: Confirm SOS booking
     
     System->>Agent: Booking CONFIRMED
     Agent->>Owner: 
-        ✅ **Bác sĩ đã xác nhận**
+        ✅ **Staff đã xác nhận**
         📞 Sẽ liên lạc trong giây lát
-        📍 Bác sĩ [Name] đang trên đường
+        📍 Staff [Name] đang trên đường
 ```
 
 ---
@@ -1203,7 +1203,7 @@ flowchart TB
         AI5 --> D1 --> D2 --> D3
         
         subgraph "HUMAN REVIEW"
-            R1["👁️ Vet reviews"]
+            R1["👁️ Staff reviews"]
             R2["✏️ Edit if needed"]
             R3["✅ Approve"]
             R4["📝 Finalize"]
@@ -1227,11 +1227,11 @@ flowchart TB
 
 ```mermaid
 sequenceDiagram
-    participant Vet
+    participant Staff
     participant Agent
     participant Database
     
-    Vet->>Agent: "Chó 3 tuổi, Husky, nôn 3 ngày, giảm ăn. Khám thấy bụng hơi căng."
+    Staff->>Agent: "Chó 3 tuổi, Husky, nôn 3 ngày, giảm ăn. Khám thấy bụng hơi căng."
     
     Note over Agent: PARSE CONSULTATION
     Agent->>Agent: Extract:
@@ -1263,7 +1263,7 @@ sequenceDiagram
     )
     Database-->>Agent: EMR-001 created (DRAFT)
     
-    Agent-->>Vet: 
+    Agent-->>Staff: 
         📝 **EMR Draft Created**
         
         ┌─────────────────────────────────────┐
@@ -1291,7 +1291,7 @@ sequenceDiagram
         ⚠️ **Awaiting Your Review**
         [✅ Approve] [✏️ Edit] [❌ Reject]
     
-    Vet->>Agent: "Approved with minor edits: tăng IV fluids lên 1000ml"
+    Staff->>Agent: "Approved with minor edits: tăng IV fluids lên 1000ml"
     Agent->>Database: Update EMR-001 (FINAL)
     Database-->>Agent: EMR Finalized
     Agent->>Agent: Update pet history
@@ -1367,7 +1367,7 @@ sequenceDiagram
     participant API as Spring Boot API
     participant LLM as OpenRouter (LLM)
     
-    CO->>Agent: "Tôi muốn thiết lập phòng khám chuyên mèo ở Quận 2, TPHCM. Có 2 bác sĩ, hỗ trợ cả spa và phẫu thuật nội soi."
+    CO->>Agent: "Tôi muốn thiết lập phòng khám chuyên mèo ở Quận 2, TPHCM. Có 2 Staff, hỗ trợ cả spa và phẫu thuật nội soi."
     
     Note over Agent: THOUGHT 1: Entity Extraction
     Agent->>Agent: Extract: Type=Cat Only, Loc=District 2, Staff=2, Services=[Spa, Endoscopy]
@@ -1391,7 +1391,7 @@ sequenceDiagram
         📋 **Bản nháp thiết lập phòng khám (DRAFT)**
         
         - **Phòng khám**: Petties Cat Specialty (Quận 2)
-        - **Nhân sự**: Cấu hình 02 bác sĩ (Dr. A, Dr. B)
+        - **Nhân sự**: Cấu hình 02 Staff (Dr. A, Dr. B)
         - **Dịch vụ (08)**: 
             - Spa trọn gói: 200,000 VNĐ (Dựa trên thị trường Q2)
             - Phẫu thuật nội soi: 2,500,000 VNĐ
@@ -1730,7 +1730,7 @@ Agent Reasoning:
 ```
 
 **Target Roles:**
-- **STAFF/VET:** Clinical diagnosis assistance, treatment recommendations, EMR automation
+- **STAFF:** Clinical diagnosis assistance, treatment recommendations, EMR automation
 - **CLINIC MANAGER:** Operations optimization, booking forecasting, staff allocation insights
 - **CLINIC OWNER:** Business intelligence, competitive analysis, revenue optimization
 
@@ -1954,7 +1954,7 @@ async def autonomous_follow_up_scheduler(
     clinic_id: UUID,
     reason: str,
     urgency: str,  # ROUTINE, PROMPT, URGENT, EMERGENCY
-    preferred_vet: Optional[UUID] = None,
+    preferred_staff: Optional[UUID] = None,
     auto_notify_owner: bool = True
 ) -> Dict[str, Any]:
     """
@@ -2058,9 +2058,9 @@ async def triage_agent(
 │  │    Peak: Tuesday-Thursday, 9AM-11AM                             │  │
 │  │                                                                  │  │
 │  │ 👥 Staff Analysis:                                              │  │
-│  │    Current: 3 vets, 2 nurses                                    │  │
-│  │    Required: 4 vets, 2 nurses (peak days)                       │  │
-│  │    Status: ⚠️ 1 VET SHORTAGE on peak days                      │  │
+│  │    Current: 3 staff, 2 nurses                                   │  │
+│  │    Required: 4 staff, 2 nurses (peak days)                      │  │
+│  │    Status: ⚠️ 1 STAFF SHORTAGE on peak days                     │  │
 │  │                                                                  │  │
 │  │ 🎯 Recommendations (AUTONOMOUS ACTIONS):                         │  │
 │  │    1. 🔔 ALERT: Notify manager of overload risk                 │  │
@@ -2713,8 +2713,8 @@ def create_clinical_agent():
 ║                                                                       ║
 ║  ─────────────────────────────────────────────────────────────────   ║
 ║  Human Action REQUIRED:                                              ║
-║  • Vet must acknowledge emergency                                    ║
-║  • Vet confirms treatment plan                                       ║
+║  • Staff must acknowledge emergency                                  ║
+║  • Staff confirms treatment plan                                     ║
 ║                                                                       ║
 ╚═══════════════════════════════════════════════════════════════════════╝
 ```
@@ -2997,7 +2997,7 @@ Phần này đặc tả kỹ thuật triển khai các tính năng chẩn đoán
 
 ### 9.1 Clinical Diagnosis Engineering
 
-Hệ thống sử dụng mô hình tác vụ đa tầng để hỗ trợ bác sĩ đưa ra quyết định lâm sàng chính xác.
+Hệ thống sử dụng mô hình tác vụ đa tầng để hỗ trợ Staff đưa ra quyết định lâm sàng chính xác.
 
 **Các thành phần công nghệ:**
 - Môi trường: FastAPI (Python). Orchestration: LangGraph.
@@ -3006,13 +3006,13 @@ Hệ thống sử dụng mô hình tác vụ đa tầng để hỗ trợ bác s�
 - Dữ liệu đầu vào:
     - Định danh: Thông tin giống, loài, tuổi, cân nặng (Signalment).
     - Lịch sử y tế: Truy vấn từ PostgreSQL (lịch sử tiêm phòng) và MongoDB (các bản EMR cũ).
-    - Dấu hiệu hiện tại: Triệu chứng do chủ nuôi mô tả và phát hiện lâm sàng của bác sĩ.
+    - Dấu hiệu hiện tại: Triệu chứng do chủ nuôi mô tả và phát hiện lâm sàng của Staff.
 
 **Quy trình xử lý chẩn đoán (Flowchart):**
 
 ```mermaid
 graph TD
-    A[Bac si nhap mo ta trieu chung] --> B[AI trich xuat thuc the Entity Extraction]
+    A[Staff nhap mo ta trieu chung] --> B[AI trich xuat thuc the Entity Extraction]
     B --> C[Agent goi Tool truy van PostgreSQL/MongoDB]
     C --> D[Tong hop Context: Tien su + Hien trang]
     D --> E[DeepSeek-V3/R1 thuc hien Chain of Thought]
@@ -3026,7 +3026,7 @@ graph TD
 
 ### 9.2 EMR Summary and SOAP Automation
 
-Hệ thống tự động hóa việc ghi chép bệnh án để giảm tải công việc hành chính cho bác sĩ.
+Hệ thống tự động hóa việc ghi chép bệnh án để giảm tải công việc hành chính cho Staff.
 
 **Các thành phần công nghệ:**
 - Mô hình xử lý: Gemini 2.0 Flash (tối ưu về chi phí và tốc độ cho các tác vụ tóm tắt dữ liệu lớn).

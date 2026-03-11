@@ -182,17 +182,26 @@
 │  ├── @mcp.tool: check_available_slots → Check available slots      │
 │  └── @mcp.tool: create_booking_for_user → Create booking via chat  │
 │                                                                     │
-│  📚 RAG Engine (LlamaIndex + Qdrant)                                │
-│  ├── LlamaIndex: Document processing, chunking, retrieval          │
-│  ├── Qdrant Cloud: Vector storage với Binary Quantization          │
-│  └── Cohere Embeddings (embed-multilingual-v3)                      │
+│  📚 Hybrid RAG Engine                                               │
+│  ├── RAG Engine: LlamaIndex + Qdrant Cloud + Cohere Embeddings     │
+│  ├── Query Expander: LLM-based short query expansion               │
+│  ├── Knowledge Graph: LlamaIndex KGIndex + SimpleGraphStore        │
+│  ├── Case Memory: Confirmed cases + feedback-weighted re-ranking   │
+│  └── Parallel Search: RAG + KG + Case Memory merged results       │
+│                                                                     │
+│  💬 Feedback Loop                                                    │
+│  ├── User Feedback Collection (1-5 rating per message)             │
+│  ├── Auto-embed positive cases into Case Memory                    │
+│  └── Role-based feedback weights (STAFF=1.0, PET_OWNER=0.6)       │
 │                                                                     │
 │  ⚙️ Admin Config                                                    │
 │  ├── Enable/Disable Agent                                           │
 │  ├── System Prompt (editable)                                       │
 │  ├── Parameters: Temperature, Max Tokens, Top-P                     │
 │  ├── Tool Management: Enable/Disable individual tools              │
-│  └── Knowledge Base: Upload/Remove documents                        │
+│  ├── Knowledge Base: Upload/Remove documents                        │
+│  ├── Knowledge Graph: Build/Stats                                   │
+│  └── Case Memory: Stats/Prune                                       │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -228,6 +237,45 @@
 - 🔢 **Embedding** - Cohere embed-multilingual-v3
 - 🔍 **Vector Search** - Qdrant Cloud với Binary Quantization
 - 📖 **Retrieval** - Top-K similarity search
+
+### AI Accuracy Improvement Mechanisms ✅ (Sprint 13)
+
+> **4 cơ chế cải thiện độ chính xác AI theo thời gian** - Tất cả đã được implement và tích hợp vào HybridRAGEngine.
+
+#### Query Expansion (Mở rộng truy vấn) ✅
+- 🔍 **LLM-based Query Expansion** - Mở rộng câu hỏi ngắn/mơ hồ thành truy vấn chi tiết hơn trước khi search RAG
+- 🔍 Tự động bỏ qua nếu query đã đủ dài hoặc rõ ràng (>50 ký tự)
+- 🔍 Tích hợp vào `pet_knowledge_search` MCP tool
+- 🔍 File: `app/core/rag/query_expander.py`
+
+#### Knowledge Graph (Đồ thị tri thức) ✅
+- 🧠 **LlamaIndex KnowledgeGraphIndex** - Trích xuất quan hệ (entity → relation → entity) từ tài liệu
+- 🧠 **SimpleGraphStore** - Lưu trữ graph trong file JSON (phù hợp MVP)
+- 🧠 Build từ Admin API (`POST /knowledge/build-kg`)
+- 🧠 Cung cấp ngữ cảnh quan hệ bổ sung cho RAG retrieval
+- 🧠 File: `app/core/rag/knowledge_graph.py`
+
+#### Visual Case Memory (Bộ nhớ ca bệnh) ✅
+- 📋 **Confirmed Case Storage** - Lưu các ca bệnh đã xác nhận từ feedback tích cực vào Qdrant
+- 📋 **Feedback-weighted Re-ranking** - Score = cosine_similarity + min(feedback_count/100, 0.3) + (0.1 if staff_verified)
+- 📋 **Role-based Weights** - STAFF=1.0, CLINIC_MANAGER/OWNER=0.7, PET_OWNER=0.6
+- 📋 Auto-embed khi nhận feedback tích cực (rating >= 4)
+- 📋 Admin prune endpoint (`POST /knowledge/case-memory/prune`)
+- 📋 File: `app/core/rag/case_memory.py`
+
+#### Feedback Loop (Vòng phản hồi) ✅
+- 💬 **User Feedback API** - Thu thập đánh giá (1-5 sao) cho mỗi tin nhắn AI
+- 💬 **Auto-classify** - Tự động phân loại feedback dựa trên rating
+- 💬 **Auto-embed Positive Cases** - Feedback tốt tự động lưu vào Case Memory
+- 💬 **Per-role Statistics** - Admin xem toàn bộ, user khác chỉ xem feedback của mình
+- 💬 MongoDB storage (feedback collection)
+- 💬 File: `app/core/services/feedback_service.py`, `app/api/schemas/feedback_schemas.py`
+
+#### Hybrid RAG Engine (Tổng hợp) ✅
+- 🔗 **Parallel Search** - Chạy đồng thời RAG + Knowledge Graph + Case Memory
+- 🔗 **Merged Results** - Gộp và deduplicate kết quả từ 3 nguồn
+- 🔗 **Graceful Degradation** - Nếu KG hoặc Case Memory lỗi, vẫn trả kết quả RAG
+- 🔗 File: `app/core/rag/hybrid_engine.py`
 
 ---
 
@@ -300,7 +348,7 @@
 | `ACTIVE` | Hoạt động bình thường | ✅ |
 | `DEACTIVATED` | Nghỉ việc / Bị vô hiệu hóa | ❌ |
 
-**Lưu ý:** Role `STAFF` bao quát cả nhân viên thú y (specialty **VET**) và nhân viên grooming (specialty **GROOMER**). Chuyên môn được phân biệt qua trường `StaffSpecialty` (đơn giản hóa còn 2 loại từ 2026-02-28).
+**Lưu ý:** Role `STAFF` bao quát toàn bộ nhân sự phòng khám. Chuyên môn được phân biệt bằng nhóm chuyên môn y tế và grooming.
 
 ---
 
@@ -323,7 +371,7 @@
 ## 🔑 KEY FEATURES SUMMARY (MVP 1-Month Scope)
 
 ### ✅ CORE FEATURES (In Scope)
-✅ **Clinic-based vets** (NO freelancers)  
+✅ **Clinic-based staff** (NO freelancers)  
 ✅ **Shared EMR** (All clinics see medical history)  
 ✅ **Shared vaccination records** (Across clinics)  
 ✅ **Dynamic pricing** (Base + Weight-based + Distance fees)  
@@ -331,7 +379,7 @@
 ✅ **Slot management** (Auto reduce/restore)  
 ✅ **Manual scheduling** (Manager tạo lịch thủ công)  
 ✅ **Multiple appointment types** (IN_CLINIC, HOME_VISIT)  
-✅ **Quy trình Booking (Booking workflow)**: (PENDING → CONFIRMED → ASSIGNED → CHECK_IN → IN_PROGRESS → **PAID** → **CHECK_OUT / COMPLETED**)
+✅ **Quy trình Booking (Booking workflow)**: `PENDING → CONFIRMED → IN_PROGRESS → COMPLETED`
   
 ✅ **Rating system** (Pet owner đánh giá Clinic/Staff)  
 ✅ **SOS Geo-Tracking** (GPS realtime tracking cho cấp cứu)
@@ -340,6 +388,10 @@
 ✅ **Push Notifications** (Firebase)  
 ✅ **Admin Agent Config** (Prompt, Parameters, Tools, Knowledge Base)  
 ✅ **Knowledge Base RAG** (LlamaIndex + Qdrant Cloud)  
+✅ **Query Expansion** (LLM-based short query expansion)  
+✅ **Knowledge Graph** (LlamaIndex KGIndex + SimpleGraphStore)  
+✅ **Case Memory** (Confirmed cases + feedback-weighted re-ranking)  
+✅ **Feedback Loop** (User feedback → auto-embed positive cases)
 
 ### ❌ DEFERRED (Phase 2)
 ❌ ~~Home Visit Geo-Routing~~ (Đơn giản hóa cho MVP, chỉ dùng cho SOS)
@@ -365,16 +417,16 @@
 
 ---
 
-**Version: 1.7.0 - PETTIES MVP SCOPE (VET→STAFF MIGRATION COMPLETE)**
+**Version: 1.8.0 - PETTIES MVP SCOPE (AI ACCURACY IMPROVEMENT COMPLETE)**
 **Status: ✅ READY FOR DEV**
-**Total Features: 109 Use Cases (Full Coverage)**
-**Last Updated: February 24, 2026**
+**Total Features: 113 Use Cases (Full Coverage)**
+**Last Updated: March 11, 2026**
 
 ---
 
-## 📊 MIGRATION STATUS: VET → STAFF ✅ HOÀN THÀNH
+## 📊 ROLE STANDARDIZATION: STAFF ✅ HOÀN THÀNH
 
-> **Note:** Thuật ngữ `Vet` đã được migrate sang `Staff` để phù hợp với mô hình nhân viên đa dạng (Bác sĩ thú y, Groomer, v.v.)
+> **Note:** Tài liệu dùng thống nhất thuật ngữ `Staff` cho role nhân sự phòng khám và không dùng lại thuật ngữ cũ.
 
 | Thành phần | Trạng thái |
 |------------|------------|
@@ -384,4 +436,3 @@
 | Mobile (Flutter) | ✅ 100% |
 | Unit Tests | ✅ 62/62 passed |
 
-**Chi tiết:** Xem `docs-references/development/dev/VET_TO_STAFF_MIGRATION_GUIDE.md`

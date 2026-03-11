@@ -78,7 +78,7 @@ class ContextPolicyTests(unittest.TestCase):
             base_prompt="Base prompt",
             user_role="CLINIC_MANAGER",
             context_type=BUSINESS_CHAT,
-            allowed_tools=["analyze_revenue_trends", "optimize_schedules"],
+            allowed_tools=["analyze_revenue_trends", "suggest_staff_assignments"],
         )
 
         self.assertIn("role CLINIC_MANAGER", prompt)

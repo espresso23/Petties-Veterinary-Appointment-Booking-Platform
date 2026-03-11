@@ -6,30 +6,35 @@ class Environment {
   /// WebSocket URL override from --dart-define=WS_URL
   static const String _wsUrlOverride = String.fromEnvironment('WS_URL');
 
-  /// Get the WebSocket URL from --dart-define hoặc .env (WS_URL)
+  /// Get the WebSocket URL
+  /// IMPORTANT: Dart's Uri.parse() returns port 0 for 'wss://' scheme
+  /// (it only recognizes http/https). This causes BAD_DECRYPT errors.
+  /// Solution: Always derive WS URL from baseUrl and set port explicitly.
   static String get wsUrl {
+    // 1. dart-define override (compile time) - used for specific overrides
     if (_wsUrlOverride.isNotEmpty) {
       return _wsUrlOverride;
     }
 
-    try {
-      String envWsUrl = dotenv.env['WS_URL'] ?? '';
-      if (envWsUrl.isNotEmpty) {
-        // Ensure path is present
-        if (!envWsUrl.contains('/ws-native')) {
-          if (envWsUrl.endsWith('/')) {
-            envWsUrl += 'api/ws-native';
-          } else if (envWsUrl.endsWith('/api')) {
-            envWsUrl += '/ws-native';
-          } else {
-            envWsUrl += '/api/ws-native';
-          }
-        }
-        return envWsUrl;
-      }
-    } catch (_) {}
+    // 2. Derive from baseUrl (most reliable approach)
+    // baseUrl is always https:// or http://, which Dart handles correctly
+    final base = baseUrl; // e.g. https://ngrok-domain/api
+    final serverUrl = base.replaceAll('/api', ''); // https://ngrok-domain
 
-    return '';
+    if (serverUrl.startsWith('https://')) {
+      // Extract host from https:// URL
+      final host = serverUrl.replaceFirst('https://', '');
+      // Use wss:// with explicit port 443 to avoid Dart port 0 bug
+      return 'wss://$host:443/api/ws-native';
+    } else if (serverUrl.startsWith('http://')) {
+      final host = serverUrl.replaceFirst('http://', '');
+      // Local dev: ws:// with the port from the URL (usually 8080)
+      // If host already has port (e.g., localhost:8080), don't add another
+      return 'ws://$host/api/ws-native';
+    }
+
+    // Fallback
+    return 'ws://localhost:8080/api/ws-native';
   }
 
   Environment._();

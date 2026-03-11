@@ -1,8 +1,8 @@
-﻿# II. Software Design Document
+# II. Software Design Document
 
 **Project:** Petties - Veterinary Appointment Booking Platform
-**Version:** 3.2.2 (Updated database design inventory and diagrams to match current backend and AI data model)
-**Last Updated:** 2026-03-09
+**Version:** 3.3.0 (Added Section 4.19 AI Data Improvement Mechanisms: Query Expansion, Knowledge Graph, Visual Case Memory, Feedback Loop)
+**Last Updated:** 2026-03-11
 **Document Status:** In Progress
 
 ## TABLE OF CONTENTS
@@ -1451,7 +1451,7 @@ erDiagram
 | avatar | VARCHAR(500) | | Avatar URL (Cloudinary) |
 | avatar_public_id | VARCHAR(100) | | Cloudinary public ID |
 | role | ENUM | NOT NULL | PET_OWNER, STAFF, CLINIC_MANAGER, CLINIC_OWNER, ADMIN |
-| specialty | ENUM | | VET, GROOMER |
+| specialty | ENUM | | MEDICAL, GROOMER |
 | rating_avg | DECIMAL(2,1) | DEFAULT 0.0 | Average rating |
 | rating_count | INT | DEFAULT 0 | Number of ratings |
 | fcm_token | VARCHAR(500) | | Firebase Cloud Messaging token |
@@ -1992,7 +1992,7 @@ JWT_SECRET
 | Enum | Values |
 |------|--------|
 | **role** | PET_OWNER, STAFF, CLINIC_MANAGER, CLINIC_OWNER, ADMIN |
-| **staff_specialty** | VET, GROOMER |
+| **staff_specialty** | MEDICAL, GROOMER |
 | **clinic_status** | PENDING, APPROVED, REJECTED, SUSPENDED |
 | **booking_type** | IN_CLINIC, HOME_VISIT, SOS |
 | **booking_status** | PENDING, SEARCHING, PENDING_CLINIC_CONFIRM, CONFIRMED, IN_PROGRESS, COMPLETED, CANCELLED, NO_SHOW |
@@ -2278,7 +2278,7 @@ flowchart LR
   "petOwnerName": "Nguyen Van A",
   "petOwnerAvatar": "https://res.cloudinary.com/petties/avatars/user-001.jpg",
 
-  "lastMessage": "Cam on bac si, ngay mai em se dem be den!",
+  "lastMessage": "Cam on Staff, ngay mai em se dem be den!",
   "lastMessageSender": "PET_OWNER",
   "lastMessageAt": ISODate("2025-01-26T15:30:00Z"),
 
@@ -2521,6 +2521,20 @@ flowchart LR
 | GET | `/ai/knowledge/documents` | List documents status | Admin |
 | POST | `/ai/knowledge/query` | Test RAG Retrieval | Admin |
 | GET | `/ai/knowledge/status` | KB Status & Stats | Admin |
+
+#### 3.2.5 Feedback & Data Improvement (`/ai/chat`)
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| POST | `/ai/chat/feedback` | Submit feedback (thumbs up/down/report) for a message | Auth |
+| GET | `/ai/chat/feedback/stats` | Get feedback statistics by role and period | Admin |
+
+#### 3.2.6 Knowledge Graph & Case Memory (`/ai/knowledge`)
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| POST | `/ai/knowledge/build-kg` | Build Knowledge Graph from indexed documents | Admin |
+| GET | `/ai/knowledge/kg-stats` | Get Knowledge Graph statistics (entities, relations) | Admin |
+| POST | `/ai/knowledge/embed-confirmed-cases` | Batch embed confirmed feedback cases into Case Memory | Admin |
+| GET | `/ai/knowledge/case-memory/stats` | Get Case Memory statistics (total cases, categories) | Admin |
 
 ### 3.3 Implemented Modules (Backend) - Previously Planned
 
@@ -7803,6 +7817,703 @@ sequenceDiagram
 
 ---
 
+### 4.19 AI Data Improvement Mechanisms
+
+He thong AI cua Petties su dung 4 co che chinh de cai thien do chinh xac theo thoi gian: **Query Expansion**, **Knowledge Graph**, **Visual Case Memory**, va **Feedback Loop**. Cac co che nay hoat dong dong thoi, bo sung cho nhau, va ap dung cho **tat ca roles** (PET_OWNER, STAFF, CLINIC_MANAGER, CLINIC_OWNER, ADMIN) tren **tat ca loai tuong tac AI** (pet health Q&A, booking, EMR, clinic management, revenue analysis,...).
+
+**Reference:** `AI_AGENT_DATA_IMPROVEMENT_STRATEGY.md` (sections 7-12)
+
+#### 4.19.1 Class Diagram - AI Data Improvement
+
+```mermaid
+classDiagram
+    %% === QUERY EXPANSION ===
+    class QueryExpander {
+        -llm_client: OpenRouterClient
+        -min_word_threshold: int = 5
+        +expand_query(query: str, pet_type: str) str
+        -_build_expansion_prompt(query: str, pet_type: str) str
+        -_is_short_query(query: str) bool
+    }
+
+    %% === KNOWLEDGE GRAPH ===
+    class KnowledgeGraphService {
+        -kg_index: KnowledgeGraphIndex
+        -graph_store: SimpleGraphStore
+        -llm_client: OpenRouterClient
+        +build_from_documents(documents: List) int
+        +query_graph(query: str) KGQueryResult
+        +extract_triplets(text: str) List~Triplet~
+        +get_graph_stats() dict
+    }
+
+    class Triplet {
+        +subject: str
+        +predicate: str
+        +object: str
+        +source_chunk_id: str
+    }
+
+    class KGQueryResult {
+        +triplets: List~Triplet~
+        +related_entities: List~str~
+        +reasoning_chain: str
+    }
+
+    %% === VISUAL CASE MEMORY ===
+    class CaseMemoryService {
+        -qdrant_client: QdrantClient
+        -embedding_model: CohereEmbedding
+        -collection_name: str = "petties_case_memory"
+        +upsert_case(case: ConfirmedCase) str
+        +search_similar(query: str, threshold: float) List~CaseResult~
+        +update_feedback_count(case_id: str) void
+        +prune_low_score_cases(min_score: float) int
+        +get_stats() CaseMemoryStats
+    }
+
+    class ConfirmedCase {
+        +case_id: str
+        +session_id: str
+        +message_id: str
+        +feedback_category: FeedbackCategory
+        +user_role: str
+        +visual_description: str
+        +diagnosis: str
+        +species: str
+        +symptoms: List~str~
+        +treatment: str
+        +tool_used: str
+        +feedback_type: str = "confirmed"
+        +feedback_count: int
+        +confidence_score: float
+        +staff_verified: bool
+        +created_at: datetime
+    }
+
+    class CaseResult {
+        +case: ConfirmedCase
+        +similarity_score: float
+        +final_score: float
+    }
+
+    class CaseMemoryStats {
+        +total_cases: int
+        +medical_cases: int
+        +booking_cases: int
+        +clinic_ops_cases: int
+        +avg_feedback_count: float
+        +staff_verified_count: int
+    }
+
+    %% === FEEDBACK LOOP ===
+    class FeedbackService {
+        -mongodb: MongoDBClient
+        -case_memory: CaseMemoryService
+        -collection_name: str = "chat_feedback"
+        +save_feedback(feedback: FeedbackRequest) FeedbackResponse
+        +process_positive_feedback(message_id: str, feedback: dict) void
+        +classify_interaction(message: ChatMessage) FeedbackCategory
+        +get_feedback_stats(role: str, period: str) dict
+        -_extract_case_by_category(message: ChatMessage, category: FeedbackCategory) ConfirmedCase
+        -_calculate_feedback_weight(user_role: str) float
+    }
+
+    class FeedbackRequest {
+        +message_id: str
+        +session_id: str
+        +user_role: str
+        +feedback_type: FeedbackType
+        +feedback_category: FeedbackCategory
+        +feedback_reason: FeedbackReason
+        +feedback_text: str
+        +tool_used: str
+    }
+
+    class FeedbackResponse {
+        +status: str
+        +case_embedded: bool
+        +category: FeedbackCategory
+    }
+
+    class FeedbackType {
+        <<enumeration>>
+        THUMBS_UP
+        THUMBS_DOWN
+        REPORT
+    }
+
+    class FeedbackCategory {
+        <<enumeration>>
+        MEDICAL
+        BOOKING
+        CLINIC_OPS
+        KNOWLEDGE
+        GENERAL
+    }
+
+    class FeedbackReason {
+        <<enumeration>>
+        INCORRECT_INFO
+        UNHELPFUL
+        OFFENSIVE
+        WRONG_TOOL
+        SLOW_RESPONSE
+        OTHER
+    }
+
+    %% === ROLE FEEDBACK WEIGHTS ===
+    class FeedbackWeightConfig {
+        +STAFF_CONFIRMED: float = 1.0
+        +CLINIC_MANAGER_POSITIVE: float = 0.7
+        +CLINIC_OWNER_POSITIVE: float = 0.7
+        +PET_OWNER_THUMBS_UP: float = 0.6
+        +ADMIN_PLAYGROUND: float = 0.0
+    }
+
+    %% === HYBRID RAG ENGINE (updated) ===
+    class HybridRAGEngine {
+        -rag_engine: LlamaIndexRAGEngine
+        -kg_service: KnowledgeGraphService
+        -case_memory: CaseMemoryService
+        -query_expander: QueryExpander
+        +query(user_query: str, pet_type: str) HybridResult
+        -_merge_and_rerank(rag_results, kg_results, case_results) List
+    }
+
+    class HybridResult {
+        +answer: str
+        +rag_sources: List~str~
+        +kg_reasoning: str
+        +similar_cases: List~CaseResult~
+        +confidence: float
+    }
+
+    %% === RELATIONSHIPS ===
+    HybridRAGEngine --> QueryExpander : uses
+    HybridRAGEngine --> KnowledgeGraphService : uses
+    HybridRAGEngine --> CaseMemoryService : uses
+    HybridRAGEngine "1" --> "1" LlamaIndexRAGEngine : wraps
+
+    FeedbackService --> CaseMemoryService : embeds confirmed cases
+    FeedbackService --> FeedbackWeightConfig : uses weights
+    FeedbackService ..> FeedbackRequest : receives
+    FeedbackService ..> FeedbackResponse : returns
+    FeedbackService ..> FeedbackCategory : classifies
+
+    CaseMemoryService ..> ConfirmedCase : stores
+    CaseMemoryService ..> CaseResult : returns
+
+    KnowledgeGraphService ..> Triplet : extracts
+    KnowledgeGraphService ..> KGQueryResult : returns
+
+    class LlamaIndexRAGEngine {
+        <<existing>>
+        +query(query: str, top_k: int) List~Node~
+    }
+```
+
+#### 4.19.2 Class Specifications
+
+**1. QueryExpander**
+
+| Responsibility | Mo rong query ngan gon thanh cau hoi day du hon truoc khi search RAG |
+|---------------|----------------------------------------------------------------------|
+| Location | `petties-agent-serivce/app/core/rag/query_expander.py` |
+
+| Method | Description |
+|--------|-------------|
+| `expand_query(query, pet_type)` | Neu query < 5 tu: goi LLM mo rong them dong nghia, thuat ngu thu y, trieu chung lien quan. Tra ve query goc + bo sung. |
+| `_build_expansion_prompt(query, pet_type)` | Tao prompt cho LLM: them synonym, medical terms, species context |
+| `_is_short_query(query)` | Kiem tra query co it hon min_word_threshold tu khong |
+
+**2. KnowledgeGraphService**
+
+| Responsibility | Xay dung va query do thi tri thuc thu y (Symptom -> Disease -> Treatment) |
+|---------------|---------------------------------------------------------------------------|
+| Location | `petties-agent-serivce/app/core/rag/knowledge_graph.py` |
+
+| Method | Description |
+|--------|-------------|
+| `build_from_documents(documents)` | Tao KG index tu tai lieu: parse, extract triplets, luu vao graph store. Tra ve so triplets. |
+| `query_graph(query)` | Duyet graph de tim quan he: trieu chung -> benh -> xu ly. Tra ve KGQueryResult. |
+| `extract_triplets(text)` | Goi LLM extract (subject, predicate, object) tu text chunk. |
+| `get_graph_stats()` | So entity, so relation, top diseases, top symptoms. |
+
+**3. CaseMemoryService**
+
+| Responsibility | Quan ly case memory trong Qdrant: luu, tim, cap nhat, prune cases da xac nhan |
+|---------------|-------------------------------------------------------------------------------|
+| Location | `petties-agent-serivce/app/core/rag/case_memory.py` |
+
+| Method | Description |
+|--------|-------------|
+| `upsert_case(case)` | Embed text description + metadata vao Qdrant `petties_case_memory`. Tra ve case_id. |
+| `search_similar(query, threshold)` | Tim cases tuong tu, re-rank theo feedback_count + staff_verified. |
+| `update_feedback_count(case_id)` | Tang feedback_count +1 khi co feedback moi cho case da ton tai. |
+| `prune_low_score_cases(min_score)` | Xoa cases co score thap va feedback_count = 0. Tra ve so cases da xoa. |
+| `get_stats()` | Thong ke: total cases, phan loai theo category, avg feedback, vet verified count. |
+
+**4. FeedbackService**
+
+| Responsibility | Thu thap, phan loai, xu ly feedback tu tat ca roles. Auto-embed confirmed cases. |
+|---------------|-----------------------------------------------------------------------------------|
+| Location | `petties-agent-serivce/app/core/services/feedback_service.py` |
+
+| Method | Description |
+|--------|-------------|
+| `save_feedback(feedback)` | Luu feedback vao MongoDB `chat_feedback`. Neu positive -> goi process_positive_feedback. |
+| `process_positive_feedback(message_id, feedback)` | Extract case theo category (medical/booking/clinic_ops/general) -> embed vao Case Memory. |
+| `classify_interaction(message)` | Auto-classify dua tren tools da goi trong react_trace. MEDICAL_TOOLS, BOOKING_TOOLS, CLINIC_OPS_TOOLS. |
+| `get_feedback_stats(role, period)` | Thong ke feedback theo role va thoi gian: thumbs_up/down ratio, top reasons, tool performance. |
+| `_calculate_feedback_weight(user_role)` | STAFF=1.0, CLINIC_MANAGER/OWNER=0.7, PET_OWNER=0.6, ADMIN=0.0 |
+
+**5. HybridRAGEngine**
+
+| Responsibility | Ket hop 3 nguon tri thuc (RAG + KG + Case Memory) de tra loi chinh xac hon |
+|---------------|-----------------------------------------------------------------------------|
+| Location | `petties-agent-serivce/app/core/rag/hybrid_engine.py` |
+
+| Method | Description |
+|--------|-------------|
+| `query(user_query, pet_type)` | Pipeline: expand query -> search RAG + KG + Case Memory song song -> merge & re-rank -> tra ve HybridResult |
+| `_merge_and_rerank(rag, kg, cases)` | Ket hop ket qua tu 3 nguon, tinh final_score dua tren relevance + feedback_count + staff_verified |
+
+#### 4.19.3 Sequence Diagram: Query Expansion Flow
+
+```mermaid
+sequenceDiagram
+    actor User as User (Any Role)
+    participant Agent as AI Agent (ReAct)
+    participant QE as QueryExpander
+    participant LLM as LLM (OpenRouter)
+    participant RAG as RAG Engine (Qdrant)
+
+    User->>Agent: 1. "cho non bo an"
+    activate Agent
+
+    Agent->>QE: 2. expand_query("cho non bo an", "cho")
+    activate QE
+
+    QE->>QE: 3. _is_short_query() -> true (3 tu < 5)
+    QE->>LLM: 4. Prompt: "Mo rong query thu y: cho non bo an"
+    activate LLM
+    LLM-->>QE: 5. "cho non mua oi chan an bieng an viem da day ngo doc parvo giun san"
+    deactivate LLM
+
+    QE-->>Agent: 6. Expanded: "cho non bo an cho non mua oi chan an bieng an viem da day ngo doc parvo giun san"
+    deactivate QE
+
+    Agent->>RAG: 7. query(expanded_query, top_k=5)
+    activate RAG
+    RAG-->>Agent: 8. Top 5 chunks (relevance cao hon vi co nhieu tu khoa match)
+    deactivate RAG
+
+    Agent-->>User: 9. Tra loi chinh xac hon nho expanded query
+    deactivate Agent
+```
+
+#### 4.19.4 Sequence Diagram: Knowledge Graph Build & Query
+
+```mermaid
+sequenceDiagram
+    actor Admin
+    participant API as AI Service API
+    participant KG as KnowledgeGraphService
+    participant LLM as LLM (OpenRouter)
+    participant Store as SimpleGraphStore
+    participant Qdrant as Qdrant Cloud
+
+    Note over Admin,Qdrant: === PHASE 1: Build KG tu tai lieu ===
+    Admin->>API: 1. POST /ai/knowledge/build-kg (document_ids)
+    activate API
+
+    API->>KG: 2. build_from_documents(documents)
+    activate KG
+
+    loop Moi document chunk
+        KG->>LLM: 3. extract_triplets(chunk_text)
+        activate LLM
+        Note right of LLM: "Meo bi ran tai thuong<br/>ngua, lac dau, can thuoc<br/>nho tai, rua tai"
+        LLM-->>KG: 4. Triplets:<br/>(Ran_tai, trieu_chung, Ngua)<br/>(Ran_tai, trieu_chung, Lac_dau)<br/>(Ran_tai, xu_ly, Thuoc_nho_tai)<br/>(Ran_tai, thuong_gap, Meo)
+        deactivate LLM
+
+        KG->>Store: 5. Store triplets in graph
+        KG->>Qdrant: 6. Embed triplet text (hybrid: vector + graph)
+    end
+
+    KG-->>API: 7. {total_triplets: 1250, entities: 340}
+    deactivate KG
+    API-->>Admin: 8. 200 OK - KG built successfully
+    deactivate API
+
+    Note over Admin,Qdrant: === PHASE 2: Hybrid Query (RAG + KG) ===
+    actor User
+    participant Agent as AI Agent
+
+    User->>Agent: 9. "Meo ho khan chay nuoc mui"
+    activate Agent
+
+    par RAG Search
+        Agent->>Qdrant: 10. Vector search (Cohere embedding)
+        Qdrant-->>Agent: 11. Top 5 chunks tuong tu
+    and KG Traversal
+        Agent->>KG: 12. query_graph("ho khan + chay nuoc mui")
+        activate KG
+        KG->>Store: 13. Duyet graph relationships
+        Note right of Store: Ho_khan --chi_diem--> Viem_mui_hong<br/>Chay_nuoc_mui --chi_diem--> Viem_mui_hong<br/>Viem_mui_hong --thuong_gap--> Meo<br/>Viem_mui_hong --xu_ly--> Khang_sinh
+        Store-->>KG: 14. Related triplets + reasoning chain
+        KG-->>Agent: 15. KGQueryResult {triplets, reasoning_chain}
+        deactivate KG
+    end
+
+    Agent->>Agent: 16. Merge RAG chunks + KG reasoning
+    Agent-->>User: 17. "Nghi viem duong ho hap tren (Viem mui hong).<br/>Logic: Ho khan + Chay mui -> Viem mui hong (thuong gap o meo).<br/>Xu ly: Khang sinh + Giu am + Kham tai phong kham."
+    deactivate Agent
+```
+
+#### 4.19.5 Sequence Diagram: Visual Case Memory Flow
+
+```mermaid
+sequenceDiagram
+    actor UserA as User A (Pet Owner)
+    participant Agent as AI Agent
+    participant Vision as LLM Vision (OpenRouter)
+    participant CaseMem as CaseMemoryService
+    participant RAG as RAG Engine
+    participant MongoDB as MongoDB
+    actor Staff as Staff
+
+    Note over UserA,Staff: === LAN 1: Case moi - Chua co case tham chieu ===
+    UserA->>Agent: 1. Gui anh tai meo + "Meo bi gi?"
+    activate Agent
+
+    Agent->>Vision: 2. analyze_pet_image(image_url)
+    activate Vision
+    Vision-->>Agent: 3. "Ong tai chua can nau den, dong cuc<br/>giong ba ca phe, viem do"
+    deactivate Vision
+
+    Agent->>CaseMem: 4. search_similar("can nau den tai meo")
+    activate CaseMem
+    CaseMem-->>Agent: 5. [] (khong co case nao)
+    deactivate CaseMem
+
+    Agent->>RAG: 6. query("can nau den tai meo ba ca phe")
+    RAG-->>Agent: 7. Chunks tu tai lieu thu y
+
+    Agent-->>UserA: 8. "Nghi ran tai (Ear Mites). Nen dua di kham."
+    Agent->>MongoDB: 9. Save message + react_trace + visual_description
+    deactivate Agent
+
+    Note over UserA,Staff: === STAFF XAC NHAN ===
+    Staff->>MongoDB: 10. Feedback: CONFIRMED + "Dung, ran tai Otodectes"
+    activate MongoDB
+
+    MongoDB->>CaseMem: 11. process_positive_feedback()
+    activate CaseMem
+    Note right of CaseMem: Extract case:<br/>visual: "can nau den dang ba ca phe"<br/>diagnosis: "Ran tai (Otodectes)"<br/>species: "meo", body_part: "tai"<br/>staff_verified: true, weight: 1.0
+    CaseMem->>CaseMem: 12. Embed text -> Qdrant petties_case_memory
+    deactivate CaseMem
+    deactivate MongoDB
+
+    Note over UserA,Staff: === LAN 2: Case tuong tu - Co case tham chieu ===
+    actor UserB as User B (Pet Owner moi)
+    UserB->>Agent: 13. Gui anh tai meo khac cung can den
+    activate Agent
+
+    Agent->>Vision: 14. analyze_pet_image(new_image)
+    Vision-->>Agent: 15. "Tai meo co chat nau den, viem"
+
+    Agent->>CaseMem: 16. search_similar("tai meo chat nau den viem")
+    activate CaseMem
+    CaseMem-->>Agent: 17. Case #1: Ran tai, score 0.92,<br/>staff_verified, feedback_count=1
+    deactivate CaseMem
+
+    Agent->>RAG: 18. Bo sung thong tin tu KB
+    RAG-->>Agent: 19. Additional context
+
+    Agent-->>UserB: 20. "Ran tai (Otodectes cynotis), do tin cay 92%<br/>dua tren case tuong tu da duoc Staff xac nhan.<br/>Can thuoc nho tai + ve sinh. Nen dat lich kham."
+    deactivate Agent
+```
+
+#### 4.19.6 Sequence Diagram: Feedback Loop - All Roles
+
+```mermaid
+sequenceDiagram
+    actor User as User (Any Role)
+    participant Client as Mobile / Web
+    participant API as AI Service API
+    participant FBS as FeedbackService
+    participant MongoDB as MongoDB
+    participant CaseMem as CaseMemoryService
+    participant Qdrant as Qdrant Cloud
+
+    Note over User,Qdrant: === THU THAP FEEDBACK ===
+    User->>Client: 1. Bam Thumbs Up / Down / Report
+    Client->>API: 2. POST /ai/chat/feedback
+    activate API
+    Note right of API: Body: {message_id, session_id,<br/>user_role, feedback_type,<br/>feedback_category, feedback_reason,<br/>feedback_text, tool_used}
+
+    API->>FBS: 3. save_feedback(request)
+    activate FBS
+
+    FBS->>MongoDB: 4. Insert feedback vao chat_feedback
+    MongoDB-->>FBS: 5. saved
+
+    Note over FBS: 6. Kiem tra: feedback_type == THUMBS_UP ?
+
+    alt Positive Feedback (thumbs_up)
+        FBS->>MongoDB: 7. get_chat_message(message_id)
+        MongoDB-->>FBS: 8. Original message + react_trace
+
+        FBS->>FBS: 9. classify_interaction(message)
+        Note right of FBS: Dua tren tools trong react_trace:<br/>MEDICAL_TOOLS -> "medical"<br/>BOOKING_TOOLS -> "booking"<br/>CLINIC_OPS_TOOLS -> "clinic_ops"<br/>else -> "general"
+
+        FBS->>FBS: 10. _calculate_feedback_weight(user_role)
+        Note right of FBS: STAFF: 1.0<br/>CLINIC_MANAGER/OWNER: 0.7<br/>PET_OWNER: 0.6<br/>ADMIN: 0.0 (skip embed)
+
+        alt user_role != ADMIN
+            FBS->>FBS: 11. _extract_case_by_category(message, category)
+            Note right of FBS: medical: {diagnosis, symptoms, treatment}<br/>booking: {clinic, service, slot}<br/>clinic_ops: {query, tool, result}
+
+            FBS->>CaseMem: 12. upsert_case(confirmed_case)
+            activate CaseMem
+            CaseMem->>Qdrant: 13. Embed text + metadata
+            Qdrant-->>CaseMem: 14. OK
+            CaseMem->>CaseMem: 15. Check existing similar (threshold 0.95)
+            alt Case tuong tu da ton tai
+                CaseMem->>Qdrant: 16. update_feedback_count(existing_id)
+            end
+            CaseMem-->>FBS: 17. case_id
+            deactivate CaseMem
+        end
+
+        FBS-->>API: 18. {status: "saved", case_embedded: true, category: "medical"}
+    else Negative Feedback (thumbs_down / report)
+        FBS->>MongoDB: 19. Flag message for review
+        FBS-->>API: 20. {status: "saved", case_embedded: false, category: "medical"}
+    end
+
+    deactivate FBS
+    API-->>Client: 21. 200 OK - FeedbackResponse
+    deactivate API
+    Client-->>User: 22. "Cam on ban da gop y!"
+```
+
+#### 4.19.7 Sequence Diagram: Hybrid Query (RAG + KG + Case Memory)
+
+```mermaid
+sequenceDiagram
+    actor User as User (Any Role)
+    participant Agent as AI Agent (ReAct)
+    participant Hybrid as HybridRAGEngine
+    participant QE as QueryExpander
+    participant RAG as LlamaIndexRAGEngine
+    participant KG as KnowledgeGraphService
+    participant CaseMem as CaseMemoryService
+    participant LLM as LLM (OpenRouter)
+
+    User->>Agent: 1. "Meo ho khan 3 ngay chay nuoc mui"
+    activate Agent
+
+    Agent->>Hybrid: 2. query("Meo ho khan 3 ngay chay nuoc mui", "meo")
+    activate Hybrid
+
+    Hybrid->>QE: 3. expand_query(query, "meo")
+    QE-->>Hybrid: 4. Expanded query (them dong nghia, medical terms)
+
+    par Tim kiem song song 3 nguon
+        Hybrid->>RAG: 5a. query(expanded_query, top_k=5)
+        activate RAG
+        RAG-->>Hybrid: 6a. Top 5 document chunks
+        deactivate RAG
+    and
+        Hybrid->>KG: 5b. query_graph(expanded_query)
+        activate KG
+        KG-->>Hybrid: 6b. Triplets + reasoning chain:<br/>Ho_khan -> Viem_mui_hong<br/>Chay_mui -> Viem_mui_hong<br/>Viem_mui_hong -> Khang_sinh
+        deactivate KG
+    and
+        Hybrid->>CaseMem: 5c. search_similar(expanded_query)
+        activate CaseMem
+        CaseMem-->>Hybrid: 6c. Similar cases:<br/>Case #12: Meo ho + chay mui -> Viem duong ho hap<br/>(feedback_count=23, staff_verified=true)
+        deactivate CaseMem
+    end
+
+    Hybrid->>Hybrid: 7. _merge_and_rerank(rag, kg, cases)
+    Note right of Hybrid: Final score = relevance_score<br/>+ feedback_boost (min(count/100, 0.3))<br/>+ staff_boost (0.1 if verified)
+
+    Hybrid-->>Agent: 8. HybridResult {answer, sources, reasoning, cases, confidence: 0.89}
+    deactivate Hybrid
+
+    Agent->>LLM: 9. Tong hop: RAG evidence + KG logic + Case tham chieu
+    LLM-->>Agent: 10. Final answer (structured)
+
+    Agent-->>User: 11. "Nghi viem duong ho hap tren (confidence 89%).<br/>KG logic: Ho khan + Chay mui -> Viem mui hong.<br/>23 case tuong tu da xac nhan boi Staff.<br/>Khuyen: Khang sinh + Giu am + Dat lich kham."
+    deactivate Agent
+```
+
+#### 4.19.8 Per-User Context vs Shared Knowledge
+
+```mermaid
+flowchart TB
+    subgraph PER_USER["DU LIEU RIENG MOI USER (MongoDB)"]
+        direction TB
+        U1["User A (PET_OWNER)<br/>Session #1 - 20 messages"]
+        U2["User B (STAFF)<br/>Session #5 - 8 messages"]
+        U3["User C (CLINIC_MANAGER)<br/>Session #12 - 35 messages"]
+    end
+    
+    subgraph SHARED["DU LIEU CHUNG TOAN HE THONG (Qdrant Cloud)"]
+        direction TB
+        RAG["RAG Knowledge Base<br/>(Tai lieu thu y, petties_knowledge)"]
+        KG["Knowledge Graph<br/>(Triplets: Symptom->Disease->Treatment)"]
+        CM["Case Memory<br/>(Cases confirmed, petties_case_memory)"]
+    end
+    
+    subgraph FEEDBACK_FLOW["FEEDBACK NUOI DU LIEU CHUNG"]
+        FB1["PET_OWNER: Thumbs Up<br/>weight 0.6"]
+        FB2["STAFF: Confirmed<br/>weight 1.0"]
+        FB3["CLINIC_MANAGER: Positive<br/>weight 0.7"]
+    end
+    
+    U1 -->|"Query"| RAG
+    U1 -->|"Query"| KG
+    U1 -->|"Query"| CM
+    U2 -->|"Query"| RAG
+    U2 -->|"Query"| KG
+    U2 -->|"Query"| CM
+    U3 -->|"Query"| RAG
+    U3 -->|"Query"| KG
+    U3 -->|"Query"| CM
+    
+    U1 -.-> FB1
+    U2 -.-> FB2
+    U3 -.-> FB3
+    
+    FB1 -->|"Embed"| CM
+    FB2 -->|"Embed (uu tien)"| CM
+    FB3 -->|"Embed"| CM
+```
+
+| Du lieu | Pham vi | Luu o dau | Cap nhat khi nao |
+|---------|---------|-----------|-----------------|
+| Chat session | RIENG moi user | MongoDB `ai_chat_sessions` | Moi lan tao session moi |
+| Chat messages + ReAct trace | RIENG moi session | MongoDB `ai_chat_messages` | Moi message gui/nhan |
+| Chat feedback | User gui RIENG | MongoDB `chat_feedback` | User bam thumbs up/down |
+| RAG Knowledge Base | CHUNG toan he thong | Qdrant `petties_knowledge` | Admin upload tai lieu |
+| Knowledge Graph | CHUNG toan he thong | LlamaIndex KG Index (SimpleGraphStore) | Extract triplets tu tai lieu + confirmed cases |
+| Case Memory | CHUNG toan he thong | Qdrant `petties_case_memory` | Auto-embed khi feedback confirmed |
+| System Prompt | CHUNG toan he thong | PostgreSQL `prompt_versions` | Admin tinh chinh |
+| Du lieu nghiep vu | Realtime query | PostgreSQL (Spring Boot) | Business operations |
+
+**Nguyen tac:** User RIENG hoi -> He thong tra loi dua tren tri thuc CHUNG -> Feedback RIENG nuoi tri thuc CHUNG -> Tat ca user duoc huong loi.
+
+#### 4.19.9 Qdrant Collection Schema - Case Memory
+
+```json
+{
+  "collection": "petties_case_memory",
+  "vector_size": 1024,
+  "distance": "Cosine",
+  "payload_schema": {
+    "case_id": "keyword",
+    "session_id": "keyword",
+    "message_id": "keyword",
+    "feedback_category": "keyword (medical | booking | clinic_ops | knowledge | general)",
+    "user_role": "keyword",
+    "visual_description": "text",
+    "diagnosis": "text",
+    "species": "keyword",
+    "body_part": "keyword",
+    "symptoms": "keyword[] (array)",
+    "treatment": "text",
+    "tool_used": "keyword",
+    "feedback_type": "keyword (confirmed | rejected)",
+    "feedback_count": "integer",
+    "confidence_score": "float",
+    "staff_verified": "bool",
+    "created_at": "datetime",
+    "last_confirmed_at": "datetime"
+  }
+}
+```
+
+**Feedback-weighted retrieval formula:**
+
+```
+final_score = cosine_similarity
+            + min(feedback_count / 100, 0.3)    -- feedback boost (cap 0.3)
+            + (0.1 if staff_verified else 0)     -- staff verification boost
+```
+
+#### 4.19.10 Accuracy Improvement Over Time
+
+| Giai doan | Thoi gian | So cases | Chat luong AI |
+|-----------|-----------|----------|---------------|
+| Khoi dau | Thang 1 | 0-50 | Dua vao tai lieu + LLM general knowledge |
+| Tich luy | Thang 2-3 | 50-500 | Co case thuc te de tham chieu, chinh xac hon |
+| Truong thanh | Thang 4-6 | 500-5000 | Phu hau het benh thuong gap, do tin cay cao |
+| Chuyen gia | Thang 6+ | 5000+ | Xu ly duoc ca case hiem, co the de xuat phuong an dieu tri |
+
+```mermaid
+flowchart LR
+    subgraph COLLECT["1. Thu thap"]
+        C1["Chat messages"]
+        C2["Feedback (all roles)"]
+        C3["Tai lieu thu y"]
+        C4["Confirmed cases"]
+    end
+    
+    subgraph PROCESS["2. Xu ly"]
+        P1["Query Expansion"]
+        P2["KG Triplet Extraction"]
+        P3["Case Embedding"]
+        P4["Feedback Classification"]
+    end
+    
+    subgraph IMPROVE["3. Cai thien"]
+        I1["RAG Knowledge Base mo rong"]
+        I2["Knowledge Graph phong phu hon"]
+        I3["Case Memory lon dan"]
+        I4["Prompt tinh chinh theo role"]
+    end
+    
+    subgraph DEPLOY["4. Trien khai"]
+        D1["AI tra loi chinh xac hon"]
+        D2["Do tin cay tang"]
+        D3["Case coverage rong hon"]
+    end
+    
+    COLLECT --> PROCESS --> IMPROVE --> DEPLOY
+    DEPLOY -->|"Vong lap lien tuc"| COLLECT
+```
+
+#### 4.19.11 Periodic Maintenance Schedule
+
+| Tan suat | Hanh dong | Muc dich | Trach nhiem |
+|----------|-----------|----------|-------------|
+| Hang ngay | Embed confirmed cases vao Qdrant (tat ca categories) | Case Memory lon dan | Auto (Scheduler) |
+| Hang ngay | Auto-classify implicit feedback (booking success, EMR lookup success) | Thu thap feedback tu dong | Auto (Scheduler) |
+| Hang tuan | Review cases bi thumbs_down - phan loai theo category va role | Phat hien van de cu the tung tool/role | Admin review |
+| Hang tuan | Phan tich `wrong_tool` feedback -> dieu chinh tool routing | Tool routing chinh xac hon | Admin + Auto |
+| Hang thang | Prune cases co score thap + feedback_count = 0 | Tranh nhieu vector store | Auto (Scheduler) |
+| Hang thang | Thong ke feedback theo role -> dieu chinh role-specific prompts | Prompt tot hon cho tung role | Admin review |
+| Hang quy | Re-rank toan bo case memory | Dam bao case tot nhat duoc uu tien | Admin + Auto |
+
+#### 4.19.12 Cross-Reference to SRS
+
+| SDD Section | SRS Reference | Description |
+|-------------|---------------|-------------|
+| 4.19.1 Class Diagram | 3.11 AI Assistant | Overall class structure for AI improvement mechanisms |
+| 4.19.3 Query Expansion | 3.11.1, 3.11.6 | Expands short queries before RAG search |
+| 4.19.4 Knowledge Graph | 3.11.1 | Builds symptom-disease-treatment graph from vet documents |
+| 4.19.5 Visual Case Memory | 3.11.1, 3.11.3 | Accumulates confirmed image diagnosis cases |
+| 4.19.6 Feedback Loop | 3.11.1-3.11.6 | Collects and processes feedback from all roles |
+| 4.19.7 Hybrid Query | 3.11.1, 3.11.6 | Combines RAG + KG + Case Memory for better accuracy |
+| 4.19.8 Per-User vs Shared | 3.11.5 | Data isolation: per-user sessions vs shared knowledge |
+
+---
+
 ---
 
 
@@ -7865,8 +8576,8 @@ sequenceDiagram
 ---
 
 **Prepared by:** Petties Development Team
-**Document Version:** 3.0.0 (Restructured Section 4 to match SRS 2.2 feature structure 1:1)
-**Last Updated:** 2026-03-05
+**Document Version:** 3.3.0 (Added Section 4.19 AI Data Improvement Mechanisms)
+**Last Updated:** 2026-03-11
 
 ---
 

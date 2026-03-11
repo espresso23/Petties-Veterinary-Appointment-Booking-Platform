@@ -424,168 +424,67 @@ class _AiChatScreenState extends State<AiChatScreen> {
         ],
       ),
       body: SafeArea(
-        child: Stack(
+        child: Column(
           children: [
-            _buildBackgroundAccents(),
-            Column(
-              children: [
-                _buildHeaderCard(horizontalPadding),
-                _buildQuickPromptBar(horizontalPadding),
-                Expanded(child: _buildContent()),
-                _buildComposer(horizontalPadding),
-              ],
-            ),
+            _buildStatusBar(),
+            Expanded(child: _buildContent()),
+            _buildComposer(horizontalPadding),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildBackgroundAccents() {
-    return IgnorePointer(
-      child: Stack(
-        children: [
-          Positioned(
-            top: -42,
-            right: -28,
-            child: Container(
-              width: 168,
-              height: 168,
-              decoration: BoxDecoration(
-                color: AppColors.warningLight.withValues(alpha: 0.65),
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-          Positioned(
-            top: 108,
-            left: -36,
-            child: Container(
-              width: 96,
-              height: 96,
-              decoration: BoxDecoration(
-                color: AppColors.infoLight.withValues(alpha: 0.55),
-                borderRadius: BorderRadius.circular(20),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildStatusBar() {
+    if (_agentStatus == null && !_isReconnecting && !_isSending) {
+      return const SizedBox.shrink();
+    }
 
-  Widget _buildHeaderCard(double horizontalPadding) {
+    final String label;
+    final Color bgColor;
+    final Color fgColor;
+    final IconData icon;
+
+    if (_isReconnecting) {
+      label = 'Đang kết nối lại...';
+      bgColor = AppColors.blue100;
+      fgColor = AppColors.blue600;
+      icon = Icons.sync;
+    } else if (_isSending) {
+      label = _agentStatus ?? 'Đang xử lý...';
+      bgColor = AppColors.primarySurface;
+      fgColor = AppColors.primaryDark;
+      icon = Icons.bolt;
+    } else {
+      label = _agentStatus ?? '';
+      bgColor = AppColors.successLight;
+      fgColor = AppColors.successDark;
+      icon = Icons.check_circle_outline;
+    }
+
     return Container(
       width: double.infinity,
-      margin: EdgeInsets.fromLTRB(horizontalPadding, 12, horizontalPadding, 8),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.white.withValues(alpha: 0.96),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.stone900, width: 2),
-        boxShadow: const [
-          BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
-        ],
+        color: bgColor,
+        border: const Border(
+          bottom: BorderSide(color: AppColors.stone200, width: 1),
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: AppColors.primarySurface,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.stone900, width: 2),
-                ),
-                child: const Icon(Icons.auto_awesome, color: AppColors.primary),
+          Icon(icon, size: 14, color: fgColor),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: fgColor,
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                     Text(
-                       'Trợ lý chăm sóc & đặt lịch',
-                       style: TextStyle(
-                         fontSize: 16,
-                         fontWeight: FontWeight.w800,
-                         color: AppColors.stone900,
-                       ),
-                    ),
-                    SizedBox(height: 2),
-                     Text(
-                       'Phản hồi nhanh, gợi ý rõ ràng, xác nhận ngay trong chat',
-                       style: TextStyle(
-                         fontSize: 12,
-                         fontWeight: FontWeight.w600,
-                         color: AppColors.stone600,
-                         height: 1.35,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                decoration: BoxDecoration(
-                  color: _isSending ? AppColors.blue100 : AppColors.successLight,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: AppColors.stone900, width: 1.5),
-                ),
-                child: Text(
-                  _isReconnecting
-                      ? 'ĐANG KẾT NỐI'
-                      : _isSending
-                          ? 'ĐANG XỬ LÝ'
-                          : 'SẴN SÀNG',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    color: _isReconnecting
-                        ? AppColors.blue600
-                        : _isSending
-                            ? AppColors.blue600
-                            : AppColors.successDark,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            decoration: BoxDecoration(
-              color: AppColors.primaryBackground,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.stone200),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  _agentStatus != null ? Icons.bolt : Icons.chat_bubble_outline,
-                  size: 16,
-                  color: AppColors.primary,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    _agentStatus ??
-                        'Bạn có thể hỏi về đặt lịch, lịch tiêm, dịch vụ phòng khám và các bước tiếp theo.',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      height: 1.4,
-                      color: AppColors.stone700,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
             ),
           ),
         ],
@@ -593,159 +492,172 @@ class _AiChatScreenState extends State<AiChatScreen> {
     );
   }
 
-  Widget _buildQuickPromptBar(double horizontalPadding) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(horizontalPadding, 0, horizontalPadding, 8),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: _quickPrompts
-              .take(3)
-              .map(
-                (prompt) => _QuickPromptCard(
-                  prompt: prompt,
-                  onTap: _isSending || _isReconnecting ? null : () => _sendMessage(prompt),
+  Widget _buildQuickPromptChips() {
+    return SizedBox(
+      height: 36,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: _quickPrompts.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final prompt = _quickPrompts[index];
+          return GestureDetector(
+            onTap: _isSending || _isReconnecting
+                ? null
+                : () => _sendMessage(prompt),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: AppColors.stone900, width: 1.5),
+                boxShadow: const [
+                  BoxShadow(color: AppColors.stone900, offset: Offset(2, 2)),
+                ],
+              ),
+              child: Text(
+                prompt,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.stone900,
                 ),
-              )
-              .toList(),
-        ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
 
   Widget _buildContent() {
     if (_isInitializing) {
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _AiLoadingHero(),
+            SizedBox(height: 12),
+            Text(
+              'Đang chuẩn bị trợ lý AI...',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: AppColors.stone900,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_error != null && _messages.isEmpty) {
       return Center(
-        child: SingleChildScrollView(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20),
-            padding: const EdgeInsets.all(20),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: AppColors.errorLight,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.stone900, width: 2),
+                ),
+                child: const Icon(
+                  Icons.cloud_off_outlined,
+                  color: AppColors.error,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                _friendlyErrorMessage(_error!),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.stone700,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 40,
+                child: ElevatedButton.icon(
+                  onPressed: _startNewSession,
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text(
+                    'THỬ LẠI',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: const BorderSide(color: AppColors.stone900, width: 2),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_messages.isEmpty) {
+      return Column(
+        children: [
+          const Spacer(),
+          Container(
+            width: 56,
+            height: 56,
             decoration: BoxDecoration(
-              color: AppColors.white,
+              color: AppColors.primarySurface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: AppColors.stone900, width: 2),
-              boxShadow: const [
-                BoxShadow(color: AppColors.stone900, offset: Offset(4, 4)),
-              ],
             ),
-            child: const Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _AiLoadingHero(),
-                SizedBox(height: 14),
-                Text(
-                  'Đang chuẩn bị trợ lý AI...',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.stone900,
-                  ),
-                ),
-                SizedBox(height: 14),
-                _LoadingMessageSkeleton(),
-              ],
+            child: const Icon(Icons.auto_awesome, color: AppColors.primary, size: 28),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Hỏi bất cứ điều gì!',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: AppColors.stone900,
             ),
           ),
-        ),
+          const SizedBox(height: 4),
+          const Text(
+            'Đặt lịch, hỏi về sức khoẻ thú cưng, tìm phòng khám...',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.stone600,
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildQuickPromptChips(),
+          const Spacer(),
+        ],
       );
     }
 
-     if (_error != null && _messages.isEmpty) {
-       return Center(
-         child: SingleChildScrollView(
-           padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-           child: Container(
-             width: double.infinity,
-             padding: const EdgeInsets.all(20),
-             decoration: BoxDecoration(
-               color: AppColors.white.withValues(alpha: 0.98),
-               borderRadius: BorderRadius.circular(20),
-               border: Border.all(color: AppColors.stone900, width: 2),
-               boxShadow: const [
-                 BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
-               ],
-             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    color: AppColors.errorLight,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.stone900, width: 2),
-                  ),
-                  child: const Icon(
-                    Icons.cloud_off_outlined,
-                    color: AppColors.error,
-                    size: 34,
-                  ),
-                ),
-                 const SizedBox(height: 12),
-                 const Text(
-                   'Không thể khôi phục phiên chat',
-                   textAlign: TextAlign.center,
-                   style: TextStyle(
-                     fontSize: 16,
-                     fontWeight: FontWeight.w800,
-                     color: AppColors.stone900,
-                   ),
-                 ),
-                 const SizedBox(height: 10),
-                 Text(
-                   _friendlyErrorMessage(_error!),
-                   textAlign: TextAlign.center,
-                   style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.stone700,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                SizedBox(
-                  height: 44,
-                  child: ElevatedButton.icon(
-                    onPressed: _startNewSession,
-                    icon: const Icon(Icons.refresh, size: 18),
-                    label: const Text(
-                      'THỬ LẠI',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: AppColors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        side: const BorderSide(
-                          color: AppColors.stone900,
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-     return ListView.builder(
-       controller: _scrollController,
-       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-       itemCount: _messages.length,
-       itemBuilder: (context, index) => _buildMessageBubble(_messages[index]),
-     );
-   }
+    return ListView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      itemCount: _messages.length,
+      itemBuilder: (context, index) => _buildMessageBubble(_messages[index]),
+    );
+  }
 
   Widget _buildMessageBubble(_UiChatMessage message) {
     final isUser = message.role == 'user';
@@ -795,14 +707,14 @@ class _AiChatScreenState extends State<AiChatScreen> {
                  ),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 220),
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
                     color: isUser ? AppColors.primary : AppColors.white,
                     borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(16),
-                      topRight: const Radius.circular(16),
-                      bottomLeft: Radius.circular(isUser ? 16 : 4),
-                      bottomRight: Radius.circular(isUser ? 4 : 16),
+                      topLeft: const Radius.circular(14),
+                      topRight: const Radius.circular(14),
+                      bottomLeft: Radius.circular(isUser ? 14 : 4),
+                      bottomRight: Radius.circular(isUser ? 4 : 14),
                     ),
                     border: Border.all(
                       color: isBookingReady ? AppColors.successDark : AppColors.stone900,
@@ -811,7 +723,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
                     boxShadow: [
                       BoxShadow(
                         color: isBookingReady ? AppColors.successDark : AppColors.stone900,
-                        offset: const Offset(3, 3),
+                        offset: const Offset(2, 2),
                       ),
                     ],
                   ),
@@ -819,51 +731,17 @@ class _AiChatScreenState extends State<AiChatScreen> {
                     crossAxisAlignment:
                         isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                     children: [
-                       Wrap(
-                         spacing: 8,
-                         runSpacing: 8,
-                         crossAxisAlignment: WrapCrossAlignment.center,
-                         children: [
-                           Container(
-                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                             decoration: BoxDecoration(
-                              color: isUser
-                                  ? AppColors.white.withValues(alpha: 0.18)
-                                  : isBookingReady
-                                      ? AppColors.successLight
-                                      : AppColors.primarySurface,
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(
-                                color: isUser
-                                    ? AppColors.white
-                                    : isBookingReady
-                                        ? AppColors.successDark
-                                        : AppColors.stone900,
-                                width: 1.5,
-                              ),
-                            ),
-                            child: Text(
-                              isUser ? 'BẠN' : 'TRỢ LÝ PETTIES',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                                color: isUser
-                                    ? AppColors.white
-                                    : isBookingReady
-                                        ? AppColors.successDark
-                                        : AppColors.primaryDark,
-                                letterSpacing: 0.4,
-                              ),
-                            ),
-                          ),
-                           if (isBookingReady) const _BookingReadyBadge(),
-                         ],
-                       ),
                       if (isBookingReady) ...[
-                        const SizedBox(height: 10),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            _BookingReadyBadge(),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
                         const _BookingReadyBanner(),
+                        const SizedBox(height: 8),
                       ],
-                      const SizedBox(height: 10),
                       Text(
                         message.content,
                         style: TextStyle(
@@ -1337,10 +1215,12 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   Widget _buildComposer(double horizontalPadding) {
     return Container(
-      padding: EdgeInsets.fromLTRB(horizontalPadding, 8, horizontalPadding, 12),
-      decoration: BoxDecoration(
-        color: AppColors.white.withValues(alpha: 0.98),
-        border: Border(top: BorderSide(color: AppColors.stone900, width: 2)),
+      padding: EdgeInsets.fromLTRB(horizontalPadding, 8, horizontalPadding, 8),
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        border: Border(
+          top: BorderSide(color: AppColors.stone900, width: 2),
+        ),
       ),
       child: SafeArea(
         top: false,
@@ -1350,26 +1230,27 @@ class _AiChatScreenState extends State<AiChatScreen> {
             if (_error != null && _messages.isNotEmpty) ...[
               Container(
                 width: double.infinity,
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 decoration: BoxDecoration(
                   color: AppColors.errorLight,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.stone900, width: 2),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.error, width: 1.5),
                 ),
                 child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 18),
-                    const SizedBox(width: 8),
+                    const Icon(Icons.warning_amber_rounded,
+                        color: AppColors.error, size: 16),
+                    const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         _error!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: AppColors.errorDark,
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          height: 1.35,
                         ),
                       ),
                     ),
@@ -1382,6 +1263,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
               children: [
                 Expanded(
                   child: Container(
+                    constraints: const BoxConstraints(maxHeight: 100),
                     decoration: BoxDecoration(
                       color: AppColors.white,
                       borderRadius: BorderRadius.circular(8),
@@ -1390,78 +1272,57 @@ class _AiChatScreenState extends State<AiChatScreen> {
                         BoxShadow(color: AppColors.stone900, offset: Offset(2, 2)),
                       ],
                     ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Padding(
-                          padding: EdgeInsets.fromLTRB(12, 10, 12, 0),
-                          child: Row(
-                            children: [
-                              Icon(Icons.tips_and_updates_outlined,
-                                  size: 14, color: AppColors.primary),
-                              SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  'Mô tả rõ nhu cầu để AI hỗ trợ nhanh hơn',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.stone600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                    child: TextField(
+                      controller: _messageController,
+                      minLines: 1,
+                      maxLines: 3,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _sendMessage(),
+                      style: const TextStyle(fontSize: 14),
+                      decoration: const InputDecoration(
+                        hintText: 'Nhập câu hỏi cho trợ lý AI...',
+                        hintStyle: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.stone400,
                         ),
-                        TextField(
-                          controller: _messageController,
-                          minLines: 1,
-                          maxLines: 3,
-                          textInputAction: TextInputAction.send,
-                          onSubmitted: (_) => _sendMessage(),
-                          decoration: const InputDecoration(
-                            hintText: 'Ví dụ: Tôi muốn đặt lịch tiêm phòng cho mèo vào cuối tuần này',
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.fromLTRB(12, 10, 12, 12),
-                          ),
-                        ),
-                      ],
+                        border: InputBorder.none,
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
-                 GestureDetector(
-                   onTap: _isSending || _isReconnecting ? null : _sendMessage,
-                   child: AnimatedContainer(
-                     duration: const Duration(milliseconds: 180),
-                     width: 52,
-                     height: 52,
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: _isSending || _isReconnecting ? null : _sendMessage,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: 46,
+                    height: 46,
                     decoration: BoxDecoration(
-                     color: _isSending || _isReconnecting
-                         ? AppColors.stone300
-                         : AppColors.primary,
+                      color: _isSending || _isReconnecting
+                          ? AppColors.stone300
+                          : AppColors.primary,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: AppColors.stone900, width: 2),
                       boxShadow: _isSending
                           ? null
                           : const [
                               BoxShadow(
-                                color: AppColors.stone900,
-                                offset: Offset(3, 3),
-                              ),
+                                  color: AppColors.stone900,
+                                  offset: Offset(2, 2)),
                             ],
                     ),
-                     child: Icon(
-                       _isReconnecting
-                           ? Icons.sync
-                           : _isSending
-                               ? Icons.hourglass_top
-                               : Icons.send_rounded,
-                       color: AppColors.white,
-                     ),
+                    child: Icon(
+                      _isReconnecting
+                          ? Icons.sync
+                          : _isSending
+                              ? Icons.hourglass_top
+                              : Icons.send_rounded,
+                      color: AppColors.white,
+                      size: 20,
+                    ),
                   ),
                 ),
               ],
@@ -1554,75 +1415,6 @@ class _SourceSummary {
   });
 }
 
-class _QuickPromptCard extends StatelessWidget {
-  final String prompt;
-  final VoidCallback? onTap;
-
-  const _QuickPromptCard({
-    required this.prompt,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final maxWidth = screenWidth < 390 ? screenWidth - 40 : 280.0;
-
-    return Material(
-      color: AppColors.white,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          constraints: BoxConstraints(maxWidth: maxWidth),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          decoration: BoxDecoration(
-            color: AppColors.white.withValues(alpha: 0.96),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.stone900, width: 2),
-            boxShadow: const [
-              BoxShadow(color: AppColors.stone900, offset: Offset(2, 2)),
-            ],
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: AppColors.primarySurface,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.stone900, width: 1.5),
-                ),
-                child: const Icon(
-                  Icons.flash_on_outlined,
-                  color: AppColors.primary,
-                  size: 14,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  prompt,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    height: 1.3,
-                    color: AppColors.stone900,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _MessageAvatar extends StatelessWidget {
   final IconData icon;
@@ -1816,54 +1608,6 @@ class _AiLoadingHeroState extends State<_AiLoadingHero>
   }
 }
 
-class _LoadingMessageSkeleton extends StatelessWidget {
-  const _LoadingMessageSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.stone50,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.stone200),
-      ),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _SkeletonBar(widthFactor: 0.42),
-          SizedBox(height: 10),
-          _SkeletonBar(widthFactor: 1),
-          SizedBox(height: 8),
-          _SkeletonBar(widthFactor: 0.84),
-          SizedBox(height: 8),
-          _SkeletonBar(widthFactor: 0.58),
-        ],
-      ),
-    );
-  }
-}
-
-class _SkeletonBar extends StatelessWidget {
-  final double widthFactor;
-
-  const _SkeletonBar({required this.widthFactor});
-
-  @override
-  Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-
-    return Container(
-      width: (screenWidth - 120) * widthFactor,
-      height: 10,
-      decoration: BoxDecoration(
-        color: AppColors.stone200,
-        borderRadius: BorderRadius.circular(999),
-      ),
-    );
-  }
-}
 
 class _AiTypingDots extends StatefulWidget {
   const _AiTypingDots();

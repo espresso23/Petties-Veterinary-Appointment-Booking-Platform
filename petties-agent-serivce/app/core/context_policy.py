@@ -89,8 +89,6 @@ class ContextPolicyService:
             "analyze_revenue_trends",
             "suggest_staff_assignments",
             "create_staff_shifts",
-            "optimize_schedules",
-            "accept_sos_booking",
         },
         "CLINIC_OWNER": {
             "pet_knowledge_search",
@@ -107,12 +105,7 @@ class ContextPolicyService:
             "analyze_revenue_trends",
             "suggest_staff_assignments",
             "create_staff_shifts",
-            "optimize_schedules",
-            "accept_sos_booking",
             "generate_clinic_services",
-            "compose_clinic_description",
-            "suggest_service_pricing",
-            "analyze_vet_workload",
         },
         "ADMIN": set(PUBLIC_BUSINESS_TOOLS),
     }

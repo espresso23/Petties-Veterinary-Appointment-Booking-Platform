@@ -1,6 +1,6 @@
 ## 1. Mở đầu & tên kiến trúc
 
-- Petties là nền tảng đặt lịch khám thú y, kết nối **Pet Owner** với **phòng khám và Staff** (bác sĩ, nhân viên).
+- Petties là nền tảng đặt lịch khám thú y, kết nối **Pet Owner** với **phòng khám và Staff** (nhân sự phòng khám).
 - Ở mức tổng thể, hệ thống dùng **kiến trúc nhiều tầng (multi‑tier / layered)**:
   - Tầng Presentation: web React + mobile Flutter.
   - Tầng Backend API: Spring Boot.

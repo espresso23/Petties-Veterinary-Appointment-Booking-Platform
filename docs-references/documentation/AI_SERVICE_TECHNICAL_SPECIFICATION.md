@@ -1,7 +1,7 @@
 # Tài liệu Kỹ thuật – AI Agent Service (Petties)
 
 **Phiên bản:** 1.3  
-**Cập nhật:** 2026-03-04  
+**Cập nhật:** 2026-03-11  
 **Tham chiếu:** AI_AGENT_SERVICE_SRS.md, AI_AGENT_SERVICE_SDD.md, REPORT_4_SDD_SYSTEM_DESIGN.md
 
 ---
@@ -199,10 +199,10 @@ Khi kết quả từ RAG có **confidence thấp** (ít chunk liên quan, score 
 
 - **Điều kiện:** Confidence của tool trước đó dưới ngưỡng (cấu hình được), user hỏi ngoài phạm vi knowledge base, hoặc chủ đề yêu cầu thông tin cập nhật theo thời gian.
 - **Luồng:** Agent tạo query tìm kiếm từ câu hỏi user / mô tả triệu chứng → gọi `web_search(query)` → nhận danh sách snippet/title/URL → đưa vào context cho LLM tổng hợp câu trả lời.
-- **Trả lời:** LLM vẫn phải trích dẫn nguồn (URL hoặc "theo kết quả tìm kiếm"), và với câu hỏi sức khỏe phải **khuyên đi khám / không thay thế chẩn đoán bác sĩ**.
+- **Trả lời:** LLM vẫn phải trích dẫn nguồn (URL hoặc "theo kết quả tìm kiếm"), và với câu hỏi sức khỏe phải **khuyên đi khám / không thay thế đánh giá chuyên môn của Staff**.
 - **Cấu hình:** `DUCKDUCKGO_MAX_RESULTS` (số kết quả tối đa lấy về, ví dụ 5).
 
-Tool web search **không thay thế** RAG; nó dùng để **phòng trường hợp confidence thấp** và vẫn cần hiển thị disclaimer phù hợp (thông tin từ web, cần tham khảo bác sĩ thú y).
+Tool web search **không thay thế** RAG; nó dùng để **phòng trường hợp confidence thấp** và vẫn cần hiển thị disclaimer phù hợp (thông tin từ web, cần tham khảo Staff chuyên môn).
 
 ### 3.5 AI duoc phat trien/van hanh va cap nhat du lieu theo thoi gian
 
@@ -232,7 +232,7 @@ De tra loi dung moi quan tam cua reviewer/mentor, AI duoc van hanh theo 3 vong c
 | 1 | **Query Expansion** | LLM tu dong mo rong query ngan gon (vd: "cho non bo an" -> them dong nghia, thuat ngu chuyen mon, trieu chung lien quan) truoc khi RAG search. Tang recall dang ke. | Implemented |
 | 2 | **Knowledge Graph** | LlamaIndex KnowledgeGraphIndex extract triplets (trieu chung -> benh -> loai -> phac do) tu tai lieu thu y. Hybrid query RAG + KG cho phep suy luan chuoi ma RAG thuan khong lam duoc. | Planned (Phase 2) |
 | 3 | **Visual Case Memory** | Moi lan chan doan qua hinh anh: LLM Vision mo ta visual features -> embed text + metadata (loai, benh, feedback) -> luu vao Qdrant collection `petties_case_memory`. Lan sau gap anh tuong tu -> tim case da confirmed -> chinh xac hon. | Implemented |
-| 4 | **Feedback Loop** | User/bac si danh gia dung/sai (thumbs up/down). Case confirmed -> tu dong embed vao Case Memory. Case rejected -> giam trong so. Prompt duoc tinh chinh dua tren pattern tu feedback. | Implemented |
+| 4 | **Feedback Loop** | User/Staff danh gia dung/sai (thumbs up/down). Case confirmed -> tu dong embed vao Case Memory. Case rejected -> giam trong so. Prompt duoc tinh chinh dua tren pattern tu feedback. | Implemented |
 
 #### C. Flow Tong the: He thong Tot len Theo Thoi gian
 
@@ -265,6 +265,38 @@ flowchart TB
 **Ket qua:** Cang nhieu case tich luy, AI cang co nhieu tri thuc tham chieu thuc te. He thong khong bao gio dung mai 1 bo du lieu cu — no tu lon len sau moi lan su dung.
 
 **Chi tiet day du:** Xem `AI_AGENT_DATA_IMPROVEMENT_STRATEGY.md` Section 7-11.
+
+#### D. Per-User Context vs Shared Knowledge
+
+| Du lieu | Pham vi | Luu o dau |
+|---------|---------|-----------|
+| Chat session, lich su hoi thoai, ReAct trace | **RIENG moi user** (per session) | MongoDB |
+| RAG Knowledge Base (tai lieu thu y) | **CHUNG toan he thong** | Qdrant Cloud |
+| Knowledge Graph (trieu chung -> benh -> loai) | **CHUNG toan he thong** | Qdrant Cloud (KG Index) |
+| Case Memory (cases da confirmed) | **CHUNG toan he thong** | Qdrant Cloud |
+| Feedback (thumbs up/down) | User gui **RIENG** -> nuoi du lieu **CHUNG** | MongoDB -> Qdrant |
+
+**Nguyen tac:** Moi user co ngu canh hoi thoai rieng biet (khong lan context). Nhung tri thuc (KG, RAG, Case Memory) la chung — moi feedback tu bat ky user/Staff nao deu lam giau kho tri thuc cho TOAN BO he thong.
+
+```mermaid
+sequenceDiagram
+    actor User as User
+    participant Session as MongoDB (RIENG)
+    participant Agent as AI Agent
+    participant SharedKB as Tri thuc CHUNG (Qdrant)
+    participant Feedback as Feedback
+
+    User->>Session: Tao session (user_id, context rieng)
+    Session-->>Agent: Load lich su (RIENG user nay)
+    User->>Agent: Gui cau hoi / hinh anh
+    Agent->>SharedKB: Query RAG + KG + Case Memory (CHUNG)
+    SharedKB-->>Agent: Ket qua tu tri thuc chung
+    Agent-->>User: Tra loi
+    Agent->>Session: Luu message + trace (RIENG)
+    User->>Feedback: Thumbs up/down
+    Feedback->>SharedKB: Case confirmed -> embed vao Case Memory (CHUNG)
+    Note over SharedKB: Tri thuc CHUNG lon dan<br/>-> Moi user deu huong loi
+```
 
 ### 3.6 Prompt Version có cần thiết không?
 

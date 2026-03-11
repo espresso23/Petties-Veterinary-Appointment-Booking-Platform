@@ -890,3 +890,200 @@ async def get_status(db: AsyncSession = Depends(get_db)):
     except Exception as e:
         logger.error(f"Error getting knowledge base status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================
+# KNOWLEDGE GRAPH (KG) ENDPOINTS  [KB-04]
+# =============================================================
+
+
+def get_kg_service():
+    """Lazy import KnowledgeGraphService to avoid circular imports."""
+    from app.core.rag.knowledge_graph import get_knowledge_graph_service
+
+    return get_knowledge_graph_service()
+
+
+@router.post(
+    "/build-kg",
+    summary="[KB-04] Build Knowledge Graph từ documents đã xử lý",
+    description="""
+    Trích xuất triplets (subject, predicate, object) từ tài liệu đã processed
+    và xây dựng Knowledge Graph.
+
+    Flow:
+    1. Đọc tất cả documents đã processed từ PostgreSQL
+    2. Load nội dung file -> tạo LlamaIndex Document objects
+    3. LLM extract triplets từ mỗi chunk
+    4. Lưu vào SimpleGraphStore (persist to disk)
+
+    Lưu ý: Quá trình này có thể mất vài phút tùy số lượng tài liệu.
+    """,
+)
+async def build_knowledge_graph(
+    document_ids: Optional[List[int]] = Query(
+        None, description="IDs tài liệu cụ thể. Để trống = tất cả đã processed."
+    ),
+    max_triplets: int = Query(
+        default=10, ge=1, le=50, description="Số triplets tối đa mỗi chunk"
+    ),
+    db: AsyncSession = Depends(get_db),
+):
+    """Build/extend Knowledge Graph từ processed documents."""
+    import time
+
+    start_time = time.time()
+
+    try:
+        # Query documents
+        query = select(KnowledgeDocument).where(KnowledgeDocument.processed == True)
+        if document_ids:
+            query = query.where(KnowledgeDocument.id.in_(document_ids))
+
+        result = await db.execute(query)
+        documents = result.scalars().all()
+
+        if not documents:
+            raise HTTPException(
+                status_code=404,
+                detail="Không tìm thấy tài liệu đã xử lý nào"
+                + (f" với IDs: {document_ids}" if document_ids else ""),
+            )
+
+        # Read file contents and create LlamaIndex Documents
+        from llama_index.core import Document as LlamaDocument
+
+        llama_docs = []
+        skipped = []
+        for doc in documents:
+            if not doc.file_path or not os.path.exists(doc.file_path):
+                skipped.append(doc.id)
+                continue
+            try:
+                with open(doc.file_path, "r", encoding="utf-8", errors="replace") as f:
+                    text = f.read()
+                if text.strip():
+                    llama_docs.append(
+                        LlamaDocument(
+                            text=text,
+                            metadata={
+                                "document_id": doc.id,
+                                "filename": doc.filename,
+                                "file_type": doc.file_type,
+                            },
+                        )
+                    )
+            except Exception as e:
+                logger.warning(f"Could not read document {doc.id}: {e}")
+                skipped.append(doc.id)
+
+        if not llama_docs:
+            raise HTTPException(
+                status_code=400,
+                detail="Không thể đọc nội dung từ bất kỳ tài liệu nào",
+            )
+
+        # Build KG
+        kg = get_kg_service()
+        triplet_count = await kg.build_from_documents(
+            llama_docs, max_triplets_per_chunk=max_triplets
+        )
+
+        processing_time = int((time.time() - start_time) * 1000)
+
+        return {
+            "success": True,
+            "message": f"Knowledge Graph đã xây dựng thành công",
+            "documents_processed": len(llama_docs),
+            "documents_skipped": skipped,
+            "triplets_extracted": triplet_count,
+            "processing_time_ms": processing_time,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error building Knowledge Graph: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/kg-stats",
+    summary="[KB-04] Thống kê Knowledge Graph",
+    description="Thông tin chi tiết về Knowledge Graph: số triplets, entities, relation types.",
+)
+async def get_kg_stats():
+    """Get Knowledge Graph statistics."""
+    try:
+        kg = get_kg_service()
+        stats = await kg.get_graph_stats()
+        return {"success": True, **stats}
+    except Exception as e:
+        logger.error(f"Error getting KG stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================
+# CASE MEMORY ENDPOINTS  [KB-05]
+# =============================================================
+
+
+def get_cm_service():
+    """Lazy import CaseMemoryService to avoid circular imports."""
+    from app.core.rag.case_memory import get_case_memory_service
+
+    return get_case_memory_service()
+
+
+@router.get(
+    "/case-memory/stats",
+    summary="[KB-05] Thống kê Case Memory",
+    description="Thông tin về Qdrant collection `petties_case_memory`: số cases, status.",
+)
+async def get_case_memory_stats():
+    """Get Case Memory collection statistics."""
+    try:
+        cm = get_cm_service()
+        stats = await cm.get_stats()
+        return {"success": True, **stats}
+    except Exception as e:
+        logger.error(f"Error getting Case Memory stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/case-memory/prune",
+    summary="[KB-05] Dọn dẹp Case Memory",
+    description="""
+    Xóa các cases cũ không có feedback (feedback_count = 0) để giữ collection sạch.
+
+    Chỉ xóa cases cũ hơn `older_than_days` ngày.
+    """,
+)
+async def prune_case_memory(
+    older_than_days: int = Query(
+        default=90, ge=1, le=365, description="Chỉ xóa cases cũ hơn X ngày"
+    ),
+    max_feedback_below: int = Query(
+        default=0, ge=0, le=5, description="Xóa cases có feedback_count <= X"
+    ),
+):
+    """Prune low-score / stale cases from Case Memory."""
+    try:
+        cm = get_cm_service()
+        pruned_count = await cm.prune_low_score_cases(
+            max_feedback_below=max_feedback_below,
+            older_than_days=older_than_days,
+        )
+        return {
+            "success": True,
+            "message": f"Đã xóa {pruned_count} cases không có feedback",
+            "pruned_count": pruned_count,
+            "criteria": {
+                "max_feedback_below": max_feedback_below,
+                "older_than_days": older_than_days,
+            },
+        }
+    except Exception as e:
+        logger.error(f"Error pruning Case Memory: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

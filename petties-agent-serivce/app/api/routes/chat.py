@@ -8,6 +8,11 @@ import logging
 import uuid
 
 from app.api.middleware.auth import CurrentUser, get_current_user
+from app.api.schemas.feedback_schemas import (
+    FeedbackRequest,
+    FeedbackResponse,
+    FeedbackStatsResponse,
+)
 from app.core.chat_context import (
     BUSINESS_CHAT,
     PLAYGROUND_TEST,
@@ -304,3 +309,94 @@ async def delete_session_authenticated(
         raise HTTPException(status_code=404, detail="Không tìm thấy session")
 
     return {"success": True, "message": f"Session {session_id} deleted"}
+
+
+# ===== FEEDBACK ENDPOINTS =====
+
+
+@router.post(
+    "/feedback",
+    response_model=FeedbackResponse,
+    summary="Gửi feedback cho tin nhắn AI",
+)
+async def submit_feedback(
+    request: FeedbackRequest,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """
+    Gửi feedback (thumbs_up / thumbs_down / report / confirmed / vet_confirmed)
+    cho một tin nhắn AI cụ thể.
+
+    - Positive feedback sẽ tự động embed vào Case Memory để cải thiện AI.
+    - Feedback được auto-classify category dựa trên react_trace.
+    - Weight tính theo role: VET/STAFF = 1.0, CLINIC_MANAGER/OWNER = 0.7,
+      PET_OWNER = 0.6, ADMIN = 0.0 (playground only).
+    """
+    from app.core.services.feedback_service import get_feedback_service
+
+    feedback_data = {
+        "message_id": request.message_id,
+        "session_id": request.session_id,
+        "user_id": user.user_id,
+        "user_role": user.role,
+        "feedback_type": request.feedback_type.value,
+        "feedback_reason": request.feedback_reason.value
+        if request.feedback_reason
+        else "",
+        "feedback_text": request.feedback_text or "",
+    }
+
+    # Allow explicit category override, otherwise auto-classify
+    if request.feedback_category:
+        feedback_data["feedback_category"] = request.feedback_category.value
+
+    service = get_feedback_service()
+    result = await service.save_feedback(feedback_data)
+
+    if result.get("status") == "error":
+        raise HTTPException(
+            status_code=500,
+            detail=f"Không thể lưu feedback: {result.get('error', 'Unknown error')}",
+        )
+
+    return FeedbackResponse(
+        success=True,
+        feedback_id=result["feedback_id"],
+        case_embedded=result.get("case_embedded", False),
+        category=result.get("category", "general"),
+        weight=result.get("weight", 0.0),
+        message="Đã lưu feedback thành công",
+    )
+
+
+@router.get(
+    "/feedback/stats",
+    response_model=FeedbackStatsResponse,
+    summary="Thống kê feedback",
+)
+async def get_feedback_stats(
+    days: int = Query(default=30, ge=1, le=365, description="Số ngày thống kê"),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """
+    Lấy thống kê feedback tổng hợp.
+
+    - Admin: xem tất cả feedback.
+    - Các role khác: chỉ xem feedback của chính mình.
+    """
+    from app.core.services.feedback_service import get_feedback_service
+
+    service = get_feedback_service()
+
+    # Admin sees all, others see only their own
+    target_user_id = None if user.is_admin else user.user_id
+
+    stats = await service.get_feedback_stats(user_id=target_user_id, days=days)
+
+    return FeedbackStatsResponse(
+        total=stats.get("total", 0),
+        period_days=stats.get("period_days", days),
+        by_type=stats.get("by_type", {}),
+        by_category=stats.get("by_category", {}),
+        positive_rate=stats.get("positive_rate", 0.0),
+    )

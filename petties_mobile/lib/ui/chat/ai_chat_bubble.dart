@@ -4,10 +4,9 @@ import 'package:go_router/go_router.dart';
 import '../../config/constants/app_colors.dart';
 import '../../routing/app_routes.dart';
 
-/// AI Chat Bubble with animated pulse glow effect
-/// - Outer glow ring: Animated pulse từ 0.3 → 0.7 opacity
-/// - Icon pulse: Animated scale từ 1.0 → 1.05
-/// - Neobrutalism style: border + offset shadow
+/// Nút nổi "Trợ lý AI" (chat bubble) cho Pet Owner.
+/// - Tap: mở màn chat AI
+/// - Style: border đậm + offset shadow (soft neobrutalism)
 class AiChatBubble extends StatefulWidget {
   final bool showNotificationDot;
 
@@ -23,7 +22,6 @@ class AiChatBubble extends StatefulWidget {
 class _AiChatBubbleState extends State<AiChatBubble>
     with SingleTickerProviderStateMixin {
   late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
   late Animation<double> _scaleAnimation;
 
   @override
@@ -32,10 +30,6 @@ class _AiChatBubbleState extends State<AiChatBubble>
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
-    );
-
-    _pulseAnimation = Tween<double>(begin: 0.3, end: 0.7).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
     _scaleAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
@@ -53,8 +47,6 @@ class _AiChatBubbleState extends State<AiChatBubble>
 
   @override
   Widget build(BuildContext context) {
-    // Use GestureDetector instead of InkWell for more reliable tap detection
-    // when positioned in Stack with clipBehavior: Clip.none
     return GestureDetector(
       onTap: () {
         context.push(AppRoutes.aiChat);
@@ -63,19 +55,8 @@ class _AiChatBubbleState extends State<AiChatBubble>
       child: AnimatedBuilder(
         animation: _pulseController,
         builder: (context, child) {
-          return Container(
-            // Outer glow effect
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(999),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary
-                      .withValues(alpha: _pulseAnimation.value),
-                  blurRadius: 20,
-                  spreadRadius: 5,
-                ),
-              ],
-            ),
+          return Transform.scale(
+            scale: _scaleAnimation.value,
             child: child,
           );
         },
@@ -88,7 +69,14 @@ class _AiChatBubbleState extends State<AiChatBubble>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.primary,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primary,
+            Color(0xFFB45309), // amber-700-ish để tạo chiều sâu
+          ],
+        ),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: AppColors.stone900, width: 2),
         boxShadow: const [
@@ -98,23 +86,14 @@ class _AiChatBubbleState extends State<AiChatBubble>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Icon with scale animation
-          AnimatedBuilder(
-            animation: _scaleAnimation,
-            builder: (context, child) {
-              return Transform.scale(
-                scale: _scaleAnimation.value,
-                child: const Icon(
-                  Icons.pets,
-                  color: AppColors.white,
-                  size: 18,
-                ),
-              );
-            },
+          const Icon(
+            Icons.pets,
+            color: AppColors.white,
+            size: 18,
           ),
           const SizedBox(width: 8),
           const Text(
-            'PETTIES AI',
+            'TRỢ LÝ AI',
             style: TextStyle(
               color: AppColors.white,
               fontSize: 12,

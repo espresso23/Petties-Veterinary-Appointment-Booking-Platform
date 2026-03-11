@@ -40,8 +40,8 @@ Hệ thống SSE hiện đã được tích hợp hoàn tất cho các luồng t
 ## 3. Lộ trình triển khai (Implementation Phases)
 
 ### Giai đoạn 1: Đồng bộ hóa Lịch trình (Quý 1)
-*   [ ] Tích hợp SSE vào màn hình `VetSchedulePage` và `ClinicManagerPage`.
-*   [ ] Sự kiện: `BOOKING_CREATED`, `BOOKING_CANCELLED`, `VET_CHECK_IN`.
+*   [ ] Tích hợp SSE vào màn hình `StaffSchedulePage` và `ClinicManagerPage`.
+*   [ ] Sự kiện: `BOOKING_CREATED`, `BOOKING_CANCELLED`, `STAFF_CHECK_IN`.
 
 ### Giai đoạn 2: Trải nghiệm AI & Thanh toán (Quý 2)
 *   [ ] Triển khai Streaming cho AI Agent.

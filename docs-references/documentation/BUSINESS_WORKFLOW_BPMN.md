@@ -112,14 +112,11 @@ flowchart LR
 
 | Status | Trigger | Actions | Next Status |
 |--------|---------|---------|-------------|
-| PENDING | Pet Owner submits booking (payment method: Online/Cash) | Reduce slot, Notify Clinic, store payment_method + payment_status | ASSIGNED |
-| ASSIGNED | Clinic Manager assigns vet | Notify Staff, auto CONFIRMED | CONFIRMED |
-| CONFIRMED | Staff assigned | Notify Pet Owner | CHECK_IN |
-| CHECK_IN | Pet arrives, Staff checks in | Update status | IN_PROGRESS |
-| IN_PROGRESS | Service starts | - | CHECK_OUT |
-| CHECK_OUT | Service ends | - | COMPLETED |
+| PENDING | Pet Owner submits booking (payment method: Online/Cash) | Reduce slot, Notify Clinic, store payment_method + payment_status | CONFIRMED |
+| CONFIRMED | Clinic xác nhận và phân công Staff | Notify Pet Owner + Staff | IN_PROGRESS |
+| IN_PROGRESS | Staff thực hiện dịch vụ | EMR, extra services, payment, arrival tracking nếu có | COMPLETED |
 | COMPLETED | Staff completes EMR | Enable rating workflow | RATING |
-| RATING | Pet Owner submits rating | Store rating & comment, update vet rating average | End |
+| RATING | Pet Owner submits rating | Store rating & comment, update staff rating average | End |
 
 <img width="3686" height="5375" alt="Booking Status State Machine" src="https://github.com/user-attachments/assets/a9659b5f-c9cd-42eb-ac00-3533c84b4545" />
 
@@ -213,7 +210,7 @@ flowchart LR
 | **Required** | Optional (can skip) | Optional |
 | **Content** | 1-5 Stars only | 1-5 Stars + Comment |
 | **UX** | Like Grab/Uber rating | Standard review form |
-| **Data Stored** | `vet_rating`, `vet_rated` | `clinic_rating`, `clinic_comment`, `clinic_reviewed` |
+| **Data Stored** | `staff_rating`, `staff_rated` | `clinic_rating`, `clinic_comment`, `clinic_reviewed` |
 
 ### 7.4 Review Flow Summary
 

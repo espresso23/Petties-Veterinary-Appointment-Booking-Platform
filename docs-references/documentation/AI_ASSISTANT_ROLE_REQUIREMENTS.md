@@ -206,7 +206,7 @@ notification = {
 | All Staff tools | ✅ | Full clinic access |
 | `suggest_staff_assignments` | ✅ | Own clinic staff |
 | `create_staff_shifts` | ✅ | Own clinic staff |
-| `accept_sos_booking` | ✅ | Within radius + slots available |
+| `analyze_revenue_trends` | ✅ | Own clinic data |
 | Owner tools | ❌ | Forbidden (cannot access multi-clinic data) |
 
 ---
@@ -251,9 +251,6 @@ notification = {
 | Tool | Allowed? | Notes |
 |------|----------|-------|
 | `generate_clinic_services` | ✅ | Core tool cho setup clinic |
-| `compose_clinic_description` | ❌ | Out of current scope |
-| `suggest_service_pricing` | ❌ | Out of current scope |
-| `analyze_vet_workload` | ❌ | Out of current scope |
 | Manager analytics tools | ❌ | Out of current scope |
 | Admin tools | ❌ | Forbidden |
 
@@ -320,7 +317,7 @@ def get_system_prompt_by_role(role: UserRole) -> str:
 Bạn là AI assistant thân thiện hỗ trợ pet owner.
 - Trả lời câu hỏi về chăm sóc thú cưng
 - Giúp đặt lịch khám qua chat
-- Phân tích triệu chứng và gợi ý khám bác sĩ
+- Phân tích triệu chứng và gợi ý khám Staff
 Tone: Thân thiện, dễ hiểu, dùng emojis 🐕🐈
         """,
         UserRole.STAFF: """
@@ -364,7 +361,7 @@ def get_allowed_tools_by_role(role: UserRole) -> List[str]:
             # All Staff tools +
             "suggest_staff_assignments",
             "create_staff_shifts",
-            "accept_sos_booking"
+            "analyze_revenue_trends"
         ],
         UserRole.CLINIC_OWNER: [
             "generate_clinic_services"

@@ -9,6 +9,7 @@ import '../../data/services/pet_service.dart';
 import '../../config/constants/app_colors.dart';
 import '../../routing/app_routes.dart';
 import '../../providers/auth_provider.dart';
+import '../chat/ai_chat_bubble.dart';
 import '../common/pet_owner_bottom_nav.dart';
 
 class PetDetailScreen extends StatefulWidget {
@@ -335,6 +336,8 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
           );
         },
       ),
+      floatingActionButton: isPetOwner ? const AiChatBubble() : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: isPetOwner
           ? PetOwnerBottomNav(
               currentIndex: 4,

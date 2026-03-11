@@ -20,7 +20,7 @@ Petties is a veterinary appointment booking platform connecting pet owners with 
 - `petties-web/` - React 19 + Vite + TypeScript (Admin/Clinic dashboards)
 - `backend-spring/petties/` - Spring Boot 4.0 + Java 21 (REST API)
 - `petties-agent-serivce/` - FastAPI + Python 3.12 (AI Single Agent + ReAct)
-- `petties_mobile/` - Flutter 3.5 (Pet Owner/Vet mobile app)
+- `petties_mobile/` - Flutter 3.5 (Pet Owner/Staff mobile app)
 
 **Databases:** PostgreSQL 16 (primary), MongoDB 7 (documents), Redis 7 (OTP/cache), Qdrant Cloud (vectors), Firebase (push messages)
 
@@ -83,7 +83,7 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 | Role | Web | Mobile |
 |------|-----|--------|
 | PET_OWNER | - | Mobile only |
-| VET | Web + Mobile | Web + Mobile |
+| STAFF | Web + Mobile | Web + Mobile |
 | CLINIC_OWNER | Web only | - |
 | CLINIC_MANAGER | Web only | - |
 | ADMIN | Web only | - |
@@ -121,6 +121,7 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 - State: Provider pattern
 - Routing: GoRouter with role-based guards
 - Auth: JWT stored in SharedPreferences, Google Sign-In supported
+- Codebase dùng role `STAFF`; `VET` chỉ nên xuất hiện như specialty hoặc tên kỹ thuật legacy
 
 ## Design System
 

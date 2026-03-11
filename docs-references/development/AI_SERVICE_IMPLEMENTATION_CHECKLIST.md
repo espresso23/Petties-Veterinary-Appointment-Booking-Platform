@@ -1,10 +1,10 @@
 # Petties AI Service - Sprint 13 Audit & Improvement Checklist
 
-**Version:** 3.0
-**Last Updated:** 2026-03-09
+**Version:** 3.1
+**Last Updated:** 2026-03-11
 **Sprint:** 13 (Final - Stabilization & Bug Fix)
 **Auditor:** Architecture Review Session
-**Previous Version:** v2.1.0 (2025-12-27) - Migration Complete
+**Previous Version:** v3.0 (2026-03-09) - Sprint 13 Audit
 
 ---
 
@@ -32,17 +32,29 @@
 - **Context policy** added for role-based tool access control
 - **Web Admin** fully built with 8 AI management pages
 - **Mobile chat** screen built but has structural corruption
+- **AI Accuracy Improvement** (Sprint 13): Query Expansion, Knowledge Graph, Case Memory, Feedback Loop, Hybrid RAG Engine
 
-### API Endpoints (37+)
+### API Endpoints (43+)
 
 | Route Group | File | Endpoints | Description |
 |-------------|------|-----------|-------------|
 | `/api/v1/agents` | `agents.py` | 7 | Agent CRUD, prompt versioning, test playground |
 | `/api/v1/tools` | `tools.py` | 5 | Tool management, enable/disable |
-| `/api/v1/knowledge` | `knowledge.py` | 10 | Document upload, process, query, debug |
+| `/api/v1/knowledge` | `knowledge.py` | 14 | Document upload, process, query, debug, KG build/stats, case memory stats/prune |
 | `/api/v1/settings` | `settings.py` | 12 | System settings, seed, connection tests |
-| `/api/v1/chat` | `chat.py` | 3+ | Chat sessions, messages (REST fallback) |
+| `/api/v1/chat` | `chat.py` | 5+ | Chat sessions, messages (REST fallback), feedback submit/stats |
 | `/ws/chat/{session_id}` | `websocket/chat.py` | 1 | Real-time WebSocket chat |
+
+#### New Endpoints (Sprint 13 - AI Accuracy Improvement)
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `POST` | `/api/v1/chat/feedback` | All roles | Submit feedback (1-5 rating), auto-embed positive cases |
+| `GET` | `/api/v1/chat/feedback/stats` | All roles | Feedback statistics (admin=all, others=own) |
+| `POST` | `/api/v1/knowledge/build-kg` | Admin | Build Knowledge Graph from existing documents |
+| `GET` | `/api/v1/knowledge/kg-stats` | Admin | Knowledge Graph statistics (nodes, edges) |
+| `GET` | `/api/v1/knowledge/case-memory/stats` | Admin | Case Memory statistics (total cases, avg feedback) |
+| `POST` | `/api/v1/knowledge/case-memory/prune` | Admin | Clean old zero-feedback cases |
 
 ### MCP Tools (9 total)
 
@@ -248,6 +260,10 @@
 | DB-based config (not env vars for API keys) | Admin can change API keys, models, prompts without redeployment | 2025-12 |
 | Cohere embeddings (not OpenAI) | Better Vietnamese language support with embed-multilingual-v3 | 2025-12 |
 | Qdrant Cloud (not self-hosted) | Managed service, no infrastructure overhead, free tier sufficient | 2025-12 |
+| AI Accuracy Improvement (4 mechanisms) | Query Expansion + Knowledge Graph + Case Memory + Feedback Loop for continuous learning without retraining LLM | 2026-03 |
+| SimpleGraphStore (not Neo4j) | Lightweight file-based graph storage sufficient for MVP, avoids extra infrastructure | 2026-03 |
+| Text-based Case Memory (not CLIP/SigLIP) | LLM Vision describes images as text → embed text into Qdrant, simpler than multimodal embeddings | 2026-03 |
+| HybridRAGEngine (parallel search) | Combines RAG + KG + Case Memory with graceful degradation, asyncio.gather for performance | 2026-03 |
 
 ---
 
@@ -276,6 +292,7 @@ petties-agent-serivce/
 │   │   │   └── tools.py             # Tool management
 │   │   ├── schemas/
 │   │   │   ├── agent_schemas.py
+│   │   │   ├── feedback_schemas.py     # Pydantic schemas for feedback API
 │   │   │   ├── knowledge_schemas.py
 │   │   │   └── tool_schemas.py
 │   │   └── websocket/
@@ -289,8 +306,16 @@ petties-agent-serivce/
 │   │   │   ├── single_agent.py      # 1710 lines (H4: god class)
 │   │   │   └── state.py             # ReActState + legacy AgentState (M2)
 │   │   ├── context_policy.py        # Role-based tool access
+│   │   ├── services/
+│   │   │   ├── __init__.py
+│   │   │   └── feedback_service.py  # Feedback handling, auto-classify, case embedding
 │   │   ├── rag/
-│   │   │   └── rag_engine.py        # LlamaIndex RAG engine
+│   │   │   ├── __init__.py             # v3.0.0 - exports all RAG modules
+│   │   │   ├── rag_engine.py           # LlamaIndex RAG engine
+│   │   │   ├── query_expander.py       # LLM-based short query expansion
+│   │   │   ├── knowledge_graph.py      # LlamaIndex KGIndex + SimpleGraphStore
+│   │   │   ├── case_memory.py          # Confirmed case storage + feedback re-ranking
+│   │   │   └── hybrid_engine.py        # Combines RAG + KG + Case Memory (parallel search)
 │   │   └── tools/
 │   │       ├── executor.py           # Tool execution (M9: output_schema unused)
 │   │       ├── mcp_server.py
@@ -323,7 +348,7 @@ petties-agent-serivce/
     └── test_websocket.py
 ```
 
-**Stats:** 52 app files, 8 test files (43 tests), 37+ REST endpoints, 1 WebSocket endpoint, 9 MCP tools
+**Stats:** 59 app files, 8 test files (43 tests), 43+ REST endpoints, 1 WebSocket endpoint, 9 MCP tools
 
 ---
 
@@ -347,6 +372,6 @@ petties-agent-serivce/
 
 ---
 
-**Document Version:** 3.0
-**Status:** Sprint 13 - Stabilization & Bug Fix
+**Document Version:** 3.1
+**Status:** Sprint 13 - AI Accuracy Improvement Complete
 **Next Review:** After Critical fixes (C1-C5) are implemented

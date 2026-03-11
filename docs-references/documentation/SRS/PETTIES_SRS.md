@@ -1186,7 +1186,7 @@ flowchart LR
 
 | # | Feature | System Function | Description |
 |---|---------|-----------------|-------------|
-| 1 | Slot Generation | AutoSlotGenerationService | Auto-generate 30-minute slots from VET_SHIFT when Manager creates a work shift |
+| 1 | Slot Generation | AutoSlotGenerationService | Auto-generate 30-minute slots from STAFF_SHIFT when Manager creates a work shift |
 | 2 | Booking Expiration | BookingExpirationJob | Update status PENDING → EXPIRED/RELEASED after 15 minutes of non-payment (Slot reservation TTL) |
 | 3 | Push Notification | FCMNotificationService | Send push notifications to mobile devices (booking updates, reminders) |
 | 4 | Email Notification | EmailNotificationService | Send confirmation emails and appointment reminders |
@@ -1913,7 +1913,7 @@ Figure 28. Screen Global Service Definition (Web)
 - **Normal case:**
     1. Clinic Owner navigates to Master Services catalog.
     2. Owner clicks "Add Service" and enters "Rabies Vaccination".
-    3. Owner selects category "VET_VACCINATION" and adds description.
+    3. Owner selects category "VACCINATION" and adds description.
     4. System saves the template, available for all branches to inherit.
 
  #### *3.6.4 Configure Branch Pricing (UC-CO-04)*
@@ -3829,7 +3829,7 @@ Figure 47. Pet Selection Dialog (Mobile)
     - Ảnh tải lên phải là JPEG/PNG, tối đa 10MB mỗi ảnh.
     - AI không được trả về kết luận tuyệt đối theo kiểu xác nhận bệnh cuối cùng.
 - **Business rules:**
-    - Kết quả AI chỉ là clinical decision support, không thay thế kết luận chuyên môn cuối cùng của Staff hoặc bác sĩ thú y.
+    - Kết quả AI chỉ là clinical decision support, không thay thế kết luận chuyên môn cuối cùng của Staff.
     - Nếu phát hiện dấu hiệu nguy hiểm, hệ thống phải ưu tiên hiển thị cảnh báo nổi bật và đề xuất xử trí ngay.
     - Nếu dữ liệu chưa đủ, AI phải hỏi tiếp thay vì suy đoán quá mức.
 - **Normal case:**

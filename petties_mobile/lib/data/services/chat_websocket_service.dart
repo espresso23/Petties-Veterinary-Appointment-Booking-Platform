@@ -96,34 +96,8 @@ class ChatWebSocketService {
 
   ChatWebSocketService._internal();
 
-  /// Get WebSocket URL from base API URL
-  String get _wsUrl {
-    // Priority 1: WS_URL passed via --dart-define
-    final wsUrlFromEnv = Environment.wsUrl;
-    if (wsUrlFromEnv.isNotEmpty) {
-      return wsUrlFromEnv;
-    }
-
-    // Priority 2: Derive from baseUrl
-    final baseUrl = Environment.baseUrl;
-    _logger.i('Environment.baseUrl = $baseUrl');
-
-    // Remove /api suffix to get base server URL
-    String serverUrl = baseUrl.replaceAll('/api', '');
-
-    // For production/staging (HTTPS), use wss://
-    // For dev (HTTP), use ws://
-    // Note: Mobile uses /api/ws-native endpoint (pure WebSocket, no SockJS)
-    // Backend has context path /api, so WS endpoint is at /api/ws-native
-    if (serverUrl.startsWith('https://')) {
-      return serverUrl.replaceFirst('https://', 'wss://') + '/api/ws-native';
-    } else if (serverUrl.startsWith('http://')) {
-      return serverUrl.replaceFirst('http://', 'ws://') + '/api/ws-native';
-    }
-
-    // Fallback: assume http
-    return 'ws://$serverUrl/ws-native';
-  }
+  /// Get WebSocket URL from Environment (handles port 443 explicitly)
+  String get _wsUrl => Environment.wsUrl;
 
   /// Whether WebSocket is connected
   bool get isConnected => _isConnected;

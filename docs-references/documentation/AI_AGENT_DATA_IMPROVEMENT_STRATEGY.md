@@ -536,7 +536,7 @@ KG bo sung:  Duyet graph:
              Ho khan --chi_diem--> Viem mui hong
              Chay nuoc mui --chi_diem--> Viem mui hong  
              Viem mui hong --thuong_gap_o--> Meo
-             Viem mui hong --xu_ly--> Khang sinh + Giu am + Kham bac si
+             Viem mui hong --xu_ly--> Khang sinh + Giu am + Kham tai phong kham
              -> Tra loi co cau truc va logic hon
 ```
 
@@ -581,7 +581,7 @@ sequenceDiagram
     Admin->>API: Upload tai lieu thu y (PDF)
     API->>API: Parse + Chunk van ban
     API->>LLM: Extract triplets tu moi chunk
-    Note right of LLM: "Meo bi rận tai thuong<br/>ngua, lac dau, can den<br/>nho, rua tai"<br/>-> (Ran tai, trieu_chung, Ngua du doi)<br/>-> (Ran tai, trieu_chung, Lac dau)<br/>-> (Ran tai, xu_ly, Thuoc nho tai)<br/>-> (Ran tai, thuong_gap, Meo)
+    Note right of LLM: "Mèo bị rận tai thường<br/>ngứa, lắc đầu, cặn đen<br/>nhớ, rửa tai"<br/>-> (Rận tai, trieu_chung, Ngứa dữ dội)<br/>-> (Rận tai, trieu_chung, Lắc đầu)<br/>-> (Rận tai, xu_ly, Thuốc nhỏ tai)<br/>-> (Rận tai, thuong_gap, Mèo)
     LLM-->>API: Triplets [(subject, predicate, object)]
     API->>KG: Luu triplets vao KG Index
     API->>Qdrant: Embed + store (hybrid: vector + graph)
@@ -684,7 +684,7 @@ sequenceDiagram
     RAG-->>Agent: Chunks tu tai lieu thu y
     Agent-->>User: "Nghi ran tai (Ear Mites).<br/>Trieu chung: ngua, lac dau..."
     
-    User->>MongoDB: Feedback: Dung (bac si xac nhan)
+    User->>MongoDB: Feedback: Dung (Staff xac nhan)
     
     Note over MongoDB,CaseMem: === AUTO EMBED CASE ===
     MongoDB->>CaseMem: Embed case: {visual_desc, diagnosis,<br/>species, body_part, feedback: CONFIRMED}
@@ -694,7 +694,7 @@ sequenceDiagram
     Agent->>Vision: Mo ta visual features
     Vision-->>Agent: "Tai meo co chat nau den, viem"
     Agent->>CaseMem: Tim case tuong tu
-    CaseMem-->>Agent: "Case #47: Tai meo can nau den<br/>-> Ran tai (Otodectes cynotis)<br/>-> DA XAC NHAN boi bac si"
+    CaseMem-->>Agent: "Case #47: Tai meo can nau den<br/>-> Ran tai (Otodectes cynotis)<br/>-> DA XAC NHAN boi Staff"
     Agent->>RAG: Bo sung thong tin tu KB
     Agent-->>User: "Ran tai (85% do tin cay,<br/>dua tren 47 case tuong tu da xac nhan)"
 ```
@@ -715,11 +715,11 @@ sequenceDiagram
     "species": "meo",
     "body_part": "tai",
     "symptoms": ["ngua", "can nau den", "lac dau"],
-    "treatment": "Thuoc nho tai + Ve sinh tai + Kham bac si",
+    "treatment": "Thuoc nho tai + Ve sinh tai + Kham tai phong kham",
     "feedback_type": "confirmed",
     "feedback_count": 47,
     "confidence_score": 0.85,
-    "vet_verified": true,
+    "staff_verified": true,
     "created_at": "2026-03-11T10:00:00Z",
     "last_confirmed_at": "2026-03-11T10:00:00Z"
   }
@@ -742,10 +742,10 @@ results = case_memory_collection.search(
 for result in results:
     base_score = result.score  # Cosine similarity
     feedback_boost = min(result.payload["feedback_count"] / 100, 0.3)
-    vet_boost = 0.1 if result.payload["vet_verified"] else 0
+    staff_boost = 0.1 if result.payload["staff_verified"] else 0
     
-    result.final_score = base_score + feedback_boost + vet_boost
-    # Case confirmed 50 lan boi bac si: +0.3 + 0.1 = +0.4 boost
+    result.final_score = base_score + feedback_boost + staff_boost
+    # Case confirmed 50 lan boi Staff: +0.3 + 0.1 = +0.4 boost
 
 results.sort(key=lambda r: r.final_score, reverse=True)
 ```
@@ -772,98 +772,370 @@ Thang 12: 2000 cases  -> Do chinh xac: ~92% (bao gom ca case hiem)
 
 ### 10.1 Tong quan
 
-Feedback Loop la co che quan trong nhat de he thong tot len theo thoi gian. Moi case deu duoc danh gia, va ket qua danh gia anh huong truc tiep den chat luong tra loi lan sau.
+Feedback Loop la co che quan trong nhat de he thong tot len theo thoi gian. Moi tuong tac AI deu duoc danh gia, va ket qua danh gia anh huong truc tiep den chat luong tra loi lan sau.
 
-### 10.2 Flow Feedback
+**QUAN TRONG: Feedback Loop ap dung cho TAT CA roles va TAT CA loai tuong tac AI**, khong chi rieng chan doan benh thu cung. He thong thu thap feedback tu moi role (PET_OWNER, STAFF, CLINIC_MANAGER, CLINIC_OWNER, ADMIN) tren moi tool (pet health Q&A, booking, EMR, clinic management, revenue analysis, scheduling,...).
+
+### 10.2 Pham vi ap dung theo Role va Interaction Type
+
+| Role | Interaction Types duoc feedback | Vi du feedback |
+|------|--------------------------------|----------------|
+| **PET_OWNER** | Pet health Q&A, Booking flow, Clinic search, Image analysis | "AI goi y dung benh", "Dat lich nhanh va chinh xac" |
+| **STAFF** | Pet health Q&A, EMR lookup, Patient summary, Booking | "Ket qua EMR chinh xac", "Tom tat benh nhan day du" |
+| **CLINIC_MANAGER** | Revenue analysis, Staff scheduling, Shift management, SOS booking | "Phan tich doanh thu phu hop", "Goi y lich truc hop ly" |
+| **CLINIC_OWNER** | Service pricing, Clinic description, Staff workload, Revenue | "Goi y gia dich vu thuc te", "Mo ta phong kham hay" |
+| **ADMIN** | System monitoring, All tools (Playground mode) | "AI xu ly dung workflow", "Tool hoat dong on dinh" |
+
+### 10.3 Flow Feedback - Toan bo he thong
 
 ```mermaid
 flowchart TB
-    subgraph CHAT["1. Chat & Chan doan"]
-        U["User gui cau hoi / hinh anh"]
-        A["AI tra loi + chan doan"]
+    subgraph CHAT["1. Tuong tac AI (Moi Role, Moi Tool)"]
+        U["User gui cau hoi / hinh anh / yeu cau"]
+        A["AI xu ly (ReAct: Thought -> Action -> Observation)"]
+        T["Tool duoc goi: pet_knowledge_search, search_clinics,\ncreate_booking, analyze_revenue, get_emr_history,..."]
     end
     
     subgraph FEEDBACK["2. Thu thap Feedback"]
-        F1["Thumbs Up / Down"]
-        F2["Bac si xac nhan / Bac bo"]
-        F3["Report (sai, khong phu hop)"]
+        F1["Thumbs Up / Down (tat ca users)"]
+        F2["Staff xac nhan / Bac bo (STAFF)"]
+        F3["Report: sai, khong phu hop, khong chinh xac"]
+        F4["Auto-feedback: Booking thanh cong = implicit positive"]
     end
     
-    subgraph PROCESS["3. Xu ly Feedback"]
-        P1["Case CONFIRMED -> Embed vao Case Memory"]
-        P2["Case REJECTED -> Giam trong so / Loai"]
-        P3["Pattern Analysis -> Cap nhat Prompt"]
+    subgraph CLASSIFY["3. Phan loai Feedback theo Category"]
+        C1["MEDICAL: chan doan, trieu chung, dieu tri"]
+        C2["BOOKING: dat lich, slot, lich hen"]
+        C3["CLINIC_OPS: doanh thu, lich truc, nhan su"]
+        C4["KNOWLEDGE: kien thuc cham soc thu cung"]
+        C5["GENERAL: cau hoi chung, ho tro"]
     end
     
-    subgraph IMPROVE["4. He thong tot len"]
-        I1["Case Memory lon dan"]
-        I2["Prompt chinh xac hon"]
+    subgraph PROCESS["4. Xu ly theo Category"]
+        P1["MEDICAL confirmed -> Embed vao Case Memory"]
+        P2["BOOKING positive -> Luu booking pattern thanh cong"]
+        P3["CLINIC_OPS positive -> Cap nhat best practice DB"]
+        P4["REJECTED (moi loai) -> Giam trong so / Loai khoi KB"]
+        P5["Pattern Analysis -> Cap nhat Prompt / Guardrails"]
+    end
+    
+    subgraph IMPROVE["5. He thong tot len - Tat ca roles huong loi"]
+        I1["Case Memory & Knowledge Base lon dan"]
+        I2["Prompt chinh xac hon cho tung role"]
         I3["RAG re-rank tot hon"]
+        I4["Tool routing chinh xac hon"]
     end
     
     CHAT --> FEEDBACK
-    FEEDBACK --> PROCESS
+    FEEDBACK --> CLASSIFY
+    CLASSIFY --> PROCESS
     PROCESS --> IMPROVE
-    IMPROVE -->|"Lan chat tiep theo"| CHAT
+    IMPROVE -->|"Lan tuong tac tiep theo"| CHAT
 ```
 
-### 10.3 API Endpoints
+### 10.4 API Endpoints
 
 ```
 POST /chat/feedback
 Body: {
     "message_id": "uuid",
-    "session_id": "uuid", 
+    "session_id": "uuid",
+    "user_role": "PET_OWNER | STAFF | CLINIC_MANAGER | CLINIC_OWNER | ADMIN",
     "feedback_type": "thumbs_up | thumbs_down | report",
-    "feedback_reason": "incorrect_info | unhelpful | offensive | other",
-    "feedback_text": "Noi dung gop y chi tiet (optional)"
+    "feedback_category": "medical | booking | clinic_ops | knowledge | general",
+    "feedback_reason": "incorrect_info | unhelpful | offensive | wrong_tool | slow_response | other",
+    "feedback_text": "Noi dung gop y chi tiet (optional)",
+    "tool_used": "ten tool da duoc goi trong message (auto-extracted, optional)"
 }
-Response: { "status": "saved", "case_embedded": true/false }
+Response: { "status": "saved", "case_embedded": true/false, "category": "medical" }
 ```
 
-### 10.4 Auto-embed Case Flow
+**Giai thich cac truong moi:**
 
-Khi nhan feedback "thumbs_up" hoac bac si xac nhan:
+| Truong | Muc dich |
+|--------|----------|
+| `user_role` | Phan loai feedback theo role de phan tich pattern rieng (VD: CLINIC_MANAGER hay complain ve revenue tool) |
+| `feedback_category` | Xac dinh feedback thuoc nhom nao de xu ly phu hop (medical -> embed case, booking -> luu pattern) |
+| `tool_used` | Auto-extracted tu `react_trace` metadata - biet chinh xac tool nao da duoc goi |
+| `feedback_reason.wrong_tool` | Moi: khi AI goi sai tool (VD: user hoi ve doanh thu nhung AI goi pet_knowledge_search) |
+
+### 10.5 Auto-embed Case Flow - Da loai tuong tac
+
+Khi nhan feedback positive (thumbs_up, Staff xac nhan, booking thanh cong):
 
 ```python
 async def process_positive_feedback(message_id: str, feedback: dict):
     # 1. Lay message goc tu MongoDB
     message = await get_chat_message(message_id)
+    category = feedback.get("feedback_category", classify_interaction(message))
+    user_role = feedback.get("user_role", "PET_OWNER")
     
-    # 2. Extract case information
-    case = {
-        "visual_description": message.metadata.get("visual_description", ""),
-        "user_query": message.content,
-        "diagnosis": extract_diagnosis(message.metadata["react_trace"]),
-        "sources": message.metadata.get("sources", []),
-        "species": infer_species(message),
-        "symptoms": extract_symptoms(message),
-        "treatment": extract_treatment(message),
+    # 2. Extract case information theo category
+    if category == "medical":
+        case = extract_medical_case(message)
+        # { visual_description, diagnosis, species, symptoms, treatment }
+        text_to_embed = f"{case['visual_description']} {case['diagnosis']} {case['symptoms']}"
+        collection = "petties_case_memory"
+        
+    elif category == "booking":
+        case = extract_booking_case(message)
+        # { user_query, clinic_matched, service_type, slot_selected, success }
+        text_to_embed = f"Booking: {case['user_query']} -> {case['clinic_matched']} {case['service_type']}"
+        collection = "petties_case_memory"
+        
+    elif category == "clinic_ops":
+        case = extract_clinic_ops_case(message)
+        # { query, tool_used, result_summary, role }
+        text_to_embed = f"Clinic ops ({user_role}): {case['query']} -> {case['result_summary']}"
+        collection = "petties_case_memory"
+        
+    else:  # knowledge, general
+        case = extract_general_case(message)
+        # { user_query, ai_response_summary, sources }
+        text_to_embed = f"Q&A: {case['user_query']} -> {case['ai_response_summary']}"
+        collection = "petties_case_memory"
+    
+    # 3. Them metadata chung
+    case.update({
         "feedback_type": "confirmed",
-    }
+        "feedback_category": category,
+        "user_role": user_role,
+        "tool_used": extract_tool_from_trace(message.metadata.get("react_trace")),
+        "confirmed_at": datetime.utcnow().isoformat(),
+    })
     
-    # 3. Embed vao Qdrant case memory
-    text_to_embed = f"{case['visual_description']} {case['diagnosis']} {case['symptoms']}"
-    await case_memory.upsert(case_id, embed(text_to_embed), case)
+    # 4. Embed vao Qdrant case memory
+    await case_memory.upsert(case_id, embed(text_to_embed), case, collection=collection)
     
-    # 4. Update feedback count neu case da ton tai
+    # 5. Update feedback count neu case tuong tu da ton tai
     existing = await case_memory.search_similar(text_to_embed, threshold=0.95)
     if existing:
         await case_memory.update_feedback_count(existing[0].id)
 ```
 
-### 10.5 Periodic Maintenance
+**Auto-classify interaction type** (khi frontend khong gui `feedback_category`):
+
+```python
+def classify_interaction(message) -> str:
+    """Tu dong phan loai tuong tac dua tren tool da goi trong react_trace."""
+    tools_used = extract_tools_from_trace(message.metadata.get("react_trace", []))
+    
+    MEDICAL_TOOLS = {"pet_knowledge_search", "analyze_pet_image", "check_vaccination_status"}
+    BOOKING_TOOLS = {"search_clinics_nearby", "check_available_slots", "create_booking_for_user", "get_clinic_services"}
+    CLINIC_OPS_TOOLS = {"analyze_revenue_trends", "suggest_staff_assignments", "create_staff_shifts", 
+                        "generate_clinic_services"}
+    
+    if tools_used & MEDICAL_TOOLS:
+        return "medical"
+    elif tools_used & BOOKING_TOOLS:
+        return "booking"
+    elif tools_used & CLINIC_OPS_TOOLS:
+        return "clinic_ops"
+    else:
+        return "general"
+```
+
+### 10.6 Feedback xu ly khac nhau theo Role
+
+| Role | Feedback duoc xu ly the nao |
+|------|----------------------------|
+| **PET_OWNER** | Thumbs up/down anh huong Case Memory (medical) va booking patterns. Feedback nhieu nhat ve chat luong tra loi suc khoe. |
+| **STAFF** | Co quyen **xac nhan / bac bo** chan doan (trong so cao hon PET_OWNER). Staff confirmed = high-confidence case -> uu tien embed. |
+| **CLINIC_MANAGER** | Feedback ve clinic_ops tools (revenue, scheduling). Pattern analysis -> cai thien goi y quan ly. |
+| **CLINIC_OWNER** | Feedback ve pricing, service generation, workload. Anh huong business intelligence quality. |
+| **ADMIN** | Feedback tu Playground dung de debug va fine-tune system prompt. Khong embed vao shared Case Memory. |
+
+**Trong so feedback theo role:**
+
+```
+STAFF confirmed         = weight 1.0 (highest - chuyen gia xac nhan)
+PET_OWNER thumbs_up     = weight 0.6 (user hai long)
+CLINIC_MANAGER positive  = weight 0.7 (quan ly xac nhan)
+CLINIC_OWNER positive    = weight 0.7 (chu phong kham xac nhan)
+ADMIN playground         = weight 0.0 (chi dung de debug, khong embed)
+```
+
+### 10.7 Periodic Maintenance
 
 | Tan suat | Hanh dong | Muc dich |
 |----------|-----------|----------|
-| Hang ngay | Embed confirmed cases vao Qdrant | Case Memory lon dan |
-| Hang tuan | Review cases bi thumbs_down | Phat hien van de prompt/RAG |
+| Hang ngay | Embed confirmed cases vao Qdrant (tat ca categories) | Case Memory lon dan |
+| Hang ngay | Auto-classify implicit feedback (booking thanh cong, EMR lookup success) | Thu thap feedback tu dong |
+| Hang tuan | Review cases bi thumbs_down - phan loai theo category va role | Phat hien van de cu the tung tool/role |
+| Hang tuan | Phan tich `wrong_tool` feedback -> dieu chinh tool routing | Tool routing chinh xac hon |
 | Hang thang | Prune cases co score thap + feedback_count = 0 | Tranh nhieu vector store |
+| Hang thang | Thong ke feedback theo role -> dieu chinh role-specific prompts | Prompt tot hon cho tung role |
 | Hang quy | Re-rank toan bo case memory | Dam bao case tot nhat duoc uu tien |
 
 ---
 
-## 11. TONG KET: 4 CO CHE CAI THIEN DO CHINH XAC
+## 11. SEQUENCE DIAGRAM: USER TUONG TAC VOI AI
+
+### 11.1 Per-User Context vs Shared Knowledge
+
+Moi user co context va memory **rieng biet** (session, lich su hoi thoai). Nhung Knowledge Graph, RAG Knowledge Base, va Case Memory la **chung toan he thong** — moi feedback tu bat ky user nao deu nuoi chung kho tri thuc.
+
+```mermaid
+flowchart TB
+    subgraph PER_USER["DU LIEU RIENG MOI USER (MongoDB)"]
+        direction TB
+        U1["User A<br/>Session #1<br/>Lich su: 20 messages"]
+        U2["User B<br/>Session #5<br/>Lich su: 8 messages"]
+        U3["Bac si C<br/>Session #12<br/>Lich su: 35 messages"]
+    end
+    
+    subgraph SHARED["DU LIEU CHUNG TOAN HE THONG (Qdrant Cloud)"]
+        direction TB
+        RAG["RAG Knowledge Base<br/>(Tai lieu thu y)"]
+        KG["Knowledge Graph<br/>(Trieu chung -> Benh -> Loai)"]
+        CM["Case Memory<br/>(Cases da confirmed)"]
+    end
+    
+    U1 -->|"Query"| RAG
+    U2 -->|"Query"| RAG
+    U3 -->|"Query"| RAG
+    U1 -->|"Query"| KG
+    U2 -->|"Query"| KG
+    U3 -->|"Query"| KG
+    U1 -->|"Query"| CM
+    U2 -->|"Query"| CM
+    U3 -->|"Query"| CM
+    
+    U1 -.->|"Feedback: Dung"| CM
+    U3 -.->|"Feedback: Dung + Verified"| CM
+    
+    style PER_USER fill:#e8f4f8,stroke:#1c1917,stroke-width:2px
+    style SHARED fill:#fef3c7,stroke:#1c1917,stroke-width:2px
+```
+
+### 11.2 Sequence Diagram: Full User-AI Interaction Flow
+
+```mermaid
+sequenceDiagram
+    actor User as User (Pet Owner / Bac si)
+    participant Client as Mobile / Web
+    participant Auth as Auth (JWT)
+    participant Agent as AI Agent (ReAct)
+    participant MongoDB as MongoDB (Per-User)
+    participant QE as Query Expansion
+    participant RAG as RAG (Qdrant - CHUNG)
+    participant KG as Knowledge Graph (CHUNG)
+    participant CaseMem as Case Memory (Qdrant - CHUNG)
+    participant LLM as LLM (OpenRouter)
+    participant Tools as Business Tools (Spring Boot)
+
+    Note over User,Tools: === BUOC 1: TAO SESSION (Per-User) ===
+    User->>Client: Mo chat AI
+    Client->>Auth: JWT Token
+    Auth-->>Client: user_id, user_role, clinic_id
+    Client->>MongoDB: Tao session {user_id, context_type: BUSINESS_CHAT}
+    MongoDB-->>Client: session_id
+    Client->>MongoDB: Load lich su hoi thoai (last 50 messages)
+    MongoDB-->>Client: Chat history (RIENG cua user nay)
+
+    Note over User,Tools: === BUOC 2: USER GUI CAU HOI ===
+    User->>Client: "Cho nha em non bo an 2 ngay"
+    Client->>Agent: message + session_id + user_id
+
+    Note over User,Tools: === BUOC 3: QUERY EXPANSION ===
+    Agent->>QE: Query ngan: "cho non bo an"
+    QE->>LLM: Mo rong query (them dong nghia, thuat ngu)
+    LLM-->>QE: "cho non mua oi chan an bieng an viem da day ngo doc parvo giun san"
+    QE-->>Agent: Expanded query
+
+    Note over User,Tools: === BUOC 4: TIM KIEM TRI THUC (CHUNG) ===
+    par RAG Search
+        Agent->>RAG: Search expanded query (CHUNG cho moi user)
+        RAG-->>Agent: Top 5 chunks tu tai lieu thu y
+    and KG Traversal
+        Agent->>KG: Duyet graph: Non + Bo an -> ? (CHUNG)
+        KG-->>Agent: Non+Bo_an -> Viem da day ruot / Parvo / Ngo doc
+    and Case Memory
+        Agent->>CaseMem: Tim case tuong tu da confirmed (CHUNG)
+        CaseMem-->>Agent: Case #23: Cho non+bo an -> Viem da day (confirmed 15 lan)
+    end
+
+    Note over User,Tools: === BUOC 5: REACT REASONING ===
+    Agent->>LLM: Thought: Co 3 nguon -> Viem da day ruot kha nang cao nhat
+    LLM-->>Agent: Action: Hoi them "phan co mau khong? cho may thang tuoi?"
+    Agent-->>Client: "Cho nha ban may thang tuoi? Phan co mau hoac bat thuong khong?"
+
+    Note over User,Tools: === BUOC 6: MULTI-TURN (Per-User Context) ===
+    User->>Client: "Cho 8 thang, phan binh thuong"
+    Client->>Agent: message (MongoDB load context cu cua USER NAY)
+    Agent->>LLM: Context: cho 8 thang + non + bo an + phan binh thuong
+    LLM-->>Agent: Final Answer: Nghi viem da day ruot, khuyen dat lich kham
+
+    Note over User,Tools: === BUOC 7: GOI BUSINESS TOOLS (Realtime) ===
+    Agent->>Tools: search_clinics_nearby(user_location)
+    Tools-->>Agent: 3 phong kham gan nhat
+    Agent->>Tools: check_available_slots(clinic_id, date)
+    Tools-->>Agent: Slots trong ngay mai
+    Agent-->>Client: "Nghi viem da day ruot. Phong kham XYZ con slot 9h sang mai. Ban muon dat lich khong?"
+
+    Note over User,Tools: === BUOC 8: LUU + FEEDBACK ===
+    Agent->>MongoDB: Save message + react_trace + sources (RIENG user nay)
+    User->>Client: Thumbs Up (Dung!)
+    Client->>MongoDB: Save feedback {message_id, thumbs_up}
+    MongoDB->>CaseMem: Embed confirmed case vao Case Memory (CHUNG)
+    Note over CaseMem: Case moi: "Cho 8 thang non bo an phan bt -> Viem da day"<br/>CHUNG cho moi user truy van lan sau
+```
+
+### 11.3 Sequence Diagram: Feedback Loop Nuoi Du Lieu Chung
+
+```mermaid
+sequenceDiagram
+    actor UserA as User A (Pet Owner)
+    actor UserB as User B (Bac si thu y)
+    participant Agent as AI Agent
+    participant MongoDB as MongoDB
+    participant CaseMem as Case Memory (CHUNG)
+    participant KG as Knowledge Graph (CHUNG)
+    participant RAG as RAG KB (CHUNG)
+
+    Note over UserA,RAG: === GIAI DOAN 1: User A hoi, AI tra loi ===
+    UserA->>Agent: Gui anh tai meo bi can den + "Meo bi gi?"
+    Agent->>RAG: Search "can den tai meo" (CHUNG, co it case)
+    RAG-->>Agent: 1 chunk lien quan (score 0.6 - thap)
+    Agent-->>UserA: "Co the la ran tai hoac viem nam. Nen dua di kham."
+    Agent->>MongoDB: Luu session + message (RIENG User A)
+
+    Note over UserA,RAG: === GIAI DOAN 2: Bac si xac nhan ===
+    UserB->>Agent: Review case cua User A
+    UserB->>MongoDB: Feedback: CONFIRMED + "Dung, ran tai Otodectes"
+    
+    Note over MongoDB,RAG: === GIAI DOAN 3: Nuoi du lieu CHUNG ===
+    MongoDB->>CaseMem: Embed confirmed case (CHUNG)<br/>{visual: "can nau den dang ba ca phe",<br/>diagnosis: "Ran tai", verified: true}
+    
+    Note over UserA,RAG: === GIAI DOAN 4: User C hoi tuong tu - CHINH XAC HON ===
+    actor UserC as User C (Pet Owner moi)
+    UserC->>Agent: Gui anh tai meo khac cung can den
+    Agent->>CaseMem: Tim case tuong tu (CHUNG)
+    CaseMem-->>Agent: Case #1: Ran tai, confirmed boi Staff, score 0.92
+    Agent->>RAG: Bo sung tu KB (CHUNG)
+    Agent-->>UserC: "Ran tai (Otodectes cynotis), do tin cay 92%<br/>dua tren case tuong tu da duoc Staff xac nhan.<br/>Can thuoc nho tai + ve sinh. Nen dat lich kham."
+    
+    Note over CaseMem: Moi lan feedback dung -> Case Memory CHUNG lon dan<br/>-> MOI USER deu duoc huong loi tu tri thuc tich luy
+```
+
+### 11.4 Bang Tom tat: Du lieu Rieng vs Chung
+
+| Du lieu | Pham vi | Luu o dau | Cap nhat khi nao |
+|---------|---------|-----------|-----------------|
+| **Chat session** | RIENG moi user | MongoDB `ai_chat_sessions` | Moi lan tao session moi |
+| **Chat messages + ReAct trace** | RIENG moi session | MongoDB `ai_chat_messages` | Moi message gui/nhan |
+| **Chat feedback** | User gui RIENG | MongoDB `chat_feedback` | User bam thumbs up/down |
+| **RAG Knowledge Base** | CHUNG toan he thong | Qdrant `petties_knowledge` | Admin upload tai lieu |
+| **Knowledge Graph** | CHUNG toan he thong | Qdrant (KG Index) | Extract triplets tu tai lieu + confirmed cases |
+| **Case Memory** | CHUNG toan he thong | Qdrant `petties_case_memory` | Auto-embed khi feedback confirmed |
+| **System Prompt** | CHUNG toan he thong | PostgreSQL `prompt_versions` | Admin tinh chinh |
+| **Du lieu nghiep vu** (clinic, slot, pet) | Realtime query | PostgreSQL (Spring Boot) | Business operations |
+
+**Nguyen tac:** User RIENG hoi -> He thong tra loi dua tren tri thuc CHUNG -> Feedback RIENG nuoi tri thuc CHUNG -> Tat ca user duoc huong loi.
+
+---
+
+## 12. TONG KET: 4 CO CHE CAI THIEN DO CHINH XAC
 
 ```mermaid
 flowchart LR

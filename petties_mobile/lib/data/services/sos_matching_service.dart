@@ -231,21 +231,8 @@ class SosMatchingService extends ChangeNotifier {
   String? get error => _error;
   bool get isConnected => _isConnected;
 
-  /// Get WebSocket URL
-  String get _wsUrl {
-    final wsUrlFromEnv = Environment.wsUrl;
-    if (wsUrlFromEnv.isNotEmpty) return wsUrlFromEnv;
-
-    final baseUrl = Environment.baseUrl;
-    String serverUrl = baseUrl.replaceAll('/api', '');
-
-    if (serverUrl.startsWith('https://')) {
-      return '${serverUrl.replaceFirst('https://', 'wss://')}/api/ws-native';
-    } else if (serverUrl.startsWith('http://')) {
-      return '${serverUrl.replaceFirst('http://', 'ws://')}/api/ws-native';
-    }
-    return 'ws://$serverUrl/ws-native';
-  }
+  /// Get WebSocket URL from Environment (handles port 443 explicitly)
+  String get _wsUrl => Environment.wsUrl;
 
   void setAccessToken(String? token) {
     _accessToken = token;
