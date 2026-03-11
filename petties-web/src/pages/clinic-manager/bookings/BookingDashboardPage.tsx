@@ -8,6 +8,7 @@ import { BOOKING_STATUS_CONFIG, BOOKING_TYPE_CONFIG, BOOKING_TYPE_LABELS, SERVIC
 import { ReassignStaffModal } from '../../../components/booking/ReassignStaffModal';
 import { StaffAvailabilityWarningModal, type ConfirmOption } from '../../../components/booking/StaffAvailabilityWarningModal';
 import { AddServiceModal } from '../../../components/booking/AddServiceModal';
+import { ReportBookingModal } from '../../../components/booking/ReportBookingModal';
 import { useToast } from '../../../components/Toast';
 import { TrashIcon, TruckIcon, ScaleIcon } from '@heroicons/react/24/outline';
 import { useSseNotification } from '../../../hooks/useSseNotification';
@@ -64,6 +65,10 @@ export const BookingDashboardPage = () => {
     // Add-on Service state
     const [addServiceModalOpen, setAddServiceModalOpen] = useState(false);
     const [addingService, setAddingService] = useState(false);
+
+    // Report state
+    const [reportModalOpen, setReportModalOpen] = useState(false);
+    const [bookingToReport, setBookingToReport] = useState<{ id: string; code: string } | null>(null);
 
     // Handle bookingId from URL query params (e.g., from schedule page click)
     useEffect(() => {
@@ -302,6 +307,11 @@ export const BookingDashboardPage = () => {
         } finally {
             setCancelling(null);
         }
+    };
+
+    const handleOpenReportModal = (bookingId: string, bookingCode: string) => {
+        setBookingToReport({ id: bookingId, code: bookingCode });
+        setReportModalOpen(true);
     };
 
     // Format date
@@ -589,6 +599,20 @@ export const BookingDashboardPage = () => {
                     onCancel={handleCancelBooking}
                     onBookingUpdated={fetchBookings}
                     onAddService={handleOpenAddServiceModal}
+                    onReport={() => handleOpenReportModal(selectedBooking.bookingId, selectedBooking.bookingCode)}
+                />
+            )}
+
+            {/* Report Modal */}
+            {bookingToReport && (
+                <ReportBookingModal
+                    isOpen={reportModalOpen}
+                    onClose={() => {
+                        setReportModalOpen(false);
+                        setBookingToReport(null);
+                    }}
+                    bookingId={bookingToReport.id}
+                    bookingCode={bookingToReport.code}
                 />
             )}
 
@@ -641,9 +665,10 @@ interface BookingDetailModalProps {
     onCancel: (bookingId: string) => void;
     onBookingUpdated?: () => void;
     onAddService?: () => void;
+    onReport?: () => void;
 }
 
-const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCancel, onBookingUpdated, onAddService }: BookingDetailModalProps) => {
+const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCancel, onBookingUpdated, onAddService, onReport }: BookingDetailModalProps) => {
     const { showToast } = useToast();
     const [booking, setBooking] = useState<Booking>(initialBooking);
     const [reassignModalOpen, setReassignModalOpen] = useState(false);
@@ -1382,25 +1407,40 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
                 </div>
 
                 {/* Footer Actions */}
-                <div className="flex justify-end gap-3 p-4 border-t-4 border-stone-900 bg-stone-50 flex-shrink-0">
-                    <button onClick={onClose} className="px-6 py-2 font-bold uppercase bg-white border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Đóng</button>
-                    {(booking.status === 'PENDING' || booking.status === 'CONFIRMED') && (
-                        <button
-                            onClick={() => onCancel(booking.bookingId)}
-                            className="px-6 py-2 font-bold uppercase bg-red-500 text-white border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all"
-                        >
-                            Hủy lịch
-                        </button>
-                    )}
-                    {booking.status === 'PENDING' && (
-                        <button onClick={() => { const firstSvc = getAllServices(booking)[0]; const sid = firstSvc?.bookingServiceId || firstSvc?.serviceId; onConfirm(booking.bookingId, sid ? selectedStaffByService[sid] : undefined); onClose(); }} className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Xác nhận</button>
-                    )}
-                    {booking.status === 'IN_PROGRESS' && (
-                        <>
-                            <button onClick={onAddService} className="px-6 py-2 font-bold uppercase bg-amber-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Thêm dịch vụ</button>
-                            <button onClick={async () => { await completeBooking(booking.bookingId); onClose(); window.location.reload(); }} className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Checkout</button>
-                        </>
-                    )}
+                <div className="flex justify-between items-center p-4 border-t-4 border-stone-900 bg-stone-50 flex-shrink-0 font-bold">
+                    <div>
+                        {booking.status !== 'CANCELLED' && booking.status !== 'NO_SHOW' && (
+                            <button
+                                onClick={onReport}
+                                className="px-4 py-2 font-bold uppercase bg-white text-red-600 border-2 border-red-600 hover:bg-red-50 transition-all flex items-center gap-2"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                                    <path fillRule="evenodd" d="M3 2.25a.75.75 0 01.75.75v.54l1.838-.46a9.75 9.75 0 016.725.738l.108.054a8.25 8.25 0 005.135.625l.489-.122a.75.75 0 01.914.887l-.488 1.95a9.75 9.75 0 01-6.725-.737l-.108-.054a8.25 8.25 0 00-5.135-.625l-.489.122v10.372a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75z" clipRule="evenodd" />
+                                </svg>
+                                Báo cáo
+                            </button>
+                        )}
+                    </div>
+                    <div className="flex gap-3">
+                        <button onClick={onClose} className="px-6 py-2 font-bold uppercase bg-white border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Đóng</button>
+                        {(booking.status === 'PENDING' || booking.status === 'CONFIRMED') && (
+                            <button
+                                onClick={() => onCancel(booking.bookingId)}
+                                className="px-6 py-2 font-bold uppercase bg-red-500 text-white border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all"
+                            >
+                                Hủy lịch
+                            </button>
+                        )}
+                        {booking.status === 'PENDING' && (
+                            <button onClick={() => { const firstSvc = getAllServices(booking)[0]; const sid = firstSvc?.bookingServiceId || firstSvc?.serviceId; onConfirm(booking.bookingId, sid ? selectedStaffByService[sid] : undefined); onClose(); }} className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Xác nhận</button>
+                        )}
+                        {booking.status === 'IN_PROGRESS' && (
+                            <>
+                                <button onClick={onAddService} className="px-6 py-2 font-bold uppercase bg-amber-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Thêm dịch vụ</button>
+                                <button onClick={async () => { await completeBooking(booking.bookingId); onClose(); window.location.reload(); }} className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Checkout</button>
+                            </>
+                        )}
+                    </div>
                 </div>
             </div>
 

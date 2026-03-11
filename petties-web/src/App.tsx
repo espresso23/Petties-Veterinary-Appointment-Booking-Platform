@@ -27,6 +27,7 @@ import { ToolsPage } from './pages/admin/tools'
 import { KnowledgePage } from './pages/admin/knowledge'
 import { PlaygroundPage } from './pages/admin/playground'
 import { ClinicApprovalPage } from './pages/admin/clinics'
+import { ReportsPage as AdminReportsPage } from './pages/admin/ReportsPage'
 
 // Role-specific Pages
 import { StaffDashboardPage, StaffSchedulePage, StaffBookingsPage, StaffPatientsPage } from './pages/staff'
@@ -107,6 +108,7 @@ function App() {
             <Route path="tools" element={<ToolsPage />} />
             <Route path="playground" element={<PlaygroundPage />} />
             <Route path="clinics" element={<ClinicApprovalPage />} />
+            <Route path="reports" element={<AdminReportsPage />} />
             <Route path="notifications" element={<AdminNotificationsPage />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route >

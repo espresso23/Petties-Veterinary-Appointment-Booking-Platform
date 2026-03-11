@@ -45,5 +45,9 @@ public enum NotificationType {
     RE_EXAMINATION_REMINDER,
 
     // Vaccination
-    VACCINATION_REMINDER
+    VACCINATION_REMINDER,
+
+    // Report
+    REPORT_CREATED,
+    REPORT_RESOLVED
 }

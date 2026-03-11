@@ -1851,6 +1851,14 @@ flowchart LR
 | PATCH | `/api/slots/{id}/block` | Manually block slot | CM, CO |
 | PATCH | `/api/slots/{id}/unblock` | Unblock slot | CM, CO |
 
+#### 3.1.8 Booking Report (`/reports`, `/admin/reports`)
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| POST | `/api/reports` | Submit a report for a booking | Auth |
+| GET | `/api/reports/my` | Get own submitted reports | Auth |
+| GET | `/api/admin/reports` | Get all reports (filtered) | Admin |
+| PUT | `/api/admin/reports/{id}/resolve` | Approve/Reject a report | Admin |
+
 #### 3.1.6 Clinic Services (`/services`)
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
@@ -2979,17 +2987,17 @@ sequenceDiagram
 ```
 #### 4.3.5 Business Rules
 
-1. **Staff Roles Control:** 
-    - CLINIC_OWNER có quyền thêm CLINIC_MANAGER và STAFF.
-    - CLINIC_MANAGER chỉ có quyền thêm Nhân viên (STAFF).
-2. **Manager Limit:** Mỗi phòng khám chỉ có tối đa 1 Manager.
-3. **Invitation Logic:** Hỗ trợ mời staff qua email. Nếu email chưa có tài khoản, hệ thống tạo user chờ đăng nhập qua Google OAuth. **Họ tên và Avatar sẽ được đồng bộ tự động từ Google Profile khi login lần đầu**, người mời không cần nhập. (Phone là thông tin không bắt buộc).
-4. **Slot Duration:** Tự động tạo slots 30 phút khi tạo shift.
-5. **Break Time Sync:** Giờ nghỉ tự động lấy từ Clinic Operating Hours nếu shift nằm trong khoảng đó.
-6. **Overnight Shifts:** Nếu endTime < startTime (vd: 22:00 → 06:00), hệ thống tự detect và set isOvernight = true.
-7. **Overlap Prevention:** Mỗi vet chỉ có 1 shift/ngày. Sử dụng forceUpdate=true để ghi đè shift cũ.
-8. **Delete Protection:** Không thể xóa shift có slots ở trạng thái BOOKED.
-9. **Block Permission:** Chỉ CLINIC_OWNER và CLINIC_MANAGER được block/unblock slots.
+1.  **Staff Roles Control:**
+    -   CLINIC_OWNER có quyền thêm CLINIC_MANAGER và STAFF.
+    -   CLINIC_MANAGER chỉ có quyền thêm Nhân viên (STAFF).
+2.  **Manager Limit:** Mỗi phòng khám chỉ có tối đa 1 Manager.
+3.  **Invitation Logic:** Hỗ trợ mời staff qua email. Nếu email chưa có tài khoản, hệ thống tạo user chờ đăng nhập qua Google OAuth. **Họ tên và Avatar sẽ được đồng bộ tự động từ Google Profile khi login lần đầu**, người mời không cần nhập. (Phone là thông tin không bắt buộc).
+4.  **Slot Duration:** Tự động tạo slots 30 phút khi tạo shift.
+5.  **Break Time Sync:** Giờ nghỉ tự động lấy từ Clinic Operating Hours nếu shift nằm trong khoảng đó.
+6.  **Overnight Shifts:** Nếu endTime < startTime (vd: 22:00 → 06:00), hệ thống tự detect và set isOvernight = true.
+7.  **Overlap Prevention:** Mỗi vet chỉ có 1 shift/ngày. Sử dụng forceUpdate=true để ghi đè shift cũ.
+8.  **Delete Protection:** Không thể xóa shift có slots ở trạng thái BOOKED.
+9.  **Block Permission:** Chỉ CLINIC_OWNER và CLINIC_MANAGER được block/unblock slots.
 10. **Repeat Weeks:** Có thể tạo lịch lặp lại tối đa 12 tuần liên tiếp.
 11. **Past Date Skip:** Không tạo shift cho ngày trong quá khứ.
 12. **Closed Day Skip:** Không tạo shift vào ngày phòng khám đóng cửa.
@@ -4548,66 +4556,66 @@ classDiagram
 #### 4.10.2 Class Specifications
 
 **1. SosController**
-- **Responsibility:** REST API endpoints for SOS emergency booking operations.
-- **Key Methods:**
-    - `startMatching(SosMatchRequest, UserPrincipal)`: Initiates SOS matching process for pet owner.
-    - `confirmMatching(UUID, SosConfirmRequest, UserPrincipal)`: Clinic manager accepts or declines SOS request.
-    - `getMatchingStatus(UUID)`: Retrieves current matching status for a booking.
-    - `getActiveSosAlertsForManager(UserPrincipal)`: Returns active SOS alerts for logged-in clinic manager (catch-up mechanism).
-    - `cancelMatching(UUID, UserPrincipal)`: Pet owner cancels SOS request before confirmation.
+-   **Responsibility:** REST API endpoints for SOS emergency booking operations.
+-   **Key Methods:**
+    -   `startMatching(SosMatchRequest, UserPrincipal)`: Initiates SOS matching process for pet owner.
+    -   `confirmMatching(UUID, SosConfirmRequest, UserPrincipal)`: Clinic manager accepts or declines SOS request.
+    -   `getMatchingStatus(UUID)`: Retrieves current matching status for a booking.
+    -   `getActiveSosAlertsForManager(UserPrincipal)`: Returns active SOS alerts for logged-in clinic manager (catch-up mechanism).
+    -   `cancelMatching(UUID, UserPrincipal)`: Pet owner cancels SOS request before confirmation.
 
 **2. SosMatchingService**
-- **Responsibility:** Core business logic for SOS matching, escalation, and timeout handling.
-- **Key Methods:**
-    - `startMatching(SosMatchRequest, UUID)`: Creates SOS booking, finds nearby clinics, notifies first clinic.
-    - `processConfirmation(SosConfirmRequest, UUID)`: Handles clinic acceptance/decline with staff assignment validation.
-    - `escalateToNextClinic(UUID)`: Moves to next clinic when current times out or declines.
-    - `checkTimeouts()`: Scheduled job checks for timed-out bookings (runs every 5 seconds).
-    - `getActiveSosBooking(UUID)`: Retrieves active SOS booking for pet owner (prevents duplicates).
-    - `getActiveSosAlertsForManager(UUID)`: Fetches active alerts for clinic manager (WebSocket catch-up).
-    - `cancelMatching(UUID, UUID)`: Cancels SOS matching and clears Redis session.
-    - `confirmSos(Booking, User, UUID)`: Confirms SOS, assigns staff, applies SOS fee, notifies owner.
-    - `declineSos(Booking, String)`: Logs decline reason and escalates to next clinic.
+-   **Responsibility:** Core business logic for SOS matching, escalation, and timeout handling.
+-   **Key Methods:**
+    -   `startMatching(SosMatchRequest, UUID)`: Creates SOS booking, finds nearby clinics, notifies first clinic.
+    -   `processConfirmation(SosConfirmRequest, UUID)`: Handles clinic acceptance/decline with staff assignment validation.
+    -   `escalateToNextClinic(UUID)`: Moves to next clinic when current times out or declines.
+    -   `checkTimeouts()`: Scheduled job checks for timed-out bookings (runs every 5 seconds).
+    -   `getActiveSosBooking(UUID)`: Retrieves active SOS booking for pet owner (prevents duplicates).
+    -   `getActiveSosAlertsForManager(UUID)`: Fetches active alerts for clinic manager (WebSocket catch-up).
+    -   `cancelMatching(UUID, UUID)`: Cancels SOS matching and clears Redis session.
+    -   `confirmSos(Booking, User, UUID)`: Confirms SOS, assigns staff, applies SOS fee, notifies owner.
+    -   `declineSos(Booking, String)`: Logs decline reason and escalates to next clinic.
 
 **3. SosSessionManager**
-- **Responsibility:** Manages Redis-based SOS matching sessions with distributed locking.
-- **Key Methods:**
-    - `createSession(UUID, List<Clinic>)`: Stores clinic list and initial index in Redis.
-    - `sessionExists(UUID)`: Checks if session exists for booking.
-    - `getCurrentIndex(UUID)`: Retrieves current clinic index from session.
-    - `getClinicIds(UUID)`: Retrieves clinic ID list from session.
-    - `updateIndex(UUID, int)`: Updates current clinic index when escalating.
-    - `updateNotifiedAt(UUID)`: Updates timestamp when clinic is notified (for timeout calculation).
-    - `getElapsedSeconds(UUID)`: Calculates elapsed time since last notification.
-    - `hasCurrentClinicTimedOut(UUID)`: Checks if 60-second timeout exceeded.
-    - `clearSession(UUID)`: Deletes session from Redis (on completion/cancellation).
-    - `acquireBookingLock(UUID)`: Acquires distributed lock for booking (prevents race conditions).
-    - `releaseBookingLock(UUID)`: Releases distributed lock.
-    - `acquireUserLock(UUID)`: Acquires lock for user (prevents duplicate SOS requests).
-    - `releaseUserLock(UUID)`: Releases user lock.
+-   **Responsibility:** Manages Redis-based SOS matching sessions with distributed locking.
+-   **Key Methods:**
+    -   `createSession(UUID, List<Clinic>)`: Stores clinic list and initial index in Redis.
+    -   `sessionExists(UUID)`: Checks if session exists for booking.
+    -   `getCurrentIndex(UUID)`: Retrieves current clinic index from session.
+    -   `getClinicIds(UUID)`: Retrieves clinic ID list from session.
+    -   `updateIndex(UUID, int)`: Updates current clinic index when escalating.
+    -   `updateNotifiedAt(UUID)`: Updates timestamp when clinic is notified (for timeout calculation).
+    -   `getElapsedSeconds(UUID)`: Calculates elapsed time since last notification.
+    -   `hasCurrentClinicTimedOut(UUID)`: Checks if 60-second timeout exceeded.
+    -   `clearSession(UUID)`: Deletes session from Redis (on completion/cancellation).
+    -   `acquireBookingLock(UUID)`: Acquires distributed lock for booking (prevents race conditions).
+    -   `releaseBookingLock(UUID)`: Releases distributed lock.
+    -   `acquireUserLock(UUID)`: Acquires lock for user (prevents duplicate SOS requests).
+    -   `releaseUserLock(UUID)`: Releases user lock.
 
 **4. SosNotificationService**
-- **Responsibility:** WebSocket broadcasting for real-time SOS status updates.
-- **WebSocket Topics:**
-    - `/topic/sos-matching/{bookingId}` - Pet owner subscribes for status updates
-    - `/topic/clinic/{clinicId}/sos-alert` - Clinic managers subscribe for SOS alerts
-- **Key Methods:**
-    - `notifyOwnerClinicContacted(UUID, Clinic, int, int, double)`: Notifies owner that clinic is being contacted.
-    - `notifyOwnerWaitingNext(UUID, Clinic, int, int)`: Notifies owner about escalation to next clinic.
-    - `notifyOwnerConfirmed(UUID, Clinic, User, Double, Integer)`: Notifies owner of confirmation with staff details.
-    - `notifyOwnerNoClinic(UUID)`: Notifies owner that no clinics are available.
-    - `notifyOwnerCancelled(UUID)`: Notifies owner that request was cancelled.
-    - `alertClinic(Booking, Clinic, int, int)`: Sends SOS alert to clinic managers.
-    - `notifyClinicStaleAlert(UUID, UUID, MatchingEvent)`: Notifies clinic that alert is no longer active (handled/timed out).
+-   **Responsibility:** WebSocket broadcasting for real-time SOS status updates.
+-   **WebSocket Topics:**
+    -   `/topic/sos-matching/{bookingId}` - Pet owner subscribes for status updates
+    -   `/topic/clinic/{clinicId}/sos-alert` - Clinic managers subscribe for SOS alerts
+-   **Key Methods:**
+    -   `notifyOwnerClinicContacted(UUID, Clinic, int, int, double)`: Notifies owner that clinic is being contacted.
+    -   `notifyOwnerWaitingNext(UUID, Clinic, int, int)`: Notifies owner about escalation to next clinic.
+    -   `notifyOwnerConfirmed(UUID, Clinic, User, Double, Integer)`: Notifies owner of confirmation with staff details.
+    -   `notifyOwnerNoClinic(UUID)`: Notifies owner that no clinics are available.
+    -   `notifyOwnerCancelled(UUID)`: Notifies owner that request was cancelled.
+    -   `alertClinic(Booking, Clinic, int, int)`: Sends SOS alert to clinic managers.
+    -   `notifyClinicStaleAlert(UUID, UUID, MatchingEvent)`: Notifies clinic that alert is no longer active (handled/timed out).
 
 **5. BookingService**
-- **Responsibility:** General booking operations including checkout and completion.
-- **Key Methods:**
-    - `processCheckoutAuthorized(UUID, CheckoutRequest, User)`: Processes checkout for bookings including SOS fee calculation.
-    - `complete(UUID, User)`: Marks booking as completed after payment confirmation.
+-   **Responsibility:** General booking operations including checkout and completion.
+-   **Key Methods:**
+    -   `processCheckoutAuthorized(UUID, CheckoutRequest, User)`: Processes checkout for bookings including SOS fee calculation.
+    -   `complete(UUID, User)`: Marks booking as completed after payment confirmation.
 
 **6. SosSessionManager (Redis Data Structure)**
-- **Session Format:**
+-   **Session Format:**
     ```
     sos:session:{bookingId} -> {
       "clinicIds": ["uuid1", "uuid2", ...],
@@ -5408,9 +5416,9 @@ classDiagram
 
 **Smart Availability Algorithm**:
 The system implements a "Smart Availability" feature that automatically filters available time slots based on:
-1. Selected service(s) and their required vet specialties
-2. Staff working shifts for the selected date
-3. Existing bookings (to avoid double-booking)
+1.  Selected service(s) and their required vet specialties
+2.  Staff working shifts for the selected date
+3.  Existing bookings (to avoid double-booking)
 
 For multi-service bookings, the algorithm ensures **consecutive slots** can be fulfilled by checking each service in sequence.
 
@@ -5461,9 +5469,9 @@ sequenceDiagram
 ```
 
 **Key Technical Details**:
-- **New API**: `GET /api/bookings/public/available-slots` - Returns available time slots based on service specialty matching
-- **Staff Assignment**: Intentionally omitted from mobile flow. Manager assigns vet post-booking via Dashboard (Section 3.8.4)
-- **Slot Reservation**: Slots are temporarily locked for 15 minutes to allow payment completion
+-   **New API**: `GET /api/bookings/public/available-slots` - Returns available time slots based on service specialty matching
+-   **Staff Assignment**: Intentionally omitted from mobile flow. Manager assigns vet post-booking via Dashboard (Section 3.8.4)
+-   **Slot Reservation**: Slots are temporarily locked for 15 minutes to allow payment completion
 
 #### 4.11.3 Online Payment & Confirmation (UC-PO-10, UC-PO-20)
 
@@ -5645,9 +5653,9 @@ sequenceDiagram
 ```
 
 **Notes:**
-- Distance fee is NOT recalculated when adding services
-- Price is calculated based on pet's current weight
-- Only services from the same clinic can be added
+-   Distance fee is NOT recalculated when adding services
+-   Price is calculated based on pet's current weight
+-   Only services from the same clinic can be added
 
 #### 4.11.8 Receive Payment & Checkout (SRS Screen #46, UC-CM-10)
 
@@ -5719,9 +5727,9 @@ sequenceDiagram
 ```
 
 **Notes:**
-- Bookings are grouped into 3 tabs: Upcoming (PENDING, CONFIRMED, IN_PROGRESS), Completed (COMPLETED), Cancelled (CANCELLED, NO_SHOW)
-- Empty state shown if no bookings exist
-- Pet Owner can click on any booking to view details
+-   Bookings are grouped into 3 tabs: Upcoming (PENDING, CONFIRMED, IN_PROGRESS), Completed (COMPLETED), Cancelled (CANCELLED, NO_SHOW)
+-   Empty state shown if no bookings exist
+-   Pet Owner can click on any booking to view details
 
 #### 4.11.10 Cancel Booking (UC-PO-09)
 
@@ -5800,10 +5808,10 @@ sequenceDiagram
 ```
 
 **Notes:**
-- Only bookings with status trước IN_PROGRESS can be cancelled
-- Slots are restored to AVAILABLE status
-- Notifications sent to Clinic Manager and assigned Staff (if any)
-- If payment method is ONLINE, refund request is created (handled by UC-CM-07)
+-   Only bookings with status trước IN_PROGRESS can be cancelled
+-   Slots are restored to AVAILABLE status
+-   Notifications sent to Clinic Manager and assigned Staff (if any)
+-   If payment method is ONLINE, refund request is created (handled by UC-CM-07)
 
 #### 4.11.11 View Assigned Bookings (UC-VT-03)
 
@@ -5836,10 +5844,10 @@ sequenceDiagram
 ```
 
 **Notes:**
-- Filters available: Today, Upcoming, Completed, All
-- Status badges: CONFIRMED (yellow), IN_PROGRESS (purple), COMPLETED (green), CANCELLED/NO_SHOW (gray/red)
-- Empty state shown if no assigned bookings
-- Staff can click on booking to view details and take actions
+-   Filters available: Today, Upcoming, Completed, All
+-   Status badges: CONFIRMED (yellow), IN_PROGRESS (purple), COMPLETED (green), CANCELLED/NO_SHOW (gray/red)
+-   Empty state shown if no assigned bookings
+-   Staff can click on booking to view details and take actions
 
 #### 4.11.12 Update Appointment Progress (UC-VT-04)
 
@@ -5921,10 +5929,10 @@ sequenceDiagram
 ```
 
 **Notes:**
-- Valid status transitions: CONFIRMED → IN_PROGRESS → COMPLETED
-- EMR shell is created when booking starts execution (check-in/start-moving)
-- Checkout/complete requires valid trạng thái hiện tại là IN_PROGRESS
-- Notifications sent to Pet Owner and Clinic Manager on status changes
+-   Valid status transitions: CONFIRMED → IN_PROGRESS → COMPLETED
+-   EMR shell is created when booking starts execution (check-in/start-moving)
+-   Checkout/complete requires valid trạng thái hiện tại là IN_PROGRESS
+-   Notifications sent to Pet Owner and Clinic Manager on status changes
 
 #### 4.11.13 Check-in Patient (UC-VT-05)
 
@@ -5995,10 +6003,10 @@ sequenceDiagram
 ```
 
 **Notes:**
-- Only bookings with status CONFIRMED can be checked in
-- EMR shell is created with booking_id, pet_id, vet_id, created_at
-- Notification sent to Pet Owner: "Thú cưng của bạn đang được khám"
-- After check-in, Staff can start filling EMR (UC-VT-06)
+-   Only bookings with status CONFIRMED can be checked in
+-   EMR shell is created with booking_id, pet_id, vet_id, created_at
+-   Notification sent to Pet Owner: "Thú cưng của bạn đang được khám"
+-   After check-in, Staff can start filling EMR (UC-VT-06)
 
 #### 4.11.14 Mark Treatment Finished (UC-VT-09)
 
@@ -6070,10 +6078,10 @@ sequenceDiagram
 ```
 
 **Notes:**
-- EMR must have Assessment and Plan fields filled before treatment can be marked finished
-- Booking status changes from IN_PROGRESS to COMPLETED
-- Notification sent to Clinic Manager: "Booking đã hoàn tất"
-- Notification sent to Pet Owner: "Lịch hẹn đã hoàn thành"
+-   EMR must have Assessment and Plan fields filled before treatment can be marked finished
+-   Booking status changes from IN_PROGRESS to COMPLETED
+-   Notification sent to Clinic Manager: "Booking đã hoàn tất"
+-   Notification sent to Pet Owner: "Lịch hẹn đã hoàn thành"
 
 #### 4.11.15 Handle Cancellations & Refunds (UC-CM-07)
 
@@ -6154,10 +6162,10 @@ sequenceDiagram
 ```
 
 **Notes:**
-- Refund policy: Cancel >24h before appointment = 100% refund, <24h = 50% refund, <6h = no refund
-- Only ONLINE payment bookings require refund processing
-- CASH bookings are marked as cancelled without refund
-- Notification sent to Pet Owner with refund details
+-   Refund policy: Cancel >24h before appointment = 100% refund, <24h = 50% refund, <6h = no refund
+-   Only ONLINE payment bookings require refund processing
+-   CASH bookings are marked as cancelled without refund
+-   Notification sent to Pet Owner with refund details
 
 #### 4.11.16 Check Staff Availability (UC-CM-14)
 
@@ -6210,13 +6218,13 @@ sequenceDiagram
 ```
 
 **Notes:**
-- Staff availability is checked based on:
-  - Shift schedule (vet must have shift on booking date)
-  - Slot availability (slots not already BOOKED)
-  - Service specialty matching
-  - Current workload (number of bookings assigned for the day)
-- Staff are sorted by availability and workload (least busy first)
-- Unavailable vets are shown with reason (No shift, Fully booked, Wrong specialty)
+-   Staff availability is checked based on:
+    -   Shift schedule (vet must have shift on booking date)
+    -   Slot availability (slots not already BOOKED)
+    -   Service specialty matching
+    -   Current workload (number of bookings assigned for the day)
+-   Staff are sorted by availability and workload (least busy first)
+-   Unavailable vets are shown with reason (No shift, Fully booked, Wrong specialty)
 
 #### 4.11.17 Reassign Staff to Service (UC-CM-15)
 
@@ -6295,13 +6303,13 @@ sequenceDiagram
 ```
 
 **Notes:**
-- Reassignment reasons: Staff unavailable, Staff overloaded, Emergency, Other
-- Old vet's slots are released back to AVAILABLE
-- New vet's corresponding slots are marked as BOOKED
-- Notifications sent to:
-  - Old Staff: "Bạn đã được gỡ khỏi lịch hẹn [Booking ID]"
-  - New Staff: "Bạn được phân công lịch hẹn mới [Booking ID]"
-  - Pet Owner: "Nhân viên của bạn đã được thay đổi thành Dr. [Name]"
+-   Reassignment reasons: Staff unavailable, Staff overloaded, Emergency, Other
+-   Old vet's slots are released back to AVAILABLE
+-   New vet's corresponding slots are marked as BOOKED
+-   Notifications sent to:
+    -   Old Staff: "Bạn đã được gỡ khỏi lịch hẹn [Booking ID]"
+    -   New Staff: "Bạn được phân công lịch hẹn mới [Booking ID]"
+    -   Pet Owner: "Nhân viên của bạn đã được thay đổi thành Dr. [Name]"
 
 #### 4.11.18 Manage Shifts - Delete Shift (UC-CM-16)
 
@@ -6380,10 +6388,10 @@ sequenceDiagram
 ```
 
 **Notes:**
-- Shift can only be deleted if no slots are BOOKED
-- If shift has booked slots, system shows list of affected bookings and prevents deletion
-- Manager must reassign or cancel bookings before deleting shift
-- All AVAILABLE and BLOCKED slots are deleted along with the shift
+-   Shift can only be deleted if no slots are BOOKED
+-   If shift has booked slots, system shows list of affected bookings and prevents deletion
+-   Manager must reassign or cancel bookings before deleting shift
+-   All AVAILABLE and BLOCKED slots are deleted along with the shift
 
 
 ---
@@ -6395,9 +6403,9 @@ sequenceDiagram
 
 **Architecture Overview:**
 The SOS Emergency module uses a **refactored service-oriented architecture** with clear separation of concerns:
-- **SosMatchingService:** Core business logic for matching process
-- **SosSessionManager:** Redis session management (clinic lists, index, timestamps, locks)
-- **SosNotificationService:** WebSocket broadcasting to Pet Owners and Clinic Managers
+-   **SosMatchingService:** Core business logic for matching process
+-   **SosSessionManager:** Redis session management (clinic lists, index, timestamps, locks)
+-   **SosNotificationService:** WebSocket broadcasting to Pet Owners and Clinic Managers
 
 ```mermaid
 classDiagram
@@ -6511,56 +6519,56 @@ classDiagram
 **Class Specifications:**
 
 **1. SosMatchingService**
-- **Responsibility:** Core SOS matching business logic
-- **Key Methods:**
-  - `startMatching()`: Initialize SOS request, find nearby clinics, notify first clinic
-  - `processConfirmation()`: Handle clinic accept/decline
-  - `escalateToNextClinic()`: Move to next clinic on timeout/decline
-  - `checkTimeouts()`: Scheduled job to detect timed-out requests
-  - `getActiveSosBooking()`: Check if user has active SOS
-  - `confirmSos()`: Update booking to CONFIRMED, assign staff
-  - `declineSos()`: Clear clinic field, escalate to next
-  - `handleNoClinicAvailable()`: Cancel booking when all clinics exhausted
+-   **Responsibility:** Core SOS matching business logic
+-   **Key Methods:**
+    -   `startMatching()`: Initialize SOS request, find nearby clinics, notify first clinic
+    -   `processConfirmation()`: Handle clinic accept/decline
+    -   `escalateToNextClinic()`: Move to next clinic on timeout/decline
+    -   `checkTimeouts()`: Scheduled job to detect timed-out requests
+    -   `getActiveSosBooking()`: Check if user has active SOS
+    -   `confirmSos()`: Update booking to CONFIRMED, assign staff
+    -   `declineSos()`: Clear clinic field, escalate to next
+    -   `handleNoClinicAvailable()`: Cancel booking when all clinics exhausted
 
 **2. SosSessionManager**
-- **Responsibility:** Manage Redis session data for SOS matching
-- **Key Methods:**
-  - `acquireUserLock()/releaseUserLock()`: Distributed lock to prevent race conditions
-  - `createSession()`: Store clinic IDs, index, timestamp
-  - `clearSession()`: Clean up session data
-  - `updateNotifiedAt()`: Record when current clinic was notified (for accurate timeout)
-  - `hasCurrentClinicTimedOut()`: Check if 60 seconds elapsed
-  - `sessionExists()`: Validate session before operations
+-   **Responsibility:** Manage Redis session data for SOS matching
+-   **Key Methods:**
+    -   `acquireUserLock()/releaseUserLock()`: Distributed lock to prevent race conditions
+    -   `createSession()`: Store clinic IDs, index, timestamp
+    -   `clearSession()`: Clean up session data
+    -   `updateNotifiedAt()`: Record when current clinic was notified (for accurate timeout)
+    -   `hasCurrentClinicTimedOut()`: Check if 60 seconds elapsed
+    -   `sessionExists()`: Validate session before operations
 
 **Redis Keys Used:**
-- `sos:matching:{bookingId}:clinics` - List of clinic IDs
-- `sos:matching:{bookingId}:index` - Current clinic index
-- `sos:matching:{bookingId}:createdAt` - Session creation timestamp
-- `sos:matching:{bookingId}:notifiedAt` - When current clinic was notified
-- `sos:lock:user:{userId}` - User lock to prevent duplicate requests
+-   `sos:matching:{bookingId}:clinics` - List of clinic IDs
+-   `sos:matching:{bookingId}:index` - Current clinic index
+-   `sos:matching:{bookingId}:createdAt` - Session creation timestamp
+-   `sos:matching:{bookingId}:notifiedAt` - When current clinic was notified
+-   `sos:lock:user:{userId}` - User lock to prevent duplicate requests
 
 **3. SosNotificationService**
-- **Responsibility:** WebSocket broadcasting for SOS status updates
-- **Key Methods:**
-  - `notifyOwnerClinicContacted()`: Broadcast to Pet Owner when clinic is contacted
-  - `notifyOwnerWaitingNext()`: Broadcast when escalating to next clinic
-  - `notifyOwnerConfirmed()`: Broadcast when clinic confirms
-  - `notifyOwnerNoClinic()`: Broadcast when no clinics available
-  - `alertClinic()`: Send alert to Clinic Manager
+-   **Responsibility:** WebSocket broadcasting for SOS status updates
+-   **Key Methods:**
+    -   `notifyOwnerClinicContacted()`: Broadcast to Pet Owner when clinic is contacted
+    -   `notifyOwnerWaitingNext()`: Broadcast when escalating to next clinic
+    -   `notifyOwnerConfirmed()`: Broadcast when clinic confirms
+    -   `notifyOwnerNoClinic()`: Broadcast when no clinics available
+    -   `alertClinic()`: Send alert to Clinic Manager
 
 **WebSocket Topics:**
-- `/topic/sos-matching/{bookingId}` - Pet Owner subscribes for status updates
-- `/topic/clinic/{clinicId}/sos-alert` - Clinic Manager subscribes for SOS alerts
+-   `/topic/sos-matching/{bookingId}` - Pet Owner subscribes for status updates
+-   `/topic/clinic/{clinicId}/sos-alert` - Clinic Manager subscribes for SOS alerts
 
 **Business Rules:**
-- **BR-59:** Search radius 10km from user location
-- **BR-60:** Max 5 clinics to try
-- **BR-61:** 60 seconds timeout per clinic
-- **BR-62:** No duplicate active SOS bookings per user
-- **BR-63:** Distributed lock prevents race conditions
-- **BR-64:** Status flow: SEARCHING → PENDING_CLINIC_CONFIRM → CONFIRMED → IN_PROGRESS → COMPLETED/CANCELLED
-- **BR-65:** Session TTL = 60s * 5 clinics + 60s buffer = 360s
-- **BR-66:** Unique booking code format: `SOS-{timestamp}-{random}`
+-   **BR-59:** Search radius 10km from user location
+-   **BR-60:** Max 5 clinics to try
+-   **BR-61:** 60 seconds timeout per clinic
+-   **BR-62:** No duplicate active SOS bookings per user
+-   **BR-63:** Distributed lock prevents race conditions
+-   **BR-64:** Status flow: SEARCHING → PENDING_CLINIC_CONFIRM → CONFIRMED → IN_PROGRESS → COMPLETED/CANCELLED
+-   **BR-65:** Session TTL = 60s * 5 clinics + 60s buffer = 360s
+-   **BR-66:** Unique booking code format: `SOS-{timestamp}-{random}`
 
 #### 4.11.20 Request SOS & Auto-Match (UC-SOS-01, UC-SOS-09)
 
@@ -6993,12 +7001,12 @@ sequenceDiagram
 Firebase Cloud Messaging (FCM) enables real-time push notifications to mobile devices. This module handles FCM token management and notification delivery across Android and iOS platforms.
 
 **Key Features:**
-- Token registration on app startup
-- Token removal on logout
-- Single-user push notifications
-- Batch notifications to multiple users
-- Automatic token cleanup for invalid/expired tokens
-- Platform-specific configuration (Android channel, iOS sound)
+-   Token registration on app startup
+-   Token removal on logout
+-   Single-user push notifications
+-   Batch notifications to multiple users
+-   Automatic token cleanup for invalid/expired tokens
+-   Platform-specific configuration (Android channel, iOS sound)
 
 #### 4.13.1 Class Diagram - FCM Push Notifications
 
@@ -7042,25 +7050,25 @@ classDiagram
 #### 4.13.2 Class Specifications
 
 **1. FcmController**
-- **Responsibility:** Handle FCM token registration/removal endpoints
-- **Key Methods:**
-  - `registerToken()`: Register FCM token for authenticated user
-  - `removeToken()`: Remove FCM token on logout
+-   **Responsibility:** Handle FCM token registration/removal endpoints
+-   **Key Methods:**
+    -   `registerToken()`: Register FCM token for authenticated user
+    -   `removeToken()`: Remove FCM token on logout
 
 **2. FcmService**
-- **Responsibility:** Manage FCM token lifecycle and send push notifications
-- **Key Methods:**
-  - `registerToken()`: Store FCM token in user entity
-  - `removeToken()`: Clear FCM token from user entity
-  - `sendToUser()`: Send notification to a single user
-  - `sendToUsers()`: Send batch notifications
-  - `handleFcmError()`: Handle FCM errors and invalid tokens
+-   **Responsibility:** Manage FCM token lifecycle and send push notifications
+-   **Key Methods:**
+    -   `registerToken()`: Store FCM token in user entity
+    -   `removeToken()`: Clear FCM token from user entity
+    -   `sendToUser()`: Send notification to a single user
+    -   `sendToUsers()`: Send batch notifications
+    -   `handleFcmError()`: Handle FCM errors and invalid tokens
 
 **Business Rules:**
-- **BR-FCM-01:** FCM token must be non-empty
-- **BR-FCM-02:** Invalid/expired tokens are automatically removed
-- **BR-FCM-03:** Android notifications use `petties_notifications` channel
-- **BR-FCM-04:** Batch notifications report success count
+-   **BR-FCM-01:** FCM token must be non-empty
+-   **BR-FCM-02:** Invalid/expired tokens are automatically removed
+-   **BR-FCM-03:** Android notifications use `petties_notifications` channel
+-   **BR-FCM-04:** Batch notifications report success count
 
 #### 4.13.3 Sequence Diagram: Register FCM Token
 
@@ -7180,17 +7188,17 @@ sequenceDiagram
 Server-Sent Events (SSE) provide unidirectional real-time updates from server to client. Unlike WebSocket (bidirectional), SSE is ideal for push notifications, live status updates, and event streaming.
 
 **Key Features:**
-- Long-lived HTTP connections (30 minutes timeout)
-- Multi-tab/device support per user
-- Automatic heartbeat (30 seconds)
-- Connection lifecycle management
-- Event types: CONNECTED, HEARTBEAT, NOTIFICATION, SHIFT_UPDATE
+-   Long-lived HTTP connections (30 minutes timeout)
+-   Multi-tab/device support per user
+-   Automatic heartbeat (30 seconds)
+-   Connection lifecycle management
+-   Event types: CONNECTED, HEARTBEAT, NOTIFICATION, SHIFT_UPDATE
 
 **Advantages over WebSocket:**
-- Simpler protocol (HTTP-based)
-- Auto-reconnect in browsers
-- Better for one-way push notifications
-- No need for bidirectional communication
+-   Simpler protocol (HTTP-based)
+-   Auto-reconnect in browsers
+-   Better for one-way push notifications
+-   No need for bidirectional communication
 
 #### 4.13.6 Class Diagram - SSE Real-time
 
@@ -7238,33 +7246,33 @@ classDiagram
 #### 4.13.7 Class Specifications
 
 **1. SseController**
-- **Responsibility:** Handle SSE subscription endpoint
-- **Key Methods:**
-  - `subscribe()`: Create SSE connection for authenticated user
-  - `getStats()`: Return connection statistics (Admin only)
+-   **Responsibility:** Handle SSE subscription endpoint
+-   **Key Methods:**
+    -   `subscribe()`: Create SSE connection for authenticated user
+    -   `getStats()`: Return connection statistics (Admin only)
 
 **2. SseEmitterService**
-- **Responsibility:** Manage SSE connections and push events
-- **Key Methods:**
-  - `subscribe()`: Create SseEmitter and register callbacks
-  - `pushToUser()`: Push event to all user connections
-  - `pushToUsers()`: Batch push to multiple users
-  - `sendHeartbeats()`: Scheduled task to keep connections alive
-  - `disconnectUser()`: Close all user connections (on logout)
+-   **Responsibility:** Manage SSE connections and push events
+-   **Key Methods:**
+    -   `subscribe()`: Create SseEmitter and register callbacks
+    -   `pushToUser()`: Push event to all user connections
+    -   `pushToUsers()`: Batch push to multiple users
+    -   `sendHeartbeats()`: Scheduled task to keep connections alive
+    -   `disconnectUser()`: Close all user connections (on logout)
 
 **3. SseEventDto**
-- **Responsibility:** Standard event format for SSE messages
-- **Fields:**
-  - `type`: Event type (CONNECTED, HEARTBEAT, NOTIFICATION, SHIFT_UPDATE)
-  - `data`: Event payload (varies by type)
-  - `timestamp`: Event timestamp
+-   **Responsibility:** Standard event format for SSE messages
+-   **Fields:**
+    -   `type`: Event type (CONNECTED, HEARTBEAT, NOTIFICATION, SHIFT_UPDATE)
+    -   `data`: Event payload (varies by type)
+    -   `timestamp`: Event timestamp
 
 **Business Rules:**
-- **BR-SSE-01:** Connection timeout 30 minutes
-- **BR-SSE-02:** Heartbeat every 30 seconds
-- **BR-SSE-03:** Users can have multiple connections (multi-tab)
-- **BR-SSE-04:** Auto-cleanup on timeout/error/completion
-- **BR-SSE-05:** Initial CONNECTED event sent on subscription
+-   **BR-SSE-01:** Connection timeout 30 minutes
+-   **BR-SSE-02:** Heartbeat every 30 seconds
+-   **BR-SSE-03:** Users can have multiple connections (multi-tab)
+-   **BR-SSE-04:** Auto-cleanup on timeout/error/completion
+-   **BR-SSE-05:** Initial CONNECTED event sent on subscription
 
 #### 4.13.8 Sequence Diagram: SSE Subscription
 
@@ -7523,81 +7531,6 @@ Module quản lý hệ thống dành cho Admin. Cung cấp thống kê tổng qu
 #### 4.16.1 Class Diagram - Reporting
 
 ```mermaid
-classDiagram
-    class ReportController {
-        -ReportService reportService
-        +submitReport(ReportRequest) ResponseEntity
-        +getMyReports(UUID, Pageable) ResponseEntity
-        +getPendingReports(Pageable) ResponseEntity
-        +processReport(UUID, ProcessRequest) ResponseEntity
-    }
-
-    class ReportService {
-        -ReportRepository reportRepository
-        -UserRepository userRepository
-        -NotificationService notificationService
-        +createReport(ReportRequest) ReportResponse
-        +getUserReports(UUID, Pageable) Page~ReportResponse~
-        +getPendingReports(Pageable) Page~ReportResponse~
-        +processReport(UUID, ProcessRequest) void
-    }
-
-    class Report {
-        +UUID reportId
-        +User reporter
-        +User reportedUser
-        +Clinic reportedClinic
-        +Booking relatedBooking
-        +ReportCategory category
-        +String description
-        +List~String~ evidenceUrls
-        +ReportStatus status
-        +String adminNotes
-        +LocalDateTime createdAt
-        +LocalDateTime processedAt
-    }
-
-    class ReportRepository {
-        <<interface>>
-        +findById(UUID) Optional~Report~
-        +findByReporter(User, Pageable) Page~Report~
-        +findByStatus(ReportStatus, Pageable) Page~Report~
-        +save(Report) Report
-    }
-
-    ReportController --> ReportService
-    ReportService --> ReportRepository
-    ReportService --> NotificationService
-    ReportRepository ..> Report
-```
-
-#### 4.16.2 Submit Platform Violation Report (UC-PO-16)
-
-```mermaid
-sequenceDiagram
-    actor U as User (Pet Owner/Manager)
-    participant UI as Report Form
-    participant RC as ReportController
-    participant RS as ReportService
-    participant CS as CloudinaryService
-    participant RR as ReportRepository
-    participant NS as NotificationService
-    participant DB as Database
-
-    U->>UI: 1. Click "Report Issue" on Booking Detail
-    activate UI
-    U->>UI: 2. Select category (Abuse, Hygiene, No-show...)
-    U->>UI: 3. Enter description & upload evidence photos
-    UI->>CS: 4. Upload photos
-    activate CS
-    CS-->>UI: 5. Evidence URLs
-    deactivate CS
-    UI->>RC: 6. POST /reports (ReportRequest)
-    activate RC
-    RC->>RS: 7. createReport(request)
-    activate RS
-    RS->>RS: 8. Validate & enrich with user context
-    RS->>RR: 9. save(Report)
     activate RR
     RR->>DB: 10. INSERT report
     activate DB
