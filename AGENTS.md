@@ -109,7 +109,7 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 - Single Agent: LangGraph với ReAct pattern (Thought → Action → Observation)
 - Config: DB-based dynamic configuration (prompt, parameters, tools)
 - Tools: FastMCP với @mcp.tool decorator
-  - `pet_knowledge_search` - Tra cứu cẩm nang/kiến thức thú y (RAG)
+  - `pet_knowledge_search` - Tra cứu cẩm nang/kiến thức thú y (Hybrid: RAG + Knowledge Graph + Case Memory)
   - `web_search` - Tìm thêm nguồn web khi knowledge base chưa đủ
   - `get_user_pets` - Lấy danh sách thú cưng của user để tư vấn/đặt lịch đúng
   - `search_clinics_nearby` - Tìm phòng khám gần vị trí
@@ -120,7 +120,10 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 - RAG: LlamaIndex + Qdrant Cloud + Cohere embed-multilingual-v3
 - Visual Case Memory: lưu case đã xác nhận vào Qdrant collection `petties_case_memory_v2` với named vectors `text` (Cohere) + `image` (Jina CLIP v2, 1024 chiều)
 - Image embeddings: dùng Jina Embeddings API với model cố định `jina-clip-v2`, chỉ nhận URL `https` hoặc base64 (data URL) và trả về vector 1024 chiều khớp với cấu hình Case Memory
-- Cấu hình Jina: `JINA_API_KEY` (và tùy chọn `JINA_IMAGE_EMBED_MODEL`) được lưu trong bảng `system_settings` và có thể chỉnh từ trang Admin Agent Playground (section “Jina Image Embeddings (Case Memory)”), kèm nút test `/api/v1/settings/test-jina` để kiểm tra kết nối và dimension
+- Ưu tiên tool dữ liệu cá nhân hóa (`get_user_pets`, ...) cho các câu hỏi kiểu “thú cưng của tôi/hồ sơ của bé”; chỉ gọi knowledge base khi người dùng hỏi kiến thức/chăm sóc/triệu chứng chung
+- Tool runtime: trước khi gọi FastMCP, lọc tham số theo `input_schema.properties` để loại key dư (ví dụ `type`) nhằm tránh lỗi Pydantic `Unexpected keyword argument`
+- Streaming: WebSocket có thể gửi đầy đủ thought/action/observation; client nên mặc định chỉ hiển thị thought/stream cho UX, và bật debug mode để xem tool_call/tool_result khi cần
+- Cấu hình Jina: `JINA_API_KEY` (và tùy chọn `JINA_IMAGE_EMBED_MODEL`) được lưu trong bảng `system_settings` và có thể chỉnh từ trang Admin Knowledge (cùng trang với Cohere/Qdrant), kèm nút test `/api/v1/settings/test-jina` để kiểm tra kết nối và dimension
 
 
 ### Mobile (Flutter)

@@ -48,10 +48,8 @@ from app.api.schemas.knowledge_schemas import (
 from app.db.postgres.models import KnowledgeDocument
 from app.db.postgres.session import get_db
 
-# Initialize router
-router = APIRouter(
-    prefix="/knowledge", tags=["Knowledge Base"], dependencies=[Depends(get_admin_user)]
-)
+# Initialize router - no global auth, add individually per endpoint
+router = APIRouter(prefix="/knowledge", tags=["Knowledge Base"])
 
 
 # Storage configuration
@@ -930,6 +928,7 @@ def get_kg_service():
 
     Lưu ý: Quá trình này có thể mất vài phút tùy số lượng tài liệu.
     """,
+    dependencies=[Depends(get_admin_user)],
 )
 async def build_knowledge_graph(
     document_ids: Optional[List[int]] = Query(
@@ -1128,6 +1127,11 @@ async def build_knowledge_graph(
     except Exception as e:
         logger.error(f"Error building Knowledge Graph: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================
+# PUBLIC KG ENDPOINTS (No Auth Required)
+# =============================================================
 
 
 @router.get(
