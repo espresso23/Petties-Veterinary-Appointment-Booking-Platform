@@ -717,7 +717,7 @@ export const StaffPatientsPage = () => {
                                                                 <p className="text-sm text-stone-500">
                                                                     {new Date(emr.examinationDate).toLocaleDateString('vi-VN')}
                                                                     <span className="mx-2">•</span>
-                                                                    BS. {emr.staffName}
+                                                                    NV. {emr.staffName}
                                                                     {emr.bookingCode && (
                                                                         <span className="ml-2 font-mono text-xs bg-stone-100 px-1.5 py-0.5 rounded border border-stone-200">
                                                                             #{emr.bookingCode}
@@ -1073,7 +1073,7 @@ export const StaffPatientsPage = () => {
                                                                             {record.staffName ? record.staffName.charAt(0) : '?'}
                                                                         </div>
                                                                         <div className="text-sm font-medium text-stone-700">
-                                                                            {record.staffName ? `Dr.${record.staffName.split(' ').pop()} ` : 'Chưa phân công'}
+                                                                            {record.staffName ? `NV. ${record.staffName.split(' ').pop()}` : 'Chưa phân công'}
                                                                         </div>
                                                                     </div>
                                                                 </td>

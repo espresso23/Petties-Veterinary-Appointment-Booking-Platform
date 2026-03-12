@@ -474,24 +474,21 @@ Ví dụ output:
         self,
         query: str,
         top_k: int = DEFAULT_KG_TOP_K,
+        max_depth: int = 2,
     ) -> List[KGQueryResult]:
         """
-        Truy vấn Knowledge Graph — trả về TẤT CẢ triplets.
+        Truy vấn Knowledge Graph — Tìm kiếm Subgraph (Graph Traversal).
 
-        Thay vì keyword matching (fragile, mất ngữ cảnh), method này trả về
-        toàn bộ triplets từ graph store và để LLM downstream tự quyết định
-        triplets nào liên quan. LLM hiểu ngữ cảnh, ngôn ngữ tự nhiên,
-        và sắc thái tốt hơn keyword matching.
-
-        Graph store thường nhỏ (vài trăm triplets) nên việc trả tất cả
-        không ảnh hưởng performance.
+        Sử dụng BFS để tìm các mối quan hệ gián tiếp (A -> B -> C),
+        giúp LLM thực hiện Transitive Reasoning.
 
         Args:
-            query: Câu truy vấn ngôn ngữ tự nhiên (dùng cho logging).
-            top_k: Giới hạn số triplets trả về (default=5, nhưng x3 để đủ context).
+            query: Câu truy vấn ngôn ngữ tự nhiên.
+            top_k: Số lượng node kết quả tối đa (để tránh context quá lớn).
+            max_depth: Độ sâu tìm kiếm BFS (default: 2, A->B->C).
 
         Returns:
-            Danh sách KGQueryResult với toàn bộ triplets.
+            Danh sách KGQueryResult với subgraph được tìm thấy.
         """
         await self.initialize()
 
@@ -504,10 +501,64 @@ Ví dụ output:
                 logger.info("KG query: graph store is empty")
                 return []
 
-            # Trả TẤT CẢ triplets — LLM sẽ tự filter ngữ cảnh liên quan
-            # Giới hạn bởi top_k * 3 để tránh context quá lớn
-            max_triplets = top_k * 3
-            selected = all_triplets[:max_triplets]
+            # 1. Build adjacency list for BFS
+            from collections import defaultdict
+
+            graph = defaultdict(list)
+            for subj, pred, obj in all_triplets:
+                graph[subj.lower()].append((pred, obj, subj))
+                graph[obj.lower()].append((f"<- {pred}", subj, obj))
+
+            # 2. Extract query keywords
+            query_lower = query.lower().strip()
+            query_keywords = [kw for kw in query_lower.split() if len(kw) > 2]
+
+            # 3. Find start nodes
+            start_nodes = set()
+            for node in graph.keys():
+                if query_lower in node or node in query_lower:
+                    start_nodes.add(node)
+                    continue
+                for kw in query_keywords:
+                    if kw in node:
+                        start_nodes.add(node)
+                        break
+
+            # Fallback: if no start nodes, return ALL triplets (if small enough)
+            if not start_nodes:
+                max_triplets = top_k * 3
+                if len(all_triplets) <= max_triplets:
+                    selected = all_triplets
+                else:
+                    return []
+            else:
+                # 4. Perform BFS to extract Subgraph
+                selected_triplets = set()
+                visited_nodes = set(start_nodes)
+                queue = [(node, 0) for node in start_nodes]
+
+                while queue and len(selected_triplets) < top_k * 5:
+                    current_node, depth = queue.pop(0)
+
+                    if depth >= max_depth:
+                        continue
+
+                    for pred, neighbor, original_node in graph[current_node]:
+                        neighbor_lower = neighbor.lower()
+
+                        if pred.startswith("<- "):
+                            # Reverse edge
+                            real_pred = pred[3:]
+                            selected_triplets.add((neighbor, real_pred, original_node))
+                        else:
+                            # Forward edge
+                            selected_triplets.add((original_node, pred, neighbor))
+
+                        if neighbor_lower not in visited_nodes:
+                            visited_nodes.add(neighbor_lower)
+                            queue.append((neighbor_lower, depth + 1))
+
+                selected = list(selected_triplets)
 
             # Format thành text context cho LLM
             lines = []
@@ -517,13 +568,12 @@ Ví dụ output:
             content = "Thông tin từ đồ thị tri thức:\n" + "\n".join(lines)
 
             triplets_used = [
-                {"subject": s, "predicate": p, "object": o}
-                for s, p, o in selected
+                {"subject": s, "predicate": p, "object": o} for s, p, o in selected
             ]
 
             logger.info(
                 f"KG query '{query[:50]}...' returned "
-                f"{len(selected)}/{len(all_triplets)} triplets"
+                f"{len(selected)}/{len(all_triplets)} triplets via BFS (depth={max_depth})"
             )
 
             return [
@@ -567,21 +617,73 @@ Ví dụ output:
                 KnowledgeGraphIndex.from_documents,
                 [doc],
                 max_triplets_per_chunk=MAX_TRIPLETS_PER_CHUNK,
-                include_embeddings=False,
                 storage_context=temp_context,
+                include_embeddings=False,
             )
 
-            # Extract triplets from the graph store
-            triplets = self._get_triplets_from_store(temp_store)
-
-            logger.info(
-                f"Extracted {len(triplets)} triplets from text ({len(text)} chars)"
-            )
-            return triplets
+            return self._get_triplets_from_store(temp_store)
 
         except Exception as e:
-            logger.error(f"Triplet extraction failed: {e}")
+            logger.error(f"Failed to extract triplets from text: {e}")
             return []
+
+    async def add_text_to_graph(self, text: str) -> int:
+        """
+        [Auto-update] Trích xuất triplets từ text và thêm trực tiếp vào Knowledge Graph hiện tại.
+        Được gọi khi có Case Memory mới hoặc feedback tích cực.
+
+        Args:
+            text: Đoạn văn bản chứa thông tin y khoa cần thêm (VD: case chẩn đoán).
+
+        Returns:
+            Số lượng triplets đã được thêm thành công.
+        """
+        await self.initialize()
+
+        if not text or not text.strip() or self._graph_store is None:
+            return 0
+
+        from app.core.config_helper import get_setting
+        from app.db.postgres.session import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as db:
+            openrouter_api_key = await get_setting("OPENROUTER_API_KEY", db)
+
+        if not openrouter_api_key:
+            logger.warning(
+                "OPENROUTER_API_KEY not configured. Cannot extract triplets."
+            )
+            return 0
+
+        # Trích xuất triplets sử dụng LLM
+        triplets = await self._extract_triplets_with_llm(text, openrouter_api_key)
+
+        added_count = 0
+        for subj, pred, obj in triplets:
+            if len(subj) > 50 or len(pred) > 50 or len(obj) > 50:
+                continue  # Bỏ qua triplet rác
+
+            subj = self._clean_text(subj)
+            pred = self._clean_text(pred)
+            obj = self._clean_text(obj)
+
+            if not subj or not pred or not obj:
+                continue
+
+            try:
+                # Upsert into SimpleGraphStore
+                self._graph_store.upsert_triplet(subj, pred, obj)
+                added_count += 1
+            except Exception as e:
+                logger.warning(f"Error adding triplet ({subj}, {pred}, {obj}): {e}")
+
+        if added_count > 0:
+            self._persist()
+            logger.info(
+                f"[Auto-update] Added {added_count} new triplets to KG from text"
+            )
+
+        return added_count
 
     async def get_graph_stats(self) -> Dict[str, Any]:
         """

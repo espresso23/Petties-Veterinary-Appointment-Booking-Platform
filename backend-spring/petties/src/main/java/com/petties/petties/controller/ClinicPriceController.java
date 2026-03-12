@@ -2,6 +2,8 @@ package com.petties.petties.controller;
 
 import com.petties.petties.dto.clinic.ClinicPriceRequest;
 import com.petties.petties.dto.clinic.ClinicPriceResponse;
+import com.petties.petties.service.AuthService;
+import com.petties.petties.repository.ClinicRepository;
 import com.petties.petties.service.ClinicPriceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +22,8 @@ import java.util.UUID;
 public class ClinicPriceController {
 
     private final ClinicPriceService clinicPriceService;
+    private final AuthService authService;
+    private final ClinicRepository clinicRepository;
 
     @GetMapping("/{id}/pricing")
     public ResponseEntity<ClinicPriceResponse> getPricing(@PathVariable UUID id) {
@@ -36,6 +40,14 @@ public class ClinicPriceController {
 
         log.info("Received pricing update request for clinic {}: pricePerKm={}, sosFee={}",
                 id, request.getPricePerKm(), request.getSosFee());
+
+        // Explicit ownership/role check for cases where security filters might be disabled (e.g., unit tests)
+        var user = authService.getCurrentUser();
+        boolean isAuthorized = clinicRepository.existsByClinicIdAndOwnerUserId(id, user.getUserId());
+        
+        if (!isAuthorized) {
+            return ResponseEntity.status(403).build();
+        }
 
         var updated = clinicPriceService.updatePricing(id, request.getPricePerKm(), request.getSosFee());
         log.info("Successfully updated pricing for clinic {}: pricePerKm={}, sosFee={}",

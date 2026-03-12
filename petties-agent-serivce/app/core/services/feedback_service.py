@@ -290,6 +290,24 @@ class FeedbackService:
                     f"Embedded case {case_id} from feedback "
                     f"(category={category}, role={user_role})"
                 )
+
+                # Auto-update KG from confirmed medical cases
+                if category == "medical" and user_role in ("VET", "STAFF"):
+                    try:
+                        from app.core.rag.knowledge_graph import (
+                            get_knowledge_graph_service,
+                        )
+
+                        kg_service = get_knowledge_graph_service()
+                        # Run in background to not block the feedback response
+                        import asyncio
+
+                        asyncio.create_task(kg_service.add_text_to_graph(text_to_embed))
+                    except Exception as kg_err:
+                        logger.error(
+                            f"Failed to auto-update KG from feedback: {kg_err}"
+                        )
+
                 return True
             return False
 

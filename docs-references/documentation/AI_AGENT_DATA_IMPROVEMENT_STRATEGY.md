@@ -3,7 +3,7 @@
 **Muc dich:** Giai thich cach AI Agent luu tru du lieu, cai thien theo thoi gian, va cac co che nang cao do chinh xac (Query Expansion, Knowledge Graph, Visual Case Memory, Feedback Loop).
 
 **Ngay tao:** 2026-03-08
-**Cap nhat:** 2026-03-11
+**Cap nhat:** 2026-03-12
 **Tham chieu:** AI_SERVICE_TECHNICAL_SPECIFICATION.md Section 3.5, 3.6
 
 ---
@@ -641,13 +641,51 @@ response = query_engine.query("Meo ho khan chay nuoc mui la benh gi?")
 # -> Tra ve: benh + quan he + evidence tu graph
 ```
 
-### 8.6 Roadmap Knowledge Graph
+### 8.6 Implementation Status (2026-03-12)
 
-| Phase | Thoi gian | Noi dung |
-|-------|-----------|----------|
-| **Phase 1 (Hien tai)** | MVP | RAG thuan (LlamaIndex + Qdrant + Cohere) |
-| **Phase 2** | 1-2 thang sau go-live | LlamaIndex KnowledgeGraphIndex + SimpleGraphStore |
-| **Phase 3** | 6+ thang | Neo4j backend + quan he phuc tap + auto-update tu feedback |
+#### 8.6.1 Da Hoan Thanh
+
+| Feature | Status | Implementation |
+|---------|--------|----------------|
+| **KG Index (LlamaIndex)** | ✅ Done | `knowledge_graph.py` - KnowledgeGraphIndex + SimpleGraphStore |
+| **Build from documents** | ✅ Done | `/build-kg` API endpoint |
+| **Graph visualization** | ✅ Done | D3.js frontend + `/kg-visualize` API |
+| **LLM-based reasoning** | ✅ Done | Query returns ALL triplets → LLM downstream tự suy luận |
+| **HybridRAGEngine** | ✅ Done | RAG + KG + Case Memory parallel search |
+
+#### 8.6.2 Implementation Details
+
+Thay vi keyword matching (fragile, mat ngon ngu), implementation hien tai:
+- **query_graph()** tra ve TAT CA triplets tu graph store
+- **LLM downstream** (Agent) tu quyet dinh triplets nao lien quan
+- **HybridRAGEngine** gop ket qua tu RAG, KG, va Case Memory
+- **Agent LLM** doc context + suy luan -> generate cau tra loi
+
+```
+User Query → Agent (LLM) → pet_knowledge_search tool 
+                              ↓
+                     HybridRAGEngine
+                              ↓
+           ┌──────────────────┼──────────────────┐
+           ↓                  ↓                  ↓
+      RAG Search       KG Query          Case Memory
+      (chunks)     (ALL triplets)        (cases)
+           └──────────────────┼──────────────────┘
+                              ↓
+                     Merge & Re-rank
+                              ↓
+                     Return to Agent
+                              ↓
+           Agent LLM doc context + SUY LUAN → Generate response
+```
+
+#### 8.6.3 Chua Hoan Thanh
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **Transitive reasoning (A→B→C)** | ⏳ Pending | Co the them sau |
+| **Neo4j backend** | ⏳ Pending | Phase 3 |
+| **Auto-update from feedback** | ⏳ Pending | Phase 3 |
 
 ---
 
@@ -982,6 +1020,18 @@ ADMIN playground         = weight 0.0 (chi dung de debug, khong embed)
 | Hang thang | Thong ke feedback theo role -> dieu chinh role-specific prompts | Prompt tot hon cho tung role |
 | Hang quy | Re-rank toan bo case memory | Dam bao case tot nhat duoc uu tien |
 
+### 10.8 Implementation Status (2026-03-12)
+
+| Feature | Status | Implementation |
+|---------|--------|----------------|
+| Thumbs up/down | ✅ Done | Mobile UI + API `/chat/feedback` |
+| Staff confirm | ✅ Done | `feedback_service.py` |
+| Feedback categories | ✅ Done | medical, booking, clinic_ops, knowledge, general |
+| Role-based weights | ✅ Done | `feedback_service.py` - STAFF=1.0, PET_OWNER=0.6 |
+| Auto-embed confirmed cases | ⚠️ Code exists | `feedback_service.py:process_positive_feedback()` - chua test |
+| Pattern analysis | ❌ Pending | - |
+| Metrics collection | ❌ Pending | Section 4 chua implement |
+
 ---
 
 ## 11. SEQUENCE DIAGRAM: USER TUONG TAC VOI AI
@@ -1180,3 +1230,53 @@ flowchart LR
 ```
 
 **Tom tat 1 cau:** He thong AI cua Petties hoat dong theo vong lap **Collect -> Analyze -> Improve -> Deploy**: moi cuoc hoi thoai deu duoc luu lai voi day du reasoning trace va feedback, knowledge base duoc mo rong lien tuc qua upload tai lieu moi va tich luy case thuc te da xac nhan, system prompt duoc version hoa va tinh chinh dua tren data thuc, con du lieu nghiep vu (phong kham, slot, vaccine) thi Agent query truc tiep DB nen luon realtime. **Cang nhieu case tich luy, AI cang co nhieu tri thuc tham chieu thuc te de tra loi chinh xac hon.**
+
+---
+
+## 13. IMPLEMENTATION STATUS SUMMARY (2026-03-12)
+
+### 13.1 Overall Status
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| **1. PostgreSQL (Config)** | ✅ Done | Agent config, tools, prompts, documents metadata |
+| **2. MongoDB Schema** | ✅ Done | ai_chat_sessions, ai_chat_messages, chat_feedback |
+| **3. Query Expansion** | ✅ Done | LLM-based rewrite for short queries |
+| **4. Knowledge Graph** | ✅ Done | LLM-based reasoning (not keyword) |
+| **5. Visual Case Memory** | ✅ Done | Text + Image (Jina CLIP) embeddings |
+| **6. Feedback Loop** | ✅ Done | Thumbs up/down, Staff confirm, categories |
+| **7. HybridRAGEngine** | ✅ Done | RAG + KG + Case Memory parallel search |
+| **8. Metrics Collection** | ❌ Pending | Section 4 chua implement |
+| **9. Pattern Analysis** | ❌ Pending | Advanced feedback processing |
+
+### 13.2 API Endpoints
+
+| Endpoint | Status | Auth |
+|----------|--------|------|
+| `/chat/feedback` | ✅ Done | Required |
+| `/chat/sessions` | ✅ Done | Required |
+| `/knowledge/build-kg` | ✅ Done | Admin |
+| `/knowledge/kg-stats` | ✅ Done | Public |
+| `/knowledge/kg-visualize` | ✅ Done | Public |
+| `/knowledge/kg-query` | ✅ Done | Public |
+| `/knowledge/case-memory/stats` | ✅ Done | Public |
+| `/knowledge/case-memory/prune` | ✅ Done | Admin |
+
+### 13.3 Key Files
+
+| Component | File |
+|-----------|------|
+| Knowledge Graph | `app/core/rag/knowledge_graph.py` |
+| HybridRAGEngine | `app/core/rag/hybrid_engine.py` |
+| Query Expander | `app/core/rag/query_expander.py` |
+| Case Memory | `app/core/rag/case_memory.py` |
+| Jina Image Embeddings | `app/core/embeddings/jina_image_embeddings.py` |
+| Feedback Service | `app/core/services/feedback_service.py` |
+| MongoDB | `app/core/database/mongodb.py` |
+
+### 13.4 Next Steps
+
+1. **Test Auto-embed** - Verify feedback → case memory flow
+2. **Metrics Collection** - Implement Section 4 (Continuous Monitoring)
+3. **Admin Dashboard** - Display analytics in frontend
+4. **Pattern Analysis** - Advanced feedback processing

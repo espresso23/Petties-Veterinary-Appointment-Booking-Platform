@@ -183,25 +183,49 @@ class CaseMemoryService:
 
             # Ensure collection exists (named vectors: text + image)
             try:
-                self._qdrant_client.get_collection(self._collection_name)
-                logger.info(
-                    f"CaseMemory collection '{self._collection_name}' already exists"
-                )
+                # Use robust check if available, else get_collection
+                from qdrant_client.http.exceptions import UnexpectedResponse
+
+                try:
+                    exists = self._qdrant_client.collection_exists(
+                        self._collection_name
+                    )
+                    if exists:
+                        logger.info(
+                            f"CaseMemory collection '{self._collection_name}' already exists"
+                        )
+                    else:
+                        raise ValueError("Collection does not exist")
+                except AttributeError:
+                    # Fallback for older qdrant_client versions
+                    self._qdrant_client.get_collection(self._collection_name)
+                    logger.info(
+                        f"CaseMemory collection '{self._collection_name}' already exists"
+                    )
             except Exception:
                 logger.info(f"Creating CaseMemory collection: {self._collection_name}")
-                self._qdrant_client.create_collection(
-                    collection_name=self._collection_name,
-                    vectors_config={
-                        "text": VectorParams(
-                            size=CASE_MEMORY_TEXT_DIMENSION,
-                            distance=Distance.COSINE,
-                        ),
-                        "image": VectorParams(
-                            size=CASE_MEMORY_IMAGE_DIMENSION,
-                            distance=Distance.COSINE,
-                        ),
-                    },
-                )
+                try:
+                    self._qdrant_client.create_collection(
+                        collection_name=self._collection_name,
+                        vectors_config={
+                            "text": VectorParams(
+                                size=CASE_MEMORY_TEXT_DIMENSION,
+                                distance=Distance.COSINE,
+                            ),
+                            "image": VectorParams(
+                                size=CASE_MEMORY_IMAGE_DIMENSION,
+                                distance=Distance.COSINE,
+                            ),
+                        },
+                    )
+                except Exception as e:
+                    # Ignore 409 Conflict if collection was created concurrently
+                    if "already exists" in str(e):
+                        logger.info(
+                            f"Collection {self._collection_name} already exists (concurrent creation)"
+                        )
+                    else:
+                        raise e
 
             self._initialized = True
             logger.info("CaseMemoryService initialized successfully")
