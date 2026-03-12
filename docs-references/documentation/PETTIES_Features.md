@@ -23,7 +23,6 @@
 16. SOS - Cấp cứu khẩn cấp
 17. **AI Vision: Phân tích hình ảnh sức khỏe thú cưng** ✅
 18. **Hủy yêu cầu thay đổi Email** ✅
-19. Video Consultation (Tư vấn video từ xa)
 20. Xem đơn thuốc trong hồ sơ bệnh án (EMR) ✅
 21. Nhận thông báo & nhắc nhở (Push/Email/SMS) ✅
 22. Lưu ảnh, giống, độ tuổi, đặc điểm thú cưng ✅
@@ -125,8 +124,7 @@
     - Xem ReAct Flow (Thought → Action → Observation)
     - Xem Tool Calls và Results
     - Citation View (RAG sources)
-    - Feedback system: Audit, Delete & Visual Learning from confirm cases ✅
-    - **Knowledge Graph Visualizer & Direct Query Testing** ✅
+    - Feedback system (Good/Bad responses)
 
 
 14. **System & Security Configuration**
@@ -257,10 +255,10 @@
 - 🧠 File: `app/core/rag/knowledge_graph.py`
 
 #### Visual Case Memory (Bộ nhớ ca bệnh) ✅
-- 📋 **Confirmed Case Storage** – Stores positively confirmed medical cases into Qdrant
-- 📋 **Feedback-weighted Re-ranking** – Score = cosine_similarity + min(feedback_count/100, 0.3) + (0.1 if staff_verified)
-- 📋 **Role-based Weights** – STAFF=1.0, CLINIC_MANAGER/OWNER=0.7, PET_OWNER=0.6
-- 📋 Auto-embed when receiving positive feedback (rating >= 4) – **Phase 1 uses Cohere text embeddings (visual_description + diagnosis + symptoms), no direct image vector embedding yet**
+- 📋 **Confirmed Case Storage** - Lưu các ca bệnh đã xác nhận từ feedback tích cực vào Qdrant
+- 📋 **Feedback-weighted Re-ranking** - Score = cosine_similarity + min(feedback_count/100, 0.3) + (0.1 if staff_verified)
+- 📋 **Role-based Weights** - STAFF=1.0, CLINIC_MANAGER/OWNER=0.7, PET_OWNER=0.6
+- 📋 Auto-embed khi nhận feedback tích cực (rating >= 4)
 - 📋 Admin prune endpoint (`POST /knowledge/case-memory/prune`)
 - 📋 File: `app/core/rag/case_memory.py`
 
@@ -286,10 +284,6 @@
 - Xác định phòng khám thú y (Clinic) khẩn cấp gần nhất
 - Liên hệ tức thì cho tư vấn
 - Đặt lịch khẩn cấp
-
-### 📹 Video Consultation (Tư Vấn Video)
-- Gọi video trực tiếp với nhân viên
-- Chẩn đoán từ xa
 
 ### Electronic Medical Records (EMR)
 - Hệ thống Hồ sơ Bệnh án Điện tử
@@ -418,12 +412,10 @@
 
 ---
 
-| Unit Tests | ✅ 75/75 passed |
-
----
-**Version: 1.9.0 - PETTIES MVP SCOPE (AI AUDIT & KG MANAGEMENT COMPLETE)**
-**Status: ✅ READY FOR PRODUCTION RELEASE**
-**Last Updated: March 12, 2026**
+**Version: 1.8.0 - PETTIES MVP SCOPE (AI ACCURACY IMPROVEMENT COMPLETE)**
+**Status: ✅ READY FOR DEV**
+**Total Features: 113 Use Cases (Full Coverage)**
+**Last Updated: March 11, 2026**
 
 ---
 
