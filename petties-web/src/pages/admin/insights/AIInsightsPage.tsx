@@ -79,10 +79,9 @@ export const AIInsightsPage = () => {
   const [showFilters, setShowFilters] = useState(false)
   const [showDetailSection, setShowDetailSection] = useState(false)
 
-  // --- Delete Feedback ---
-  // --- Delete Feedback ---
   const [deletingFeedbackId, setDeletingFeedbackId] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
   // Knowledge Graph Query
   const [kgSearchQuery, setKgSearchQuery] = useState('')
