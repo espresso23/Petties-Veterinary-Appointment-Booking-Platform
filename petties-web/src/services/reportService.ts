@@ -18,8 +18,8 @@ interface PageResponse<T> {
     number: number;
 }
 
-const REPORT_API = '/reports';
-const ADMIN_REPORT_API = '/admin/reports';
+const REPORT_API = '/v1/reports';
+const ADMIN_REPORT_API = '/v1/admin/reports';
 
 /**
  * Pet Owner, Vet, Clinic Manager, or Clinic Owner create a report

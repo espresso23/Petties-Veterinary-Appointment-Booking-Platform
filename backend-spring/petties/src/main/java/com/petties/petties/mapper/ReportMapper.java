@@ -35,9 +35,12 @@ public class ReportMapper {
         }
 
         if (report.getReportedUser() != null) {
-            builder.reportedUserId(report.getReportedUser().getUserId())
-                   .reportedUserName(report.getReportedUser().getFullName())
-                   .reportedUserRole(report.getReportedUser().getRole().name());
+            var u = report.getReportedUser();
+            String displayName = u.getFullName() != null && !u.getFullName().isBlank()
+                    ? u.getFullName() : u.getUsername();
+            builder.reportedUserId(u.getUserId())
+                   .reportedUserName(displayName)
+                   .reportedUserRole(u.getRole().name());
         }
 
         return builder.build();

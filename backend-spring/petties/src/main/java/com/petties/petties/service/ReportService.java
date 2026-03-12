@@ -37,14 +37,19 @@ public class ReportService {
 
     @Transactional
     public ReportResponse createReport(ReportRequest request, UUID reporterId) {
+        log.debug("createReport: bookingId={}, reporterId={}", request.getBookingId(), reporterId);
+
         Booking booking = bookingRepository.findById(request.getBookingId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
         User reporter = userRepository.findById(reporterId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
 
+        boolean alreadyReported = reportRepository.existsByBookingBookingIdAndReporterUserId(booking.getBookingId(), reporterId);
+        log.debug("createReport: alreadyReported={} for booking={}, reporter={}", alreadyReported, booking.getBookingId(), reporterId);
+
         // Check if user has already reported this booking
-        if (reportRepository.existsByBookingBookingIdAndReporterUserId(booking.getBookingId(), reporterId)) {
+        if (alreadyReported) {
             throw new BadRequestException("Bạn đã gửi báo cáo cho lịch hẹn này rồi");
         }
 

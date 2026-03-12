@@ -47,9 +47,8 @@ export const ReportsPage = () => {
                 status,
                 adminNote: adminNote.trim()
             });
-            showToast('success', `Đã ${status === 'APPROVED' ? 'duyệt' : 'từ chối'} báo cáo thành công`);
-            setResolvingReport(null);
             setAdminNote('');
+            showToast('success', `Đã ${status === 'APPROVED' ? 'duyệt' : 'từ chối'} báo cáo thành công`);
             fetchReports();
         } catch (error) {
             console.error('Failed to resolve report:', error);
@@ -59,6 +58,7 @@ export const ReportsPage = () => {
             showToast('error', errorMessage);
         } finally {
             setIsSubmitting(false);
+            setResolvingReport(null); // Dù success hay fail cũng đóng popup
         }
     };
 

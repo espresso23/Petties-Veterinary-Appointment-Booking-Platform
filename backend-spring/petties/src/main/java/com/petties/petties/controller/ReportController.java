@@ -1,5 +1,6 @@
 package com.petties.petties.controller;
 
+import com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal;
 import com.petties.petties.dto.report.ReportRequest;
 import com.petties.petties.dto.report.ReportResponse;
 import com.petties.petties.dto.report.ResolveReportRequest;
@@ -15,13 +16,14 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/v1")
 @RequiredArgsConstructor
 @Slf4j
 public class ReportController {
@@ -32,11 +34,13 @@ public class ReportController {
     @PreAuthorize("hasAnyRole('PET_OWNER', 'CLINIC_OWNER', 'CLINIC_MANAGER', 'STAFF')")
     public ResponseEntity<ReportResponse> createReport(
             @Valid @RequestBody ReportRequest request,
-            Authentication authentication) {
+            @AuthenticationPrincipal UserDetails userDetails) {
         
-        UUID reporterId = UUID.fromString(authentication.getName());
-        ReportResponse response = reportService.createReport(request, reporterId);
-        
+        UserPrincipal userPrincipal = (UserPrincipal) userDetails;
+        log.debug("createReport: bookingId={}, reporterId={}, reasonLength={}",
+                request.getBookingId(), userPrincipal.getUserId(), request.getReason() != null ? request.getReason().length() : 0);
+        ReportResponse response = reportService.createReport(request, userPrincipal.getUserId());
+        log.debug("createReport: success, reportId={}", response.getId());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -44,11 +48,12 @@ public class ReportController {
     @PreAuthorize("hasAnyRole('PET_OWNER', 'CLINIC_OWNER', 'CLINIC_MANAGER', 'STAFF')")
     public ResponseEntity<Page<ReportResponse>> getMyReports(
             @PageableDefault(sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
-            Authentication authentication) {
+            @AuthenticationPrincipal UserDetails userDetails) {
         
-        UUID reporterId = UUID.fromString(authentication.getName());
-        Page<ReportResponse> reports = reportService.getMyReports(reporterId, pageable);
-        
+        UserPrincipal userPrincipal = (UserPrincipal) userDetails;
+        log.debug("getMyReports: reporterId={}, page={}, size={}", userPrincipal.getUserId(), pageable.getPageNumber(), pageable.getPageSize());
+        Page<ReportResponse> reports = reportService.getMyReports(userPrincipal.getUserId(), pageable);
+        log.debug("getMyReports: found {} reports", reports.getTotalElements());
         return ResponseEntity.ok(reports);
     }
 
@@ -75,14 +80,14 @@ public class ReportController {
     }
 
     @PutMapping("/admin/reports/{reportId}/resolve")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ReportResponse> resolveReport(
             @PathVariable UUID reportId,
             @Valid @RequestBody ResolveReportRequest request,
-            Authentication authentication) {
+            @AuthenticationPrincipal UserDetails userDetails) {
         
-        UUID adminId = UUID.fromString(authentication.getName());
-        ReportResponse response = reportService.resolveReport(reportId, request, adminId);
+        UserPrincipal userPrincipal = (UserPrincipal) userDetails;
+        ReportResponse response = reportService.resolveReport(reportId, request, userPrincipal.getUserId());
         
         return ResponseEntity.ok(response);
     }

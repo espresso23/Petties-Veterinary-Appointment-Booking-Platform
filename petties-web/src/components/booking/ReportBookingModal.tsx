@@ -3,15 +3,19 @@ import { useToast } from '../Toast';
 import { createReport } from '../../services/reportService';
 import { isAxiosError } from 'axios';
 
+type ReporterContext = 'CLINIC_MANAGER' | 'PET_OWNER';
+
 interface ReportBookingModalProps {
     isOpen: boolean;
     onClose: () => void;
     bookingId: string;
     bookingCode: string;
     onSuccess?: () => void;
+    /** Ngữ cảnh: Clinic Manager báo cáo khách hàng vs Pet Owner báo cáo phòng khám */
+    reporterContext?: ReporterContext;
 }
 
-export const ReportBookingModal = ({ isOpen, onClose, bookingId, bookingCode, onSuccess }: ReportBookingModalProps) => {
+export const ReportBookingModal = ({ isOpen, onClose, bookingId, bookingCode, onSuccess, reporterContext = 'PET_OWNER' }: ReportBookingModalProps) => {
     const [reason, setReason] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { showToast } = useToast();
@@ -38,7 +42,6 @@ export const ReportBookingModal = ({ isOpen, onClose, bookingId, bookingCode, on
             });
             showToast('success', 'Đã gửi báo cáo thành công. Admin sẽ sớm xem xét yêu cầu của bạn.');
             onSuccess?.();
-            onClose();
         } catch (error) {
             console.error('Failed to create report:', error);
             const errorMessage = isAxiosError(error) && error.response?.data?.message 
@@ -47,6 +50,7 @@ export const ReportBookingModal = ({ isOpen, onClose, bookingId, bookingCode, on
             showToast('error', errorMessage);
         } finally {
             setIsSubmitting(false);
+            onClose(); 
         }
     };
 
@@ -67,7 +71,11 @@ export const ReportBookingModal = ({ isOpen, onClose, bookingId, bookingCode, on
                 {/* Body */}
                 <div className="p-6">
                     <div className="mb-4">
-                        <span className="text-xs font-bold text-stone-500 uppercase">Đang báo cáo lịch hẹn:</span>
+                        <span className="text-xs font-bold text-stone-500 uppercase">
+                            {reporterContext === 'CLINIC_MANAGER'
+                                ? 'Đang báo cáo khách hàng trong lịch hẹn:'
+                                : 'Đang báo cáo lịch hẹn:'}
+                        </span>
                         <div className="font-mono font-bold text-stone-900">#{bookingCode}</div>
                     </div>
                     
@@ -75,7 +83,9 @@ export const ReportBookingModal = ({ isOpen, onClose, bookingId, bookingCode, on
                     <textarea
                         value={reason}
                         onChange={(e) => setReason(e.target.value)}
-                        placeholder="Vui lòng mô tả chi tiết vấn đề bạn gặp phải (phát sinh lỗi, thái độ phục vụ, vi phạm chính sách...)"
+                        placeholder={reporterContext === 'CLINIC_MANAGER'
+                            ? 'Vui lòng mô tả chi tiết hành vi vi phạm của khách hàng trong lịch hẹn này (spam, quấy rối, không hợp tác, vi phạm quy định phòng khám...)'
+                            : 'Vui lòng mô tả chi tiết vấn đề bạn gặp phải (phát sinh lỗi, thái độ phục vụ, vi phạm chính sách...)'}
                         className="w-full h-40 p-4 border-4 border-stone-900 focus:outline-none focus:ring-2 focus:ring-red-400 font-medium text-stone-700 resize-none"
                     />
                     <p className="mt-2 text-[10px] text-stone-500 italic uppercase font-bold">
