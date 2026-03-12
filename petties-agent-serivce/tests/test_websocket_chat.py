@@ -90,6 +90,26 @@ class WebSocketChatTests(unittest.IsolatedAsyncioTestCase):
             "CHAT_PLAYGROUND_FORBIDDEN",
         )
 
+    async def test_map_react_step_to_message_includes_normalized_react_step(self):
+        payload = websocket_chat.map_react_step_to_message(
+            {
+                "step_type": "thought",
+                "content": "Tôi sẽ tìm phòng khám gần bạn",
+                "tool_name": "search_clinics_nearby",
+                "tool_params": {"radius_km": 5},
+            },
+            0,
+        )
+
+        self.assertEqual(payload["type"], "thinking")
+        self.assertEqual(payload["step_index"], 0)
+        self.assertIn("react_step", payload)
+        self.assertEqual(payload["react_step"]["step_type"], "thought")
+        self.assertEqual(
+            payload["react_step"]["tool_name"],
+            "search_clinics_nearby",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

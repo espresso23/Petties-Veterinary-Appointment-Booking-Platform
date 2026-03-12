@@ -97,6 +97,16 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+def normalize_react_step(step: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "step_type": step.get("step_type", "unknown"),
+        "content": step.get("content", ""),
+        "tool_name": step.get("tool_name"),
+        "tool_params": step.get("tool_params"),
+        "tool_result": step.get("tool_result"),
+    }
+
+
 def map_react_step_to_message(step: Dict[str, Any], step_index: int) -> Dict[str, Any]:
     """
     Map ReActStep to WebSocket message format
@@ -117,6 +127,7 @@ def map_react_step_to_message(step: Dict[str, Any], step_index: int) -> Dict[str
             "content": step.get("content", ""),
             "tool_name": step.get("tool_name"),
             "tool_params": step.get("tool_params"),
+            "react_step": normalize_react_step(step),
             "timestamp": datetime.now().isoformat(),
         }
     elif step_type == "action":
@@ -126,6 +137,7 @@ def map_react_step_to_message(step: Dict[str, Any], step_index: int) -> Dict[str
             "tool_name": step.get("tool_name", "unknown"),
             "tool_params": step.get("tool_params", {}),
             "content": step.get("content", ""),
+            "react_step": normalize_react_step(step),
             "timestamp": datetime.now().isoformat(),
         }
     elif step_type == "observation":
@@ -135,6 +147,7 @@ def map_react_step_to_message(step: Dict[str, Any], step_index: int) -> Dict[str
             "tool_name": step.get("tool_name"),
             "result": step.get("tool_result"),
             "content": step.get("content", ""),
+            "react_step": normalize_react_step(step),
             "timestamp": datetime.now().isoformat(),
         }
     else:
@@ -156,6 +169,7 @@ async def handle_chat_message(
     agent_id: Optional[int] = None,
     provider_override: Optional[str] = None,
     model_override: Optional[str] = None,
+    images: Optional[List[str]] = None,
 ):
     """
     Handle incoming chat message with real SingleAgent integration
@@ -189,8 +203,10 @@ async def handle_chat_message(
                 "provider", provider_override
             )  # Get provider from message
             model_override = data.get("model", model_override)  # Get model from message
+            images = data.get("images", [])  # Get images for multimodal
         except json.JSONDecodeError:
             user_message = message
+            images = []
 
         if session_context != PLAYGROUND_TEST:
             provider_override = None
@@ -295,7 +311,9 @@ async def handle_chat_message(
             )
 
             try:
-                async for event in agent.stream(user_message, session_id):
+                async for event in agent.stream(
+                    user_message, session_id, images=images if images else None
+                ):
                     # Safety check: ensure event is a dict
                     if not isinstance(event, dict):
                         logger.warning(
@@ -459,6 +477,7 @@ async def websocket_chat_endpoint(websocket: WebSocket, session_id: str = "defau
         logger.info(f"WebSocket auth success: {user.username} ({user.role})")
 
         session = await get_chat_session(session_id)
+        # Session chưa tồn tại -> tạo mới
         if session is None:
             context_type = normalize_context_type(
                 requested_context_type,
@@ -483,6 +502,11 @@ async def websocket_chat_endpoint(websocket: WebSocket, session_id: str = "defau
             }
             await save_chat_session(session)
         else:
+            # Nếu session đã bị đánh dấu xóa, không cho phép tái sử dụng
+            if session.get("deleted"):
+                await websocket.close(code=1008, reason=WS_REASON_SESSION_FORBIDDEN)
+                return
+
             if session.get("user_id") != user.user_id:
                 await websocket.close(code=1008, reason=WS_REASON_SESSION_FORBIDDEN)
                 return

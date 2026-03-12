@@ -119,11 +119,63 @@ export interface FeedbackStatsResponse {
     error?: string
 }
 
+export interface FeedbackItem {
+    feedback_id: string
+    message_id: string
+    session_id: string
+    user_id: string
+    user_role: string
+    feedback_type: string
+    feedback_category: string
+    feedback_reason: string
+    feedback_text: string
+    tool_used: string
+    message_content: string
+    weight: number
+    created_at: string
+}
+
+export interface FeedbackListResponse {
+    total: number
+    page: number
+    page_size: number
+    items: FeedbackItem[]
+}
+
+export interface FeedbackListParams {
+    page?: number
+    page_size?: number
+    feedback_type?: string
+    feedback_category?: string
+    user_role?: string
+    date_from?: string
+    date_to?: string
+}
+
+export interface SubmitFeedbackRequest {
+    message_id: string
+    session_id: string
+    feedback_type: 'thumbs_up' | 'thumbs_down' | 'report' | 'confirmed' | 'vet_confirmed'
+    feedback_category?: string
+    feedback_reason?: string
+    feedback_text?: string
+}
+
+export interface SubmitFeedbackResponse {
+    status: string
+    feedback_id?: string
+    case_embedded: boolean
+    category: string
+    weight: number
+    error?: string
+}
+
 export interface KGStatsResponse {
     success: boolean
-    total_triplets: number
-    unique_entities: number
+    triplet_count: number
+    entity_count: number
     relation_types: string[]
+    relation_type_count: number
     sample_triplets?: Array<{ subject: string; predicate: string; object: string }>
 }
 
@@ -478,10 +530,53 @@ export const feedbackApi = {
         const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/chat/feedback/stats?days=${days}`)
         if (!response.ok) throw new Error('Không thể lấy thống kê feedback')
         return response.json()
+    },
+
+    async list(params: FeedbackListParams = {}): Promise<FeedbackListResponse> {
+        const searchParams = new URLSearchParams()
+        if (params.page) searchParams.set('page', String(params.page))
+        if (params.page_size) searchParams.set('page_size', String(params.page_size))
+        if (params.feedback_type) searchParams.set('feedback_type', params.feedback_type)
+        if (params.feedback_category) searchParams.set('feedback_category', params.feedback_category)
+        if (params.user_role) searchParams.set('user_role', params.user_role)
+        if (params.date_from) searchParams.set('date_from', params.date_from)
+        if (params.date_to) searchParams.set('date_to', params.date_to)
+
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/chat/feedback/list?${searchParams.toString()}`)
+        if (!response.ok) throw new Error('Không thể lấy danh sách feedback')
+        return response.json()
+    },
+
+    async submitFeedback(data: SubmitFeedbackRequest): Promise<SubmitFeedbackResponse> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/chat/feedback`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        if (!response.ok) throw new Error('Không thể gửi feedback')
+        return response.json()
+    },
+
+    async deleteFeedback(feedbackId: string): Promise<{ success: boolean; feedback_id: string; case_deleted: boolean; message: string }> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/chat/feedback/${feedbackId}`, {
+            method: 'DELETE'
+        })
+        if (!response.ok) {
+            const err = await response.json().catch(() => null)
+            throw new Error(err?.detail || 'Không thể xóa feedback')
+        }
+        return response.json()
     }
 }
 
 // ===== KNOWLEDGE GRAPH API =====
+
+export interface KGVisualizeResponse {
+    nodes: Array<{ id: string; label: string; type: string }>
+    edges: Array<{ id: string; source: string; target: string; label: string }>
+    stats: { node_count: number; edge_count: number }
+    error?: string
+}
 
 export const kgApi = {
     async getStats(): Promise<KGStatsResponse> {
@@ -504,6 +599,12 @@ export const kgApi = {
             const err = await response.json().catch(() => null)
             throw new Error(err?.detail || 'Không thể xây dựng Knowledge Graph')
         }
+        return response.json()
+    },
+
+    async visualize(): Promise<KGVisualizeResponse> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/kg-visualize`)
+        if (!response.ok) throw new Error('Không thể lấy dữ liệu visualize')
         return response.json()
     }
 }

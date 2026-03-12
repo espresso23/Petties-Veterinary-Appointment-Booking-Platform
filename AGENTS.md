@@ -97,6 +97,7 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 - Validation with Vietnamese messages on DTOs (`@NotBlank`, `@Size`, etc.)
 - Profiles: `dev` (local Docker DBs), `test` (Cloud DBs), `prod` (Neon/Atlas/Redis Cloud)
 - Redis for OTP storage with TTL (Registration & Password Reset,..)
+- Booking statuses are only `PENDING -> CONFIRMED -> IN_PROGRESS -> COMPLETED`; check-in, checkout, arrived, start-moving are actions/events, not statuses
 
 ### Frontend (React)
 - State management: Zustand stores (`src/store/`)
@@ -108,11 +109,13 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 - Single Agent: LangGraph với ReAct pattern (Thought → Action → Observation)
 - Config: DB-based dynamic configuration (prompt, parameters, tools)
 - Tools: FastMCP với @mcp.tool decorator
-  - `pet_care_qa` - RAG-based Q&A
-  - `symptom_search` - Symptom → Disease lookup
-  - `search_clinics` - Find nearby clinics
-  - `check_slots` - Check available slots
-  - `create_booking` - Create booking via chat
+  - `pet_knowledge_search` - Tra cứu cẩm nang/kiến thức thú y (RAG)
+  - `web_search` - Tìm thêm nguồn web khi knowledge base chưa đủ
+  - `get_user_pets` - Lấy danh sách thú cưng của user để tư vấn/đặt lịch đúng
+  - `search_clinics_nearby` - Tìm phòng khám gần vị trí
+  - `get_clinic_services` - Lấy danh sách dịch vụ của phòng khám
+  - `check_available_slots` - Kiểm tra slot trống theo ngày/dịch vụ
+  - `create_booking_for_user` - Tạo booking sau khi người dùng xác nhận rõ ràng
 - LLM: OpenRouter Cloud API (gemini-2.0-flash, llama-3.3-70b, claude-3.5-sonnet)
 - RAG: LlamaIndex + Qdrant Cloud + Cohere embed-multilingual-v3
 
@@ -397,7 +400,6 @@ flowchart TD
 **Features & Architecture:**
 - `docs-references/documentation/PETTIES_Features.md` - Complete feature list
 - `docs-references/documentation/TECHNICAL SCOPE PETTIES - AGENT MANAGEMENT.md` - AI architecture
-- `docs-references/documentation/VET_SCHEDULING_STRATEGY.md` - Slot-based booking system
 - `docs-references/documentation/BUSINESS_WORKFLOW_BPMN.md` - Business processes
 
 **Development & Deployment:**

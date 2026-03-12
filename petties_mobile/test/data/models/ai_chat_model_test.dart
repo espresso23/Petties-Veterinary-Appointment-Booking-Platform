@@ -35,5 +35,27 @@ void main() {
       expect(event.reactTrace, isNotNull);
       expect(event.reactTrace, hasLength(1));
     });
+
+    test('parse thinking socket event with realtime react step', () {
+      final event = AiChatSocketEvent.fromJson({
+        'type': 'thinking',
+        'step_index': 1,
+        'content': 'Tôi đang phân tích yêu cầu',
+        'tool_name': 'search_clinics_nearby',
+        'tool_params': {'radius_km': 5},
+        'react_step': {
+          'step_type': 'thought',
+          'content': 'Tôi đang phân tích yêu cầu',
+          'tool_name': 'search_clinics_nearby',
+          'tool_params': {'radius_km': 5},
+        },
+      });
+
+      expect(event.type, AiChatSocketEventType.thinking);
+      expect(event.stepIndex, 1);
+      expect(event.reactStep, isNotNull);
+      expect(event.reactStep!['step_type'], 'thought');
+      expect(event.toolParams?['radius_km'], 5);
+    });
   });
 }

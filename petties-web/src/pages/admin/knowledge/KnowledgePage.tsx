@@ -206,6 +206,16 @@ export const KnowledgePage = () => {
     }
   }
 
+  const handleProcess = async (id: number) => {
+    try {
+      await knowledgeApi.processDocument(id)
+      showToast('success', 'Đã xử lý tài liệu')
+      await loadData()
+    } catch {
+      showToast('error', 'Không thể xử lý tài liệu. Vui lòng kiểm tra cấu hình COHERE và QDRANT')
+    }
+  }
+
   const handleQuery = async (query: string, topK?: number, minScore?: number): Promise<QueryResult[]> => {
     return await knowledgeApi.query(query, topK, minScore)
   }
@@ -456,6 +466,7 @@ export const KnowledgePage = () => {
                       key={doc.id}
                       document={doc}
                       onDelete={handleDelete}
+                      onProcess={handleProcess}
                     />
                   ))}
                 </div>

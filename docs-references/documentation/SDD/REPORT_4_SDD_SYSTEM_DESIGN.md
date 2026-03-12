@@ -7821,6 +7821,10 @@ sequenceDiagram
 
 He thong AI cua Petties su dung 4 co che chinh de cai thien do chinh xac theo thoi gian: **Query Expansion**, **Knowledge Graph**, **Visual Case Memory**, va **Feedback Loop**. Cac co che nay hoat dong dong thoi, bo sung cho nhau, va ap dung cho **tat ca roles** (PET_OWNER, STAFF, CLINIC_MANAGER, CLINIC_OWNER, ADMIN) tren **tat ca loai tuong tac AI** (pet health Q&A, booking, EMR, clinic management, revenue analysis,...).
 
+In the **current implementation**, Visual Case Memory stores **textual representations** of confirmed cases (e.g. visual description, diagnosis, symptoms, treatment) as embeddings using **Cohere embed-multilingual-v3.0**, persisted in Qdrant `petties_case_memory`. This allows the Agent to retrieve similar, previously confirmed cases when answering new queries (including those with images) and to explicitly reference “similar past cases confirmed by Staff/Vet” in explanations.
+
+As a **Phase 2 extension**, the architecture anticipates adding **image-level embeddings** (for example, using a CLIP-style vision model) in a separate Qdrant collection dedicated to visual features. These CLIP-like embeddings would be used **in addition to**, not instead of, the existing text embeddings, enabling more accurate similarity search for purely visual patterns (e.g. skin lesions, ear discharge) without changing the external API contracts. This CLIP-based image memory is not implemented yet and must go through separate design, approval, and testing before production rollout.
+
 **Reference:** `AI_AGENT_DATA_IMPROVEMENT_STRATEGY.md` (sections 7-12)
 
 #### 4.19.1 Class Diagram - AI Data Improvement

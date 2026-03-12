@@ -256,10 +256,10 @@
 - 🧠 File: `app/core/rag/knowledge_graph.py`
 
 #### Visual Case Memory (Bộ nhớ ca bệnh) ✅
-- 📋 **Confirmed Case Storage** - Lưu các ca bệnh đã xác nhận từ feedback tích cực vào Qdrant
-- 📋 **Feedback-weighted Re-ranking** - Score = cosine_similarity + min(feedback_count/100, 0.3) + (0.1 if staff_verified)
-- 📋 **Role-based Weights** - STAFF=1.0, CLINIC_MANAGER/OWNER=0.7, PET_OWNER=0.6
-- 📋 Auto-embed khi nhận feedback tích cực (rating >= 4)
+- 📋 **Confirmed Case Storage** – Stores positively confirmed medical cases into Qdrant
+- 📋 **Feedback-weighted Re-ranking** – Score = cosine_similarity + min(feedback_count/100, 0.3) + (0.1 if staff_verified)
+- 📋 **Role-based Weights** – STAFF=1.0, CLINIC_MANAGER/OWNER=0.7, PET_OWNER=0.6
+- 📋 Auto-embed when receiving positive feedback (rating >= 4) – **Phase 1 uses Cohere text embeddings (visual_description + diagnosis + symptoms), no direct image vector embedding yet**
 - 📋 Admin prune endpoint (`POST /knowledge/case-memory/prune`)
 - 📋 File: `app/core/rag/case_memory.py`
 

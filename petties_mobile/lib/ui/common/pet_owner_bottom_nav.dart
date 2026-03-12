@@ -21,45 +21,72 @@ class PetOwnerBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    const navItems = <({IconData icon, String label})>[
+      (icon: Icons.home, label: 'TRANG CHỦ'),
+      (icon: Icons.explore, label: 'KHÁM PHÁ'),
+      (icon: Icons.calendar_today, label: 'LỊCH HẸN'),
+      (icon: Icons.chat_bubble_outline, label: 'TIN NHẮN'),
+      (icon: Icons.person, label: 'TÀI KHOẢN'),
+    ];
 
-    return Container(
-      height: 56 + bottomPadding,
-      decoration: const BoxDecoration(
-        color: AppColors.white,
-        border: Border(
-          top: BorderSide(color: AppColors.stone900, width: 2),
-        ),
-      ),
-      padding: EdgeInsets.only(
-        left: MediaQuery.of(context).padding.left,
-        right: MediaQuery.of(context).padding.right,
-        bottom: bottomPadding,
-      ),
-      child: MediaQuery(
-        data: MediaQuery.of(context).copyWith(
-          textScaler: TextScaler.noScaling,
-        ),
-        child: BottomNavigationBar(
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: AppColors.white,
-          selectedItemColor: AppColors.primary,
-          unselectedItemColor: AppColors.stone400,
-          selectedLabelStyle: const TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 10,
+    return SafeArea(
+      top: false,
+      child: Container(
+        decoration: const BoxDecoration(
+          color: AppColors.white,
+          border: Border(
+            top: BorderSide(color: AppColors.stone900, width: 2),
           ),
-          unselectedLabelStyle: const TextStyle(fontSize: 10),
-          currentIndex: currentIndex,
-          elevation: 0,
-          onTap: onTap,
-          items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'TRANG CHỦ'),
-            BottomNavigationBarItem(icon: Icon(Icons.explore), label: 'KHÁM PHÁ'),
-            BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'LỊCH HẸN'),
-            BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline), label: 'TIN NHẮN'),
-            BottomNavigationBarItem(icon: Icon(Icons.person), label: 'TÀI KHOẢN'),
-          ],
+        ),
+        padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+        child: MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.noScaling,
+          ),
+          child: Row(
+            children: List.generate(navItems.length, (index) {
+              final item = navItems[index];
+              final isSelected = currentIndex == index;
+
+              return Expanded(
+                child: InkWell(
+                  onTap: () => onTap(index),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          item.icon,
+                          size: 22,
+                          color: isSelected
+                              ? AppColors.primary
+                              : AppColors.stone400,
+                        ),
+                        const SizedBox(height: 4),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            item.label,
+                            maxLines: 1,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight:
+                                  isSelected ? FontWeight.w700 : FontWeight.w500,
+                              color: isSelected
+                                  ? AppColors.primary
+                                  : AppColors.stone400,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
         ),
       ),
     );

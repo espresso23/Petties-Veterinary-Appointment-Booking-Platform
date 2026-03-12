@@ -109,6 +109,10 @@ class AiChatSocketEvent {
   final List<AiChatMessage> messages;
   final List<dynamic>? reactTrace;
   final String? toolName;
+  final int? stepIndex;
+  final Map<String, dynamic>? reactStep;
+  final Map<String, dynamic>? toolParams;
+  final dynamic result;
 
   const AiChatSocketEvent({
     required this.type,
@@ -119,6 +123,10 @@ class AiChatSocketEvent {
     this.messages = const [],
     this.reactTrace,
     this.toolName,
+    this.stepIndex,
+    this.reactStep,
+    this.toolParams,
+    this.result,
   });
 
   factory AiChatSocketEvent.fromJson(Map<String, dynamic> json) {
@@ -129,6 +137,14 @@ class AiChatSocketEvent {
       fullResponse: json['full_response']?.toString(),
       error: json['error']?.toString(),
       toolName: json['tool_name']?.toString(),
+      stepIndex: json['step_index'] is num ? (json['step_index'] as num).toInt() : null,
+      reactStep: json['react_step'] is Map
+          ? Map<String, dynamic>.from(json['react_step'] as Map)
+          : null,
+      toolParams: json['tool_params'] is Map
+          ? Map<String, dynamic>.from(json['tool_params'] as Map)
+          : null,
+      result: json['result'],
       reactTrace: json['react_trace'] as List<dynamic>?,
       messages: (json['messages'] as List<dynamic>? ?? const [])
           .whereType<Map<String, dynamic>>()

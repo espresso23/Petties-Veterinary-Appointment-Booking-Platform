@@ -181,6 +181,7 @@ async def get_clinic_services(
             "duration_minutes": service.get("durationTime"),
             "slots_required": service.get("slotsRequired"),
             "category": service.get("serviceCategory"),
+            "service_category": service.get("serviceCategory"),
             "pet_type": service.get("petType"),
             "is_home_visit": service.get("isHomeVisit"),
             "reminder_interval": service.get("reminderInterval"),
@@ -315,14 +316,19 @@ async def search_clinics_nearby(
     latitude: float,
     longitude: float,
     radius_km: float = 5.0,
-    service_names: Optional[List[str]] = None,
     top_k: int = 5,
 ) -> Dict[str, Any]:
-    """Tìm phòng khám gần vị trí người dùng."""
+    """Tìm phòng khám gần vị trí người dùng, trả về thông tin kèm danh sách dịch vụ.
+
+    Tool chỉ lấy dữ liệu thô (vị trí, dịch vụ, giá, rating).
+    LLM sẽ tự phân tích kết quả để gợi ý phòng khám phù hợp với yêu cầu người dùng.
+    """
     client = get_backend_client()
 
     try:
-        response = await client.find_nearby_clinics(latitude, longitude, radius_km, size=max(top_k * 3, 10))
+        response = await client.find_nearby_clinics(
+            latitude, longitude, radius_km, size=max(top_k * 3, 10),
+        )
     except BackendClientError as exc:
         logger.error(f"search_clinics_nearby failed: {exc}")
         return {
@@ -334,47 +340,50 @@ async def search_clinics_nearby(
         }
 
     raw_clinics = response.get("content", response if isinstance(response, list) else [])
-    requested_services = {service_name.strip().lower() for service_name in (service_names or []) if service_name.strip()}
 
     clinics: List[Dict[str, Any]] = []
     for clinic in raw_clinics:
         clinic_id = clinic.get("clinicId")
-        clinic_services = []
+        service_list: List[Dict[str, Any]] = []
+        service_error: Optional[str] = None
+
         if clinic_id:
-            services_response = await get_clinic_services(str(clinic_id))
-            clinic_services = [service.get("name") for service in services_response.get("services", []) if service.get("name")]
+            svc_resp = await get_clinic_services(str(clinic_id))
+            service_list = [
+                {
+                    "name": svc.get("name"),
+                    "category": svc.get("category"),
+                    "base_price": svc.get("base_price"),
+                    "description": svc.get("description"),
+                    "is_vaccination": svc.get("is_vaccination", False),
+                }
+                for svc in svc_resp.get("services", [])
+                if isinstance(svc, dict)
+            ]
+            if svc_resp.get("message"):
+                service_error = str(svc_resp["message"])
 
-        if requested_services:
-            normalized_clinic_services = {service_name.lower() for service_name in clinic_services}
-            if not requested_services.intersection(normalized_clinic_services):
-                continue
+        clinics.append({
+            "id": clinic_id,
+            "name": clinic.get("name"),
+            "address": clinic.get("address"),
+            "distance_km": clinic.get("distance"),
+            "rating": clinic.get("ratingAvg"),
+            "total_reviews": clinic.get("ratingCount"),
+            "services": service_list,
+            "service_error": service_error,
+            "has_sos": clinic.get("sosFee") is not None,
+            "operating_hours": _format_operating_hours(clinic.get("operatingHours")),
+        })
 
-        clinics.append(
-            {
-                "id": clinic_id,
-                "name": clinic.get("name"),
-                "address": clinic.get("address"),
-                "distance_km": clinic.get("distance"),
-                "rating": clinic.get("ratingAvg"),
-                "total_reviews": clinic.get("ratingCount"),
-                "services": clinic_services,
-                "has_sos": clinic.get("sosFee") is not None,
-                "operating_hours": _format_operating_hours(clinic.get("operatingHours")),
-            }
-        )
-
-    clinics = sorted(clinics, key=lambda item: item.get("distance_km") or 999999)[:top_k]
-
-    message = None
-    if len(clinics) < 3:
-        message = "Ít hơn 3 phòng khám phù hợp trong bán kính hiện tại. Có thể mở rộng bán kính tìm kiếm."
+    clinics.sort(key=lambda c: c.get("distance_km") or 999999)
+    clinics = clinics[:top_k]
 
     return {
         "query_location": {"lat": latitude, "lng": longitude},
         "radius_km": radius_km,
         "clinics": clinics,
         "total_found": len(clinics),
-        "message": message,
     }
 
 

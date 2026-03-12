@@ -11,7 +11,11 @@ from app.api.middleware.auth import CurrentUser, get_current_user
 from app.api.schemas.feedback_schemas import (
     FeedbackRequest,
     FeedbackResponse,
+    UpdateFeedbackRequest,
+    DeleteFeedbackResponse,
     FeedbackStatsResponse,
+    FeedbackListResponse,
+    FeedbackItem,
 )
 from app.core.chat_context import (
     BUSINESS_CHAT,
@@ -119,6 +123,10 @@ def _ensure_context_access(user: CurrentUser, context_type: str):
 
 def _validate_session_access(session: Optional[dict], user: CurrentUser) -> dict:
     if not session:
+        raise HTTPException(status_code=404, detail="Không tìm thấy session")
+
+    # Ẩn session đã bị đánh dấu xóa khỏi người dùng
+    if session.get("deleted"):
         raise HTTPException(status_code=404, detail="Không tìm thấy session")
 
     if session.get("user_id") != user.user_id:
@@ -399,4 +407,155 @@ async def get_feedback_stats(
         by_type=stats.get("by_type", {}),
         by_category=stats.get("by_category", {}),
         positive_rate=stats.get("positive_rate", 0.0),
+    )
+
+
+@router.get(
+    "/feedback/list",
+    response_model=FeedbackListResponse,
+    summary="Danh sách feedback chi tiết",
+)
+async def list_feedback(
+    page: int = Query(default=1, ge=1, description="Số trang (bắt đầu từ 1)"),
+    page_size: int = Query(default=20, ge=1, le=100, description="Số lượng mỗi trang"),
+    feedback_type: Optional[str] = Query(
+        default=None,
+        description="Lọc theo loại: thumbs_up, thumbs_down, report, confirmed, vet_confirmed",
+    ),
+    feedback_category: Optional[str] = Query(
+        default=None,
+        description="Lọc theo danh mục: medical, booking, clinic_ops, knowledge, general",
+    ),
+    user_role: Optional[str] = Query(
+        default=None,
+        description="Lọc theo role: PET_OWNER, STAFF, CLINIC_MANAGER, CLINIC_OWNER, ADMIN",
+    ),
+    date_from: Optional[str] = Query(
+        default=None, description="Lọc từ ngày (YYYY-MM-DD)"
+    ),
+    date_to: Optional[str] = Query(
+        default=None, description="Lọc đến ngày (YYYY-MM-DD)"
+    ),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """
+    Lấy danh sách feedback chi tiết với bộ lọc và phân trang.
+
+    Chỉ ADMIN mới có quyền truy cập endpoint này.
+    """
+    if not user.is_admin:
+        raise HTTPException(
+            status_code=403,
+            detail="Chỉ admin mới được xem danh sách feedback chi tiết",
+        )
+
+    from app.core.services.feedback_service import get_feedback_service
+
+    service = get_feedback_service()
+    result = await service.list_feedback(
+        page=page,
+        page_size=page_size,
+        feedback_type=feedback_type,
+        feedback_category=feedback_category,
+        user_role=user_role,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+    return FeedbackListResponse(
+        total=result.get("total", 0),
+        page=result.get("page", page),
+        page_size=result.get("page_size", page_size),
+        items=[FeedbackItem(**item) for item in result.get("items", [])],
+    )
+
+
+@router.put(
+    "/feedback/{feedback_id}",
+    response_model=FeedbackResponse,
+    summary="Sửa feedback đã gửi",
+)
+async def update_feedback(
+    feedback_id: str,
+    request: UpdateFeedbackRequest,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """
+    Sửa feedback đã gửi trước đó.
+
+    - Chỉ chính người gửi hoặc ADMIN mới được sửa.
+    - Nếu đổi từ positive → negative: case đã embed sẽ bị xóa khỏi Qdrant.
+    - Nếu đổi từ negative → positive: case mới sẽ được embed.
+    """
+    from app.core.services.feedback_service import get_feedback_service
+
+    update_data = {}
+    if request.feedback_type is not None:
+        update_data["feedback_type"] = request.feedback_type.value
+    if request.feedback_category is not None:
+        update_data["feedback_category"] = request.feedback_category.value
+    if request.feedback_reason is not None:
+        update_data["feedback_reason"] = request.feedback_reason.value
+    if request.feedback_text is not None:
+        update_data["feedback_text"] = request.feedback_text
+
+    if not update_data:
+        raise HTTPException(
+            status_code=400, detail="Không có trường nào để cập nhật"
+        )
+
+    service = get_feedback_service()
+    result = await service.update_feedback(
+        feedback_id=feedback_id,
+        update_data=update_data,
+        user_id=user.user_id,
+        is_admin=user.is_admin,
+    )
+
+    if result.get("status") == "error":
+        status_code = 404 if "không tìm thấy" in result["error"].lower() else 403
+        raise HTTPException(status_code=status_code, detail=result["error"])
+
+    return FeedbackResponse(
+        status="updated",
+        feedback_id=feedback_id,
+        case_embedded=result.get("case_embedded", False),
+        category=result.get("category", ""),
+        weight=result.get("weight", 0.0),
+    )
+
+
+@router.delete(
+    "/feedback/{feedback_id}",
+    response_model=DeleteFeedbackResponse,
+    summary="Xóa feedback đã gửi",
+)
+async def delete_feedback(
+    feedback_id: str,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """
+    Xóa feedback đã gửi trước đó.
+
+    - Chỉ chính người gửi hoặc ADMIN mới được xóa.
+    - Nếu feedback đã embed case vào Qdrant, case đó cũng sẽ bị xóa.
+    """
+    from app.core.services.feedback_service import get_feedback_service
+
+    service = get_feedback_service()
+    result = await service.delete_feedback(
+        feedback_id=feedback_id,
+        user_id=user.user_id,
+        is_admin=user.is_admin,
+    )
+
+    if result.get("status") == "error":
+        status_code = 404 if "không tìm thấy" in result["error"].lower() else 403
+        raise HTTPException(status_code=status_code, detail=result["error"])
+
+    return DeleteFeedbackResponse(
+        success=True,
+        feedback_id=feedback_id,
+        case_deleted=result.get("case_deleted", False),
+        message="Đã xóa feedback thành công",
     )

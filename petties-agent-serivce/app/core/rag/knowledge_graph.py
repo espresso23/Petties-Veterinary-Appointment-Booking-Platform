@@ -33,6 +33,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from loguru import logger
 
 from app.config.settings import settings
+from app.db.postgres.session import AsyncSessionLocal
 
 
 # ============================================================
@@ -200,11 +201,6 @@ class KnowledgeGraphService:
             return 0
 
         import asyncio
-        from llama_index.core import (
-            KnowledgeGraphIndex,
-            StorageContext,
-            Settings as LlamaSettings,
-        )
 
         logger.info(
             f"Building KG from {len(documents)} documents "
@@ -212,34 +208,224 @@ class KnowledgeGraphService:
         )
 
         try:
-            storage_context = StorageContext.from_defaults(
-                graph_store=self._graph_store
+            # Get API keys from database
+            async with AsyncSessionLocal() as db:
+                from app.core.config_helper import get_setting
+
+                cohere_key = await get_setting("COHERE_API_KEY", db)
+                openrouter_key = await get_setting("OPENROUTER_API_KEY", db)
+
+            # Extract text from documents
+            all_text = "\n\n".join([doc.text for doc in documents])
+
+            # Trích xuất triplets trực tiếp bằng LLM (cách đáng tin cậy hơn)
+            triplets = await self._extract_triplets_with_llm(
+                all_text, openrouter_key, max_triplets_per_chunk
             )
 
-            # Build KG index (LLM extracts triplets automatically)
-            self._kg_index = await asyncio.to_thread(
-                KnowledgeGraphIndex.from_documents,
-                documents,
-                max_triplets_per_chunk=max_triplets_per_chunk,
-                include_embeddings=True,
-                storage_context=storage_context,
-            )
+            # Lưu triplets vào graph store (chỉ triplets hợp lệ)
+            saved_count = 0
+            for subj, pred, obj in triplets:
+                subj_clean = subj.strip()
+                pred_clean = pred.strip()
+                obj_clean = obj.strip()
 
-            # Count triplets
-            triplet_count = self._count_triplets()
+                # Validation: bỏ qua triplets rỗng, quá dài, hoặc chứa ký tự rác
+                if not subj_clean or not pred_clean or not obj_clean:
+                    continue
+                if len(subj_clean) > 200 or len(pred_clean) > 100 or len(obj_clean) > 200:
+                    logger.warning(f"Skipping oversized triplet: ({subj_clean[:30]}..., {pred_clean[:20]}..., {obj_clean[:30]}...)")
+                    continue
+                # Lọc ký tự đặc biệt/garbage (non-printable, control chars)
+                import unicodedata
+                def _is_clean(s: str) -> bool:
+                    garbage_count = sum(
+                        1 for c in s
+                        if unicodedata.category(c).startswith('C')  # Control chars
+                        or ord(c) > 0xFFFF  # Supplementary chars (often garbage)
+                    )
+                    return garbage_count < len(s) * 0.1  # < 10% garbage
+
+                if not _is_clean(subj_clean) or not _is_clean(obj_clean):
+                    logger.warning(f"Skipping garbage triplet: ({subj_clean[:30]}..., {pred_clean[:20]}..., {obj_clean[:30]}...)")
+                    continue
+
+                self._graph_store.upsert_triplet(
+                    subj=subj_clean, rel=pred_clean, obj=obj_clean
+                )
+                saved_count += 1
 
             # Persist to disk
             self._persist()
 
-            logger.info(f"KG built successfully: {triplet_count} triplets extracted")
-            return triplet_count
+            logger.info(
+                f"Saved {saved_count}/{len(triplets)} triplets from {len(documents)} documents"
+            )
+            return saved_count
 
         except Exception as e:
             logger.error(f"Failed to build KG: {e}")
-            import traceback
-
-            logger.error(traceback.format_exc())
             return 0
+
+    async def _extract_triplets_with_llm(
+        self, text: str, openrouter_key: str, max_triplets: int = 10
+    ) -> List[Tuple[str, str, str]]:
+        """
+        Trích xuất triplets từ text bằng LLM qua OpenRouter API.
+
+        Args:
+            text: Văn bản cần extract
+            openrouter_key: API key cho OpenRouter
+            max_triplets: Số triplets tối đa
+
+        Returns:
+            List of (subject, predicate, object) tuples
+        """
+        import httpx
+        import unicodedata
+
+        # Làm sạch text trước khi gửi LLM (loại bỏ ký tự binary/garbage từ PDF)
+        def _clean_text(s: str) -> str:
+            """Loại bỏ ký tự non-printable, control chars, binary garbage."""
+            cleaned = []
+            for c in s:
+                cat = unicodedata.category(c)
+                # Giữ: chữ cái, số, dấu câu, khoảng trắng, dấu tiếng Việt
+                if cat.startswith('C') and c not in ('\n', '\t', '\r'):
+                    continue  # Bỏ ký tự control (trừ newline/tab)
+                if ord(c) > 0xFFFF:
+                    continue  # Bỏ supplementary chars (emoji, garbage)
+                cleaned.append(c)
+            return ''.join(cleaned)
+
+        clean_text = _clean_text(text)
+
+        # Chia text thành chunks nếu quá dài
+        max_chunk_size = 5000
+        chunks = []
+        for i in range(0, len(clean_text), max_chunk_size):
+            chunks.append(clean_text[i : i + max_chunk_size])
+
+        all_triplets = []
+
+        # Prompt chi tiết hơn cho thú y
+        system_prompt = """Bạn là chuyên gia thú y Việt Nam.
+Nhiệm vụ: trích xuất các bộ ba tri thức (triplet) từ văn bản thú y.
+
+Mỗi triplet gồm: ["chủ_thể", "quan_hệ", "đối_tượng"]
+
+Các loại quan hệ thường gặp:
+- có_triệu_chứng: bệnh → triệu chứng
+- điều_trị_bằng: bệnh → phương pháp/thuốc
+- nguyên_nhân: bệnh → nguyên nhân
+- thường_gặp_ở: bệnh/triệu chứng → loài/giống
+- phòng_ngừa: bệnh → biện pháp phòng
+- liều_dùng: thuốc → liều lượng
+- thuộc_nhóm: bệnh → nhóm bệnh
+
+QUY TẮC QUAN TRỌNG:
+1. Chủ thể và đối tượng phải là text TIẾNG VIỆT có nghĩa, KHÔNG chứa ký tự lạ
+2. Mỗi phần tử không quá 50 ký tự
+3. Trả về tối thiểu 3-5 triplets có ý nghĩa
+4. CHỈ trả về JSON array, KHÔNG giải thích
+
+Ví dụ output:
+[
+  ["Rận tai", "có_triệu_chứng", "Ngứa dữ dội"],
+  ["Rận tai", "điều_trị_bằng", "Thuốc nhỏ tai"],
+  ["Rận tai", "thường_gặp_ở", "Mèo"]
+]"""
+
+        for chunk in chunks[:3]:  # Giới hạn 3 chunks
+            # Bỏ qua chunk quá ngắn
+            if len(chunk.strip()) < 50:
+                continue
+
+            try:
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    response = await client.post(
+                        "https://openrouter.ai/api/v1/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {openrouter_key}",
+                            "Content-Type": "application/json",
+                            "HTTP-Referer": "https://petties.world",
+                            "X-Title": "Petties AI",
+                        },
+                        json={
+                            "model": "google/gemini-2.0-flash-001",
+                            "messages": [
+                                {"role": "system", "content": system_prompt},
+                                {
+                                    "role": "user",
+                                    "content": f"Trích xuất triplets từ văn bản thú y sau:\n\n{chunk[:3000]}",
+                                },
+                            ],
+                            "max_tokens": 1200,
+                            "temperature": 0.1,
+                        },
+                    )
+
+                    if response.status_code == 200:
+                        result = response.json()
+                        content = result["choices"][0]["message"]["content"]
+
+                        # Log raw response for debugging
+                        logger.info(f"LLM response (first 500 chars): {content[:500]}")
+
+                        # Parse JSON từ response - handle markdown code blocks
+                        import json as json_module
+                        import re
+
+                        # Loại bỏ markdown code blocks
+                        clean_content = re.sub(r"```json\s*", "", content)
+                        clean_content = re.sub(r"```\s*$", "", clean_content)
+                        clean_content = clean_content.strip()
+
+                        try:
+                            # Thử parse trực tiếp
+                            data = json_module.loads(clean_content)
+                            if isinstance(data, list):
+                                for item in data:
+                                    if isinstance(item, list) and len(item) >= 3:
+                                        all_triplets.append(
+                                            (
+                                                str(item[0]).strip(),
+                                                str(item[1]).strip(),
+                                                str(item[2]).strip(),
+                                            )
+                                        )
+                        except Exception as parse_err:
+                            # Thử tìm array trong content
+                            matches = re.findall(r"\[[\s\S]*?\]", content)
+                            for match in matches:
+                                try:
+                                    data = json_module.loads(match)
+                                    if isinstance(data, list):
+                                        for item in data:
+                                            if (
+                                                isinstance(item, list)
+                                                and len(item) >= 3
+                                            ):
+                                                all_triplets.append(
+                                                    (
+                                                        str(item[0]).strip(),
+                                                        str(item[1]).strip(),
+                                                        str(item[2]).strip(),
+                                                    )
+                                                )
+                                except:
+                                    continue
+                        except Exception as parse_err:
+                            logger.warning(f"JSON parse error: {parse_err}")
+                            continue
+            except Exception as e:
+                logger.warning(f"Error extracting triplets from chunk: {e}")
+                continue
+
+        # Loại bỏ duplicates
+        unique_triplets = list(set(all_triplets))[:max_triplets]
+        return unique_triplets
+
 
     async def query_graph(
         self,
@@ -473,6 +659,52 @@ class KnowledgeGraphService:
             logger.info(f"Graph store persisted to {graph_store_file}")
         except Exception as e:
             logger.warning(f"Failed to persist graph store: {e}")
+
+    async def get_graph_visualization_data(self) -> Dict[str, Any]:
+        """
+        Lấy graph data cho visualization (nodes + edges).
+
+        Returns:
+            Dict với 'nodes' và 'edges' cho D3.js visualization
+        """
+        await self.initialize()
+
+        if self._graph_store is None:
+            return {"nodes": [], "edges": [], "error": "Graph store not initialized"}
+
+        triplets = self._get_triplets_from_store(self._graph_store)
+
+        if not triplets:
+            return {"nodes": [], "edges": [], "error": "No triplets found"}
+
+        # Build nodes and edges
+        nodes_dict: Dict[str, Dict[str, Any]] = {}
+        edges: List[Dict[str, Any]] = []
+
+        for subj, pred, obj in triplets:
+            # Add subject node
+            if subj not in nodes_dict:
+                nodes_dict[subj] = {"id": subj, "label": subj, "type": "subject"}
+
+            # Add object node
+            if obj not in nodes_dict:
+                nodes_dict[obj] = {"id": obj, "label": obj, "type": "object"}
+
+            # Add edge
+            edges.append(
+                {
+                    "id": f"{subj}-{pred}-{obj}",
+                    "source": subj,
+                    "target": obj,
+                    "label": pred,
+                }
+            )
+
+        return {
+            "nodes": list(nodes_dict.values()),
+            "edges": edges,
+            "stats": {"node_count": len(nodes_dict), "edge_count": len(edges)},
+        }
 
 
 # ============================================================

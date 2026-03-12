@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/io.dart';
 
 import '../../config/constants/app_constants.dart';
@@ -17,8 +18,14 @@ enum AiChatErrorType {
   unauthorized,
   forbidden,
   sessionNotFound,
+  endpointNotFound,
   network,
   unknown,
+}
+
+enum AiFeedbackType {
+  thumbsUp,
+  thumbsDown,
 }
 
 class AiChatException implements Exception {
@@ -54,6 +61,14 @@ class AiChatException implements Exception {
     }
 
     if (statusCode == 404) {
+      if (detail == 'Not Found' || detail == '404 Not Found') {
+        return const AiChatException(
+          type: AiChatErrorType.endpointNotFound,
+          message:
+              'Không tìm thấy API trợ lý AI. Vui lòng kiểm tra cấu hình AI service.',
+        );
+      }
+
       return const AiChatException(
         type: AiChatErrorType.sessionNotFound,
         message: 'Không tìm thấy phiên chat AI. Hệ thống sẽ tạo lại phiên mới.',
@@ -130,17 +145,19 @@ class AiChatService {
 
   final StorageService _storage;
 
+  String _normalizeServiceRoot(String rawUrl) {
+    final trimmed = rawUrl.trim().replaceFirst(RegExp(r'/+$'), '');
+    return trimmed.replaceFirst(RegExp(r'/(api(?:/v1)?)$'), '');
+  }
+
   String get _rootUrl {
-    final normalized = Environment.aiServiceUrl.trim().replaceFirst(RegExp(r'/+$'), '');
-    if (normalized.endsWith('/api')) {
-      return normalized.substring(0, normalized.length - 4);
-    }
-    return normalized;
+    return _normalizeServiceRoot(Environment.aiServiceUrl);
   }
 
   String get _apiBaseUrl => '$_rootUrl/api/v1';
 
   Dio _buildDio(String token) {
+    debugPrint('[AiChat] REST baseUrl=$_apiBaseUrl (root=$_rootUrl, raw=${Environment.aiServiceUrl})');
     return Dio(
       BaseOptions(
         baseUrl: _apiBaseUrl,
@@ -274,6 +291,32 @@ class AiChatService {
     return createSession();
   }
 
+  Future<List<AiChatSession>> listSessions({int limit = 20}) async {
+    final token = await _requireToken();
+    final dio = _buildDio(token);
+    Response response;
+    try {
+      response = await dio.get(
+        '/chat/sessions',
+        queryParameters: {
+          'limit': limit,
+          'context_type': _contextType,
+        },
+      );
+    } on DioException catch (error) {
+      throw AiChatException.fromDio(error);
+    }
+
+    final rawSessions =
+        (response.data['sessions'] as List<dynamic>? ?? const []);
+
+    return rawSessions
+        .whereType<Map<String, dynamic>>()
+        .map(AiChatSession.fromJson)
+        .where((session) => session.sessionId.isNotEmpty)
+        .toList();
+  }
+
   Future<AiChatSession> getSession(String sessionId) async {
     final token = await _requireToken();
     final dio = _buildDio(token);
@@ -294,6 +337,53 @@ class AiChatService {
     await _storage.remove(_lastSessionKey);
   }
 
+  Future<void> deleteSession(String sessionId) async {
+    final token = await _requireToken();
+    final dio = _buildDio(token);
+
+    try {
+      await dio.delete('/chat/sessions/$sessionId');
+    } on DioException catch (error) {
+      throw AiChatException.fromDio(error);
+    }
+
+    final storedSessionId = await _storage.getString(_lastSessionKey);
+    if (storedSessionId == sessionId) {
+      await clearStoredSession();
+    }
+  }
+
+  Future<void> sendFeedback({
+    required String messageId,
+    required String sessionId,
+    required AiFeedbackType type,
+    String? feedbackText,
+  }) async {
+    final token = await _requireToken();
+    final dio = _buildDio(token);
+
+    final feedbackType = switch (type) {
+      AiFeedbackType.thumbsUp => 'thumbs_up',
+      AiFeedbackType.thumbsDown => 'thumbs_down',
+    };
+
+    final Map<String, dynamic> payload = {
+      'message_id': messageId,
+      'session_id': sessionId,
+      'feedback_type': feedbackType,
+    };
+
+    if (feedbackText != null && feedbackText.trim().isNotEmpty) {
+      payload['feedback_text'] = feedbackText.trim();
+    }
+
+    try {
+      await dio.post('/chat/feedback', data: payload);
+    } on DioException catch (error) {
+      throw AiChatException.fromDio(error);
+    }
+  }
+
   Future<IOWebSocketChannel> connectToSession(String sessionId) async {
     final token = await _requireToken();
     final wsBase = _rootUrl.startsWith('https://')
@@ -303,6 +393,7 @@ class AiChatService {
     final uri = Uri.parse(
       '$wsBase/ws/chat/$sessionId?token=${Uri.encodeComponent(token)}&context_type=$_contextType',
     );
+    debugPrint('[AiChat] WebSocket uri=$uri');
 
     try {
       return IOWebSocketChannel.connect(

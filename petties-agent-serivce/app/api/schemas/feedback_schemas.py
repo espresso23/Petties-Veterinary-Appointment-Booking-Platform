@@ -4,14 +4,15 @@ PETTIES AI SERVICE - Feedback API Schemas
 Pydantic models for feedback endpoints:
     - POST /chat/feedback  -> FeedbackRequest / FeedbackResponse
     - GET  /chat/feedback/stats -> FeedbackStatsResponse
+    - GET  /chat/feedback/list  -> FeedbackListResponse
 
 Package: app.api.schemas
 Purpose: Request/response validation for feedback API
-Version: v1.0.0
+Version: v1.1.0
 """
 
 from enum import Enum
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -131,6 +132,52 @@ class FeedbackResponse(BaseModel):
     error: Optional[str] = Field(default=None, description="Thông báo lỗi nếu có")
 
 
+class UpdateFeedbackRequest(BaseModel):
+    """Request body cho PUT /chat/feedback/{feedback_id}."""
+
+    feedback_type: Optional[FeedbackType] = Field(
+        default=None,
+        description="Sửa loại feedback (ví dụ: đổi thumbs_up → thumbs_down)",
+    )
+    feedback_category: Optional[FeedbackCategory] = Field(
+        default=None,
+        description="Sửa phân loại tương tác",
+    )
+    feedback_reason: Optional[FeedbackReason] = Field(
+        default=None,
+        description="Sửa lý do feedback",
+    )
+    feedback_text: Optional[str] = Field(
+        default=None,
+        max_length=1000,
+        description="Sửa nội dung góp ý chi tiết",
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "feedback_type": "thumbs_down",
+                    "feedback_reason": "incorrect_info",
+                    "feedback_text": "AI trả lời sai, tôi bấm nhầm thumbs up",
+                }
+            ]
+        }
+    }
+
+
+class DeleteFeedbackResponse(BaseModel):
+    """Response cho DELETE /chat/feedback/{feedback_id}."""
+
+    success: bool = Field(description="True nếu xóa thành công")
+    feedback_id: str = Field(description="UUID của feedback đã xóa")
+    case_deleted: bool = Field(
+        default=False,
+        description="True nếu case tương ứng đã được xóa khỏi Qdrant",
+    )
+    message: str = Field(default="", description="Thông báo kết quả")
+
+
 class FeedbackStatsResponse(BaseModel):
     """Response cho GET /chat/feedback/stats."""
 
@@ -151,11 +198,52 @@ class FeedbackStatsResponse(BaseModel):
     error: Optional[str] = Field(default=None)
 
 
+class FeedbackItem(BaseModel):
+    """Một bản ghi feedback chi tiết."""
+
+    feedback_id: str = Field(description="UUID của feedback")
+    message_id: str = Field(description="UUID của tin nhắn AI được đánh giá")
+    session_id: str = Field(default="", description="UUID của phiên chat")
+    user_id: str = Field(default="", description="ID người gửi feedback")
+    user_role: str = Field(default="", description="Role của người gửi feedback")
+    feedback_type: str = Field(
+        description="thumbs_up | thumbs_down | report | confirmed | vet_confirmed"
+    )
+    feedback_category: str = Field(
+        default="general",
+        description="medical | booking | clinic_ops | knowledge | general",
+    )
+    feedback_reason: str = Field(default="", description="Lý do feedback (nếu có)")
+    feedback_text: str = Field(default="", description="Nội dung góp ý chi tiết")
+    tool_used: str = Field(default="", description="Tool AI đã sử dụng")
+    message_content: str = Field(
+        default="",
+        description="Snippet nội dung tin nhắn AI được đánh giá (tối đa 200 ký tự)",
+    )
+    weight: float = Field(default=0.0, description="Trọng số feedback theo role")
+    created_at: str = Field(default="", description="Thời điểm tạo (ISO format)")
+
+
+class FeedbackListResponse(BaseModel):
+    """Response cho GET /chat/feedback/list với phân trang."""
+
+    total: int = Field(description="Tổng số feedback phù hợp bộ lọc")
+    page: int = Field(default=1, description="Trang hiện tại")
+    page_size: int = Field(default=20, description="Số lượng mỗi trang")
+    items: List[FeedbackItem] = Field(
+        default_factory=list, description="Danh sách feedback"
+    )
+
+
 __all__ = [
     "FeedbackType",
     "FeedbackCategory",
     "FeedbackReason",
     "FeedbackRequest",
     "FeedbackResponse",
+    "UpdateFeedbackRequest",
+    "DeleteFeedbackResponse",
     "FeedbackStatsResponse",
+    "FeedbackItem",
+    "FeedbackListResponse",
 ]

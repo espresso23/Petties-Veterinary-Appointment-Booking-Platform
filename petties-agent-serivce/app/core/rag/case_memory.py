@@ -342,13 +342,17 @@ class CaseMemoryService:
             # Embed query
             query_vector = await self._embed_text(query, input_type="search_query")
 
-            # Search Qdrant
-            results = self._qdrant_client.search(
+            # Search Qdrant (qdrant-client>=1.12 dùng query_points thay vì search)
+
+            query_response = self._qdrant_client.query_points(
                 collection_name=self._collection_name,
-                query_vector=query_vector,
+                query=query_vector,
                 limit=top_k * 2,  # Fetch more for re-ranking then trim
                 score_threshold=min_score,
+                with_payload=True,
             )
+
+            results = query_response.points if query_response else []
 
             if not results:
                 return []
@@ -445,6 +449,60 @@ class CaseMemoryService:
 
         except Exception as e:
             logger.error(f"Failed to update feedback count for {case_id}: {e}")
+            return False
+
+    async def delete_case(self, case_id: str) -> bool:
+        """
+        Xóa một case khỏi Qdrant collection.
+
+        Dùng khi feedback bị xóa hoặc sửa từ positive → negative,
+        cần gỡ bỏ case đã embed sai khỏi vector database.
+
+        Args:
+            case_id: UUID của case cần xóa.
+
+        Returns:
+            True nếu xóa thành công.
+        """
+        await self.initialize()
+
+        if self._qdrant_client is None:
+            return False
+
+        try:
+            from qdrant_client.models import Filter, FieldCondition, MatchValue
+
+            # Tìm point theo case_id trong payload
+            results = self._qdrant_client.scroll(
+                collection_name=self._collection_name,
+                scroll_filter=Filter(
+                    must=[
+                        FieldCondition(
+                            key="case_id", match=MatchValue(value=case_id)
+                        )
+                    ]
+                ),
+                limit=1,
+                with_payload=False,
+                with_vectors=False,
+            )
+
+            points = results[0] if results else []
+            if not points:
+                logger.warning(f"Case {case_id} not found in Qdrant for deletion")
+                return False
+
+            point_ids = [point.id for point in points]
+            self._qdrant_client.delete(
+                collection_name=self._collection_name,
+                points_selector=point_ids,
+            )
+
+            logger.info(f"Deleted case {case_id} from Qdrant")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to delete case {case_id}: {e}")
             return False
 
     async def prune_low_score_cases(

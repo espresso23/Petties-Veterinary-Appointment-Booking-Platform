@@ -43,6 +43,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
   bool _isReconnecting = false;
   int _reconnectAttempts = 0;
   final Set<String> _confirmedMessageIds = <String>{};
+  final Set<String> _feedbackSentForMessages = <String>{};
+  List<AiChatSession> _recentSessions = const [];
 
   @override
   void initState() {
@@ -56,6 +58,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     _channel?.sink.close();
     _messageController.dispose();
     _scrollController.dispose();
+    FocusManager.instance.primaryFocus?.unfocus();
     super.dispose();
   }
 
@@ -69,9 +72,15 @@ class _AiChatScreenState extends State<AiChatScreen> {
       final session = await _aiChatService.getOrCreateSession();
       _replaceMessages(session.messages);
       _sessionId = session.sessionId;
+      await _loadRecentSessions();
       await _connectToSession(session.sessionId);
       _reconnectAttempts = 0;
     } on AiChatException catch (error) {
+      if (error.type == AiChatErrorType.sessionNotFound ||
+          error.type == AiChatErrorType.forbidden) {
+        await _recoverInvalidSession();
+        return;
+      }
       if (!mounted) return;
       setState(() {
         _error = error.message;
@@ -87,6 +96,31 @@ class _AiChatScreenState extends State<AiChatScreen> {
           _isInitializing = false;
         });
       }
+    }
+  }
+
+  Future<void> _recoverInvalidSession() async {
+    try {
+      final session = await _aiChatService.createFreshSession();
+      if (!mounted) return;
+      _replaceMessages(session.messages);
+      _sessionId = session.sessionId;
+      await _loadRecentSessions();
+      await _connectToSession(session.sessionId);
+      _reconnectAttempts = 0;
+      setState(() {
+        _error = null;
+      });
+    } on AiChatException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Không thể khởi tạo lại phiên chat AI';
+      });
     }
   }
 
@@ -106,6 +140,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       final session = await _aiChatService.createFreshSession();
       _sessionId = session.sessionId;
       _replaceMessages([]);
+      await _loadRecentSessions();
       await _connectToSession(session.sessionId);
       _reconnectAttempts = 0;
     } on AiChatException catch (error) {
@@ -124,6 +159,20 @@ class _AiChatScreenState extends State<AiChatScreen> {
           _isInitializing = false;
         });
       }
+    }
+  }
+
+  Future<void> _loadRecentSessions() async {
+    try {
+      final sessions = await _aiChatService.listSessions(limit: 20);
+      if (!mounted) return;
+      setState(() {
+        _recentSessions = sessions;
+      });
+    } on AiChatException {
+      // Không cần hiển thị lỗi riêng cho danh sách session, chỉ giữ trống
+    } catch (_) {
+      // ignore
     }
   }
 
@@ -234,11 +283,13 @@ class _AiChatScreenState extends State<AiChatScreen> {
         });
         break;
       case AiChatSocketEventType.thinking:
+        _appendStreamingReactStep(event);
         setState(() {
           _agentStatus = event.content ?? 'Trợ lý đang suy luận...';
         });
         break;
       case AiChatSocketEventType.toolCall:
+        _appendStreamingReactStep(event);
         setState(() {
           _agentStatus = event.toolName != null
               ? 'Đang gọi công cụ ${event.toolName}'
@@ -246,6 +297,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
         });
         break;
       case AiChatSocketEventType.toolResult:
+        _appendStreamingReactStep(event);
         setState(() {
           _agentStatus = 'Đã lấy dữ liệu, đang tổng hợp phản hồi...';
         });
@@ -278,6 +330,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
           .map(
             (message) => _UiChatMessage(
               id: message.messageId ?? UniqueKey().toString(),
+              messageId: message.messageId,
               role: message.role,
               content: message.content,
               timestamp: message.timestamp,
@@ -285,6 +338,104 @@ class _AiChatScreenState extends State<AiChatScreen> {
             ),
           )
           .toList();
+    });
+    _scrollToBottom();
+  }
+
+  List<dynamic> _mergeReactTrace(List<dynamic>? current, List<dynamic>? incoming) {
+    final merged = <dynamic>[];
+    final seenKeys = <String>{};
+
+    void addStep(dynamic step) {
+      if (step is! Map) return;
+      final map = Map<String, dynamic>.from(step);
+      final key = [
+        map['step_index']?.toString() ?? '',
+        map['step_type']?.toString() ?? '',
+        map['tool_name']?.toString() ?? '',
+        map['content']?.toString() ?? '',
+      ].join('|');
+      if (seenKeys.add(key)) {
+        merged.add(map);
+      }
+    }
+
+    for (final step in current ?? const []) {
+      addStep(step);
+    }
+    for (final step in incoming ?? const []) {
+      addStep(step);
+    }
+
+    return merged;
+  }
+
+  Map<String, dynamic>? _socketEventToReactStep(AiChatSocketEvent event) {
+    if (event.reactStep != null) {
+      final normalized = Map<String, dynamic>.from(event.reactStep!);
+      if (event.stepIndex != null) {
+        normalized['step_index'] = event.stepIndex;
+      }
+      return normalized;
+    }
+
+    switch (event.type) {
+      case AiChatSocketEventType.thinking:
+        return {
+          'step_index': event.stepIndex,
+          'step_type': 'thought',
+          'content': event.content ?? '',
+          'tool_name': event.toolName,
+          'tool_params': event.toolParams,
+        };
+      case AiChatSocketEventType.toolCall:
+        return {
+          'step_index': event.stepIndex,
+          'step_type': 'action',
+          'content': event.content ?? '',
+          'tool_name': event.toolName,
+          'tool_params': event.toolParams,
+        };
+      case AiChatSocketEventType.toolResult:
+        return {
+          'step_index': event.stepIndex,
+          'step_type': 'observation',
+          'content': event.content ?? '',
+          'tool_name': event.toolName,
+          'tool_result': event.result,
+        };
+      default:
+        return null;
+    }
+  }
+
+  void _appendStreamingReactStep(AiChatSocketEvent event) {
+    final reactStep = _socketEventToReactStep(event);
+    if (reactStep == null) return;
+
+    setState(() {
+      _error = null;
+      if (_messages.isNotEmpty && _messages.last.role == 'assistant') {
+        final last = _messages.removeLast();
+        _messages.add(
+          last.copyWith(
+            isStreaming: true,
+            reactTrace: _mergeReactTrace(last.reactTrace, [reactStep]),
+          ),
+        );
+      } else {
+        _messages.add(
+          _UiChatMessage(
+            id: UniqueKey().toString(),
+            messageId: null,
+            role: 'assistant',
+            content: '',
+            timestamp: DateTime.now(),
+            isStreaming: true,
+            reactTrace: [reactStep],
+          ),
+        );
+      }
     });
     _scrollToBottom();
   }
@@ -328,13 +479,14 @@ class _AiChatScreenState extends State<AiChatScreen> {
           last.copyWith(
             content: fullResponse.isNotEmpty ? fullResponse : last.content,
             isStreaming: false,
-            reactTrace: reactTrace,
+            reactTrace: _mergeReactTrace(last.reactTrace, reactTrace),
           ),
         );
       } else {
         _messages.add(
           _UiChatMessage(
             id: UniqueKey().toString(),
+            messageId: null,
             role: 'assistant',
             content: fullResponse,
             timestamp: DateTime.now(),
@@ -381,6 +533,351 @@ class _AiChatScreenState extends State<AiChatScreen> {
     }
   }
 
+  Future<void> _showSessionListSheet() async {
+    if (_isInitializing) return;
+
+    if (_recentSessions.isEmpty) {
+      await _loadRecentSessions();
+    }
+
+    if (!mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.7,
+          minChildSize: 0.5,
+          maxChildSize: 0.9,
+          builder: (context, scrollController) {
+            return Container(
+              decoration: BoxDecoration(
+                color: AppColors.primaryBackground,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
+                ),
+                border: const Border(
+                  top: BorderSide(color: AppColors.stone900, width: 2),
+                  left: BorderSide(color: AppColors.stone900, width: 2),
+                  right: BorderSide(color: AppColors.stone900, width: 2),
+                ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: AppColors.stone900,
+                    offset: Offset(0, -4),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(top: 10, bottom: 8),
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.stone400,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Lịch sử phiên chat',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.stone900,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Expanded(
+                    child: _recentSessions.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'Chưa có phiên chat AI nào.',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.stone600,
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            controller: scrollController,
+                            itemCount: _recentSessions.length,
+                            itemBuilder: (context, index) {
+                              final session = _recentSessions[index];
+                              final isCurrent = session.sessionId == _sessionId;
+                              return ListTile(
+                                leading: Container(
+                                  width: 32,
+                                  height: 32,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primarySurface,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: AppColors.stone900,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.chat_bubble_outline,
+                                    size: 18,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                                title: Text(
+                                  session.title ?? 'Trợ lý AI',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.stone900,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  _formatSessionTime(session),
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppColors.stone600,
+                                  ),
+                                ),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (isCurrent)
+                                      const Padding(
+                                        padding: EdgeInsets.only(right: 8),
+                                        child: Text(
+                                          'Đang mở',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppColors.primaryDark,
+                                          ),
+                                        ),
+                                      ),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.delete_outline,
+                                        size: 20,
+                                        color: AppColors.error,
+                                      ),
+                                      tooltip: 'Xóa phiên chat',
+                                      onPressed: () {
+                                        Navigator.of(context).pop();
+                                        _confirmDeleteSession(session);
+                                      },
+                                    ),
+                                  ],
+                                ),
+                                onTap: () {
+                                  Navigator.of(context).pop();
+                                  _switchToSession(session);
+                                },
+                              );
+                            },
+                          ),
+                  ),
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 40,
+                      child: ElevatedButton.icon(
+                        onPressed: _startNewSession,
+                        icon: const Icon(Icons.add_comment_outlined, size: 16),
+                        label: const Text(
+                          'PHIÊN CHAT MỚI',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: AppColors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            side: const BorderSide(
+                              color: AppColors.stone900,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  String _formatSessionTime(AiChatSession session) {
+    final time = session.updatedAt ?? session.createdAt;
+    if (time == null) return '';
+    final now = DateTime.now();
+    if (now.difference(time).inDays == 0) {
+      return 'Hôm nay • ${_formatTime(time)}';
+    }
+    return '${time.day.toString().padLeft(2, '0')}/${time.month.toString().padLeft(2, '0')} • ${_formatTime(time)}';
+  }
+
+  Future<void> _switchToSession(AiChatSession session) async {
+    if (session.sessionId.isEmpty) return;
+
+    setState(() {
+      _isInitializing = true;
+      _error = null;
+      _agentStatus = 'Đang tải phiên chat...';
+    });
+
+    try {
+      final loaded = await _aiChatService.getSession(session.sessionId);
+      if (!mounted) return;
+      _sessionId = loaded.sessionId;
+      _replaceMessages(loaded.messages);
+      await _connectToSession(loaded.sessionId);
+      await _loadRecentSessions();
+    } on AiChatException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Không thể mở phiên chat AI này';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isInitializing = false;
+          _agentStatus = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _confirmDeleteSession(AiChatSession session) async {
+    if (!mounted) return;
+
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text(
+            'Xóa phiên chat AI',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: AppColors.stone900,
+            ),
+          ),
+          content: const Text(
+            'Bạn có chắc muốn xóa phiên chat AI này? Bạn sẽ không xem lại được hội thoại cũ nữa.',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: AppColors.stone700,
+              height: 1.4,
+            ),
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: AppColors.stone900, width: 2),
+          ),
+          actionsPadding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text(
+                'HỦY',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.stone700,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.error,
+                foregroundColor: AppColors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: const BorderSide(color: AppColors.stone900, width: 2),
+                ),
+              ),
+              child: const Text(
+                'XÓA',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldDelete != true) return;
+
+    try {
+      await _aiChatService.deleteSession(session.sessionId);
+      await _loadRecentSessions();
+
+      if (!mounted) return;
+
+      // Nếu đang ở chính session vừa xóa, tạo phiên mới để tránh treo UI
+      if (_sessionId == session.sessionId) {
+        await _startNewSession();
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đã xóa phiên chat AI'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } on AiChatException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không thể xóa phiên chat AI'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
@@ -390,6 +887,96 @@ class _AiChatScreenState extends State<AiChatScreen> {
         curve: Curves.easeOut,
       );
     });
+  }
+
+  Widget _buildFeedbackButtons(_UiChatMessage message) {
+    final hasSent = message.messageId != null &&
+        _feedbackSentForMessages.contains(message.messageId);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _FeedbackIconButton(
+          icon: Icons.thumb_up_alt_outlined,
+          label: 'Hài lòng',
+          isSelected: hasSent,
+          color: AppColors.successDark,
+          onTap: hasSent
+              ? null
+              : () => _handleFeedback(message, AiFeedbackType.thumbsUp),
+        ),
+        const SizedBox(width: 6),
+        _FeedbackIconButton(
+          icon: Icons.thumb_down_alt_outlined,
+          label: 'Chưa ổn',
+          isSelected: hasSent,
+          color: AppColors.coral,
+          onTap: hasSent
+              ? null
+              : () => _handleFeedback(message, AiFeedbackType.thumbsDown),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _handleFeedback(
+    _UiChatMessage message,
+    AiFeedbackType type,
+  ) async {
+    if (_sessionId == null || message.messageId == null) return;
+
+    final msgId = message.messageId!;
+    if (_feedbackSentForMessages.contains(msgId)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bạn đã gửi phản hồi cho câu trả lời này rồi'),
+          backgroundColor: AppColors.stone600,
+        ),
+      );
+      return;
+    }
+
+    try {
+      await _aiChatService.sendFeedback(
+        messageId: msgId,
+        sessionId: _sessionId!,
+        type: type,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _feedbackSentForMessages.add(msgId);
+      });
+
+      final successText = type == AiFeedbackType.thumbsUp
+          ? 'Cảm ơn bạn, hệ thống đã ghi nhận phản hồi tích cực.'
+          : 'Cảm ơn bạn, hệ thống sẽ xem xét phản hồi của bạn.';
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(successText),
+          backgroundColor:
+              type == AiFeedbackType.thumbsUp ? AppColors.success : AppColors.error,
+        ),
+      );
+    } on AiChatException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không gửi được phản hồi cho trợ lý AI'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   @override
@@ -405,7 +992,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
         foregroundColor: AppColors.stone900,
         elevation: 0,
         leading: IconButton(
-          onPressed: () => context.pop(),
+          onPressed: () {
+            FocusManager.instance.primaryFocus?.unfocus();
+            context.pop();
+          },
           icon: const Icon(Icons.close),
         ),
         title: const Text(
@@ -416,6 +1006,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
           ),
         ),
         actions: [
+          IconButton(
+            onPressed: _isInitializing ? null : _showSessionListSheet,
+            tooltip: 'Lịch sử phiên chat',
+            icon: const Icon(Icons.history),
+          ),
           IconButton(
             onPressed: _isInitializing ? null : _startNewSession,
             tooltip: 'Phiên chat mới',
@@ -661,9 +1256,12 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   Widget _buildMessageBubble(_UiChatMessage message) {
     final isUser = message.role == 'user';
+    final displayContent = !isUser && message.content.isEmpty && message.isStreaming
+        ? 'Trợ lý đang suy luận...'
+        : message.content;
     final bookingDraft = !isUser
         ? extractBookingConfirmationDraft(
-            content: message.content,
+            content: displayContent,
             reactTrace: message.reactTrace,
           )
         : null;
@@ -743,7 +1341,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
                         const SizedBox(height: 8),
                       ],
                       Text(
-                        message.content,
+                        displayContent,
                         style: TextStyle(
                           fontSize: 13,
                           height: 1.55,
@@ -781,29 +1379,41 @@ class _AiChatScreenState extends State<AiChatScreen> {
                       ],
                       if (!isUser && (message.reactTrace?.isNotEmpty ?? false)) ...[
                         const SizedBox(height: 10),
-                        _buildTracePanel(message.reactTrace!),
+                        _buildTracePanel(
+                          message.reactTrace!,
+                          initiallyExpanded: message.isStreaming,
+                        ),
                       ],
                       const SizedBox(height: 8),
                       Row(
+                        mainAxisAlignment:
+                            isUser ? MainAxisAlignment.end : MainAxisAlignment.spaceBetween,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            Icons.access_time,
-                            size: 12,
-                            color: isUser
-                                ? AppColors.white.withValues(alpha: 0.82)
-                                : AppColors.stone500,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            _formatTime(message.timestamp),
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: isUser
-                                  ? AppColors.white.withValues(alpha: 0.82)
-                                  : AppColors.stone500,
-                              fontWeight: FontWeight.w700,
-                            ),
+                          if (!isUser && message.messageId != null)
+                            _buildFeedbackButtons(message),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.access_time,
+                                size: 12,
+                                color: isUser
+                                    ? AppColors.white.withValues(alpha: 0.82)
+                                    : AppColors.stone500,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                _formatTime(message.timestamp),
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: isUser
+                                      ? AppColors.white.withValues(alpha: 0.82)
+                                      : AppColors.stone500,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -826,7 +1436,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     );
   }
 
-  Widget _buildTracePanel(List<dynamic> trace) {
+  Widget _buildTracePanel(List<dynamic> trace, {bool initiallyExpanded = false}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -835,6 +1445,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
         border: Border.all(color: AppColors.stone200, width: 1.5),
       ),
       child: ExpansionTile(
+        initiallyExpanded: initiallyExpanded,
         tilePadding: EdgeInsets.zero,
         childrenPadding: EdgeInsets.zero,
         collapsedIconColor: AppColors.stone500,
@@ -1359,6 +1970,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
   }
 
   String _friendlyErrorMessage(String message) {
+    if (message.contains('Không tìm thấy API trợ lý AI')) {
+      return 'Ứng dụng không kết nối đúng tới AI service. Cần kiểm tra lại cấu hình địa chỉ AI service.';
+    }
+
     if (message.contains('Không tìm thấy phiên chat AI')) {
       return 'Phiên chat cũ không còn khả dụng. Hệ thống sẽ tạo phiên mới khi bạn thử lại.';
     }
@@ -1608,6 +2223,64 @@ class _AiLoadingHeroState extends State<_AiLoadingHero>
   }
 }
 
+class _FeedbackIconButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isSelected;
+  final Color color;
+  final VoidCallback? onTap;
+
+  const _FeedbackIconButton({
+    required this.icon,
+    required this.label,
+    required this.isSelected,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = isSelected ? color.withValues(alpha: 0.12) : Colors.transparent;
+    final borderColor =
+        isSelected ? color : AppColors.stone300.withValues(alpha: 0.9);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: borderColor,
+            width: 1.3,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 14,
+              color: color,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                color: AppColors.stone800,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 
 class _AiTypingDots extends StatefulWidget {
   const _AiTypingDots();
@@ -1663,6 +2336,7 @@ class _AiTypingDotsState extends State<_AiTypingDots>
 
 class _UiChatMessage {
   final String id;
+  final String? messageId;
   final String role;
   final String content;
   final DateTime? timestamp;
@@ -1671,6 +2345,7 @@ class _UiChatMessage {
 
   const _UiChatMessage({
     required this.id,
+    this.messageId,
     required this.role,
     required this.content,
     this.timestamp,
@@ -1686,6 +2361,7 @@ class _UiChatMessage {
   }) {
     return _UiChatMessage(
       id: id,
+      messageId: messageId,
       role: role,
       content: content ?? this.content,
       timestamp: timestamp ?? this.timestamp,

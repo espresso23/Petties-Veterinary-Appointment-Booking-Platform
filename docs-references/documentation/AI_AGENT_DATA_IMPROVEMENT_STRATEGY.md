@@ -651,21 +651,22 @@ response = query_engine.query("Meo ho khan chay nuoc mui la benh gi?")
 
 ---
 
-## 9. VISUAL CASE MEMORY - TRI THUC TU HINH ANH
+## 9. VISUAL CASE MEMORY - KNOWLEDGE FROM IMAGES
 
-### 9.1 Van de
+### 9.1 Problem
 
-Lan dau user gui anh (vd: tai meo bi can den), LLM Vision phan tich nhung chua co case tham chieu. Lan sau gap anh tuong tu, he thong van phai phan tich tu dau, khong hoc duoc tu lan truoc.
+When a user sends a pet health image for the first time (for example: a cat ear with brown discharge), the Vision LLM can analyze it, but there is no prior confirmed case to reference.  
+On later, similar images, the system would have to start reasoning from scratch again if it does not store and learn from those confirmed cases.
 
-### 9.2 Giai phap: Visual Case Memory
+### 9.2 Solution: Visual Case Memory
 
-Moi lan chan doan qua hinh anh, he thong:
-1. LLM Vision mo ta visual features thanh text
-2. Ket hop voi chan doan + feedback
-3. Embed text description vao Qdrant (collection `petties_case_memory`)
-4. Lan sau gap anh tuong tu -> tim case da confirm -> tra loi chinh xac hon
+For every diagnosis made from an image, the system:
+1. Uses the Vision LLM to generate a **textual description** of the visual features (`visual_description`) plus suspected diagnosis and key symptoms.
+2. Combines this with explicit feedback (who confirmed it, how many times, role weight).
+3. Embeds the text description into Qdrant (collection `petties_case_memory`) using Cohere embeddings (Phase 1 – **text-only**, no direct image pixel embeddings).
+4. On a later, similar image, searches for similar cases and surfaces the best-matching confirmed case(s), leading to more accurate and explainable answers.
 
-### 9.3 Flow chi tiet
+### 9.3 Detailed Flow
 
 ```mermaid
 sequenceDiagram
@@ -676,46 +677,46 @@ sequenceDiagram
     participant CaseMem as Case Memory (Qdrant)
     participant MongoDB as MongoDB (Feedback)
 
-    Note over User,MongoDB: === LAN 1: Case moi ===
-    User->>Agent: Gui anh tai meo + "Meo bi gi?"
-    Agent->>Vision: Phan tich hinh anh
-    Vision-->>Agent: "Ong tai chua can nau den, dong cuc<br/>giong ba ca phe, viem do"
-    Agent->>RAG: Search "can nau den tai meo ba ca phe"
-    RAG-->>Agent: Chunks tu tai lieu thu y
-    Agent-->>User: "Nghi ran tai (Ear Mites).<br/>Trieu chung: ngua, lac dau..."
+    Note over User,MongoDB: === FIRST TIME: NEW CASE ===
+    User->>Agent: Send cat ear image + "What is wrong with my cat?"
+    Agent->>Vision: Analyze image
+    Vision-->>Agent: "Dark brown coffee-ground debris in the ear canal, inflamed skin"
+    Agent->>RAG: Search "dark brown coffee-ground ear debris cat"
+    RAG-->>Agent: Veterinary knowledge chunks
+    Agent-->>User: "Suspected ear mites (Otodectes). Symptoms: itching, head shaking, dark discharge..."
     
-    User->>MongoDB: Feedback: Dung (Staff xac nhan)
+    User->>MongoDB: Feedback: CONFIRMED by Staff/Vet
     
     Note over MongoDB,CaseMem: === AUTO EMBED CASE ===
-    MongoDB->>CaseMem: Embed case: {visual_desc, diagnosis,<br/>species, body_part, feedback: CONFIRMED}
+    MongoDB->>CaseMem: Embed case: {visual_description, diagnosis,<br/>species, body_part, feedback: CONFIRMED}
     
-    Note over User,MongoDB: === LAN 2: Case tuong tu ===
-    User->>Agent: Gui anh tai meo khac tuong tu
-    Agent->>Vision: Mo ta visual features
-    Vision-->>Agent: "Tai meo co chat nau den, viem"
-    Agent->>CaseMem: Tim case tuong tu
-    CaseMem-->>Agent: "Case #47: Tai meo can nau den<br/>-> Ran tai (Otodectes cynotis)<br/>-> DA XAC NHAN boi Staff"
-    Agent->>RAG: Bo sung thong tin tu KB
-    Agent-->>User: "Ran tai (85% do tin cay,<br/>dua tren 47 case tuong tu da xac nhan)"
+    Note over User,MongoDB: === SECOND TIME: SIMILAR CASE ===
+    User->>Agent: Send another cat ear image with similar pattern
+    Agent->>Vision: Describe visual features
+    Vision-->>Agent: "Brown debris and inflammation in the ear canal"
+    Agent->>CaseMem: Search similar cases
+    CaseMem-->>Agent: "Case #47: Cat ear brown debris<br/>-> Ear mites (Otodectes cynotis)<br/>-> CONFIRMED by Staff"
+    Agent->>RAG: Fetch additional context from KB
+    Agent-->>User: "Likely ear mites (Otodectes cynotis), ~85% confidence<br/>based on 47 similar confirmed cases"
 ```
 
-### 9.4 Schema Case Memory trong Qdrant
+### 9.4 Case Memory Schema in Qdrant
 
 ```json
 {
   "collection": "petties_case_memory",
-  "vector": "[1024-dim Cohere embedding cua visual_description + diagnosis]",
+  "vector": "[1024-dim Cohere embedding of visual_description + diagnosis]",
   "payload": {
     "case_id": "uuid",
     "session_id": "uuid",
     "message_id": "uuid",
-    "visual_description": "Ong tai meo chua nhieu can ban nau den, dong cuc giong ba ca phe, vung da xung quanh viem do",
-    "user_description": "Meo nha em bi ngua tai, hay gai",
-    "diagnosis": "Ran tai (Otodectes cynotis)",
-    "species": "meo",
-    "body_part": "tai",
-    "symptoms": ["ngua", "can nau den", "lac dau"],
-    "treatment": "Thuoc nho tai + Ve sinh tai + Kham tai phong kham",
+    "visual_description": "Ear canal filled with dark brown coffee-ground debris, clumped material, surrounding skin inflamed",
+    "user_description": "Cat is scratching ears and shaking head a lot",
+    "diagnosis": "Ear mites (Otodectes cynotis)",
+    "species": "cat",
+    "body_part": "ear",
+    "symptoms": ["itching", "brown debris", "head shaking"],
+    "treatment": "Ear drops + ear cleaning + in-clinic examination",
     "feedback_type": "confirmed",
     "feedback_count": 47,
     "confidence_score": 0.85,
@@ -726,9 +727,22 @@ sequenceDiagram
 }
 ```
 
-### 9.5 Feedback-weighted Retrieval
+### 9.5 Future Extension: Image Embeddings (CLIP-style)
 
-Case duoc xac nhan dung nhieu lan se co score cao hon khi retrieval:
+In later phases, the system can be extended to:
+
+1. Use a **CLIP-style vision model** to produce image embeddings directly from the image file (or from the Cloudinary URL).
+2. Store these image vectors in a separate Qdrant collection (for example: `petties_case_memory_image`), linked back to the text case via `case_id`.
+3. For a new query (image + optional text), the Agent can:
+   - Search with text embeddings (current `petties_case_memory` collection).
+   - In parallel, search with image embeddings (image collection).
+   - Merge and re-rank results based on similarity and feedback weights.
+
+**Status:** CLIP/image embeddings are a **Phase 2** direction only, not implemented in the current codebase and subject to separate decisions about cost, model choice, and security before rollout.
+
+### 9.6 Feedback-weighted Retrieval
+
+Cases that are confirmed many times receive a higher score during retrieval:
 
 ```python
 # Khi search case memory
@@ -738,19 +752,19 @@ results = case_memory_collection.search(
     score_threshold=0.7,
 )
 
-# Re-rank dua tren feedback
+# Re-rank based on feedback
 for result in results:
     base_score = result.score  # Cosine similarity
     feedback_boost = min(result.payload["feedback_count"] / 100, 0.3)
     staff_boost = 0.1 if result.payload["staff_verified"] else 0
     
     result.final_score = base_score + feedback_boost + staff_boost
-    # Case confirmed 50 lan boi Staff: +0.3 + 0.1 = +0.4 boost
+    # Example: case confirmed 50 times by Staff => +0.3 + 0.1 = +0.4 boost
 
 results.sort(key=lambda r: r.final_score, reverse=True)
 ```
 
-### 9.6 Do chinh xac tang theo thoi gian
+### 9.7 Accuracy Improvement Over Time
 
 ```
 Thang 1:    10 cases  -> Do chinh xac: ~60% (it case tham chieu)

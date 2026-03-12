@@ -68,5 +68,20 @@ void main() {
       expect(session.messages, isEmpty);
       expect(session.contextType, 'BUSINESS_CHAT');
     });
+
+    test('format session list and delete 404 thành sessionNotFound', () {
+      final error = DioException(
+        requestOptions: RequestOptions(path: '/chat/sessions/session-x'),
+        response: Response(
+          requestOptions: RequestOptions(path: '/chat/sessions/session-x'),
+          statusCode: 404,
+          data: {'detail': 'Không tìm thấy session'},
+        ),
+        type: DioExceptionType.badResponse,
+      );
+
+      final mapped = AiChatException.fromDio(error);
+      expect(mapped.type, AiChatErrorType.sessionNotFound);
+    });
   });
 }

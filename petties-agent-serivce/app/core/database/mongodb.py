@@ -267,7 +267,11 @@ async def get_chat_history(session_id: str, limit: int = 50) -> list:
 
 
 async def get_chat_session(session_id: str) -> Optional[dict]:
-    """Lấy metadata của một chat session theo session_id."""
+    """Lấy metadata của một chat session theo session_id.
+
+    Lưu ý: Hàm này trả về cả session đã bị đánh dấu deleted.
+    Việc kiểm tra quyền truy cập và trạng thái deleted được xử lý ở tầng API/WebSocket.
+    """
     try:
         db = await get_mongodb_database()
         sessions = db[settings.MONGODB_CHAT_SESSIONS_COLLECTION]
@@ -283,7 +287,8 @@ async def list_chat_sessions_by_owner(user_id: str, context_type: Optional[str] 
         db = await get_mongodb_database()
         sessions = db[settings.MONGODB_CHAT_SESSIONS_COLLECTION]
 
-        query = {"user_id": user_id}
+        # Chỉ lấy các session chưa bị đánh dấu xóa
+        query = {"user_id": user_id, "deleted": {"$ne": True}}
         if context_type:
             query["context_type"] = context_type
 
@@ -314,15 +319,25 @@ async def touch_chat_session(session_id: str, extra_updates: Optional[dict] = No
 
 
 async def delete_chat_session(session_id: str) -> bool:
-    """Xóa session và toàn bộ messages liên quan."""
+    """Đánh dấu session đã bị xóa (soft delete).
+
+    - Không xóa vật lý messages để giữ lịch sử cho mục đích phân tích/log.
+    - Các API và WebSocket sẽ ẩn session có deleted=True khỏi người dùng.
+    """
     try:
         db = await get_mongodb_database()
         sessions = db[settings.MONGODB_CHAT_SESSIONS_COLLECTION]
-        messages = db[settings.MONGODB_CHAT_MESSAGES_COLLECTION]
 
-        await messages.delete_many({"session_id": session_id})
-        result = await sessions.delete_one({"session_id": session_id})
-        return result.deleted_count > 0
+        result = await sessions.update_one(
+            {"session_id": session_id},
+            {
+                "$set": {
+                    "deleted": True,
+                    "deleted_at": datetime.now(timezone.utc),
+                }
+            },
+        )
+        return result.matched_count > 0
     except Exception as e:
         logger.error(f"❌ Failed to delete chat session: {e}")
         return False

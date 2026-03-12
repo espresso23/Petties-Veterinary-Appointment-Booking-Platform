@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { agentApi, chatApi, type Agent, type ChatContextType, type ChatSessionMessage, type ChatSessionSummary, type PromptVersion } from '../../../services/agentService'
+import { agentApi, chatApi, feedbackApi, type Agent, type ChatContextType, type ChatSessionMessage, type ChatSessionSummary, type PromptVersion } from '../../../services/agentService'
 import { ChatMessage } from '../../../components/admin/ChatMessage'
 import { ModelParametersConfig } from '../../../components/admin/ModelParametersConfig'
 import { ConfirmModal } from '../../../components/ConfirmModal'
@@ -26,6 +26,7 @@ import {
   DocumentTextIcon,
   ClockIcon,
   CommandLineIcon,
+  PhotoIcon,
 } from '@heroicons/react/24/outline'
 
 const AI_API_BASE_URL = env.AGENT_API_BASE_URL
@@ -84,17 +85,17 @@ const PROVIDERS: Array<{ id: LLMProvider; name: string; description: string }> =
 ]
 
 // Models per provider
-const MODELS_BY_PROVIDER: Record<LLMProvider, Array<{ id: string; name: string }>> = {
+const MODELS_BY_PROVIDER: Record<LLMProvider, Array<{ id: string; name: string; vision?: boolean }>> = {
   openrouter: [
-    { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Flash (Free)' },
-    { id: 'google/gemini-2.5-flash-preview', name: 'Gemini 2.5 Flash Preview' },
-    { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B' },
-    { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet' },
-    { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B' },
+    { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Flash (Free)', vision: true },
+    { id: 'google/gemini-2.5-flash-preview', name: 'Gemini 2.5 Flash Preview', vision: true },
+    { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B', vision: false },
+    { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', vision: true },
+    { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B', vision: false },
   ],
   deepseek: [
-    { id: 'deepseek-chat', name: 'DeepSeek Chat' },
-    { id: 'deepseek-coder', name: 'DeepSeek Coder' },
+    { id: 'deepseek-chat', name: 'DeepSeek Chat', vision: false },
+    { id: 'deepseek-coder', name: 'DeepSeek Coder', vision: false },
   ],
 }
 
@@ -169,6 +170,10 @@ export const PlaygroundPage = () => {
   // Confirm modal state
   const [showSeedConfirm, setShowSeedConfirm] = useState(false)
   const [sessionToDelete, setSessionToDelete] = useState<ChatSessionSummary | null>(null)
+
+  // Image upload state for multimodal
+  const [selectedImages, setSelectedImages] = useState<Array<{ file: File; preview: string; base64: string }>>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // ==================== LOAD DATA ====================
 
@@ -756,24 +761,103 @@ export const PlaygroundPage = () => {
     setSending(true)
     setReactSteps([])
 
-    wsRef.current?.send(JSON.stringify({
+    // Build WebSocket message with optional images
+    const wsPayload: Record<string, unknown> = {
       message: userMessage.content,
       agent_id: selectedAgentId,
       provider: selectedProvider,
       model: selectedModel
-    }))
+    }
+
+    // Add images if any (base64 encoded)
+    if (selectedImages.length > 0) {
+      wsPayload.images = selectedImages.map(img => img.base64)
+    }
+
+    wsRef.current?.send(JSON.stringify(wsPayload))
+
+    // Clear selected images after sending
+    setSelectedImages([])
   }
 
-  const handleFeedback = (messageId: string, feedback: 'good' | 'bad') => {
+  const handleFeedback = async (messageId: string, feedback: 'good' | 'bad') => {
+    // Cập nhật UI ngay lập tức
     setMessages(prev => prev.map(msg =>
       msg.id === messageId ? { ...msg, feedback } : msg
     ))
+
+    // Gọi API lưu feedback vào MongoDB
+    if (sessionInfo?.sessionId) {
+      try {
+        await feedbackApi.submitFeedback({
+          message_id: messageId,
+          session_id: sessionInfo.sessionId,
+          feedback_type: feedback === 'good' ? 'thumbs_up' : 'thumbs_down',
+        })
+      } catch (err) {
+        console.error('Failed to save playground feedback:', err)
+      }
+    }
   }
 
   const clearChat = () => {
     setMessages([])
     setReactSteps([])
     setStreamingContent('')
+    setSelectedImages([])
+  }
+
+  // Image handling
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    const MAX_IMAGES = 4
+    const MAX_SIZE_MB = 5
+
+    const newImages: Array<{ file: File; preview: string; base64: string }> = []
+
+    for (let i = 0; i < Math.min(files.length, MAX_IMAGES - selectedImages.length); i++) {
+      const file = files[i]
+      if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+        toast.showToast('error', `Ảnh ${file.name} quá lớn (tối đa ${MAX_SIZE_MB}MB)`)
+        continue
+      }
+      if (!file.type.startsWith('image/')) {
+        toast.showToast('error', `${file.name} không phải file ảnh`)
+        continue
+      }
+
+      const reader = new FileReader()
+      const base64 = await new Promise<string>((resolve) => {
+        reader.onload = () => resolve(reader.result as string)
+        reader.readAsDataURL(file)
+      })
+
+      newImages.push({
+        file,
+        preview: URL.createObjectURL(file),
+        base64: base64.split(',')[1], // Remove data:image/xxx;base64, prefix
+      })
+    }
+
+    if (newImages.length > 0) {
+      setSelectedImages(prev => [...prev, ...newImages].slice(0, MAX_IMAGES))
+    }
+
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const removeImage = (index: number) => {
+    setSelectedImages(prev => {
+      const newImages = [...prev]
+      URL.revokeObjectURL(newImages[index].preview)
+      newImages.splice(index, 1)
+      return newImages
+    })
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -945,17 +1029,24 @@ export const PlaygroundPage = () => {
 
           <div className="flex flex-col gap-0.5">
             <span className="text-[9px] font-black uppercase text-stone-500">Model</span>
-            <select
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              title="Chọn mô hình AI"
-              aria-label="Chọn mô hình AI"
-              className="px-2 py-1 border-2 border-stone-900 bg-white font-black text-[10px] focus:ring-0 outline-none cursor-pointer text-stone-900 min-w-[160px]"
-            >
-              {MODELS_BY_PROVIDER[selectedProvider].map(m => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                title="Chọn mô hình AI"
+                aria-label="Chọn mô hình AI"
+                className="px-2 py-1 border-2 border-stone-900 bg-white font-black text-[10px] focus:ring-0 outline-none cursor-pointer text-stone-900 min-w-[160px]"
+              >
+                {MODELS_BY_PROVIDER[selectedProvider].map(m => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+              {MODELS_BY_PROVIDER[selectedProvider].find(m => m.id === selectedModel)?.vision && (
+                <span className="px-2 py-0.5 bg-purple-100 text-purple-700 border border-purple-300 text-[9px] font-black uppercase rounded">
+                  Vision
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1138,7 +1229,52 @@ export const PlaygroundPage = () => {
 
           {/* Input Area */}
           <div className="p-4 border-t-4 border-stone-900 bg-white">
+            {/* Image Preview */}
+            {selectedImages.length > 0 && (
+              <div className="flex gap-2 mb-3 flex-wrap items-center">
+                {selectedImages.map((img, idx) => (
+                  <div key={idx} className="relative group">
+                    <img
+                      src={img.preview}
+                      alt={`Preview ${idx + 1}`}
+                      className="w-16 h-16 object-cover border-2 border-stone-900 rounded-lg"
+                    />
+                    <button
+                      onClick={() => removeImage(idx)}
+                      className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white border-2 border-stone-900 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <XMarkIcon className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+                {!MODELS_BY_PROVIDER[selectedProvider].find(m => m.id === selectedModel)?.vision && (
+                  <span className="px-2 py-1 bg-red-100 border border-red-300 text-red-700 text-xs font-bold uppercase rounded">
+                    Model không hỗ trợ ảnh! Chọn Gemini hoặc Claude
+                  </span>
+                )}
+              </div>
+            )}
+            
             <div className="flex gap-3">
+              {/* Image Attachment Button */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleImageSelect}
+                className="hidden"
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={sending || connectionStatus !== 'connected' || !sessionInfo?.sessionId || selectedImages.length >= 4}
+                title="Đính kèm ảnh"
+                aria-label="Đính kèm ảnh"
+                className="px-3 py-3 font-black text-stone-900 bg-stone-100 border-4 border-stone-900 hover:bg-stone-200 disabled:bg-stone-50 disabled:cursor-not-allowed transition-colors cursor-pointer self-end shadow-[4px_4px_0_#1c1917] hover:shadow-[2px_2px_0_#1c1917] hover:translate-x-[2px] hover:translate-y-[2px] disabled:shadow-none disabled:translate-x-0 disabled:translate-y-0"
+              >
+                <PhotoIcon className="w-5 h-5" />
+              </button>
+              
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}

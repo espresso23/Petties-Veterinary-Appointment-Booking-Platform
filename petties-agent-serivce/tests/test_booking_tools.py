@@ -13,6 +13,7 @@ from app.core.tools.mcp_tools.booking_tools import (
     create_booking_for_user,
     get_clinic_services,
     get_user_pets,
+    search_clinics_nearby,
 )
 
 
@@ -241,6 +242,118 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["latest_history"]["dose_number"], 1)
         self.assertEqual(result["recommended_next"]["dose_number"], 2)
         self.assertIn("mũi tiếp theo", result["message"])
+
+    async def test_search_clinics_nearby_returns_clinics_with_services_for_llm(self):
+        """Tool trả dữ liệu thô cho LLM tự phân tích, không filtering."""
+        client = AsyncMock()
+        client.find_nearby_clinics.return_value = {
+            "content": [
+                {
+                    "clinicId": "clinic-1",
+                    "name": "Petties Clinic",
+                    "address": "123 Nguyen Trai",
+                    "distance": 1.2,
+                    "ratingAvg": 4.8,
+                    "ratingCount": 12,
+                    "operatingHours": {},
+                    "sosFee": 50000,
+                },
+                {
+                    "clinicId": "clinic-2",
+                    "name": "Happy Vet",
+                    "address": "456 Tran Hung Dao",
+                    "distance": 3.5,
+                    "ratingAvg": 4.5,
+                    "ratingCount": 8,
+                    "operatingHours": {},
+                    "sosFee": None,
+                },
+            ]
+        }
+
+        with (
+            patch("app.core.tools.mcp_tools.booking_tools.get_backend_client", return_value=client),
+            patch(
+                "app.core.tools.mcp_tools.booking_tools.get_clinic_services",
+                AsyncMock(
+                    return_value={
+                        "services": [
+                            {
+                                "name": "Tiêm phòng dại",
+                                "category": "VACCINATION",
+                                "base_price": 150000,
+                                "description": "Tiêm chủng cho chó/mèo",
+                                "is_vaccination": True,
+                            },
+                            {
+                                "name": "Khám tổng quát",
+                                "category": "GENERAL",
+                                "base_price": 200000,
+                                "description": "Khám sức khoẻ định kỳ",
+                                "is_vaccination": False,
+                            },
+                        ]
+                    }
+                ),
+            ),
+        ):
+            result = await search_clinics_nearby(
+                latitude=10.7,
+                longitude=106.6,
+                radius_km=5,
+            )
+
+        self.assertEqual(result["total_found"], 2)
+        self.assertEqual(result["clinics"][0]["name"], "Petties Clinic")
+        self.assertEqual(result["clinics"][0]["distance_km"], 1.2)
+        self.assertEqual(len(result["clinics"][0]["services"]), 2)
+        self.assertEqual(result["clinics"][0]["services"][0]["name"], "Tiêm phòng dại")
+        self.assertTrue(result["clinics"][0]["services"][0]["is_vaccination"])
+        self.assertIsNone(result["clinics"][0]["service_error"])
+        self.assertTrue(result["clinics"][0]["has_sos"])
+        self.assertFalse(result["clinics"][1]["has_sos"])
+        self.assertNotIn("service_match_confidence", result["clinics"][0])
+        self.assertNotIn("matched_services", result["clinics"][0])
+
+    async def test_search_clinics_nearby_includes_service_error_when_lookup_fails(self):
+        """Khi không tải được dịch vụ, vẫn trả clinic kèm thông báo lỗi cho LLM."""
+        client = AsyncMock()
+        client.find_nearby_clinics.return_value = {
+            "content": [
+                {
+                    "clinicId": "clinic-2",
+                    "name": "Nearby Clinic",
+                    "address": "456 Tran Hung Dao",
+                    "distance": 2.5,
+                    "ratingAvg": 4.5,
+                    "ratingCount": 8,
+                    "operatingHours": {},
+                    "sosFee": None,
+                }
+            ]
+        }
+
+        with (
+            patch("app.core.tools.mcp_tools.booking_tools.get_backend_client", return_value=client),
+            patch(
+                "app.core.tools.mcp_tools.booking_tools.get_clinic_services",
+                AsyncMock(
+                    return_value={
+                        "services": [],
+                        "message": "Không thể tải dịch vụ phòng khám: Backend request failed",
+                    }
+                ),
+            ),
+        ):
+            result = await search_clinics_nearby(
+                latitude=10.7,
+                longitude=106.6,
+                radius_km=5,
+            )
+
+        self.assertEqual(result["total_found"], 1)
+        self.assertEqual(result["clinics"][0]["services"], [])
+        self.assertIn("Backend request failed", result["clinics"][0]["service_error"])
 
 
 if __name__ == "__main__":

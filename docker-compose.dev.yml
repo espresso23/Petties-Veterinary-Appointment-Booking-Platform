@@ -180,6 +180,8 @@ services:
       - ./petties-agent-serivce/app:/app/app:ro
       # Persist uploaded documents across container rebuilds
       - ai_storage_dev_data:/app/storage
+      # Persist uploaded knowledge documents
+      - ai_uploads_dev_data:/app/uploads
     ports:
       - "8000:8000"
     depends_on:
@@ -189,6 +191,9 @@ services:
         condition: service_healthy
     networks:
       - petties-dev-network
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -199,11 +204,13 @@ services:
   # vào 1 endpoint cho ngrok Free Tier
   #
   # Routing (xem chi tiết trong nginx.conf):
+  # - /api/v1/*   -> ai-service:8000/api/v1/* (AI REST API - longest prefix match)
   # - /api/*      -> backend:8080/api/* (Backend REST API)
   # - /ws/chat/*  -> ai-service:8000/ws/chat/* (AI WebSocket - đặt trước /ws/*)
   # - /ws/*       -> backend:8080/ws/* (Backend WebSocket)
   # - /ws-native/* -> backend:8080/ws-native/* (Backend Native WebSocket)
-  # - /*          -> ai-service:8000/* (AI REST API)
+  # - /ai/*       -> ai-service:8000/* (AI REST API - legacy prefix)
+  # - /*          -> host.docker.internal:5173 (Frontend React)
   #
   # Usage with ngrok:
   # ngrok http 8080
@@ -244,4 +251,6 @@ volumes:
   redis_dev_data:
     driver: local
   ai_storage_dev_data:
+    driver: local
+  ai_uploads_dev_data:
     driver: local

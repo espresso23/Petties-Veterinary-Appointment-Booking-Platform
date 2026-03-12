@@ -17,7 +17,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File, 
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from typing import List, Optional
+from typing import List, Optional, Dict
 from loguru import logger
 from pathlib import Path
 import os
@@ -288,7 +288,12 @@ async def process_document(document_id: int, db: AsyncSession = Depends(get_db))
         if chunks_count == 0:
             raise HTTPException(
                 status_code=500,
-                detail="Document processing failed: No vectors were created. This usually means the Cohere API key is missing or invalid.",
+                detail="Xử lý tài liệu thất bại: Không tạo được vectors. "
+                "Nguyên nhân có thể: "
+                "(1) Chưa cấu hình COHERE_API_KEY, "
+                "(2) Chưa cấu hình QDRANT_URL, "
+                "(3) API key không hợp lệ. "
+                "Vui lòng kiểm tra cấu hình trong trang Knowledge.",
             )
 
         # Update document status (only if vectors were created successfully)
@@ -943,44 +948,152 @@ async def build_knowledge_graph(
         result = await db.execute(query)
         documents = result.scalars().all()
 
+        # Check if there are documents but none are processed
+        all_docs_query = select(KnowledgeDocument)
+        all_result = await db.execute(all_docs_query)
+        all_docs = all_result.scalars().all()
+
         if not documents:
-            raise HTTPException(
-                status_code=404,
-                detail="Không tìm thấy tài liệu đã xử lý nào"
-                + (f" với IDs: {document_ids}" if document_ids else ""),
-            )
+            if all_docs:
+                # Documents exist but none are processed
+                processed_count = sum(1 for d in all_docs if d.processed)
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Tìm thấy {len(all_docs)} tài liệu nhưng không có tài liệu nào được xử lý (processed). "
+                    f"Để xử lý tài liệu, bạn cần: "
+                    f"(1) Cấu hình COHERE_API_KEY và QDRANT_URL trong trang Knowledge, "
+                    f"(2) Upload lại tài liệu (quá trình xử lý sẽ tự động chạy).",
+                )
+            else:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Không tìm thấy tài liệu nào trong hệ thống. Vui lòng upload tài liệu trước.",
+                )
 
         # Read file contents and create LlamaIndex Documents
         from llama_index.core import Document as LlamaDocument
+        import unicodedata
 
-        llama_docs = []
-        skipped = []
+        def _normalize_text(text: str) -> str:
+            text = unicodedata.normalize("NFC", text or "")
+            cleaned = []
+            for ch in text:
+                cat = unicodedata.category(ch)
+                if cat.startswith("C") and ch not in ("\n", "\r", "\t"):
+                    continue
+                cleaned.append(ch)
+            return "".join(cleaned).strip()
+
+        def _extract_text_from_file(path: Path, file_type: Optional[str]) -> str:
+            ft = (file_type or "").lower().strip()
+
+            if ft in ("txt", "md"):
+                return path.read_text(encoding="utf-8", errors="replace")
+
+            if ft == "docx":
+                from docx import Document as DocxDocument
+
+                docx = DocxDocument(str(path))
+                return "\n".join(p.text for p in docx.paragraphs if p.text)
+
+            if ft == "pdf":
+                text_parts: List[str] = []
+                # Prefer PyMuPDF if available
+                try:
+                    import fitz  # PyMuPDF
+
+                    with fitz.open(str(path)) as pdf:
+                        for page in pdf:
+                            t = page.get_text("text") or ""
+                            if t.strip():
+                                text_parts.append(t)
+                    return "\n".join(text_parts)
+                except Exception:
+                    from PyPDF2 import PdfReader
+
+                    reader = PdfReader(str(path))
+                    for page in reader.pages:
+                        t = page.extract_text() or ""
+                        if t.strip():
+                            text_parts.append(t)
+                    return "\n".join(text_parts)
+
+            return path.read_text(encoding="utf-8", errors="replace")
+
+        # Get storage directory for resolving relative paths
+        storage_dir = get_storage_dir()
+        logger.info(f"Build KG using storage_dir: {storage_dir}")
+
+        llama_docs: List[LlamaDocument] = []
+        skipped: List[int] = []
+        skipped_reasons: Dict[int, str] = {}
         for doc in documents:
-            if not doc.file_path or not os.path.exists(doc.file_path):
+            # Resolve file path - try multiple approaches
+            doc_path = None
+
+            # 1. Try as absolute path first
+            if Path(doc.file_path).is_absolute():
+                doc_path = Path(doc.file_path)
+
+            # 2. Try relative to storage_dir
+            if not doc_path or not doc_path.exists():
+                doc_path = storage_dir / doc.file_path
+
+            # 3. Try just the filename in storage_dir
+            if not doc_path or not doc_path.exists():
+                doc_path = storage_dir / Path(doc.file_path).name
+
+            logger.info(
+                f"Document {doc.id} ({doc.filename}): stored_path='{doc.file_path}', resolved='{doc_path}', exists={doc_path.exists() if doc_path else False}"
+            )
+
+            if not doc_path or not doc_path.exists():
+                logger.warning(
+                    f"Document {doc.id} file not found after trying all paths"
+                )
                 skipped.append(doc.id)
+                skipped_reasons[doc.id] = "Không tìm thấy file trên ổ đĩa"
                 continue
             try:
-                with open(doc.file_path, "r", encoding="utf-8", errors="replace") as f:
-                    text = f.read()
-                if text.strip():
-                    llama_docs.append(
-                        LlamaDocument(
-                            text=text,
-                            metadata={
-                                "document_id": doc.id,
-                                "filename": doc.filename,
-                                "file_type": doc.file_type,
-                            },
-                        )
+                raw_text = _extract_text_from_file(doc_path, doc.file_type)
+                text = _normalize_text(raw_text)
+
+                # PDF scan/image-only thường gần như không có text -> KG không thể extract
+                if len(text) < 200:
+                    logger.warning(
+                        f"Document {doc.id} has too little text for KG extraction (len={len(text)})."
                     )
+                    skipped.append(doc.id)
+                    skipped_reasons[doc.id] = (
+                        "Tài liệu quá ít chữ (có thể là PDF dạng hình ảnh). "
+                        "Vui lòng dùng tài liệu có text hoặc bổ sung OCR."
+                    )
+                    continue
+
+                logger.info(
+                    f"Document {doc.id} loaded successfully for KG, text length: {len(text)}"
+                )
+                llama_docs.append(
+                    LlamaDocument(
+                        text=text,
+                        metadata={
+                            "document_id": doc.id,
+                            "filename": doc.filename,
+                            "file_type": doc.file_type,
+                        },
+                    )
+                )
             except Exception as e:
                 logger.warning(f"Could not read document {doc.id}: {e}")
                 skipped.append(doc.id)
+                skipped_reasons[doc.id] = f"Lỗi đọc nội dung: {e}"
 
         if not llama_docs:
             raise HTTPException(
                 status_code=400,
-                detail="Không thể đọc nội dung từ bất kỳ tài liệu nào",
+                detail=f"Không thể đọc nội dung từ tài liệu. "
+                f"Đã kiểm tra {len(documents)} tài liệu, {len(skipped)} bị bỏ qua do lỗi đọc file. "
+                f"Vui lòng kiểm tra: (1) File có tồn tại trong thư mục uploads/documents? (2) Thư mục lưu trữ có đúng không?",
             )
 
         # Build KG
@@ -996,6 +1109,7 @@ async def build_knowledge_graph(
             "message": f"Knowledge Graph đã xây dựng thành công",
             "documents_processed": len(llama_docs),
             "documents_skipped": skipped,
+            "documents_skipped_reasons": skipped_reasons,
             "triplets_extracted": triplet_count,
             "processing_time_ms": processing_time,
         }
@@ -1020,6 +1134,22 @@ async def get_kg_stats():
         return {"success": True, **stats}
     except Exception as e:
         logger.error(f"Error getting KG stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/kg-visualize",
+    summary="[KB-05] Lấy dữ liệu để visualize Knowledge Graph",
+    description="Trả về nodes và edges dạng JSON cho D3.js visualization.",
+)
+async def get_kg_visualize():
+    """Get Knowledge Graph data for visualization."""
+    try:
+        kg = get_kg_service()
+        data = await kg.get_graph_visualization_data()
+        return {"success": True, **data}
+    except Exception as e:
+        logger.error(f"Error getting KG visualization data: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

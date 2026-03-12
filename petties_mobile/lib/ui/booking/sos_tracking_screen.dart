@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
@@ -12,6 +13,7 @@ import '../../data/models/booking.dart';
 import '../../data/services/booking_service.dart';
 import '../../data/services/tracking_websocket_service.dart';
 import '../../data/services/tracking_rest_service.dart';
+import '../../routing/app_routes.dart';
 import '../../utils/storage_service.dart';
 import '../../utils/map_utils.dart';
 
@@ -60,6 +62,7 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
   BitmapDescriptor? _vetIcon;
   BitmapDescriptor? _clinicIcon;
   bool _staffArrived = false;
+  bool _isHandlingArrival = false;
   int? _etaMinutes;
   double? _distanceKm;
   LatLng? _currentVetPosition;
@@ -118,9 +121,13 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
         });
         _initializeMarkers();
         await _loadInitialStaffLocation();
-        if (!_staffArrived) {
-          _startTracking();
+        if (_staffArrived) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _handleStaffArrivedAndExit();
+          });
+          return;
         }
+        _startTracking();
       }
     } catch (e) {
       if (widget.booking != null && mounted) {
@@ -132,9 +139,13 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
         });
         _initializeMarkers();
         await _loadInitialStaffLocation();
-        if (!_staffArrived) {
-          _startTracking();
+        if (_staffArrived) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _handleStaffArrivedAndExit();
+          });
+          return;
         }
+        _startTracking();
       } else if (mounted) {
         setState(() {
           _error = 'Không thể tải thông tin booking';
@@ -179,6 +190,7 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
         setState(() {
           _staffArrived = true;
         });
+        _handleStaffArrivedAndExit();
         return;
       }
 
@@ -234,6 +246,43 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
       _trackingHandler = null;
     }
     _vetAnimationTimer?.cancel();
+  }
+
+  Future<void> _handleStaffArrivedAndExit() async {
+    if (_isHandlingArrival || _booking == null || !mounted) return;
+
+    _isHandlingArrival = true;
+    _stopTrackingSubscription();
+
+    BookingResponse bookingForDetail = _booking!;
+    final bookingId = bookingForDetail.bookingId;
+
+    if (bookingId != null) {
+      try {
+        bookingForDetail = await _bookingService.getBookingById(bookingId);
+        _booking = bookingForDetail;
+      } catch (_) {
+        // Fall back to the current booking snapshot if refresh fails.
+      }
+    }
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Nhân viên đã đến nơi. Đang chuyển về chi tiết lịch hẹn...',
+          ),
+          duration: Duration(milliseconds: 1200),
+        ),
+      );
+
+    await Future.delayed(const Duration(milliseconds: 700));
+    if (!mounted) return;
+
+    context.go(AppRoutes.bookingDetailView, extra: bookingForDetail);
   }
 
   void _initializeMarkers() {

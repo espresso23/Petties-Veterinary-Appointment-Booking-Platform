@@ -200,6 +200,24 @@ Khi trình bày AI, chỉ giữ 2 câu hỏi chính:
 
 > **Không tách riêng một slide “AI service life cycle”** vì dễ trùng ý và khó liên hệ trực tiếp tới giá trị sản phẩm.
 
+### AI.0.1 Script ngắn cho khách hàng (1–2 phút): “AI update data & cải thiện độ chính xác”
+
+**Mục tiêu:** Trả lời nhanh, dễ hiểu, không dùng thuật ngữ khó.
+
+- **AI update data thế nào?**
+  - “Bọn em cập nhật kiến thức cho AI bằng cách **upload tài liệu thú y** vào Knowledge Base.”
+  - “Hệ thống tự xử lý tài liệu (chia nhỏ nội dung) và đưa vào kho tra cứu. Khi Pet Owner hỏi, AI sẽ **tra cứu lại kho này** để lấy thông tin đúng rồi mới trả lời.”
+  - “Vì vậy khi có phác đồ/hướng dẫn mới, chỉ cần upload tài liệu là AI có thể trả lời theo kiến thức mới, không cần sửa nghiệp vụ Spring Boot.”
+
+- **AI cải thiện độ chính xác ra sao theo thời gian?**
+  - “Nếu câu hỏi quá ngắn, AI tự bổ sung từ khóa liên quan để tìm đúng tài liệu hơn.”
+  - “Nếu người dùng hoặc Staff xác nhận câu trả lời đúng, hệ thống lưu lại các ‘trường hợp đã được xác nhận’. Lần sau gặp câu hỏi tương tự, AI ưu tiên tham chiếu các trường hợp này nên câu trả lời ngày càng sát thực tế hơn.”
+
+**Tham chiếu (để trả lời khi bị hỏi nguồn):**
+- `docs-references/documentation/SDD/REPORT_4_SDD_SYSTEM_DESIGN.md` – Mục **4.19 AI Data Improvement Mechanisms**
+- `docs-references/documentation/TECHNICAL SCOPE PETTIES - AGENT MANAGEMENT.md` – Mục **RAG Update / Knowledge Base Management**
+- `docs-references/documentation/SRS/PETTIES_SRS.md` – Mục **3.11.1 Consult AI Assistant (Ask ChatBot To Pet Care = Done)**
+
 ### AI.1 Kiến trúc hệ thống / package diagram có mô tả AI là thành phần tách biệt hay nhúng trong logic chính không?
 
 **Đáp án:** Có. AI được mô tả rõ là **thành phần tách biệt** (sub-system riêng), không nhúng trong từng API của Spring Boot.

@@ -379,26 +379,27 @@ Danh sách chi tiết các công nghệ được sử dụng để xây dựng h
 * **Domain Knowledge & Intelligence:**
 
   * **Knowledge Graph (LlamaIndex KnowledgeGraphIndex):**
-    * Extract triplets tu tai lieu thu y: (Trieu chung) --chi_diem--> (Benh) --thuong_gap--> (Loai)
-    * Hybrid Query: RAG (vector similarity) + KG (graph traversal) cho suy luan chuoi
-    * Backend: SimpleGraphStore (MVP) -> Neo4j (scale)
-    * Vi du: "Ho khan + Chay mui" -> KG suy luan -> "Viem mui hong" -> "Khang sinh + Giu am"
+    * Extracts triplets from veterinary documents: (Symptom) --points_to--> (Disease) --common_in--> (Species)
+    * Hybrid Query: RAG (vector similarity) + KG (graph traversal) for reasoning over chains
+    * Backend: SimpleGraphStore (MVP) → Neo4j (at scale)
+    * Example: "Dry cough + runny nose" → KG infers "Upper respiratory infection" → "Antibiotics + keep warm"
 
   * **Visual Case Memory (Qdrant `petties_case_memory` collection):**
-    * LLM Vision mo ta hinh anh -> embed text -> luu kem metadata (loai, benh, feedback)
-    * Lan sau gap anh tuong tu -> tim case da confirmed -> chinh xac hon
-    * Feedback-weighted retrieval: case confirmed nhieu lan duoc uu tien
+    * Vision LLM describes the image, then embeds the **textual description** (visual_description + diagnosis + symptoms) with Cohere and stores it together with metadata (species, disease, feedback, image_url, etc.)
+    * On similar future images, retrieves confirmed cases to increase accuracy and provide explanations such as "based on a previous case confirmed by Staff/Vet"
+    * Feedback-weighted retrieval: cases confirmed many times are boosted in ranking
+    * **Phase 2 (Planned):** Add a layer of **CLIP-style image embeddings** in a dedicated Qdrant collection for images, combined with text embeddings to better capture purely visual patterns. Not implemented in the current codebase.
 
   * **Query Expansion:**
-    * LLM tu dong mo rong query ngan ("cho non bo an" -> them dong nghia, thuat ngu chuyen mon)
-    * Tang recall cho RAG search
+    * LLM automatically expands short queries ("dog not eating" → synonyms, clinical terms, related symptoms)
+    * Increases recall for RAG search
 
   * **Feedback Loop:**
-    * Thumbs up/down -> luu MongoDB `chat_feedback` -> embed confirmed cases vao Case Memory
-    * Prompt optimization dua tren pattern tu feedback data
-    * Periodic prune: loai case nhieu, uu tien case verified
+    * Thumbs up/down stored in MongoDB `chat_feedback` → confirmed cases embedded into Case Memory
+    * Prompt optimization based on patterns found in feedback data
+    * Periodic prune: remove low-value cases, prioritize verified ones
 
-  * **Chi tiet:** Xem `AI_AGENT_DATA_IMPROVEMENT_STRATEGY.md` Section 7-11
+  * **Details:** See `AI_AGENT_DATA_IMPROVEMENT_STRATEGY.md` Sections 7–11
 
 ### **D. Infrastructure & Real-time (AWS EC2 Production)**
 

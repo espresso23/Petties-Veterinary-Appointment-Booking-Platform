@@ -225,33 +225,33 @@ De tra loi dung moi quan tam cua reviewer/mentor, AI duoc van hanh theo 3 vong c
     - Re-index dinh ky hoac khi tai lieu thay doi.
     - Don du lieu chat cu theo chinh sach retention.
 
-#### B. 4 Co che Cai thien Do Chinh xac
+#### B. 4 Accuracy Improvement Mechanisms
 
-| # | Co che | Mo ta | Trang thai |
-|---|--------|-------|------------|
-| 1 | **Query Expansion** | LLM tu dong mo rong query ngan gon (vd: "cho non bo an" -> them dong nghia, thuat ngu chuyen mon, trieu chung lien quan) truoc khi RAG search. Tang recall dang ke. | Implemented |
-| 2 | **Knowledge Graph** | LlamaIndex KnowledgeGraphIndex extract triplets (trieu chung -> benh -> loai -> phac do) tu tai lieu thu y. Hybrid query RAG + KG cho phep suy luan chuoi ma RAG thuan khong lam duoc. | Planned (Phase 2) |
-| 3 | **Visual Case Memory** | Moi lan chan doan qua hinh anh: LLM Vision mo ta visual features -> embed text + metadata (loai, benh, feedback) -> luu vao Qdrant collection `petties_case_memory`. Lan sau gap anh tuong tu -> tim case da confirmed -> chinh xac hon. | Implemented |
-| 4 | **Feedback Loop** | User/Staff danh gia dung/sai (thumbs up/down). Case confirmed -> tu dong embed vao Case Memory. Case rejected -> giam trong so. Prompt duoc tinh chinh dua tren pattern tu feedback. | Implemented |
+| # | Mechanism | Description | Status |
+|---|-----------|-------------|--------|
+| 1 | **Query Expansion** | The LLM automatically expands short/narrow queries (for example: "dog vomiting" → adds synonyms, clinical terms, related symptoms) before running RAG search, increasing recall. | Implemented |
+| 2 | **Knowledge Graph** | LlamaIndex `KnowledgeGraphIndex` extracts triplets (symptom → disease → species → treatment) from veterinary documents. Hybrid RAG + KG queries enable reasoning chains that pure vector search cannot provide. | Planned (Phase 2) |
+| 3 | **Visual Case Memory** | Each time AI diagnoses from an image, the Vision LLM produces a **text description** of visual features plus suspected diagnosis; this text + metadata (species, disease, feedback) is embedded with Cohere and stored in Qdrant collection `petties_case_memory`. Future similar images can be matched against confirmed cases for higher accuracy and better explanations. **CLIP-style image embeddings are reserved for Phase 2 and are not implemented yet.** | Implemented (text-based) |
+| 4 | **Feedback Loop** | Users/Staff rate answers as correct/incorrect (thumbs up/down). Confirmed cases are automatically embedded into Case Memory; rejected cases reduce weight. Prompts and retrieval heuristics are tuned over time based on feedback patterns. | Implemented |
 
-#### C. Flow Tong the: He thong Tot len Theo Thoi gian
+#### C. Global Flow: System Gets Better Over Time
 
 ```mermaid
 flowchart TB
-    subgraph COLLECT["1. Thu thap"]
+    subgraph COLLECT["1. Collect"]
         Chat["Chat History (MongoDB)"]
         FB["User Feedback (thumbs up/down)"]
-        Img["Hinh anh chan doan"]
-        Doc["Tai lieu thu y moi"]
+        Img["Diagnostic images"]
+        Doc["New veterinary documents"]
     end
     
-    subgraph PROCESS["2. Xu ly & Tich luy"]
-        QE["Query Expansion<br/>(mo rong truy van)"]
+    subgraph PROCESS["2. Process & Accumulate"]
+        QE["Query Expansion<br/>(expanded queries)"]
         KG["Knowledge Graph<br/>(extract triplets)"]
         CM["Case Memory<br/>(embed confirmed cases)"]
     end
     
-    subgraph IMPROVE["3. Cai thien"]
+    subgraph IMPROVE["3. Improve"]
         Prompt["Prompt Optimization"]
         Rerank["Feedback-weighted Retrieval"]
         Prune["Periodic Prune & Re-rank"]
@@ -259,24 +259,24 @@ flowchart TB
     
     COLLECT --> PROCESS
     PROCESS --> IMPROVE
-    IMPROVE -->|"Lan query tiep theo"| COLLECT
+    IMPROVE -->|"Next queries"| COLLECT
 ```
 
-**Ket qua:** Cang nhieu case tich luy, AI cang co nhieu tri thuc tham chieu thuc te. He thong khong bao gio dung mai 1 bo du lieu cu — no tu lon len sau moi lan su dung.
+**Result:** The more cases and feedback the system accumulates, the richer its real-world reference knowledge becomes. The system never stays frozen on an old dataset — it continuously grows and improves with usage.
 
-**Chi tiet day du:** Xem `AI_AGENT_DATA_IMPROVEMENT_STRATEGY.md` Section 7-11.
+**Full details:** See `AI_AGENT_DATA_IMPROVEMENT_STRATEGY.md` Sections 7–11.
 
 #### D. Per-User Context vs Shared Knowledge
 
-| Du lieu | Pham vi | Luu o dau |
-|---------|---------|-----------|
-| Chat session, lich su hoi thoai, ReAct trace | **RIENG moi user** (per session) | MongoDB |
-| RAG Knowledge Base (tai lieu thu y) | **CHUNG toan he thong** | Qdrant Cloud |
-| Knowledge Graph (trieu chung -> benh -> loai) | **CHUNG toan he thong** | Qdrant Cloud (KG Index) |
-| Case Memory (cases da confirmed) | **CHUNG toan he thong** | Qdrant Cloud |
-| Feedback (thumbs up/down) | User gui **RIENG** -> nuoi du lieu **CHUNG** | MongoDB -> Qdrant |
+| Data | Scope | Storage |
+|------|-------|---------|
+| Chat sessions, conversation history, ReAct trace | **Per user/session** | MongoDB |
+| RAG Knowledge Base (veterinary documents) | **Global (shared)** | Qdrant Cloud |
+| Knowledge Graph (symptom → disease → species) | **Global (shared)** | Qdrant Cloud (KG Index) |
+| Case Memory (confirmed cases) | **Global (shared)** | Qdrant Cloud |
+| Feedback (thumbs up/down) | Collected per user, used to enrich **global** knowledge | MongoDB → Qdrant |
 
-**Nguyen tac:** Moi user co ngu canh hoi thoai rieng biet (khong lan context). Nhung tri thuc (KG, RAG, Case Memory) la chung — moi feedback tu bat ky user/Staff nao deu lam giau kho tri thuc cho TOAN BO he thong.
+**Principle:** Each user has their own isolated conversation context (no cross-session leakage). However, the underlying knowledge (KG, RAG, Case Memory) is shared — every piece of feedback from any user or Staff member gradually enriches the knowledge base for the whole system.
 
 ```mermaid
 sequenceDiagram

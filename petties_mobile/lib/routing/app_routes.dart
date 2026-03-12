@@ -50,6 +50,7 @@ class AppRoutes {
   static const String bookingConfirm = '/booking/confirm';
   static const String bookingSuccess = '/booking/success';
   static const String bookingDetails = '/booking/:id';
+  static const String bookingDetailView = '/bookings/detail';
 
   // Profile & Settings
   static const String editProfile = '/profile/edit';

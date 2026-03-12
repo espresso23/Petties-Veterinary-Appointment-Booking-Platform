@@ -370,7 +370,7 @@ class AppRouterConfig {
         ),
 
         GoRoute(
-          path: '/bookings/detail',
+          path: AppRoutes.bookingDetailView,
           builder: (context, state) {
             final booking = state.extra as dynamic;
             return AppointmentDetailScreen(booking: booking);

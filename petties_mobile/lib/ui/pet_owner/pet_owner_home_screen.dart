@@ -143,7 +143,7 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
                     ]
                   : [],
             ),
-      body: SafeArea(child: bodyContent),
+      body: SafeArea(bottom: false, child: bodyContent),
       floatingActionButton: const AiChatBubble(),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: PetOwnerBottomNav(
@@ -158,7 +158,7 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
       onRefresh: _fetchPets,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

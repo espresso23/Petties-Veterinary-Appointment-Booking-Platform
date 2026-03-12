@@ -59,13 +59,6 @@ class ToolExecutor:
         if parameters is None:
             parameters = {}
 
-        # Normalize parameter keys: strip whitespace from keys
-        # LLM sometimes outputs { "query ": "..." } with trailing space in key names
-        if parameters and isinstance(parameters, dict):
-            parameters = {k.strip(): v for k, v in parameters.items()}
-
-        logger.info(f"Executing tool: {tool_name} with params: {parameters}")
-
         # Step 1: Load tool from database
         tool = await self._load_tool(tool_name)
 
@@ -74,6 +67,34 @@ class ToolExecutor:
 
         if not tool.enabled:
             raise Exception(f"Tool '{tool_name}' is not enabled")
+
+        # Normalize parameter keys: strip whitespace from keys
+        # LLM sometimes outputs { "query ": "..." } with trailing space in key names
+        if parameters and isinstance(parameters, dict):
+            parameters = {k.strip(): v for k, v in parameters.items()}
+
+        # Filter out parameters không có trong schema để tránh lỗi
+        # "Unexpected keyword argument" từ Pydantic/FastMCP (ví dụ key "type" dư)
+        if tool.input_schema and isinstance(tool.input_schema, dict):
+            schema = tool.input_schema
+            allowed_keys = set()
+            properties = schema.get("properties")
+            if isinstance(properties, dict):
+                allowed_keys = set(properties.keys())
+
+            if allowed_keys:
+                original_keys = set(parameters.keys())
+                filtered_parameters = {
+                    k: v for k, v in parameters.items() if k in allowed_keys
+                }
+                dropped = original_keys - set(filtered_parameters.keys())
+                if dropped:
+                    logger.warning(
+                        f"Dropping unsupported params for tool '{tool_name}': {dropped}"
+                    )
+                parameters = filtered_parameters
+
+        logger.info(f"Executing tool: {tool_name} with params: {parameters}")
 
         parameters = self._inject_contextual_parameters(tool_name, parameters)
 
@@ -145,7 +166,7 @@ class ToolExecutor:
 
         injected = dict(parameters)
         for field_name in contextual_tools.get(tool_name, []):
-            if field_name == "user_id" and not injected.get("user_id"):
+            if field_name == "user_id":
                 injected["user_id"] = context.user_id
 
         return injected

@@ -70,6 +70,22 @@ class ChatRouteTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(exc_info.exception.status_code, 403)
 
+    def test_validate_session_access_rejects_deleted_session(self):
+        session = {
+            "session_id": "session-2",
+            "user_id": "owner-a",
+            "context_type": BUSINESS_CHAT,
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
+            "deleted": True,
+        }
+        user = CurrentUser(user_id="owner-a", role="PET_OWNER", is_admin=False)
+
+        with self.assertRaises(HTTPException) as exc_info:
+            chat_routes._validate_session_access(session, user)
+
+        self.assertEqual(exc_info.exception.status_code, 404)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -3687,6 +3687,43 @@ Figure 47. Pet Selection Dialog (Mobile)
     - BR-43
     - BR-45
 
+**Feedback & Learning from Confirmed Vision Cases (Case Memory)**
+
+- **Overview:**  
+  - When AI vision answers are later confirmed as helpful/accurate by Pet Owners, Staff, or Vets (via the `/chat/feedback` endpoint), the system can learn from these real-world cases through the **Case Memory** mechanism.
+  - Confirmed cases are embedded into a vector store (Qdrant `petties_case_memory`) so that similar future queries (including new images) can be answered with higher confidence, based on prior verified cases.
+
+- **Current scope (Phase 1):**
+  - **Image storage:**  
+    - All pet health images are uploaded to **Cloudinary** via the Spring Boot backend.  
+    - Only the **Cloudinary image URL** is stored in the AI service; no raw image files are stored locally.
+  - **Vision analysis:**  
+    - The AI Agent sends the **image_url + text context** to OpenRouter vision-capable models (e.g. Gemini 2.0 Flash), receives a structured analysis (visual description, suspected diagnosis, severity, recommendations).
+  - **Feedback loop:**  
+    - Pet Owner can rate each AI answer as *helpful* / *not helpful* and optionally provide a free-text explanation.  
+    - The AI service exposes `POST /api/v1/chat/feedback`, which is handled by `FeedbackService`.  
+    - `FeedbackService` classifies interactions (medical, booking, clinic_ops, general) and decides whether a feedback is **positive/trustworthy** enough to be learned from.
+  - **Case Memory (text-based embedding):**
+    - For positive medical vision cases, `FeedbackService` extracts a **ConfirmedCase** from the original message and its metadata:
+      - `visual_description` (how the lesion/area looks),
+      - suspected `diagnosis`,
+      - `species`, list of `symptoms`, and `treatment` hints,
+      - user role (`PET_OWNER` / `STAFF` / `CLINIC_MANAGER` / `CLINIC_OWNER` / `ADMIN`),
+      - feedback type and weight (Staff/Vet > Manager/Owner > Pet Owner, Admin = 0).
+    - `CaseMemoryService` converts this case into a **text embedding** using **Cohere embed-multilingual-v3.0** and upserts it into **Qdrant** with rich metadata (including `image_url`).
+    - When a new, similar case appears (e.g. another dog ear photo with brown debris), the Agent can:
+      - call Case Memory to search for similar cases,
+      - combine those results with Knowledge Base (RAG) and Knowledge Graph (if applicable),
+      - and return an answer that clearly references “a previously confirmed case”.
+
+- **Planned extension (Phase 2 – CLIP image embeddings):**
+  - Current design only embeds the **textual representation** of the case (visual description + diagnosis + symptoms), not the raw image itself.
+  - In a future phase, the system may:
+    - compute **image embeddings** (e.g. using a CLIP-like model) for each confirmed vision case,
+    - store those image vectors in a dedicated Qdrant collection (e.g. `petties_case_memory_image`),
+    - and use them in combination with text embeddings to improve retrieval for purely visual queries (e.g. “this photo looks like that other ear-mite case”).
+  - This CLIP-based image memory is **not part of the current implementation** and must be designed, approved, and tested separately before going live.
+
 | BR-45 | Urgent Severity Handling: Khi phát hiện vấn đề nghiêm trọng (urgent), hệ thống phải hiển thị cảnh báo nổi bật và ưu tiên đề xuất SOS hoặc booking trong ngày. |
 
  #### *3.11.3 Manage AI Agent & Knowledge Base (UC-AD-05/06)*

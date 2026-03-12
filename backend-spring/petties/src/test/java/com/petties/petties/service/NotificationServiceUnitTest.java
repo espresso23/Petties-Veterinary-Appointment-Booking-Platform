@@ -20,10 +20,13 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -369,8 +372,39 @@ class NotificationServiceUnitTest {
     }
 
     @Test
-    @DisplayName("Send Checkin Notification - should notify owner and deduplicated managers")
-    void sendCheckinNotification_shouldNotifyOwnerAndManagers() {
+    @DisplayName("Get Notifications By User - clinic manager should filter owner-facing notification types")
+    void getNotificationsByUser_clinicManager_shouldFilterOwnerFacingTypes() {
+        UUID managerId = UUID.randomUUID();
+        User manager = new User();
+        manager.setUserId(managerId);
+        manager.setRole(Role.CLINIC_MANAGER);
+
+        when(notificationRepository.findByUserUserIdAndTypeInOrderByCreatedAtDesc(
+                eq(managerId), any(), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        notificationService.getNotificationsByUser(manager, PageRequest.of(0, 20));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Collection<NotificationType>> typesCaptor = ArgumentCaptor.forClass(Collection.class);
+        verify(notificationRepository).findByUserUserIdAndTypeInOrderByCreatedAtDesc(
+                eq(managerId),
+                typesCaptor.capture(),
+                any());
+        verify(notificationRepository, never()).findByUserUserIdOrderByCreatedAtDesc(any(), any());
+
+        Collection<NotificationType> visibleTypes = typesCaptor.getValue();
+        assertTrue(visibleTypes.contains(NotificationType.BOOKING_CREATED));
+        assertTrue(visibleTypes.contains(NotificationType.BOOKING_CANCELLED));
+        assertFalse(visibleTypes.contains(NotificationType.BOOKING_COMPLETED));
+        assertFalse(visibleTypes.contains(NotificationType.BOOKING_CHECKIN));
+        assertFalse(visibleTypes.contains(NotificationType.STAFF_ON_WAY));
+        assertFalse(visibleTypes.contains(NotificationType.STAFF_ARRIVED));
+    }
+
+    @Test
+    @DisplayName("Send Checkin Notification - should notify owner only")
+    void sendCheckinNotification_shouldNotifyOwnerOnly() {
         UUID clinicId = UUID.randomUUID();
 
         Clinic clinic = new Clinic();
@@ -383,18 +417,6 @@ class NotificationServiceUnitTest {
         staff.setUserId(UUID.randomUUID());
         staff.setFullName("Bác sĩ B");
 
-        User managerOne = new User();
-        managerOne.setUserId(UUID.randomUUID());
-        managerOne.setRole(Role.CLINIC_MANAGER);
-
-        User managerDuplicate = new User();
-        managerDuplicate.setUserId(managerOne.getUserId());
-        managerDuplicate.setRole(Role.CLINIC_MANAGER);
-
-        User managerTwo = new User();
-        managerTwo.setUserId(UUID.randomUUID());
-        managerTwo.setRole(Role.CLINIC_MANAGER);
-
         Pet pet = new Pet();
         pet.setName("Milu");
 
@@ -405,8 +427,6 @@ class NotificationServiceUnitTest {
         booking.setPet(pet);
         booking.setBookingCode("BK-005");
 
-        when(userRepository.findByWorkingClinicIdAndRole(clinicId, Role.CLINIC_MANAGER))
-                .thenReturn(List.of(managerOne, managerDuplicate, managerTwo));
         when(notificationRepository.save(any(Notification.class))).thenAnswer(invocation -> {
             Notification notification = invocation.getArgument(0);
             notification.setNotificationId(UUID.randomUUID());
@@ -415,6 +435,39 @@ class NotificationServiceUnitTest {
 
         notificationService.sendCheckinNotification(booking);
 
-        verify(notificationRepository, times(3)).save(any(Notification.class));
+        verify(notificationRepository, times(1)).save(any(Notification.class));
+        verify(userRepository, never()).findByWorkingClinicIdAndRole(clinicId, Role.CLINIC_MANAGER);
+    }
+
+    @Test
+    @DisplayName("Send Completed Notification - should notify owner only")
+    void sendCompletedNotification_shouldNotifyOwnerOnly() {
+        UUID clinicId = UUID.randomUUID();
+
+        Clinic clinic = new Clinic();
+        clinic.setClinicId(clinicId);
+
+        User owner = new User();
+        owner.setUserId(UUID.randomUUID());
+
+        Pet pet = new Pet();
+        pet.setName("Milu");
+
+        Booking booking = new Booking();
+        booking.setClinic(clinic);
+        booking.setPetOwner(owner);
+        booking.setPet(pet);
+        booking.setBookingCode("BK-006");
+
+        when(notificationRepository.save(any(Notification.class))).thenAnswer(invocation -> {
+            Notification notification = invocation.getArgument(0);
+            notification.setNotificationId(UUID.randomUUID());
+            return notification;
+        });
+
+        notificationService.sendCompletedNotification(booking);
+
+        verify(notificationRepository, times(1)).save(any(Notification.class));
+        verify(userRepository, never()).findByWorkingClinicIdAndRole(clinicId, Role.CLINIC_MANAGER);
     }
 }

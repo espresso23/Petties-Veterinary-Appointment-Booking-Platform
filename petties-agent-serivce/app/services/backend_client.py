@@ -71,11 +71,7 @@ class SpringBackendClient:
                     detail = exc.response.text
 
                 logger.warning(
-                    "Spring backend request failed: %s %s -> %s %s",
-                    method,
-                    url,
-                    status_code,
-                    detail,
+                    f"Spring backend request failed: {method} {url} -> {status_code} {detail}"
                 )
 
                 if status_code >= 500 and attempt < self.max_retries:
@@ -86,7 +82,7 @@ class SpringBackendClient:
                 raise BackendClientError(detail or "Backend request failed") from exc
             except httpx.HTTPError as exc:
                 last_error = str(exc)
-                logger.warning("Spring backend transport error: %s %s", url, exc)
+                logger.warning(f"Spring backend transport error: {url} {exc}")
                 if attempt < self.max_retries:
                     await asyncio.sleep(delay_seconds)
                     delay_seconds *= 2

@@ -21,8 +21,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -42,6 +44,16 @@ import com.petties.petties.model.enums.Role;
 @RequiredArgsConstructor
 @Slf4j
 public class NotificationService {
+
+        private static final Set<NotificationType> CLINIC_MANAGER_VISIBLE_TYPES = EnumSet.of(
+                        NotificationType.APPROVED,
+                        NotificationType.REJECTED,
+                        NotificationType.CLINIC_VERIFIED,
+                        NotificationType.STAFF_SHIFT_ASSIGNED,
+                        NotificationType.STAFF_SHIFT_UPDATED,
+                        NotificationType.STAFF_SHIFT_DELETED,
+                        NotificationType.BOOKING_CREATED,
+                        NotificationType.BOOKING_CANCELLED);
 
         private final NotificationRepository notificationRepository;
         private final UserRepository userRepository;
@@ -112,6 +124,13 @@ public class NotificationService {
                                 .values()
                                 .stream()
                                 .toList();
+        }
+
+        private Set<NotificationType> getVisibleTypesForUser(User user) {
+                if (user != null && user.getRole() == Role.CLINIC_MANAGER) {
+                        return CLINIC_MANAGER_VISIBLE_TYPES;
+                }
+                return null;
         }
 
         // ======================== CLINIC NOTIFICATIONS ========================
@@ -515,36 +534,6 @@ public class NotificationService {
         }
 
         /**
-         * Notify all clinic managers of a booking about a specific event
-         */
-        private void notifyClinicManagersForBooking(
-                        com.petties.petties.model.Booking booking,
-                        NotificationType type,
-                        String message) {
-                if (booking.getClinic() == null) {
-                        log.warn("No clinic found for booking: {} when notifying managers", booking.getBookingCode());
-                        return;
-                }
-
-                List<User> managers = getDeduplicatedClinicManagers(booking.getClinic().getClinicId());
-
-                if (managers.isEmpty()) {
-                        log.debug("No clinic managers to notify for booking: {}", booking.getBookingCode());
-                        return;
-                }
-
-                createAndDispatchNotifications(
-                                managers,
-                                booking.getClinic(),
-                                null,
-                                type,
-                                message,
-                                null,
-                                "Booking notification for managers created: {} for manager: {} type: {}",
-                                manager -> new Object[] { manager.getUserId(), type });
-        }
-
-        /**
          * Notify pet owner when staff checks in (starts the service)
          */
         @Transactional
@@ -572,12 +561,6 @@ public class NotificationService {
                                 null,
                                 "Check-in notification created: {} for owner: {}",
                                 petOwner.getUserId());
-
-                // Also notify clinic managers
-                notifyClinicManagersForBooking(
-                                booking,
-                                NotificationType.BOOKING_CHECKIN,
-                                message);
         }
 
         /**
@@ -604,12 +587,6 @@ public class NotificationService {
                                 null,
                                 "Completed notification created: {} for owner: {}",
                                 petOwner.getUserId());
-
-                // Also notify clinic managers
-                notifyClinicManagersForBooking(
-                                booking,
-                                NotificationType.BOOKING_COMPLETED,
-                                message);
         }
 
         @Transactional
@@ -643,16 +620,6 @@ public class NotificationService {
                                 null,
                                 "Staff on way notification created: {} for owner: {}",
                                 petOwner.getUserId());
-
-                // Also notify clinic managers with manager-appropriate message
-                String managerMessage = String.format(
-                                "Nhân viên %s đã bắt đầu di chuyển đến địa chỉ khách hàng (Booking #%s)",
-                                staffName,
-                                booking.getBookingCode());
-                notifyClinicManagersForBooking(
-                                booking,
-                                NotificationType.STAFF_ON_WAY,
-                                managerMessage);
         }
 
         @Transactional
@@ -679,16 +646,6 @@ public class NotificationService {
                                 null,
                                 "Staff arrived notification created: {} for owner: {}",
                                 petOwner.getUserId());
-
-                // Also notify clinic managers with manager-appropriate message
-                String managerArrivalMessage = String.format(
-                                "Nhân viên %s đã đến địa chỉ khách hàng (Booking #%s)",
-                                staffName,
-                                booking.getBookingCode());
-                notifyClinicManagersForBooking(
-                                booking,
-                                NotificationType.STAFF_ARRIVED,
-                                managerArrivalMessage);
         }
 
         /**
@@ -781,9 +738,14 @@ public class NotificationService {
          * Get all notifications for current user
          */
         @Transactional(readOnly = true)
-        public Page<NotificationResponse> getNotificationsByUserId(UUID userId, Pageable pageable) {
-                Page<Notification> notifications = notificationRepository.findByUserUserIdOrderByCreatedAtDesc(userId,
-                                pageable);
+        public Page<NotificationResponse> getNotificationsByUser(User user, Pageable pageable) {
+                Set<NotificationType> visibleTypes = getVisibleTypesForUser(user);
+                Page<Notification> notifications = visibleTypes == null
+                                ? notificationRepository.findByUserUserIdOrderByCreatedAtDesc(user.getUserId(), pageable)
+                                : notificationRepository.findByUserUserIdAndTypeInOrderByCreatedAtDesc(
+                                                user.getUserId(),
+                                                visibleTypes,
+                                                pageable);
                 return notifications.map(this::mapToResponse);
         }
 
@@ -791,8 +753,13 @@ public class NotificationService {
          * Get unread notifications count for current user
          */
         @Transactional(readOnly = true)
-        public long getUnreadCountByUserId(UUID userId) {
-                return notificationRepository.countByUserUserIdAndReadFalse(userId);
+        public long getUnreadCountByUser(User user) {
+                Set<NotificationType> visibleTypes = getVisibleTypesForUser(user);
+                return visibleTypes == null
+                                ? notificationRepository.countByUserUserIdAndReadFalse(user.getUserId())
+                                : notificationRepository.countByUserUserIdAndTypeInAndReadFalse(
+                                                user.getUserId(),
+                                                visibleTypes);
         }
 
         /**

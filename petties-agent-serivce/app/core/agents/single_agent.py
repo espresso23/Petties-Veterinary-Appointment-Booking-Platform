@@ -203,8 +203,13 @@ class SingleAgent:
         iteration = state.get("iteration", 0)
         react_steps = state.get("react_steps", [])
         messages = state.get("messages", [])
+
+        # Get images from context for multimodal input
+        context = state.get("context", {})
+        images = context.get("images", [])
+
         logger.info(
-            f"THINK Node: iteration={iteration}, max_iterations={self.max_iterations}"
+            f"THINK Node: iteration={iteration}, max_iterations={self.max_iterations}, has_images={len(images) > 0}"
         )
 
         # Check max iterations
@@ -292,17 +297,20 @@ class SingleAgent:
                 "iteration": iteration + 1,
             }
 
-        # --- Post-observation warning suffix ---
+        # --- Post-observation guidance suffix ---
         warning_suffix = ""
         if last_action and iteration > 0:
+            remaining = self.max_iterations - iteration
             warning_suffix = (
-                f"\n\nLƯU Ý QUAN TRỌNG: Bạn đã gọi '{last_action.get('tool_name')}' và nhận Observation ở trên."
-                f"\nBây giờ hãy TỔNG HỢP câu trả lời Final Answer theo các bước:"
-                f"\n1. Đọc lại CÂU HỎI của người dùng — họ hỏi CỤ THỂ điều gì? (ví dụ: 'nên ăn gì' = liệt kê thức ăn cụ thể)"
-                f"\n2. Lấy thông tin liên quan từ Observation + kiến thức thú y của bạn"
-                f"\n3. Trả lời ĐÚNG TRỌNG TÂM câu hỏi (hỏi 'ăn gì' → liệt kê cụ thể thức ăn, hỏi 'làm gì' → liệt kê việc cần làm)"
-                f"\n4. Bổ sung lời khuyên thêm nếu cần"
-                f"\nKHÔNG chỉ nói chung chung, PHẢI trả lời CỤ THỂ theo câu hỏi."
+                f"\n\nBạn đã gọi '{last_action.get('tool_name')}' và nhận Observation ở trên (còn {remaining} lượt gọi tool)."
+                f"\nHãy tự đánh giá:"
+                f"\n- Nếu CẦN THÊM thông tin để trả lời đầy đủ → gọi tiếp tool phù hợp (Thought + Tool + Tool Input)"
+                f"\n- Nếu ĐÃ ĐỦ thông tin → viết Final Answer"
+                f"\n"
+                f"\nKhi viết Final Answer:"
+                f"\n1. Đọc lại CÂU HỎI — họ hỏi CỤ THỂ điều gì?"
+                f"\n2. KẾT HỢP dữ liệu từ tất cả Observations + kiến thức thú y của bạn"
+                f"\n3. Trả lời ĐÚNG TRỌNG TÂM, CỤ THỂ (hỏi 'ăn gì' → liệt kê thức ăn, hỏi 'phòng khám' → gợi ý phòng khám cụ thể)"
             )
 
         # --- Call LLM ---
@@ -326,6 +334,7 @@ class SingleAgent:
                 system_prompt=self.system_prompt,
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
+                images=images if images else None,
             )
 
             thought_content = response.content
@@ -632,20 +641,29 @@ class SingleAgent:
             logger.error(f"Error invoking agent: {e}")
             return f"Lỗi khi xử lý yêu cầu: {str(e)}"
 
-    async def stream(self, message: str, session_id: Optional[str] = None):
+    async def stream(
+        self,
+        message: str,
+        session_id: Optional[str] = None,
+        images: Optional[List[str]] = None,
+    ):
         """
         Stream agent response.
 
         Args:
             message: User message
             session_id: Optional session ID
+            images: Optional list of base64 images for multimodal input
 
         Yields:
             ReAct steps and final answer tokens
         """
         state = create_initial_react_state(
             user_message=message,
-            context={"session_id": session_id or str(uuid.uuid4())},
+            context={
+                "session_id": session_id or str(uuid.uuid4()),
+                "images": images or [],  # Pass images through context
+            },
         )
 
         config = {
