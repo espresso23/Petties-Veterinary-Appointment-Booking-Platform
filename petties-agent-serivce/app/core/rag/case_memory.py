@@ -2,8 +2,9 @@
 PETTIES AI SERVICE - Case Memory Service
 
 Tích lũy case đã xác nhận (medical, booking, clinic_ops, general)
-vào Qdrant collection `petties_case_memory`. Mỗi case được embed
-từ text description -> Cohere -> 1024-dim vector.
+vào Qdrant collection `petties_case_memory_v2` với named vectors:
+    - text vector (Cohere)
+    - image vector (Jina CLIP, optional)
 
 Package: app.core.rag
 Purpose: Visual Case Memory & lưu trữ case đã xác nhận đa danh mục
@@ -12,8 +13,8 @@ Version: v1.0.0
 Flow:
     1. User/Vet xác nhận AI trả lời đúng (feedback positive)
     2. FeedbackService extract case -> gọi CaseMemoryService.upsert_case()
-    3. Text description được embed -> lưu vào Qdrant với metadata
-    4. Lần sau query tương tự -> search_similar() -> re-rank theo feedback
+    3. Text description luôn được embed; ảnh (nếu có URL hợp lệ) sẽ embed thêm
+    4. Lần sau query tương tự -> hybrid search (text + image) -> re-rank theo feedback
 
 Công thức tính điểm:
     final_score = cosine_similarity
@@ -23,6 +24,7 @@ Công thức tính điểm:
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -37,11 +39,14 @@ from app.config.settings import settings
 # CONSTANTS
 # ============================================================
 
-CASE_MEMORY_COLLECTION = "petties_case_memory"
-"""Tên collection Qdrant cho case memory."""
+CASE_MEMORY_COLLECTION = "petties_case_memory_v2"
+"""Tên collection Qdrant cho case memory (v2, hỗ trợ text + image)."""
 
-CASE_MEMORY_DIMENSION = 1024
-"""Kích thước vector Cohere embed-multilingual-v3.0."""
+CASE_MEMORY_TEXT_DIMENSION = 1024
+"""Kích thước vector text (Cohere embed-multilingual-v3.0)."""
+
+CASE_MEMORY_IMAGE_DIMENSION = 1024
+"""Kích thước vector ảnh (Jina CLIP v2)."""
 
 DEFAULT_SEARCH_LIMIT = 5
 DEFAULT_MIN_SCORE = 0.7
@@ -94,28 +99,20 @@ class CaseMemoryService:
         - Cung cấp thống kê
 
     Cách dùng:
-        service = CaseMemoryService()
+        service = get_case_memory_service()
         await service.initialize()
         await service.upsert_case(text, payload)
         results = await service.search_similar("tai mèo cần nâu đen")
     """
 
-    _instance: Optional["CaseMemoryService"] = None
-    _initialized: bool = False
-
-    def __new__(cls) -> "CaseMemoryService":
-        """Singleton pattern."""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
-
     def __init__(self) -> None:
-        if self._initialized:
-            return
         self._qdrant_client = None
         self._embed_model = None
+        self._query_embed_model = None
+        self._image_enabled = False
         self._collection_name = CASE_MEMORY_COLLECTION
+        self._initialized = False
+        self._init_lock = asyncio.Lock()
 
     # ----------------------------------------------------------
     # Initialization
@@ -131,66 +128,83 @@ class CaseMemoryService:
         if self._initialized and self._qdrant_client is not None:
             return
 
-        logger.info("Initializing CaseMemoryService...")
+        async with self._init_lock:
+            if self._initialized and self._qdrant_client is not None:
+                return
 
-        # Lazy imports
-        from qdrant_client import QdrantClient
-        from qdrant_client.models import Distance, VectorParams
-        from llama_index.embeddings.cohere import CohereEmbedding
+            logger.info("Initializing CaseMemoryService...")
 
-        from app.core.config_helper import get_setting
-        from app.db.postgres.session import AsyncSessionLocal
+            # Lazy imports
+            from qdrant_client import QdrantClient
+            from qdrant_client.models import Distance, VectorParams
+            from llama_index.embeddings.cohere import CohereEmbedding
 
-        async with AsyncSessionLocal() as db:
-            cohere_api_key = await get_setting("COHERE_API_KEY", db)
-            cohere_model = (
-                await get_setting("COHERE_EMBEDDING_MODEL", db)
-                or "embed-multilingual-v3.0"
+            from app.core.config_helper import get_setting
+            from app.db.postgres.session import AsyncSessionLocal
+
+            async with AsyncSessionLocal() as db:
+                cohere_api_key = await get_setting("COHERE_API_KEY", db)
+                cohere_model = (
+                    await get_setting("COHERE_EMBEDDING_MODEL", db)
+                    or "embed-multilingual-v3.0"
+                )
+                qdrant_url = await get_setting("QDRANT_URL", db) or settings.QDRANT_URL
+                qdrant_api_key = (
+                    await get_setting("QDRANT_API_KEY", db) or settings.QDRANT_API_KEY
+                )
+
+            if not cohere_api_key:
+                logger.warning(
+                    "COHERE_API_KEY not configured. CaseMemoryService will be unavailable."
+                )
+                return
+
+            # Embedding models (search_document cho indexing, search_query cho querying)
+            self._embed_model = CohereEmbedding(
+                api_key=cohere_api_key,
+                model_name=cohere_model,
+                input_type="search_document",
             )
-            qdrant_url = await get_setting("QDRANT_URL", db) or settings.QDRANT_URL
-            qdrant_api_key = (
-                await get_setting("QDRANT_API_KEY", db) or settings.QDRANT_API_KEY
-            )
-
-        if not cohere_api_key:
-            logger.warning(
-                "COHERE_API_KEY not configured. CaseMemoryService will be unavailable."
-            )
-            return
-
-        # Embedding model (search_document for indexing, search_query for querying)
-        self._embed_model = CohereEmbedding(
-            api_key=cohere_api_key,
-            model_name=cohere_model,
-            input_type="search_document",
-        )
-
-        # Qdrant client
-        if qdrant_url and qdrant_api_key:
-            logger.info(f"CaseMemory connecting to Qdrant Cloud: {qdrant_url}")
-            self._qdrant_client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
-        else:
-            logger.info("CaseMemory using local Qdrant")
-            self._qdrant_client = QdrantClient(host="localhost", port=6333)
-
-        # Ensure collection exists
-        try:
-            self._qdrant_client.get_collection(self._collection_name)
-            logger.info(
-                f"CaseMemory collection '{self._collection_name}' already exists"
-            )
-        except Exception:
-            logger.info(f"Creating CaseMemory collection: {self._collection_name}")
-            self._qdrant_client.create_collection(
-                collection_name=self._collection_name,
-                vectors_config=VectorParams(
-                    size=CASE_MEMORY_DIMENSION,
-                    distance=Distance.COSINE,
-                ),
+            self._query_embed_model = CohereEmbedding(
+                api_key=cohere_api_key,
+                model_name=cohere_model,
+                input_type="search_query",
             )
 
-        self._initialized = True
-        logger.info("CaseMemoryService initialized successfully")
+            # Qdrant client
+            if qdrant_url and qdrant_api_key:
+                logger.info(f"CaseMemory connecting to Qdrant Cloud: {qdrant_url}")
+                self._qdrant_client = QdrantClient(
+                    url=qdrant_url, api_key=qdrant_api_key
+                )
+            else:
+                logger.info("CaseMemory using local Qdrant")
+                self._qdrant_client = QdrantClient(host="localhost", port=6333)
+
+            # Ensure collection exists (named vectors: text + image)
+            try:
+                self._qdrant_client.get_collection(self._collection_name)
+                logger.info(
+                    f"CaseMemory collection '{self._collection_name}' already exists"
+                )
+            except Exception:
+                logger.info(f"Creating CaseMemory collection: {self._collection_name}")
+                self._qdrant_client.create_collection(
+                    collection_name=self._collection_name,
+                    vectors_config={
+                        "text": VectorParams(
+                            size=CASE_MEMORY_TEXT_DIMENSION,
+                            distance=Distance.COSINE,
+                        ),
+                        "image": VectorParams(
+                            size=CASE_MEMORY_IMAGE_DIMENSION,
+                            distance=Distance.COSINE,
+                        ),
+                    },
+                )
+
+            self._initialized = True
+            logger.info("CaseMemoryService initialized successfully")
 
     # ----------------------------------------------------------
     # Embedding helper
@@ -208,23 +222,20 @@ class CaseMemoryService:
         Returns:
             Vector embedding 1024 chiều.
         """
-        import asyncio
-        from llama_index.embeddings.cohere import CohereEmbedding
-
-        # Chuyển input_type nếu cần (Cohere yêu cầu type khác nhau cho index vs query)
-        if input_type != "search_document":
-            cohere_api_key = self._embed_model.api_key
-            model_name = self._embed_model.model_name
-            query_embed = CohereEmbedding(
-                api_key=cohere_api_key,
-                model_name=model_name,
-                input_type=input_type,
-            )
-            embedding = await asyncio.to_thread(query_embed.get_text_embedding, text)
+        # Chọn model theo input_type để tránh tạo CohereEmbedding mới mỗi lần
+        if input_type == "search_document":
+            model = self._embed_model
         else:
-            embedding = await asyncio.to_thread(
-                self._embed_model.get_text_embedding, text
+            model = self._query_embed_model
+
+        if model is None:
+            logger.warning(
+                "CaseMemoryService embed model is not initialized (input_type=%s)",
+                input_type,
             )
+            return []
+
+        embedding = await asyncio.to_thread(model.get_text_embedding, text)
         return embedding
 
     # ----------------------------------------------------------
@@ -236,6 +247,8 @@ class CaseMemoryService:
         text_to_embed: str,
         payload: Dict[str, Any],
         case_id: Optional[str] = None,
+        image_urls: Optional[List[str]] = None,
+        image_base64: Optional[List[str]] = None,
     ) -> str:
         """
         Embed và upsert case đã xác nhận vào Qdrant.
@@ -244,9 +257,11 @@ class CaseMemoryService:
         feedback_count của case hiện có sẽ được tăng thay vì tạo mới.
 
         Args:
-            text_to_embed: Nội dung text để embed (visual_desc + chẩn đoán + triệu chứng).
-            payload: Metadata của case (species, body_part, feedback_type, v.v.).
+            text_to_embed: Nội dung text để embed (visual_desc + chẩn đoán + triệ).
+            payload:u chứng Metadata của case (species, body_part, feedback_type, v.v.).
             case_id: UUID tùy chọn. Tự tạo nếu không cung cấp.
+            image_urls: Danh sách URL ảnh (https).
+            image_base64: Danh sách ảnh dạng base64 (raw hoặc data URL).
 
         Returns:
             case_id của case đã upsert hoặc case trùng lặp.
@@ -259,21 +274,79 @@ class CaseMemoryService:
 
         from qdrant_client.models import PointStruct
 
-        # Check for near-duplicate first
-        existing = await self.search_similar(
-            text_to_embed, top_k=1, min_score=DEDUP_THRESHOLD
+        # Generate text embedding một lần, dùng cho cả dedup và upsert
+        text_vector = await self._embed_text(
+            text_to_embed, input_type="search_document"
         )
-        if existing:
-            dup = existing[0]
-            logger.info(
-                f"Near-duplicate found (score={dup.score:.3f}), "
-                f"incrementing feedback_count for case {dup.case_id}"
-            )
-            await self.update_feedback_count(dup.case_id)
-            return dup.case_id
+        if not text_vector:
+            logger.warning("CaseMemoryService failed to embed text, skipping upsert")
+            return ""
 
-        # Generate embedding
-        vector = await self._embed_text(text_to_embed, input_type="search_document")
+        # Dedup trực tiếp trên text_vector để tránh embed + search 2 lần
+        try:
+            dedup_resp = self._qdrant_client.query_points(
+                collection_name=self._collection_name,
+                query=text_vector,
+                using="text",
+                limit=1,
+                score_threshold=DEDUP_THRESHOLD,
+                with_payload=True,
+            )
+            dedup_hits = dedup_resp.points if dedup_resp else []
+        except Exception as e:
+            logger.error(f"CaseMemory dedup query failed: {e}")
+            dedup_hits = []
+
+        if dedup_hits:
+            hit = dedup_hits[0]
+            payload = hit.payload or {}
+            existing_id = payload.get("case_id", str(hit.id))
+            logger.info(
+                f"Near-duplicate found via vector check (score={hit.score:.3f}), "
+                f"incrementing feedback_count for case {existing_id}"
+            )
+            await self.update_feedback_count(existing_id)
+            return existing_id
+
+        image_vector: Optional[List[float]] = None
+        image_urls_clean: List[str] = []
+
+        # Xử lý image URLs (https)
+        if image_urls:
+            # Lọc URL hợp lệ
+            image_urls_clean = [
+                u.strip()
+                for u in image_urls
+                if isinstance(u, str) and u.strip().startswith("http")
+            ]
+            if image_urls_clean:
+                try:
+                    from app.core.embeddings.jina_image_embeddings import (
+                        embed_image_urls,
+                    )
+
+                    image_embeddings = await embed_image_urls(image_urls_clean[:1])
+                    if image_embeddings:
+                        image_vector = image_embeddings[0]
+                        self._image_enabled = True
+                except Exception as e:
+                    logger.error(f"Failed to generate image embedding from URL: {e}")
+
+        # Xử lý image base64 (upload từ device hoặc paste)
+        if image_base64 and image_vector is None:
+            # Chỉ embed base64 nếu chưa có vector từ URL
+            try:
+                from app.core.embeddings.jina_image_embeddings import (
+                    embed_image_base64,
+                )
+
+                base64_embeddings = await embed_image_base64(image_base64[:1])
+                if base64_embeddings:
+                    image_vector = base64_embeddings[0]
+                    self._image_enabled = True
+                    logger.info(f"[CaseMemory] Generated embedding from base64 image")
+            except Exception as e:
+                logger.error(f"Failed to generate image embedding from base64: {e}")
 
         # Prepare payload
         now = datetime.now(timezone.utc).isoformat()
@@ -288,8 +361,17 @@ class CaseMemoryService:
             "feedback_category": payload.get("feedback_category", "general"),
             "created_at": now,
             "last_confirmed_at": now,
+            "image_urls": image_urls_clean,
+            "image_embedding_provider": "jina-clip-v2"
+            if image_vector is not None
+            else None,
             **payload,
         }
+
+        # Chuẩn bị vectors cho named vectors (text luôn có, image nếu tồn tại)
+        vectors: Dict[str, Any] = {"text": text_vector}
+        if image_vector is not None:
+            vectors["image"] = image_vector
 
         # Upsert point
         self._qdrant_client.upsert(
@@ -297,7 +379,7 @@ class CaseMemoryService:
             points=[
                 PointStruct(
                     id=case_id,
-                    vector=vector,
+                    vector=vectors,
                     payload=full_payload,
                 )
             ],
@@ -315,6 +397,7 @@ class CaseMemoryService:
         query: str,
         top_k: int = DEFAULT_SEARCH_LIMIT,
         min_score: float = DEFAULT_MIN_SCORE,
+        image_urls: Optional[List[str]] = None,
     ) -> List[CaseResult]:
         """
         Tìm kiếm case tương tự với re-ranking theo feedback.
@@ -339,41 +422,91 @@ class CaseMemoryService:
             return []
 
         try:
-            # Embed query
+            # 1) Text branch
             query_vector = await self._embed_text(query, input_type="search_query")
-
-            # Search Qdrant (qdrant-client>=1.12 dùng query_points thay vì search)
-
-            query_response = self._qdrant_client.query_points(
+            text_response = self._qdrant_client.query_points(
                 collection_name=self._collection_name,
                 query=query_vector,
-                limit=top_k * 2,  # Fetch more for re-ranking then trim
+                using="text",
+                limit=top_k * 2,
                 score_threshold=min_score,
                 with_payload=True,
             )
+            text_hits = text_response.points if text_response else []
 
-            results = query_response.points if query_response else []
+            # 2) Image branch (optional)
+            image_hits = []
+            if image_urls:
+                image_urls_clean = [
+                    u.strip()
+                    for u in image_urls
+                    if isinstance(u, str) and u.strip().startswith("http")
+                ]
+                if image_urls_clean:
+                    from app.core.embeddings.jina_image_embeddings import (
+                        embed_image_urls,
+                    )
 
-            if not results:
+                    img_vectors = await embed_image_urls(image_urls_clean[:1])
+                    if img_vectors:
+                        image_response = self._qdrant_client.query_points(
+                            collection_name=self._collection_name,
+                            query=img_vectors[0],
+                            using="image",
+                            limit=top_k * 2,
+                            with_payload=True,
+                        )
+                        image_hits = image_response.points if image_response else []
+
+            # 3) Merge by case_id
+            merged: Dict[str, Dict[str, Any]] = {}
+
+            for hit in text_hits:
+                payload = hit.payload or {}
+                cid = payload.get("case_id", str(hit.id))
+                merged[cid] = {
+                    "payload": payload,
+                    "text_score": hit.score,
+                    "image_score": 0.0,
+                }
+
+            for hit in image_hits:
+                payload = hit.payload or {}
+                cid = payload.get("case_id", str(hit.id))
+                if cid not in merged:
+                    merged[cid] = {
+                        "payload": payload,
+                        "text_score": 0.0,
+                        "image_score": hit.score,
+                    }
+                else:
+                    merged[cid]["image_score"] = max(
+                        merged[cid]["image_score"], hit.score
+                    )
+
+            if not merged:
                 return []
 
-            # Re-rank with feedback weighting
+            # 4) Re-rank with hybrid score + feedback boosts
+            has_image_query = len(image_hits) > 0
+            w_text = 0.3 if has_image_query else 1.0
+            w_image = 0.7 if has_image_query else 0.0
+
             case_results: List[CaseResult] = []
-            for hit in results:
-                payload = hit.payload or {}
-                base_score = hit.score
+            for cid, row in merged.items():
+                payload = row["payload"]
+                base_score = w_text * row["text_score"] + w_image * row["image_score"]
 
                 feedback_count = payload.get("feedback_count", 0)
                 feedback_boost = min(
                     feedback_count / FEEDBACK_COUNT_DIVISOR, MAX_FEEDBACK_BOOST
                 )
                 vet_boost = VET_VERIFIED_BOOST if payload.get("vet_verified") else 0
-
                 final_score = base_score + feedback_boost + vet_boost
 
                 case_results.append(
                     CaseResult(
-                        case_id=payload.get("case_id", str(hit.id)),
+                        case_id=cid,
                         content=payload.get("text_content", ""),
                         score=base_score,
                         final_score=final_score,
@@ -381,13 +514,12 @@ class CaseMemoryService:
                     )
                 )
 
-            # Sort by final_score descending, then trim to top_k
             case_results.sort(key=lambda r: r.final_score, reverse=True)
             case_results = case_results[:top_k]
 
             logger.info(
-                f"CaseMemory search '{query[:50]}...' "
-                f"returned {len(case_results)} results"
+                f"CaseMemory search '{query[:50]}...' returned {len(case_results)} results "
+                f"(text_hits={len(text_hits)}, image_hits={len(image_hits)})"
             )
             return case_results
 
@@ -411,22 +543,32 @@ class CaseMemoryService:
             return False
 
         try:
-            from qdrant_client.models import Filter, FieldCondition, MatchValue
+            # Retrieve point directly by ID (case_id is the point ID)
+            try:
+                points = self._qdrant_client.retrieve(
+                    collection_name=self._collection_name,
+                    ids=[case_id],
+                    with_payload=True,
+                    with_vectors=False,
+                )
+            except Exception:
+                # Fallback to scroll if ID is not direct UUID/integer
+                from qdrant_client.models import Filter, FieldCondition, MatchValue
 
-            # Retrieve existing point
-            results = self._qdrant_client.scroll(
-                collection_name=self._collection_name,
-                scroll_filter=Filter(
-                    must=[
-                        FieldCondition(key="case_id", match=MatchValue(value=case_id))
-                    ]
-                ),
-                limit=1,
-                with_payload=True,
-                with_vectors=False,
-            )
+                scroll_results = self._qdrant_client.scroll(
+                    collection_name=self._collection_name,
+                    scroll_filter=Filter(
+                        must=[
+                            FieldCondition(
+                                key="case_id", match=MatchValue(value=case_id)
+                            )
+                        ]
+                    ),
+                    limit=1,
+                    with_payload=True,
+                )
+                points = scroll_results[0] if scroll_results else []
 
-            points = results[0] if results else []
             if not points:
                 logger.warning(f"Case {case_id} not found for feedback update")
                 return False
@@ -470,24 +612,33 @@ class CaseMemoryService:
             return False
 
         try:
-            from qdrant_client.models import Filter, FieldCondition, MatchValue
+            # Retrieve point directly by ID
+            try:
+                points = self._qdrant_client.retrieve(
+                    collection_name=self._collection_name,
+                    ids=[case_id],
+                    with_payload=False,
+                    with_vectors=False,
+                )
+            except Exception:
+                from qdrant_client.models import Filter, FieldCondition, MatchValue
 
-            # Tìm point theo case_id trong payload
-            results = self._qdrant_client.scroll(
-                collection_name=self._collection_name,
-                scroll_filter=Filter(
-                    must=[
-                        FieldCondition(
-                            key="case_id", match=MatchValue(value=case_id)
-                        )
-                    ]
-                ),
-                limit=1,
-                with_payload=False,
-                with_vectors=False,
-            )
+                # Tìm point theo case_id trong payload (fallback)
+                scroll_results = self._qdrant_client.scroll(
+                    collection_name=self._collection_name,
+                    scroll_filter=Filter(
+                        must=[
+                            FieldCondition(
+                                key="case_id", match=MatchValue(value=case_id)
+                            )
+                        ]
+                    ),
+                    limit=1,
+                    with_payload=False,
+                    with_vectors=False,
+                )
+                points = scroll_results[0] if scroll_results else []
 
-            points = results[0] if results else []
             if not points:
                 logger.warning(f"Case {case_id} not found in Qdrant for deletion")
                 return False
@@ -535,25 +686,33 @@ class CaseMemoryService:
                 datetime.now(timezone.utc) - timedelta(days=older_than_days)
             ).isoformat()
 
-            # Find candidates
-            results = self._qdrant_client.scroll(
-                collection_name=self._collection_name,
-                scroll_filter=Filter(
-                    must=[
-                        FieldCondition(
-                            key="feedback_count",
-                            range=Range(lte=max_feedback_below),
-                        ),
-                    ]
-                ),
-                limit=1000,
-                with_payload=True,
-                with_vectors=False,
-            )
-
-            points = results[0] if results else []
+            # Find candidates với pagination để không bỏ sót >1000 records
+            all_points = []
+            offset = None
+            while True:
+                points, next_offset = self._qdrant_client.scroll(
+                    collection_name=self._collection_name,
+                    scroll_filter=Filter(
+                        must=[
+                            FieldCondition(
+                                key="feedback_count",
+                                range=Range(lte=max_feedback_below),
+                            ),
+                        ]
+                    ),
+                    limit=100,
+                    with_payload=True,
+                    with_vectors=False,
+                    offset=offset,
+                )
+                if not points:
+                    break
+                all_points.extend(points)
+                if next_offset is None:
+                    break
+                offset = next_offset
             ids_to_delete = []
-            for point in points:
+            for point in all_points:
                 created = point.payload.get("created_at", "")
                 if created and created < cutoff:
                     ids_to_delete.append(point.id)
@@ -584,6 +743,7 @@ class CaseMemoryService:
             return {
                 "initialized": False,
                 "collection": self._collection_name,
+                "image_enabled": self._image_enabled,
                 "error": "CaseMemoryService not available",
             }
 
@@ -594,11 +754,13 @@ class CaseMemoryService:
                 "collection": self._collection_name,
                 "points_count": info.points_count,
                 "status": str(info.status),
+                "image_enabled": self._image_enabled,
             }
         except Exception as e:
             return {
                 "initialized": self._initialized,
                 "collection": self._collection_name,
+                "image_enabled": self._image_enabled,
                 "error": str(e),
             }
 
@@ -632,5 +794,6 @@ __all__ = [
     "get_case_memory_service",
     "reset_case_memory_service",
     "CASE_MEMORY_COLLECTION",
-    "CASE_MEMORY_DIMENSION",
+    "CASE_MEMORY_TEXT_DIMENSION",
+    "CASE_MEMORY_IMAGE_DIMENSION",
 ]

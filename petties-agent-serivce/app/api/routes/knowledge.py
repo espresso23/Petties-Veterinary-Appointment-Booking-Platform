@@ -20,6 +20,7 @@ from sqlalchemy import select, func
 from typing import List, Optional, Dict
 from loguru import logger
 from pathlib import Path
+import asyncio
 import os
 import shutil
 import tempfile
@@ -35,6 +36,9 @@ from app.api.schemas.knowledge_schemas import (
     UploadErrorResponse,
     ProcessDocumentRequest,
     ProcessDocumentResponse,
+    KGQueryRequest,
+    KGQueryResponse,
+    KGQueryResultItem,
     QueryKnowledgeRequest,
     QueryKnowledgeResponse,
     RetrievedChunk,
@@ -274,7 +278,7 @@ async def process_document(document_id: int, db: AsyncSession = Depends(get_db))
         # Get RAG engine and index document
         rag = get_rag_engine()
         chunks_count = await rag.index_document(
-            file_content=file_content,
+            file_path=Path(file_path),
             filename=document.filename,
             document_id=document.id,
             metadata={
@@ -299,7 +303,9 @@ async def process_document(document_id: int, db: AsyncSession = Depends(get_db))
         # Update document status (only if vectors were created successfully)
         document.processed = True
         document.vector_count = chunks_count
-        document.processed_at = datetime.utcnow()
+        from datetime import timezone
+
+        document.processed_at = datetime.now(timezone.utc)
         await db.commit()
 
         processing_time = int((time.time() - start_time) * 1000)
@@ -1055,7 +1061,10 @@ async def build_knowledge_graph(
                 skipped_reasons[doc.id] = "Không tìm thấy file trên ổ đĩa"
                 continue
             try:
-                raw_text = _extract_text_from_file(doc_path, doc.file_type)
+                # Use asyncio.to_thread for blocking file IO
+                raw_text = await asyncio.to_thread(
+                    _extract_text_from_file, doc_path, doc.file_type
+                )
                 text = _normalize_text(raw_text)
 
                 # PDF scan/image-only thường gần như không có text -> KG không thể extract
@@ -1150,6 +1159,61 @@ async def get_kg_visualize():
         return {"success": True, **data}
     except Exception as e:
         logger.error(f"Error getting KG visualization data: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/kg-query",
+    response_model=KGQueryResponse,
+    summary="[KB-05] Truy vấn Knowledge Graph",
+    description="Truy vấn tri thức có cấu trúc từ đồ thị tri thức (triplets).",
+)
+async def query_knowledge_graph(request: KGQueryRequest):
+    """
+    Query the Knowledge Graph directly.
+
+    Returns structured triplets related to the query.
+    """
+    try:
+        kg = get_kg_service()
+        results = await kg.query_graph(request.query, top_k=request.top_k)
+
+        logger.info(f"[KG Query API] Got {len(results)} results")
+
+        formatted_results = []
+
+        # Now query_graph returns structured triplets in triplets_used
+        for r in results:
+            logger.info(
+                f"[KG Query API] Result: content={r.content[:50] if r.content else 'None'}..., triplets_used={len(r.triplets_used) if r.triplets_used else 0}"
+            )
+
+            if r.triplets_used:
+                # Use actual triplets from the response
+                for t in r.triplets_used:
+                    logger.info(f"[KG Query API] Triplet type: {type(t)}, value: {t}")
+                    if isinstance(t, dict):
+                        formatted_results.append(
+                            KGQueryResultItem(
+                                subject=t.get("subject", ""),
+                                predicate=t.get("predicate", ""),
+                                object=t.get("object", ""),
+                                score=r.score,
+                                source_nodes=r.source_nodes,
+                            )
+                        )
+                    else:
+                        # Fallback for non-dict format
+                        logger.warning(f"[KG Query API] Triplet is not a dict: {t}")
+
+        return KGQueryResponse(
+            success=True,
+            query=request.query,
+            results=formatted_results,
+            message=f"Tìm thấy {len(formatted_results)} triplets từ Knowledge Graph",
+        )
+    except Exception as e:
+        logger.error(f"Error querying KG: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

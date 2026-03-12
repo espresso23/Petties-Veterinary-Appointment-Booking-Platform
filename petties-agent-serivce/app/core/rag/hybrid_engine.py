@@ -89,13 +89,14 @@ class HybridRAGEngine:
         result = await engine.query("mèo ho khan", pet_type="mèo")
     """
 
-    _instance: Optional["HybridRAGEngine"] = None
+    _initialized: bool = False
 
-    def __new__(cls) -> "HybridRAGEngine":
-        """Singleton pattern."""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
+    def __init__(self) -> None:
+        """Initialize the hybrid engine."""
+        if HybridRAGEngine._initialized:
+            return
+        # Initialization logic (if any)
+        HybridRAGEngine._initialized = True
 
     # ----------------------------------------------------------
     # Public API
@@ -106,6 +107,7 @@ class HybridRAGEngine:
         query: str,
         top_k: int = DEFAULT_TOP_K,
         min_score: float = DEFAULT_MIN_SCORE,
+        image_urls: Optional[List[str]] = None,
         pet_type: Optional[str] = None,
         enable_rag: bool = True,
         enable_kg: bool = True,
@@ -144,7 +146,11 @@ class HybridRAGEngine:
             source_labels.append("kg")
 
         if enable_case_memory:
-            tasks.append(self._search_case_memory(expanded_query, top_k, min_score))
+            tasks.append(
+                self._search_case_memory(
+                    expanded_query, top_k, min_score, image_urls=image_urls
+                )
+            )
             source_labels.append("case_memory")
 
         if not tasks:
@@ -176,13 +182,14 @@ class HybridRAGEngine:
         # Step 4: Re-rank by weighted score
         all_chunks.sort(key=lambda c: c.score, reverse=True)
 
-        # Deduplicate by content similarity (simple exact-match dedup)
-        seen_contents = set()
+        # 5) Deduplicate chunks (order-preserving)
+        seen_contents = {}
         unique_chunks = []
         for chunk in all_chunks:
-            content_key = chunk.content[:200].strip().lower()
+            # Use content as key for basic deduplication
+            content_key = chunk.content.strip()
             if content_key not in seen_contents:
-                seen_contents.add(content_key)
+                seen_contents[content_key] = True
                 unique_chunks.append(chunk)
 
         # Trim to top_k
@@ -281,14 +288,23 @@ class HybridRAGEngine:
     # ----------------------------------------------------------
 
     async def _search_case_memory(
-        self, query: str, top_k: int, min_score: float
+        self,
+        query: str,
+        top_k: int,
+        min_score: float,
+        image_urls: Optional[List[str]] = None,
     ) -> List[HybridChunk]:
         """Tìm kiếm Case Memory cho các case đã xác nhận với feedback-weighted scoring."""
         try:
             from app.core.rag.case_memory import get_case_memory_service
 
             cm = get_case_memory_service()
-            results = await cm.search_similar(query, top_k=top_k, min_score=min_score)
+            results = await cm.search_similar(
+                query,
+                top_k=top_k,
+                min_score=min_score,
+                image_urls=image_urls,
+            )
 
             return [
                 HybridChunk(

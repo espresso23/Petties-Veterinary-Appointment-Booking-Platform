@@ -27,6 +27,7 @@ from app.core.tools.scanner import ToolScanner
 from app.api.middleware.auth import get_admin_user
 from app.db.postgres.models import Tool
 from app.db.postgres.session import get_db
+from app.core.tools.mcp_server import call_mcp_tool
 
 # Initialize router
 router = APIRouter(prefix="/tools", tags=["Tools"], dependencies=[Depends(get_admin_user)])
@@ -179,6 +180,8 @@ async def toggle_tool_enabled(
             raise HTTPException(status_code=404, detail=f"Tool {tool_id} not found")
 
         tool.enabled = request.enabled
+        from datetime import datetime, timezone
+        tool.updated_at = datetime.now(timezone.utc)
         await db.commit()
 
         return {
@@ -222,6 +225,12 @@ async def assign_tool_to_agent(
 
         if not tool:
             raise HTTPException(status_code=404, detail=f"Tool {tool_id} not found")
+
+        # Validate agent_name exists
+        from app.db.postgres.models import Agent
+        agent_result = await db.execute(select(Agent).where(Agent.name == request.agent_name))
+        if not agent_result.scalar_one_or_none():
+            raise HTTPException(status_code=404, detail=f"Agent '{request.agent_name}' not found")
 
         # Add agent to assigned_agents if not already assigned
         assigned_agents = tool.assigned_agents or []
@@ -375,8 +384,6 @@ async def execute_tool(
             raise HTTPException(status_code=400, detail=f"Tool '{tool_name}' is not enabled")
 
         # Execute tool via MCP server
-        from app.core.tools.mcp_server import call_mcp_tool
-
         tool_result = await call_mcp_tool(tool_name, request.parameters)
 
         return ExecuteToolResponse(

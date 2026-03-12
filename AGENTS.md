@@ -118,6 +118,9 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
   - `create_booking_for_user` - Tạo booking sau khi người dùng xác nhận rõ ràng
 - LLM: OpenRouter Cloud API (gemini-2.0-flash, llama-3.3-70b, claude-3.5-sonnet)
 - RAG: LlamaIndex + Qdrant Cloud + Cohere embed-multilingual-v3
+- Visual Case Memory: lưu case đã xác nhận vào Qdrant collection `petties_case_memory_v2` với named vectors `text` (Cohere) + `image` (Jina CLIP v2, 1024 chiều)
+- Image embeddings: dùng Jina Embeddings API với model cố định `jina-clip-v2`, chỉ nhận URL `https` hoặc base64 (data URL) và trả về vector 1024 chiều khớp với cấu hình Case Memory
+- Cấu hình Jina: `JINA_API_KEY` (và tùy chọn `JINA_IMAGE_EMBED_MODEL`) được lưu trong bảng `system_settings` và có thể chỉnh từ trang Admin Agent Playground (section “Jina Image Embeddings (Case Memory)”), kèm nút test `/api/v1/settings/test-jina` để kiểm tra kết nối và dimension
 
 
 ### Mobile (Flutter)

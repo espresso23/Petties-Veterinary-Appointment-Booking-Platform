@@ -20,9 +20,44 @@ import json
 
 logger = logging.getLogger(__name__)
 
-# ===== CREATE FASTMCP SERVER =====
 # FastMCP server instance - single source of truth cho tất cả tools
 mcp_server = FastMCP("Petties Agent Tools")
+
+# ===== MCP TOOLS CACHE =====
+# Cache cho list_tools() để tránh gọi lại mỗi request
+_mcp_tools_cache = None
+_mcp_tools_cache_lock = asyncio.Lock()
+
+
+async def _get_tools_with_cache() -> List[Any]:
+    """
+    Internal helper to get tools with caching.
+    Ensures safe concurrent initialization.
+    """
+    global _mcp_tools_cache
+    if _mcp_tools_cache is not None:
+        return _mcp_tools_cache
+
+    async with _mcp_tools_cache_lock:
+        if _mcp_tools_cache is not None:
+            return _mcp_tools_cache
+
+        logger.info("📡 Refilling MCP tools cache...")
+        try:
+            _mcp_tools_cache = await mcp_server.list_tools()
+            logger.info(f"✅ Cached {len(_mcp_tools_cache)} MCP tools")
+        except Exception as e:
+            logger.error(f"❌ Failed to list tools from FastMCP: {e}")
+            return []
+
+    return _mcp_tools_cache
+
+
+def invalidate_mcp_tools_cache() -> None:
+    """Explicitly invalidate the tools cache."""
+    global _mcp_tools_cache
+    _mcp_tools_cache = None
+    logger.info("♻️ MCP tools cache invalidated")
 
 
 # Note: health_check is NOT an MCP tool for agents
@@ -37,7 +72,7 @@ async def get_mcp_tools_metadata() -> List[Dict[str, Any]]:
     """
     tools_metadata = []
 
-    tools = await mcp_server.list_tools()
+    tools = await _get_tools_with_cache()
 
     for tool in tools:
         tool_name = tool.name
@@ -172,8 +207,8 @@ async def call_mcp_tool(tool_name: str, parameters: Dict[str, Any] = None) -> An
     if parameters is None:
         parameters = {}
 
-    # Get registered tools using current FastMCP API
-    registered_tools = await mcp_server.list_tools()
+    # Get registered tools from cache
+    registered_tools = await _get_tools_with_cache()
     available_tools = [tool.name for tool in registered_tools]
 
     if tool_name not in available_tools:
@@ -207,7 +242,7 @@ async def call_mcp_tool(tool_name: str, parameters: Dict[str, Any] = None) -> An
 async def get_server_info_async() -> Dict[str, Any]:
     """Get MCP server information (async)"""
     try:
-        tools = await mcp_server.list_tools()
+        tools = await _get_tools_with_cache()
         tools_count = len(tools)
     except Exception:
         tools_count = 0

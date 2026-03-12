@@ -62,7 +62,7 @@ class KGQueryResult:
     content: str
     score: float
     source_nodes: List[str] = field(default_factory=list)
-    triplets_used: List[Tuple[str, str, str]] = field(default_factory=list)
+    triplets_used: List[Dict[str, str]] = field(default_factory=list)
 
 
 # ============================================================
@@ -91,23 +91,18 @@ class KnowledgeGraphService:
         results = await service.query_graph("mèo ho khan chảy nước mũi")
     """
 
-    _instance: Optional["KnowledgeGraphService"] = None
-    _initialized: bool = False
-
-    def __new__(cls) -> "KnowledgeGraphService":
-        """Singleton pattern."""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
-
-    def __init__(self) -> None:
-        if self._initialized:
-            return
+    def __init__(self, persist_dir: str = KG_PERSIST_DIR) -> None:
+        """Khởi tạo service với các giá trị mặc định."""
         self._kg_index = None
         self._graph_store = None
-        self._llm = None
-        self._persist_dir = KG_PERSIST_DIR
+        self._persist_dir = persist_dir
+        self._llm_model = "google/gemini-2.0-flash-001"
+        self._initialized = False
+
+        import asyncio
+
+        self._init_lock = asyncio.Lock()
+        logger.debug("KnowledgeGraphService instance created")
 
     # ----------------------------------------------------------
     # Initialization
@@ -122,55 +117,78 @@ class KnowledgeGraphService:
             - Cohere embedding model
             - SimpleGraphStore (tải từ đĩa nếu có)
         """
-        if self._initialized and self._graph_store is not None:
+        if self._graph_store is not None:
             return
 
-        logger.info("Initializing KnowledgeGraphService...")
+        async with self._init_lock:
+            if self._graph_store is not None:
+                return
 
-        # Lazy imports to avoid circular dependencies
-        import asyncio
-        from llama_index.core.graph_stores import SimpleGraphStore
-        from llama_index.embeddings.cohere import CohereEmbedding
-        from llama_index.core import Settings as LlamaSettings
+            logger.info("Initializing KnowledgeGraphService...")
 
-        from app.core.config_helper import get_setting
-        from app.db.postgres.session import AsyncSessionLocal
+            # Lazy imports to avoid circular dependencies
+            import asyncio
+            from llama_index.core.graph_stores import SimpleGraphStore
+            from llama_index.embeddings.cohere import CohereEmbedding
+            from llama_index.llms.openrouter import OpenRouter
+            from llama_index.core import Settings as LlamaSettings
 
-        async with AsyncSessionLocal() as db:
-            cohere_api_key = await get_setting("COHERE_API_KEY", db)
-            cohere_model = (
-                await get_setting("COHERE_EMBEDDING_MODEL", db)
-                or "embed-multilingual-v3.0"
+            from app.core.config_helper import get_setting
+            from app.db.postgres.session import AsyncSessionLocal
+
+            async with AsyncSessionLocal() as db:
+                cohere_api_key = await get_setting("COHERE_API_KEY", db)
+                cohere_model = (
+                    await get_setting("COHERE_EMBEDDING_MODEL", db)
+                    or "embed-multilingual-v3.0"
+                )
+                openrouter_api_key = await get_setting("OPENROUTER_API_KEY", db)
+                llm_model = (
+                    await get_setting("KG_LLM_MODEL", db)
+                    or "google/gemini-2.0-flash-001"
+                )
+                self._llm_model = llm_model
+
+            if not cohere_api_key:
+                logger.warning(
+                    "COHERE_API_KEY not configured. KnowledgeGraphService will be unavailable."
+                )
+                return
+
+            # Configure embedding model (used for hybrid mode)
+            LlamaSettings.embed_model = CohereEmbedding(
+                api_key=cohere_api_key,
+                model_name=cohere_model,
+                input_type="search_document",
             )
 
-        if not cohere_api_key:
-            logger.warning(
-                "COHERE_API_KEY not configured. KnowledgeGraphService will be unavailable."
-            )
-            return
+            # Configure LLM (OpenRouter)
+            if openrouter_api_key:
+                LlamaSettings.llm = OpenRouter(
+                    api_key=openrouter_api_key,
+                    model=llm_model,
+                    temperature=0.1,
+                )
+            else:
+                logger.warning(
+                    "OPENROUTER_API_KEY not configured. KG extraction will fail."
+                )
 
-        # Configure embedding model (used for hybrid mode)
-        LlamaSettings.embed_model = CohereEmbedding(
-            api_key=cohere_api_key,
-            model_name=cohere_model,
-            input_type="search_document",
-        )
+            # Load or create graph store
+            persist_path = Path(self._persist_dir)
+            graph_store_file = persist_path / "graph_store.json"
 
-        # Load or create graph store
-        persist_path = Path(self._persist_dir)
-        graph_store_file = persist_path / "graph_store.json"
+            if graph_store_file.exists():
+                logger.info(f"Loading existing graph store from {graph_store_file}")
+                self._graph_store = SimpleGraphStore.from_persist_path(
+                    str(graph_store_file)
+                )
+            else:
+                logger.info("Creating new SimpleGraphStore")
+                self._graph_store = SimpleGraphStore()
 
-        if graph_store_file.exists():
-            logger.info(f"Loading existing graph store from {graph_store_file}")
-            self._graph_store = SimpleGraphStore.from_persist_path(
-                str(graph_store_file)
-            )
-        else:
-            logger.info("Creating new SimpleGraphStore")
-            self._graph_store = SimpleGraphStore()
-
-        self._initialized = True
-        logger.info("KnowledgeGraphService initialized successfully")
+            self._initialized = True
+            logger.info("KnowledgeGraphService initialized successfully")
 
     # ----------------------------------------------------------
     # Public API
@@ -219,8 +237,11 @@ class KnowledgeGraphService:
             all_text = "\n\n".join([doc.text for doc in documents])
 
             # Trích xuất triplets trực tiếp bằng LLM (cách đáng tin cậy hơn)
-            triplets = await self._extract_triplets_with_llm(
-                all_text, openrouter_key, max_triplets_per_chunk
+            triplets = (
+                await self._extract_triplets_with_llm(
+                    all_text, openrouter_key, max_triplets_per_chunk
+                )
+                or []
             )
 
             # Lưu triplets vào graph store (chỉ triplets hợp lệ)
@@ -233,21 +254,31 @@ class KnowledgeGraphService:
                 # Validation: bỏ qua triplets rỗng, quá dài, hoặc chứa ký tự rác
                 if not subj_clean or not pred_clean or not obj_clean:
                     continue
-                if len(subj_clean) > 200 or len(pred_clean) > 100 or len(obj_clean) > 200:
-                    logger.warning(f"Skipping oversized triplet: ({subj_clean[:30]}..., {pred_clean[:20]}..., {obj_clean[:30]}...)")
+                if (
+                    len(subj_clean) > 200
+                    or len(pred_clean) > 100
+                    or len(obj_clean) > 200
+                ):
+                    logger.warning(
+                        f"Skipping oversized triplet: ({subj_clean[:30]}..., {pred_clean[:20]}..., {obj_clean[:30]}...)"
+                    )
                     continue
                 # Lọc ký tự đặc biệt/garbage (non-printable, control chars)
                 import unicodedata
+
                 def _is_clean(s: str) -> bool:
                     garbage_count = sum(
-                        1 for c in s
-                        if unicodedata.category(c).startswith('C')  # Control chars
+                        1
+                        for c in s
+                        if unicodedata.category(c).startswith("C")  # Control chars
                         or ord(c) > 0xFFFF  # Supplementary chars (often garbage)
                     )
                     return garbage_count < len(s) * 0.1  # < 10% garbage
 
                 if not _is_clean(subj_clean) or not _is_clean(obj_clean):
-                    logger.warning(f"Skipping garbage triplet: ({subj_clean[:30]}..., {pred_clean[:20]}..., {obj_clean[:30]}...)")
+                    logger.warning(
+                        f"Skipping garbage triplet: ({subj_clean[:30]}..., {pred_clean[:20]}..., {obj_clean[:30]}...)"
+                    )
                     continue
 
                 self._graph_store.upsert_triplet(
@@ -284,21 +315,7 @@ class KnowledgeGraphService:
         import httpx
         import unicodedata
 
-        # Làm sạch text trước khi gửi LLM (loại bỏ ký tự binary/garbage từ PDF)
-        def _clean_text(s: str) -> str:
-            """Loại bỏ ký tự non-printable, control chars, binary garbage."""
-            cleaned = []
-            for c in s:
-                cat = unicodedata.category(c)
-                # Giữ: chữ cái, số, dấu câu, khoảng trắng, dấu tiếng Việt
-                if cat.startswith('C') and c not in ('\n', '\t', '\r'):
-                    continue  # Bỏ ký tự control (trừ newline/tab)
-                if ord(c) > 0xFFFF:
-                    continue  # Bỏ supplementary chars (emoji, garbage)
-                cleaned.append(c)
-            return ''.join(cleaned)
-
-        clean_text = _clean_text(text)
+        clean_text = self._clean_text(text)
 
         # Chia text thành chunks nếu quá dài
         max_chunk_size = 5000
@@ -352,7 +369,7 @@ Ví dụ output:
                             "X-Title": "Petties AI",
                         },
                         json={
-                            "model": "google/gemini-2.0-flash-001",
+                            "model": self._llm_model,
                             "messages": [
                                 {"role": "system", "content": system_prompt},
                                 {
@@ -372,52 +389,17 @@ Ví dụ output:
                         # Log raw response for debugging
                         logger.info(f"LLM response (first 500 chars): {content[:500]}")
 
-                        # Parse JSON từ response - handle markdown code blocks
-                        import json as json_module
-                        import re
-
-                        # Loại bỏ markdown code blocks
-                        clean_content = re.sub(r"```json\s*", "", content)
-                        clean_content = re.sub(r"```\s*$", "", clean_content)
-                        clean_content = clean_content.strip()
-
-                        try:
-                            # Thử parse trực tiếp
-                            data = json_module.loads(clean_content)
-                            if isinstance(data, list):
-                                for item in data:
-                                    if isinstance(item, list) and len(item) >= 3:
-                                        all_triplets.append(
-                                            (
-                                                str(item[0]).strip(),
-                                                str(item[1]).strip(),
-                                                str(item[2]).strip(),
-                                            )
-                                        )
-                        except Exception as parse_err:
-                            # Thử tìm array trong content
-                            matches = re.findall(r"\[[\s\S]*?\]", content)
-                            for match in matches:
-                                try:
-                                    data = json_module.loads(match)
-                                    if isinstance(data, list):
-                                        for item in data:
-                                            if (
-                                                isinstance(item, list)
-                                                and len(item) >= 3
-                                            ):
-                                                all_triplets.append(
-                                                    (
-                                                        str(item[0]).strip(),
-                                                        str(item[1]).strip(),
-                                                        str(item[2]).strip(),
-                                                    )
-                                                )
-                                except:
-                                    continue
-                        except Exception as parse_err:
-                            logger.warning(f"JSON parse error: {parse_err}")
-                            continue
+                        # Parse JSON với cơ chế recovery if truncated
+                        triplets_data = self._parse_triplets_json(content)
+                        for item in triplets_data:
+                            if isinstance(item, list) and len(item) >= 3:
+                                all_triplets.append(
+                                    (
+                                        str(item[0]).strip(),
+                                        str(item[1]).strip(),
+                                        str(item[2]).strip(),
+                                    )
+                                )
             except Exception as e:
                 logger.warning(f"Error extracting triplets from chunk: {e}")
                 continue
@@ -426,6 +408,67 @@ Ví dụ output:
         unique_triplets = list(set(all_triplets))[:max_triplets]
         return unique_triplets
 
+    def _parse_triplets_json(self, raw: str) -> List[Any]:
+        """
+        Parse triplets JSON từ LLM response với cơ chế khôi phục nếu bị cắt (truncated).
+        """
+        import json as json_module
+        import re
+
+        # 1. Clean markdown code blocks
+        text = raw.strip()
+        text = re.sub(r"^```json\s*", "", text)
+        text = re.sub(r"^```\s*", "", text)
+        text = re.sub(r"\s*```$", "", text)
+        text = text.strip()
+
+        # 2. Thử parse trực tiếp
+        try:
+            return json_module.loads(text)
+        except json_module.JSONDecodeError:
+            # 3. Handle truncated JSON (thường thiếu ] ở cuối)
+            logger.warning(
+                "Detected truncated or invalid JSON from LLM, attempting recovery..."
+            )
+
+            # Nếu text không bắt đầu bằng [, thử tìm [ đầu tiên
+            if not text.startswith("["):
+                start_idx = text.find("[")
+                if start_idx != -1:
+                    text = text[start_idx:]
+
+            # Thử tự đóng các dấu ngoặc
+            try:
+                # Tìm triplet hoàn chỉnh cuối cùng (được bao bởi [])
+                # Regex tìm cụm ["...", "...", "..."]
+                import re
+
+                valid_triplets = re.findall(
+                    r'\[\s*"[^"]*"\s*,\s*"[^"]*"\s*,\s*"[^"]*"\s*\]', text
+                )
+                if valid_triplets:
+                    recovered_json = "[" + ",".join(valid_triplets) + "]"
+                    return json_module.loads(recovered_json)
+            except Exception as e:
+                logger.error(f"Failed to recover JSON triplets: {e}")
+
+            return []
+
+    @staticmethod
+    def _clean_text(s: str) -> str:
+        """Loại bỏ ký tự non-printable, control chars, binary garbage."""
+        import unicodedata
+
+        cleaned = []
+        for c in s:
+            cat = unicodedata.category(c)
+            # Giữ: chữ cái, số, dấu câu, khoảng trắng, dấu tiếng Việt
+            if cat.startswith("C") and c not in ("\n", "\t", "\r"):
+                continue  # Bỏ ký tự control (trừ newline/tab)
+            if ord(c) > 0xFFFF:
+                continue  # Bỏ supplementary chars (emoji, garbage)
+            cleaned.append(c)
+        return "".join(cleaned)
 
     async def query_graph(
         self,
@@ -433,62 +476,64 @@ Ví dụ output:
         top_k: int = DEFAULT_KG_TOP_K,
     ) -> List[KGQueryResult]:
         """
-        Truy vấn Knowledge Graph.
+        Truy vấn Knowledge Graph — trả về TẤT CẢ triplets.
 
-        Sử dụng KG traversal kết hợp text retrieval (hybrid mode).
+        Thay vì keyword matching (fragile, mất ngữ cảnh), method này trả về
+        toàn bộ triplets từ graph store và để LLM downstream tự quyết định
+        triplets nào liên quan. LLM hiểu ngữ cảnh, ngôn ngữ tự nhiên,
+        và sắc thái tốt hơn keyword matching.
+
+        Graph store thường nhỏ (vài trăm triplets) nên việc trả tất cả
+        không ảnh hưởng performance.
 
         Args:
-            query: Câu truy vấn ngôn ngữ tự nhiên.
-            top_k: Số lượng kết quả.
+            query: Câu truy vấn ngôn ngữ tự nhiên (dùng cho logging).
+            top_k: Giới hạn số triplets trả về (default=5, nhưng x3 để đủ context).
 
         Returns:
-            Danh sách KGQueryResult với nội dung và graph metadata.
+            Danh sách KGQueryResult với toàn bộ triplets.
         """
         await self.initialize()
 
-        if self._kg_index is None:
-            # Try to load existing index from graph store
-            if self._graph_store is not None:
-                loaded = await self._load_index_from_store()
-                if not loaded:
-                    logger.info("No KG index available for querying")
-                    return []
-            else:
-                return []
-
-        import asyncio
+        if self._graph_store is None:
+            return []
 
         try:
-            query_engine = self._kg_index.as_query_engine(
-                include_text=True,
-                response_mode="tree_summarize",
+            all_triplets = self._get_triplets_from_store(self._graph_store)
+            if not all_triplets:
+                logger.info("KG query: graph store is empty")
+                return []
+
+            # Trả TẤT CẢ triplets — LLM sẽ tự filter ngữ cảnh liên quan
+            # Giới hạn bởi top_k * 3 để tránh context quá lớn
+            max_triplets = top_k * 3
+            selected = all_triplets[:max_triplets]
+
+            # Format thành text context cho LLM
+            lines = []
+            for subj, pred, obj in selected:
+                lines.append(f"- {subj} → [{pred}] → {obj}")
+
+            content = "Thông tin từ đồ thị tri thức:\n" + "\n".join(lines)
+
+            triplets_used = [
+                {"subject": s, "predicate": p, "object": o}
+                for s, p, o in selected
+            ]
+
+            logger.info(
+                f"KG query '{query[:50]}...' returned "
+                f"{len(selected)}/{len(all_triplets)} triplets"
             )
 
-            response = await asyncio.to_thread(query_engine.query, query)
-
-            # Convert to KGQueryResult
-            results = []
-            if response and str(response).strip():
-                # Extract source nodes info
-                source_texts = []
-                if hasattr(response, "source_nodes"):
-                    for node in response.source_nodes[:top_k]:
-                        source_texts.append(
-                            node.text[:200]
-                            if hasattr(node, "text")
-                            else str(node)[:200]
-                        )
-
-                results.append(
-                    KGQueryResult(
-                        content=str(response),
-                        score=1.0,  # KG queries don't have cosine scores
-                        source_nodes=source_texts,
-                    )
+            return [
+                KGQueryResult(
+                    content=content,
+                    score=1.0,
+                    source_nodes=[],
+                    triplets_used=triplets_used,
                 )
-
-            logger.info(f"KG query '{query[:50]}...' returned {len(results)} results")
-            return results
+            ]
 
         except Exception as e:
             logger.error(f"KG query failed: {e}")
@@ -593,25 +638,27 @@ Ví dụ output:
         triplets = []
         try:
             # SimpleGraphStore stores data in _data.graph_dict
-            # Format: { subject: { (relation, object), ... } }
+            # Format: { subject: [[relation, object], ...] }
             graph_dict = {}
             if hasattr(store, "_data") and hasattr(store._data, "graph_dict"):
                 graph_dict = store._data.graph_dict
             elif hasattr(store, "graph_dict"):
                 graph_dict = store.graph_dict
 
+            logger.info(f"[KG] graph_dict has {len(graph_dict)} subjects")
+
             for subject, edges in graph_dict.items():
                 if isinstance(edges, (list, set)):
                     for edge in edges:
                         if isinstance(edge, (list, tuple)) and len(edge) >= 2:
-                            triplets.append((subject, edge[0], edge[1]))
+                            triplets.append((str(subject), str(edge[0]), str(edge[1])))
                 elif isinstance(edges, dict):
                     for relation, objects in edges.items():
                         if isinstance(objects, (list, set)):
                             for obj in objects:
-                                triplets.append((subject, relation, obj))
+                                triplets.append((str(subject), str(relation), str(obj)))
                         else:
-                            triplets.append((subject, relation, str(objects)))
+                            triplets.append((str(subject), str(relation), str(objects)))
         except Exception as e:
             logger.warning(f"Failed to extract triplets from store: {e}")
         return triplets
@@ -725,8 +772,6 @@ def get_knowledge_graph_service() -> KnowledgeGraphService:
 def reset_knowledge_graph_service() -> None:
     """Reset singleton (dùng cho testing)."""
     global _kg_service
-    if _kg_service is not None:
-        _kg_service._initialized = False
     _kg_service = None
 
 

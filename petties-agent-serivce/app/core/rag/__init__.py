@@ -33,7 +33,8 @@ from app.core.rag.case_memory import (
     get_case_memory_service,
     reset_case_memory_service,
     CASE_MEMORY_COLLECTION,
-    CASE_MEMORY_DIMENSION,
+    CASE_MEMORY_TEXT_DIMENSION,
+    CASE_MEMORY_IMAGE_DIMENSION,
 )
 
 from app.core.rag.knowledge_graph import (
@@ -70,7 +71,8 @@ __all__ = [
     "get_case_memory_service",
     "reset_case_memory_service",
     "CASE_MEMORY_COLLECTION",
-    "CASE_MEMORY_DIMENSION",
+    "CASE_MEMORY_TEXT_DIMENSION",
+    "CASE_MEMORY_IMAGE_DIMENSION",
     # Knowledge Graph
     "KnowledgeGraphService",
     "KGQueryResult",

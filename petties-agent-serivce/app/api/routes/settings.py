@@ -63,6 +63,11 @@ def mask_value(value: str, is_sensitive: bool) -> str:
 
 
 from app.core.config_helper import get_setting as _get_setting
+from app.core.embeddings.jina_image_embeddings import (
+    JINA_EMBEDDINGS_ENDPOINT,
+    DEFAULT_JINA_IMAGE_MODEL,
+    EXPECTED_IMAGE_DIMENSION,
+)
 
 
 # Keep the same signature for compatibility within this file
@@ -786,6 +791,91 @@ async def test_cohere_embeddings(
 
     except Exception as e:
         logger.error(f"Cohere test error: {e}")
+        return TestResult(status="error", message=str(e))
+
+
+@router.post("/test-jina", response_model=TestResult)
+async def test_jina_image_embeddings(
+    db: AsyncSession = Depends(get_db), _: dict = Depends(get_admin_user)
+):
+    """
+    Test Jina Image Embeddings API connection (jina-clip-v2).
+
+    Verifies:
+    - JINA_API_KEY is configured
+    - Can call Jina embeddings endpoint
+    - Embedding dimension khớp EXPECTED_IMAGE_DIMENSION (1024)
+    """
+    api_key = await get_setting("JINA_API_KEY", db)
+    if not api_key:
+        return TestResult(
+            status="error",
+            message="JINA_API_KEY chưa được cấu hình. Hãy thiết lập trong Admin Settings.",
+        )
+
+    model = await get_setting("JINA_IMAGE_EMBED_MODEL", db) or DEFAULT_JINA_IMAGE_MODEL
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            # Dùng 1 sample image URL an toàn (không quan trọng nội dung, chỉ cần API hoạt động)
+            payload = {
+                "model": model,
+                "input": [
+                    {
+                        "url": "https://picsum.photos/200",
+                    }
+                ],
+                "normalized": True,
+                "embedding_type": "float",
+            }
+            response = await client.post(
+                JINA_EMBEDDINGS_ENDPOINT,
+                json=payload,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                embeddings = data.get("data", [])
+                dim = (
+                    len(embeddings[0].get("embedding", []))
+                    if embeddings and isinstance(embeddings[0].get("embedding"), list)
+                    else 0
+                )
+                if dim != EXPECTED_IMAGE_DIMENSION:
+                    return TestResult(
+                        status="error",
+                        message=(
+                            f"Jina embeddings trả về dim={dim}, "
+                            f"nhưng Case Memory đang cấu hình {EXPECTED_IMAGE_DIMENSION}. "
+                            "Hãy kiểm tra lại model JINA_IMAGE_EMBED_MODEL."
+                        ),
+                        details={"dimension": dim, "expected": EXPECTED_IMAGE_DIMENSION},
+                    )
+
+                return TestResult(
+                    status="success",
+                    message="Kết nối Jina Image Embeddings thành công",
+                    details={"model": model, "dimension": dim},
+                )
+
+            try:
+                error_data = response.json()
+                error_msg = error_data.get("message") or str(error_data)
+            except Exception:
+                error_msg = response.text
+
+            return TestResult(
+                status="error",
+                message=f"Jina API error ({response.status_code}): {error_msg}",
+                details={"status_code": response.status_code},
+            )
+
+    except Exception as e:
+        logger.error(f"Jina test error: {e}")
         return TestResult(status="error", message=str(e))
 
 

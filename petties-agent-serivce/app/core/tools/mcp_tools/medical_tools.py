@@ -29,103 +29,8 @@ from duckduckgo_search import DDGS
 from app.config.settings import settings
 
 
-# --- MINIMAL STOP WORDS (bilingual, chỉ loại function words phổ biến) ---
-STOP_WORDS = {
-    # Vietnamese function words
-    "là",
-    "và",
-    "của",
-    "cho",
-    "với",
-    "khi",
-    "nên",
-    "cần",
-    "được",
-    "đến",
-    "trong",
-    "những",
-    "các",
-    "một",
-    "này",
-    "kia",
-    "thì",
-    "có",
-    "bị",
-    "gì",
-    "sao",
-    "thế",
-    "nào",
-    "hay",
-    "rằng",
-    "đang",
-    "về",
-    "từ",
-    "theo",
-    # English function words
-    "the",
-    "a",
-    "an",
-    "is",
-    "are",
-    "was",
-    "were",
-    "be",
-    "been",
-    "being",
-    "to",
-    "of",
-    "in",
-    "for",
-    "on",
-    "with",
-    "at",
-    "by",
-    "from",
-    "as",
-    "it",
-    "its",
-    "this",
-    "that",
-    "or",
-    "and",
-    "but",
-    "if",
-    "do",
-    "does",
-    "did",
-    "has",
-    "have",
-    "had",
-    "will",
-    "would",
-    "can",
-    "could",
-    "should",
-    "what",
-    "how",
-    "when",
-    "where",
-    "why",
-    "which",
-    "who",
-    "whom",
-    "my",
-    "your",
-    "his",
-    "her",
-    "our",
-    "their",
-    "i",
-    "you",
-    "he",
-    "she",
-    "we",
-    "they",
-    "me",
-    "him",
-    "us",
-    "them",
-}
+# NOTE: Không dùng STOP_WORDS — để LLM tự xử lý ngữ nghĩa.
+# Chỉ giữ PET_GUARD (safety), PENALTY_DOMAINS (scoring), GENERIC_CONTENT_PATTERNS.
 
 # --- PET GUARD (bilingual - chỉ dùng cho safety check, không scoring) ---
 PET_GUARD_KEYWORDS = {
@@ -202,9 +107,9 @@ def _clean_rag_text(text: str) -> str:
 
 
 def _tokenize(text: str) -> List[str]:
-    """Language-agnostic tokenizer: tách thành tokens, loại stop words."""
+    """Language-agnostic tokenizer: tách thành tokens (>= 2 ký tự)."""
     tokens = re.findall(r"[\wÀ-ỹ]+", text.lower())
-    return [t for t in tokens if t not in STOP_WORDS and len(t) >= 2]
+    return [t for t in tokens if len(t) >= 2]
 
 
 def _extract_query_keywords(query: str) -> List[str]:
@@ -225,38 +130,23 @@ def _extract_domain(url: str) -> str:
 
 
 def _score_web_result(query: str, title: str, snippet: str, url: str) -> int:
-    """Language-agnostic scoring dựa trên token overlap ratio + domain penalties."""
-    query_tokens = set(_tokenize(query))
-    if not query_tokens:
-        return 0
+    """Scoring dựa trên domain penalties — DuckDuckGo đã xếp hạng relevance rồi.
 
-    title_lower = title.lower()
-    snippet_lower = snippet.lower()
-    combined_text = f"{title_lower} {snippet_lower}"
-    result_tokens = set(_tokenize(combined_text))
+    Không dùng keyword/token matching. LLM sẽ tự hiểu ngữ cảnh kết quả.
+    Scoring chỉ penalize nguồn kém chất lượng (Wikipedia, social media, etc.).
+    """
+    # Base score: DuckDuckGo đã lọc relevance, mặc định tin tưởng
+    score = 5
 
-    # 1. Token overlap ratio (0-10 scale)
-    overlap = query_tokens & result_tokens
-    overlap_ratio = len(overlap) / len(query_tokens)
-    score = int(overlap_ratio * 10)
-
-    # 2. Title bonus: tokens xuất hiện trong title quan trọng hơn
-    title_tokens = set(_tokenize(title_lower))
-    title_overlap = query_tokens & title_tokens
-    score += len(title_overlap) * 2
-
-    # 3. Exact query match bonus
-    if query.lower().strip() in combined_text:
-        score += 5
-
-    # 4. Domain-based penalties (language-agnostic)
+    # Domain-based penalties (không phải keyword matching — domain filtering)
     domain = _extract_domain(url)
     for penalty_domain, penalty_score in PENALTY_DOMAINS.items():
         if penalty_domain in domain:
             score -= penalty_score
             break
 
-    # 5. Generic content patterns penalties (regex, language-agnostic)
+    # Generic content patterns penalties (regex, language-agnostic)
+    combined_text = f"{title} {snippet}".lower()
     for pattern in GENERIC_CONTENT_PATTERNS:
         if pattern.search(combined_text):
             score -= 3
@@ -266,42 +156,8 @@ def _score_web_result(query: str, title: str, snippet: str, url: str) -> int:
 
 
 def _build_search_query(query: str) -> str:
-    """Expand query nhẹ nhàng - chỉ thêm context nếu chưa có pet/vet term (bilingual)."""
-    normalized_query = query.strip()
-    if not normalized_query:
-        return query
-
-    lower_query = normalized_query.lower()
-
-    # Kiểm tra đã có pet/vet context chưa (bilingual)
-    pet_context_words = [
-        "thú y",
-        "thu y",
-        "vet",
-        "veterinary",
-        "chó",
-        "cho",
-        "mèo",
-        "meo",
-        "pet",
-        "cún",
-        "cun",
-        "dog",
-        "cat",
-        "puppy",
-        "kitten",
-        "animal",
-    ]
-    has_pet_context = any(kw in lower_query for kw in pet_context_words)
-
-    if not has_pet_context:
-        # Detect language: nếu có Vietnamese chars thì thêm "thú y", không thì "pet veterinary"
-        if re.search(r"[À-ỹ]", normalized_query):
-            return f"{normalized_query} thú y"
-        else:
-            return f"{normalized_query} pet veterinary"
-
-    return normalized_query
+    """Trả về query nguyên gốc — không thêm context, để LLM tự xử lý."""
+    return query.strip()
 
 
 def _deduplicate_scored_results(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -422,42 +278,58 @@ async def pet_knowledge_search(
             - search_source: str - "knowledge_base"
     """
     try:
-        from app.core.rag.rag_engine import get_rag_engine
-        from app.core.rag.query_expander import get_query_expander
+        from app.core.rag.hybrid_engine import get_hybrid_rag_engine
 
-        rag = get_rag_engine()
+        hybrid = get_hybrid_rag_engine()
 
-        # Expand short queries for better RAG recall
-        expander = get_query_expander()
-        search_query = await expander.expand_query(query, pet_type=pet_type)
-        query_expanded = search_query != query
-
-        # Query knowledge base with (possibly expanded) query
-        results = await rag.query(
-            query=search_query,
+        # Hybrid query (RAG + KG + Case Memory)
+        # NOTE: hybrid.query() đã gọi QueryExpander bên trong,
+        #       KHÔNG expand ở đây để tránh duplicate expansion.
+        hybrid_result = await hybrid.query(
+            query=query,
             top_k=top_k,
             min_score=min_score,
+            pet_type=pet_type,
+            enable_rag=True,
+            enable_kg=True,
+            enable_case_memory=True,
         )
+        query_expanded = hybrid_result.expanded_query != hybrid_result.original_query
 
-        # Format raw results for LLM consumption
-        formatted_results = [
-            {
-                "content": _clean_rag_text(r.content),
-                "score": r.score,
-                "source": r.document_name,
-                "chunk_index": r.chunk_index,
-            }
-            for r in results
-        ]
+        # Map HybridChunk -> tool schema (backward-compatible)
+        formatted_results = []
+        for c in (hybrid_result.chunks or []):
+            meta = c.metadata or {}
+            if c.source == "rag":
+                source_label = meta.get("document_name") or "Knowledge Base"
+                chunk_index = meta.get("chunk_index")
+            elif c.source == "kg":
+                source_label = "Knowledge Graph"
+                chunk_index = None
+            elif c.source == "case_memory":
+                source_label = "Case Memory"
+                chunk_index = None
+            else:
+                source_label = str(c.source or "knowledge_base")
+                chunk_index = None
+
+            formatted_results.append(
+                {
+                    "content": _clean_rag_text(c.content),
+                    "score": c.score,
+                    "source": source_label,
+                    "chunk_index": chunk_index,
+                }
+            )
 
         logger.info(
-            f"pet_knowledge_search: Found {len(results)} results "
+            f"pet_knowledge_search: Found {len(formatted_results)} results "
             f"(expanded={query_expanded}) for query: {query[:50]}..."
         )
 
         return {
             "query": query,
-            "expanded_query": search_query if query_expanded else None,
+            "expanded_query": hybrid_result.expanded_query if query_expanded else None,
             "pet_type": pet_type,
             "results": formatted_results,
             "sources_used": len(formatted_results),
@@ -512,8 +384,11 @@ async def web_search(
         }
 
     try:
-        results = await asyncio.to_thread(
-            _perform_duckduckgo_search, query, effective_max_results
+        results = await asyncio.wait_for(
+            asyncio.to_thread(
+                _perform_duckduckgo_search, query, effective_max_results
+            ),
+            timeout=15.0,
         )
 
         logger.info(
@@ -525,6 +400,15 @@ async def web_search(
             "results": results,
             "sources_used": len(results),
             "search_source": "web_search",
+        }
+    except asyncio.TimeoutError:
+        logger.warning("web_search: DuckDuckGo timed out after 15s")
+        return {
+            "query": query,
+            "results": [],
+            "sources_used": 0,
+            "search_source": "web_search",
+            "error": "Tìm kiếm web bị timeout sau 15 giây",
         }
     except Exception as e:
         logger.error(f"Lỗi trong web_search: {e}")

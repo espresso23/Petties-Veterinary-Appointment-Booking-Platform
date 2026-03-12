@@ -571,11 +571,29 @@ export const feedbackApi = {
 
 // ===== KNOWLEDGE GRAPH API =====
 
-export interface KGVisualizeResponse {
-    nodes: Array<{ id: string; label: string; type: string }>
-    edges: Array<{ id: string; source: string; target: string; label: string }>
-    stats: { node_count: number; edge_count: number }
-    error?: string
+export interface KGVisualizeResponse extends KGStatsResponse {
+  nodes: { id: string; label: string; type: string }[]
+  edges: { id: string; source: string; target: string; label: string }[]
+}
+
+export interface KGQueryRequest {
+  query: string
+  top_k?: number
+}
+
+export interface KGQueryResultItem {
+  subject: string
+  predicate: string
+  object: string
+  score?: number
+  source_nodes?: string[]
+}
+
+export interface KGQueryResponse {
+  success: boolean
+  query: string
+  results: KGQueryResultItem[]
+  message?: string
 }
 
 export const kgApi = {
@@ -604,7 +622,20 @@ export const kgApi = {
 
     async visualize(): Promise<KGVisualizeResponse> {
         const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/kg-visualize`)
-        if (!response.ok) throw new Error('Không thể lấy dữ liệu visualize')
+        if (!response.ok) throw new Error('Không thể lấy dữ liệu visualization KG')
+        return response.json()
+    },
+
+    async queryKG(data: KGQueryRequest): Promise<KGQueryResponse> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/kg-query`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        if (!response.ok) {
+            const err = await response.json().catch(() => null)
+            throw new Error(err?.detail || 'Không thể truy vấn Knowledge Graph')
+        }
         return response.json()
     }
 }

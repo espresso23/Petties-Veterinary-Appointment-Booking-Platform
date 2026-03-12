@@ -14,22 +14,31 @@ from app.core.agents.response_formatter import format_tool_observation
 from app.core.tools.mcp_tools.medical_tools import pet_knowledge_search, web_search
 
 
-class FakeRagResult:
+class FakeHybridChunk:
     def __init__(
-        self, content: str, score: float, document_name: str, chunk_index: int = 0
+        self, content: str, score: float, source: str = "rag",
+        metadata: dict = None,
     ):
         self.content = content
         self.score = score
-        self.document_name = document_name
-        self.chunk_index = chunk_index
+        self.source = source
+        self.metadata = metadata or {}
 
 
-class FakeRagEngine:
-    def __init__(self, results):
-        self.results = results
+class FakeHybridResult:
+    def __init__(self, chunks, expanded_query="", original_query=""):
+        self.chunks = chunks
+        self.expanded_query = expanded_query
+        self.original_query = original_query
+        self.sources_used = {"rag": len(chunks)}
+
+
+class FakeHybridEngine:
+    def __init__(self, result: FakeHybridResult):
+        self._result = result
 
     async def query(self, **kwargs):
-        return self.results
+        return self._result
 
 
 def test_web_search_rejects_non_pet_query():
@@ -77,17 +86,22 @@ def test_web_search_formats_pet_results():
 
 def test_pet_knowledge_search_returns_raw_results():
     """pet_knowledge_search trả về raw data từ KB, không có classification."""
-    fake_results = [
-        FakeRagResult(
-            content="Nên tắm thú cưng 1-2 lần mỗi tuần và dùng sữa tắm chuyên dụng.",
-            score=0.85,
-            document_name="petcare-guide.pdf",
-        )
-    ]
+    fake_hybrid_result = FakeHybridResult(
+        chunks=[
+            FakeHybridChunk(
+                content="Nên tắm thú cưng 1-2 lần mỗi tuần và dùng sữa tắm chuyên dụng.",
+                score=0.85,
+                source="rag",
+                metadata={"document_name": "petcare-guide.pdf", "chunk_index": 0},
+            )
+        ],
+        expanded_query="cách tắm rửa thú cưng đúng cách",
+        original_query="cách tắm rửa thú cưng đúng cách",
+    )
 
     with patch(
-        "app.core.rag.rag_engine.get_rag_engine",
-        return_value=FakeRagEngine(fake_results),
+        "app.core.rag.hybrid_engine.get_hybrid_rag_engine",
+        return_value=FakeHybridEngine(fake_hybrid_result),
     ):
         result = asyncio.run(
             pet_knowledge_search(
@@ -111,9 +125,15 @@ def test_pet_knowledge_search_returns_raw_results():
 
 def test_pet_knowledge_search_returns_empty_when_no_match():
     """Khi KB không có kết quả, trả về empty results."""
+    fake_hybrid_result = FakeHybridResult(
+        chunks=[],
+        expanded_query="rụng lông nhẹ ở mèo",
+        original_query="rụng lông nhẹ ở mèo",
+    )
+
     with patch(
-        "app.core.rag.rag_engine.get_rag_engine",
-        return_value=FakeRagEngine([]),
+        "app.core.rag.hybrid_engine.get_hybrid_rag_engine",
+        return_value=FakeHybridEngine(fake_hybrid_result),
     ):
         result = asyncio.run(
             pet_knowledge_search("rụng lông nhẹ ở mèo", pet_type="cat", top_k=3)
@@ -129,17 +149,22 @@ def test_pet_knowledge_search_returns_empty_when_no_match():
 
 def test_pet_knowledge_search_symptom_query_returns_raw_data():
     """Symptom queries also return raw data — no tool-side analysis."""
-    fake_results = [
-        FakeRagResult(
-            content="Bệnh parvo gây tiêu chảy ra máu, nôn và có thể rất nguy hiểm, cần cấp cứu ngay lập tức.",
-            score=0.91,
-            document_name="parvo-guide.pdf",
-        )
-    ]
+    fake_hybrid_result = FakeHybridResult(
+        chunks=[
+            FakeHybridChunk(
+                content="Bệnh parvo gây tiêu chảy ra máu, nôn và có thể rất nguy hiểm, cần cấp cứu ngay lập tức.",
+                score=0.91,
+                source="rag",
+                metadata={"document_name": "parvo-guide.pdf", "chunk_index": 0},
+            )
+        ],
+        expanded_query="chó bị tiêu chảy và nôn",
+        original_query="chó bị tiêu chảy và nôn",
+    )
 
     with patch(
-        "app.core.rag.rag_engine.get_rag_engine",
-        return_value=FakeRagEngine(fake_results),
+        "app.core.rag.hybrid_engine.get_hybrid_rag_engine",
+        return_value=FakeHybridEngine(fake_hybrid_result),
     ):
         result = asyncio.run(
             pet_knowledge_search("chó bị tiêu chảy và nôn", pet_type="dog", top_k=3)
@@ -519,25 +544,15 @@ def test_perform_duckduckgo_search_relaxed_fallback_works():
     assert "thú y" in results[0]["title"].lower()
 
 
-def test_build_search_query_does_not_over_expand():
-    """Query đã có context pet thì không thêm extras."""
+def test_build_search_query_returns_original():
+    """Query được trả về nguyên gốc — không thêm context, để LLM tự xử lý."""
     from app.core.tools.mcp_tools.medical_tools import _build_search_query
 
-    # Vietnamese query đã có "chó" → không thêm gì
-    result = _build_search_query("chó bị tiêu chảy nên ăn gì")
-    assert result == "chó bị tiêu chảy nên ăn gì"
-
-    # Vietnamese query không có pet term → thêm "thú y"
-    result2 = _build_search_query("tiêu chảy nên ăn gì")
-    assert "thú y" in result2
-
-    # English query đã có "dog" → không thêm gì
-    result3 = _build_search_query("dog diarrhea what to feed")
-    assert result3 == "dog diarrhea what to feed"
-
-    # English query không có pet term → thêm "pet veterinary"
-    result4 = _build_search_query("diarrhea treatment")
-    assert "pet veterinary" in result4
+    # Query có pet term hay không đều trả về nguyên gốc
+    assert _build_search_query("chó bị tiêu chảy nên ăn gì") == "chó bị tiêu chảy nên ăn gì"
+    assert _build_search_query("tiêu chảy nên ăn gì") == "tiêu chảy nên ăn gì"
+    assert _build_search_query("dog diarrhea what to feed") == "dog diarrhea what to feed"
+    assert _build_search_query("diarrhea treatment") == "diarrhea treatment"
 
 
 def test_extract_query_keywords_bilingual():
@@ -549,40 +564,42 @@ def test_extract_query_keywords_bilingual():
     assert "tiêu" in vn_keywords
     assert "chảy" in vn_keywords
     assert "ăn" in vn_keywords
-    # Stop words phải bị loại
-    assert "nên" not in vn_keywords
+    # Vì bỏ STOP_WORDS, tất cả tokens >= 2 ký tự đều được giữ
+    assert "nên" in vn_keywords
+    assert "chó" in vn_keywords
 
     # English
     en_keywords = _extract_query_keywords("dog diarrhea what to feed")
     assert "dog" in en_keywords
     assert "diarrhea" in en_keywords
     assert "feed" in en_keywords
-    # Stop words phải bị loại
-    assert "what" not in en_keywords
-    assert "to" not in en_keywords
+    # "what" giờ cũng được giữ (>= 2 ký tự)
+    assert "what" in en_keywords
+    # "to" vẫn bị loại vì chỉ có 2 ký tự nhưng đủ điều kiện len >= 2
+    assert "to" in en_keywords
 
 
-def test_score_web_result_language_agnostic():
-    """Scoring phải hoạt động cho cả tiếng Việt và tiếng Anh."""
+def test_score_web_result_domain_based():
+    """Scoring dựa trên domain penalty — không dùng keyword matching."""
     from app.core.tools.mcp_tools.medical_tools import _score_web_result
 
-    # Vietnamese - kết quả phù hợp phải có score > 0
-    score_vn = _score_web_result(
+    # Nguồn bình thường: base score = 5
+    score_normal = _score_web_result(
         "chó bị tiêu chảy nên ăn gì",
         "Chó bị tiêu chảy nên ăn gì? Hướng dẫn chế độ ăn",
         "Cho chó ăn thức ăn mềm, dễ tiêu khi bị tiêu chảy.",
         "https://example.com/dog-care",
     )
-    assert score_vn >= 4
+    assert score_normal == 5  # Base score, no penalty
 
-    # English - kết quả phù hợp phải có score > 0
+    # English cũng base score = 5
     score_en = _score_web_result(
         "dog diarrhea what to feed",
         "What to Feed a Dog with Diarrhea",
         "Feed bland diet like boiled chicken and rice for dogs with diarrhea.",
         "https://example.com/dog-diet",
     )
-    assert score_en >= 4
+    assert score_en == 5
 
     # Wikipedia phải bị penalty
     score_wiki = _score_web_result(
@@ -592,3 +609,5 @@ def test_score_web_result_language_agnostic():
         "https://en.wikipedia.org/wiki/Dog",
     )
     assert score_wiki < score_en
+    assert score_wiki <= 2  # Base 5 - penalty 3 = 2
+

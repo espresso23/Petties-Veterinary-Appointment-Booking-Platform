@@ -9,6 +9,7 @@ import type {
   KGStatsResponse,
   KGBuildResponse,
   KGVisualizeResponse,
+  KGQueryResultItem,
   CaseMemoryStatsResponse,
   CaseMemoryPruneResponse
 } from '../../../services/agentService'
@@ -30,6 +31,7 @@ import {
   TableCellsIcon,
   XMarkIcon,
   ArrowsPointingOutIcon,
+  MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline'
 import { useToast } from '../../../components/Toast'
 import { GraphVisualizer } from '../../../components/admin/GraphVisualizer'
@@ -78,9 +80,30 @@ export const AIInsightsPage = () => {
   const [showDetailSection, setShowDetailSection] = useState(false)
 
   // --- Delete Feedback ---
+  // --- Delete Feedback ---
   const [deletingFeedbackId, setDeletingFeedbackId] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [deleteLoading, setDeleteLoading] = useState(false)
+
+  // Knowledge Graph Query
+  const [kgSearchQuery, setKgSearchQuery] = useState('')
+  const [kgSearchResults, setKgSearchResults] = useState<KGQueryResultItem[]>([])
+  const [kgSearching, setKgSearching] = useState(false)
+
+  const handleQueryKG = async () => {
+    if (!kgSearchQuery.trim()) return
+    setKgSearching(true)
+    try {
+      const res = await kgApi.queryKG({ query: kgSearchQuery })
+      setKgSearchResults(res.results)
+      if (res.results.length === 0) {
+        showToast('info', 'Không tìm thấy thông tin liên quan trong Knowledge Graph')
+      }
+    } catch (error: any) {
+      showToast('error', error.message || 'Lỗi khi truy vấn Knowledge Graph')
+    } finally {
+      setKgSearching(false)
+    }
+  }
 
   // --- Load Feedback Stats ---
   const loadFeedbackStats = useCallback(async () => {
@@ -602,40 +625,40 @@ export const AIInsightsPage = () => {
 
               {/* Build KG Card */}
               <div className="lg:col-span-3 bg-white border-2 border-stone-900 rounded-xl shadow-[4px_4px_0_#1c1917] p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
+                <div className="flex items-center justify-between gap-4 mb-4">
+                  <div className="min-w-0 flex-1">
                     <h3 className="text-sm font-black uppercase text-stone-700">Xây dựng Knowledge Graph</h3>
                     <p className="text-xs text-stone-500 mt-1">
                       Trích xuất bộ ba (subject-predicate-object) từ tất cả tài liệu đã xử lý
                     </p>
                   </div>
-                  <button
-                    onClick={handleBuildKG}
-                    disabled={kgBuilding}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-black uppercase bg-purple-600 text-white border-2 border-stone-900 rounded-lg shadow-[3px_3px_0_#1c1917] hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {kgBuilding ? (
-                      <>
-                        <ArrowPathIcon className="w-4 h-4 animate-spin" />
-                        Đang xây dựng...
-                      </>
-                    ) : (
-                      <>
-                        <CubeTransparentIcon className="w-4 h-4" />
-                        Xây dựng KG
-                      </>
-                    )}
-                  </button>
-
-                  {/* Visualize Button */}
-                  <button
-                    onClick={handleShowKgGraph}
-                    disabled={!kgStats?.triplet_count}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-black uppercase bg-teal-600 text-white border-2 border-stone-900 rounded-lg shadow-[3px_3px_0_#1c1917] hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <ArrowsPointingOutIcon className="w-4 h-4" />
-                    {showKgGraph ? 'Ẩn Graph' : 'Xem Graph'}
-                  </button>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={handleBuildKG}
+                      disabled={kgBuilding}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-black uppercase bg-purple-600 text-white border-2 border-stone-900 rounded-lg shadow-[3px_3px_0_#1c1917] hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {kgBuilding ? (
+                        <>
+                          <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                          Đang xây dựng...
+                        </>
+                      ) : (
+                        <>
+                          <CubeTransparentIcon className="w-4 h-4" />
+                          Xây dựng KG
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={handleShowKgGraph}
+                      disabled={!kgStats?.triplet_count}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-black uppercase bg-teal-600 text-white border-2 border-stone-900 rounded-lg shadow-[3px_3px_0_#1c1917] hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ArrowsPointingOutIcon className="w-4 h-4" />
+                      {showKgGraph ? 'Ẩn Graph' : 'Xem Graph'}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Graph Visualization */}
@@ -671,6 +694,68 @@ export const AIInsightsPage = () => {
                     </div>
                   </div>
                 )}
+
+                {/* KG Query Section */}
+                <div className="mt-8 pt-8 border-t-2 border-stone-100">
+                  <div className="flex items-center gap-2 mb-4">
+                    <MagnifyingGlassIcon className="w-5 h-5 text-purple-600" />
+                    <h4 className="text-sm font-black uppercase text-stone-700">Test Truy vấn Knowledge Graph</h4>
+                  </div>
+                  
+                  <div className="flex gap-3 mb-6">
+                    <div className="flex-1 relative">
+                      <input
+                        type="text"
+                        value={kgSearchQuery}
+                        onChange={(e) => setKgSearchQuery(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleQueryKG()}
+                        placeholder="Nhập câu hỏi hoặc từ khóa thú y (vídụ: Triệu chứng bệnh dại)..."
+                        className="w-full px-4 py-2 bg-stone-50 border-2 border-stone-900 rounded-lg shadow-[2px_2px_0_#1c1917] focus:outline-none focus:ring-2 focus:ring-purple-500 placeholder:text-stone-400"
+                      />
+                    </div>
+                    <button
+                      onClick={handleQueryKG}
+                      disabled={kgSearching || !kgSearchQuery.trim()}
+                      className="px-6 py-2 bg-stone-900 text-white font-black uppercase rounded-lg shadow-[3px_3px_0_#d97706] hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px] transition-all disabled:opacity-50"
+                    >
+                      {kgSearching ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : 'Truy vấn'}
+                    </button>
+                  </div>
+
+                  {kgSearchResults.length > 0 && (
+                    <div className="space-y-4">
+                      <div className="overflow-x-auto border-2 border-stone-900 rounded-xl overflow-hidden shadow-[4px_4px_0_#1c1917]">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-stone-50 border-b-2 border-stone-900">
+                              <th className="px-4 py-3 text-left font-black uppercase text-xs text-stone-600">Thông tin liên quan tìm được</th>
+                              <th className="px-4 py-3 text-right font-black uppercase text-xs text-stone-600 w-24">Độ khớp</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y border-stone-200">
+                            {kgSearchResults.map((res, i) => (
+                              <tr key={i} className="hover:bg-purple-50 transition-colors">
+                                <td className="px-4 py-3">
+                                  <div className="font-medium text-stone-900 mb-1">{res.object}</div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {res.source_nodes?.map((node, ni) => (
+                                      <span key={ni} className="px-2 py-0.5 bg-stone-100 text-stone-600 rounded text-[10px] font-bold border border-stone-200">
+                                        {node}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-right font-mono font-bold text-purple-600">
+                                  {(res.score || 1).toFixed(2)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {/* Sample triplets */}
                 {kgStats?.sample_triplets && kgStats.sample_triplets.length > 0 && (

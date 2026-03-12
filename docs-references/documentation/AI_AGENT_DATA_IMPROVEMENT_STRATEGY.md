@@ -663,7 +663,8 @@ On later, similar images, the system would have to start reasoning from scratch 
 For every diagnosis made from an image, the system:
 1. Uses the Vision LLM to generate a **textual description** of the visual features (`visual_description`) plus suspected diagnosis and key symptoms.
 2. Combines this with explicit feedback (who confirmed it, how many times, role weight).
-3. Embeds the text description into Qdrant (collection `petties_case_memory`) using Cohere embeddings (Phase 1 – **text-only**, no direct image pixel embeddings).
+3. Embeds the text description into Qdrant using Cohere embeddings (`text` vector).  
+4. Nếu có image (URL hoặc base64 từ upload/paste) và đã cấu hình `JINA_API_KEY`, hệ thống tạo thêm image embedding (Jina CLIP v2) và lưu vào named vector `image` để hỗ trợ hybrid retrieval (text + image). Hỗ trợ cả URL (https://) và base64 (upload từ device hoặc paste trực tiếp).
 4. On a later, similar image, searches for similar cases and surfaces the best-matching confirmed case(s), leading to more accurate and explainable answers.
 
 ### 9.3 Detailed Flow
@@ -727,7 +728,7 @@ sequenceDiagram
 }
 ```
 
-### 9.5 Future Extension: Image Embeddings (CLIP-style)
+### 9.5 Image Embeddings (CLIP-style)
 
 In later phases, the system can be extended to:
 
@@ -738,7 +739,7 @@ In later phases, the system can be extended to:
    - In parallel, search with image embeddings (image collection).
    - Merge and re-rank results based on similarity and feedback weights.
 
-**Status:** CLIP/image embeddings are a **Phase 2** direction only, not implemented in the current codebase and subject to separate decisions about cost, model choice, and security before rollout.
+**Status:** Đã triển khai theo dạng **optional runtime** (bật khi có `JINA_API_KEY`). Nếu chưa cấu hình key hoặc provider lỗi, hệ thống tự fallback về text-only Case Memory.
 
 ### 9.6 Feedback-weighted Retrieval
 

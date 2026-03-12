@@ -124,6 +124,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"⚠️ MongoDB cleanup error: {e}")
 
+    # Cleanup LLM client
+    try:
+        from app.services.llm_client import close_llm_client
+
+        await close_llm_client()
+    except Exception as e:
+        logger.warning(f"⚠️ LLM client cleanup error: {e}")
+
     logger.info("✅ Application shutdown complete")
 
 

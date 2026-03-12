@@ -124,9 +124,9 @@
 | US-AUTH-02 | Đăng nhập Username/Password | ✅ |
 | US-CLN-02 | Duyệt phòng khám (Approve/Reject) | ✅ |
 | US-CLN-03 | Quản lý Master Services | ✅ |
-| US-AI-01 | Cấu hình RAG Knowledge Base | ✅ |
-| US-NTF-02 | Nhận Real-time Notification (SSE) | ✅ |
-| US-NTF-03 | Xem Notification Center | ✅ |
+| US-AD-11 | AI Feedback Audit & Visual Learning | ✅ |
+| US-AD-12 | Knowledge Graph Management | ✅ |
+| US-AD-13 | Knowledge Graph Query Testing | ✅ |
 
 ---
 
@@ -138,7 +138,7 @@
 | **Staff** | 10 | 6 | 0 | 4 |
 | **Clinic Manager** | 13 | 11 | 0 | 2 |
 | **Clinic Owner** | 7 | 7 | 0 | 0 |
-| **Admin** | 6 | 6 | 0 | 0 |
+| **Admin** | 9 | 9 | 0 | 0 |
 
 ---
 
@@ -312,6 +312,8 @@
 - `US-AI-04` AI-assisted booking via conversation
 - `US-AI-05` Web search for pet products (DuckDuckGo)
 - `US-AI-06` AI Vision Pet Health Analysis (Images)
+- `US-AI-11` AI Feedback Audit & Visual Learning
+- `US-AI-12` Knowledge Graph Management & Visualization
 
 **Dependencies:** EPIC-DISCOVERY (for AI booking), external AI services
 
@@ -415,8 +417,12 @@
 | **S6** | 06/01 - 12/01/2026 | DISCOVERY, AI | Nearby search, Clinic detail, AI Chat | ✅ Done |
 | **S7** | 13/01 - 19/01/2026 | DISCOVERY, APPOINTMENT | Clinic filters, Booking wizard | ✅ Done |
 | **S8** | 20/01 - 26/01/2026 | APPOINTMENT, MEDICAL | Check-in/out, EMR SOAP, Vaccination | ✅ Done |
-| **S9** | 27/01 - 02/02/2026 | SOS, PAYMENT | SOS booking, GPS tracking, Payments | 🔄 Current |
-| **S10+** | 03/02 - 23/02/2026 | AI (Advanced) | AI booking, Review system, Bug fixes | 💡 Planned |
+| **S9** | 27/01 - 02/02/2026 | SOS, PAYMENT | SOS booking, GPS tracking, Payments | ✅ Done |
+| **S10** | 03/02 - 09/02/2026 | AI (Advanced) | AI booking, AI Recommend, Web Search | ✅ Done |
+| **S11** | 10/02 - 16/02/2026 | PT_REVIEW | Review system, UI polishing (Neobrutalism) | ✅ Done |
+| **S12** | 17/02 - 01/03/2026 | TESTING | Integration Testing, System Testing | ✅ Done |
+| **S13** | 02/03 - 11/03/2026 | AI_DATA_IMPR | Feedback Audit, Knowledge Graph Query | ✅ Done |
+| **S14** | 12/03 - 15/03/2026 | RELEASE | Final Audit, Walkthrough, Production Release | 🔄 Current |
 
 ---
 

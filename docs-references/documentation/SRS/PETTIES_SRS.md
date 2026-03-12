@@ -345,6 +345,9 @@ graph TB
 | 107 | Staff Diagnostic Support | UC-STAFF-11 | 3.11.6 | ❌ | ❌ | 📋 Documented |
 | 98 | Real-time Chat WebSocket | UC-PO-20 | - | ✅ ChatWebSocketController | ✅ Mobile/Web | ✅ Done |
 | 99 | Chat Images Gallery | UC-PO-23 | - | ✅ ChatController | ✅ Mobile | ✅ Done |
+| 123 | AI Feedback Audit | UC-AD-11 | 3.11.7 | ✅ Agent Service | ✅ Web | ✅ Done |
+| 124 | Knowledge Graph Visualizer | UC-AD-12 | 3.11.8 | ✅ Agent Service | ✅ Web | ✅ Done |
+| 125 | KG Query Testing | UC-AD-13 | 3.11.8 | ✅ Agent Service | ✅ Web | ✅ Done |
 
 #### Rating & Reporting
 
@@ -563,6 +566,8 @@ Bảng tham chiếu giữa Use Cases trong SRS và các Module Implementation tr
 | UC-AI-07 | Manage Knowledge Base | Knowledge Base | 3.11.5 |
 | UC-AI-08 | Test Agent Playground | Agent Testing | 3.11.6 |
 | UC-STAFF-11 | AI Staff Diagnostic Support | AI Agent Service | 3.11.6 |
+| UC-AI-11 | AI Feedback Audit | AI Agent Service | 3.11.7 |
+| UC-AI-12 | Knowledge Graph Management | AI Agent Service | 3.11.8 |
 | UC-CO-14 | AI Generate Clinic Services | AI Agent Service | 3.13.1 |
 
 #### Notification Management Mapping
@@ -3879,6 +3884,52 @@ Figure 47. Pet Selection Dialog (Mobile)
     - A2. Hình ảnh không rõ -> yêu cầu chụp lại hoặc bỏ qua ảnh để tiếp tục bằng văn bản.
     - A3. Staff không có quyền truy cập hồ sơ -> từ chối truy cập và trả lỗi phân quyền.
     - E1. Tool tra cứu lỗi -> trả thông báo an toàn và khuyến nghị xem xét lâm sàng trực tiếp.
+
+ #### *3.11.7 AI Feedback Audit & Visual Case Memory (UC-AD-11)*
+**User Story:**
+> *As a Platform Admin, I want to audit AI feedback and manage case memory so that I can ensure the AI learns from high-quality data and remove incorrect information.*
+
+**Function trigger**
+- **Navigation path:** Admin Dashboard → AI Insights → Feedback Audit.
+- **Timing frequency:** Thường xuyên để kiểm soát chất lượng AI.
+
+**Function description**
+- **Actors/Roles:** Admin.
+- **Purpose:** Quản lý danh sách phản hồi từ người dùng (Thumbs up/down) và kiểm soát quá trình "học" của AI qua Case Memory.
+- **Interface:**
+    - **Feedback List:** Bảng danh sách feedback kèm message content, tool đã dùng, và phân loại tự động (Medical/Booking/Ops).
+    - **Delete Feedback:** Cho phép xóa feedback không chính xác.
+    - **Cascade Case Removal:** Khi xóa feedback tích cực đã được embed, hệ thống tự động xóa case tương ứng trong Qdrant Case Memory.
+    - **Visual Extraction:** Tự động lấy ảnh từ User Message gần nhất trong session nếu Assistant Message được feedback không chứa ảnh.
+
+**Data processing**
+1. Admin truy cập trang AI Insights.
+2. Hệ thống tải danh sách feedback từ MongoDB.
+3. Khi Admin xóa một feedback:
+    - Nếu feedback là THUMBS_UP và đã được embed -> Gọi CaseMemoryService để xóa vector trong Qdrant.
+    - Xóa record feedback trong MongoDB.
+
+ #### *3.11.8 Knowledge Graph Visualizer & Query Testing (UC-AD-12 / UC-AD-13)*
+**User Story:**
+> *As a Platform Admin, I want to visualize the Knowledge Graph and test its query capabilities so that I can verify the structured knowledge extracted from documents.*
+
+**Function trigger**
+- **Navigation path:** Admin Dashboard → AI Insights → Knowledge Graph.
+- **Timing frequency:** Sau khi build KG từ tài liệu mới hoặc khi cần kiểm tra logic tri thức.
+
+**Function description**
+- **Actors/Roles:** Admin.
+- **Purpose:** Hiển thị trực quan mối quan hệ Thực thể - Quan hệ và cung cấp công cụ truy vấn thử nghiệm KG engine.
+- **Interface:**
+    - **D3.js Graph:** Đồ thị động hiển thị các nodes (Subject/Object) và links (Predicate).
+    - **Graph Stats:** Hiển thị tổng số Nodes và Edges hiện có.
+    - **KG Query Tool:** Ô nhập câu hỏi và bảng kết quả hiển thị các Triplets liên quan nhất kèm Score và Nguồn dẫn.
+
+**Normal case:**
+1. Admin chọn tính năng Knowledge Graph build.
+2. Sau khi build xong, hệ thống hiển thị đồ thị 2D trực quan.
+3. Admin nhập "mèo bị nấm" vào ô truy vấn KG.
+4. Hệ thống trả về các triplet: `(Mèo, có triệu chứng, Ngứa)`, `(Nấm da, điều trị, Thuốc nội khoa)`...
 
 ### 3.12 Governance & Reporting Flow
 

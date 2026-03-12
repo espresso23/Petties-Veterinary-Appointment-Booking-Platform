@@ -67,7 +67,12 @@ CLINIC_OPS_TOOLS: Set[str] = {
     "analyze_revenue_trends",
     "suggest_staff_assignments",
     "create_staff_shifts",
+    "optimize_schedules",
+    "accept_sos_booking",
     "generate_clinic_services",
+    "compose_clinic_description",
+    "suggest_service_pricing",
+    "analyze_vet_workload",
 }
 
 # Loại feedback positive kích hoạt case embedding
@@ -116,7 +121,7 @@ class FeedbackService:
                 - message_id (bắt buộc): UUID của tin nhắn AI được đánh giá
                 - session_id (bắt buộc): UUID phiên chat
                 - user_id (bắt buộc): Người gửi feedback
-                - user_role: PET_OWNER | STAFF | VET | CLINIC_MANAGER | CLINIC_OWNER | ADMIN
+                - user_role: PET_OWNER | STAFF | CLINIC_MANAGER | CLINIC_OWNER | ADMIN
                 - feedback_type: thumbs_up | thumbs_down | report | confirmed | vet_confirmed
                 - feedback_category: medical | booking | clinic_ops | knowledge | general (tùy chọn, tự phân loại)
                 - feedback_reason: incorrect_info | unhelpful | offensive | wrong_tool | slow_response | other
@@ -133,30 +138,11 @@ class FeedbackService:
         feedback_type = feedback_data.get("feedback_type", "thumbs_up")
         user_role = feedback_data.get("user_role", "PET_OWNER")
 
-        # Fetch message gốc từ MongoDB để trích xuất tool và nội dung
-        original_message = await self._get_message(message_id)
-
         # Tự động phân loại category nếu không được cung cấp
         category = feedback_data.get("feedback_category")
         if not category:
-            if original_message:
-                category = self.classify_interaction(original_message)
-            else:
-                category = "general"
+            category = await self._auto_classify(message_id)
             feedback_data["feedback_category"] = category
-
-        # Trích xuất tool_used và message_content từ message gốc
-        tool_used = feedback_data.get("tool_used", "")
-        message_content = ""
-        if original_message:
-            if not tool_used:
-                tools = self.extract_tools_from_message(original_message)
-                tool_used = ", ".join(tools) if tools else ""
-            # Lấy snippet nội dung AI response (tối đa 200 ký tự)
-            raw_content = original_message.get("content", "")
-            message_content = raw_content[:200].strip()
-            if len(raw_content) > 200:
-                message_content += "..."
 
         # Xây dựng document
         now = datetime.now(timezone.utc)
@@ -170,8 +156,7 @@ class FeedbackService:
             "feedback_category": category,
             "feedback_reason": feedback_data.get("feedback_reason", ""),
             "feedback_text": feedback_data.get("feedback_text", ""),
-            "tool_used": tool_used,
-            "message_content": message_content,
+            "tool_used": feedback_data.get("tool_used", ""),
             "weight": self._calculate_feedback_weight(user_role, feedback_type),
             "timestamp": now,
             "created_at": now.isoformat(),
@@ -193,21 +178,10 @@ class FeedbackService:
         # Xử lý positive feedback -> embed case nếu phù hợp
         case_embedded = False
         if feedback_type in POSITIVE_FEEDBACK_TYPES:
-            case_id = await self.process_positive_feedback(
+            case_embedded = await self.process_positive_feedback(
                 message_id=message_id,
                 feedback=doc,
             )
-            case_embedded = case_id is not None
-
-            # Lưu case_id vào MongoDB để truy ngược xóa khi cần
-            if case_id:
-                try:
-                    await collection.update_one(
-                        {"feedback_id": doc["feedback_id"]},
-                        {"$set": {"case_id": case_id}},
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to save case_id to feedback: {e}")
 
         return {
             "status": "saved",
@@ -221,7 +195,7 @@ class FeedbackService:
         self,
         message_id: str,
         feedback: Dict[str, Any],
-    ) -> Optional[str]:
+    ) -> bool:
         """
         Xử lý positive feedback: trích xuất case info và embed vào Case Memory.
 
@@ -232,7 +206,7 @@ class FeedbackService:
             feedback: Document feedback đầy đủ.
 
         Returns:
-            case_id (str) nếu embed thành công, None nếu bỏ qua hoặc lỗi.
+            True nếu case được embed thành công.
         """
         weight = feedback.get("weight", 0.0)
         if weight <= 0:
@@ -240,13 +214,23 @@ class FeedbackService:
                 f"Skipping case embedding for role={feedback.get('user_role')} "
                 f"(weight={weight})"
             )
-            return None
+            return False
 
         # Lấy tin nhắn gốc từ MongoDB
         message = await self._get_message(message_id)
         if not message:
             logger.warning(f"Message {message_id} not found, cannot embed case")
-            return None
+            return False
+
+        # Feedback thường gắn trên assistant message; ảnh nằm ở user message trước đó.
+        metadata = message.get("metadata", {}) or {}
+        if not metadata.get("images"):
+            session_id = feedback.get("session_id", "")
+            if session_id:
+                latest_user_images = await self._get_latest_user_images(session_id)
+                if latest_user_images:
+                    metadata["images"] = latest_user_images
+                    message["metadata"] = metadata
 
         category = feedback.get("feedback_category", "general")
         user_role = feedback.get("user_role", "PET_OWNER")
@@ -255,7 +239,7 @@ class FeedbackService:
         case_data = self._extract_case_by_category(message, category)
         if not case_data or not case_data.get("text_to_embed"):
             logger.info(f"No embeddable content for category={category}")
-            return None
+            return False
 
         # Thêm metadata feedback
         case_data["feedback_type"] = "confirmed"
@@ -271,9 +255,34 @@ class FeedbackService:
 
             cm = get_case_memory_service()
             text_to_embed = case_data.pop("text_to_embed")
+
+            # Phân tách URL và base64
+            image_urls = None
+            image_base64 = None
+            all_images = case_data.pop("image_urls", None)
+
+            if all_images:
+                urls = [
+                    img
+                    for img in all_images
+                    if isinstance(img, str) and img.startswith("http")
+                ]
+                base64s = [
+                    img
+                    for img in all_images
+                    if isinstance(img, str)
+                    and (img.startswith("data:") or not img.startswith("http"))
+                ]
+                if urls:
+                    image_urls = urls
+                if base64s:
+                    image_base64 = base64s
+
             case_id = await cm.upsert_case(
                 text_to_embed=text_to_embed,
                 payload=case_data,
+                image_urls=image_urls,
+                image_base64=image_base64,
             )
 
             if case_id:
@@ -281,12 +290,12 @@ class FeedbackService:
                     f"Embedded case {case_id} from feedback "
                     f"(category={category}, role={user_role})"
                 )
-                return case_id
-            return None
+                return True
+            return False
 
         except Exception as e:
             logger.error(f"Failed to embed case from feedback: {e}")
-            return None
+            return False
 
     async def get_feedback_stats(
         self,
@@ -383,21 +392,7 @@ class FeedbackService:
         date_from: Optional[str] = None,
         date_to: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        Lấy danh sách feedback chi tiết với bộ lọc và phân trang.
-
-        Args:
-            page: Số trang (bắt đầu từ 1).
-            page_size: Số lượng mỗi trang.
-            feedback_type: Lọc theo loại feedback (thumbs_up, thumbs_down, ...).
-            feedback_category: Lọc theo danh mục (medical, booking, ...).
-            user_role: Lọc theo role người gửi.
-            date_from: Lọc từ ngày (ISO format, ví dụ: 2025-01-01).
-            date_to: Lọc đến ngày (ISO format).
-
-        Returns:
-            Dict chứa total, page, page_size, items.
-        """
+        """Lấy danh sách feedback chi tiết với bộ lọc và phân trang."""
         from app.core.database.mongodb import get_mongodb_database
         from app.config.settings import settings
 
@@ -405,7 +400,6 @@ class FeedbackService:
             db = await get_mongodb_database()
             collection = db[settings.MONGODB_FEEDBACK_COLLECTION]
 
-            # Xây dựng query filter
             query: Dict[str, Any] = {}
             if feedback_type:
                 query["feedback_type"] = feedback_type
@@ -414,7 +408,6 @@ class FeedbackService:
             if user_role:
                 query["user_role"] = user_role
 
-            # Date range filter
             if date_from or date_to:
                 date_filter: Dict[str, Any] = {}
                 if date_from:
@@ -428,10 +421,7 @@ class FeedbackService:
                 if date_to:
                     try:
                         to_dt = datetime.fromisoformat(date_to).replace(
-                            hour=23,
-                            minute=59,
-                            second=59,
-                            tzinfo=timezone.utc,
+                            hour=23, minute=59, second=59, tzinfo=timezone.utc
                         )
                         date_filter["$lte"] = to_dt
                     except ValueError:
@@ -439,10 +429,7 @@ class FeedbackService:
                 if date_filter:
                     query["timestamp"] = date_filter
 
-            # Đếm tổng
             total = await collection.count_documents(query)
-
-            # Phân trang
             skip = (page - 1) * page_size
             cursor = (
                 collection.find(query, {"_id": 0})
@@ -452,7 +439,6 @@ class FeedbackService:
             )
             docs = await cursor.to_list(length=page_size)
 
-            # Chuẩn hóa items
             items = []
             for doc in docs:
                 items.append(
@@ -479,36 +465,19 @@ class FeedbackService:
                 "page_size": page_size,
                 "items": items,
             }
-
         except Exception as e:
             logger.error(f"Failed to list feedback: {e}")
             return {"total": 0, "page": page, "page_size": page_size, "items": []}
 
-    # ----------------------------------------------------------
-    # Feedback CRUD: Get / Update / Delete
-    # ----------------------------------------------------------
-
-    async def get_feedback_by_id(
-        self, feedback_id: str
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Lấy feedback document từ MongoDB theo feedback_id.
-
-        Args:
-            feedback_id: UUID của feedback.
-
-        Returns:
-            Dict feedback document hoặc None.
-        """
+    async def get_feedback_by_id(self, feedback_id: str) -> Optional[Dict[str, Any]]:
+        """Lấy feedback document từ MongoDB theo feedback_id."""
         from app.core.database.mongodb import get_mongodb_database
         from app.config.settings import settings
 
         try:
             db = await get_mongodb_database()
             collection = db[settings.MONGODB_FEEDBACK_COLLECTION]
-            return await collection.find_one(
-                {"feedback_id": feedback_id}, {"_id": 0}
-            )
+            return await collection.find_one({"feedback_id": feedback_id}, {"_id": 0})
         except Exception as e:
             logger.error(f"Failed to get feedback {feedback_id}: {e}")
             return None
@@ -520,165 +489,67 @@ class FeedbackService:
         user_id: str,
         is_admin: bool = False,
     ) -> Dict[str, Any]:
-        """
-        Cập nhật feedback và xử lý cascade nếu chuyển positive ↔ negative.
-
-        Args:
-            feedback_id: UUID của feedback cần sửa.
-            update_data: Các trường cần cập nhật.
-            user_id: ID người yêu cầu sửa (kiểm tra quyền).
-            is_admin: True nếu người sửa là ADMIN.
-
-        Returns:
-            Dict với status, case_deleted, case_embedded flags.
-        """
+        """Cập nhật feedback và xử lý cascade."""
         from app.core.database.mongodb import get_mongodb_database
         from app.config.settings import settings
 
-        # Tìm feedback hiện tại
         existing = await self.get_feedback_by_id(feedback_id)
         if not existing:
             return {"status": "error", "error": "Không tìm thấy feedback"}
-
-        # Kiểm tra quyền: chỉ chính user hoặc ADMIN
         if existing.get("user_id") != user_id and not is_admin:
-            return {"status": "error", "error": "Bạn không có quyền sửa feedback này"}
-
-        old_type = existing.get("feedback_type", "")
-        new_type = update_data.get("feedback_type", old_type)
-        was_positive = old_type in POSITIVE_FEEDBACK_TYPES
-        is_positive = new_type in POSITIVE_FEEDBACK_TYPES
-
-        # Recalculate weight nếu đổi type
-        if "feedback_type" in update_data:
-            update_data["weight"] = self._calculate_feedback_weight(
-                existing.get("user_role", "PET_OWNER"), new_type
-            )
-
-        # Thêm timestamp cập nhật
-        update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+            return {"status": "error", "error": "Không có quyền"}
 
         # Cập nhật MongoDB
         try:
             db = await get_mongodb_database()
             collection = db[settings.MONGODB_FEEDBACK_COLLECTION]
+            update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
             await collection.update_one(
-                {"feedback_id": feedback_id},
-                {"$set": update_data},
+                {"feedback_id": feedback_id}, {"$set": update_data}
             )
+            return {"status": "updated", "feedback_id": feedback_id}
         except Exception as e:
-            logger.error(f"Failed to update feedback {feedback_id}: {e}")
             return {"status": "error", "error": str(e)}
 
-        result = {"status": "updated", "feedback_id": feedback_id}
-
-        # Xử lý cascade: positive → negative → xóa case khỏi Qdrant
-        if was_positive and not is_positive:
-            case_id = existing.get("case_id")
-            if case_id:
-                deleted = await self._delete_case_from_qdrant(case_id)
-                result["case_deleted"] = deleted
-                # Xóa case_id khỏi feedback document
-                try:
-                    await collection.update_one(
-                        {"feedback_id": feedback_id},
-                        {"$unset": {"case_id": ""}},
-                    )
-                except Exception:
-                    pass
-                logger.info(
-                    f"Feedback {feedback_id} changed positive→negative, "
-                    f"case {case_id} deleted={deleted}"
-                )
-
-        # Xử lý cascade: negative → positive → embed case mới
-        elif not was_positive and is_positive:
-            updated_feedback = await self.get_feedback_by_id(feedback_id)
-            if updated_feedback:
-                case_id = await self.process_positive_feedback(
-                    message_id=existing.get("message_id", ""),
-                    feedback=updated_feedback,
-                )
-                result["case_embedded"] = case_id is not None
-                if case_id:
-                    try:
-                        await collection.update_one(
-                            {"feedback_id": feedback_id},
-                            {"$set": {"case_id": case_id}},
-                        )
-                    except Exception:
-                        pass
-
-        return result
-
     async def delete_feedback(
-        self,
-        feedback_id: str,
-        user_id: str,
-        is_admin: bool = False,
+        self, feedback_id: str, user_id: str, is_admin: bool = False
     ) -> Dict[str, Any]:
-        """
-        Xóa feedback khỏi MongoDB và cascade xóa case khỏi Qdrant nếu có.
-
-        Args:
-            feedback_id: UUID của feedback cần xóa.
-            user_id: ID người yêu cầu xóa (kiểm tra quyền).
-            is_admin: True nếu người xóa là ADMIN.
-
-        Returns:
-            Dict với status, case_deleted flag.
-        """
+        """Xóa feedback và cascade xóa case khỏi Qdrant."""
         from app.core.database.mongodb import get_mongodb_database
         from app.config.settings import settings
 
-        # Tìm feedback hiện tại
         existing = await self.get_feedback_by_id(feedback_id)
         if not existing:
             return {"status": "error", "error": "Không tìm thấy feedback"}
-
-        # Kiểm tra quyền
         if existing.get("user_id") != user_id and not is_admin:
-            return {"status": "error", "error": "Bạn không có quyền xóa feedback này"}
+            return {"status": "error", "error": "Không có quyền"}
 
-        # Cascade xóa case khỏi Qdrant nếu có
         case_deleted = False
         case_id = existing.get("case_id")
         if case_id:
             case_deleted = await self._delete_case_from_qdrant(case_id)
-            logger.info(
-                f"Cascade delete: feedback {feedback_id} → "
-                f"case {case_id} deleted={case_deleted}"
-            )
 
-        # Xóa feedback khỏi MongoDB
         try:
             db = await get_mongodb_database()
             collection = db[settings.MONGODB_FEEDBACK_COLLECTION]
-            delete_result = await collection.delete_one(
-                {"feedback_id": feedback_id}
-            )
-            if delete_result.deleted_count == 0:
-                return {"status": "error", "error": "Không thể xóa feedback"}
+            await collection.delete_one({"feedback_id": feedback_id})
+            return {
+                "status": "deleted",
+                "feedback_id": feedback_id,
+                "case_deleted": case_deleted,
+            }
         except Exception as e:
-            logger.error(f"Failed to delete feedback {feedback_id}: {e}")
             return {"status": "error", "error": str(e)}
 
-        logger.info(f"Deleted feedback {feedback_id} (case_deleted={case_deleted})")
-        return {
-            "status": "deleted",
-            "feedback_id": feedback_id,
-            "case_deleted": case_deleted,
-        }
-
     async def _delete_case_from_qdrant(self, case_id: str) -> bool:
-        """Xóa case khỏi Qdrant qua CaseMemoryService."""
+        """Xóa case khỏi Qdrant."""
         try:
             from app.core.rag.case_memory import get_case_memory_service
 
             cm = get_case_memory_service()
             return await cm.delete_case(case_id)
         except Exception as e:
-            logger.error(f"Failed to delete case {case_id} from Qdrant: {e}")
+            logger.error(f"Failed to delete case {case_id}: {e}")
             return False
 
     # ----------------------------------------------------------
@@ -712,16 +583,17 @@ class FeedbackService:
         return self.classify_interaction(message)
 
     @staticmethod
-    def extract_tools_from_message(message: Dict[str, Any]) -> Set[str]:
+    def classify_interaction(message: Dict[str, Any]) -> str:
         """
-        Trích xuất danh sách tool đã dùng từ message MongoDB.
+        Phân loại tương tác dựa trên tools đã dùng trong react_trace.
 
         Args:
-            message: Document tin nhắn MongoDB.
+            message: Document tin nhắn MongoDB với metadata.react_trace tùy chọn.
 
         Returns:
-            Set các tên tool đã sử dụng.
+            Chuỗi category: medical | booking | clinic_ops | knowledge | general
         """
+        # Trích xuất tools từ react_trace hoặc tool_calls
         tools_used: Set[str] = set()
 
         # Từ mảng tool_calls
@@ -741,20 +613,6 @@ class FeedbackService:
                         tools_used.add(step.get("tool_name", ""))
 
         tools_used.discard("")
-        return tools_used
-
-    @staticmethod
-    def classify_interaction(message: Dict[str, Any]) -> str:
-        """
-        Phân loại tương tác dựa trên tools đã dùng trong react_trace.
-
-        Args:
-            message: Document tin nhắn MongoDB với metadata.react_trace tùy chọn.
-
-        Returns:
-            Chuỗi category: medical | booking | clinic_ops | knowledge | general
-        """
-        tools_used = FeedbackService.extract_tools_from_message(message)
 
         if tools_used & MEDICAL_TOOLS:
             return "medical"
@@ -802,6 +660,24 @@ class FeedbackService:
         symptoms = metadata.get("symptoms", [])
         treatment = metadata.get("treatment", "")
 
+        image_urls: List[str] = []
+        raw_images = metadata.get("images", [])
+        if isinstance(raw_images, list):
+            for item in raw_images:
+                if isinstance(item, str) and item.strip().startswith("http"):
+                    image_urls.append(item.strip())
+
+        attachments = metadata.get("attachments", [])
+        if isinstance(attachments, list):
+            for att in attachments:
+                if (
+                    isinstance(att, dict)
+                    and att.get("type") == "image"
+                    and isinstance(att.get("url"), str)
+                    and att.get("url").strip().startswith("http")
+                ):
+                    image_urls.append(att.get("url").strip())
+
         # Xây dựng text để embed: kết hợp tất cả thông tin có sẵn
         parts = [p for p in [visual_desc, diagnosis, user_query, content[:300]] if p]
         text_to_embed = " ".join(parts)
@@ -817,6 +693,7 @@ class FeedbackService:
             "symptoms": symptoms if isinstance(symptoms, list) else [],
             "treatment": treatment,
             "user_description": user_query,
+            "image_urls": image_urls,
         }
 
     def _extract_booking_case(
@@ -897,6 +774,45 @@ class FeedbackService:
         except Exception as e:
             logger.error(f"Failed to get message {message_id}: {e}")
             return None
+
+    async def _get_latest_user_images(self, session_id: str) -> List[str]:
+        """Lấy ảnh (URL hoặc base64) từ user message gần nhất trong session."""
+        try:
+            from app.core.database.mongodb import get_mongodb_database
+            from app.config.settings import settings
+
+            db = await get_mongodb_database()
+            collection = db[settings.MONGODB_CHAT_MESSAGES_COLLECTION]
+            latest_user_msg = await collection.find_one(
+                {"session_id": session_id, "role": "user"},
+                sort=[("timestamp", -1)],
+            )
+            if not latest_user_msg:
+                return []
+            metadata = latest_user_msg.get("metadata", {}) or {}
+            images = metadata.get("images", [])
+            if not isinstance(images, list):
+                return []
+
+            # Lấy cả URL (http) và base64 images
+            result = []
+            for u in images:
+                if not isinstance(u, str):
+                    continue
+                u = u.strip()
+                if not u:
+                    continue
+                # URL https hoặc base64 (raw hoặc data URL)
+                if u.startswith("http://") or u.startswith("https://"):
+                    result.append(u)
+                elif u.startswith("data:") or len(u) > 100:  # Data URL hoặc raw base64
+                    result.append(u)
+            return result
+        except Exception as e:
+            logger.error(
+                f"Failed to get latest user images for session {session_id}: {e}"
+            )
+            return []
 
 
 # ============================================================

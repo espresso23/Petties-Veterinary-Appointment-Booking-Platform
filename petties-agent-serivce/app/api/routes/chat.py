@@ -197,7 +197,7 @@ async def create_session(
     session_data = {
         "session_id": session_id,
         "agent_id": request.agent_id,
-        "title": request.title or f"Chat {datetime.now().strftime('%H:%M')}",
+        "title": request.title or f"Chat {now.strftime('%H:%M')}",
         "context_type": context_type,
         "created_at": now,
         "updated_at": now,
@@ -246,7 +246,7 @@ async def list_sessions(
     )
 
     return SessionListResponse(
-        total=len(sessions), sessions=[_map_session(s) for s in sessions[:limit]]
+        total=len(sessions), sessions=[_map_session(s) for s in sessions]
     )
 
 

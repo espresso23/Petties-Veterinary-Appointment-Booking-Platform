@@ -125,7 +125,8 @@
     - Xem ReAct Flow (Thought → Action → Observation)
     - Xem Tool Calls và Results
     - Citation View (RAG sources)
-    - Feedback system (Good/Bad responses)
+    - Feedback system: Audit, Delete & Visual Learning from confirm cases ✅
+    - **Knowledge Graph Visualizer & Direct Query Testing** ✅
 
 
 14. **System & Security Configuration**
@@ -417,10 +418,12 @@
 
 ---
 
-**Version: 1.8.0 - PETTIES MVP SCOPE (AI ACCURACY IMPROVEMENT COMPLETE)**
-**Status: ✅ READY FOR DEV**
-**Total Features: 113 Use Cases (Full Coverage)**
-**Last Updated: March 11, 2026**
+| Unit Tests | ✅ 75/75 passed |
+
+---
+**Version: 1.9.0 - PETTIES MVP SCOPE (AI AUDIT & KG MANAGEMENT COMPLETE)**
+**Status: ✅ READY FOR PRODUCTION RELEASE**
+**Last Updated: March 12, 2026**
 
 ---
 

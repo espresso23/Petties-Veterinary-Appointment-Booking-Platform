@@ -5,20 +5,13 @@ Mở rộng query ngắn gọn thành câu hỏi đầy đủ hơn trước khi 
 Package: app.core.rag
 Purpose: Cải thiện RAG recall bằng cách mở rộng query ngắn với từ đồng nghĩa,
          thuật ngữ y khoa, và ngữ cảnh loài thú cưng thông qua LLM rewrite.
-Version: v1.0.0
-
-Flow:
-    User: "chó nôn bỏ ăn"
-    -> QueryExpander._is_short_query() -> True (3 words < 5)
-    -> QueryExpander._build_expansion_prompt()
-    -> LLM rewrite -> "chó nôn mửa ói chán ăn biếng ăn viêm dạ dày parvo"
-    -> Return: "chó nôn bỏ ăn chó nôn mửa ói chán ăn biếng ăn viêm dạ dày parvo"
+Version: v1.0.1
 """
 
+import asyncio
 from typing import Optional
 
 from loguru import logger
-
 
 # ============================================================
 # CONSTANTS
@@ -36,7 +29,7 @@ EXPANSION_TEMPERATURE = 0.3
 EXPANSION_SYSTEM_PROMPT = (
     "Bạn là chuyên gia thú y Việt Nam. Nhiệm vụ của bạn là mở rộng "
     "query tìm kiếm thành câu hỏi đầy đủ hơn để cải thiện kết quả "
-    "tra cứu tài liệu thú y. Chỉ trả về query đã mở rộng, không giải thích."
+    "tra cứu tài liệu thú y. Chỉ trả về query đã mở rộng, không giải giải thích."
 )
 
 EXPANSION_PROMPT_TEMPLATE = """Mở rộng query tìm kiếm thú y sau thành đầy đủ hơn.
@@ -62,11 +55,6 @@ class QueryExpander:
         - Query < MIN_WORD_THRESHOLD từ -> mở rộng qua LLM
         - Query >= ngưỡng -> trả về nguyên gốc (đã đủ cụ thể)
         - Khi LLM thất bại -> fallback về query gốc
-
-    Cách dùng:
-        expander = QueryExpander()
-        expanded = await expander.expand_query("chó nôn bỏ ăn", pet_type="chó")
-        # -> "chó nôn bỏ ăn chó nôn mửa ói chán ăn biếng ăn viêm dạ dày ngộ độc parvo"
     """
 
     def __init__(
@@ -78,6 +66,8 @@ class QueryExpander:
         self._min_word_threshold = min_word_threshold
         self._max_tokens = max_tokens
         self._temperature = temperature
+        self._llm_client = None
+        self._lock = asyncio.Lock()
 
     # ----------------------------------------------------------
     # Public API
@@ -115,9 +105,11 @@ class QueryExpander:
         try:
             expanded = await self._call_llm(query, pet_type)
             # Prepend original query to ensure original terms are always present
-            result = f"{query} {expanded}".strip()
-            logger.info(f"Expanded query: '{result[:120]}...'")
-            return result
+            if expanded:
+                result = f"{query} {expanded}".strip()
+                logger.info(f"Expanded query: '{result[:120]}...'")
+                return result
+            return query
         except Exception as e:
             logger.warning(f"Query expansion failed, using original: {e}")
             return query
@@ -138,27 +130,34 @@ class QueryExpander:
             pet_type=pet_type or "không rõ",
         )
 
-    async def _call_llm(self, query: str, pet_type: Optional[str]) -> str:
-        """Gọi LLM để mở rộng query. Dùng lazy import để tránh circular deps."""
-        # Lazy import to match existing pattern in medical_tools.py
-        from app.services.llm_client import create_llm_client
+    async def _get_client(self):
+        """Lazy init of LLM client."""
+        if self._llm_client is not None:
+            return self._llm_client
+            
+        async with self._lock:
+            if self._llm_client is not None:
+                return self._llm_client
+            
+            from app.services.llm_client import create_llm_client
+            self._llm_client = create_llm_client()
+            return self._llm_client
 
-        client = create_llm_client()
-        try:
-            prompt = self._build_expansion_prompt(query, pet_type)
-            response = await client.generate(
-                prompt=prompt,
-                system_prompt=EXPANSION_SYSTEM_PROMPT,
-                temperature=self._temperature,
-                max_tokens=self._max_tokens,
-            )
-            expanded = response.content.strip()
-            # Safety: if LLM returns empty or just repeats the original, skip
-            if not expanded or expanded.lower() == query.lower():
-                return ""
-            return expanded
-        finally:
-            await client.close()
+    async def _call_llm(self, query: str, pet_type: Optional[str]) -> str:
+        """Calls LLM for query expansion."""
+        client = await self._get_client()
+        prompt = self._build_expansion_prompt(query, pet_type)
+        response = await client.generate(
+            prompt=prompt,
+            system_prompt=EXPANSION_SYSTEM_PROMPT,
+            temperature=self._temperature,
+            max_tokens=self._max_tokens,
+        )
+        expanded = response.content.strip()
+        # Safety: if LLM returns empty or just repeats the original, skip
+        if not expanded or expanded.lower() == query.lower():
+            return ""
+        return expanded
 
 
 # ============================================================

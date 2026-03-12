@@ -120,7 +120,7 @@ export const GraphVisualizer = ({ data, height = 500 }: GraphVisualizerProps) =>
         .attr('rx', 4)
         .attr('opacity', 0.9)
 
-      const linkLabelText = linkLabelGroup.append('text')
+      linkLabelGroup.append('text')
         .text((d) => d.label)
         .attr('font-size', 10)
         .attr('fill', '#7c3aed')
@@ -249,7 +249,7 @@ export const GraphVisualizer = ({ data, height = 500 }: GraphVisualizerProps) =>
           Đối tượng (Object)
         </span>
         <span className="ml-auto text-stone-500">
-          {data.stats?.node_count || 0} nodes • {data.stats?.edge_count || 0} edges
+          {data.nodes?.length || 0} nodes • {data.edges?.length || 0} edges
         </span>
       </div>
     </div>

@@ -155,7 +155,7 @@ class OpenRouterClient(BaseLLMClient):
         Args:
             prompt: User prompt
             system_prompt: System prompt (optional)
-            images: Optional list of base64 images for multimodal input
+            images: Optional list ảnh (URL https, data URL, hoặc base64 raw)
             **kwargs: temperature, max_tokens, top_p
 
         Returns:
@@ -173,13 +173,21 @@ class OpenRouterClient(BaseLLMClient):
             # Multimodal content: text + image_url parts
             user_content = [{"type": "text", "text": prompt}]
             for img_data in images:
-                # Support both raw base64 and data URL format
+                if not isinstance(img_data, str):
+                    continue
+                img_data = img_data.strip()
+                # 1) data URL
                 if img_data.startswith("data:"):
                     user_content.append(
                         {"type": "image_url", "image_url": {"url": img_data}}
                     )
+                # 2) URL trực tiếp (Cloudinary/S3/HTTPS)
+                elif img_data.startswith("http://") or img_data.startswith("https://"):
+                    user_content.append(
+                        {"type": "image_url", "image_url": {"url": img_data}}
+                    )
                 else:
-                    # Assume raw base64, add prefix
+                    # 3) raw base64 -> thêm data URL prefix
                     user_content.append(
                         {
                             "type": "image_url",
@@ -226,7 +234,7 @@ class OpenRouterClient(BaseLLMClient):
             if kwargs.get("model") != self.fallback_model:
                 logger.info(f"Trying fallback model: {self.fallback_model}")
                 return await self.generate(
-                    prompt, system_prompt, model=self.fallback_model, **kwargs
+                    prompt, system_prompt, images=images, model=self.fallback_model, **kwargs
                 )
             raise
 
@@ -252,7 +260,24 @@ class OpenRouterClient(BaseLLMClient):
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
+        
+        # Multimodal content support for streaming
+        images = kwargs.get("images")
+        if images:
+            user_content = [{"type": "text", "text": prompt}]
+            for img_data in images:
+                if not isinstance(img_data, str):
+                    continue
+                img_data = img_data.strip()
+                if img_data.startswith("data:"):
+                    user_content.append({"type": "image_url", "image_url": {"url": img_data}})
+                elif img_data.startswith("http://") or img_data.startswith("https://"):
+                    user_content.append({"type": "image_url", "image_url": {"url": img_data}})
+                else:
+                    user_content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_data}"}})
+            messages.append({"role": "user", "content": user_content})
+        else:
+            messages.append({"role": "user", "content": prompt})
 
         payload = {
             "model": kwargs.get("model", self.model),
@@ -738,4 +763,17 @@ __all__ = [
     "create_llm_client_from_db",
     "get_llm_client",
     "reset_llm_client",
+    "close_llm_client",
 ]
+
+async def close_llm_client():
+    """Cleanup LLM client resources during shutdown"""
+    global _client_instance
+    if _client_instance:
+        logger.info("Cleaning up LLM client resources...")
+        try:
+            await _client_instance.close()
+            _client_instance = None
+            logger.info("LLM client resources cleaned up")
+        except Exception as e:
+            logger.error(f"Error during LLM client cleanup: {e}")

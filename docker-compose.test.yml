@@ -93,8 +93,7 @@ services:
       MONGODB_URL: ${MONGODB_URL_TEST:-${MONGODB_URL:-}}
       MONGODB_DATABASE: ${MONGODB_DATABASE_TEST:-petties_nosql_test}
       # Qdrant Cloud (can share with prod or use separate collection)
-      QDRANT_URL: ${QDRANT_URL}
-      QDRANT_API_KEY: ${QDRANT_API_KEY}
+      # Qdrant Cloud (Managed via DB system_settings)
       QDRANT_COLLECTION_NAME: petties_knowledge_base_test
       # JWT Secret (Synced with Backend)
       JWT_SECRET: ${JWT_SECRET}
@@ -103,11 +102,6 @@ services:
       SPRING_BACKEND_URL: http://backend-test:8080/api
       # AI Architecture: Cloud-Only (OpenRouter + Cohere)
       LLM_PROVIDER: openrouter
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
-      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-google/gemini-2.0-flash-exp:free}
-      # Embeddings
-      COHERE_API_KEY: ${COHERE_API_KEY}
-      COHERE_EMBEDDING_MODEL: ${COHERE_EMBEDDING_MODEL:-embed-multilingual-v3.0}
       # CORS - Test domain only
       CORS_ORIGINS: https://test.petties.world
       # Cloudinary (Image Upload)

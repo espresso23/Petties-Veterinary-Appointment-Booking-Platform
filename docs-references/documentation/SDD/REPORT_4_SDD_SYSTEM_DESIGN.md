@@ -7846,7 +7846,7 @@ classDiagram
         -graph_store: SimpleGraphStore
         -llm_client: OpenRouterClient
         +build_from_documents(documents: List) int
-        +query_graph(query: str) KGQueryResult
+        +query_graph(query: str, top_k: int) KGQueryResult
         +extract_triplets(text: str) List~Triplet~
         +get_graph_stats() dict
     }
@@ -7888,6 +7888,7 @@ classDiagram
         +symptoms: List~str~
         +treatment: str
         +tool_used: str
+        +image_urls: List~str~
         +feedback_type: str = "confirmed"
         +feedback_count: int
         +confidence_score: float
@@ -7916,9 +7917,14 @@ classDiagram
         -case_memory: CaseMemoryService
         -collection_name: str = "chat_feedback"
         +save_feedback(feedback: FeedbackRequest) FeedbackResponse
-        +process_positive_feedback(message_id: str, feedback: dict) void
+        +process_positive_feedback(message_id: str, feedback: dict, image_urls: List) bool
+        +list_feedback(filters: dict, page: int, limit: int) List~dict~
+        +update_feedback(feedback_id: str, update_data: dict) bool
+        +delete_feedback(feedback_id: str) bool
         +classify_interaction(message: ChatMessage) FeedbackCategory
         +get_feedback_stats(role: str, period: str) dict
+        -_auto_classify(message: ChatMessage, tool_used: str) FeedbackCategory
+        -_get_latest_user_images(session_id: str) List~str~
         -_extract_case_by_category(message: ChatMessage, category: FeedbackCategory) ConfirmedCase
         -_calculate_feedback_weight(user_role: str) float
     }
@@ -8066,10 +8072,15 @@ classDiagram
 
 | Method | Description |
 |--------|-------------|
-| `save_feedback(feedback)` | Luu feedback vao MongoDB `chat_feedback`. Neu positive -> goi process_positive_feedback. |
-| `process_positive_feedback(message_id, feedback)` | Extract case theo category (medical/booking/clinic_ops/general) -> embed vao Case Memory. |
-| `classify_interaction(message)` | Auto-classify dua tren tools da goi trong react_trace. MEDICAL_TOOLS, BOOKING_TOOLS, CLINIC_OPS_TOOLS. |
-| `get_feedback_stats(role, period)` | Thong ke feedback theo role va thoi gian: thumbs_up/down ratio, top reasons, tool performance. |
+| `save_feedback(feedback)` | Luu feedback vao MongoDB. Tu dong goi `_auto_classify` va `process_positive_feedback` neu la positive. |
+| `process_positive_feedback(message_id, feedback, image_urls)` | Trích xuất case theo category. Nếu Assistant message thiếu ảnh, gọi `_get_latest_user_images` để lấy ảnh từ User message trước đó. Trả về trạng thái thành công. |
+| `list_feedback(filters, page, limit)` | Lấy danh sách feedback kèm phân trang và lọc theo role, category, type cho Admin. |
+| `update_feedback(feedback_id, update_data)` | Cập nhật nội dung feedback và đồng bộ trạng thái Case Memory (Embed/Delete) nếu loại feedback thay đổi. |
+| `delete_feedback(feedback_id)` | Xóa feedback và tự động xóa Case liên quan trong Qdrant nếu feedback đó từng được học. |
+| `classify_interaction(message)` | Phân loại tương tác dựa trên tool call history trong trace. |
+| `_auto_classify(message, tool_used)` | Logic tự động gán category: MEDICAL_TOOLS, BOOKING_TOOLS, CLINIC_OPS_TOOLS. |
+| `_get_latest_user_images(session_id)` | Truy vấn MongoDB tìm User Message gần nhất trong session để lấy ảnh lâm sàng. |
+| `get_feedback_stats(role, period)` | Thống kê hiệu suất AI và tỷ lệ hài lòng theo vai trò. |
 | `_calculate_feedback_weight(user_role)` | STAFF=1.0, CLINIC_MANAGER/OWNER=0.7, PET_OWNER=0.6, ADMIN=0.0 |
 
 **5. HybridRAGEngine**

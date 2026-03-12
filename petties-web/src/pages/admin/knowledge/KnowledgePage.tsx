@@ -13,7 +13,8 @@ import {
   ServerIcon,
   EyeIcon,
   EyeSlashIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  PhotoIcon
 } from '@heroicons/react/24/outline'
 import { useToast } from '../../../components/Toast'
 import { useAuthStore } from '../../../store/authStore'
@@ -53,6 +54,11 @@ export const KnowledgePage = () => {
   const [savingQdrant, setSavingQdrant] = useState(false)
   const [testingCohere, setTestingCohere] = useState(false)
   const [testingQdrant, setTestingQdrant] = useState(false)
+  // Jina Image Embeddings (Case Memory)
+  const [jinaApiKey, setJinaApiKey] = useState('')
+  const [showJinaKey, setShowJinaKey] = useState(false)
+  const [savingJina, setSavingJina] = useState(false)
+  const [testingJina, setTestingJina] = useState(false)
 
   const getAuthHeaders = (): Record<string, string> => {
     const token = useAuthStore.getState().accessToken
@@ -71,10 +77,12 @@ export const KnowledgePage = () => {
         const cohere = settings.find(s => s.key === 'COHERE_API_KEY')
         const qdrantUrlSetting = settings.find(s => s.key === 'QDRANT_URL')
         const qdrantKeySetting = settings.find(s => s.key === 'QDRANT_API_KEY')
+        const jina = settings.find(s => s.key === 'JINA_API_KEY')
 
         if (cohere?.value) setCohereApiKey(cohere.value)
         if (qdrantUrlSetting?.value) setQdrantUrl(qdrantUrlSetting.value)
         if (qdrantKeySetting?.value) setQdrantApiKey(qdrantKeySetting.value)
+        if (jina?.value) setJinaApiKey(jina.value)
       } else {
         console.error('Failed to fetch settings:', response.status)
       }
@@ -183,6 +191,38 @@ export const KnowledgePage = () => {
     }
   }
 
+  const handleSaveJina = async () => {
+    try {
+      setSavingJina(true)
+      await saveSetting('JINA_API_KEY', jinaApiKey)
+      showToast('success', 'Đã lưu Jina API key thành công!')
+    } catch {
+      showToast('error', 'Không thể lưu Jina API key')
+    } finally {
+      setSavingJina(false)
+    }
+  }
+
+  const handleTestJina = async () => {
+    try {
+      setTestingJina(true)
+      const response = await fetch(`${AI_API_BASE_URL}/api/v1/settings/test-jina`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      })
+      const result = await response.json()
+      if (result.status === 'success') {
+        showToast('success', 'Kết nối Jina thành công!')
+      } else {
+        showToast('error', result.message || 'Kết nối Jina thất bại')
+      }
+    } catch {
+      showToast('error', 'Không thể kiểm tra kết nối Jina')
+    } finally {
+      setTestingJina(false)
+    }
+  }
+
   const handleUpload = async (file: File, notes?: string) => {
     try {
       await knowledgeApi.uploadDocument(file, notes)
@@ -258,7 +298,7 @@ export const KnowledgePage = () => {
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
 
         {/* RAG Configuration Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Cohere Embeddings Config */}
           <div className="bg-white border-4 border-black shadow-[8px_8px_0_#1c1917] p-6">
             <div className="flex items-center gap-3 mb-4">
@@ -313,6 +353,65 @@ export const KnowledgePage = () => {
                   className="flex-1 px-4 py-2 bg-purple-500 text-white border-4 border-black font-black uppercase text-sm hover:bg-purple-600 disabled:opacity-50 shadow-[4px_4px_0_#1c1917] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all cursor-pointer"
                 >
                   {savingCohere ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Jina Image Embeddings (Case Memory) */}
+          <div className="bg-white border-4 border-black shadow-[8px_8px_0_#1c1917] p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-teal-100 border-2 border-black">
+                <PhotoIcon className="w-6 h-6 text-teal-700" />
+              </div>
+              <div>
+                <h2 className="text-lg font-black uppercase">IMAGE EMBEDDINGS (JINA)</h2>
+                <p className="text-xs text-stone-600 uppercase">jina-clip-v2 · Case Memory</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-black uppercase text-stone-700 mb-2">API KEY</label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type={showJinaKey ? 'text' : 'password'}
+                      value={jinaApiKey}
+                      onChange={(e) => setJinaApiKey(e.target.value)}
+                      placeholder="Nhập Jina API key"
+                      className="w-full px-4 py-3 border-4 border-black font-mono text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-teal-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowJinaKey(!showJinaKey)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-500 hover:text-stone-700 cursor-pointer"
+                    >
+                      {showJinaKey ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handleTestJina}
+                  disabled={testingJina || !jinaApiKey}
+                  className="flex-1 px-4 py-2 bg-teal-100 border-4 border-black font-black uppercase text-sm text-stone-900 hover:bg-teal-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                >
+                  {testingJina ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                      Đang kiểm tra...
+                    </span>
+                  ) : 'Test kết nối Jina'}
+                </button>
+                <button
+                  onClick={handleSaveJina}
+                  disabled={savingJina}
+                  className="flex-1 px-4 py-2 bg-teal-500 text-white border-4 border-black font-black uppercase text-sm hover:bg-teal-600 disabled:opacity-50 shadow-[4px_4px_0_#1c1917] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all cursor-pointer"
+                >
+                  {savingJina ? 'Đang lưu...' : 'Lưu Jina'}
                 </button>
               </div>
             </div>
