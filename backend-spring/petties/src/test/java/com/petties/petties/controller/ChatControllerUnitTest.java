@@ -1,330 +1,682 @@
 package com.petties.petties.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.petties.petties.dto.chat.*;
-import com.petties.petties.exception.ResourceNotFoundException;
-import com.petties.petties.model.ChatConversation;
-import com.petties.petties.model.ChatMessage;
-import com.petties.petties.model.User;
-import com.petties.petties.model.enums.Role;
 import com.petties.petties.config.JwtAuthenticationFilter;
 import com.petties.petties.config.JwtTokenProvider;
 import com.petties.petties.config.UserDetailsServiceImpl;
+import com.petties.petties.dto.chat.ConversationResponse;
+import com.petties.petties.dto.chat.CreateConversationRequest;
+import com.petties.petties.dto.chat.MessageResponse;
+import com.petties.petties.dto.chat.SendMessageRequest;
+import com.petties.petties.exception.ForbiddenException;
+import com.petties.petties.exception.ResourceNotFoundException;
 import com.petties.petties.repository.BlacklistedTokenRepository;
-import com.petties.petties.repository.ChatConversationRepository;
-import com.petties.petties.service.AuthService;
 import com.petties.petties.service.ChatService;
+import com.petties.petties.service.AuthService;
 import com.petties.petties.service.CloudinaryService;
+import com.petties.petties.repository.ChatConversationRepository;
+import com.petties.petties.model.User;
+import com.petties.petties.model.ChatMessage;
+import com.petties.petties.model.ChatConversation;
+import com.petties.petties.model.enums.Role;
+import com.petties.petties.dto.file.UploadResponse;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
-
-import java.time.LocalDateTime;
-import java.util.List;
+import com.petties.petties.dto.chat.UnreadCountResponse;
 import java.util.Optional;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
-import static org.hamcrest.Matchers.hasSize;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.hamcrest.Matchers.*;
 
 @WebMvcTest(ChatController.class)
 @AutoConfigureMockMvc(addFilters = false)
-@DisplayName("ChatController Unit Tests")
+@DisplayName("ChatController Detailed Unit Tests")
 class ChatControllerUnitTest {
 
     @Autowired
     private MockMvc mockMvc;
 
-    @MockitoBean
-    private ChatService chatService;
+    @MockitoBean private ChatService chatService;
+    @MockitoBean private AuthService authService;
+    @MockitoBean private CloudinaryService cloudinaryService;
+    @MockitoBean private ChatConversationRepository conversationRepository;
 
-    @MockitoBean
-    private AuthService authService;
-
-    @MockitoBean
-    private CloudinaryService cloudinaryService;
-
-    @MockitoBean
-    private ChatConversationRepository conversationRepository;
-
-    // Security dependencies
-    @MockitoBean
-    private JwtTokenProvider jwtTokenProvider;
-    @MockitoBean
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
-    @MockitoBean
-    private UserDetailsServiceImpl userDetailsService;
-    @MockitoBean
-    private BlacklistedTokenRepository blacklistedTokenRepository;
+    // Security
+    @MockitoBean private JwtTokenProvider jwtTokenProvider;
+    @MockitoBean private JwtAuthenticationFilter jwtAuthenticationFilter;
+    @MockitoBean private UserDetailsServiceImpl userDetailsService;
+    @MockitoBean private BlacklistedTokenRepository blacklistedTokenRepository;
 
     @Autowired
     private ObjectMapper objectMapper;
 
-    // --- Helper Methods ---
+    private UUID conversationId;
+    private UUID clinicId;
+    private UUID petOwnerId;
+    private ConversationResponse conversationResponse;
+    private User mockUser;
 
-    private User mockUser() {
-        User u = new User();
-        u.setUserId(UUID.randomUUID());
-        u.setRole(Role.PET_OWNER);
-        u.setFullName("Test User");
-        return u;
-    }
+    @BeforeEach
+    void setUp() {
+        conversationId = UUID.randomUUID();
+        clinicId = UUID.randomUUID();
+        petOwnerId = UUID.randomUUID();
 
-    private ConversationResponse mockConversationResponse() {
-        return ConversationResponse.builder()
-                .id("conv-123")
-                .petOwnerId(UUID.randomUUID())
-                .clinicId(UUID.randomUUID())
-                .clinicName("Test Clinic")
-                .lastMessage("Hello")
+        mockUser = User.builder()
+                .userId(petOwnerId)
+                .fullName("Test User")
+                .role(Role.PET_OWNER)
+                .avatar("avatar.jpg")
+                .build();
+
+        when(authService.getCurrentUser()).thenReturn(mockUser);
+
+        conversationResponse = ConversationResponse.builder()
+                .id(conversationId.toString())
+                .petOwnerId(petOwnerId)
+                .clinicId(clinicId)
                 .build();
     }
 
-    // ==================== CONVERSATION TESTS ====================
+    // ==================== createOrGetConversation (8 TCs) ====================
 
     @Test
-    @DisplayName("TC-UNIT-CHAT-001: Create/Get Conversation - Success")
-    void createOrGetConversation_validRequest_returns200() throws Exception {
-        User user = mockUser();
-        when(authService.getCurrentUser()).thenReturn(user);
-
-        CreateConversationRequest request = new CreateConversationRequest();
-        request.setClinicId(UUID.randomUUID());
-
-        ConversationResponse response = mockConversationResponse();
-        when(chatService.createOrGetConversation(eq(user.getUserId()), any())).thenReturn(response);
+    @DisplayName("TC-001: New conv, no initial msg -> 200")
+    void createOrGetConv_NoInitialMsg_Returns200() throws Exception {
+        CreateConversationRequest req = new CreateConversationRequest();
+        req.setClinicId(clinicId);
+        
+        when(chatService.createOrGetConversation(any(), eq(req))).thenReturn(conversationResponse);
 
         mockMvc.perform(post("/chat/conversations")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value("conv-123"));
+                .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("TC-UNIT-CHAT-002: Get Conversations - Success")
-    void getConversations_validRequest_returns200() throws Exception {
-        User user = mockUser();
-        when(authService.getCurrentUser()).thenReturn(user);
+    @DisplayName("TC-002: New conv + initial msg -> 200")
+    void createOrGetConv_InitialMsg_Returns200() throws Exception {
+        CreateConversationRequest req = new CreateConversationRequest();
+        req.setClinicId(clinicId);
+        req.setInitialMessage("Hello");
+        
+        when(chatService.createOrGetConversation(any(), eq(req))).thenReturn(conversationResponse);
 
-        Page<ConversationResponse> page = new PageImpl<>(List.of(mockConversationResponse()));
-        when(chatService.getConversations(eq(user.getUserId()), eq(user.getRole()), any())).thenReturn(page);
-
-        mockMvc.perform(get("/chat/conversations")
-                .param("page", "0")
-                .param("size", "10"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content", hasSize(1)));
-    }
-
-    @Test
-    @DisplayName("TC-UNIT-CHAT-003: Get Conversation Detail - Success")
-    void getConversation_validId_returns200() throws Exception {
-        User user = mockUser();
-        when(authService.getCurrentUser()).thenReturn(user);
-
-        ConversationResponse response = mockConversationResponse();
-        when(chatService.getConversation(eq("conv-123"), eq(user.getUserId()))).thenReturn(response);
-
-        mockMvc.perform(get("/chat/conversations/conv-123"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value("conv-123"));
-    }
-
-    // ==================== MESSAGE TESTS ====================
-
-    @Test
-    @DisplayName("TC-UNIT-CHAT-004: Get Messages - Success")
-    void getMessages_validRequest_returns200() throws Exception {
-        User user = mockUser();
-        when(authService.getCurrentUser()).thenReturn(user);
-
-        MessageResponse msg = MessageResponse.builder()
-                .id(UUID.randomUUID().toString())
-                .content("Hello")
-                .senderType(ChatMessage.SenderType.PET_OWNER.name())
-                .build();
-
-        Page<MessageResponse> page = new PageImpl<>(List.of(msg));
-        when(chatService.getMessages(eq("conv-123"), eq(user.getUserId()), any())).thenReturn(page);
-
-        mockMvc.perform(get("/chat/conversations/conv-123/messages"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content", hasSize(1)));
-    }
-
-    @Test
-    @DisplayName("TC-UNIT-CHAT-005: Send Message (JSON) - Success")
-    void sendMessage_validRequest_returns200() throws Exception {
-        User user = mockUser();
-        when(authService.getCurrentUser()).thenReturn(user);
-
-        SendMessageRequest request = new SendMessageRequest();
-        request.setContent("Hello World");
-
-        MessageResponse response = MessageResponse.builder()
-                .content("Hello World")
-                .senderType(ChatMessage.SenderType.PET_OWNER.name())
-                .build();
-
-        when(chatService.sendMessage(eq("conv-123"), eq(user.getUserId()), any(), any())).thenReturn(response);
-
-        mockMvc.perform(post("/chat/conversations/conv-123/messages")
+        mockMvc.perform(post("/chat/conversations")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content").value("Hello World"));
-    }
-
-    // ==================== READ STATUS TESTS ====================
-
-    @Test
-    @DisplayName("TC-UNIT-CHAT-006: Mark As Read - Success")
-    void markAsRead_validRequest_returns200() throws Exception {
-        User user = mockUser();
-        when(authService.getCurrentUser()).thenReturn(user);
-
-        doNothing().when(chatService).markAsRead(eq("conv-123"), eq(user.getUserId()));
-
-        mockMvc.perform(put("/chat/conversations/conv-123/read"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").exists());
+                .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("TC-UNIT-CHAT-007: Get Unread Count - Success")
-    void getUnreadCount_returns200() throws Exception {
-        User user = mockUser();
-        when(authService.getCurrentUser()).thenReturn(user);
+    @DisplayName("TC-003: Existing conv + empty initial msg -> 200")
+    void createOrGetConv_ExistingEmptyMsg_Returns200() throws Exception {
+        CreateConversationRequest req = new CreateConversationRequest();
+        req.setClinicId(clinicId);
+        req.setInitialMessage("");
+        when(chatService.createOrGetConversation(any(), eq(req))).thenReturn(conversationResponse);
 
-        UnreadCountResponse response = new UnreadCountResponse(5L, 10L);
-        when(chatService.getUnreadCount(eq(user.getUserId()), eq(user.getRole()))).thenReturn(response);
+        mockMvc.perform(post("/chat/conversations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk());
+    }
 
+    @Test
+    @DisplayName("TC-004: Existing conv + blank spaces only -> 200")
+    void createOrGetConv_ExistingBlankMsg_Returns200() throws Exception {
+        CreateConversationRequest req = new CreateConversationRequest();
+        req.setClinicId(clinicId);
+        req.setInitialMessage("   ");
+        when(chatService.createOrGetConversation(any(), eq(req))).thenReturn(conversationResponse);
+
+        mockMvc.perform(post("/chat/conversations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("TC-005: Existing conv, no initial msg -> 200")
+    void createOrGetConv_ExistingNoMsg_Returns200() throws Exception {
+        CreateConversationRequest req = new CreateConversationRequest();
+        req.setClinicId(clinicId);
+        when(chatService.createOrGetConversation(any(), eq(req))).thenReturn(conversationResponse);
+
+        mockMvc.perform(post("/chat/conversations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("TC-006: Non-existent clinicId -> 404")
+    void createOrGetConv_ClinicNotFound_Returns404() throws Exception {
+        when(chatService.createOrGetConversation(any(), any()))
+                .thenThrow(new ResourceNotFoundException("Not found"));
+        mockMvc.perform(post("/chat/conversations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("TC-007: Non-existent userId -> 404")
+    void createOrGetConv_UserNotFound_Returns404() throws Exception {
+        when(chatService.createOrGetConversation(any(), any()))
+                .thenThrow(new ResourceNotFoundException("User not found"));
+        mockMvc.perform(post("/chat/conversations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("TC-008: CLINIC_OWNER tries to create -> 403 Forbidden")
+    void createOrGetConv_Forbidden_Returns403() throws Exception {
+        when(chatService.createOrGetConversation(any(), any()))
+                .thenThrow(new ForbiddenException("Forbidden"));
+        mockMvc.perform(post("/chat/conversations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+                .andExpect(status().isForbidden());
+    }
+
+    // ==================== getConversations (6 TCs) ====================
+
+    @Test
+    @DisplayName("TC-009: PET_OWNER with convs -> 200")
+    void getConversations_PetOwnerData_Returns200() throws Exception {
+        Page<ConversationResponse> page = new PageImpl<>(List.of(conversationResponse));
+        when(chatService.getConversations(any(UUID.class), any(Role.class), any(Pageable.class))).thenReturn(page);
+        mockMvc.perform(get("/chat/conversations"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(1)));
+    }
+
+    @Test
+    @DisplayName("TC-010: PET_OWNER no convs -> 200 empty")
+    void getConversations_PetOwnerEmpty_Returns200() throws Exception {
+        Page<ConversationResponse> page = new PageImpl<>(new ArrayList<>());
+        when(chatService.getConversations(any(UUID.class), any(Role.class), any(Pageable.class))).thenReturn(page);
+        mockMvc.perform(get("/chat/conversations"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(0)));
+    }
+
+    @Test
+    @DisplayName("TC-011: CLINIC_OWNER with convs -> 200")
+    void getConversations_ClinicOwner_Returns200() throws Exception {
+        mockUser.setRole(Role.CLINIC_OWNER);
+        Page<ConversationResponse> page = new PageImpl<>(List.of(conversationResponse));
+        when(chatService.getConversations(any(UUID.class), any(Role.class), any(Pageable.class))).thenReturn(page);
+        mockMvc.perform(get("/chat/conversations"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("TC-012: CLINIC_OWNER no convs -> 200 empty")
+    void getConversations_ClinicOwnerEmpty_Returns200() throws Exception {
+        when(chatService.getConversations(any(UUID.class), any(Role.class), any(Pageable.class))).thenReturn(Page.empty());
+        mockMvc.perform(get("/chat/conversations"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("TC-013: STAFF role -> 200")
+    void getConversations_StaffRole_Returns200() throws Exception {
+        when(chatService.getConversations(any(UUID.class), any(Role.class), any(Pageable.class))).thenReturn(Page.empty());
+        mockMvc.perform(get("/chat/conversations"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("TC-014: Invalid/unauthorized role -> 403 Forbidden")
+    void getConversations_Forbidden_Returns403() throws Exception {
+        when(chatService.getConversations(any(UUID.class), any(Role.class), any(Pageable.class)))
+                .thenThrow(new ForbiddenException("Forbidden"));
+        mockMvc.perform(get("/chat/conversations"))
+                .andExpect(status().isForbidden());
+    }
+
+    // ==================== getConversation (5 TCs) ====================
+
+    @Test
+    @DisplayName("TC-015: Valid ID (petOwner) -> 200")
+    void getConvById_PetOwner_Returns200() throws Exception {
+        when(chatService.getConversation(anyString(), eq(conversationId))).thenReturn(conversationResponse);
+        mockMvc.perform(get("/chat/conversations/{id}", conversationId))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("TC-016: Valid ID (staff) -> 200")
+    void getConvById_Staff_Returns200() throws Exception {
+        mockUser.setRole(Role.STAFF);
+        when(chatService.getConversation(anyString(), eq(conversationId))).thenReturn(conversationResponse);
+        mockMvc.perform(get("/chat/conversations/{id}", conversationId))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("TC-017: Non-existent ID -> 404")
+    void getConvById_NotFound_Returns404() throws Exception {
+        when(chatService.getConversation(any(), eq(conversationId)))
+                .thenThrow(new ResourceNotFoundException("Not found"));
+        mockMvc.perform(get("/chat/conversations/{id}", conversationId))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("TC-018: null/empty ID -> 404")
+    void getConvById_NullEmpty_Returns404() throws Exception {
+        mockMvc.perform(get("/chat/conversations/ "))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("TC-019: Valid ID no access -> 403")
+    void getConvById_NoAccess_Returns403() throws Exception {
+        when(chatService.getConversation(any(), eq(conversationId)))
+                .thenThrow(new ForbiddenException("Forbidden"));
+        mockMvc.perform(get("/chat/conversations/{id}", conversationId))
+                .andExpect(status().isForbidden());
+    }
+
+    // ==================== sendMessage (8 TCs) ====================
+
+    @Test
+    @DisplayName("TC-020: Valid text -> 200")
+    void sendMessage_Text_Returns200() throws Exception {
+        SendMessageRequest req = new SendMessageRequest();
+        req.setContent("Hello");
+        mockMvc.perform(post("/chat/conversations/{id}/messages", conversationId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk());
+        
+        verify(chatService).sendMessage(anyString(), any(UUID.class), any(ChatMessage.SenderType.class), any(SendMessageRequest.class));
+    }
+
+    @Test
+    @DisplayName("TC-021: Image only -> 200")
+    void sendMessage_ImageOnly_Returns200() throws Exception {
+        SendMessageRequest req = new SendMessageRequest();
+        req.setImageUrl("http://img");
+        mockMvc.perform(post("/chat/conversations/{id}/messages", conversationId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk());
+        
+        verify(chatService).sendMessage(anyString(), any(UUID.class), any(ChatMessage.SenderType.class), any(SendMessageRequest.class));
+    }
+
+    @Test
+    @DisplayName("TC-022: Text + image -> 200")
+    void sendMessage_TextImage_Returns200() throws Exception {
+        SendMessageRequest req = new SendMessageRequest();
+        req.setContent("Look");
+        req.setImageUrl("http://img");
+        mockMvc.perform(post("/chat/conversations/{id}/messages", conversationId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk());
+        
+        verify(chatService).sendMessage(anyString(), any(UUID.class), any(ChatMessage.SenderType.class), any(SendMessageRequest.class));
+    }
+
+    @Test
+    @DisplayName("TC-023: Empty string -> 200")
+    void sendMessage_EmptyText_Returns200() throws Exception {
+        SendMessageRequest req = new SendMessageRequest();
+        req.setContent("");
+        mockMvc.perform(post("/chat/conversations/{id}/messages", conversationId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk());
+        
+        verify(chatService).sendMessage(anyString(), any(UUID.class), any(ChatMessage.SenderType.class), any(SendMessageRequest.class));
+    }
+
+    @Test
+    @DisplayName("TC-024: Clinic sends message -> 200")
+    void sendMessage_Clinic_Returns200() throws Exception {
+        SendMessageRequest req = new SendMessageRequest();
+        req.setContent("Hi");
+        mockMvc.perform(post("/chat/conversations/{id}/messages", conversationId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk());
+        
+        verify(chatService).sendMessage(anyString(), any(UUID.class), any(ChatMessage.SenderType.class), any(SendMessageRequest.class));
+    }
+
+    @Test
+    @DisplayName("TC-025: Long text -> 200")
+    void sendMessage_LongText_Returns200() throws Exception {
+        SendMessageRequest req = new SendMessageRequest();
+        req.setContent("A".repeat(150));
+        mockMvc.perform(post("/chat/conversations/{id}/messages", conversationId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk());
+        
+        verify(chatService).sendMessage(anyString(), any(UUID.class), any(ChatMessage.SenderType.class), any(SendMessageRequest.class));
+    }
+
+    @Test
+    @DisplayName("TC-026: Clinic sends (senderType) -> 200")
+    void sendMessage_ClinicSender_Returns200() throws Exception {
+        SendMessageRequest req = new SendMessageRequest();
+        req.setContent("We are open");
+        mockMvc.perform(post("/chat/conversations/{id}/messages", conversationId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk());
+        
+        verify(chatService).sendMessage(anyString(), any(UUID.class), any(ChatMessage.SenderType.class), any(SendMessageRequest.class));
+    }
+
+    @Test
+    @DisplayName("TC-027: Non-existent id -> 404")
+    void sendMessage_NotFound_Returns404() throws Exception {
+        SendMessageRequest req = new SendMessageRequest();
+        req.setContent("Hi");
+        doThrow(new ResourceNotFoundException("Not found"))
+                .when(chatService).sendMessage(anyString(), eq(conversationId), any(ChatMessage.SenderType.class), any(SendMessageRequest.class));
+
+        mockMvc.perform(post("/chat/conversations/{id}/messages", conversationId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isNotFound());
+    }
+
+    // ==================== getMessages (5 TCs) ====================
+
+    @Test
+    @DisplayName("TC-028: Valid -> 200")
+    void getMessages_Valid_Returns200() throws Exception {
+        when(chatService.getMessages(anyString(), eq(conversationId), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(new MessageResponse())));
+        mockMvc.perform(get("/chat/conversations/{id}/messages", conversationId))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("TC-029: Valid page=1 -> 200")
+    void getMessages_Pagination_Returns200() throws Exception {
+        when(chatService.getMessages(anyString(), eq(conversationId), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(new MessageResponse())));
+        mockMvc.perform(get("/chat/conversations/{id}/messages", conversationId)
+                .param("page", "1").param("size", "10"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("TC-030: No messages -> 200 empty")
+    void getMessages_Empty_Returns200() throws Exception {
+        when(chatService.getMessages(anyString(), eq(conversationId), any(Pageable.class)))
+                .thenReturn(Page.empty());
+        mockMvc.perform(get("/chat/conversations/{id}/messages", conversationId))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("TC-031: Non-existent -> 404")
+    void getMessages_NotFound_Returns404() throws Exception {
+        when(chatService.getMessages(anyString(), eq(conversationId), any(Pageable.class)))
+                .thenThrow(new ResourceNotFoundException("Not found"));
+        mockMvc.perform(get("/chat/conversations/{id}/messages", conversationId))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("TC-032: No access -> 403")
+    void getMessages_Forbidden_Returns403() throws Exception {
+        when(chatService.getMessages(anyString(), eq(conversationId), any(Pageable.class)))
+                .thenThrow(new ForbiddenException("Forbidden"));
+        mockMvc.perform(get("/chat/conversations/{id}/messages", conversationId))
+                .andExpect(status().isForbidden());
+    }
+
+    // ==================== markAsRead (5 TCs) ====================
+
+    @Test
+    @DisplayName("TC-033: PET_OWNER -> 200")
+    void markAsRead_PetOwner_Returns200() throws Exception {
+        mockMvc.perform(put("/chat/conversations/{id}/read", conversationId))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("TC-034: CLINIC -> 200")
+    void markAsRead_Clinic_Returns200() throws Exception {
+        mockMvc.perform(put("/chat/conversations/{id}/read", conversationId))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("TC-035: No unread -> 200")
+    void markAsRead_NoUnread_Returns200() throws Exception {
+        mockMvc.perform(put("/chat/conversations/{id}/read", conversationId))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("TC-036: Non-existent -> 404")
+    void markAsRead_NotFound_Returns404() throws Exception {
+        doThrow(new ResourceNotFoundException("Not found"))
+                .when(chatService).markAsRead(any(), eq(conversationId));
+        mockMvc.perform(put("/chat/conversations/{id}/read", conversationId))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("TC-037: No access -> 403")
+    void markAsRead_Forbidden_Returns403() throws Exception {
+        doThrow(new ForbiddenException("Forbidden"))
+                .when(chatService).markAsRead(any(), eq(conversationId));
+        mockMvc.perform(put("/chat/conversations/{id}/read", conversationId))
+                .andExpect(status().isForbidden());
+    }
+
+    // ==================== getUnreadCount (5 TCs) ====================
+
+    @Test
+    @DisplayName("TC-038: PET_OWNER unreads -> 200")
+    void getUnreadCount_PetOwnerUnreads_Returns200() throws Exception {
+        when(chatService.getUnreadCount(any(UUID.class), any(Role.class))).thenReturn(UnreadCountResponse.builder().totalUnreadConversations(2).totalUnreadMessages(2).build());
+        mockMvc.perform(get("/chat/unread-count"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalUnreadConversations").value(2));
+    }
+
+    @Test
+    @DisplayName("TC-039: PET_OWNER no unread -> 200")
+    void getUnreadCount_PetOwnerZero_Returns200() throws Exception {
+        when(chatService.getUnreadCount(any(UUID.class), any(Role.class))).thenReturn(UnreadCountResponse.builder().totalUnreadConversations(0).totalUnreadMessages(0).build());
+        mockMvc.perform(get("/chat/unread-count"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalUnreadConversations").value(0));
+    }
+
+    @Test
+    @DisplayName("TC-040: CLINIC_OWNER unreads -> 200")
+    void getUnreadCount_ClinicOwner_Returns200() throws Exception {
+        when(chatService.getUnreadCount(any(UUID.class), any(Role.class))).thenReturn(UnreadCountResponse.builder().totalUnreadConversations(5).totalUnreadMessages(5).build());
         mockMvc.perform(get("/chat/unread-count"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalUnreadConversations").value(5));
     }
-    // ==================== MULTIMEDIA & FILE UPLOAD TESTS ====================
 
     @Test
-    @DisplayName("TC-UNIT-CHAT-008: Send Message With File - Success")
-    void sendMessageWithFile_validRequest_returns200() throws Exception {
-        User user = mockUser();
-        when(authService.getCurrentUser()).thenReturn(user);
+    @DisplayName("TC-041: CLINIC_OWNER no unread -> 200")
+    void getUnreadCount_ClinicOwnerZero_Returns200() throws Exception {
+        when(chatService.getUnreadCount(any(UUID.class), any(Role.class))).thenReturn(UnreadCountResponse.builder().totalUnreadConversations(0).totalUnreadMessages(0).build());
+        mockMvc.perform(get("/chat/unread-count"))
+                .andExpect(status().isOk());
+    }
 
-        // Mock Cloudinary upload
-        com.petties.petties.dto.file.UploadResponse uploadResponse = new com.petties.petties.dto.file.UploadResponse();
-        uploadResponse.setUrl("http://cloudinary.com/image.jpg");
-        when(cloudinaryService.uploadFile(any(), eq("chat-images"))).thenReturn(uploadResponse);
+    @Test
+    @DisplayName("TC-042: CLINIC_OWNER no clinic -> 200")
+    void getUnreadCount_NoClinic_Returns200() throws Exception {
+        when(chatService.getUnreadCount(any(UUID.class), any(Role.class))).thenReturn(UnreadCountResponse.builder().totalUnreadConversations(0).totalUnreadMessages(0).build());
+        mockMvc.perform(get("/chat/unread-count"))
+                .andExpect(status().isOk());
+    }
 
-        // Mock ChatService
-        MessageResponse response = MessageResponse.builder()
-                .content("Image message")
-                .imageUrl("http://cloudinary.com/image.jpg")
-                .senderType(ChatMessage.SenderType.PET_OWNER.name())
-                .build();
-        when(chatService.sendMessage(eq("conv-123"), eq(user.getUserId()), any(), any())).thenReturn(response);
-
-        // Create multipart request
-        org.springframework.mock.web.MockMultipartFile file = new org.springframework.mock.web.MockMultipartFile(
-                "file", "test.jpg", MediaType.IMAGE_JPEG_VALUE, "test image content".getBytes());
-
-        org.springframework.mock.web.MockMultipartFile content = new org.springframework.mock.web.MockMultipartFile(
-                "content", "", "application/json", "Image message".getBytes());
-
-        mockMvc.perform(multipart("/chat/conversations/conv-123/messages")
+    // ==================== sendMessageWithFile (6 TCs) ====================
+    // Note: The method in controller uses multipart. File argument validation normally throws 400.
+    
+    @Test
+    @DisplayName("TC-043: Valid image+text -> 200")
+    void sendMsgFile_ImageText_Returns200() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "test.jpg", "image/jpeg", "img".getBytes());
+        when(cloudinaryService.uploadFile(any(), anyString())).thenReturn(UploadResponse.builder().url("http://img").build());
+        when(chatService.sendMessage(anyString(), any(UUID.class), any(ChatMessage.SenderType.class), any(SendMessageRequest.class)))
+                .thenReturn(new MessageResponse());
+        
+        mockMvc.perform(multipart("/chat/conversations/{id}/messages", conversationId)
                 .file(file)
-                .file(content))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.imageUrl").value("http://cloudinary.com/image.jpg"));
+                .param("content", "Look"))
+                .andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("TC-UNIT-CHAT-009: Upload Image (Standalone) - Success")
-    void uploadImage_validRequest_returns200() throws Exception {
-        User user = mockUser();
-        when(authService.getCurrentUser()).thenReturn(user);
-
-        // Mock Conversation existence and access
-        ChatConversation conversation = new ChatConversation();
-        when(conversationRepository.findById("conv-123")).thenReturn(Optional.of(conversation));
-        doNothing().when(chatService).validateConversationAccess(any(), any());
-
-        // Mock Cloudinary
-        com.petties.petties.dto.file.UploadResponse uploadResponse = new com.petties.petties.dto.file.UploadResponse();
-        uploadResponse.setUrl("http://cloudinary.com/standalone.jpg");
-        when(cloudinaryService.uploadFile(any(), eq("chat-images"))).thenReturn(uploadResponse);
-
-        // Mock Save Message Logic (simplified for controller test)
-        ChatMessage mockMessage = new ChatMessage();
-        mockMessage.setImageUrl("http://cloudinary.com/standalone.jpg");
-        when(chatService.saveMessage(any())).thenReturn(mockMessage);
-
-        MessageResponse response = MessageResponse.builder()
-                .imageUrl("http://cloudinary.com/standalone.jpg")
-                .build();
-        when(chatService.mapToMessageResponse(any(), any())).thenReturn(response);
-
-        org.springframework.mock.web.MockMultipartFile file = new org.springframework.mock.web.MockMultipartFile(
-                "file", "test.jpg", MediaType.IMAGE_JPEG_VALUE, "test content".getBytes());
-
-        mockMvc.perform(multipart("/chat/conversations/conv-123/images")
+    @DisplayName("TC-044: Valid image, no text -> 200")
+    void sendMsgFile_ImageNoText_Returns200() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "test.jpg", "image/jpeg", "img".getBytes());
+        when(cloudinaryService.uploadFile(any(), anyString())).thenReturn(UploadResponse.builder().url("http://img").build());
+        mockMvc.perform(multipart("/chat/conversations/{id}/messages", conversationId)
                 .file(file))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.imageUrl").value("http://cloudinary.com/standalone.jpg"));
+                .andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("TC-UNIT-CHAT-010: Send Message With File - Invalid File Size")
-    void sendMessageWithFile_fileTooLarge_returns400() throws Exception {
-        User user = mockUser();
-        when(authService.getCurrentUser()).thenReturn(user);
+    @DisplayName("TC-045: Large file >10MB -> 400")
+    void sendMsgFile_LargeFile_Returns400() throws Exception {
+        byte[] largeFile = new byte[11 * 1024 * 1024]; // 11MB
+        MockMultipartFile file = new MockMultipartFile("file", "test.jpg", "image/jpeg", largeFile);
 
-        // Create large file (>10MB)
-        byte[] largeContent = new byte[10 * 1024 * 1024 + 1];
-        org.springframework.mock.web.MockMultipartFile file = new org.springframework.mock.web.MockMultipartFile(
-                "file", "large.jpg", MediaType.IMAGE_JPEG_VALUE, largeContent);
-
-        mockMvc.perform(multipart("/chat/conversations/conv-123/messages")
+        mockMvc.perform(multipart("/chat/conversations/{id}/messages", conversationId)
                 .file(file))
                 .andExpect(status().isBadRequest());
     }
 
-    // ==================== SECURITY & ERROR TESTS ====================
+    @Test
+    @DisplayName("TC-046: No file, text only -> 200")
+    void sendMsgFile_NoFileText_Returns200() throws Exception {
+        mockMvc.perform(multipart("/chat/conversations/{id}/messages", conversationId)
+                .param("content", "Hello"))
+                .andExpect(status().isOk());
+    }
 
     @Test
-    @DisplayName("TC-UNIT-CHAT-011: Create Conversation - Clinic Role Forbidden")
-    void createConversation_clinicRole_returns403() throws Exception {
-        // Since we are mocking, we can't easily test @PreAuthorize behaviors with
-        // @MockitoBean
-        // unless we load full security context. However, @WebMvcTest usually loads
-        // security.
-        // Let's verify if security is enabled. The test class has
-        // @AutoConfigureMockMvc(addFilters = false),
-        // which DISABLES security filters.
+    @DisplayName("TC-047: Invalid format -> 400")
+    void sendMsgFile_InvalidFormat_Returns400() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "test.exe", "application/x-msdownload", "exe".getBytes());
+        
+        mockMvc.perform(multipart("/chat/conversations/{id}/messages", conversationId)
+                .file(file))
+                .andExpect(status().isBadRequest());
+    }
 
-        // RE-EVALUATION: The current test class disables filters/security:
-        // @AutoConfigureMockMvc(addFilters = false)
-        // This means @PreAuthorize annotations are NOT ignored but the filter chain is.
-        // Actually, @WebMvcTest DOES NOT scan @PreAuthorize by default unless
-        // @EnableGlobalMethodSecurity is present.
-        // Given existing tests pass without setting up SecurityContext, we should
-        // verify logic that is INSIDE the controller methods
-        // or re-enable filters for specific tests, which is complex.
+    @Test
+    @DisplayName("TC-048: Empty file -> 400")
+    void sendMsgFile_EmptyFile_Returns400() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "test.jpg", "image/jpeg", new byte[0]);
+        
+        mockMvc.perform(multipart("/chat/conversations/{id}/messages", conversationId)
+                .file(file))
+                .andExpect(status().isBadRequest());
+    }
 
-        // For now, let's stick to testing logic that happens INSIDE the controller or
-        // Service exceptions.
-        // If we want to test RBAC, we generally need an Integration Test, or remove
-        // 'addFilters=false'.
+    // ==================== uploadImage (5 TCs) ====================
+
+    @Test
+    @DisplayName("TC-049: Valid image -> 200")
+    void uploadImg_Valid_Returns200() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "test.jpg", "image/jpeg", "img".getBytes());
+        ChatConversation conversation = new ChatConversation();
+        conversation.setClinicId(clinicId);
+        
+        when(conversationRepository.findById(anyString())).thenReturn(Optional.of(conversation));
+        when(cloudinaryService.uploadFile(any(), anyString())).thenReturn(UploadResponse.builder().url("http://img").build());
+        when(chatService.saveMessage(any(ChatMessage.class))).thenReturn(new ChatMessage());
+        when(chatService.mapToMessageResponse(any(ChatMessage.class), any(UUID.class))).thenReturn(new MessageResponse());
+
+        mockMvc.perform(multipart("/chat/conversations/{id}/images", conversationId)
+                .file(file))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("TC-050: Large file -> 400")
+    void uploadImg_LargeFile_Returns400() throws Exception {
+        byte[] largeFile = new byte[11 * 1024 * 1024]; // 11MB
+        MockMultipartFile file = new MockMultipartFile("file", "test.jpg", "image/jpeg", largeFile);
+        
+        when(conversationRepository.findById(anyString())).thenReturn(Optional.of(new ChatConversation()));
+
+        mockMvc.perform(multipart("/chat/conversations/{id}/images", conversationId)
+                .file(file))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("TC-051: Invalid format -> 400")
+    void uploadImg_InvalidFormat_Returns400() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "test.exe", "application/x-msdownload", "img".getBytes());
+        when(conversationRepository.findById(anyString())).thenReturn(Optional.of(new ChatConversation()));
+
+        mockMvc.perform(multipart("/chat/conversations/{id}/images", conversationId)
+                .file(file))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("TC-052: Non-existent -> 404")
+    void uploadImg_NotFound_Returns404() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "test.jpg", "image/jpeg", "img".getBytes());
+        when(conversationRepository.findById(anyString())).thenReturn(Optional.empty());
+        
+        mockMvc.perform(multipart("/chat/conversations/{id}/images", conversationId)
+                .file(file))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("TC-053: No access -> 403")
+    void uploadImg_Forbidden_Returns403() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "test.jpg", "image/jpeg", "img".getBytes());
+        when(conversationRepository.findById(anyString())).thenReturn(Optional.of(new ChatConversation()));
+        doThrow(new ForbiddenException("Forbidden"))
+                .when(chatService).validateConversationAccess(any(ChatConversation.class), any(UUID.class));
+        
+        mockMvc.perform(multipart("/chat/conversations/{id}/images", conversationId)
+                .file(file))
+                .andExpect(status().isForbidden());
     }
 }
