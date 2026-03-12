@@ -268,7 +268,8 @@ export const StaffPatientsPage = () => {
         } catch (error) {
             console.error(error)
             showToast('error', 'Lỗi khi lưu hồ sơ')
-            const errorMessage = (error as any)?.response?.data?.message || (error as any)?.message || 'Lỗi khi lưu hồ sơ'
+            const err = error as { response?: { data?: { message?: string } }; message?: string }
+            const errorMessage = err?.response?.data?.message || err?.message || 'Lỗi khi lưu hồ sơ'
             showToast('error', errorMessage)
         } finally {
             setIsSubmittingVaccination(false)
@@ -717,7 +718,7 @@ export const StaffPatientsPage = () => {
                                                                 <p className="text-sm text-stone-500">
                                                                     {new Date(emr.examinationDate).toLocaleDateString('vi-VN')}
                                                                     <span className="mx-2">•</span>
-                                                                    BS. {emr.staffName}
+                                                                    NV. {emr.staffName}
                                                                     {emr.bookingCode && (
                                                                         <span className="ml-2 font-mono text-xs bg-stone-100 px-1.5 py-0.5 rounded border border-stone-200">
                                                                             #{emr.bookingCode}
@@ -897,7 +898,7 @@ export const StaffPatientsPage = () => {
                                                                 </div>
                                                                 <button
                                                                     onClick={() => {
-                                                                        if (isPending && (rec as any).id) {
+                                                                        if (isPending && rec.id) {
                                                                             setSelectedVaccination(rec as VaccinationRecord);
                                                                             setIsEditingVaccination(true); // Treat as edit to update PENDING -> COMPLETED
                                                                         } else {
@@ -1073,7 +1074,7 @@ export const StaffPatientsPage = () => {
                                                                             {record.staffName ? record.staffName.charAt(0) : '?'}
                                                                         </div>
                                                                         <div className="text-sm font-medium text-stone-700">
-                                                                            {record.staffName ? `Dr.${record.staffName.split(' ').pop()} ` : 'Chưa phân công'}
+                                                                            {record.staffName ? `NV. ${record.staffName.split(' ').pop()}` : 'Chưa phân công'}
                                                                         </div>
                                                                     </div>
                                                                 </td>

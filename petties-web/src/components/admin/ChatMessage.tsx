@@ -1,4 +1,5 @@
-import { CheckIcon, XMarkIcon, LinkIcon, CpuChipIcon, WrenchScrewdriverIcon, UserIcon, BoltIcon } from '@heroicons/react/24/outline'
+import { useState } from 'react'
+import { CheckIcon, XMarkIcon, LinkIcon, CpuChipIcon, WrenchScrewdriverIcon, UserIcon, BoltIcon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
 
 interface ChatMessageProps {
   role: 'user' | 'assistant'
@@ -6,7 +7,7 @@ interface ChatMessageProps {
   timestamp?: Date
   citations?: Array<{ type: 'rag' | 'web'; source: string; url?: string }>
   thinkingProcess?: string[]
-  toolCalls?: Array<{ tool: string; input: any; output?: any }>
+  toolCalls?: Array<{ tool: string; input: Record<string, unknown>; output?: unknown }>
   feedback?: 'good' | 'bad' | null
   onFeedback?: (feedback: 'good' | 'bad') => void
 }
@@ -14,6 +15,72 @@ interface ChatMessageProps {
 /**
  * Chat Message Component - Neobrutalism Style
  */
+/**
+ * Expandable Tool Call Card
+ */
+const ToolCallCard = ({ call }: { call: { tool: string; input: Record<string, unknown>; output?: unknown } }) => {
+  const [expanded, setExpanded] = useState(false)
+  const outputStr = call.output
+    ? typeof call.output === 'string'
+      ? call.output
+      : JSON.stringify(call.output, null, 2)
+    : ''
+  const inputStr = JSON.stringify(call.input, null, 2)
+  const isLongOutput = outputStr.length > 200
+  const isLongInput = inputStr.length > 200
+
+  return (
+    <div className="bg-white border-2 border-stone-900 p-3">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-2 mb-2 w-full text-left cursor-pointer"
+      >
+        {(isLongOutput || isLongInput) ? (
+          expanded ? (
+            <ChevronDownIcon className="w-3.5 h-3.5 text-stone-500 flex-shrink-0" />
+          ) : (
+            <ChevronRightIcon className="w-3.5 h-3.5 text-stone-500 flex-shrink-0" />
+          )
+        ) : null}
+        <span className="px-2 py-0.5 bg-stone-900 text-white font-black text-[10px] uppercase">
+          {call.tool}
+        </span>
+        {!expanded && isLongOutput && (
+          <span className="text-[9px] text-stone-400 font-bold">Bấm để xem chi tiết</span>
+        )}
+      </button>
+      <div className="grid grid-cols-1 gap-2">
+        <div className="text-[10px] font-mono bg-stone-50 p-1.5 border border-stone-200">
+          <span className="font-black text-stone-400 mr-2">IN:</span>
+          {expanded ? (
+            <pre className="mt-1 whitespace-pre-wrap break-words text-stone-900 max-h-48 overflow-y-auto">
+              {inputStr}
+            </pre>
+          ) : (
+            <span className="text-stone-900">
+              {inputStr.length > 200 ? inputStr.slice(0, 200) + '...' : inputStr}
+            </span>
+          )}
+        </div>
+        {outputStr && (
+          <div className="text-[10px] font-mono bg-green-50 p-1.5 border border-green-200">
+            <span className="font-black text-green-600 mr-2">OUT:</span>
+            {expanded ? (
+              <pre className="mt-1 whitespace-pre-wrap break-words text-stone-900 max-h-64 overflow-y-auto">
+                {outputStr}
+              </pre>
+            ) : (
+              <span className="text-stone-900">
+                {outputStr.length > 200 ? outputStr.slice(0, 200) + '...' : outputStr}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export const ChatMessage = ({
   role,
   content,
@@ -137,29 +204,7 @@ export const ChatMessage = ({
                 </div>
                 <div className="space-y-3">
                   {toolCalls.map((call, idx) => (
-                    <div key={idx} className="bg-white border-2 border-stone-900 p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="px-2 py-0.5 bg-stone-900 text-white font-black text-[10px] uppercase">
-                          {call.tool}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-1 gap-2">
-                        <div className="text-[10px] font-mono bg-stone-50 p-1.5 border border-stone-200">
-                          <span className="font-black text-stone-400 mr-2">IN:</span>
-                          <span className="text-stone-900">{JSON.stringify(call.input)}</span>
-                        </div>
-                        {call.output && (
-                          <div className="text-[10px] font-mono bg-green-50 p-1.5 border border-green-200">
-                            <span className="font-black text-green-600 mr-2">OUT:</span>
-                            <span className="text-stone-900">
-                              {typeof call.output === 'string'
-                                ? call.output.slice(0, 100) + (call.output.length > 100 ? '...' : '')
-                                : JSON.stringify(call.output).slice(0, 100)}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                    <ToolCallCard key={idx} call={call} />
                   ))}
                 </div>
               </div>

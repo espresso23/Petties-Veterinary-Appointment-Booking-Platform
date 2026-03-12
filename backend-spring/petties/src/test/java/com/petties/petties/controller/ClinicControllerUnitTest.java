@@ -267,7 +267,7 @@ class ClinicControllerUnitTest {
 
                 mockMvc.perform(delete("/clinics/{id}", clinicId))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.message").value("Clinic deleted successfully"));
+                                .andExpect(jsonPath("$.message").value("Xóa phòng khám thành công"));
         }
 
         // ==================== SEARCH & NEARBY TESTS ====================

@@ -68,6 +68,8 @@ interface UseSseNotificationOptions {
   maxReconnectAttempts?: number
   /** Disable default toast + unread side effects (useful for page-level secondary subscriptions) */
   silent?: boolean
+  /** Enable/disable SSE connection (default: true) */
+  enabled?: boolean
   /** Callback when new notification received */
   onNotification?: (notification: NotificationData) => void
   /** Callback when shift update received */
@@ -125,6 +127,7 @@ export function useSseNotification(
     reconnectDelay = 5000,
     maxReconnectAttempts = 10,
     silent = false,
+    enabled = true,
     onNotification,
     onShiftUpdate,
     onBookingUpdate,
@@ -372,15 +375,17 @@ export function useSseNotification(
 
   // Connect on mount, disconnect on unmount
   useEffect(() => {
-    if (isAuthenticated && accessToken) {
+    if (enabled && isAuthenticated && accessToken) {
       connect()
+    } else {
+      disconnect()
     }
     // Cleanup: disconnect on unmount
     return () => {
       disconnect()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, accessToken])
+  }, [enabled, isAuthenticated, accessToken])
 
   return {
     isConnected,

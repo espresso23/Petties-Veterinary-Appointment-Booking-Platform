@@ -9,7 +9,7 @@
 
 ## Overview
 
-Updated `petties-ai-agent-developer` agent description trong CLAUDE.md để phản ánh chính xác **Single Agent + ReAct architecture** thay vì old Multi-Agent Supervisor pattern.
+Updated `petties-ai-agent-developer` agent description trong CLAUDE.md để phản ánh chính xác **Single Agent + ReAct architecture** thay vì legacy supervisor-based routing.
 
 ---
 
@@ -39,7 +39,7 @@ Updated `petties-ai-agent-developer` agent description trong CLAUDE.md để ph�
 **Major Updates:**
 
 #### Trigger Conditions (Enhanced)
-- ✅ Emphasized **Single Agent** (not Multi-Agent)
+- ✅ Emphasized **Single Agent** architecture
 - ✅ Clarified **code-based tools** với `@mcp.tool` (NOT Swagger import)
 - ✅ Specified **OpenRouter Cloud API** models
 - ✅ Added **Admin Dashboard** development tasks:
@@ -51,9 +51,9 @@ Updated `petties-ai-agent-developer` agent description trong CLAUDE.md để ph�
 
 #### Important Notes Section (NEW)
 Added critical clarifications:
-- ❌ **KHÔNG phải Multi-Agent** (no supervisor, no specialized agents)
+- ✅ Single Agent + Multiple Tools (no supervisor, no specialized agents)
 - ✅ **Single Agent + Multiple Tools** architecture
-- ❌ **KHÔNG dùng local Ollama** - Cloud API only (OpenRouter)
+- ✅ Cloud API only (OpenRouter)
 - ✅ **Tools are code-based** với semantic descriptions
 
 #### Keywords (Expanded)
@@ -88,10 +88,10 @@ Added critical clarifications:
 
 **After:**
 ```
-2. petties-ai-agent-developer: Implement Single Agent với `symptom_search` tool + RAG pipeline
+2. petties-ai-agent-developer: Implement Single Agent với `pet_knowledge_search` tool + RAG pipeline
 ```
 
-**Rationale:** Không còn "Medical Agent" riêng biệt - giờ là Single Agent với tool `symptom_search`.
+**Rationale:** Không còn "Medical Agent" riêng biệt - giờ là Single Agent với tool `pet_knowledge_search`.
 
 ---
 
@@ -135,16 +135,16 @@ Verified all 9 occurrences of `petties-ai-agent-developer` trong CLAUDE.md:
 8. Line 576 - Workflow D ✅
 9. Line 624 - Decision guidelines ✅
 
-### ✅ No Old Multi-Agent References
+### ✅ No Legacy Supervisor References
 
 Confirmed KHÔNG còn mentions của:
 - ❌ "Main Agent", "Booking Agent", "Medical Agent", "Research Agent"
 - ❌ "Supervisor pattern" (trong AI service context)
 - ❌ "Specialized agents"
 
-### ✅ Ollama References Removed
+### ✅ Legacy Local LLM References Removed
 
-Chỉ còn 1 mention của "Ollama" - trong Important Notes để clarify **KHÔNG dùng** local Ollama.
+Chỉ còn 1 legacy note trong Important Notes để clarify cloud-only LLM usage.
 
 ---
 
@@ -198,8 +198,8 @@ Agent sẽ trigger khi user mentions:
 ## Verification Commands
 
 ```bash
-# Verify no old multi-agent references
-grep -i "multi-agent\|specialized agent\|supervisor pattern" CLAUDE.md
+# Verify no legacy supervisor references
+grep -i "specialized agent\|supervisor pattern" CLAUDE.md
 
 # Verify Single Agent mentions
 grep -i "single agent" CLAUDE.md

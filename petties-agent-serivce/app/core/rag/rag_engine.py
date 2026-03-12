@@ -14,10 +14,11 @@ Components:
 - Qdrant Cloud for vector storage
 """
 
-from typing import List, Optional
+from typing import List, Optional, Any
 from dataclasses import dataclass
 from loguru import logger
 import asyncio
+from pathlib import Path
 
 # LlamaIndex imports
 from llama_index.core import (
@@ -28,8 +29,9 @@ from llama_index.core import (
 )
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.embeddings.cohere import CohereEmbedding
-from llama_index.vector_stores.qdrant import QdrantVectorStore
-from qdrant_client import QdrantClient
+# from llama_index.llms.openrouter import OpenRouter - Moved to initialize
+# from llama_index.vector_stores.qdrant import QdrantVectorStore - Moved to initialize
+# from qdrant_client import QdrantClient - Moved to initialize
 
 from app.config.settings import settings
 from app.core.config_helper import get_setting
@@ -67,24 +69,18 @@ class LlamaIndexRAGEngine:
         results = await engine.query("pet symptoms")
     """
     
-    _instance: Optional["LlamaIndexRAGEngine"] = None
     _initialized: bool = False
     
-    def __new__(cls):
-        """Singleton pattern"""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
-    
     def __init__(self):
-        if self._initialized:
+        if LlamaIndexRAGEngine._initialized:
             return
         
         self.index: Optional[VectorStoreIndex] = None
-        self.vector_store: Optional[QdrantVectorStore] = None
-        self.qdrant_client: Optional[QdrantClient] = None
+        self.vector_store: Optional[Any] = None
+        self.qdrant_client: Optional[Any] = None
         self._collection_name = settings.QDRANT_COLLECTION_NAME or "petties_knowledge_base"
+        self._init_lock = asyncio.Lock()
+        LlamaIndexRAGEngine._initialized = True
         
     async def initialize(self):
         """
@@ -92,10 +88,19 @@ class LlamaIndexRAGEngine:
         
         Must be called before using index_document or query
         """
-        if self._initialized and self.index is not None:
+        if self.index is not None:
             return
+
+        async with self._init_lock:
+            if self.index is not None:
+                return
+                
+            logger.info("Initializing LlamaIndex RAG Engine...")
             
-        logger.info("Initializing LlamaIndex RAG Engine...")
+            # Lazy imports
+            from qdrant_client import QdrantClient
+            from llama_index.vector_stores.qdrant import QdrantVectorStore
+            from llama_index.llms.openrouter import OpenRouter
         
         async with AsyncSessionLocal() as db:
             # Get API keys from database
@@ -104,6 +109,8 @@ class LlamaIndexRAGEngine:
             qdrant_url = await get_setting("QDRANT_URL", db) or settings.QDRANT_URL
             qdrant_api_key = await get_setting("QDRANT_API_KEY", db) or settings.QDRANT_API_KEY
             self._collection_name = await get_setting("QDRANT_COLLECTION_NAME", db) or "petties_knowledge_base"
+            openrouter_api_key = await get_setting("OPENROUTER_API_KEY", db)
+            llm_model = await get_setting("RAG_LLM_MODEL", db) or "google/gemini-2.0-flash-001"
         
         if not cohere_api_key:
             logger.warning("COHERE_API_KEY not configured. RAG search will be unavailable. Please set it in Settings.")
@@ -115,6 +122,16 @@ class LlamaIndexRAGEngine:
             model_name=cohere_model,
             input_type="search_document"  # For indexing
         )
+
+        # Configure LLM (OpenRouter)
+        if openrouter_api_key:
+            Settings.llm = OpenRouter(
+                api_key=openrouter_api_key,
+                model=llm_model,
+                temperature=0.1,
+            )
+        else:
+            logger.warning("OPENROUTER_API_KEY not configured. RAG synthesis may fail if LLM is needed.")
         
         # Configure chunking
         Settings.node_parser = SentenceSplitter(
@@ -172,9 +189,10 @@ class LlamaIndexRAGEngine:
     
     async def index_document(
         self,
-        file_content: bytes,
-        filename: str,
-        document_id: int,
+        file_content: Optional[bytes] = None,
+        filename: Optional[str] = None,
+        document_id: Optional[int] = None,
+        file_path: Optional[Path] = None,
         metadata: Optional[dict] = None
     ) -> int:
         """
@@ -187,9 +205,10 @@ class LlamaIndexRAGEngine:
         - Storing in Qdrant
         
         Args:
-            file_content: Raw file bytes
+            file_content: Raw file bytes (optional if file_path is provided)
             filename: Original filename
             document_id: Database document ID
+            file_path: Path to file on disk (optional if file_content is provided)
             metadata: Additional metadata
             
         Returns:
@@ -197,8 +216,17 @@ class LlamaIndexRAGEngine:
         """
         await self.initialize()
         
-        # Extract text from file
-        text = self._extract_text(file_content, filename)
+        # Extract text from file (non-blocking)
+        if file_path and file_path.exists():
+            text = await asyncio.to_thread(self._extract_text_from_path, file_path)
+            if not filename:
+                filename = file_path.name
+        elif file_content:
+            text = await asyncio.to_thread(self._extract_text, file_content, filename or "unknown")
+        else:
+            logger.error("No file content or path provided for indexing")
+            return 0
+
         if not text:
             logger.warning(f"No text extracted from {filename}")
             return 0
@@ -220,8 +248,8 @@ class LlamaIndexRAGEngine:
         
         # Insert into index (LlamaIndex handles chunking + embedding + storage)
         try:
-            # Use refresh method to add new document
-            self.index.refresh_ref_docs([doc])
+            # Use insert method to add new document
+            self.index.insert(doc)
             
             # Count nodes created
             nodes = Settings.node_parser.get_nodes_from_documents([doc])
@@ -343,6 +371,20 @@ class LlamaIndexRAGEngine:
             logger.error(f"Failed to delete document {document_id}: {e}")
             return 0
     
+    def _extract_text_from_path(self, path: Path) -> str:
+        """Extract text from file path safely"""
+        try:
+            ext = path.suffix.lower()[1:]
+            if ext in ["txt", "md"]:
+                return path.read_text(encoding="utf-8", errors="replace")
+            
+            with open(path, "rb") as f:
+                content = f.read()
+                return self._extract_text(content, path.name)
+        except Exception as e:
+            logger.error(f"Text extraction failed for {path}: {e}")
+            return ""
+
     def _extract_text(self, content: bytes, filename: str) -> str:
         """Extract text from file based on extension"""
         ext = filename.lower().split('.')[-1]

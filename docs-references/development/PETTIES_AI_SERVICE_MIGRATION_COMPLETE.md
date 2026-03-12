@@ -8,16 +8,16 @@
 
 ## Executive Summary
 
-Đã hoàn tất migration **petties-agent-service** từ Multi-Agent Supervisor sang **Single Agent + ReAct pattern** với **RAG-only tools**.
+Đã hoàn tất migration **petties-agent-service** từ legacy supervisor-based architecture sang **Single Agent + ReAct pattern** với unified AI tools.
 
 ### Key Changes
 
 | Aspect | Before | After |
 |--------|--------|-------|
-| **Architecture** | Multi-Agent Supervisor (4 agents) | Single Agent + ReAct |
-| **LLM Provider** | Ollama (local) | OpenRouter Cloud API |
+| **Architecture** | Legacy supervisor-based architecture | Single Agent + ReAct |
+| **LLM Provider** | Legacy local LLM setup | OpenRouter Cloud API |
 | **Embeddings** | OpenAI (1536 dims) | Cohere multilingual (1024 dims) |
-| **Tools** | 6 tools (API + RAG mixed) | 2 tools (RAG-only) |
+| **Tools** | 6 tools (API + RAG mixed) | Unified knowledge tool + web fallback |
 | **Vector DB** | Qdrant (placeholder) | Qdrant Cloud (fully integrated) |
 | **Complexity** | High (nhiều agents) | Low (1 agent) |
 
@@ -25,7 +25,7 @@
 
 ## 1. Files Deleted (Cleanup)
 
-### ❌ Multi-Agent Files (Removed)
+### ❌ Legacy Agent Files (Removed)
 ```
 petties-agent-serivce/app/core/agents/main_agent.py       # Supervisor cũ
 petties-agent-serivce/app/core/agents/booking_agent.py    # Sub-agent
@@ -114,7 +114,7 @@ petties-agent-serivce/alembic/versions/20250125_000001_migrate_to_single_agent.p
 ### 📝 API Routes
 
 **`app/api/routes/agents.py`**
-- Removed Multi-Agent hierarchy logic
+- Removed legacy hierarchy logic
 - Flat list response (không còn main_agent + sub_agents)
 - Added `top_p` parameter in update endpoint
 - Test endpoint with ReAct trace support
@@ -123,7 +123,7 @@ petties-agent-serivce/alembic/versions/20250125_000001_migrate_to_single_agent.p
 - Updated seed endpoint: 1 Single Agent + 2 RAG tools
 - Added `POST /test-openrouter` endpoint
 - Added `POST /test-cohere` endpoint
-- Removed seed logic cho Multi-Agent
+- Removed legacy seed structure
 
 **`app/api/routes/knowledge.py` (v1.0.0)**
 - ✅ Added `POST /documents/{id}/process` - Real Qdrant indexing
@@ -143,12 +143,11 @@ petties-agent-serivce/alembic/versions/20250125_000001_migrate_to_single_agent.p
 - Added `ProcessDocumentResponse`
 - Updated `KnowledgeBaseStatusResponse` with Qdrant info
 
-### 📝 Tools (RAG-Only)
+### 📝 Tools (Current AI Knowledge Tooling)
 
-**`app/core/tools/mcp_tools/medical_tools.py` (v1.0.0)**
-- ✅ Kept: `pet_care_qa` - RAG Q&A cho pet care
-- ✅ Kept: `symptom_search` - RAG symptom checker
-- ❌ Removed: API-based tools (booking, history, vaccine)
+**`app/core/tools/mcp_tools/medical_tools.py`**
+- ✅ Current: `pet_knowledge_search` - unified RAG retrieval for pet care and symptom questions
+- ✅ Current: `web_search` - web fallback when knowledge base is insufficient
 - ✅ Integrated với RAG engine thật (không còn mock data)
 
 ### 📝 Configuration
@@ -156,7 +155,7 @@ petties-agent-serivce/alembic/versions/20250125_000001_migrate_to_single_agent.p
 **`app/config/settings.py`**
 - Added OpenRouter settings: `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`
 - Added Cohere settings: `COHERE_API_KEY`, `COHERE_EMBEDDING_MODEL`
-- Removed Ollama-specific configs
+- Removed local legacy LLM-specific configs
 
 **`requirements.txt`**
 - ✅ Added: `cohere>=5.11.0`
@@ -179,7 +178,7 @@ petties-agent-serivce/
 │   │   │   ├── settings.py         # Admin settings + seed (updated)
 │   │   │   └── tools.py            # Tool governance
 │   │   ├── schemas/
-│   │   │   ├── agent_schemas.py    # Removed Multi-Agent types
+│   │   │   ├── agent_schemas.py    # Removed legacy agent types
 │   │   │   ├── knowledge_schemas.py # Added RAG schemas
 │   │   │   └── tool_schemas.py
 │   │   └── websocket/
@@ -223,7 +222,7 @@ petties-agent-serivce/
 **Clean Status:**
 - ✅ No duplicate files
 - ✅ No old/backup versions
-- ✅ No Multi-Agent remnants
+- ✅ No legacy supervisor remnants
 - ✅ Single responsibility per module
 
 ---
@@ -261,7 +260,7 @@ asyncio.run(seed_database(force=True))
 
 Expected seeded data:
 - ✅ 1 Single Agent: `petties_agent`
-- ✅ 2 RAG Tools: `pet_care_qa`, `symptom_search`
+- ✅ AI knowledge tools: `pet_knowledge_search`, `web_search`
 - ✅ System settings: OpenRouter + Cohere keys (empty, cần config)
 
 ### Step 4: Configure API Keys (Admin Dashboard)
@@ -332,8 +331,8 @@ curl -X POST "http://localhost:8000/api/v1/agents/1/test" \
 
 Expected agent behavior (ReAct pattern):
 ```
-1. Thought: "User hỏi về chó bị sốt, cần dùng tool pet_care_qa để tìm kiếm knowledge base"
-2. Action: Call pet_care_qa(query="chó bị sốt không ăn", top_k=5, min_score=0.5)
+1. Thought: "User hỏi về chó bị sốt, cần dùng tool pet_knowledge_search để tra cứu knowledge base"
+2. Action: Call pet_knowledge_search(query="chó bị sốt không ăn", top_k=5, min_score=0.5)
 3. Observation: Retrieved 3 chunks từ Qdrant với scores [0.89, 0.82, 0.75]
 4. Thought: "Đã có thông tin từ knowledge base, tổng hợp câu trả lời"
 5. Answer: "Khi chó bị sốt và không chịu ăn, bạn cần:..."
@@ -390,15 +389,15 @@ Expected agent behavior (ReAct pattern):
 
 **View Tools:**
 1. Admin Dashboard → Tools
-2. See 2 RAG tools:
-   - `pet_care_qa` (enabled)
-   - `symptom_search` (enabled)
+2. See AI knowledge tools:
+   - `pet_knowledge_search` (enabled)
+   - `web_search` (enabled)
 
 **Enable/Disable Tool:**
 1. Tools → Click tool row
 2. Toggle "Enabled" switch
 3. When disabled, agent cannot call this tool
-4. Use case: Tạm tắt symptom_search nếu knowledge base chưa đủ data
+4. Use case: Tạm tắt `web_search` nếu chỉ muốn agent trả lời bằng knowledge base nội bộ
 
 ### D. Agent Testing (Playground)
 
@@ -407,8 +406,8 @@ Expected agent behavior (ReAct pattern):
 2. Enter message: "Con mèo bị nôn mửa"
 3. Click "Send"
 4. View response với ReAct trace:
-   - Thought: "User hỏi về mèo nôn, dùng pet_care_qa"
-   - Action: pet_care_qa(query="mèo nôn mửa")
+   - Thought: "User hỏi về mèo nôn, dùng pet_knowledge_search"
+   - Action: pet_knowledge_search(query="mèo nôn mửa")
    - Observation: Retrieved 3 chunks
    - Answer: "Khi mèo bị nôn mửa..."
 
@@ -483,8 +482,8 @@ POST   /api/v1/settings/test-qdrant      # Test Qdrant connection
 - **Qdrant:** Vector storage for RAG (documents chunked & embedded)
 
 ### Tools (FastMCP)
-- `pet_care_qa`: RAG Q&A for pet care knowledge
-- `symptom_search`: RAG-based symptom checker
+- `pet_knowledge_search`: Unified RAG retrieval for pet care and symptom questions
+- `web_search`: Web fallback lookup for pet/vet questions
 
 ---
 
@@ -494,7 +493,7 @@ POST   /api/v1/settings/test-qdrant      # Test Qdrant connection
 
 **Database:**
 - [ ] Migration runs successfully: `alembic upgrade head`
-- [ ] Seed creates 1 agent + 2 tools: `POST /settings/seed`
+- [ ] Seed creates 1 agent + enabled tool registry: `POST /settings/seed`
 - [ ] Agent table has `top_p` column
 - [ ] Tools table has `tool_type` column
 
@@ -510,8 +509,8 @@ POST   /api/v1/settings/test-qdrant      # Test Qdrant connection
 - [ ] Delete document: removes vectors from Qdrant
 
 **RAG Tools:**
-- [ ] `pet_care_qa` tool returns answers từ knowledge base
-- [ ] `symptom_search` tool tìm bệnh dựa trên symptoms
+- [ ] `pet_knowledge_search` trả raw retrieval results từ knowledge base
+- [ ] `web_search` trả raw web results khi knowledge base chưa đủ dữ liệu
 - [ ] Sources included in responses
 - [ ] Vietnamese language support working
 
@@ -599,7 +598,7 @@ alembic upgrade head
 - Check tool enabled: `GET /tools`
 - Verify tool assigned to agent: `GET /agents/1`
 - Check system prompt mentions tools
-- Test tool directly: `POST /tools/pet_care_qa/execute`
+- Test tool directly: `POST /tools/pet_knowledge_search/execute`
 
 ---
 
@@ -607,7 +606,7 @@ alembic upgrade head
 
 ### Technical Metrics
 - ✅ Single Agent architecture implemented
-- ✅ Multi-Agent code completely removed
+- ✅ Legacy supervisor code completely removed
 - ✅ RAG pipeline fully integrated với Qdrant + Cohere
 - ✅ OpenRouter Cloud API working
 - ✅ No duplicate/old files in codebase

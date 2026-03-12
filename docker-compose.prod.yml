@@ -95,20 +95,18 @@ services:
       APP_DEBUG: "false"
       # Neon PostgreSQL
       DATABASE_URL: ${DATABASE_URL:-}
+      # MongoDB Atlas (Production)
+      MONGODB_URL: ${MONGODB_URL}
+      MONGODB_DATABASE: ${MONGODB_DATABASE:-petties_nosql}
       # JWT Secret (Synced with Backend)
       JWT_SECRET: ${JWT_SECRET}
       SECRET_KEY: ${JWT_SECRET}
-      # Qdrant Cloud
-      QDRANT_URL: ${QDRANT_URL:-}
-      QDRANT_API_KEY: ${QDRANT_API_KEY}
+      # Spring Boot Backend (container-to-container)
+      SPRING_BACKEND_URL: http://backend:8080/api
+      # Qdrant Cloud (Managed via DB system_settings)
       QDRANT_COLLECTION_NAME: petties_knowledge_base
       # AI Architecture: Cloud-Only (OpenRouter + Cohere)
       LLM_PROVIDER: openrouter
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
-      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-google/gemini-2.0-flash-exp:free}
-      # Embeddings
-      COHERE_API_KEY: ${COHERE_API_KEY}
-      COHERE_EMBEDDING_MODEL: ${COHERE_EMBEDDING_MODEL:-embed-multilingual-v3.0}
       # CORS - Production domains only
       CORS_ORIGINS: ${CORS_ORIGINS:-https://petties.world,https://www.petties.world}
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
@@ -132,6 +130,9 @@ services:
           memory: 384M # Reduced from 768M (Cloud-only AI is lightweight)
         reservations:
           memory: 256M
+    volumes:
+      # Persist uploaded documents across container rebuilds
+      - ai_storage_prod_data:/app/storage
 
 # ============================================
 # NETWORKS
@@ -140,3 +141,10 @@ networks:
   petties-prod-network:
     driver: bridge
     name: petties-prod-network
+
+# ============================================
+# VOLUMES (Persist data across rebuilds)
+# ============================================
+volumes:
+  ai_storage_prod_data:
+    driver: local

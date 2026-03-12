@@ -14,15 +14,16 @@ from datetime import datetime
 
 # ===== REQUEST SCHEMAS =====
 
+
 class ExecuteToolRequest(BaseModel):
     """
     Request schema cho execute tool (testing)
 
     Endpoint: POST /tools/{tool_name}/execute
     """
+
     parameters: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Tool parameters"
+        default_factory=dict, description="Tool parameters"
     )
 
 
@@ -32,11 +33,8 @@ class AssignToolToAgentRequest(BaseModel):
 
     Endpoint: POST /tools/{tool_id}/assign
     """
-    agent_name: str = Field(
-        ...,
-        description="Agent name",
-        examples=["booking_agent", "medical_agent", "research_agent"]
-    )
+
+    agent_name: str = Field(..., description="Agent name", examples=["petties_agent"])
 
 
 class EnableToolRequest(BaseModel):
@@ -45,10 +43,8 @@ class EnableToolRequest(BaseModel):
 
     Endpoint: PUT /tools/{tool_id}/enable
     """
-    enabled: bool = Field(
-        ...,
-        description="Enable or disable tool"
-    )
+
+    enabled: bool = Field(..., description="Enable or disable tool")
 
 
 class CreateToolRequest(BaseModel):
@@ -57,32 +53,24 @@ class CreateToolRequest(BaseModel):
 
     Endpoint: POST /tools
     """
+
     name: str = Field(
         ...,
         min_length=3,
         max_length=100,
         description="Tool name (snake_case)",
-        examples=["check_slot", "create_booking"]
+        examples=["check_available_slots", "create_booking_for_user"],
     )
-    description: str = Field(
-        ...,
-        description="Semantic description for LLM"
-    )
+    description: str = Field(..., description="Semantic description for LLM")
     input_schema: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="JSON schema for input parameters"
+        default=None, description="JSON schema for input parameters"
     )
     output_schema: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="JSON schema for output"
+        default=None, description="JSON schema for output"
     )
-    enabled: bool = Field(
-        default=False,
-        description="Enable tool immediately"
-    )
+    enabled: bool = Field(default=False, description="Enable tool immediately")
     assigned_agents: List[str] = Field(
-        default_factory=list,
-        description="List of agent names to assign"
+        default_factory=list, description="List of agent names to assign"
     )
 
 
@@ -92,6 +80,7 @@ class UpdateToolRequest(BaseModel):
 
     Endpoint: PUT /tools/{tool_id}
     """
+
     description: Optional[str] = None
     input_schema: Optional[Dict[str, Any]] = None
     output_schema: Optional[Dict[str, Any]] = None
@@ -101,10 +90,12 @@ class UpdateToolRequest(BaseModel):
 
 # ===== RESPONSE SCHEMAS =====
 
+
 class ToolResponse(BaseModel):
     """
     Response schema cho single tool (simplified for code-based)
     """
+
     id: int
     name: str
     description: Optional[str] = None
@@ -125,6 +116,7 @@ class ExecuteToolResponse(BaseModel):
 
     Endpoint: POST /tools/{tool_name}/execute
     """
+
     success: bool
     tool_name: str
     data: Optional[Any] = None
@@ -137,6 +129,7 @@ class ToolListResponse(BaseModel):
 
     Endpoint: GET /tools
     """
+
     total: int
     tools: List[ToolResponse]
     filters: Optional[Dict[str, Any]] = None
@@ -148,6 +141,7 @@ class ScanToolsResponse(BaseModel):
 
     Endpoint: POST /tools/scan
     """
+
     success: bool
     message: str
     total_tools: int
@@ -158,10 +152,12 @@ class ScanToolsResponse(BaseModel):
 
 # ===== ERROR RESPONSE =====
 
+
 class ErrorResponse(BaseModel):
     """
     Generic error response
     """
+
     success: bool = False
     error: str
     detail: Optional[str] = None

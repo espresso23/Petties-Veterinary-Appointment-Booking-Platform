@@ -12,7 +12,18 @@ Changes from v0.0.1:
 - Updated DEFAULT_SETTINGS with OpenRouter and Cohere keys
 """
 
-from sqlalchemy import Column, Integer, String, Text, Boolean, Float, DateTime, JSON, ForeignKey, Enum
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Text,
+    Boolean,
+    Float,
+    DateTime,
+    JSON,
+    ForeignKey,
+    Enum,
+)
 from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy.sql import func
 from datetime import datetime
@@ -24,8 +35,9 @@ Base = declarative_base()
 # ===== ENUMS =====
 class ToolType(str, enum.Enum):
     """Tool types"""
-    CODE_BASED = "code_based"    # FastMCP @mcp.tool decorators
-    API_BASED = "api_based"      # Spring Boot API calls
+
+    CODE_BASED = "CODE_BASED"  # FastMCP @mcp.tool decorators
+    API_BASED = "API_BASED"  # Spring Boot API calls
 
 
 # ===== AGENTS TABLE =====
@@ -49,6 +61,7 @@ class Agent(Base):
         - system_prompt: System prompt dinh nghia behavior
         - enabled: Agent co duoc enable khong
     """
+
     __tablename__ = "agents"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -59,7 +72,9 @@ class Agent(Base):
     temperature = Column(Float, default=0.7)
     max_tokens = Column(Integer, default=2000)
     top_p = Column(Float, default=0.9)  # NEW: Top-P parameter
-    model = Column(String(100), default="google/gemini-2.0-flash-exp:free")  # OpenRouter model
+    model = Column(
+        String(100), default="google/gemini-2.0-flash-exp:free"
+    )  # OpenRouter model
 
     # Prompts
     system_prompt = Column(Text)
@@ -73,7 +88,6 @@ class Agent(Base):
 
     # Relationships
     prompt_versions = relationship("PromptVersion", back_populates="agent")
-    chat_sessions = relationship("ChatSession", back_populates="agent")
 
     def __repr__(self):
         return f"<Agent(name={self.name}, model={self.model})>"
@@ -87,32 +101,36 @@ class Tool(Base):
     Purpose: Luu tru metadata cua Code-based tools (@mcp.tool)
 
     Note: Tools duoc code thu cong voi FastMCP.
-    Admin co the enable/disable individual tools.
+    Trong thuc te hien tai:
+    - pet_knowledge_search va web_search co the bat/tat de test Playground
+    - cac business tools duoc system-managed, auto-enable va auto-assign cho petties_agent
 
     Columns:
         - id: Primary key
-        - name: Tool name (unique, vi du: check_slot, create_booking)
+        - name: Tool name (unique, vi du: pet_knowledge_search, create_booking_for_user)
         - description: Mo ta chuc nang (semantic description cho LLM)
-        - tool_type: Loai tool (code_based, api_based)
+        - tool_type: Loai tool enum (CODE_BASED, API_BASED)
         - input_schema: JSON schema cho input parameters
         - output_schema: JSON schema cho output data
         - enabled: Tool co duoc enable khong
         - assigned_agents: JSON array voi agent names duoc phep dung
     """
+
     __tablename__ = "tools"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), unique=True, nullable=False, index=True)
     description = Column(Text)  # Semantic description cho LLM
-    # Use String instead of Enum for easier migration compatibility
-    tool_type = Column(String(20), default="code_based")
+    tool_type = Column(Enum(ToolType, name="tooltype"), default=ToolType.CODE_BASED)
 
     # Schema definition (JSON format)
     input_schema = Column(JSON)
     output_schema = Column(JSON)
 
     # Status & Assignment
-    enabled = Column(Boolean, default=False)  # Default false, admin enable sau
+    enabled = Column(
+        Boolean, default=False
+    )  # Scanner/seed co the auto-enable theo policy
     assigned_agents = Column(JSON)  # List of agent names: ["petties_agent"]
 
     # Timestamps
@@ -138,6 +156,7 @@ class PromptVersion(Base):
         - created_by: Admin user tao version nay
         - notes: Ghi chu ve thay doi
     """
+
     __tablename__ = "prompt_versions"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -160,71 +179,6 @@ class PromptVersion(Base):
         return f"<PromptVersion(agent_id={self.agent_id}, version={self.version})>"
 
 
-# ===== CHAT SESSIONS TABLE =====
-class ChatSession(Base):
-    """
-    Chat Sessions Table
-
-    Purpose: Luu tru chat sessions giua users va agents
-    Columns:
-        - id: Primary key
-        - agent_id: Foreign key den agents table
-        - user_id: User ID tu Spring Boot backend
-        - session_id: Session identifier
-        - started_at: Thoi gian bat dau session
-        - ended_at: Thoi gian ket thuc session
-    """
-    __tablename__ = "chat_sessions"
-
-    id = Column(Integer, primary_key=True, index=True)
-    agent_id = Column(Integer, ForeignKey("agents.id"))
-    user_id = Column(String(100), index=True)  # User ID tu backend
-    session_id = Column(String(100), unique=True, nullable=False, index=True)
-
-    # Timestamps
-    started_at = Column(DateTime(timezone=True), server_default=func.now())
-    ended_at = Column(DateTime(timezone=True))
-
-    # Relationships
-    agent = relationship("Agent", back_populates="chat_sessions")
-    messages = relationship("ChatMessage", back_populates="session")
-
-    def __repr__(self):
-        return f"<ChatSession(session_id={self.session_id}, user_id={self.user_id})>"
-
-
-# ===== CHAT MESSAGES TABLE =====
-class ChatMessage(Base):
-    """
-    Chat Messages Table
-
-    Purpose: Luu tru tung message trong chat session
-    Columns:
-        - id: Primary key
-        - session_id: Foreign key den chat_sessions
-        - role: Role cua message (user, assistant, system)
-        - content: Noi dung message
-        - metadata: JSON metadata (tool calls, thinking process, etc.)
-        - timestamp: Thoi gian message
-    """
-    __tablename__ = "chat_messages"
-
-    id = Column(Integer, primary_key=True, index=True)
-    session_id = Column(Integer, ForeignKey("chat_sessions.id"), nullable=False)
-    role = Column(String(20), nullable=False)  # user, assistant, system
-    content = Column(Text, nullable=False)
-    message_metadata = Column(JSON)  # Tool calls, ReAct steps, etc.
-
-    # Timestamp
-    timestamp = Column(DateTime(timezone=True), server_default=func.now())
-
-    # Relationships
-    session = relationship("ChatSession", back_populates="messages")
-
-    def __repr__(self):
-        return f"<ChatMessage(session_id={self.session_id}, role={self.role})>"
-
-
 # ===== KNOWLEDGE BASE DOCUMENTS TABLE =====
 class KnowledgeDocument(Base):
     """
@@ -241,13 +195,14 @@ class KnowledgeDocument(Base):
         - processed: Document da duoc chunked va embedded chua
         - vector_count: So vectors da tao
     """
+
     __tablename__ = "knowledge_documents"
 
     id = Column(Integer, primary_key=True, index=True)
     filename = Column(String(255), nullable=False)
     file_path = Column(String(500), nullable=False)
     file_type = Column(String(10))  # pdf, docx, txt, md
-    file_size = Column(Integer)     # bytes
+    file_size = Column(Integer)  # bytes
 
     # Processing status
     processed = Column(Boolean, default=False)
@@ -262,17 +217,20 @@ class KnowledgeDocument(Base):
     processed_at = Column(DateTime(timezone=True))
 
     def __repr__(self):
-        return f"<KnowledgeDocument(filename={self.filename}, processed={self.processed})>"
+        return (
+            f"<KnowledgeDocument(filename={self.filename}, processed={self.processed})>"
+        )
 
 
 # ===== SYSTEM SETTINGS TABLE =====
 class SettingCategory(str, enum.Enum):
     """Setting categories for admin dashboard"""
-    LLM = "llm"                    # OpenRouter settings
-    RAG = "rag"                    # Cohere + Qdrant settings
-    EMBEDDINGS = "embeddings"      # Cohere embeddings
-    VECTOR_DB = "vector_db"        # Qdrant settings
-    GENERAL = "general"            # General settings
+
+    LLM = "llm"  # OpenRouter settings
+    RAG = "rag"  # Cohere + Qdrant settings
+    EMBEDDINGS = "embeddings"  # Cohere embeddings
+    VECTOR_DB = "vector_db"  # Qdrant settings
+    GENERAL = "general"  # General settings
 
 
 class SystemSetting(Base):
@@ -287,18 +245,23 @@ class SystemSetting(Base):
         - rag: Cohere API key for embeddings
         - vector_db: Qdrant URL and API key
     """
+
     __tablename__ = "system_settings"
 
     id = Column(Integer, primary_key=True)
     key = Column(String(100), unique=True, nullable=False, index=True)
     value = Column(Text, nullable=False)  # Encrypted if is_sensitive=True
-    category = Column(String(50), default="general")  # Changed from Enum for DB compatibility
+    category = Column(
+        String(50), default="general"
+    )  # Changed from Enum for DB compatibility
     is_sensitive = Column(Boolean, default=False)  # Encrypt value if True
     description = Column(Text)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     def __repr__(self):
         masked = "***" if self.is_sensitive else self.value[:20]
@@ -310,33 +273,101 @@ class SystemSetting(Base):
 
 DEFAULT_SETTINGS = [
     # ===== LLM - OpenRouter Cloud (PRIMARY) =====
-    {"key": "OPENROUTER_API_KEY", "value": "", "category": "llm", "is_sensitive": True, "description": "OpenRouter Cloud API Key (https://openrouter.ai/keys)"},
-    {"key": "OPENROUTER_DEFAULT_MODEL", "value": "google/gemini-2.0-flash-exp:free", "category": "llm", "is_sensitive": False, "description": "Default LLM model (free tier: gemini-2.0-flash-exp:free)"},
-    {"key": "OPENROUTER_FALLBACK_MODEL", "value": "meta-llama/llama-3.3-70b-instruct", "category": "llm", "is_sensitive": False, "description": "Fallback model when primary fails"},
-
+    {
+        "key": "OPENROUTER_API_KEY",
+        "value": "",
+        "category": "llm",
+        "is_sensitive": True,
+        "description": "OpenRouter Cloud API Key (https://openrouter.ai/keys)",
+    },
+    {
+        "key": "OPENROUTER_DEFAULT_MODEL",
+        "value": "google/gemini-2.0-flash-exp:free",
+        "category": "llm",
+        "is_sensitive": False,
+        "description": "Default LLM model (free tier: gemini-2.0-flash-exp:free)",
+    },
+    {
+        "key": "OPENROUTER_FALLBACK_MODEL",
+        "value": "meta-llama/llama-3.3-70b-instruct",
+        "category": "llm",
+        "is_sensitive": False,
+        "description": "Fallback model when primary fails",
+    },
     # ===== LLM - DeepSeek (FALLBACK) =====
-    {"key": "DEEPSEEK_API_KEY", "value": "", "category": "llm", "is_sensitive": True, "description": "DeepSeek API Key (https://platform.deepseek.com/api_keys)"},
-    {"key": "DEEPSEEK_MODEL", "value": "deepseek-chat", "category": "llm", "is_sensitive": False, "description": "DeepSeek model (deepseek-chat for general, deepseek-coder for code)"},
-    {"key": "DEEPSEEK_BASE_URL", "value": "https://api.deepseek.com", "category": "llm", "is_sensitive": False, "description": "DeepSeek API base URL"},
-
+    {
+        "key": "DEEPSEEK_API_KEY",
+        "value": "",
+        "category": "llm",
+        "is_sensitive": True,
+        "description": "DeepSeek API Key (https://platform.deepseek.com/api_keys)",
+    },
+    {
+        "key": "DEEPSEEK_MODEL",
+        "value": "deepseek-chat",
+        "category": "llm",
+        "is_sensitive": False,
+        "description": "DeepSeek model (deepseek-chat for general, deepseek-coder for code)",
+    },
+    {
+        "key": "DEEPSEEK_BASE_URL",
+        "value": "https://api.deepseek.com",
+        "category": "llm",
+        "is_sensitive": False,
+        "description": "DeepSeek API base URL",
+    },
     # ===== RAG - Cohere Embeddings (RECOMMENDED) =====
-    {"key": "COHERE_API_KEY", "value": "", "category": "rag", "is_sensitive": True, "description": "Cohere API Key for multilingual embeddings (https://dashboard.cohere.com/api-keys)"},
-    {"key": "COHERE_EMBEDDING_MODEL", "value": "embed-multilingual-v3.0", "category": "rag", "is_sensitive": False, "description": "Cohere embedding model (multilingual for Vietnamese)"},
-
+    {
+        "key": "COHERE_API_KEY",
+        "value": "",
+        "category": "rag",
+        "is_sensitive": True,
+        "description": "Cohere API Key for multilingual embeddings (https://dashboard.cohere.com/api-keys)",
+    },
+    {
+        "key": "COHERE_EMBEDDING_MODEL",
+        "value": "embed-multilingual-v3.0",
+        "category": "rag",
+        "is_sensitive": False,
+        "description": "Cohere embedding model (multilingual for Vietnamese)",
+    },
     # ===== Vector DB - Qdrant =====
-    {"key": "QDRANT_URL", "value": "http://localhost:6333", "category": "vector_db", "is_sensitive": False, "description": "Qdrant server URL (local or Qdrant Cloud)"},
-    {"key": "QDRANT_API_KEY", "value": "", "category": "vector_db", "is_sensitive": True, "description": "Qdrant API key (required for Qdrant Cloud)"},
-    {"key": "QDRANT_COLLECTION_NAME", "value": "petties_knowledge_base", "category": "vector_db", "is_sensitive": False, "description": "Qdrant collection name for RAG"},
-    
+    {
+        "key": "QDRANT_URL",
+        "value": "http://localhost:6333",
+        "category": "vector_db",
+        "is_sensitive": False,
+        "description": "Qdrant server URL (local or Qdrant Cloud)",
+    },
+    {
+        "key": "QDRANT_API_KEY",
+        "value": "",
+        "category": "vector_db",
+        "is_sensitive": True,
+        "description": "Qdrant API key (required for Qdrant Cloud)",
+    },
+    {
+        "key": "QDRANT_COLLECTION_NAME",
+        "value": "petties_knowledge_base",
+        "category": "vector_db",
+        "is_sensitive": False,
+        "description": "Qdrant collection name for RAG",
+    },
     # ===== General Settings =====
-    {"key": "JWT_SECRET", "value": "", "category": "general", "is_sensitive": True, "description": "JWT Secret Key for token verification (Must match Spring Boot)"},
+    {
+        "key": "JWT_SECRET",
+        "value": "",
+        "category": "general",
+        "is_sensitive": True,
+        "description": "JWT Secret Key for token verification (Must match Spring Boot)",
+    },
 ]
-
 
 
 # ===== LEGACY SUPPORT =====
 # Keep AgentType for backward compatibility during migration
 # Will be removed in future version
+
 
 class AgentType(str, enum.Enum):
     """
@@ -346,7 +377,8 @@ class AgentType(str, enum.Enum):
     Kept for backward compatibility during migration.
     Will be removed in v2.0.0
     """
-    MAIN = "main"           # Main Agent (now: Single Agent)
-    BOOKING = "booking"     # Deprecated
-    MEDICAL = "medical"     # Deprecated
-    RESEARCH = "research"   # Deprecated
+
+    MAIN = "main"  # Main Agent (now: Single Agent)
+    BOOKING = "booking"  # Deprecated
+    MEDICAL = "medical"  # Deprecated
+    RESEARCH = "research"  # Deprecated

@@ -6,18 +6,35 @@ class Environment {
   /// WebSocket URL override from --dart-define=WS_URL
   static const String _wsUrlOverride = String.fromEnvironment('WS_URL');
 
-  /// Get the WebSocket URL from --dart-define hoặc .env (WS_URL)
+  /// Get the WebSocket URL
+  /// IMPORTANT: Dart's Uri.parse() returns port 0 for 'wss://' scheme
+  /// (it only recognizes http/https). This causes BAD_DECRYPT errors.
+  /// Solution: Always derive WS URL from baseUrl and set port explicitly.
   static String get wsUrl {
+    // 1. dart-define override (compile time) - used for specific overrides
     if (_wsUrlOverride.isNotEmpty) {
       return _wsUrlOverride;
     }
 
-    try {
-      final envWsUrl = dotenv.env['WS_URL'] ?? '';
-      if (envWsUrl.isNotEmpty) return envWsUrl;
-    } catch (_) {}
+    // 2. Derive from baseUrl (most reliable approach)
+    // baseUrl is always https:// or http://, which Dart handles correctly
+    final base = baseUrl; // e.g. https://ngrok-domain/api
+    final serverUrl = base.replaceAll('/api', ''); // https://ngrok-domain
 
-    return '';
+    if (serverUrl.startsWith('https://')) {
+      // Extract host from https:// URL
+      final host = serverUrl.replaceFirst('https://', '');
+      // Use wss:// with explicit port 443 to avoid Dart port 0 bug
+      return 'wss://$host:443/api/ws-native';
+    } else if (serverUrl.startsWith('http://')) {
+      final host = serverUrl.replaceFirst('http://', '');
+      // Local dev: ws:// with the port from the URL (usually 8080)
+      // If host already has port (e.g., localhost:8080), don't add another
+      return 'ws://$host/api/ws-native';
+    }
+
+    // Fallback
+    return 'ws://localhost:8080/api/ws-native';
   }
 
   Environment._();
@@ -50,19 +67,26 @@ class Environment {
 
   /// Get the base URL (dart-define -> .env -> local fallback)
   static String get baseUrl {
-    // Priority 1: API_URL passed via --dart-define
+    // 1. Priority: API_URL passed via --dart-define (compile time)
     if (_apiUrlOverride.isNotEmpty) {
       return _apiUrlOverride;
     }
 
-    // Priority 2: API_URL from .env file (via dotenv)
+    // 2. Priority: API_BASE_URL from .env file (auto-appends /api)
+    // This is the primary way for Local Dev and CodeMagic
+    final envBase = _devBaseUrl;
+    if (!envBase.contains('localhost') && !envBase.contains('10.0.2.2')) {
+      return envBase;
+    }
+
+    // 3. Fallback: Check if there's a specific API_URL in .env
     try {
       final envUrl = dotenv.env['API_URL'] ?? '';
       if (envUrl.isNotEmpty) return envUrl;
     } catch (_) {}
 
-    // Priority 3: local fallback
-    return _devBaseUrl;
+    // 4. Final fallback: local dev values (localhost/10.0.2.2)
+    return envBase;
   }
 
   /// AI Service URL

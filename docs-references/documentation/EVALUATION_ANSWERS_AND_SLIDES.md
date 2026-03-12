@@ -86,11 +86,11 @@ flowchart TD
 
 **Đáp án:** Có. ERD trong PETTIES_ERD_DIAGRAM.md phản ánh đầy đủ với Mermaid Crow's Foot, gồm **28+ thực thể** và quan hệ rõ ràng.
 
-- **PostgreSQL (Core + Auth):** USER, CLINIC, CLINIC_IMAGE, MASTER_SERVICE, SERVICE, SERVICE_WEIGHT_PRICE, PET, VET_SHIFT, SLOT, BOOKING_SLOT, BOOKING, BOOKING_SERVICE, PAYMENT, REVIEW, NOTIFICATION, CHAT_CONVERSATION, CHAT_MESSAGE, REFRESH_TOKEN, BLACKLISTED_TOKEN, USER_REPORT.
+- **PostgreSQL (Core + Auth):** USER, CLINIC, CLINIC_IMAGE, MASTER_SERVICE, SERVICE, SERVICE_WEIGHT_PRICE, PET, STAFF_SHIFT, SLOT, BOOKING_SLOT, BOOKING, BOOKING_SERVICE, PAYMENT, REVIEW, NOTIFICATION, CHAT_CONVERSATION, CHAT_MESSAGE, REFRESH_TOKEN, BLACKLISTED_TOKEN, USER_REPORT.
 - **MongoDB:** EMR_RECORD, VACCINATION_RECORD (và các embedded: prescriptions, images).
 - **AI Service (PostgreSQL + MongoDB):**
-    - **PostgreSQL:** AI_AGENT, AI_TOOL, AI_PROMPT_VERSION, AI_KNOWLEDGE_DOC, AI_SYSTEM_SETTING.
-    - **MongoDB:** AI_CHAT_SESSION (`ai_chat_sessions`), AI_CHAT_MESSAGE (`ai_chat_messages`).
+    - **PostgreSQL:** AGENT, TOOL, PROMPT_VERSION, KNOWLEDGE_DOCUMENT, SYSTEM_SETTING.
+    - **MongoDB:** AI_CHAT_SESSION (`ai_chat_sessions`), AI_CHAT_MESSAGE (`ai_chat_messages`), AI_PROACTIVE_NOTIFICATION, CHAT_FEEDBACK.
 - **Quan hệ:** Đầy đủ cardinality (1-N, N-1, junction tables như BOOKING_SLOT, BOOKING_SERVICE), khóa ngoại và mô tả từng thực thể (mục đích, thuộc tính chính).
 
 **Bằng chứng:** `docs-references/documentation/PETTIES_ERD_DIAGRAM.md` – §1 Complete Mermaid ERD, §2 Detailed Entities Description, §4 Relationship Matrix.
@@ -101,10 +101,10 @@ flowchart TD
 
 **Đáp án:** Có. Các entity chính có trạng thái và luồng trạng thái được mô tả tương ứng state diagram.
 
-- **BOOKING:** Trạng thái PENDING → ASSIGNED → CONFIRMED → (CHECK_IN) → IN_PROGRESS → CHECK_OUT → COMPLETED; các nhánh CANCELLED, NO_SHOW; với HOME_VISIT có thêm ON_THE_WAY, ARRIVED. ERD §2.10 mô tả Status Flow và Completion Dependency (payment, EMR).
+- **BOOKING:** Trạng thái chuẩn là PENDING → CONFIRMED → IN_PROGRESS → COMPLETED; các nhánh phụ gồm CANCELLED, NO_SHOW. Các thao tác như `check-in`, `start-moving`, `arrived`, `checkout` chỉ là action hoặc event, không phải state. Với SOS vẫn có nhánh đặc thù `SEARCHING → PENDING_CLINIC_CONFIRM → CONFIRMED`.
 - **USER:** status (ACTIVE | SUSPENDED | PENDING), role (PET_OWNER | STAFF | CLINIC_MANAGER | CLINIC_OWNER | ADMIN).
 - **CLINIC:** status (PENDING | APPROVED | REJECTED | SUSPENDED).
-- **VET_SHIFT:** status (SCHEDULED | COMPLETED | CANCELLED); **SLOT:** status (AVAILABLE | BOOKED | BLOCKED).
+- **STAFF_SHIFT:** status (SCHEDULED | COMPLETED | CANCELLED); **SLOT:** status (AVAILABLE | BOOKED | BLOCKED).
 - **PAYMENT:** status (PENDING | PAID | REFUNDED | FAILED).
 
 Các enum và trường này đủ để mô hình hóa state và behavior trong state diagram.
@@ -114,19 +114,12 @@ Các enum và trường này đủ để mô hình hóa state và behavior trong
 ```mermaid
 stateDiagram-v2
     [*] --> PENDING
-    PENDING --> ASSIGNED: Assign vet
-    ASSIGNED --> CONFIRMED: Pet owner confirm
-    CONFIRMED --> CHECK_IN: Check-in at clinic
-    CONFIRMED --> ON_THE_WAY: Home visit start travel
-    ON_THE_WAY --> ARRIVED: Staff arrived
-    ARRIVED --> CHECK_IN: Check-in
-    CHECK_IN --> IN_PROGRESS: Start examination
-    IN_PROGRESS --> CHECK_OUT: Finish service
-    CHECK_OUT --> COMPLETED: Payment done
+    PENDING --> CONFIRMED: Clinic confirm booking
+    CONFIRMED --> IN_PROGRESS: check-in / start-moving
+    IN_PROGRESS --> IN_PROGRESS: arrived (update timestamp only)
+    IN_PROGRESS --> COMPLETED: checkout + payment
     PENDING --> CANCELLED: Cancel
-    ASSIGNED --> CANCELLED: Cancel
     CONFIRMED --> CANCELLED: Cancel
-    CHECK_IN --> NO_SHOW: No show
     IN_PROGRESS --> NO_SHOW: No show
     COMPLETED --> [*]
     CANCELLED --> [*]
@@ -207,6 +200,24 @@ Khi trình bày AI, chỉ giữ 2 câu hỏi chính:
 
 > **Không tách riêng một slide “AI service life cycle”** vì dễ trùng ý và khó liên hệ trực tiếp tới giá trị sản phẩm.
 
+### AI.0.1 Script ngắn cho khách hàng (1–2 phút): “AI update data & cải thiện độ chính xác”
+
+**Mục tiêu:** Trả lời nhanh, dễ hiểu, không dùng thuật ngữ khó.
+
+- **AI update data thế nào?**
+  - “Bọn em cập nhật kiến thức cho AI bằng cách **upload tài liệu thú y** vào Knowledge Base.”
+  - “Hệ thống tự xử lý tài liệu (chia nhỏ nội dung) và đưa vào kho tra cứu. Khi Pet Owner hỏi, AI sẽ **tra cứu lại kho này** để lấy thông tin đúng rồi mới trả lời.”
+  - “Vì vậy khi có phác đồ/hướng dẫn mới, chỉ cần upload tài liệu là AI có thể trả lời theo kiến thức mới, không cần sửa nghiệp vụ Spring Boot.”
+
+- **AI cải thiện độ chính xác ra sao theo thời gian?**
+  - “Nếu câu hỏi quá ngắn, AI tự bổ sung từ khóa liên quan để tìm đúng tài liệu hơn.”
+  - “Nếu người dùng hoặc Staff xác nhận câu trả lời đúng, hệ thống lưu lại các ‘trường hợp đã được xác nhận’. Lần sau gặp câu hỏi tương tự, AI ưu tiên tham chiếu các trường hợp này nên câu trả lời ngày càng sát thực tế hơn.”
+
+**Tham chiếu (để trả lời khi bị hỏi nguồn):**
+- `docs-references/documentation/SDD/REPORT_4_SDD_SYSTEM_DESIGN.md` – Mục **4.19 AI Data Improvement Mechanisms**
+- `docs-references/documentation/TECHNICAL SCOPE PETTIES - AGENT MANAGEMENT.md` – Mục **RAG Update / Knowledge Base Management**
+- `docs-references/documentation/SRS/PETTIES_SRS.md` – Mục **3.11.1 Consult AI Assistant (Ask ChatBot To Pet Care = Done)**
+
 ### AI.1 Kiến trúc hệ thống / package diagram có mô tả AI là thành phần tách biệt hay nhúng trong logic chính không?
 
 **Đáp án:** Có. AI được mô tả rõ là **thành phần tách biệt** (sub-system riêng), không nhúng trong từng API của Spring Boot.
@@ -244,12 +255,12 @@ sequenceDiagram
     API->>Agent: Invoke với context user
     Agent->>LLM: Phân tích ý định
     alt Cần dữ liệu chuyên môn
-        Agent->>Tools: call pet_care_qa / symptom_search
+        Agent->>Tools: call pet_knowledge_search / web_search
         Tools->>RAG: Truy vấn tri thức
         RAG-->>Agent: Context + nguồn tham chiếu
     end
     alt Cần thao tác nghiệp vụ
-        Agent->>Tools: call search_clinics / check_slots / create_booking
+        Agent->>Tools: call get_user_pets / search_clinics_nearby / get_clinic_services / check_available_slots / create_booking_for_user
         Tools->>Spring: Gọi API nghiệp vụ
         Spring-->>Agent: Kết quả nghiệp vụ
     end
@@ -278,8 +289,8 @@ Tài liệu [AI_FEATURES_NON_PET_OWNER_IDEA.md](AI_FEATURES_NON_PET_OWNER_IDEA.m
   (AI_FEATURES_NON_PET_OWNER_IDEA.md mô tả agent được gọi từ nhiều role – Pet Owner, Staff, CM, CO – qua cùng entry point General Agent rồi phân luồng theo ngữ cảnh.)
 
 - **Chờ response:**  
-  - **REST:** Đồng bộ – client đợi đến khi `invoke()` trả về (sau khi Think → Act → Observe có thể lặp, rồi Generate answer).  
-  - **WebSocket:** Bất đồng bộ – client nhận lần lượt event: `thinking` → `tool_call` → `observation` → `response` (delta) → `done` (final answer + sources). Client hiển thị từng bước và tích lũy nội dung.
+  - **REST:** Endpoint `/api/v1/chat/sessions/{session_id}/messages` hiện chủ yếu persist user message và trả ACK/metadata.  
+  - **WebSocket:** Bất đồng bộ – client nhận lần lượt event: `thinking` → `tool_call` → `tool_result` → `stream` (delta) → `complete` (final answer + sources). Client hiển thị từng bước và tích lũy nội dung.
 
 - **Xử lý khi AI lỗi:**  
   - **WebSocket:** Server gửi event `type: "error"`, ví dụ `{ "type": "error", "error": "Failed to connect to LLM service", "code": "LLM_ERROR" }`. Client có thể hiển thị thông báo lỗi và cho phép gửi lại.  
@@ -328,11 +339,11 @@ sequenceDiagram
 - **PostgreSQL (AI config/governance):** lưu `agents`, `tools`, `prompt_versions`, `knowledge_documents`, `system_settings` để quản trị Single Agent, tools và RAG config.
 
 - **MongoDB (AI chat history):**
-    - **ai_chat_sessions:** session-level metadata (session_id, user_id, agent_name, started_at, ended_at).
-    - **ai_chat_messages:** message-level records (role, content, timestamp, **message_metadata** gồm tool_calls/thought/sources).
+    - **ai_chat_sessions:** session-level metadata (session_id, user_id, user_role, clinic_id, context_type, agent_id, created_at, updated_at).
+    - **ai_chat_messages:** message-level records (message_id, session_id, user_id, role, content, context_type, react_trace, tool_calls, sources, timestamp).
     Cấu trúc này phù hợp truy vấn theo session/user và audit chất lượng phản hồi AI.
 
-- **ERD (PETTIES_ERD_DIAGRAM.md §2.24–2.25):** AI_CHAT_SESSION, AI_CHAT_MESSAGE với mô tả: session nhóm tin theo user/agent; message lưu content và message_metadata (tool_calls, thinking steps). Đủ để audit, debug và phân tích chất lượng câu trả lời / tool usage.
+- **ERD/SDD:** AI chat runtime được mô tả bằng `ai_chat_sessions`, `ai_chat_messages`, `ai_proactive_notifications`, `chat_feedback`; đủ để audit, debug và phân tích chất lượng câu trả lời / tool usage.
 
 **Bằng chứng:**  
 - `docs-references/documentation/SDD/AI_AGENT_SERVICE_SDD.md` – §5.1 PostgreSQL Schema (không lưu chat AI-user), §5.4 MongoDB Schema (`ai_chat_sessions`, `ai_chat_messages`).  

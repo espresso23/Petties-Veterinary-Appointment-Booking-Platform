@@ -28,6 +28,7 @@ public class SosMatchResponse {
     // Pet info (for resuming matching on mobile)
     private UUID petId;
     private String petName;
+    private String petAvatarUrl;
 
     // Clinic info (when matched)
     private UUID clinicId;

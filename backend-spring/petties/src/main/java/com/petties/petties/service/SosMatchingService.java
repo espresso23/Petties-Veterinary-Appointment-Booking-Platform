@@ -266,6 +266,9 @@ public class SosMatchingService {
                 .bookingId(booking.getBookingId())
                 .status(BookingStatus.CONFIRMED)
                 .message("Đã xác nhận! Phòng khám sẽ liên hệ với bạn ngay.")
+                .petId(booking.getPet() != null ? booking.getPet().getId() : null)
+                .petName(booking.getPet() != null ? booking.getPet().getName() : null)
+                .petAvatarUrl(booking.getPet() != null ? booking.getPet().getImageUrl() : null)
                 .clinicId(clinic.getClinicId())
                 .clinicName(clinic.getName())
                 .clinicPhone(clinic.getPhone())
@@ -463,6 +466,9 @@ public class SosMatchingService {
         SosMatchResponse.SosMatchResponseBuilder response = SosMatchResponse.builder()
                 .bookingId(bookingId)
                 .status(booking.getStatus())
+                .petId(booking.getPet() != null ? booking.getPet().getId() : null)
+                .petName(booking.getPet() != null ? booking.getPet().getName() : null)
+                .petAvatarUrl(booking.getPet() != null ? booking.getPet().getImageUrl() : null)
                 .wsTopicUrl("/topic/sos-matching/" + bookingId);
 
         if (booking.getClinic() != null) {
@@ -569,6 +575,7 @@ public class SosMatchingService {
 
         if (booking.getPet() != null) {
             builder.petName(booking.getPet().getName())
+                    .petAvatarUrl(booking.getPet().getImageUrl())
                     .petSpecies(booking.getPet().getSpecies() != null ? booking.getPet().getSpecies().name() : null)
                     .petBreed(booking.getPet().getBreed())
                     .petWeight(booking.getPet().getWeight());
@@ -728,6 +735,9 @@ public class SosMatchingService {
                 .bookingId(booking.getBookingId())
                 .status(booking.getStatus())
                 .message("Đang tìm phòng khám gần bạn...")
+                .petId(booking.getPet() != null ? booking.getPet().getId() : null)
+                .petName(booking.getPet() != null ? booking.getPet().getName() : null)
+                .petAvatarUrl(booking.getPet() != null ? booking.getPet().getImageUrl() : null)
                 .clinicId(firstClinic.getClinicId())
                 .clinicName(firstClinic.getName())
                 .clinicPhone(firstClinic.getPhone())
@@ -750,6 +760,9 @@ public class SosMatchingService {
                 .bookingId(booking.getBookingId())
                 .status(booking.getStatus())
                 .message("Bạn đang có một yêu cầu SOS đang hoạt động")
+                .petId(booking.getPet() != null ? booking.getPet().getId() : null)
+                .petName(booking.getPet() != null ? booking.getPet().getName() : null)
+                .petAvatarUrl(booking.getPet() != null ? booking.getPet().getImageUrl() : null)
                 .clinicId(clinic != null ? clinic.getClinicId() : null)
                 .clinicName(clinic != null ? clinic.getName() : null)
                 .clinicPhone(clinic != null ? clinic.getPhone() : null)

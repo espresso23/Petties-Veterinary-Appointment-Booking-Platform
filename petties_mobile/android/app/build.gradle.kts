@@ -72,19 +72,6 @@ android {
         resValue("string", "app_name", "Petties")
     }
 
-    flavorDimensions += "environment"
-    productFlavors {
-        create("dev") {
-            dimension = "environment"
-            applicationId = "world.petties.mobile"
-            resValue("string", "app_name", "Petties Dev")
-        }
-        create("prod") {
-            dimension = "environment"
-            resValue("string", "app_name", "Petties")
-        }
-    }
-
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.

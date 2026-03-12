@@ -103,6 +103,7 @@ class SosMatchingServiceUnitTest {
         pet = new Pet();
         pet.setId(petId);
         pet.setName("Buddy");
+        pet.setImageUrl("http://example.com/avatar.jpg");
         pet.setUser(petOwner);
 
         // Clinics
@@ -133,6 +134,7 @@ class SosMatchingServiceUnitTest {
         staff.setUserId(staffId);
         staff.setRole(Role.STAFF);
         staff.setFullName("SOS Staff");
+        staff.setWorkingClinic(clinic1);
 
         // Booking
         booking = new Booking();
@@ -190,6 +192,7 @@ class SosMatchingServiceUnitTest {
             assertEquals(clinicId1, response.getClinicId());
             assertEquals("Clinic 1", response.getClinicName());
             assertNotNull(response.getWsTopicUrl());
+            assertEquals("http://example.com/avatar.jpg", response.getPetAvatarUrl());
             assertTrue(response.getWsTopicUrl().contains("/topic/sos-matching/"));
 
             // Verify session creation
@@ -322,6 +325,7 @@ class SosMatchingServiceUnitTest {
             assertEquals(BookingStatus.CONFIRMED, response.getStatus());
             assertEquals(clinicId1, response.getClinicId());
             assertEquals("Clinic 1", response.getClinicName());
+            assertEquals("http://example.com/avatar.jpg", response.getPetAvatarUrl());
 
             // Verify booking updated
             ArgumentCaptor<Booking> bookingCaptor = ArgumentCaptor.forClass(Booking.class);
@@ -549,6 +553,7 @@ class SosMatchingServiceUnitTest {
             assertEquals(bookingId, response.getBookingId());
             assertEquals(BookingStatus.PENDING_CLINIC_CONFIRM, response.getStatus());
             assertEquals("Clinic 1", response.getClinicName());
+            assertEquals("http://example.com/avatar.jpg", response.getPetAvatarUrl());
         }
 
         @Test

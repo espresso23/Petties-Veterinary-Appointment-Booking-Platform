@@ -65,9 +65,9 @@ Tài liệu này tổng hợp tất cả các hạng mục công việc đã tri
     - [x] Mobile: Tích hợp reverse geocoding trong `SosRequestScreen` để tự động xác định địa chỉ.
     - [x] Mobile: Cho phép người dùng xác nhận hoặc sửa địa chỉ ngay khi yêu cầu cấp cứu.
 - [x] **Advanced Tracking UI**:
-    - [x] **Polyline Routing**: Vẽ đường đi chi tiết từ bác sĩ đến nhà người dùng dùng Goong Directions API.
+    - [x] **Polyline Routing**: Vẽ đường đi chi tiết từ Staff đến nhà người dùng dùng Goong Directions API.
     - [x] **Custom Marker Icons**: Icons riêng biệt cho Bác sĩ (Medical), Phòng khám (Hospital) và Người dùng (Home).
-    - [x] **Direct Staff Contact**: Hiển thị và ưu tiên gói số điện thoại của bác sĩ được gán.
+    - [x] **Direct Staff Contact**: Hiển thị và ưu tiên gọi số điện thoại của Staff được gán.
 - [x] **SOS Flow Optimization (24/02/2026)**:
     - [x] Thêm nút **"ĐÃ ĐẾN NƠI"** cho Staff để xác nhận thời điểm bắt đầu hỗ trợ và tự động dừng GPS tracking.
     - [x] Mobile Pet Owner: Tự động phát hiện Staff đã đến nơi qua cơ chế **Polling `arrivedAt`** (mỗi 15s) và cập nhật giao diện "Đã đến".

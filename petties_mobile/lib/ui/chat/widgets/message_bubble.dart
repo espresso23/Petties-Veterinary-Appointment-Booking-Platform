@@ -385,7 +385,7 @@ class MessageBubble extends StatelessWidget {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(10),
                 child: Image.network(
-                  displayImageUrl!,
+                  displayImageUrl,
                   width: 220,
                   height: 180,
                   fit: BoxFit.cover,
@@ -541,7 +541,7 @@ class MessageBubble extends StatelessWidget {
                                     );
                                     break;
                                   default:
-                                    print('Kích hoạt: ${btn.label}');
+                                    debugPrint('Kích hoạt: ${btn.label}');
                                 }
                               }
                             },
@@ -602,7 +602,7 @@ class MessageBubble extends StatelessWidget {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(10),
                 child: Image.network(
-                  displayImageUrl!,
+                  displayImageUrl,
                   width: 220,
                   height: 180,
                   fit: BoxFit.cover,
@@ -780,7 +780,8 @@ class MessageBubble extends StatelessWidget {
 
         // Render Action Buttons if available (OUTSIDE THE BUBBLE)
         if (message.actionButtons != null &&
-            message.actionButtons!.isNotEmpty) ...[
+            message.actionButtons!.isNotEmpty &&
+            !isMine) ...[
           Container(
             margin: const EdgeInsets.only(top: 8),
             width: 220, // Match max width
@@ -819,7 +820,7 @@ class MessageBubble extends StatelessWidget {
                                   );
                                   break;
                                 default:
-                                  print('Kích hoạt: ${btn.label}');
+                                  debugPrint('Kích hoạt: ${btn.label}');
                               }
                             }
                           },
@@ -867,7 +868,6 @@ class MessageBubble extends StatelessWidget {
         color = AppColors.white.withValues(alpha: 0.7);
         break;
       case MessageStatus.sent:
-      default:
         icon = Icons.done;
         color = AppColors.white.withValues(alpha: 0.7);
         break;

@@ -99,7 +99,7 @@
 **Deliverables:**
 - Booking CRUD + Multi-service support
 - Pricing logic (Weight/Distance)
-- Status flow: PENDING → CONFIRMED → ASSIGNED → IN_PROGRESS → COMPLETED
+- Status flow: PENDING → CONFIRMED → IN_PROGRESS → COMPLETED
 - Check-in/Checkout APIs
 - Reassign Staff API
 - Payment (Cash/QR)

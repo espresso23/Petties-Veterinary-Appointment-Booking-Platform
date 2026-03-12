@@ -40,8 +40,7 @@ public class NotificationController {
 
         User currentUser = authService.getCurrentUser();
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<NotificationResponse> notifications = notificationService.getNotificationsByUserId(
-                currentUser.getUserId(), pageable);
+        Page<NotificationResponse> notifications = notificationService.getNotificationsByUser(currentUser, pageable);
         return ResponseEntity.ok(notifications);
     }
 
@@ -53,7 +52,7 @@ public class NotificationController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Map<String, Long>> getUnreadCount() {
         User currentUser = authService.getCurrentUser();
-        long count = notificationService.getUnreadCountByUserId(currentUser.getUserId());
+        long count = notificationService.getUnreadCountByUser(currentUser);
         return ResponseEntity.ok(Map.of("count", count));
     }
 

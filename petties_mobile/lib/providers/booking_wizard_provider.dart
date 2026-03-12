@@ -56,6 +56,7 @@ class BookingWizardProvider extends ChangeNotifier {
   bool _isLoadingSlots = false;
   bool _isCreatingBooking = false;
   String? _error;
+  String? _createdBookingId;
 
   BookingWizardProvider({BookingWizardService? bookingService})
       : _bookingService = bookingService ?? BookingWizardService();
@@ -98,6 +99,7 @@ class BookingWizardProvider extends ChangeNotifier {
   bool get isLoadingSlots => _isLoadingSlots;
   bool get isCreatingBooking => _isCreatingBooking;
   String? get error => _error;
+  String? get createdBookingId => _createdBookingId;
 
   /// Calculate total price (sum of all pets' services + distance fee)
   double get totalPrice {
@@ -784,7 +786,7 @@ class BookingWizardProvider extends ChangeNotifier {
           });
         }
 
-        await _bookingService.createBookingForOthers(
+        _createdBookingId = await _bookingService.createBookingForOthers(
           clinicId: _clinic!.clinicId,
           beneficiary: _beneficiary!,
           bookingDate: _selectedDate!,
@@ -806,7 +808,7 @@ class BookingWizardProvider extends ChangeNotifier {
           }
         }
 
-        await _bookingService.createBooking(
+        _createdBookingId = await _bookingService.createBooking(
           clinicId: _clinic!.clinicId,
           bookingDate: _selectedDate!,
           bookingTime: _selectedTime!,
@@ -851,6 +853,7 @@ class BookingWizardProvider extends ChangeNotifier {
     _expectedPickupTime = null;
     _error = null;
     _bookingError = null;
+    _createdBookingId = null;
   }
 
   /// Reset booking (public method)

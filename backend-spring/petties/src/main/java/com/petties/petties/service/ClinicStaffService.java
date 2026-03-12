@@ -11,6 +11,7 @@ import com.petties.petties.repository.ClinicRepository;
 import com.petties.petties.repository.UserRepository;
 import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.exception.ResourceAlreadyExistsException;
+import com.petties.petties.exception.BadRequestException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -32,7 +33,7 @@ public class ClinicStaffService {
     @Transactional(readOnly = true)
     public List<StaffResponse> getClinicStaff(UUID clinicId) {
         Clinic clinic = clinicRepository.findById(clinicId)
-                .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
 
         return clinic.getStaff().stream()
                 .map(this::mapToStaffResponse)
@@ -62,7 +63,7 @@ public class ClinicStaffService {
     @Transactional(readOnly = true)
     public boolean hasManager(UUID clinicId) {
         Clinic clinic = clinicRepository.findById(clinicId)
-                .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
 
         return clinic.getStaff().stream()
                 .anyMatch(user -> user.getRole() == Role.CLINIC_MANAGER);
@@ -77,7 +78,7 @@ public class ClinicStaffService {
     public void inviteByEmail(UUID clinicId, com.petties.petties.dto.clinic.InviteByEmailRequest request) {
         User currentUser = authService.getCurrentUser();
         Clinic clinic = clinicRepository.findById(clinicId)
-                .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
 
         // Authorization checks
         if (currentUser.getRole() == Role.CLINIC_OWNER) {
@@ -148,7 +149,7 @@ public class ClinicStaffService {
         User user = findUserByUsernameOrEmail(usernameOrEmail);
 
         if (user.getRole() != Role.CLINIC_MANAGER) {
-            throw new IllegalArgumentException("User must have CLINIC_MANAGER role");
+            throw new BadRequestException("Người dùng phải có vai trò Quản lý phòng khám");
         }
 
         // Check if user already assigned to another clinic
@@ -179,7 +180,7 @@ public class ClinicStaffService {
         User user = findUserByUsernameOrEmail(usernameOrEmail);
 
         if (user.getRole() != Role.STAFF) {
-            throw new IllegalArgumentException("User must have STAFF role");
+            throw new BadRequestException("Người dùng phải có vai trò Nhân viên");
         }
 
         // Check if user already assigned to another clinic
@@ -196,35 +197,22 @@ public class ClinicStaffService {
     public void removeStaff(UUID clinicId, UUID userId) {
         User currentUser = authService.getCurrentUser();
         Clinic clinic = clinicRepository.findById(clinicId)
-                .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
 
         User staffToRemove = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Staff member not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân viên"));
 
         // Check staff belongs to this clinic
         if (staffToRemove.getWorkingClinic() == null
                 || !staffToRemove.getWorkingClinic().getClinicId().equals(clinicId)) {
-            throw new IllegalArgumentException("User does not belong to this clinic");
+            throw new BadRequestException("Người dùng không thuộc phòng khám này");
         }
 
-        // Authorization: CLINIC_OWNER must own the clinic
-        if (currentUser.getRole() == Role.CLINIC_OWNER) {
-            if (!clinic.getOwner().getUserId().equals(currentUser.getUserId())) {
-                throw new ForbiddenException("Bạn không có quyền quản lý nhân sự cho phòng khám này");
-            }
-        }
+        validateClinicAccess(currentUser, clinic);
 
         // Authorization: CLINIC_MANAGER can only remove Staff, not other managers
-        if (currentUser.getRole() == Role.CLINIC_MANAGER) {
-            // Must belong to this clinic
-            if (currentUser.getWorkingClinic() == null
-                    || !currentUser.getWorkingClinic().getClinicId().equals(clinicId)) {
-                throw new ForbiddenException("Bạn không có quyền quản lý nhân sự cho phòng khám này");
-            }
-            // Cannot remove another manager
-            if (staffToRemove.getRole() == Role.CLINIC_MANAGER) {
-                throw new ForbiddenException("Quản lý phòng khám không có quyền xóa Quản lý khác");
-            }
+        if (currentUser.getRole() == Role.CLINIC_MANAGER && staffToRemove.getRole() == Role.CLINIC_MANAGER) {
+            throw new ForbiddenException("Quản lý phòng khám không có quyền xóa Quản lý khác");
         }
 
         staffToRemove.setWorkingClinic(null);
@@ -238,7 +226,7 @@ public class ClinicStaffService {
     public void updateStaffSpecialty(UUID clinicId, UUID userId, String specialty) {
         User currentUser = authService.getCurrentUser();
         Clinic clinic = clinicRepository.findById(clinicId)
-                .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
 
         User staff = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Staff member not found"));
@@ -246,43 +234,43 @@ public class ClinicStaffService {
         // Check staff belongs to this clinic
         if (staff.getWorkingClinic() == null
                 || !staff.getWorkingClinic().getClinicId().equals(clinicId)) {
-            throw new IllegalArgumentException("User does not belong to this clinic");
+            throw new BadRequestException("Người dùng không thuộc phòng khám này");
         }
 
         // Only STAFFs have specialty
         if (staff.getRole() != Role.STAFF) {
-            throw new IllegalArgumentException("Only STAFF can have specialty");
+            throw new BadRequestException("Chỉ Nhân viên mới có chuyên môn");
         }
 
-        // Authorization: CLINIC_OWNER must own the clinic
-        if (currentUser.getRole() == Role.CLINIC_OWNER) {
-            if (!clinic.getOwner().getUserId().equals(currentUser.getUserId())) {
-                throw new ForbiddenException("Bạn không có quyền quản lý nhân sự cho phòng khám này");
-            }
-        }
-
-        // Authorization: CLINIC_MANAGER must belong to this clinic
-        if (currentUser.getRole() == Role.CLINIC_MANAGER) {
-            if (currentUser.getWorkingClinic() == null
-                    || !currentUser.getWorkingClinic().getClinicId().equals(clinicId)) {
-                throw new ForbiddenException("Bạn không có quyền quản lý nhân sự cho phòng khám này");
-            }
-        }
+        validateClinicAccess(currentUser, clinic);
 
         // Update specialty
         staff.setSpecialty(StaffSpecialty.valueOf(specialty));
         userRepository.save(staff);
     }
 
+    private void validateClinicAccess(User currentUser, Clinic clinic) {
+        if (currentUser.getRole() == Role.CLINIC_OWNER) {
+            if (!clinic.getOwner().getUserId().equals(currentUser.getUserId())) {
+                throw new ForbiddenException("Bạn không có quyền quản lý nhân sự cho phòng khám này");
+            }
+        } else if (currentUser.getRole() == Role.CLINIC_MANAGER) {
+            if (currentUser.getWorkingClinic() == null
+                    || !currentUser.getWorkingClinic().getClinicId().equals(clinic.getClinicId())) {
+                throw new ForbiddenException("Bạn không có quyền quản lý nhân sự cho phòng khám này");
+            }
+        }
+    }
+
     private User findUserByUsernameOrEmail(String usernameOrEmail) {
         return userRepository.findByUsername(usernameOrEmail)
                 .orElseGet(() -> userRepository.findByEmail(usernameOrEmail)
-                        .orElseThrow(() -> new ResourceNotFoundException("User not found")));
+                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng")));
     }
 
     private void assignToClinic(UUID clinicId, User user) {
         Clinic clinic = clinicRepository.findById(clinicId)
-                .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
 
         user.setWorkingClinic(clinic);
         userRepository.save(user);

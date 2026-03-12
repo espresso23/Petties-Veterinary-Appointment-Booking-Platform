@@ -74,10 +74,10 @@ This project aims to develop a modern home veterinary booking system that connec
 **AI & Data Layer:**
 - Python 3.12
 - FastAPI + Uvicorn with WebSocket orchestrator
-- LangGraph for multi-agent workflows
-- Ollama for LLM
+- LangGraph for Single Agent + ReAct workflows
+- OpenRouter Cloud API for LLM
 - LlamaIndex for RAG
-- OpenAI embedding model
+- Cohere embedding model
 - Qdrant stores all vectors for efficient multimodal search
 - FastMCP
 

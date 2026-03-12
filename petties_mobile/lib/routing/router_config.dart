@@ -27,6 +27,7 @@ import '../ui/pet/pet_health_record_screen.dart';
 import '../ui/screens/notification/notification_list_screen.dart';
 import '../ui/chat/chat_list_screen.dart';
 import '../ui/chat/chat_detail_screen.dart';
+import '../ui/chat/ai_pet_care_chat_screen.dart';
 import '../ui/clinics/clinic_search_view.dart';
 import '../ui/clinics/clinic_detail_view.dart';
 import '../ui/clinics/clinic_map_view.dart';
@@ -369,7 +370,7 @@ class AppRouterConfig {
         ),
 
         GoRoute(
-          path: '/bookings/detail',
+          path: AppRoutes.bookingDetailView,
           builder: (context, state) {
             final booking = state.extra as dynamic;
             return AppointmentDetailScreen(booking: booking);
@@ -431,6 +432,13 @@ class AppRouterConfig {
         GoRoute(
           path: AppRoutes.chatList,
           builder: (context, state) => const ChatListScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.aiChat,
+          pageBuilder: (context, state) => const MaterialPage<void>(
+            fullscreenDialog: true,
+            child: AiPetCareChatScreen(),
+          ),
         ),
         GoRoute(
           path: AppRoutes.chatDetail,

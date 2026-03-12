@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
+import '../../data/models/auth_response.dart';
 import '../../data/services/auth_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../routing/app_routes.dart';
@@ -133,7 +134,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
 
       // DEV MODE: Backend trả về AuthResponse (skip OTP) → user đã đăng ký xong
-      if (response is Map && response.containsKey('accessToken')) {
+      if (response is AuthResponse) {
         // Auth data đã được lưu trong auth_service.dart
         // Gọi getCurrentUser để cập nhật user trong AuthProvider
         final authProvider = Provider.of<AuthProvider>(context, listen: false);

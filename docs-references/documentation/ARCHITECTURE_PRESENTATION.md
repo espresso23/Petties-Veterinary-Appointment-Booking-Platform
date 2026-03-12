@@ -1,6 +1,6 @@
 ## 1. Mở đầu & tên kiến trúc
 
-- Petties là nền tảng đặt lịch khám thú y, kết nối **Pet Owner** với **phòng khám và Staff** (bác sĩ, nhân viên).
+- Petties là nền tảng đặt lịch khám thú y, kết nối **Pet Owner** với **phòng khám và Staff** (nhân sự phòng khám).
 - Ở mức tổng thể, hệ thống dùng **kiến trúc nhiều tầng (multi‑tier / layered)**:
   - Tầng Presentation: web React + mobile Flutter.
   - Tầng Backend API: Spring Boot.
@@ -40,12 +40,41 @@
   - Gợi ý và hỗ trợ đặt lịch qua chat.
 - Cách hoạt động (đúng với code):
   - Frontend mở WebSocket/REST tới AI Agent Service.
-  - Bên trong, agent chạy theo **ReAct**: LLM suy nghĩ; khi cần, gọi tools như `search_clinics`, `check_slots`, `create_booking` để hỏi Spring Boot, hoặc dùng **RAG với Qdrant + LlamaIndex + Cohere** để truy vấn kiến thức.
+  - Bên trong, agent chạy theo **ReAct**: LLM suy nghĩ; khi cần, gọi tools như `search_clinics_nearby`, `check_available_slots`, `create_booking_for_user` để hỏi Spring Boot, hoặc dùng **RAG với Qdrant + LlamaIndex + Cohere** để truy vấn kiến thức.
   - Kết quả cuối cùng được **stream ngược** lại cho user qua WebSocket.
 - Điểm quan trọng:
   - **AI chỉ gọi sang backend qua HTTP, không truy cập trực tiếp database** → dữ liệu nghiệp vụ vẫn do Spring Boot kiểm soát.
   - Nếu LLM hoặc tool lỗi/timeout, AI Service trả lỗi “ở lớp AI”, không thực hiện các hành động nguy hiểm như tạo/sửa booking.
   - Mỗi lần hội thoại và tool‑call được lưu vào MongoDB của AI (`ai_chat_sessions`, `ai_chat_messages`) để audit và phân tích lại.
+
+#### 2.3.1. AI Insight – “đã làm được gì” (giải thích dễ hiểu cho khách hàng)
+
+- **Hiển thị AI đang làm gì theo từng bước (real‑time)**:
+  - Khi bạn chat, hệ thống có thể hiển thị tuần tự: AI “đang suy nghĩ” → AI “đang gọi dữ liệu” → AI “nhận kết quả” → AI “trả lời”.
+  - Mục tiêu: minh bạch, giúp người dùng tin tưởng và giúp đội kỹ thuật dễ debug khi có lỗi.
+
+- **Ghi lại lịch sử để kiểm tra lại sau (audit trail)**:
+  - Mỗi phiên chat được lưu lại để có thể xem lại: đã hỏi gì, AI trả lời gì, có gọi dữ liệu gì không.
+  - Mục tiêu: giải quyết khiếu nại nhanh, truy vết lỗi rõ ràng.
+
+- **Thu thập phản hồi để AI tốt dần lên (feedback loop)**:
+  - Người dùng/nhân sự có thể đánh giá câu trả lời “hữu ích/không hữu ích”.
+  - Với phản hồi “đúng”, hệ thống lưu lại “trường hợp đã được xác nhận” để lần sau gặp câu hỏi tương tự sẽ trả lời chắc hơn.
+
+- **Cập nhật kiến thức dễ dàng (AI update data)**:
+  - Khi có tài liệu thú y mới (phác đồ, hướng dẫn chăm sóc), Admin upload tài liệu lên Knowledge Base.
+  - Hệ thống tự chia nhỏ nội dung và đưa vào “kho tra cứu” (vector database).
+  - Từ đó, AI sẽ tra cứu trên kho mới để trả lời đúng hơn, hạn chế bịa thông tin.
+
+#### 2.3.2. Kịch bản thuyết trình ngắn (1–2 phút) – “AI cập nhật dữ liệu và cải thiện độ chính xác”
+
+- **AI cập nhật dữ liệu thế nào?**
+  - “Bọn em không ‘train lại model’ mỗi lần có thông tin mới. Thay vào đó, bọn em cập nhật kiến thức bằng cách upload tài liệu thú y vào Knowledge Base.”
+  - “Hệ thống tự xử lý tài liệu: tách nội dung thành nhiều đoạn nhỏ và lưu vào kho tra cứu. Khi Pet Owner hỏi, AI sẽ tra cứu kho này để lấy đúng nội dung liên quan rồi mới trả lời.”
+
+- **AI cải thiện độ chính xác ra sao theo thời gian?**
+  - “Thứ nhất, nếu câu hỏi quá ngắn, AI tự mở rộng từ khóa để tìm đúng tài liệu hơn.”
+  - “Thứ hai, khi người dùng/Staff xác nhận câu trả lời đúng, hệ thống lưu lại các ‘trường hợp đã được xác nhận’ để lần sau gặp tình huống tương tự sẽ ưu tiên tham chiếu, nên câu trả lời ngày càng sát thực tế hơn.”
 
 ### 2.4. Store Data – Postgres, MongoDB, Redis, Qdrant, Firebase
 

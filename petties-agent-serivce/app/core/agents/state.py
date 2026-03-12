@@ -15,25 +15,11 @@ from operator import add
 
 class Message(TypedDict):
     """Single message in conversation"""
+
     role: Literal["user", "assistant", "system", "tool"]
     content: str
     name: Optional[str]  # Tool name if role is "tool"
     tool_call_id: Optional[str]
-
-
-class ToolCall(TypedDict):
-    """Tool call request"""
-    id: str
-    name: str
-    arguments: Dict[str, Any]
-
-
-class ToolResult(TypedDict):
-    """Tool execution result"""
-    tool_call_id: str
-    name: str
-    result: Any
-    error: Optional[str]
 
 
 class ReActStep(TypedDict):
@@ -47,6 +33,7 @@ class ReActStep(TypedDict):
         tool_params: Parameters cua tool (chi cho action)
         tool_result: Ket qua tu tool (chi cho observation)
     """
+
     step_type: Literal["thought", "action", "observation"]
     content: str
     tool_name: Optional[str]
@@ -88,6 +75,7 @@ class ReActState(TypedDict):
         graph.add_node("observe", observe_node)
         ```
     """
+
     # Conversation messages
     messages: List[Message]
 
@@ -126,8 +114,7 @@ class ReActState(TypedDict):
 
 
 def create_initial_react_state(
-    user_message: str,
-    context: Optional[Dict[str, Any]] = None
+    user_message: str, context: Optional[Dict[str, Any]] = None
 ) -> ReActState:
     """
     Create initial state cho new conversation
@@ -149,12 +136,7 @@ def create_initial_react_state(
     """
     return ReActState(
         messages=[
-            Message(
-                role="user",
-                content=user_message,
-                name=None,
-                tool_call_id=None
-            )
+            Message(role="user", content=user_message, name=None, tool_call_id=None)
         ],
         react_steps=[],
         current_thought=None,
@@ -165,53 +147,5 @@ def create_initial_react_state(
         should_end=False,
         iteration=0,
         context=context or {},
-        error=None
+        error=None,
     )
-
-
-# ===== LEGACY SUPPORT =====
-# Keep AgentState for backward compatibility during migration
-
-class AgentState(TypedDict):
-    """
-    [DEPRECATED] Legacy AgentState for Multi-Agent architecture
-
-    Migrated to ReActState for Single Agent.
-    Kept for backward compatibility during transition.
-    """
-    # Conversation messages (accumulated)
-    messages: Annotated[List[Message], add]
-
-    # Current agent handling the request
-    current_agent: Literal["main", "booking", "medical", "research"]
-
-    # Classified intent from Main Agent
-    intent: Optional[Literal["booking", "medical", "research", "general", "unclear"]]
-
-    # Tool execution
-    tool_calls: List[ToolCall]
-    tool_results: List[ToolResult]
-
-    # Routing history for debugging
-    routing_history: Annotated[List[str], add]
-
-    # Additional context
-    context: Dict[str, Any]
-
-    # Final response
-    final_response: Optional[str]
-
-    # Error handling
-    error: Optional[str]
-
-
-def create_initial_state(
-    user_message: str,
-    context: Optional[Dict[str, Any]] = None
-) -> ReActState:
-    """
-    [DEPRECATED] Legacy function, use create_initial_react_state instead
-
-    Kept for backward compatibility.
-    """
-    return create_initial_react_state(user_message, context)

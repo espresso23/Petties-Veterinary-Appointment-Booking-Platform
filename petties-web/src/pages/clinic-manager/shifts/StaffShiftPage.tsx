@@ -86,10 +86,11 @@ export const StaffShiftPage = () => {
     const [sidebarMode, setSidebarMode] = useState<'create' | 'detail'>('create')
 
     // --- Effects: Derived (weekDates từ currentWeek) ---
+    const currentWeekTime = currentWeek.getTime()
     useEffect(() => {
         const newWeekDates = getWeekDates(new Date(currentWeek))
         setWeekDates(newWeekDates)
-    }, [currentWeek.getTime()])
+    }, [currentWeekTime])
 
     // --- Effects: Data (staff, clinic, shifts) ---
     // --- Effects: Close dropdown when clicking outside ---

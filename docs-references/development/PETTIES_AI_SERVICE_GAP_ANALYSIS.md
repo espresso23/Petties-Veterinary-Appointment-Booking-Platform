@@ -15,8 +15,8 @@ Review toàn diện implementation hiện tại của `petties-agent-serivce/` s
 
 | Category | Spec Requirement | Current Implementation | Status | Priority |
 |----------|-----------------|------------------------|--------|----------|
-| **Architecture** | Single Agent + ReAct | Multi-Agent Supervisor | ❌ MAJOR GAP | P0 |
-| **LLM Provider** | OpenRouter Cloud API | Ollama (local) + OpenAI | ❌ MAJOR GAP | P0 |
+| **Architecture** | Single Agent + ReAct | Legacy supervisor-based routing | ❌ MAJOR GAP | P0 |
+| **LLM Provider** | OpenRouter Cloud API | Legacy local LLM + OpenAI | ❌ MAJOR GAP | P0 |
 | **Embeddings** | Cohere embed-multilingual-v3 | OpenAI text-embedding-ada-002 | ❌ MAJOR GAP | P0 |
 | **ReAct Visualization** | Debug Panel với Thought→Action→Observation | Missing | ❌ MINOR GAP | P1 |
 | **Hyperparameters** | Temperature, Max Tokens, Top-P | Temperature, Max Tokens only | ⚠️ MINOR GAP | P2 |
@@ -40,7 +40,7 @@ Single Agent với ReAct Pattern (LangGraph)
 **File:** `petties-agent-serivce/app/core/agents/main_agent.py`
 
 ```python
-# ❌ Multi-Agent Supervisor Pattern
+# ❌ Legacy Supervisor Pattern
 SUPERVISOR_PROMPT = """You are the Main Agent (Supervisor) of Petties...
 Available Sub-Agents:
 - booking_agent: Book appointments...
@@ -59,7 +59,7 @@ Available Sub-Agents:
 - ❌ Complexity cao (4 agents instead of 1)
 - ❌ Khó debug (trace qua nhiều agents)
 - ❌ Không match spec Single Agent architecture
-- ❌ Admin Dashboard vẫn hiển thị Multi-Agent hierarchy (agents.py:87-90)
+- ❌ Admin Dashboard vẫn hiển thị legacy hierarchy (agents.py:87-90)
 
 ### Recommendation
 **Migration Plan P0:**
@@ -100,16 +100,16 @@ Models:
 class LLMConfig(BaseModel):
     provider: str = "ollama"  # ❌ ollama | openai (NO OpenRouter)
     model: str = "kimi-k2-thinking"
-    base_url: Optional[str] = "http://localhost:11434"  # ❌ Ollama local
+    base_url: Optional[str] = "http://localhost:11434"  # ❌ legacy local LLM
 ```
 
 **Evidence:**
-- `app/services/llm_client.py` - Only supports Ollama + OpenAI
-- `app/api/routes/settings.py:403-424` - Test endpoint for Ollama (NO OpenRouter test)
-- `app/config/settings.py` - Environment variables for Ollama
+- `app/services/llm_client.py` - Only supports legacy local LLM + OpenAI
+- `app/api/routes/settings.py:403-424` - Test endpoint for local provider (NO OpenRouter test)
+- `app/config/settings.py` - Environment variables for local provider
 
 ### Impact
-- ❌ Không có cloud LLM provider (phụ thuộc local Ollama)
+- ❌ Không có cloud LLM provider (phụ thuộc local setup)
 - ❌ Không có model selection UI cho admin (spec requires model dropdown)
 - ❌ Không có fallback mechanism giữa các models
 - ❌ Missing cost optimization (spec requires cheap models like llama-3.3-70b)
@@ -221,7 +221,7 @@ embedding = OpenAI().embeddings.create(
 ### ✅ IMPLEMENTED FEATURES
 
 #### A. Agent Management APIs (`agents.py`)
-**Status:** ✅ GOOD (with Multi-Agent architecture limitation)
+**Status:** ✅ GOOD (historical snapshot before migration)
 
 | Endpoint | Spec Requirement | Implementation | Status |
 |----------|-----------------|----------------|--------|
@@ -240,7 +240,7 @@ embedding = OpenAI().embeddings.create(
 
 **Issues:**
 - ⚠️ Missing **Top-P** parameter (only Temperature, Max Tokens in UpdateAgentRequest)
-- ⚠️ API still expects Multi-Agent hierarchy (main_agent, sub_agents in response)
+- Historical issue recorded before migration; current implementation uses Single Agent configuration.
 
 #### B. Tool Management APIs (`tools.py`)
 **Status:** ✅ EXCELLENT
@@ -288,14 +288,14 @@ embedding = OpenAI().embeddings.create(
 | `PUT /settings/{key}` | Update setting | ✅ Lines 152-180 | ✅ |
 | `POST /settings/init` | Initialize default settings | ✅ Lines 183-190 | ✅ |
 | `POST /settings/seed` | Seed database (agents, tools, settings) | ✅ Lines 193-398 | ✅ |
-| `POST /settings/test-ollama` | Test Ollama connection | ✅ Lines 403-424 | ⚠️ |
+| `POST /settings/test-openrouter` | Test OpenRouter connection | Current endpoint depends on implementation version | Review |
 | `POST /settings/test-embeddings` | Test OpenAI embeddings | ⚠️ Lines 427-455 (NOT Cohere) | ⚠️ |
 | `POST /settings/test-qdrant` | Test Qdrant connection | ✅ Lines 458-481 | ✅ |
 
 **Issues:**
 - ❌ Missing `/settings/test-openrouter` endpoint
 - ❌ Missing `/settings/test-cohere` endpoint
-- ⚠️ Seed script creates Multi-Agent structure (lines 283-324)
+- Historical issue recorded before migration; seed logic has since been migrated to Single Agent.
 
 ### ❌ MISSING FEATURES
 
@@ -304,7 +304,7 @@ embedding = OpenAI().embeddings.create(
 ```
 ReAct Flow Visualization:
 - Hiển thị rõ luồng ReAct: Thought → Action → Observation → Loop
-- Log Ví dụ: User → Agent (Thought: cần tìm bệnh) → Tool: symptom_search → Observation: kết quả → Answer
+- Log Ví dụ: User → Agent (Thought: cần tìm thông tin triệu chứng) → Tool: pet_knowledge_search → Observation: kết quả → Answer
 - Tool Call Inspector: Xem chi tiết parameters và response của mỗi tool call
 ```
 
@@ -368,7 +368,7 @@ ReAct Flow Visualization:
 **Example (medical_tools.py):**
 ```python
 @mcp_server.tool()
-async def search_symptoms(symptoms: List[str], pet_type: str = "dog") -> Dict[str, Any]:
+async def pet_knowledge_search(query: str, pet_type: str = "dog") -> Dict[str, Any]:
     """
     Tìm bệnh dựa trên triệu chứng (Symptom Checker)
 
@@ -449,7 +449,7 @@ RAG Pipeline:
 
 ## 7. Database Schema Review
 
-### Current Schema (Multi-Agent)
+### Current Schema (Historical Legacy Snapshot)
 ```sql
 -- agents table
 CREATE TABLE agents (
@@ -467,7 +467,7 @@ CREATE TABLE agents (
 
 ### Required Schema Changes
 ```sql
--- 1. Remove Multi-Agent types
+-- 1. Remove legacy agent-type variants
 ALTER TABLE agents DROP COLUMN agent_type;  -- No longer needed for Single Agent
 
 -- 2. Add Top-P parameter (missing)
@@ -499,7 +499,7 @@ INSERT INTO system_settings (key, value, category, is_sensitive, description) VA
 ## 8. Migration Roadmap
 
 ### Phase 1: Critical Architecture Changes (P0) - 1 Week
-**Goal:** Migrate từ Multi-Agent sang Single Agent + OpenRouter + Cohere
+**Goal:** Migrate từ legacy supervisor architecture sang Single Agent + OpenRouter + Cohere
 
 | Task | Files to Modify | Effort | Owner |
 |------|----------------|--------|-------|
@@ -512,7 +512,7 @@ INSERT INTO system_settings (key, value, category, is_sensitive, description) VA
 - ✅ Single Agent functional với ReAct pattern
 - ✅ OpenRouter API integrated
 - ✅ Cohere embeddings working
-- ✅ Multi-Agent code removed
+- ✅ Legacy supervisor code removed
 
 ### Phase 2: Complete RAG Integration (P1) - 3 Days
 **Goal:** Hoàn thiện Qdrant + RAG pipeline
@@ -593,8 +593,8 @@ INSERT INTO system_settings (key, value, category, is_sensitive, description) VA
 ## 11. Success Metrics
 
 ### Technical Metrics
-- ✅ Agent architecture migrated from Multi-Agent → Single Agent + ReAct
-- ✅ LLM provider switched from Ollama → OpenRouter Cloud API
+- ✅ Agent architecture migrated from legacy supervisor model → Single Agent + ReAct
+- ✅ LLM provider switched from local legacy setup → OpenRouter Cloud API
 - ✅ Embeddings switched from OpenAI → Cohere multilingual
 - ✅ Qdrant integration complete với real document indexing
 - ✅ ReAct trace visualization working in Admin Dashboard
@@ -617,8 +617,8 @@ INSERT INTO system_settings (key, value, category, is_sensitive, description) VA
 ### Summary of Gaps
 
 **MAJOR GAPS (P0):**
-1. ❌ Architecture: Multi-Agent Supervisor → Cần migrate sang Single Agent + ReAct
-2. ❌ LLM Provider: Ollama/OpenAI → Cần integrate OpenRouter Cloud API
+1. ❌ Architecture: Legacy supervisor model → Cần migrate sang Single Agent + ReAct
+2. ❌ LLM Provider: Legacy local setup/OpenAI → Cần integrate OpenRouter Cloud API
 3. ❌ Embeddings: OpenAI → Cần switch sang Cohere embed-multilingual-v3
 
 **MINOR GAPS (P1-P2):**

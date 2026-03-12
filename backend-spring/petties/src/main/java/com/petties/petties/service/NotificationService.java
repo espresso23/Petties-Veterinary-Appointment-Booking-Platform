@@ -20,8 +20,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -42,6 +45,16 @@ import com.petties.petties.model.enums.Role;
 @Slf4j
 public class NotificationService {
 
+        private static final Set<NotificationType> CLINIC_MANAGER_VISIBLE_TYPES = EnumSet.of(
+                        NotificationType.APPROVED,
+                        NotificationType.REJECTED,
+                        NotificationType.CLINIC_VERIFIED,
+                        NotificationType.STAFF_SHIFT_ASSIGNED,
+                        NotificationType.STAFF_SHIFT_UPDATED,
+                        NotificationType.STAFF_SHIFT_DELETED,
+                        NotificationType.BOOKING_CREATED,
+                        NotificationType.BOOKING_CANCELLED);
+
         private final NotificationRepository notificationRepository;
         private final UserRepository userRepository;
         private final SseEmitterService sseEmitterService;// use for 1 direction real time notification
@@ -49,6 +62,76 @@ public class NotificationService {
 
         private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
         private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
+
+        private Notification buildNotification(User user, Clinic clinic, StaffShift shift,
+                        NotificationType type, String message, String reason) {
+                return Notification.builder()
+                                .user(user)
+                                .clinic(clinic)
+                                .shift(shift)
+                                .type(type)
+                                .message(message)
+                                .reason(reason)
+                                .read(false)
+                                .build();
+        }
+
+        private Notification saveAndDispatchNotification(Notification notification, String logTemplate,
+                        Object... logArgs) {
+                Notification savedNotification = notificationRepository.save(notification);
+                Object[] finalLogArgs = new Object[logArgs.length + 1];
+                finalLogArgs[0] = savedNotification.getNotificationId();
+                System.arraycopy(logArgs, 0, finalLogArgs, 1, logArgs.length);
+                log.info(logTemplate, finalLogArgs);
+                pushNotificationToUser(savedNotification.getUser().getUserId(), savedNotification);
+                return savedNotification;
+        }
+
+        private Notification createAndDispatchNotification(User user, Clinic clinic, StaffShift shift,
+                        NotificationType type, String message, String reason,
+                        String logTemplate, Object... logArgs) {
+                Notification notification = buildNotification(user, clinic, shift, type, message, reason);
+                return saveAndDispatchNotification(notification, logTemplate, logArgs);
+        }
+
+        private Notification createAndDispatchNotification(User user, Clinic clinic, NotificationType type,
+                        String message, String reason, String logTemplate, Object... logArgs) {
+                return createAndDispatchNotification(user, clinic, null, type, message, reason, logTemplate, logArgs);
+        }
+
+        private void createAndDispatchNotifications(Collection<User> users, Clinic clinic, StaffShift shift,
+                        NotificationType type, String message, String reason,
+                        String logTemplate, java.util.function.Function<User, Object[]> logArgsProvider) {
+                if (users == null || users.isEmpty()) {
+                        return;
+                }
+
+                users.forEach(user -> createAndDispatchNotification(
+                                user,
+                                clinic,
+                                shift,
+                                type,
+                                message,
+                                reason,
+                                logTemplate,
+                                logArgsProvider.apply(user)));
+        }
+
+        private List<User> getDeduplicatedClinicManagers(UUID clinicId) {
+                return userRepository.findByWorkingClinicIdAndRole(clinicId, Role.CLINIC_MANAGER)
+                                .stream()
+                                .collect(Collectors.toMap(User::getUserId, user -> user, (first, second) -> first))
+                                .values()
+                                .stream()
+                                .toList();
+        }
+
+        private Set<NotificationType> getVisibleTypesForUser(User user) {
+                if (user != null && user.getRole() == Role.CLINIC_MANAGER) {
+                        return CLINIC_MANAGER_VISIBLE_TYPES;
+                }
+                return null;
+        }
 
         // ======================== CLINIC NOTIFICATIONS ========================
 
@@ -84,23 +167,16 @@ public class NotificationService {
                         default -> "Thông báo từ phòng khám " + clinic.getName();
                 };
 
-                Notification notification = Notification.builder()
-                                .user(owner)
-                                .clinic(clinic)
-                                .type(type)
-                                .message(message)
-                                .reason(reason)
-                                .read(false)
-                                .build();
-
-                notification = notificationRepository.save(notification);
-                log.info("Notification created: {} for clinic: {} type: {} user: {}",
-                                notification.getNotificationId(), clinic.getClinicId(), type, owner.getUserId());
-
-                // Push via SSE
-                pushNotificationToUser(owner.getUserId(), notification);
-
-                return notification;
+                return createAndDispatchNotification(
+                                owner,
+                                clinic,
+                                type,
+                                message,
+                                reason,
+                                "Notification created: {} for clinic: {} type: {} user: {}",
+                                clinic.getClinicId(),
+                                type,
+                                owner.getUserId());
         }
 
         /**
@@ -134,20 +210,15 @@ public class NotificationService {
                                 continue;
                         }
 
-                        Notification notification = Notification.builder()
-                                        .user(admin)
-                                        .clinic(clinic)
-                                        .type(NotificationType.CLINIC_PENDING_APPROVAL)
-                                        .message(message)
-                                        .read(false)
-                                        .build();
-
-                        notification = notificationRepository.save(notification);
-                        log.info("Admin notification created: {} for admin: {} clinic: {}",
-                                        notification.getNotificationId(), admin.getUserId(), clinic.getClinicId());
-
-                        // Push via SSE
-                        pushNotificationToUser(admin.getUserId(), notification);
+                        createAndDispatchNotification(
+                                        admin,
+                                        clinic,
+                                        NotificationType.CLINIC_PENDING_APPROVAL,
+                                        message,
+                                        null,
+                                        "Admin notification created: {} for admin: {} clinic: {}",
+                                        admin.getUserId(),
+                                        clinic.getClinicId());
                 }
         }
 
@@ -181,23 +252,16 @@ public class NotificationService {
                                 shift.getEndTime().format(TIME_FORMATTER),
                                 shift.getClinic().getName());
 
-                Notification notification = Notification.builder()
-                                .user(staff)
-                                .shift(shift)
-                                .clinic(shift.getClinic())
-                                .type(NotificationType.STAFF_SHIFT_ASSIGNED)
-                                .message(message)
-                                .read(false)
-                                .build();
-
-                notification = notificationRepository.save(notification);
-                log.info("StaffShift notification created: {} for staff: {} shift: {}",
-                                notification.getNotificationId(), staff.getUserId(), shift.getShiftId());
-
-                // Push via SSE
-                pushNotificationToUser(staff.getUserId(), notification);
-
-                return notification;
+                return createAndDispatchNotification(
+                                staff,
+                                shift.getClinic(),
+                                shift,
+                                NotificationType.STAFF_SHIFT_ASSIGNED,
+                                message,
+                                null,
+                                "StaffShift notification created: {} for staff: {} shift: {}",
+                                staff.getUserId(),
+                                shift.getShiftId());
         }
 
         /**
@@ -240,23 +304,18 @@ public class NotificationService {
                 // Link to the first shift for navigation purposes
                 StaffShift firstShift = sortedShifts.get(0);
 
-                Notification notification = Notification.builder()
-                                .user(staff)
-                                .shift(firstShift)
-                                .clinic(clinic)
-                                .type(NotificationType.STAFF_SHIFT_ASSIGNED)
-                                .message(message)
-                                .read(false)
-                                .build();
-
-                notification = notificationRepository.save(notification);
-                log.info("Batch StaffShift notification created: {} for staff: {} ({} shifts from {} to {})",
-                                notification.getNotificationId(), staff.getUserId(), shiftCount, startDate, endDate);
-
-                // Push via SSE
-                pushNotificationToUser(staff.getUserId(), notification);
-
-                return notification;
+                return createAndDispatchNotification(
+                                staff,
+                                clinic,
+                                firstShift,
+                                NotificationType.STAFF_SHIFT_ASSIGNED,
+                                message,
+                                null,
+                                "Batch StaffShift notification created: {} for staff: {} ({} shifts from {} to {})",
+                                staff.getUserId(),
+                                shiftCount,
+                                startDate,
+                                endDate);
         }
 
         /**
@@ -271,23 +330,16 @@ public class NotificationService {
                                 shift.getEndTime().format(TIME_FORMATTER),
                                 shift.getClinic().getName());
 
-                Notification notification = Notification.builder()
-                                .user(staff)
-                                .shift(shift)
-                                .clinic(shift.getClinic())
-                                .type(NotificationType.STAFF_SHIFT_UPDATED)
-                                .message(message)
-                                .read(false)
-                                .build();
-
-                notification = notificationRepository.save(notification);
-                log.info("StaffShift update notification created: {} for staff: {} shift: {}",
-                                notification.getNotificationId(), staff.getUserId(), shift.getShiftId());
-
-                // Push via SSE
-                pushNotificationToUser(staff.getUserId(), notification);
-
-                return notification;
+                return createAndDispatchNotification(
+                                staff,
+                                shift.getClinic(),
+                                shift,
+                                NotificationType.STAFF_SHIFT_UPDATED,
+                                message,
+                                null,
+                                "StaffShift update notification created: {} for staff: {} shift: {}",
+                                staff.getUserId(),
+                                shift.getShiftId());
         }
 
         /**
@@ -326,23 +378,16 @@ public class NotificationService {
                 // Link to the first shift for navigation purposes
                 StaffShift firstShift = sortedShifts.get(0);
 
-                Notification notification = Notification.builder()
-                                .user(staff)
-                                .shift(firstShift)
-                                .clinic(clinic)
-                                .type(NotificationType.STAFF_SHIFT_UPDATED)
-                                .message(message)
-                                .read(false)
-                                .build();
-
-                notification = notificationRepository.save(notification);
-                log.info("Batch StaffShift update notification created: {} for staff: {} ({} shifts)",
-                                notification.getNotificationId(), staff.getUserId(), shiftCount);
-
-                // Push via SSE
-                pushNotificationToUser(staff.getUserId(), notification);
-
-                return notification;
+                return createAndDispatchNotification(
+                                staff,
+                                clinic,
+                                firstShift,
+                                NotificationType.STAFF_SHIFT_UPDATED,
+                                message,
+                                null,
+                                "Batch StaffShift update notification created: {} for staff: {} ({} shifts)",
+                                staff.getUserId(),
+                                shiftCount);
         }
 
         /**
@@ -355,21 +400,14 @@ public class NotificationService {
                                 workDate.format(DATE_FORMATTER),
                                 clinicName);
 
-                Notification notification = Notification.builder()
-                                .user(staff)
-                                .type(NotificationType.STAFF_SHIFT_DELETED)
-                                .message(message)
-                                .read(false)
-                                .build();
-
-                notification = notificationRepository.save(notification);
-                log.info("StaffShift delete notification created: {} for staff: {}",
-                                notification.getNotificationId(), staff.getUserId());
-
-                // Push via SSE
-                pushNotificationToUser(staff.getUserId(), notification);
-
-                return notification;
+                return createAndDispatchNotification(
+                                staff,
+                                null,
+                                NotificationType.STAFF_SHIFT_DELETED,
+                                message,
+                                null,
+                                "StaffShift delete notification created: {} for staff: {}",
+                                staff.getUserId());
         }
 
         // ======================== BOOKING NOTIFICATIONS ========================
@@ -380,13 +418,7 @@ public class NotificationService {
         @Transactional
         public void sendBookingNotificationToClinic(com.petties.petties.model.Booking booking) {
                 // Find all managers of this clinic (deduplicate by userId to avoid duplicate notifications)
-                List<User> managers = userRepository.findByWorkingClinicIdAndRole(
-                                booking.getClinic().getClinicId(), Role.CLINIC_MANAGER)
-                                .stream()
-                                .collect(Collectors.toMap(User::getUserId, u -> u, (a, b) -> a))
-                                .values()
-                                .stream()
-                                .toList();
+                List<User> managers = getDeduplicatedClinicManagers(booking.getClinic().getClinicId());
 
                 if (managers.isEmpty()) {
                         log.warn("No managers found for clinic: {}", booking.getClinic().getClinicId());
@@ -401,21 +433,15 @@ public class NotificationService {
                                 ownerName,
                                 petName);
 
-                for (User manager : managers) {
-                        Notification notification = Notification.builder()
-                                        .user(manager)
-                                        .clinic(booking.getClinic())
-                                        .type(NotificationType.BOOKING_CREATED)
-                                        .message(message)
-                                        .read(false)
-                                        .build();
-
-                        notification = notificationRepository.save(notification);
-                        log.info("Booking notification created: {} for manager: {}",
-                                        notification.getNotificationId(), manager.getUserId());
-
-                        pushNotificationToUser(manager.getUserId(), notification);
-                }
+                createAndDispatchNotifications(
+                                managers,
+                                booking.getClinic(),
+                                null,
+                                NotificationType.BOOKING_CREATED,
+                                message,
+                                null,
+                                "Booking notification created: {} for manager: {}",
+                                manager -> new Object[] { manager.getUserId() });
         }
 
         /**
@@ -441,19 +467,14 @@ public class NotificationService {
                                 booking.getBookingTime().format(TIME_FORMATTER),
                                 booking.getBookingDate().format(DATE_FORMATTER));
 
-                Notification notification = Notification.builder()
-                                .user(staff)
-                                .clinic(booking.getClinic())
-                                .type(NotificationType.BOOKING_CONFIRMED)
-                                .message(message)
-                                .read(false)
-                                .build();
-
-                notification = notificationRepository.save(notification);
-                log.info("Booking assigned notification created: {} for staff: {}",
-                                notification.getNotificationId(), staff.getUserId());
-
-                pushNotificationToUser(staff.getUserId(), notification);
+                createAndDispatchNotification(
+                                staff,
+                                booking.getClinic(),
+                                NotificationType.BOOKING_CONFIRMED,
+                                message,
+                                null,
+                                "Booking assigned notification created: {} for staff: {}",
+                                staff.getUserId());
         }
 
         /**
@@ -484,19 +505,14 @@ public class NotificationService {
                                         booking.getBookingTime().format(TIME_FORMATTER),
                                         booking.getBookingDate().format(DATE_FORMATTER));
 
-                        Notification newStaffNotification = Notification.builder()
-                                        .user(newStaff)
-                                        .clinic(booking.getClinic())
-                                        .type(NotificationType.BOOKING_CONFIRMED)
-                                        .message(newStaffMessage)
-                                        .read(false)
-                                        .build();
-
-                        newStaffNotification = notificationRepository.save(newStaffNotification);
-                        log.info("Staff reassigned notification created: {} for new staff: {}",
-                                        newStaffNotification.getNotificationId(), newStaff.getUserId());
-
-                        pushNotificationToUser(newStaff.getUserId(), newStaffNotification);
+                        createAndDispatchNotification(
+                                        newStaff,
+                                        booking.getClinic(),
+                                        NotificationType.BOOKING_CONFIRMED,
+                                        newStaffMessage,
+                                        null,
+                                        "Staff reassigned notification created: {} for new staff: {}",
+                                        newStaff.getUserId());
                 }
 
                 // 2. Notify OLD staff - they were removed from this service
@@ -506,56 +522,14 @@ public class NotificationService {
                                         serviceName,
                                         booking.getBookingCode());
 
-                        Notification oldStaffNotification = Notification.builder()
-                                        .user(oldStaff)
-                                        .clinic(booking.getClinic())
-                                        .type(NotificationType.BOOKING_CANCELLED) // Use CANCELLED to indicate removal
-                                        .message(oldStaffMessage)
-                                        .read(false)
-                                        .build();
-
-                        oldStaffNotification = notificationRepository.save(oldStaffNotification);
-                        log.info("Staff removed notification created: {} for old staff: {}",
-                                        oldStaffNotification.getNotificationId(), oldStaff.getUserId());
-
-                        pushNotificationToUser(oldStaff.getUserId(), oldStaffNotification);
-                }
-        }
-
-        /**
-         * Notify all clinic managers of a booking about a specific event
-         */
-        private void notifyClinicManagersForBooking(
-                        com.petties.petties.model.Booking booking,
-                        NotificationType type,
-                        String message) {
-                if (booking.getClinic() == null) {
-                        log.warn("No clinic found for booking: {} when notifying managers", booking.getBookingCode());
-                        return;
-                }
-
-                List<User> managers = userRepository.findByWorkingClinicIdAndRole(
-                                booking.getClinic().getClinicId(), Role.CLINIC_MANAGER);
-
-                if (managers.isEmpty()) {
-                        log.debug("No clinic managers to notify for booking: {}", booking.getBookingCode());
-                        return;
-                }
-
-                for (User manager : managers) {
-                        Notification notification = Notification.builder()
-                                        .user(manager)
-                                        .clinic(booking.getClinic())
-                                        .type(type)
-                                        .message(message)
-                                        .read(false)
-                                        .build();
-
-                        notification = notificationRepository.save(notification);
-                        log.info("Booking notification for managers created: {} for manager: {} type: {}",
-                                        notification.getNotificationId(), manager.getUserId(), type);
-
-                        pushNotificationToUser(manager.getUserId(), notification);
+                        createAndDispatchNotification(
+                                        oldStaff,
+                                        booking.getClinic(),
+                                        NotificationType.BOOKING_CANCELLED,
+                                        oldStaffMessage,
+                                        null,
+                                        "Staff removed notification created: {} for old staff: {}",
+                                        oldStaff.getUserId());
                 }
         }
 
@@ -579,25 +553,14 @@ public class NotificationService {
                                 booking.getPet().getName(),
                                 booking.getBookingCode());
 
-                Notification notification = Notification.builder()
-                                .user(petOwner)
-                                .clinic(booking.getClinic())
-                                .type(NotificationType.BOOKING_CHECKIN)
-                                .message(message)
-                                .read(false)
-                                .build();
-
-                notification = notificationRepository.save(notification);
-                log.info("Check-in notification created: {} for owner: {}",
-                                notification.getNotificationId(), petOwner.getUserId());
-
-                pushNotificationToUser(petOwner.getUserId(), notification);
-
-                // Also notify clinic managers
-                notifyClinicManagersForBooking(
-                                booking,
+                createAndDispatchNotification(
+                                petOwner,
+                                booking.getClinic(),
                                 NotificationType.BOOKING_CHECKIN,
-                                message);
+                                message,
+                                null,
+                                "Check-in notification created: {} for owner: {}",
+                                petOwner.getUserId());
         }
 
         /**
@@ -616,25 +579,14 @@ public class NotificationService {
                                 booking.getBookingCode(),
                                 booking.getPet().getName());
 
-                Notification notification = Notification.builder()
-                                .user(petOwner)
-                                .clinic(booking.getClinic())
-                                .type(NotificationType.BOOKING_COMPLETED)
-                                .message(message)
-                                .read(false)
-                                .build();
-
-                notification = notificationRepository.save(notification);
-                log.info("Completed notification created: {} for owner: {}",
-                                notification.getNotificationId(), petOwner.getUserId());
-
-                pushNotificationToUser(petOwner.getUserId(), notification);
-
-                // Also notify clinic managers
-                notifyClinicManagersForBooking(
-                                booking,
+                createAndDispatchNotification(
+                                petOwner,
+                                booking.getClinic(),
                                 NotificationType.BOOKING_COMPLETED,
-                                message);
+                                message,
+                                null,
+                                "Completed notification created: {} for owner: {}",
+                                petOwner.getUserId());
         }
 
         @Transactional
@@ -660,29 +612,14 @@ public class NotificationService {
                                 staffName,
                                 booking.getBookingCode());
 
-                Notification notification = Notification.builder()
-                                .user(petOwner)
-                                .clinic(booking.getClinic())
-                                .type(NotificationType.STAFF_ON_WAY)
-                                .message(message)
-                                .read(false)
-                                .build();
-
-                notification = notificationRepository.save(notification);
-                log.info("Staff on way notification created: {} for owner: {}",
-                                notification.getNotificationId(), petOwner.getUserId());
-
-                pushNotificationToUser(petOwner.getUserId(), notification);
-
-                // Also notify clinic managers with manager-appropriate message
-                String managerMessage = String.format(
-                                "Nhân viên %s đã bắt đầu di chuyển đến địa chỉ khách hàng (Booking #%s)",
-                                staffName,
-                                booking.getBookingCode());
-                notifyClinicManagersForBooking(
-                                booking,
+                createAndDispatchNotification(
+                                petOwner,
+                                booking.getClinic(),
                                 NotificationType.STAFF_ON_WAY,
-                                managerMessage);
+                                message,
+                                null,
+                                "Staff on way notification created: {} for owner: {}",
+                                petOwner.getUserId());
         }
 
         @Transactional
@@ -701,29 +638,14 @@ public class NotificationService {
                                 staffName,
                                 booking.getBookingCode());
 
-                Notification notification = Notification.builder()
-                                .user(petOwner)
-                                .clinic(booking.getClinic())
-                                .type(NotificationType.STAFF_ARRIVED)
-                                .message(message)
-                                .read(false)
-                                .build();
-
-                notification = notificationRepository.save(notification);
-                log.info("Staff arrived notification created: {} for owner: {}",
-                                notification.getNotificationId(), petOwner.getUserId());
-
-                pushNotificationToUser(petOwner.getUserId(), notification);
-
-                // Also notify clinic managers with manager-appropriate message
-                String managerArrivalMessage = String.format(
-                                "Nhân viên %s đã đến địa chỉ khách hàng (Booking #%s)",
-                                staffName,
-                                booking.getBookingCode());
-                notifyClinicManagersForBooking(
-                                booking,
+                createAndDispatchNotification(
+                                petOwner,
+                                booking.getClinic(),
                                 NotificationType.STAFF_ARRIVED,
-                                managerArrivalMessage);
+                                message,
+                                null,
+                                "Staff arrived notification created: {} for owner: {}",
+                                petOwner.getUserId());
         }
 
         /**
@@ -744,19 +666,14 @@ public class NotificationService {
                                 booking.getBookingCode(),
                                 clinicName);
 
-                Notification notification = Notification.builder()
-                                .user(petOwner)
-                                .clinic(booking.getClinic())
-                                .type(NotificationType.BOOKING_CANCELLED)
-                                .message(message)
-                                .read(false)
-                                .build();
-
-                notification = notificationRepository.save(notification);
-                log.info("Auto-cancellation notification created: {} for owner: {}",
-                                notification.getNotificationId(), petOwner.getUserId());
-
-                pushNotificationToUser(petOwner.getUserId(), notification);
+                createAndDispatchNotification(
+                                petOwner,
+                                booking.getClinic(),
+                                NotificationType.BOOKING_CANCELLED,
+                                message,
+                                null,
+                                "Auto-cancellation notification created: {} for owner: {}",
+                                petOwner.getUserId());
         }
 
         // ======================== COMMON OPERATIONS ========================
@@ -821,9 +738,14 @@ public class NotificationService {
          * Get all notifications for current user
          */
         @Transactional(readOnly = true)
-        public Page<NotificationResponse> getNotificationsByUserId(UUID userId, Pageable pageable) {
-                Page<Notification> notifications = notificationRepository.findByUserUserIdOrderByCreatedAtDesc(userId,
-                                pageable);
+        public Page<NotificationResponse> getNotificationsByUser(User user, Pageable pageable) {
+                Set<NotificationType> visibleTypes = getVisibleTypesForUser(user);
+                Page<Notification> notifications = visibleTypes == null
+                                ? notificationRepository.findByUserUserIdOrderByCreatedAtDesc(user.getUserId(), pageable)
+                                : notificationRepository.findByUserUserIdAndTypeInOrderByCreatedAtDesc(
+                                                user.getUserId(),
+                                                visibleTypes,
+                                                pageable);
                 return notifications.map(this::mapToResponse);
         }
 
@@ -831,8 +753,13 @@ public class NotificationService {
          * Get unread notifications count for current user
          */
         @Transactional(readOnly = true)
-        public long getUnreadCountByUserId(UUID userId) {
-                return notificationRepository.countByUserUserIdAndReadFalse(userId);
+        public long getUnreadCountByUser(User user) {
+                Set<NotificationType> visibleTypes = getVisibleTypesForUser(user);
+                return visibleTypes == null
+                                ? notificationRepository.countByUserUserIdAndReadFalse(user.getUserId())
+                                : notificationRepository.countByUserUserIdAndTypeInAndReadFalse(
+                                                user.getUserId(),
+                                                visibleTypes);
         }
 
         /**

@@ -124,12 +124,11 @@ public class ClinicPriceControllerUnitTest {
     void deletePricePerKm_success_returns200() throws Exception {
         when(authService.getCurrentUser()).thenReturn(mockUser);
         when(clinicRepository.existsByClinicIdAndOwnerUserId(eq(clinicId), eq(mockUser.getUserId()))).thenReturn(true);
-        doReturn(null).when(clinicPriceService).upsertPricePerKm(eq(clinicId), isNull());
 
         mockMvc.perform(delete("/clinics/{id}/price-per-km", clinicId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("Price per km removed"));
+                .andExpect(jsonPath("$.message").value("Đã xóa giá di chuyển theo km"));
 
-        verify(clinicPriceService, times(1)).upsertPricePerKm(eq(clinicId), isNull());
+        verify(clinicPriceService, times(1)).updatePricing(eq(clinicId), isNull(), isNull());
     }
 }

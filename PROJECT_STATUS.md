@@ -1,6 +1,6 @@
 # 🐾 PETTIES Project Status
 
-> **Last Updated:** 2026-03-04
+> **Last Updated:** 2026-03-10
 > **Current Sprint:** Sprint 13 (04/03 - 11/03/2026) - Stabilization & Documentation Alignment
 > **Overall Progress:** 85.2% (theo SRS mục 2.3)
 
@@ -15,7 +15,7 @@
 | Clinic System | ✅ Done | 100% |
 | Staff Scheduling | ✅ Done | 100% |
 | Notifications | ✅ Done | 100% |
-| AI Assistant | ✅ Done | 100% |
+| AI Assistant | 🔄 Active | 85% |
 | Booking Flow | ✅ Done | 100% |
 | EMR (Medical Records) | ✅ Done | 100% |
 | Vaccination System | ✅ Done | 100% |
@@ -120,6 +120,17 @@
    - [x] SOS booking + matching + tracking cơ bản
    - [ ] Track staff location stabilization (in-progress theo SRS)
 
+4. **AI Booking via Chat Validation**
+   - [x] Business chat session + WebSocket streaming
+   - [x] Role/context isolation + tool runtime context
+   - [x] Booking tools nối Spring backend (`get_user_pets`, `search_clinics_nearby`, `get_clinic_services`, `check_available_slots`, `create_booking_for_user`)
+   - [x] Mobile UI hiển thị booking confirmation card
+   - [ ] E2E test kịch bản khám tại phòng khám
+   - [ ] E2E test kịch bản tiêm chủng
+   - [ ] E2E test kịch bản khám tại nhà
+   - [ ] Giảm phụ thuộc heuristic parsing ở mobile confirmation
+   - [ ] Chốt acceptance checklist trước khi đánh dấu hoàn thành
+
 ---
 
 ## ⏳ Upcoming
@@ -134,7 +145,7 @@
 ## 💡 Planned (Sprint 11-12)
 
 ### AI Enhancements
-- [ ] Booking via Chat (Function Calling) - đã có tool nhưng chưa test full
+- [ ] Booking via Chat (Function Calling) - đã implement nền tảng, đang chờ E2E validation + acceptance checklist
 
 ### Platform Admin
 - [ ] User Report Moderation
@@ -145,7 +156,25 @@
 ## 🐛 Known Issues
 - Payment webhook cần verify kỹ trước khi production
 - Cross-clinic EMR cần test với nhiều clinic data
+- Booking via AI hiện vẫn phụ thuộc một phần vào heuristic parsing ở mobile để nhận diện bước xác nhận booking
 - Một số tài liệu lịch sử còn thuật ngữ `vet`/flow cũ ngoài phạm vi Booking module (cần dọn đồng bộ toàn cục)
+
+---
+
+## ✅ Acceptance Checklist - Booking via AI
+
+**Chỉ được đánh dấu hoàn thành khi đạt đủ tất cả điều kiện dưới đây:**
+
+- [x] Pet Owner mobile tạo được `BUSINESS_CHAT` session và reconnect WebSocket ổn định
+- [x] Agent chỉ gọi tool booking khi đủ context và có xác nhận rõ ràng từ người dùng
+- [x] Tạo được booking thật qua Spring backend bằng `create_booking_for_user`
+- [ ] Test pass kịch bản khám tại phòng khám từ chat -> confirmation -> booking created
+- [ ] Test pass kịch bản tiêm chủng từ chat -> vaccine suggestion -> booking created
+- [ ] Test pass kịch bản khám tại nhà với đủ địa chỉ, tọa độ, khoảng cách
+- [ ] Test pass các lỗi quan trọng: hết token, không có slot, clinic/service không hợp lệ, backend validation fail
+- [ ] Có log/trace đủ để debug khi tool chain fail giữa chừng
+- [ ] Mobile confirmation không còn phụ thuộc chủ yếu vào regex/heuristic text parsing
+- [ ] Có test hoặc checklist demo được xác nhận lại sau khi chạy end-to-end thực tế
 
 ---
 

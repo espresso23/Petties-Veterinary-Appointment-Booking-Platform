@@ -112,14 +112,11 @@ flowchart LR
 
 | Status | Trigger | Actions | Next Status |
 |--------|---------|---------|-------------|
-| PENDING | Pet Owner submits booking (payment method: Online/Cash) | Reduce slot, Notify Clinic, store payment_method + payment_status | ASSIGNED |
-| ASSIGNED | Clinic Manager assigns vet | Notify Staff, auto CONFIRMED | CONFIRMED |
-| CONFIRMED | Staff assigned | Notify Pet Owner | CHECK_IN |
-| CHECK_IN | Pet arrives, Staff checks in | Update status | IN_PROGRESS |
-| IN_PROGRESS | Service starts | - | CHECK_OUT |
-| CHECK_OUT | Service ends | - | COMPLETED |
+| PENDING | Pet Owner submits booking (payment method: Online/Cash) | Reduce slot, Notify Clinic, store payment_method + payment_status | CONFIRMED |
+| CONFIRMED | Clinic xác nhận và phân công Staff | Notify Pet Owner + Staff | IN_PROGRESS |
+| IN_PROGRESS | Staff thực hiện dịch vụ | EMR, extra services, payment, arrival tracking nếu có | COMPLETED |
 | COMPLETED | Staff completes EMR | Enable rating workflow | RATING |
-| RATING | Pet Owner submits rating | Store rating & comment, update vet rating average | End |
+| RATING | Pet Owner submits rating | Store rating & comment, update staff rating average | End |
 
 <img width="3686" height="5375" alt="Booking Status State Machine" src="https://github.com/user-attachments/assets/a9659b5f-c9cd-42eb-ac00-3533c84b4545" />
 
@@ -213,7 +210,7 @@ flowchart LR
 | **Required** | Optional (can skip) | Optional |
 | **Content** | 1-5 Stars only | 1-5 Stars + Comment |
 | **UX** | Like Grab/Uber rating | Standard review form |
-| **Data Stored** | `vet_rating`, `vet_rated` | `clinic_rating`, `clinic_comment`, `clinic_reviewed` |
+| **Data Stored** | `staff_rating`, `staff_rated` | `clinic_rating`, `clinic_comment`, `clinic_reviewed` |
 
 ### 7.4 Review Flow Summary
 
@@ -231,12 +228,12 @@ flowchart LR
 
 ### 8.2 Agent Routing Decision Table
 
-| User Intent | Keywords/Patterns | Target Agent | Tools Available |
-|-------------|-------------------|--------------|-----------------|
-| Medical Inquiry | "bệnh", "triệu chứng", "ốm", "sick", "symptom" | Medical Agent | RAG Search, call Research Agent |
-| Booking | "đặt lịch", "book", "appointment", "slot" | Booking Agent | check_slot, create_booking |
-| Information | "mua", "giá", "ở đâu", "product", "tips" | Research Agent | web_search, youtube_search |
-| General Chat | greeting, unclear | Main Agent | Direct response |
+| User Intent | Keywords/Patterns | Runtime Handling | Tools Available |
+|-------------|-------------------|------------------|-----------------|
+| Medical Inquiry | "bệnh", "triệu chứng", "ốm", "sick", "symptom" | Single Agent + ReAct | `pet_knowledge_search`, `web_search` |
+| Booking | "đặt lịch", "book", "appointment", "slot" | Single Agent + ReAct | `get_user_pets`, `search_clinics_nearby`, `get_clinic_services`, `check_available_slots`, `create_booking_for_user` |
+| Information | "mua", "giá", "ở đâu", "product", "tips" | Single Agent + ReAct | `web_search` |
+| General Chat | greeting, unclear | Single Agent + ReAct | Direct response |
 
 ---
 

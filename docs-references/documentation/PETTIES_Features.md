@@ -23,7 +23,6 @@
 16. SOS - Cấp cứu khẩn cấp
 17. **AI Vision: Phân tích hình ảnh sức khỏe thú cưng** ✅
 18. **Hủy yêu cầu thay đổi Email** ✅
-19. Video Consultation (Tư vấn video từ xa)
 20. Xem đơn thuốc trong hồ sơ bệnh án (EMR) ✅
 21. Nhận thông báo & nhắc nhở (Push/Email/SMS) ✅
 22. Lưu ảnh, giống, độ tuổi, đặc điểm thú cưng ✅
@@ -142,15 +141,15 @@
 
 > **Architecture:** Single Agent + ReAct Pattern + MCP Tools
 > 
-> **Note:** MVP sử dụng **Single Agent** (không phải Multi-Agent) với nhiều skills/tools, có thể config bởi Admin.
+> **Note:** MVP sử dụng **Single Agent** với nhiều skills/tools, có thể config bởi Admin.
 
 ### AI Chatbot - Pet Care Assistant
 - 🤖 Chat với AI Chatbot thông minh ✅
 - 🤖 Tư vấn chăm sóc thú cưng ✅
-- 🤖 Hỗ trợ tìm kiếm triệu chứng (Symptom Search) ✅
+- 🤖 Hỗ trợ tra cứu triệu chứng qua knowledge base ✅
 - 🤖 **AI Vision Analysis - Phân tích hình ảnh sức khỏe thú cưng** ✅
 - 🤖 RAG Engine - Tra cứu kiến thức y tế thú y (LlamaIndex + Qdrant) ✅
-- 🤖 Booking via Chat - Đặt lịch qua hội thoại ✅
+- 🤖 Booking via Chat - Đặt lịch qua hội thoại 🔄 (đã có tool + mobile confirmation, đang chờ E2E validation)
 - 🤖 Citation & Attribution - Trích dẫn nguồn
 - 🤖 Web Search - Tìm kiếm realtime 🔄
 - 🤖 EMR Integration - Xem bệnh án điện tử ✅ (FE/BE)
@@ -175,24 +174,33 @@
 │  └── System Prompt (Admin Configurable)                             │
 │                                                                     │
 │  🔧 Skills/Tools (FastMCP @mcp.tool)                                │
-│  ├── @mcp.tool: pet_care_qa       → RAG-based Q&A                  │
-│  ├── @mcp.tool: symptom_search    → Symptom → Disease lookup       │
-│  ├── @mcp.tool: analyze_pet_image → Phân tích hình ảnh (Vision)     │
-│  ├── @mcp.tool: search_clinics    → Find nearby clinics            │
-│  ├── @mcp.tool: check_slots       → Check available slots          │
-│  └── @mcp.tool: create_booking    → Create booking via chat        │
+│  ├── @mcp.tool: pet_knowledge_search → RAG knowledge retrieval      │
+│  ├── @mcp.tool: web_search          → Web fallback search           │
+│  ├── @mcp.tool: get_user_pets         → Load user pets             │
+│  ├── @mcp.tool: search_clinics_nearby → Find nearby clinics        │
+│  ├── @mcp.tool: check_available_slots → Check available slots      │
+│  └── @mcp.tool: create_booking_for_user → Create booking via chat  │
 │                                                                     │
-│  📚 RAG Engine (LlamaIndex + Qdrant)                                │
-│  ├── LlamaIndex: Document processing, chunking, retrieval          │
-│  ├── Qdrant Cloud: Vector storage với Binary Quantization          │
-│  └── Cohere Embeddings (embed-multilingual-v3)                      │
+│  📚 Hybrid RAG Engine                                               │
+│  ├── RAG Engine: LlamaIndex + Qdrant Cloud + Cohere Embeddings     │
+│  ├── Query Expander: LLM-based short query expansion               │
+│  ├── Knowledge Graph: LlamaIndex KGIndex + SimpleGraphStore        │
+│  ├── Case Memory: Confirmed cases + feedback-weighted re-ranking   │
+│  └── Parallel Search: RAG + KG + Case Memory merged results       │
+│                                                                     │
+│  💬 Feedback Loop                                                    │
+│  ├── User Feedback Collection (1-5 rating per message)             │
+│  ├── Auto-embed positive cases into Case Memory                    │
+│  └── Role-based feedback weights (STAFF=1.0, PET_OWNER=0.6)       │
 │                                                                     │
 │  ⚙️ Admin Config                                                    │
 │  ├── Enable/Disable Agent                                           │
 │  ├── System Prompt (editable)                                       │
 │  ├── Parameters: Temperature, Max Tokens, Top-P                     │
 │  ├── Tool Management: Enable/Disable individual tools              │
-│  └── Knowledge Base: Upload/Remove documents                        │
+│  ├── Knowledge Base: Upload/Remove documents                        │
+│  ├── Knowledge Graph: Build/Stats                                   │
+│  └── Case Memory: Stats/Prune                                       │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -206,12 +214,14 @@
 - ✅ **Answer**: Tổng hợp và trả lời user
 
 ### AI Tools (FastMCP Protocol)
-- 🔧 `pet_care_qa` - Hỏi đáp về chăm sóc thú cưng (RAG-based)
-- 🔧 `symptom_search` - Tìm bệnh dựa trên triệu chứng
-- 🔧 `analyze_pet_image` - Phân tích hình ảnh sức khỏe pet (Vision)
-- 🔧 `search_clinics` - Tìm phòng khám gần đây
-- 🔧 `check_slots` - Kiểm tra slot trống
-- 🔧 `create_booking` - Tạo lịch hẹn qua chat
+- 🔧 `pet_knowledge_search` - Tra cứu kiến thức thú y và triệu chứng từ knowledge base
+- 🔧 `web_search` - Tìm kiếm web khi knowledge base chưa đủ dữ liệu
+- 🔧 `get_user_pets` - Lấy danh sách thú cưng của user hiện tại
+- 🔧 `search_clinics_nearby` - Tìm phòng khám gần vị trí người dùng
+- 🔧 `get_clinic_services` - Lấy dịch vụ đang hoạt động của phòng khám
+- 🔧 `check_vaccination_status` - Kiểm tra lịch sử tiêm và mũi sắp tới
+- 🔧 `check_available_slots` - Kiểm tra slot trống theo dịch vụ
+- 🔧 `create_booking_for_user` - Tạo lịch hẹn qua chat sau khi đã xác nhận
 
 ### Admin Agent Configuration (Simple UI)
 - ⚙️ **Agent Status** - Bật/Tắt Agent
@@ -227,6 +237,45 @@
 - 🔍 **Vector Search** - Qdrant Cloud với Binary Quantization
 - 📖 **Retrieval** - Top-K similarity search
 
+### AI Accuracy Improvement Mechanisms ✅ (Sprint 13)
+
+> **4 cơ chế cải thiện độ chính xác AI theo thời gian** - Tất cả đã được implement và tích hợp vào HybridRAGEngine.
+
+#### Query Expansion (Mở rộng truy vấn) ✅
+- 🔍 **LLM-based Query Expansion** - Mở rộng câu hỏi ngắn/mơ hồ thành truy vấn chi tiết hơn trước khi search RAG
+- 🔍 Tự động bỏ qua nếu query đã đủ dài hoặc rõ ràng (>50 ký tự)
+- 🔍 Tích hợp vào `pet_knowledge_search` MCP tool
+- 🔍 File: `app/core/rag/query_expander.py`
+
+#### Knowledge Graph (Đồ thị tri thức) ✅
+- 🧠 **LlamaIndex KnowledgeGraphIndex** - Trích xuất quan hệ (entity → relation → entity) từ tài liệu
+- 🧠 **SimpleGraphStore** - Lưu trữ graph trong file JSON (phù hợp MVP)
+- 🧠 Build từ Admin API (`POST /knowledge/build-kg`)
+- 🧠 Cung cấp ngữ cảnh quan hệ bổ sung cho RAG retrieval
+- 🧠 File: `app/core/rag/knowledge_graph.py`
+
+#### Visual Case Memory (Bộ nhớ ca bệnh) ✅
+- 📋 **Confirmed Case Storage** - Lưu các ca bệnh đã xác nhận từ feedback tích cực vào Qdrant
+- 📋 **Feedback-weighted Re-ranking** - Score = cosine_similarity + min(feedback_count/100, 0.3) + (0.1 if staff_verified)
+- 📋 **Role-based Weights** - STAFF=1.0, CLINIC_MANAGER/OWNER=0.7, PET_OWNER=0.6
+- 📋 Auto-embed khi nhận feedback tích cực (rating >= 4)
+- 📋 Admin prune endpoint (`POST /knowledge/case-memory/prune`)
+- 📋 File: `app/core/rag/case_memory.py`
+
+#### Feedback Loop (Vòng phản hồi) ✅
+- 💬 **User Feedback API** - Thu thập đánh giá (1-5 sao) cho mỗi tin nhắn AI
+- 💬 **Auto-classify** - Tự động phân loại feedback dựa trên rating
+- 💬 **Auto-embed Positive Cases** - Feedback tốt tự động lưu vào Case Memory
+- 💬 **Per-role Statistics** - Admin xem toàn bộ, user khác chỉ xem feedback của mình
+- 💬 MongoDB storage (feedback collection)
+- 💬 File: `app/core/services/feedback_service.py`, `app/api/schemas/feedback_schemas.py`
+
+#### Hybrid RAG Engine (Tổng hợp) ✅
+- 🔗 **Parallel Search** - Chạy đồng thời RAG + Knowledge Graph + Case Memory
+- 🔗 **Merged Results** - Gộp và deduplicate kết quả từ 3 nguồn
+- 🔗 **Graceful Degradation** - Nếu KG hoặc Case Memory lỗi, vẫn trả kết quả RAG
+- 🔗 File: `app/core/rag/hybrid_engine.py`
+
 ---
 
 ## 📱 ADVANCED FEATURES
@@ -235,10 +284,6 @@
 - Xác định phòng khám thú y (Clinic) khẩn cấp gần nhất
 - Liên hệ tức thì cho tư vấn
 - Đặt lịch khẩn cấp
-
-### 📹 Video Consultation (Tư Vấn Video)
-- Gọi video trực tiếp với nhân viên
-- Chẩn đoán từ xa
 
 ### Electronic Medical Records (EMR)
 - Hệ thống Hồ sơ Bệnh án Điện tử
@@ -298,7 +343,7 @@
 | `ACTIVE` | Hoạt động bình thường | ✅ |
 | `DEACTIVATED` | Nghỉ việc / Bị vô hiệu hóa | ❌ |
 
-**Lưu ý:** Role `STAFF` bao quát cả nhân viên thú y (specialty **VET**) và nhân viên grooming (specialty **GROOMER**). Chuyên môn được phân biệt qua trường `StaffSpecialty` (đơn giản hóa còn 2 loại từ 2026-02-28).
+**Lưu ý:** Role `STAFF` bao quát toàn bộ nhân sự phòng khám. Chuyên môn được phân biệt bằng nhóm chuyên môn y tế và grooming.
 
 ---
 
@@ -314,14 +359,14 @@
 3. **Hệ thống xử lý (Background)**:
     - Kiểm tra Overlap: Nhân viên đã có lịch tại chi nhánh này hoặc chi nhánh khác chưa.
     - Chia nhỏ thời gian thành các Slot 30 phút.
-    - Lưu vào DB: 1 bản ghi `VetShift` và danh sách các `Slot`.
+    - Lưu vào DB: 1 bản ghi `StaffShift` và danh sách các `Slot`.
 4. **Kết quả**: Lịch và các ô trống hiện lên Dashboard để Pet Owner đặt lịch.
 
 
 ## 🔑 KEY FEATURES SUMMARY (MVP 1-Month Scope)
 
 ### ✅ CORE FEATURES (In Scope)
-✅ **Clinic-based vets** (NO freelancers)  
+✅ **Clinic-based staff** (NO freelancers)  
 ✅ **Shared EMR** (All clinics see medical history)  
 ✅ **Shared vaccination records** (Across clinics)  
 ✅ **Dynamic pricing** (Base + Weight-based + Distance fees)  
@@ -329,7 +374,7 @@
 ✅ **Slot management** (Auto reduce/restore)  
 ✅ **Manual scheduling** (Manager tạo lịch thủ công)  
 ✅ **Multiple appointment types** (IN_CLINIC, HOME_VISIT)  
-✅ **Quy trình Booking (Booking workflow)**: (PENDING → CONFIRMED → ASSIGNED → CHECK_IN → IN_PROGRESS → **PAID** → **CHECK_OUT / COMPLETED**)
+✅ **Quy trình Booking (Booking workflow)**: `PENDING → CONFIRMED → IN_PROGRESS → COMPLETED`
   
 ✅ **Rating system** (Pet owner đánh giá Clinic/Staff)  
 ✅ **SOS Geo-Tracking** (GPS realtime tracking cho cấp cứu)
@@ -338,12 +383,16 @@
 ✅ **Push Notifications** (Firebase)  
 ✅ **Admin Agent Config** (Prompt, Parameters, Tools, Knowledge Base)  
 ✅ **Knowledge Base RAG** (LlamaIndex + Qdrant Cloud)  
+✅ **Query Expansion** (LLM-based short query expansion)  
+✅ **Knowledge Graph** (LlamaIndex KGIndex + SimpleGraphStore)  
+✅ **Case Memory** (Confirmed cases + feedback-weighted re-ranking)  
+✅ **Feedback Loop** (User feedback → auto-embed positive cases)
 
 ### ❌ DEFERRED (Phase 2)
 ❌ ~~Home Visit Geo-Routing~~ (Đơn giản hóa cho MVP, chỉ dùng cho SOS)
 ❌ ~~Video Consultation~~ (Deferred - WebRTC phức tạp)  
 ❌ ~~Excel Import~~ (Deferred - Manual đủ cho MVP)  
-❌ ~~Multi-Agent Architecture~~ (Simplified to Single Agent)  
+❌ ~~Legacy supervisor architecture~~ (Simplified to Single Agent)  
 ❌ ~~Email/SMS Notifications~~ (Push đủ cho MVP)  
 
 ---
@@ -363,16 +412,16 @@
 
 ---
 
-**Version: 1.7.0 - PETTIES MVP SCOPE (VET→STAFF MIGRATION COMPLETE)**
+**Version: 1.8.0 - PETTIES MVP SCOPE (AI ACCURACY IMPROVEMENT COMPLETE)**
 **Status: ✅ READY FOR DEV**
-**Total Features: 109 Use Cases (Full Coverage)**
-**Last Updated: February 24, 2026**
+**Total Features: 113 Use Cases (Full Coverage)**
+**Last Updated: March 11, 2026**
 
 ---
 
-## 📊 MIGRATION STATUS: VET → STAFF ✅ HOÀN THÀNH
+## 📊 ROLE STANDARDIZATION: STAFF ✅ HOÀN THÀNH
 
-> **Note:** Thuật ngữ `Vet` đã được migrate sang `Staff` để phù hợp với mô hình nhân viên đa dạng (Bác sĩ thú y, Groomer, v.v.)
+> **Note:** Tài liệu dùng thống nhất thuật ngữ `Staff` cho role nhân sự phòng khám và không dùng lại thuật ngữ cũ.
 
 | Thành phần | Trạng thái |
 |------------|------------|
@@ -382,4 +431,3 @@
 | Mobile (Flutter) | ✅ 100% |
 | Unit Tests | ✅ 62/62 passed |
 
-**Chi tiết:** Xem `docs-references/development/dev/VET_TO_STAFF_MIGRATION_GUIDE.md`

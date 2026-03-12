@@ -303,7 +303,7 @@ export function ChatBox({
   }
 
   // Handle click on image in ImageGroup
-  const handleImageGroupClick = (imageUrl: string, _groupMessages?: ChatMessage[]) => {
+  const handleImageGroupClick = (imageUrl: string) => {
     // Always show counter in total conversation images
     const allImages = displayMessages.filter(msg => msg.messageType === 'IMAGE' && msg.imageUrl)
     const idx = allImages.findIndex(img => img.imageUrl === imageUrl)

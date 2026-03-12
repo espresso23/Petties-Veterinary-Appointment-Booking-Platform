@@ -20,7 +20,7 @@ Petties is a veterinary appointment booking platform connecting pet owners with 
 - `petties-web/` - React 19 + Vite + TypeScript (Admin/Clinic dashboards)
 - `backend-spring/petties/` - Spring Boot 4.0 + Java 21 (REST API)
 - `petties-agent-serivce/` - FastAPI + Python 3.12 (AI Single Agent + ReAct)
-- `petties_mobile/` - Flutter 3.5 (Pet Owner/Vet mobile app)
+- `petties_mobile/` - Flutter 3.5 (Pet Owner/Staff mobile app)
 
 **Databases:** PostgreSQL 16 (primary), MongoDB 7 (documents), Redis 7 (OTP/cache), Qdrant Cloud (vectors), Firebase (push messages)
 
@@ -83,7 +83,7 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 | Role | Web | Mobile |
 |------|-----|--------|
 | PET_OWNER | - | Mobile only |
-| VET | Web + Mobile | Web + Mobile |
+| STAFF | Web + Mobile | Web + Mobile |
 | CLINIC_OWNER | Web only | - |
 | CLINIC_MANAGER | Web only | - |
 | ADMIN | Web only | - |
@@ -97,6 +97,7 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 - Validation with Vietnamese messages on DTOs (`@NotBlank`, `@Size`, etc.)
 - Profiles: `dev` (local Docker DBs), `test` (Cloud DBs), `prod` (Neon/Atlas/Redis Cloud)
 - Redis for OTP storage with TTL (Registration & Password Reset,..)
+- Booking statuses are only `PENDING -> CONFIRMED -> IN_PROGRESS -> COMPLETED`; check-in, checkout, arrived, start-moving are actions/events, not statuses
 
 ### Frontend (React)
 - State management: Zustand stores (`src/store/`)
@@ -108,19 +109,28 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 - Single Agent: LangGraph với ReAct pattern (Thought → Action → Observation)
 - Config: DB-based dynamic configuration (prompt, parameters, tools)
 - Tools: FastMCP với @mcp.tool decorator
-  - `pet_care_qa` - RAG-based Q&A
-  - `symptom_search` - Symptom → Disease lookup
-  - `search_clinics` - Find nearby clinics
-  - `check_slots` - Check available slots
-  - `create_booking` - Create booking via chat
+  - `pet_knowledge_search` - Tra cứu cẩm nang/kiến thức thú y (Hybrid: RAG + Knowledge Graph + Case Memory)
+  - `web_search` - Tìm thêm nguồn web khi knowledge base chưa đủ
+  - `get_user_pets` - Lấy danh sách thú cưng của user để tư vấn/đặt lịch đúng
+  - `search_clinics_nearby` - Tìm phòng khám gần vị trí
+  - `get_clinic_services` - Lấy danh sách dịch vụ của phòng khám
+  - `check_available_slots` - Kiểm tra slot trống theo ngày/dịch vụ
+  - `create_booking_for_user` - Tạo booking sau khi người dùng xác nhận rõ ràng
 - LLM: OpenRouter Cloud API (gemini-2.0-flash, llama-3.3-70b, claude-3.5-sonnet)
 - RAG: LlamaIndex + Qdrant Cloud + Cohere embed-multilingual-v3
+- Visual Case Memory: lưu case đã xác nhận vào Qdrant collection `petties_case_memory_v2` với named vectors `text` (Cohere) + `image` (Jina CLIP v2, 1024 chiều)
+- Image embeddings: dùng Jina Embeddings API với model cố định `jina-clip-v2`, chỉ nhận URL `https` hoặc base64 (data URL) và trả về vector 1024 chiều khớp với cấu hình Case Memory
+- Ưu tiên tool dữ liệu cá nhân hóa (`get_user_pets`, ...) cho các câu hỏi kiểu “thú cưng của tôi/hồ sơ của bé”; chỉ gọi knowledge base khi người dùng hỏi kiến thức/chăm sóc/triệu chứng chung
+- Tool runtime: trước khi gọi FastMCP, lọc tham số theo `input_schema.properties` để loại key dư (ví dụ `type`) nhằm tránh lỗi Pydantic `Unexpected keyword argument`
+- Streaming: WebSocket có thể gửi đầy đủ thought/action/observation; client nên mặc định chỉ hiển thị thought/stream cho UX, và bật debug mode để xem tool_call/tool_result khi cần
+- Cấu hình Jina: `JINA_API_KEY` (và tùy chọn `JINA_IMAGE_EMBED_MODEL`) được lưu trong bảng `system_settings` và có thể chỉnh từ trang Admin Knowledge (cùng trang với Cohere/Qdrant), kèm nút test `/api/v1/settings/test-jina` để kiểm tra kết nối và dimension
 
 
 ### Mobile (Flutter)
 - State: Provider pattern
 - Routing: GoRouter with role-based guards
 - Auth: JWT stored in SharedPreferences, Google Sign-In supported
+- Codebase dùng role `STAFF`; `VET` chỉ nên xuất hiện như specialty hoặc tên kỹ thuật legacy
 
 ## Design System
 
@@ -240,7 +250,7 @@ const [showConfirm, setShowConfirm] = useState(false)
 Copy `.env.example` to `.env` for local, `.env.test` for Test Env.
 
 ## Project Rules
-0. Always response in Vietnamese.
+0. Always response in Vietnamese và không tự ý chạy lệnh trên môi trường của user; chỉ hướng dẫn lệnh để user tự chạy.
 1. Always references in `docs-references/` folder to avoid out of scope.
 2. Always comprehensive all plan and got a user accepted before execute code.
 3. Always clearly dev environment, test environment and production environment, make sure best practice project structure.
@@ -396,7 +406,6 @@ flowchart TD
 **Features & Architecture:**
 - `docs-references/documentation/PETTIES_Features.md` - Complete feature list
 - `docs-references/documentation/TECHNICAL SCOPE PETTIES - AGENT MANAGEMENT.md` - AI architecture
-- `docs-references/documentation/VET_SCHEDULING_STRATEGY.md` - Slot-based booking system
 - `docs-references/documentation/BUSINESS_WORKFLOW_BPMN.md` - Business processes
 
 **Development & Deployment:**

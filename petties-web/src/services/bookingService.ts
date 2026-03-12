@@ -224,16 +224,7 @@ export const checkInBooking = async (bookingId: string): Promise<Booking> => {
 };
 
 /**
- * Complete booking
- * Transitions: IN_PROGRESS → COMPLETED
- */
-export const completeBooking = async (bookingId: string): Promise<Booking> => {
-    const response = await axios.post(`${BOOKING_API}/${bookingId}/complete`);
-    return response.data;
-};
-
-/**
- * Checkout booking (Staff action – thanh toán)
+ * Checkout booking (Staff/Manager action – thanh toán)
  * Chỉ gọi khi status IN_PROGRESS. Backend chuyển sang COMPLETED và xử lý thanh toán.
  * @param overriddenSosFee Optional: ghi đè phí SOS (cho booking SOS)
  */
@@ -344,7 +335,6 @@ export const bookingService = {
     getAvailableServicesForAddOn,
     getAvailableStaffForConfirm,
     checkInBooking,
-    completeBooking,
     checkoutBooking,
     removeServiceFromBooking,
     getClinicTodayBookings,

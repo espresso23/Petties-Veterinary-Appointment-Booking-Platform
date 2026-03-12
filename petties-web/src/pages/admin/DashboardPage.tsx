@@ -22,7 +22,7 @@ export const AdminDashboardPage = () => {
     const checkServices = useCallback(async () => {
         // Check AI Service
         try {
-            const res = await fetch(`${env.AGENT_SERVICE_URL}/health`, { method: 'GET' })
+            const res = await fetch(`${env.AGENT_API_BASE_URL}/health`, { method: 'GET' })
             if (res.ok) {
                 const data = await res.json() as { service?: string; version?: string }
                 setAiHealth({ status: 'healthy', message: data.service || 'AI Service', version: data.version })
@@ -48,6 +48,7 @@ export const AdminDashboardPage = () => {
     }, [])
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         checkServices()
     }, [checkServices])
 

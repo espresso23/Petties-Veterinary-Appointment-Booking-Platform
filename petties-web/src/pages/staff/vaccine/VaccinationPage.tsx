@@ -371,8 +371,8 @@ const VaccinationPage = () => {
                                                 <div
                                                     className="font-bold text-stone-800 flex items-center gap-2 hover:text-orange-600 cursor-pointer transition-colors"
                                                     onClick={() => {
-                                                        if (isPending && (rec as any).id) {
-                                                            setEditingId((rec as any).id);
+                                                        if (isPending && rec.id) {
+                                                            setEditingId(rec.id);
                                                         } else {
                                                             setEditingId(null);
                                                         }
@@ -416,8 +416,8 @@ const VaccinationPage = () => {
                                             </div>
                                             <button
                                                 onClick={() => {
-                                                    if (isPending && (rec as any).id) {
-                                                        setEditingId((rec as any).id);
+                                                    if (isPending && rec.id) {
+                                                        setEditingId(rec.id);
                                                     } else {
                                                         setEditingId(null);
                                                     }
