@@ -7,7 +7,7 @@ interface ChatMessageProps {
   timestamp?: Date
   citations?: Array<{ type: 'rag' | 'web'; source: string; url?: string }>
   thinkingProcess?: string[]
-  toolCalls?: Array<{ tool: string; input: any; output?: any }>
+  toolCalls?: Array<{ tool: string; input: Record<string, unknown>; output?: unknown }>
   feedback?: 'good' | 'bad' | null
   onFeedback?: (feedback: 'good' | 'bad') => void
 }
@@ -18,7 +18,7 @@ interface ChatMessageProps {
 /**
  * Expandable Tool Call Card
  */
-const ToolCallCard = ({ call }: { call: { tool: string; input: any; output?: any } }) => {
+const ToolCallCard = ({ call }: { call: { tool: string; input: Record<string, unknown>; output?: unknown } }) => {
   const [expanded, setExpanded] = useState(false)
   const outputStr = call.output
     ? typeof call.output === 'string'
@@ -62,7 +62,7 @@ const ToolCallCard = ({ call }: { call: { tool: string; input: any; output?: any
             </span>
           )}
         </div>
-        {call.output && (
+        {outputStr && (
           <div className="text-[10px] font-mono bg-green-50 p-1.5 border border-green-200">
             <span className="font-black text-green-600 mr-2">OUT:</span>
             {expanded ? (

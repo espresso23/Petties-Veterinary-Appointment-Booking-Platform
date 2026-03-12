@@ -295,9 +295,10 @@ export const BookingDashboardPage = () => {
             setSelectedBooking(null);
             setCancelModalOpen(false);
             setBookingIdToCancel(null);
-        } catch (error: any) {
+        } catch (error) {
             console.error('Failed to cancel booking:', error);
-            const errorMessage = error.response?.data?.message || error.message || 'Không thể hủy lịch hẹn. Vui lòng thử lại.';
+            const err = error as { response?: { data?: { message?: string } }; message?: string }
+            const errorMessage = err.response?.data?.message || err.message || 'Không thể hủy lịch hẹn. Vui lòng thử lại.';
             showToast('error', errorMessage);
         } finally {
             setCancelling(null);

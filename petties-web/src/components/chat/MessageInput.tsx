@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { PaperAirplaneIcon, PhotoIcon } from '@heroicons/react/24/solid'
 
 interface MessageInputProps {
@@ -138,7 +138,6 @@ export function MessageInput({
     else if (selectedImages.length > 0 && onImageUpload) {
       console.log('MessageInput: Sending only images, count:', selectedImages.length)
       setIsUploading(true)
-      let successCount = 0
       let failCount = 0
 
       try {
@@ -147,7 +146,6 @@ export function MessageInput({
           try {
             console.log('Uploading image:', image.name)
             await onImageUpload(image)
-            successCount++
             console.log('Upload success:', image.name)
           } catch (imageError) {
             console.error('Failed to upload image:', image.name, imageError)
@@ -189,7 +187,7 @@ export function MessageInput({
     }
   }
 
-  const handleImagesSelected = async (files: File[]) => {
+  const handleImagesSelected = useCallback(async (files: File[]) => {
     if (!onImageUpload) return
 
     const validFiles: File[] = []
@@ -226,7 +224,7 @@ export function MessageInput({
     }
 
     setSelectedImages(validFiles)
-  }
+  }, [onImageUpload, onError])
 
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files

@@ -32,7 +32,7 @@ export const ChatToastItem = ({ toast }: ChatToastItemProps) => {
         console.log('[ChatToastItem] Sending reply for toast:', toast)
 
         // Handle property mismatch from backend (chatBoxId vs conversationId)
-        // @ts-ignore - Backend might send chatBoxId
+        // @ts-expect-error - Backend might send chatBoxId
         const targetId = toast.conversationId || toast.chatBoxId
 
         if (!targetId) {

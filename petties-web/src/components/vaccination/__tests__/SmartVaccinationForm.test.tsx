@@ -2,6 +2,9 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { SmartVaccinationForm } from '../SmartVaccinationForm'
 import { getAllServices } from '../../../services/endpoints/service'
+import type { Pet } from '../../../services/api/petService'
+import type { VaccinationRecord } from '../../../services/vaccinationService'
+import type { VaccineTemplate } from '../../../services/api/vaccineTemplateService'
 
 // Mock the service call
 vi.mock('../../../services/endpoints/service', () => ({
@@ -12,28 +15,37 @@ vi.mock('../../../services/endpoints/service', () => ({
 window.HTMLElement.prototype.scrollIntoView = vi.fn()
 
 describe('SmartVaccinationForm', () => {
-    const mockPet = {
+    const mockPet: Pet = {
         id: 'pet-123',
         name: 'Buddy',
-        species: 'Dog',
+        species: 'DOG',
         breed: 'Golden Retriever',
-        dob: '2020-01-01'
+        dateOfBirth: '2020-01-01'
     }
 
-    const mockRecords = [
+    const mockRecords: VaccinationRecord[] = [
         {
             id: 'rec-1',
+            petId: 'pet-123',
+            staffId: 'staff-001',
+            clinicId: 'clinic-001',
+            clinicName: 'Test Clinic',
+            staffName: 'Bác sĩ A',
             vaccineName: 'Rabies',
             vaccinationDate: '2023-01-01',
             workflowStatus: 'COMPLETED',
-            doseNumber: 1
+            doseNumber: 1,
+            createdAt: '2023-01-01T00:00:00Z',
+            status: 'Valid'
         }
     ]
 
-    const mockTemplates = [
+    const mockTemplates: VaccineTemplate[] = [
         {
             id: 'tpl-rabies',
             name: 'Rabies',
+            manufacturer: 'Test Pharma',
+            minAgeWeeks: 8,
             seriesDoses: 1,
             repeatIntervalDays: 365,
             isAnnualRepeat: true,
@@ -42,6 +54,8 @@ describe('SmartVaccinationForm', () => {
         {
             id: 'tpl-5-bn',
             name: 'Vaccine 5 Bệnh',
+            manufacturer: 'Test Pharma',
+            minAgeWeeks: 8,
             seriesDoses: 3,
             repeatIntervalDays: 21,
             isAnnualRepeat: true,
@@ -69,15 +83,15 @@ describe('SmartVaccinationForm', () => {
     beforeEach(() => {
         vi.clearAllMocks()
             // Default mock implementation
-            ; (getAllServices as any).mockResolvedValue(mockClinicServices)
+            ; (getAllServices as ReturnType<typeof vi.fn>).mockResolvedValue(mockClinicServices)
     })
 
     it('renders correctly in create mode', () => {
         render(
             <SmartVaccinationForm
-                pet={mockPet as any}
-                records={mockRecords as any}
-                templates={mockTemplates as any}
+                pet={mockPet}
+                records={mockRecords}
+                templates={mockTemplates}
                 isSubmitting={false}
                 onSubmit={vi.fn()}
             />
@@ -90,9 +104,9 @@ describe('SmartVaccinationForm', () => {
     it('updates dose sequence when clicked', async () => {
         render(
             <SmartVaccinationForm
-                pet={mockPet as any}
-                records={mockRecords as any}
-                templates={mockTemplates as any}
+                pet={mockPet}
+                records={mockRecords}
+                templates={mockTemplates}
                 isSubmitting={false}
                 onSubmit={vi.fn()}
             />
@@ -108,9 +122,9 @@ describe('SmartVaccinationForm', () => {
         const onSubmit = vi.fn()
         render(
             <SmartVaccinationForm
-                pet={mockPet as any}
-                records={mockRecords as any}
-                templates={mockTemplates as any}
+                pet={mockPet}
+                records={mockRecords}
+                templates={mockTemplates}
                 isSubmitting={false}
                 onSubmit={onSubmit}
             />
@@ -138,21 +152,28 @@ describe('SmartVaccinationForm', () => {
 
     it('predicts next dose correctly for existing records', async () => {
         // Add a completed record for "5 bệnh"
-        const existingRecords = [
+        const existingRecords: VaccinationRecord[] = [
             {
                 id: 'rec-1',
+                petId: 'pet-123',
+                staffId: 'staff-001',
+                clinicId: 'clinic-001',
+                clinicName: 'Test Clinic',
+                staffName: 'Bác sĩ A',
                 vaccineName: 'Tiêm 5 bệnh',
                 vaccinationDate: '2023-01-01',
                 workflowStatus: 'COMPLETED',
-                doseNumber: 1
+                doseNumber: 1,
+                createdAt: '2023-01-01T00:00:00Z',
+                status: 'Valid'
             }
         ]
 
         render(
             <SmartVaccinationForm
-                pet={mockPet as any}
-                records={existingRecords as any}
-                templates={mockTemplates as any}
+                pet={mockPet}
+                records={existingRecords}
+                templates={mockTemplates}
                 isSubmitting={false}
                 onSubmit={vi.fn()}
             />
@@ -173,9 +194,9 @@ describe('SmartVaccinationForm', () => {
 
         render(
             <SmartVaccinationForm
-                pet={mockPet as any}
+                pet={mockPet}
                 records={[]}
-                templates={mockTemplates as any}
+                templates={mockTemplates}
                 isSubmitting={false}
                 onSubmit={vi.fn()}
                 initialData={{ vaccinationDate: testDate }}
@@ -196,9 +217,9 @@ describe('SmartVaccinationForm', () => {
         const onSubmit = vi.fn()
         render(
             <SmartVaccinationForm
-                pet={mockPet as any}
+                pet={mockPet}
                 records={[]}
-                templates={mockTemplates as any}
+                templates={mockTemplates}
                 isSubmitting={false}
                 onSubmit={onSubmit}
             />

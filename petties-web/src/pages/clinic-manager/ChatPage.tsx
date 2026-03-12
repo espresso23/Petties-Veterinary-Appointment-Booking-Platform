@@ -210,7 +210,7 @@ export function ChatPage() {
         partnerOnline: prev.partnerOnline // Preserve online status
       } : null)
     }
-  }, []) // No dependency needed since we use ref
+  }, [decrementChatUnreadCount]) // No dependency needed since we use ref
 
   const handleWebSocketMessage = useCallback((wsMessage: ChatWebSocketMessage) => {
     console.log('[WS DEBUG] Received message:', wsMessage.type, wsMessage)
@@ -318,7 +318,7 @@ export function ChatPage() {
       // Don't disconnect WebSocket as layout needs it for global updates
       // chatWebSocket.disconnect()
     }
-  }, [])
+  }, [loadChatBoxes, refreshChatUnreadCount, connectWebSocket])
 
   // Subscribe to ALL chat boxes for realtime updates in the list
   useEffect(() => {
@@ -341,7 +341,7 @@ export function ChatPage() {
       console.log('[WS DEBUG] Unsubscribing from all chat boxes, count:', unsubscribes.length)
       unsubscribes.forEach(unsub => unsub())
     }
-  }, [wsConnected, chatBoxes.length, handleWebSocketMessage])
+  }, [wsConnected, chatBoxes, handleWebSocketMessage])
 
   // Load messages and send online status for the selected chat box
   useEffect(() => {
@@ -361,7 +361,7 @@ export function ChatPage() {
         chatWebSocket.sendOnlineStatus(selectedChatBox.id, false)
       }
     }
-  }, [selectedChatBox?.id, wsConnected])
+  }, [selectedChatBox, wsConnected, loadMessages])
 
   // ======================== HANDLERS ========================
 

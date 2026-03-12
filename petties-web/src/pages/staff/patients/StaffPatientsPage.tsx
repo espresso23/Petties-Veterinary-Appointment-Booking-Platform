@@ -268,7 +268,8 @@ export const StaffPatientsPage = () => {
         } catch (error) {
             console.error(error)
             showToast('error', 'Lỗi khi lưu hồ sơ')
-            const errorMessage = (error as any)?.response?.data?.message || (error as any)?.message || 'Lỗi khi lưu hồ sơ'
+            const err = error as { response?: { data?: { message?: string } }; message?: string }
+            const errorMessage = err?.response?.data?.message || err?.message || 'Lỗi khi lưu hồ sơ'
             showToast('error', errorMessage)
         } finally {
             setIsSubmittingVaccination(false)
@@ -897,7 +898,7 @@ export const StaffPatientsPage = () => {
                                                                 </div>
                                                                 <button
                                                                     onClick={() => {
-                                                                        if (isPending && (rec as any).id) {
+                                                                        if (isPending && rec.id) {
                                                                             setSelectedVaccination(rec as VaccinationRecord);
                                                                             setIsEditingVaccination(true); // Treat as edit to update PENDING -> COMPLETED
                                                                         } else {

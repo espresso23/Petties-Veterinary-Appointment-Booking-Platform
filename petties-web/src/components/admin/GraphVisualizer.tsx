@@ -13,12 +13,12 @@ interface D3Node extends d3.SimulationNodeDatum {
   type: string
 }
 
-interface D3Link extends d3.SimulationLinkDatum<D3Node> {
+interface D3Link {
   label: string
+  // d3 will mutate these to D3Node references; keep broad typing
+  source: string | D3Node
+  target: string | D3Node
 }
-
-// Declare d3 types
-declare const d3: typeof import('d3')
 
 export const GraphVisualizer = ({ data, height = 500 }: GraphVisualizerProps) => {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -49,28 +49,27 @@ export const GraphVisualizer = ({ data, height = 500 }: GraphVisualizerProps) =>
 
     // Dynamic import d3
     import('d3').then((d3Module) => {
-      const d3 = d3Module
+      const d3 = d3Module as typeof import('d3')
 
       // Clear previous
-      const svg = d3.select(svgRef.current)
+      const svg = d3.select(svgRef.current as SVGSVGElement)
       svg.selectAll('*').remove()
 
       // Create container with zoom
       const g = svg.append('g')
 
       // Add zoom
-      svg.call(
-        d3.zoom<SVGSVGElement, unknown>()
-          .scaleExtent([0.1, 4])
-          .on('zoom', (event) => {
-            g.attr('transform', event.transform)
-          }) as any
-      )
+      const zoomBehavior = d3.zoom<SVGSVGElement, unknown>()
+        .scaleExtent([0.1, 4])
+        .on('zoom', (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
+          g.attr('transform', event.transform.toString())
+        })
+      ;(svg as d3.Selection<SVGSVGElement, unknown, null, undefined>).call(zoomBehavior)
 
       // Prepare data
       const nodes: D3Node[] = data.nodes.map((n) => ({ ...n }))
       const links: D3Link[] = data.edges.map((e) => ({
-        ...e,
+        label: e.label,
         source: e.source,
         target: e.target,
       }))
@@ -147,22 +146,20 @@ export const GraphVisualizer = ({ data, height = 500 }: GraphVisualizerProps) =>
         .selectAll('g')
         .data(nodes)
         .join('g')
-        .call(d3.drag<SVGGElement, D3Node>()
-          .on('start', (event, d) => {
-            if (!event.active) simulation.alphaTarget(0.3).restart()
-            d.fx = d.x
-            d.fy = d.y
-          })
-          .on('drag', (event, d) => {
-            d.fx = event.x
-            d.fy = event.y
-          })
-          .on('end', (event, d) => {
-            if (!event.active) simulation.alphaTarget(0)
-            d.fx = null
-            d.fy = null
-          }) as any
-        )
+
+      const dragBehavior = d3.drag<any, any>()
+        .on('start', (event: any, d: any) => {
+          if (!event.active) simulation.alphaTarget(0.3).restart()
+          d.fx = d.x
+          d.fy = d.y
+        })
+        .on('end', (event: any, d: any) => {
+          if (!event.active) simulation.alphaTarget(0)
+          d.fx = null
+          d.fy = null
+        })
+
+      ;(node as any).call(dragBehavior as any)
 
       // Node circles
       node.append('circle')
@@ -188,15 +185,17 @@ export const GraphVisualizer = ({ data, height = 500 }: GraphVisualizerProps) =>
       // Update positions
       simulation.on('tick', () => {
         link
-          .attr('x1', (d) => (d.source as D3Node).x!)
-          .attr('y1', (d) => (d.source as D3Node).y!)
-          .attr('x2', (d) => (d.target as D3Node).x!)
-          .attr('y2', (d) => (d.target as D3Node).y!)
+          .attr('x1', (d) => ((d.source as unknown) as D3Node).x!)
+          .attr('y1', (d) => ((d.source as unknown) as D3Node).y!)
+          .attr('x2', (d) => ((d.target as unknown) as D3Node).x!)
+          .attr('y2', (d) => ((d.target as unknown) as D3Node).y!)
 
         linkLabelGroup
           .attr('transform', (d) => {
-            const x = ((d.source as D3Node).x! + (d.target as D3Node).x!) / 2
-            const y = ((d.source as D3Node).y! + (d.target as D3Node).y!) / 2
+            const sourceNode = (d.source as unknown) as D3Node
+            const targetNode = (d.target as unknown) as D3Node
+            const x = ((sourceNode.x || 0) + (targetNode.x || 0)) / 2
+            const y = ((sourceNode.y || 0) + (targetNode.y || 0)) / 2
             return `translate(${x},${y})`
           })
 

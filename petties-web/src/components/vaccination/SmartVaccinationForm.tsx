@@ -64,6 +64,7 @@ export const SmartVaccinationForm = ({
     // Fetch Clinic Services on Modal Open
     useEffect(() => {
         if (templateModalOpen && clinicServices.length === 0) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setIsLoadingServices(true)
             setErrorServices(null)
             getAllServices()
@@ -78,11 +79,12 @@ export const SmartVaccinationForm = ({
                 })
                 .finally(() => setIsLoadingServices(false))
         }
-    }, [templateModalOpen])
+    }, [templateModalOpen, clinicServices.length])
 
     // Load Initial Data
     useEffect(() => {
         if (initialData) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setVaccineName(initialData.vaccineName || '')
             setSelectedTemplateId(initialData.vaccineTemplateId || null)
             setDoseSequence(initialData.doseSequence || '1')
@@ -95,6 +97,7 @@ export const SmartVaccinationForm = ({
             setNotes(isTemporaryNote ? '' : initialNotes)
         } else {
             // Reset if no initial data (Create Mode default)
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setVaccineName('')
             setSelectedTemplateId(null)
             setDoseSequence('1')
@@ -115,17 +118,20 @@ export const SmartVaccinationForm = ({
         if (doseSequence === 'ANNUAL') {
             const nextDate = new Date(vaccinationDate)
             nextDate.setFullYear(nextDate.getFullYear() + 1)
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setNextDueDate(nextDate)
         } else if (template.repeatIntervalDays) {
             const seqNum = parseInt(doseSequence);
             if (!isNaN(seqNum) && seqNum < template.seriesDoses) {
                 const nextDate = new Date(vaccinationDate)
                 nextDate.setDate(nextDate.getDate() + template.repeatIntervalDays)
+                // eslint-disable-next-line react-hooks/set-state-in-effect
                 setNextDueDate(nextDate)
             } else if (!isNaN(seqNum) && seqNum >= template.seriesDoses) {
                 // Final dose in series, suggest annual follow up
                 const nextDate = new Date(vaccinationDate)
                 nextDate.setFullYear(nextDate.getFullYear() + 1)
+                // eslint-disable-next-line react-hooks/set-state-in-effect
                 setNextDueDate(nextDate)
             }
         }

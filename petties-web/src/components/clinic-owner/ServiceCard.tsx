@@ -9,7 +9,7 @@ import {
   XMarkIcon,
   ScaleIcon,
 } from '@heroicons/react/24/solid'
-import type { WeightPriceDto } from '../../types/service'
+import type { WeightPriceDto, VaccineDosePriceDTO } from '../../types/service'
 import { getCategoryById } from '../../constants/serviceCategory'
 
 export interface ClinicService {
@@ -25,7 +25,7 @@ export interface ClinicService {
   description?: string
   weightPrices?: WeightPriceDto[]
   vaccineTemplateId?: string
-  dosePrices?: any[] // Using any array to match DTO loosely or import type
+  dosePrices?: VaccineDosePriceDTO[]
 }
 
 interface ServiceCardProps {

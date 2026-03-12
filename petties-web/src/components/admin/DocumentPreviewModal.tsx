@@ -80,6 +80,7 @@ export const DocumentPreviewModal = ({ isOpen, onClose, document }: DocumentPrev
 
   useEffect(() => {
     if (isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadDocument()
     }
     return () => {
@@ -89,7 +90,7 @@ export const DocumentPreviewModal = ({ isOpen, onClose, document }: DocumentPrev
         setPdfBlobUrl(null)
       }
     }
-  }, [isOpen, loadDocument])
+  }, [isOpen, loadDocument, pdfBlobUrl])
 
   const handleDownload = async () => {
     try {

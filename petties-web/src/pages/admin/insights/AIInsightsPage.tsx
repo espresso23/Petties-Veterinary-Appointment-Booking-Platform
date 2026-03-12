@@ -81,7 +81,7 @@ export const AIInsightsPage = () => {
 
   const [deletingFeedbackId, setDeletingFeedbackId] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [, setDeleteLoading] = useState(false)
 
   // Knowledge Graph Query
   const [kgSearchQuery, setKgSearchQuery] = useState('')
@@ -97,8 +97,9 @@ export const AIInsightsPage = () => {
       if (res.results.length === 0) {
         showToast('info', 'Không tìm thấy thông tin liên quan trong Knowledge Graph')
       }
-    } catch (error: any) {
-      showToast('error', error.message || 'Lỗi khi truy vấn Knowledge Graph')
+    } catch (error) {
+      const err = error as Error
+      showToast('error', err.message || 'Lỗi khi truy vấn Knowledge Graph')
     } finally {
       setKgSearching(false)
     }

@@ -56,7 +56,7 @@ export const vaccinationService = {
      * Update an existing vaccination record
      */
     async updateVaccination(id: string, request: Partial<CreateVaccinationRequest>): Promise<VaccinationRecord> {
-        const response = await api.put<any>(`/vaccinations/${id}`, request)
+        const response = await api.put<VaccinationRecord>(`/vaccinations/${id}`, request)
         const item = response.data
         return {
             ...item,
