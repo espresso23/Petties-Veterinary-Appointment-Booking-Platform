@@ -593,13 +593,21 @@ class SingleAgent:
 
     # ===== PUBLIC API =====
 
-    async def invoke(self, message: str, session_id: Optional[str] = None) -> str:
+    async def invoke(
+        self,
+        message: str,
+        session_id: Optional[str] = None,
+        chat_history: Optional[List[Dict[str, Any]]] = None,
+        user_role: Optional[str] = None,
+    ) -> str:
         """
         Invoke agent with user message.
 
         Args:
             message: User message
             session_id: Optional session ID for conversation tracking
+            chat_history: Optional previous chat messages for context
+            user_role: Optional user role for role-based guidance
 
         Returns:
             Agent response string
@@ -607,6 +615,8 @@ class SingleAgent:
         state = create_initial_react_state(
             user_message=message,
             context={"session_id": session_id or str(uuid.uuid4())},
+            chat_history=chat_history,
+            user_role=user_role,
         )
 
         config = {"configurable": {"thread_id": session_id or "default"}}
@@ -646,6 +656,8 @@ class SingleAgent:
         message: str,
         session_id: Optional[str] = None,
         images: Optional[List[str]] = None,
+        chat_history: Optional[List[Dict[str, Any]]] = None,
+        user_role: Optional[str] = None,
     ):
         """
         Stream agent response.
@@ -654,6 +666,8 @@ class SingleAgent:
             message: User message
             session_id: Optional session ID
             images: Optional list of base64 images for multimodal input
+            chat_history: Optional previous chat messages for context
+            user_role: Optional user role for role-based guidance
 
         Yields:
             ReAct steps and final answer tokens
@@ -664,6 +678,8 @@ class SingleAgent:
                 "session_id": session_id or str(uuid.uuid4()),
                 "images": images or [],  # Pass images through context
             },
+            chat_history=chat_history,
+            user_role=user_role,
         )
 
         config = {

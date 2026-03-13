@@ -51,6 +51,7 @@ class ChatMessage(BaseModel):
     context_type: Optional[str] = None
     timestamp: Optional[datetime] = None
     react_trace: Optional[list] = None
+    metadata: Optional[dict] = None
 
 
 class CreateSessionRequest(BaseModel):
@@ -155,6 +156,7 @@ def _map_message(message: dict) -> ChatMessage:
         context_type=message.get("context_type"),
         timestamp=timestamp,
         react_trace=message.get("react_trace"),
+        metadata=message.get("metadata", {}),
     )
 
 
@@ -500,9 +502,7 @@ async def update_feedback(
         update_data["feedback_text"] = request.feedback_text
 
     if not update_data:
-        raise HTTPException(
-            status_code=400, detail="Không có trường nào để cập nhật"
-        )
+        raise HTTPException(status_code=400, detail="Không có trường nào để cập nhật")
 
     service = get_feedback_service()
     result = await service.update_feedback(

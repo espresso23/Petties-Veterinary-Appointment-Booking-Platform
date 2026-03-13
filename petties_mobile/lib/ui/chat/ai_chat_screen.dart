@@ -318,6 +318,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
           _isSending = false;
         });
         break;
+      case AiChatSocketEventType.clinicSuggestion:
+        if (event.clinicSuggestion != null && event.clinicSuggestion!.clinics.isNotEmpty) {
+          _addClinicSuggestions(event.clinicSuggestion!.clinics);
+        }
+        break;
       case AiChatSocketEventType.unknown:
         break;
     }
@@ -496,6 +501,41 @@ class _AiChatScreenState extends State<AiChatScreen> {
       }
     });
     _scrollToBottom();
+  }
+
+  void _addClinicSuggestions(List<AiClinic> clinics) {
+    setState(() {
+      _agentStatus = null;
+      _isSending = false;
+
+      if (_messages.isNotEmpty &&
+          _messages.last.role == 'assistant' &&
+          _messages.last.isStreaming) {
+        final last = _messages.removeLast();
+        _messages.add(
+          last.copyWith(
+            isStreaming: false,
+            clinicSuggestions: clinics,
+          ),
+        );
+      } else {
+        _messages.add(
+          _UiChatMessage(
+            id: UniqueKey().toString(),
+            messageId: null,
+            role: 'assistant',
+            content: 'Dưới đây là các phòng khám gần bạn:',
+            timestamp: DateTime.now(),
+            clinicSuggestions: clinics,
+          ),
+        );
+      }
+    });
+    _scrollToBottom();
+  }
+
+  void _handleClinicBookingTap(AiClinic clinic) {
+    context.push('/clinic/${clinic.id}');
   }
 
   Future<void> _sendMessage([String? preset]) async {
@@ -1349,6 +1389,15 @@ class _AiChatScreenState extends State<AiChatScreen> {
                           fontWeight: FontWeight.w500,
                         ),
                       ),
+                      if (message.clinicSuggestions != null && message.clinicSuggestions!.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        ...message.clinicSuggestions!.map(
+                          (clinic) => _ClinicSuggestionCard(
+                            clinic: clinic,
+                            onBookingTap: () => _handleClinicBookingTap(clinic),
+                          ),
+                        ),
+                      ],
                       if (message.isStreaming) ...[
                         const SizedBox(height: 8),
                         Row(
@@ -2342,6 +2391,7 @@ class _UiChatMessage {
   final DateTime? timestamp;
   final bool isStreaming;
   final List<dynamic>? reactTrace;
+  final List<AiClinic>? clinicSuggestions;
 
   const _UiChatMessage({
     required this.id,
@@ -2351,6 +2401,7 @@ class _UiChatMessage {
     this.timestamp,
     this.isStreaming = false,
     this.reactTrace,
+    this.clinicSuggestions,
   });
 
   _UiChatMessage copyWith({
@@ -2358,6 +2409,7 @@ class _UiChatMessage {
     DateTime? timestamp,
     bool? isStreaming,
     List<dynamic>? reactTrace,
+    List<AiClinic>? clinicSuggestions,
   }) {
     return _UiChatMessage(
       id: id,
@@ -2367,6 +2419,161 @@ class _UiChatMessage {
       timestamp: timestamp ?? this.timestamp,
       isStreaming: isStreaming ?? this.isStreaming,
       reactTrace: reactTrace ?? this.reactTrace,
+      clinicSuggestions: clinicSuggestions ?? this.clinicSuggestions,
+    );
+  }
+}
+
+class _ClinicSuggestionCard extends StatelessWidget {
+  final AiClinic clinic;
+  final VoidCallback onBookingTap;
+
+  const _ClinicSuggestionCard({
+    required this.clinic,
+    required this.onBookingTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.stone900, width: 2),
+        boxShadow: const [
+          BoxShadow(
+            color: AppColors.stone900,
+            offset: Offset(2, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        clinic.name,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.stone900,
+                        ),
+                      ),
+                    ),
+                    if (clinic.hasSos)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.coral,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'CẤP CỨU',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.white,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  clinic.address,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.stone600,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    if (clinic.distanceKm != null) ...[
+                      const Icon(Icons.location_on, size: 14, color: AppColors.primary),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${clinic.distanceKm!.toStringAsFixed(1)} km',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                    ],
+                    if (clinic.rating != null) ...[
+                      const Icon(Icons.star, size: 14, color: Color(0xFFFBBF24)),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${clinic.rating!.toStringAsFixed(1)} (${clinic.totalReviews ?? 0})',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.stone700,
+                        ),
+                      ),
+                    ],
+                    if (clinic.operatingHours != null) ...[
+                      const SizedBox(width: 12),
+                      const Icon(Icons.access_time, size: 14, color: AppColors.stone500),
+                      const SizedBox(width: 4),
+                      Text(
+                        clinic.operatingHours!,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.stone500,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            width: double.infinity,
+            child: TextButton(
+              onPressed: onBookingTap,
+              style: TextButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.white,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(10),
+                    bottomRight: Radius.circular(10),
+                  ),
+                ),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.calendar_today, size: 16),
+                  SizedBox(width: 8),
+                  Text(
+                    'ĐẶT LỊCH NGAY',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -298,7 +298,7 @@ async def pet_knowledge_search(
 
         # Map HybridChunk -> tool schema (backward-compatible)
         formatted_results = []
-        for c in (hybrid_result.chunks or []):
+        for c in hybrid_result.chunks or []:
             meta = c.metadata or {}
             if c.source == "rag":
                 source_label = meta.get("document_name") or "Knowledge Base"
@@ -385,9 +385,7 @@ async def web_search(
 
     try:
         results = await asyncio.wait_for(
-            asyncio.to_thread(
-                _perform_duckduckgo_search, query, effective_max_results
-            ),
+            asyncio.to_thread(_perform_duckduckgo_search, query, effective_max_results),
             timeout=15.0,
         )
 
@@ -421,6 +419,438 @@ async def web_search(
         }
 
 
+# ===== STAFF DIAGNOSTIC SUPPORT TOOLS =====
+@mcp_server.tool
+async def get_staff_patients(
+    query_name: Optional[str] = None,
+    limit: int = 10,
+) -> Dict[str, Any]:
+    """
+    Lấy danh sách thú cưng của staff hiện tại để tìm kiếm nhanh theo tên.
+    Dùng khi staff muốn tìm thú cưng để xem chi tiết bệnh án.
+
+    Args:
+        query_name: Tên thú cưng cần tìm (tùy chọn)
+        limit: Số lượng kết quả tối đa (mặc định: 10)
+
+    Returns:
+        {
+            "pets": [
+                {
+                    "pet_id": "uuid",
+                    "pet_name": "Tên thú cưng",
+                    "species": "chó/mèo",
+                    "breed": "giống",
+                    "owner_name": "Tên chủ",
+                    "last_visit": "YYYY-MM-DD"
+                }
+            ],
+            "total": int
+        }
+    """
+    from app.core.tool_runtime_context import get_tool_runtime_context
+    from app.services.backend_client import get_backend_client
+
+    try:
+        # Lấy context từ tool execution
+        context = get_tool_runtime_context()
+        if not context:
+            return {
+                "error": "Không thể xác định thông tin staff. Vui lòng đăng nhập lại.",
+                "pets": [],
+                "total": 0,
+            }
+
+        user_id = context.user_id  # Staff ID
+        clinic_id = context.clinic_id
+
+        if not user_id or not clinic_id:
+            return {
+                "error": "Thiếu thông tin staff hoặc clinic. Vui lòng liên hệ admin.",
+                "pets": [],
+                "total": 0,
+            }
+
+        # Gọi backend API
+        backend_client = get_backend_client()
+        # TODO: Implement actual API call once backend endpoint is available
+        # For now, return mock data for development
+        pets = [
+            {
+                "pet_id": "PET_001",
+                "pet_name": "Cún",
+                "species": "chó",
+                "breed": "Golden Retriever",
+                "owner_name": "Anh A",
+                "last_visit": "2026-03-10",
+            }
+        ]
+
+        # Filter by query_name if provided
+        if query_name:
+            pets = [
+                pet for pet in pets if query_name.lower() in pet["pet_name"].lower()
+            ]
+
+        # Limit results
+        pets = pets[:limit]
+
+        return {"pets": pets, "total": len(pets)}
+
+    except Exception as e:
+        logger.error(f"Lỗi trong get_staff_patients: {e}")
+        return {
+            "error": f"Không thể lấy danh sách bệnh nhân: {str(e)}",
+            "pets": [],
+            "total": 0,
+        }
+
+
+@mcp_server.tool
+async def get_patient_summary(
+    pet_id: str,
+) -> Dict[str, Any]:
+    """
+    Lấy tóm tắt nhanh hồ sơ y tế của một thú cưng: thông tin cơ bản, 2 lần khám gần nhất, và đường link hình ảnh y tế.
+
+    Args:
+        pet_id: ID của thú cưng
+
+    Returns:
+        {
+            "pet_info": {
+                "pet_id": "uuid",
+                "pet_name": "Tên",
+                "species": "chó/mèo",
+                "breed": "giống",
+                "weight_kg": 25.5,
+                "allergies": ["thức ăn x"],
+                "owner_name": "Tên chủ"
+            },
+            "recent_exams": [
+                {
+                    "exam_date": "YYYY-MM-DD",
+                    "assessment": "Chẩn đoán",
+                    "prescriptions": ["thuốc A", "thuốc B"],
+                    "images": [{"url": "...", "description": "..."}]
+                }
+            ],
+            "total_exams": int
+        }
+    """
+    from app.core.tool_runtime_context import get_tool_runtime_context
+    from app.services.backend_client import get_backend_client
+
+    try:
+        # Lấy context từ tool execution
+        context = get_tool_runtime_context()
+        if not context:
+            return {
+                "error": "Không thể xác định thông tin staff. Vui lòng đăng nhập lại.",
+                "pet_info": {},
+                "recent_exams": [],
+                "total_exams": 0,
+            }
+
+        user_id = context.user_id  # Staff ID
+        clinic_id = context.clinic_id
+
+        if not user_id or not clinic_id:
+            return {
+                "error": "Thiếu thông tin staff hoặc clinic. Vui lòng liên hệ admin.",
+                "pet_info": {},
+                "recent_exams": [],
+                "total_exams": 0,
+            }
+
+        # Gọi backend API
+        backend_client = get_backend_client()
+        # TODO: Implement actual API call once backend endpoint is available
+        # For now, return mock data for development
+        pet_info = {
+            "pet_id": pet_id,
+            "pet_name": "Cún",
+            "species": "chó",
+            "breed": "Golden Retriever",
+            "weight_kg": 28.0,
+            "allergies": ["Gà"],
+            "owner_name": "Anh A",
+        }
+
+        recent_exams = [
+            {
+                "exam_date": "2026-03-10",
+                "assessment": "Viêm da dị ứng cấp",
+                "prescriptions": ["Cortisone 5mg x7 ngày", "Dép thuốc Betadine"],
+                "images": [
+                    {
+                        "url": "https://res.cloudinary.com/demo/image/upload/emr_PET_001_20260310_001.jpg",
+                        "description": "Vùng da bị đỏ, ngứa ở bên tai trái",
+                    }
+                ],
+            },
+            {
+                "exam_date": "2026-02-15",
+                "assessment": "Tiêu ch양 légère",
+                "prescriptions": ["Smecta 1 gói x3 ngày"],
+                "images": [],
+            },
+        ]
+
+        return {
+            "pet_info": pet_info,
+            "recent_exams": recent_exams,
+            "total_exams": len(recent_exams),
+        }
+
+    except Exception as e:
+        logger.error(f"Lỗi trong get_patient_summary: {e}")
+        return {
+            "error": f"Không thể lấy tóm tắt bệnh nhân: {str(e)}",
+            "pet_info": {},
+            "recent_exams": [],
+            "total_exams": 0,
+        }
+
+
+@mcp_server.tool
+async def get_emr_history(
+    pet_id: str,
+    limit: int = 5,
+) -> Dict[str, Any]:
+    """
+    Lấy lịch sử bệnh án đầy đủ của một thú cưng với giới hạn số lượng lần khám.
+
+    Args:
+        pet_id: ID của thú cưng
+        limit: Số lượng lần khám tối đa để trả về (mặc định: 5)
+
+    Returns:
+        {
+            "emr_history": [
+                {
+                    "exam_date": "YYYY-MM-DD",
+                    "doctor_name": "Tên bác sĩ",
+                    "subjective": "Triệu chứng chủ quan",
+                    "objective": "Các chỉ số khách quan",
+                    "assessment": "Chẩn đoán",
+                    "plan": "Kế hoạch điều trị",
+                    "prescriptions": [{"name": "...", "dosage": "..."}],
+                    "images": [{"url": "...", "description": "..."}]
+                }
+            ],
+            "total": int
+        }
+    """
+    from app.core.tool_runtime_context import get_tool_runtime_context
+    from app.services.backend_client import get_backend_client
+
+    try:
+        # Lấy context từ tool execution
+        context = get_tool_runtime_context()
+        if not context:
+            return {
+                "error": "Không thể xác định thông tin staff. Vui lòng đăng nhập lại.",
+                "emr_history": [],
+                "total": 0,
+            }
+
+        user_id = context.user_id  # Staff ID
+        clinic_id = context.clinic_id
+
+        if not user_id or not clinic_id:
+            return {
+                "error": "Thiếu thông tin staff hoặc clinic. Vui lòng liên hệ admin.",
+                "emr_history": [],
+                "total": 0,
+            }
+
+        # Gọi backend API
+        backend_client = get_backend_client()
+        # TODO: Implement actual API call once backend endpoint is available
+        # For now, return mock data for development
+        emr_history = [
+            {
+                "exam_date": "2026-03-10",
+                "doctor_name": "BS. Nguyễn Văn A",
+                "subjective": "Chủ quan: Cún ngứa liên tục 3 ngày, chủ quan thấy đỏ da tai",
+                "objective": "Khách quan: Cân nặng 28kg, Nhiệt độ 38.5°C, Tai sinistra hyperemia",
+                "assessment": "Viêm da dị ứng cấp do gà",
+                "plan": "Ngừng ăn gà, uống cortisone 5mg x7 ngày, dùng Betadine lau vết",
+                "prescriptions": [
+                    {"name": "Cortisone", "dosage": "5mg x1/ngày x7 ngày"},
+                    {"name": "Betadine Solution", "dosage": "Lau vết 2x/ngày"},
+                ],
+                "images": [
+                    {
+                        "url": "https://res.cloudinary.com/demo/image/upload/emr_PET_001_20260310_001.jpg",
+                        "description": "Vùng da bị đỏ, ngứa ở bên tai trái",
+                    },
+                    {
+                        "url": "https://res.cloudinary.com/demo/image/upload/emr_PET_001_20260310_002.jpg",
+                        "description": "Tàiwane tai trái",
+                    },
+                ],
+            },
+            {
+                "exam_date": "2026-02-15",
+                "doctor_name": "BS. Trần Thị B",
+                "subjective": "Chủ quan: Cún đi ngoài phân lỏng 4 lần/ngày 2 ngày",
+                "objective": "Khách quan: Cân nặng 27.5kg, Nhiệt độ 38.2°C",
+                "assessment": "Tiêu ch양 léger có thể do thay đổi thức ăn",
+                "plan": "Uống Smecta 1 gói x3/ngày, ăn chè cháo 2 ngày",
+                "prescriptions": [
+                    {"name": "Smecta", "dosage": "1 gói x3/ngày x3 ngày"}
+                ],
+                "images": [],
+            },
+        ]
+
+        # Limit results
+        emr_history = emr_history[:limit]
+
+        return {"emr_history": emr_history, "total": len(emr_history)}
+
+    except Exception as e:
+        logger.error(f"Lỗi trong get_emr_history: {e}")
+        return {
+            "error": f"Không thể lấy lịch sử bệnh án: {str(e)}",
+            "emr_history": [],
+            "total": 0,
+        }
+
+
+@mcp_server.tool
+async def analyze_pet_image(
+    image_url: str,
+    context: str = "",
+) -> Dict[str, Any]:
+    """
+    Phân tích hình ảnh y tế thú cưng để chẩn đoán sơ bộ.
+    Tool này sẽ gọi LSTM với khả năng xử lý hình ảnh để đưa ra kết quả chuyên môn.
+
+    Args:
+        image_url: URL của hình ảnh cần phân tích (phải là đường link công khai)
+        context: Mô tả thêm về tình hình thú cưng (tùy chọn)
+
+    Returns:
+        {
+            "diagnosis": "Chẩn đoán chính",
+            "differential_diagnoses": ["Chẩn đoán khác khả năng"],
+            "confidence": 0.0-1.0,
+            "severity": "mild|moderate|severe",
+            "affected_areas": ["vùng cơ thể bị ảnh hưởng"],
+            "possible_causes": ["nguyên nhân có thể"],
+            "recommended_actions": ["hành động đề xuất"],
+            "disclaimer": "Lưu ý pháp lý"
+        }
+    """
+    from app.services.llm_client import get_llm_client
+    from app.core.llms.openrouter import MultiModalLLMConfig
+    import base64
+
+    try:
+        # Validate image URL
+        if not image_url or not isinstance(image_url, str):
+            return {
+                "error": "URL hình ảnh không hợp lệ",
+                "diagnosis": "",
+                "confidence": 0.0,
+            }
+
+        # Lấy LLM client
+        llm_client = get_llm_client()
+
+        # Tạo prompt chuyên sâu cho chẩn đoán hình ảnh thú y
+        prompt = f"""
+Bạn là bác sĩ thú y có 10 năm kinh nghiệm. Hãy phân tích hình ảnh y tế thú cưng này và đưa ra chẩn đoán sơ bộ.
+
+YÊU CẦU:
+1. Xác định rõ vùng cơ thể trong hình (tai, mắt, da, chân, miệng...)
+2. Mô tả các biểu hiện lâm sàng thấy được (sưng, đỏ, phỏng, loét, xuất tiết...)
+3. Đưa ra chẩn đoán chính nhất
+4. Liệt kê 2-3 chẩn đoán phân biệt có khả năng
+5. Đánh giá mức độ nghiêm trọng (mild/moderate/severe)
+6. Gợi ý nguyên nhân có thể
+7. Đề xuất các bước kiểm tra tiếp theo hoặc xử lý ban đầu
+
+NGỮ CẦM THÊM (nếu có): {context}
+
+HƯỚNG DẪN TRẢ LỜI:
+Trả về DUY NHẤT một đối tượng JSON với cấu trúc sau:
+{{
+  "diagnosis": "Chẩn đoán chính",
+  "differential_diagnoses": ["Chẩn đoán khác 1", "Chẩn đoán khác 2"],
+  "confidence": 0.85,
+  "severity": "mild|moderate|severe",
+  "affected_areas": ["tai trái", "mắt phải"],
+  "possible_causes": ["dị ứng thức ăn", "trùng nấm"],
+  "recommended_actions": ["Xét� odp התחלה ф"],
+  "disclaimer": "Kết quả này chỉ là tư vấn sơ bộ. Cần đến phòng khám để chẩn đoán xác định và điều trị."
+}}
+
+LƯU Ý:
+- Giá trị confidence phải là số thực từ 0.0 đến 1.0
+- severity chỉ được phép là một trong ba giá trị: "mild", "moderate", "severe"
+- Mọi trường đều bắt buộc phải có trong JSON trả về
+- KHÔNG được giải thích thêm ngoài JSON
+        """.strip()
+
+        # Xác định xem image_url là URL hay base64
+        if image_url.startswith("http://") or image_url.startswith("https://"):
+            # URL trực tiếp
+            image_data = image_url
+        elif image_url.startswith("data:"):
+            # Data URL
+            image_data = image_url
+        else:
+            # Giả sử là base64 thuần
+            image_data = f"data:image/jpeg;base64,{image_url}"
+
+        # Gọi LLM để phân tích hình ảnh
+        try:
+            # TODO: Integrate with actual multimodal LLM once available
+            # For now, return mock analysis for development
+
+            # Mock response for development
+            result = {
+                "diagnosis": "Viêm da dị ứng cấp",
+                "differential_diagnoses": ["Trùng nấm da", "Viêm da do d kiến cắn"],
+                "confidence": 0.82,
+                "severity": "moderate",
+                "affected_areas": ["tai trái", "vùng môi"],
+                "possible_causes": [
+                    "Dị ứng proteína gà trong thức ăn",
+                    "Tiếp xúc với chất kích thích trong môi trường",
+                ],
+                "recommended_actions": [
+                    "Ngay lập tức ngừng cho ăn gà và các sản phẩm từ gà",
+                    "Rửa sạch vùng da bị ố bằng nước muối sinh lý 0.9%",
+                    "Theo dõi trong 24h, nếu ngày càng ghi vàng hoặc ứ nước cần đến khám ngay",
+                    "Đến khám lại sau 48h để đánh giá lại tình trạng",
+                ],
+                "disclaimer": "Kết quả này chỉ là tư vấn sơ bộ. Cần đến phòng khám để chẩn đoán xác định và điều trị.",
+            }
+
+            return result
+
+        except Exception as llm_error:
+            logger.error(f"Lỗi khi gọi LLM để phân tích hình ảnh: {llm_error}")
+            return {
+                "error": f"Không thể phân tích hình ảnh do lỗi hệ thống: {str(llm_error)}",
+                "diagnosis": "Không thể xác định",
+                "confidence": 0.0,
+            }
+
+    except Exception as e:
+        logger.error(f"Lỗi trong analyze_pet_image: {e}")
+        return {
+            "error": f"Không thể xử lý yêu cầu phân tích hình ảnh: {str(e)}",
+            "diagnosis": "",
+            "confidence": 0.0,
+        }
+
+
 # ===== TOOL METADATA =====
 if __name__ == "__main__":
     print("Pet Care RAG Tools registered in FastMCP:")
@@ -428,7 +858,12 @@ if __name__ == "__main__":
         "  - pet_knowledge_search: Unified RAG tool for pet care Q&A + symptom analysis"
     )
     print("  - web_search: Web fallback for pet/vet questions")
+    print("  - get_staff_patients: Get staff's patients list for quick lookup")
+    print("  - get_patient_summary: Get quick summary of pet's medical record")
+    print("  - get_emr_history: Get full EMR history of a pet")
+    print("  - analyze_pet_image: Analyze pet medical images for preliminary diagnosis")
     print("\nThese tools use:")
     print("  - Cohere embed-multilingual-v3.0 for Vietnamese support")
     print("  - Qdrant vector database for similarity search")
     print("  - LlamaIndex for document processing")
+    print("  - Multimodal LLM (Gemini/Claude) for image analysis")

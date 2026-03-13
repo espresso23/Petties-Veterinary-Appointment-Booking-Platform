@@ -1,0 +1,70 @@
+Feature,Staff and Scheduling Management,,,,,,,,,,,,,,,,Passed
+Test requirement,Test the core workflows of staff administration and shift management including edge cases,,,,,,,,,,,,,,,,Failed
+Number of TCs,16,,,,,,,,,,,,,,,,Pending
+Testing Round,Passed,Failed,Pending,N/A,,,,,,,,,,,,,N/A
+Round 1,0,0,16,0,,,,,,,,,,,,,
+Round 2,0,0,16,0,,,,,,,,,,,,,
+Round 3,0,0,16,0,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,
+Test Case ID,Test Case Description,Test Case Procedure,Expected Results,Pre-conditions,Round 1,Test date,Tester,Round 2,Test date,Tester,Round 3,Test date,Tester,Note
+Function Invite Staff by Email,,,,,,,,,,,,,,
+TC_STAFF_01,"Verify successful invitation to a new staff by Admin/Manager","1. Login to Web as CLINIC_MANAGER or ADMIN.
+2. Go to 'Quản lý nhân viên'.
+3. Click 'Mời nhân viên'.
+4. Enter valid email address and assign a role (e.g., Vet).
+5. Click 'Gửi lời mời'.","Invitation is sent to the email.
+Toast message: 'Gửi lời mời thành công'.","Valid MANAGER account.",Pending,,,Pending,,,Pending,,,
+TC_STAFF_02,"Verify invitation to an already existing staff email","1. Go to 'Mời nhân viên'.
+2. Enter an email that is already registered as staff.
+3. Click 'Gửi lời mời'.","Submission fails.
+Error message: 'Email đã tồn tại trong hệ thống'.","Email belongs to existing staff.",Pending,,,Pending,,,Pending,,,
+TC_STAFF_03,"Verify invitation validation on empty email","1. Leave the email field empty.
+2. Click 'Gửi lời mời'.","Submission blocked.
+Validation message: 'Vui lòng nhập email'.","None.",Pending,,,Pending,,,Pending,,,
+Function Delete Staff,,,,,,,,,,,,,,
+TC_STAFF_04,"Verify deactivating a staff member without active bookings","1. Open staff list as CLINIC_MANAGER.
+2. Click 'Xóa' or 'Vô hiệu hóa' (Deactivate) on a staff record.
+3. Confirm in the dialog.","Staff status changes to INACTIVE.
+Toast message: 'Cập nhật trạng thái thành công' / 'Xóa nhân viên thành công'.","An active staff member.",Pending,,,Pending,,,Pending,,,
+TC_STAFF_05,"Verify deactivating a staff member with currently assigned active bookings","1. Click 'Vô hiệu hóa' on a Staff who has PENDING/CONFIRMED bookings.
+2. Confirm action.","System prevents action or warns manager to reassign bookings first.
+Error message: 'Nhân viên này đang có lịch hẹn kích hoạt, vui lòng chuyển giao trước khi xóa'.","Staff with ongoing bookings.",Pending,,,Pending,,,Pending,,,
+Function View List of Staffs,,,,,,,,,,,,,,
+TC_STAFF_06,"Verify viewing and filtering the staff directory on Web","1. Login to Web as CLINIC_MANAGER.
+2. Navigate to 'Quản lý nhân viên'.
+3. Use Search bar to enter a staff name.
+4. Filter by Role 'VET'.","List updates correctly to show matching staff members. Table columns (Name, Role, Status) display accurately.","Multiple staff exist.",Pending,,,Pending,,,Pending,,,
+TC_STAFF_07,"Verify displaying empty state for search","1. Search for a non-existent staff name 'XYZ_Random'.","Table shows 'Không có dữ liệu' (No data).","None.",Pending,,,Pending,,,Pending,,,
+Function View Own Work Schedule,,,,,,,,,,,,,,
+TC_STAFF_08,"Verify staff can view their shifts on Mobile/Web","1. Login as STAFF.
+2. Navigate to 'Lịch làm việc'.
+3. Select current week.","A calendar or list view displaying shift times is shown. Details match manager assignment.","Staff assigned to shifts.",Pending,,,Pending,,,Pending,,,
+TC_STAFF_09,"Verify staff viewing next month's schedule","1. Navigate to 'Lịch làm việc'.
+2. Switch calendar to the next month.","Shifts (if created) are shown, else calendar is blank.","None.",Pending,,,Pending,,,Pending,,,
+Function Create Staff Shift,,,,,,,,,,,,,,
+TC_STAFF_10,"Verify successful creation of a shift by Manager","1. Login to Web as CLINIC_MANAGER.
+2. Go to 'Quản lý ca làm việc'.
+3. Click 'Tạo ca làm việc'.
+4. Select a Staff, Date (tomorrow), Start time (08:00), End time (12:00).
+5. Click 'Lưu'.","Shift is created in the database and shown on calendar.
+Toast message: 'Tạo ca làm việc thành công'.","STAFF available.",Pending,,,Pending,,,Pending,,,
+TC_STAFF_11,"Verify validation when creating overlapping shifts for the same staff","1. Select the same Staff and Date as an existing shift.
+2. Choose a Time range that overlaps (e.g., 10:00 to 14:00).
+3. Click 'Lưu'.","Submission is blocked.
+Error message: 'Ca làm việc bị trùng lặp'.","Existing shift.",Pending,,,Pending,,,Pending,,,
+TC_STAFF_12,"Verify validation when End Time is before Start Time","1. Select a Staff and Date.
+2. Choose Start time 14:00, End time 10:00.
+3. Click 'Lưu'.","Submission is blocked.
+Validation text: 'Thời gian kết thúc phải sau thời gian bắt đầu'.","None.",Pending,,,Pending,,,Pending,,,
+Function View Staff Shift,,,,,,,,,,,,,,
+TC_STAFF_13,"Verify Manager viewing all shifts in weekly view","1. Login as CLINIC_MANAGER.
+2. Go to 'Quản lý ca làm việc'.
+3. Select 'Tuần' (Weekly) view.","All staff shifts are plotted accurately across the 7 days.","Existing shifts.",Pending,,,Pending,,,Pending,,,
+TC_STAFF_14,"Verify filtering shifts by a specific staff member","1. On 'Quản lý ca làm việc', select a Staff name from the dropdown filter.","Calendar only displays shifts belonging to that specifically selected Staff.","Multiple shifts for different staff.",Pending,,,Pending,,,Pending,,,
+Function Delete Staff Shift,,,,,,,,,,,,,,
+TC_STAFF_15,"Verify successful deletion of a future shift by Manager","1. Select a shift scheduled in the future on the calendar.
+2. Click 'Xóa ca'.
+3. Confirm in the popup.","Shift is removed.
+Toast message: 'Xóa ca làm việc thành công'.","Future shift exists.",Pending,,,Pending,,,Pending,,,
+TC_STAFF_16,"Verify Manager is blocked from deleting a shift that is currently running or in the past","1. Try to select a shift from yesterday or currently happening.
+2. Look for 'Xóa ca' button.","The delete button is hidden or disabled, OR an error 'Không thể xóa ca làm việc trong quá khứ' appears if invoked via API.","Past shift exists.",Pending,,,Pending,,,Pending,,,

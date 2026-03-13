@@ -554,7 +554,7 @@ Bảng tham chiếu giữa Use Cases trong SRS và các Module Implementation tr
 | UC-STAFF-10 | Checkout with Custom Fee | SOS Emergency | 3.10.5 |
 
 #### AI Assistance Mapping
-
+ 
 | UC-ID | Use Case Name | SDD Module | SDD Section |
 |-------|---------------|------------|-------------|
 | UC-AI-01 | Ask Pet Care Advice (RAG) | AI Agent Service | 3.11.1 |
@@ -565,9 +565,10 @@ Bảng tham chiếu giữa Use Cases trong SRS và các Module Implementation tr
 | UC-AI-06 | Manage Agent Tools | Agent Configuration | 3.11.4 |
 | UC-AI-07 | Manage Knowledge Base | Knowledge Base | 3.11.5 |
 | UC-AI-08 | Test Agent Playground | Agent Testing | 3.11.6 |
+| UC-AI-09 | EMR Analysis with Image Support | AI Agent Service | 3.11.7 |
 | UC-STAFF-11 | AI Staff Diagnostic Support | AI Agent Service | 3.11.6 |
-| UC-AI-11 | AI Feedback Audit | AI Agent Service | 3.11.7 |
-| UC-AI-12 | Knowledge Graph Management | AI Agent Service | 3.11.8 |
+| UC-AI-10 | AI Feedback Audit | AI Agent Service | 3.11.8 |
+| UC-AI-11 | Knowledge Graph Management | AI Agent Service | 3.11.9 |
 | UC-CO-14 | AI Generate Clinic Services | AI Agent Service | 3.13.1 |
 
 #### Notification Management Mapping

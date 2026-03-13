@@ -114,14 +114,19 @@ class ReActState(TypedDict):
 
 
 def create_initial_react_state(
-    user_message: str, context: Optional[Dict[str, Any]] = None
+    user_message: str,
+    context: Optional[Dict[str, Any]] = None,
+    chat_history: Optional[List[Dict[str, Any]]] = None,
+    user_role: Optional[str] = None,
 ) -> ReActState:
     """
     Create initial state cho new conversation
 
     Args:
         user_message: User's input message
-        context: Additional context (user_id, session_id, etc.)
+        context: Additional context (user_id, session_id, images, etc.)
+        chat_history: Previous chat messages from MongoDB
+        user_role: Role of the user (e.g., STAFF, PET_OWNER) for role-based guidance
 
     Returns:
         Initial ReActState
@@ -130,14 +135,43 @@ def create_initial_react_state(
         ```python
         state = create_initial_react_state(
             user_message="Con meo cua toi bi non, lam sao bay gio?",
-            context={"user_id": "USR_123", "pet_info": {"name": "Miu"}}
+            context={"user_id": "USR_123", "pet_info": {"name": "Miu"}},
+            chat_history=[{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}],
+            user_role="STAFF"
         )
         ```
     """
+    messages: List[Message] = []
+
+    if chat_history:
+        for msg in chat_history:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            if not content:
+                continue
+
+            if role == "user":
+                messages.append(
+                    Message(role="user", content=content, name=None, tool_call_id=None)
+                )
+            elif role == "assistant":
+                messages.append(
+                    Message(
+                        role="assistant", content=content, name=None, tool_call_id=None
+                    )
+                )
+
+    messages.append(
+        Message(role="user", content=user_message, name=None, tool_call_id=None)
+    )
+
+    # Merge user_role into context
+    final_context = context or {}
+    if user_role:
+        final_context["user_role"] = user_role
+
     return ReActState(
-        messages=[
-            Message(role="user", content=user_message, name=None, tool_call_id=None)
-        ],
+        messages=messages,
         react_steps=[],
         current_thought=None,
         pending_tool_call=None,
@@ -146,6 +180,6 @@ def create_initial_react_state(
         final_answer=None,
         should_end=False,
         iteration=0,
-        context=context or {},
+        context=final_context,
         error=None,
     )

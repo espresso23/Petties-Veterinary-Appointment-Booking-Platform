@@ -576,3 +576,72 @@
   height: calc(100vh - var(--sat) - var(--sab));
   height: calc(100dvh - var(--sat) - var(--sab));
 }
+
+/* ============================================
+   React DatePicker - Soft Modern Style (Vaccine Form)
+   ============================================ */
+.react-datepicker-wrapper {
+  width: 100%;
+}
+
+.react-datepicker-popper {
+  z-index: 60 !important;
+}
+
+.react-datepicker {
+  font-family: inherit !important;
+  border: 1px solid #e7e5e4 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+  overflow: hidden;
+}
+
+.react-datepicker__header {
+  background-color: #fff7ed !important;
+  border-bottom: 1px solid #fed7aa !important;
+}
+
+.react-datepicker__current-month,
+.react-datepicker-year-header {
+  font-weight: 700 !important;
+  color: #9a3412 !important;
+}
+
+.react-datepicker__day-name {
+  color: #9a3412 !important;
+  font-weight: 600 !important;
+  font-size: 0.75rem !important;
+}
+
+.react-datepicker__day {
+  color: #44403c !important;
+  font-weight: 500 !important;
+  border-radius: 8px !important;
+  transition: all 0.15s ease !important;
+}
+
+.react-datepicker__day:hover {
+  background-color: #fed7aa !important;
+  border-radius: 8px !important;
+}
+
+.react-datepicker__day--selected,
+.react-datepicker__day--keyboard-selected {
+  background-color: #ea580c !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+}
+
+.react-datepicker__day--selected:hover,
+.react-datepicker__day--keyboard-selected:hover {
+  background-color: #c2410c !important;
+}
+
+.react-datepicker__navigation-icon::before {
+  border-color: #9a3412 !important;
+}
+
+.react-datepicker__triangle {
+  display: none;
+}
+

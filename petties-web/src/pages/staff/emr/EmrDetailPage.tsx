@@ -13,6 +13,9 @@ import { tokenStorage } from '../../../services/authService'
 export const EmrDetailPage = () => {
     const { emrId } = useParams<{ emrId: string }>()
     const navigate = useNavigate()
+    
+    // Trim emrId to remove any accidental whitespace
+    const trimmedEmrId = emrId.trim()
 
     const [emr, setEmr] = useState<EmrRecord | null>(null)
     const [isLoading, setIsLoading] = useState(true)
@@ -36,10 +39,10 @@ export const EmrDetailPage = () => {
 
     useEffect(() => {
         const fetchEmr = async () => {
-            if (!emrId) return
+            if (!trimmedEmrId) return
 
             try {
-                const data = await emrService.getEmrById(emrId)
+                const data = await emrService.getEmrById(trimmedEmrId)
                 setEmr(data)
 
                 // Fetch Pet Details
@@ -82,7 +85,7 @@ export const EmrDetailPage = () => {
         }
 
         fetchEmr()
-    }, [emrId])
+    }, [trimmedEmrId])
 
     const formatDate = (dateStr: string) => {
         const date = new Date(dateStr)

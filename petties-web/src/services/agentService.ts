@@ -239,6 +239,7 @@ export interface ChatSessionMessage {
         tool_result?: unknown
         timestamp?: string
     }>
+    metadata?: Record<string, any>
 }
 
 export interface ChatSessionDetail {

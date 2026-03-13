@@ -40,7 +40,7 @@ export function ChatPage() {
 
   // ======================== API CALLS ========================
 
-  const loadChatBoxes = async () => {
+  const loadChatBoxes = useCallback(async () => {
     try {
       setLoadingChatBoxes(true)
       const response = await chatService.getConversations(0, 50)
@@ -51,9 +51,9 @@ export function ChatPage() {
     } finally {
       setLoadingChatBoxes(false)
     }
-  }
+  }, [showToast])
 
-  const loadMessages = async (chatBoxId: string, page: number, reset = false) => {
+  const loadMessages = useCallback(async (chatBoxId: string, page: number, reset = false) => {
     try {
       setLoadingMessages(true)
       const response = await chatService.getMessages(chatBoxId, page, 50)
@@ -100,17 +100,17 @@ export function ChatPage() {
     } finally {
       setLoadingMessages(false)
     }
-  }
+  }, [showToast])
 
-  const loadMoreMessages = () => {
+  const loadMoreMessages = useCallback(() => {
     if (selectedChatBox && hasMoreMessages && !loadingMessages) {
       loadMessages(selectedChatBox.id, messagesPage + 1, false)
     }
-  }
+  }, [selectedChatBox, hasMoreMessages, loadingMessages, loadMessages, messagesPage])
 
   // ======================== WEBSOCKET ========================
 
-  const connectWebSocket = async () => {
+  const connectWebSocket = useCallback(async () => {
     try {
       await chatWebSocket.connect()
       setWsConnected(true)
@@ -120,7 +120,7 @@ export function ChatPage() {
       setWsConnected(false)
       showToast('error', 'Không thể kết nối real-time. Tin nhắn có thể bị trễ.')
     }
-  }
+  }, [showToast])
 
 
 

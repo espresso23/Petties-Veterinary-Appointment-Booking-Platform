@@ -2398,6 +2398,107 @@ flowchart LR
 - `{ chatBoxId: 1, createdAt: -1 }` - Messages in conversation
 - `{ chatBoxId: 1, isRead: 1 }` - Unread message queries
 
+##### Collection: ai_proactive_notifications
+
+**Description:** Lưu trữ lịch sử hệ thống AI chủ động gửi thông báo (Push/Email) cho người dùng dựa trên phân tích dữ liệu (ví dụ: nhắc lịch tiêm phòng, cảnh báo sức khỏe).
+
+**Sample Document:**
+```json
+{
+    "_id": ObjectId("507f1f77bcf86cd799439017"),
+    "user_id": "550e8400-e29b-41d4-a716-446655440000",
+    "pet_id": "550e8400-e29b-41d4-a716-446655440011",
+    "notification_type": "VACCINE_REMINDER",
+    "title": "Đã đến lịch tiêm phòng Dại cho bé Miu",
+    "content": "Theo hồ sơ, bé Miu cần tiêm nhắc lại vaccine Dại vào tuần tới. Vui lòng đặt lịch sớm nhé!",
+    "status": "SENT",
+    "error_message": null,
+    "context_data": {
+        "vaccine_name": "Rabies",
+        "last_dose_date": "2025-03-10"
+    },
+    "created_at": ISODate("2026-03-05T08:00:00Z"),
+    "sent_at": ISODate("2026-03-05T08:00:05Z")
+}
+```
+
+**Indexes:**
+- `{ user_id: 1, created_at: -1 }` - Lịch sử thông báo của user
+- `{ status: 1 }` - Truy vấn các thông báo lỗi hoặc pending
+
+##### Collection: chat_feedback
+
+**Description:** Lưu trữ phản hồi của người dùng đối với các câu trả lời của AI (Thumbs up, Thumbs down, Report). Dùng để tái huấn luyện hệ thống và update Case Memory.
+
+**Sample Document:**
+```json
+{
+    "_id": ObjectId("507f1f77bcf86cd799439018"),
+    "message_id": ObjectId("507f1f77bcf86cd799439016"),
+    "session_id": ObjectId("507f1f77bcf86cd799439015"),
+    "user_id": "550e8400-e29b-41d4-a716-446655440000",
+    "rating": 1,
+    "feedback_type": "THUMBS_UP",
+    "comment": "Tư vấn rất chính xác, bé nhà mình đúng là bị viêm da do nấm.",
+    "is_case_memory": true,
+    "created_at": ISODate("2026-03-04T09:15:00Z")
+}
+```
+
+**Indexes:**
+- `{ message_id: 1 }` (unique) - 1 feedback / 1 message
+- `{ session_id: 1 }` - Phân tích feedback theo phiên
+- `{ user_id: 1 }` - Phân tích độ hài lòng của user
+
+---
+
+## 2.3 Vector Database Design (Qdrant)
+
+Hệ thống sử dụng **Qdrant Cloud** làm Vector Database chính để lưu trữ các metadata và vector embeddings phục vụ cho tính năng RAG (Retrieval-Augmented Generation) và Visual Case Memory. 
+Toàn bộ collection sử dụng metric **Cosine Similarity** và vector dimensions từ mô hình **Cohere** (`1024` chiều) kết hợp với **Jina CLIP v2** (`1024` chiều) cho hình ảnh.
+
+### 2.3.1 Collection: petties_knowledge_base
+
+**Description:** Lưu trữ các chunks văn bản trích xuất từ tài liệu y khoa do Admin upload (PDF, DOCX) để cung cấp kiến thức nền cho RAG. Chỉ sử dụng text embedding.
+
+**Vector Configuration:**
+- Tên vector mặc định (`""`): Size 1024, Distance COSINE (Cohere embed-multilingual-v3.0)
+
+**Payload Structure (Metadata):**
+| Field | Type | Description |
+|-------|------|-------------|
+| document_id | String | UUID tham chiếu tới bảng `knowledge_documents` trong PostgreSQL |
+| chunk_id | String | ID duy nhất cho đoạn trích (text chunk) |
+| text_content | String | Nội dung văn bản của đoạn trích phục vụ retrieval |
+| source_file | String | Tên file gốc |
+| page_num | Integer | Số trang (nếu có từ cấu trúc tài liệu) |
+| created_at | String | ISO-8601 Timestamp thời điểm index |
+
+### 2.3.2 Collection: petties_case_memory_v2
+
+**Description:** Cấu trúc **Visual Case Memory** tiên tiến hỗ trợ tính năng RAG cải tiến. Lưu trữ các ca bệnh đã được xác nhận thực tế (thông qua Feedback) để AI tham khảo khi có case tương tự. Hỗ trợ **Multi-vector (Named Vectors)** cho phép tìm kiếm linh hoạt trên cả hình ảnh và văn bản (Hybrid Search).
+
+**Vector Configuration:**
+Sử dụng điểm ảnh và văn bản tách biệt để tối ưu tìm kiếm:
+- `text`: Size 1024, Distance COSINE (Cohere embed-multilingual-v3.0)
+- `image`: Size 1024, Distance COSINE (Jina CLIP v2)
+
+**Payload Structure (Metadata):**
+| Field | Type | Description |
+|-------|------|-------------|
+| case_id | String | UUID định danh case |
+| text_content | String | Nội dung triệu chứng văn bản / chẩn đoán / mô tả bằng ngôn ngữ tự nhiên |
+| feedback_count | Integer | Trọng số: số lượng feedback positive (dùng để re-rank kết quả + hybrid score) |
+| vet_verified | Boolean | Boost weight: Bác sĩ uy tín đã xác nhận (cộng thêm % độ chính xác) |
+| feedback_type | String | Loại đánh giá của user/vet (confirmed/corrected/etc.) |
+| feedback_category | String | Nhóm của case để route agent (medical/booking/clinic_ops/general) |
+| created_at | String | Thời gian tạo case ban đầu (ISO-8601) |
+| last_confirmed_at | String | Thời gian có update / feedback mới nhất cập nhật vào case |
+| image_urls | Array | Danh sách URL (mảng string) nếu case có đính kèm ảnh chụp bệnh |
+| image_embedding_provider | String | Lưu thông tin model nhúng (vd: "jina-clip-v2") nếu có ảnh tham gia index |
+
+**Reranking / Routing:** Các biến số `feedback_count` và `vet_verified` trong collection này được sử dụng trong thuật toán truy vấn Custom Re-ranking ở AI Service nhằm tăng độ ưu tiên cho các case uy tín khi truy xuất.
+
 ---
 
 ## 3. API DESIGN SPECIFICATIONS
@@ -7821,9 +7922,10 @@ sequenceDiagram
 
 He thong AI cua Petties su dung 4 co che chinh de cai thien do chinh xac theo thoi gian: **Query Expansion**, **Knowledge Graph**, **Visual Case Memory**, va **Feedback Loop**. Cac co che nay hoat dong dong thoi, bo sung cho nhau, va ap dung cho **tat ca roles** (PET_OWNER, STAFF, CLINIC_MANAGER, CLINIC_OWNER, ADMIN) tren **tat ca loai tuong tac AI** (pet health Q&A, booking, EMR, clinic management, revenue analysis,...).
 
-In the **current implementation**, Visual Case Memory stores **textual representations** of confirmed cases (e.g. visual description, diagnosis, symptoms, treatment) as embeddings using **Cohere embed-multilingual-v3.0**, persisted in Qdrant `petties_case_memory`. This allows the Agent to retrieve similar, previously confirmed cases when answering new queries (including those with images) and to explicitly reference “similar past cases confirmed by Staff/Vet” in explanations.
-
-As a **Phase 2 extension**, the architecture anticipates adding **image-level embeddings** (for example, using a CLIP-style vision model) in a separate Qdrant collection dedicated to visual features. These CLIP-like embeddings would be used **in addition to**, not instead of, the existing text embeddings, enabling more accurate similarity search for purely visual patterns (e.g. skin lesions, ear discharge) without changing the external API contracts. This CLIP-based image memory is not implemented yet and must go through separate design, approval, and testing before production rollout.
+In the **current implementation**, Visual Case Memory stores **hybrid embeddings** of confirmed cases: 
+- **Text embeddings** using **Cohere embed-multilingual-v3.0** (1024-dim)
+- **Image embeddings** using **Jina CLIP v2** (1024-dim) when images are provided
+Persisted in Qdrant `petties_case_memory` with named vectors `text` and `image`. This allows the Agent to retrieve similar, previously confirmed cases when answering new queries (including those with images) and to explicitly reference “similar past cases confirmed by Staff/Vet” in explanations.
 
 **Reference:** `AI_AGENT_DATA_IMPROVEMENT_STRATEGY.md` (sections 7-12)
 
@@ -7867,13 +7969,22 @@ classDiagram
     %% === VISUAL CASE MEMORY ===
     class CaseMemoryService {
         -qdrant_client: QdrantClient
-        -embedding_model: CohereEmbedding
+        -text_embedding_model: CohereEmbedding
+        -image_embedding_client: JinaImageEmbeddings
         -collection_name: str = "petties_case_memory"
         +upsert_case(case: ConfirmedCase) str
         +search_similar(query: str, threshold: float) List~CaseResult~
         +update_feedback_count(case_id: str) void
         +prune_low_score_cases(min_score: float) int
         +get_stats() CaseMemoryStats
+    }
+
+    %% === IMAGE EMBEDDINGS ===
+    class JinaImageEmbeddings {
+        -api_key: str
+        -model: str = "jina-clip-v2"
+        +embed_image_urls(urls: List[str]) List~List[float]~
+        +embed_image_base64(base64_strings: List[str]) List~List[float]~
     }
 
     class ConfirmedCase {
@@ -8428,8 +8539,10 @@ flowchart TB
 ```json
 {
   "collection": "petties_case_memory",
-  "vector_size": 1024,
-  "distance": "Cosine",
+  "vectors": {
+    "text": {"size": 1024, "distance": "Cosine"},
+    "image": {"size": 1024, "distance": "Cosine"}
+  },
   "payload_schema": {
     "case_id": "keyword",
     "session_id": "keyword",

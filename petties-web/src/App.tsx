@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { useEffect } from 'react'
 import { useAuthStore } from './store/authStore'
 import { ToastProvider } from './components/Toast'
+import { SpotlightProvider } from './components/spotlight'
 
 // Layouts
 import { MainLayout } from './layouts/MainLayout'
@@ -30,7 +31,7 @@ import { AIInsightsPage } from './pages/admin/insights'
 import { ClinicApprovalPage } from './pages/admin/clinics'
 
 // Role-specific Pages
-import { StaffDashboardPage, StaffSchedulePage, StaffBookingsPage, StaffPatientsPage } from './pages/staff'
+import { StaffDashboardPage, StaffSchedulePage, StaffBookingsPage, StaffPatientsPage, StaffAIChatPage } from './pages/staff'
 import { NotificationsPage as StaffNotificationsPage } from './pages/staff/NotificationsPage'
 import { CreateEmrPage, EmrDetailPage, EditEmrPage } from './pages/staff'
 import VaccinationPage from './pages/staff/vaccine/VaccinationPage'
@@ -123,6 +124,7 @@ function App() {
             <Route path="schedule" element={<StaffSchedulePage />} />
             <Route path="bookings" element={<StaffBookingsPage />} />
             <Route path="patients" element={<StaffPatientsPage />} />
+            <Route path="ai-chat" element={<StaffAIChatPage />} />
             <Route path="notifications" element={<StaffNotificationsPage />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="emr/create/:petId" element={<CreateEmrPage />} />
@@ -166,6 +168,7 @@ function App() {
             <Route path="clinic/edit" element={<ManagerClinicEditPage />} />
           </Route >
         </Routes >
+        <SpotlightProvider />
       </BrowserRouter >
     </ToastProvider >
   )
