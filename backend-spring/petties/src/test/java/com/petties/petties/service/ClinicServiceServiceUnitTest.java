@@ -409,10 +409,11 @@ class ClinicServiceServiceUnitTest {
         when(authService.getCurrentUser()).thenReturn(owner);
         when(clinicRepository.findFirstByOwnerUserId(owner.getUserId())).thenReturn(Optional.of(clinic));
         when(clinicServiceRepository.findByServiceIdAndClinic(serviceId, clinic)).thenReturn(Optional.of(service));
-        doNothing().when(clinicServiceRepository).delete(service);
+        when(clinicServiceRepository.save(service)).thenReturn(service);
 
         assertDoesNotThrow(() -> clinicServiceService.deleteService(serviceId));
-        verify(clinicServiceRepository).delete(service);
+        verify(clinicServiceRepository).save(service);
+        assertFalse(service.getIsActive());
     }
 
     private ClinicService createService(String name, boolean isHomeVisit, VaccineTemplate template) {
