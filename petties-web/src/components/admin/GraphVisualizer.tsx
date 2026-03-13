@@ -64,7 +64,7 @@ export const GraphVisualizer = ({ data, height = 500 }: GraphVisualizerProps) =>
         .on('zoom', (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
           g.attr('transform', event.transform.toString())
         })
-      ;(svg as d3.Selection<SVGSVGElement, unknown, null, undefined>).call(zoomBehavior)
+        ; (svg as d3.Selection<SVGSVGElement, unknown, null, undefined>).call(zoomBehavior)
 
       // Prepare data
       const nodes: D3Node[] = data.nodes.map((n) => ({ ...n }))
@@ -159,7 +159,7 @@ export const GraphVisualizer = ({ data, height = 500 }: GraphVisualizerProps) =>
           d.fy = null
         })
 
-      ;(node as any).call(dragBehavior as any)
+        ; (node as any).call(dragBehavior as any)
 
       // Node circles
       node.append('circle')

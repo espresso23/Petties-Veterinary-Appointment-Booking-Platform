@@ -14,7 +14,12 @@ import httpx
 import logging
 
 from app.db.postgres.session import get_db
-from app.db.postgres.models import SystemSetting, DEFAULT_SETTINGS, ToolType
+from app.db.postgres.models import (
+    SystemSetting,
+    DEFAULT_SETTINGS,
+    ToolType,
+    SettingCategory,
+)
 from app.api.middleware.auth import get_admin_user
 
 logger = logging.getLogger(__name__)
@@ -149,18 +154,26 @@ async def update_setting(
     db: AsyncSession = Depends(get_db),
     _: dict = Depends(get_admin_user),
 ):
-    """Update setting value (admin only)"""
+    """Update setting value (admin only) - auto-create if not exists"""
     result = await db.execute(select(SystemSetting).where(SystemSetting.key == key))
     setting = result.scalar_one_or_none()
 
     if not setting:
-        raise HTTPException(status_code=404, detail=f"Setting '{key}' not found")
+        setting = SystemSetting(
+            key=key,
+            value=data.value,
+            category=SettingCategory.GENERAL,
+            is_sensitive=True,
+            description=f"Auto-created setting: {key}",
+        )
+        db.add(setting)
+        logger.info(f"Setting '{key}' auto-created")
+    else:
+        setting.value = data.value
+        logger.info(f"Setting '{key}' updated")
 
-    setting.value = data.value
     await db.commit()
     await db.refresh(setting)
-
-    logger.info(f"Setting '{key}' updated")
 
     return SettingResponse(
         key=setting.key,
@@ -817,14 +830,9 @@ async def test_jina_image_embeddings(
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            # Dùng 1 sample image URL an toàn (không quan trọng nội dung, chỉ cần API hoạt động)
             payload = {
                 "model": model,
-                "input": [
-                    {
-                        "url": "https://picsum.photos/200",
-                    }
-                ],
+                "input": ["test"],
                 "normalized": True,
                 "embedding_type": "float",
             }
@@ -853,7 +861,10 @@ async def test_jina_image_embeddings(
                             f"nhưng Case Memory đang cấu hình {EXPECTED_IMAGE_DIMENSION}. "
                             "Hãy kiểm tra lại model JINA_IMAGE_EMBED_MODEL."
                         ),
-                        details={"dimension": dim, "expected": EXPECTED_IMAGE_DIMENSION},
+                        details={
+                            "dimension": dim,
+                            "expected": EXPECTED_IMAGE_DIMENSION,
+                        },
                     )
 
                 return TestResult(

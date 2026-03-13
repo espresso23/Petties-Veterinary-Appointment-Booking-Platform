@@ -90,7 +90,7 @@ export const DocumentPreviewModal = ({ isOpen, onClose, document }: DocumentPrev
         setPdfBlobUrl(null)
       }
     }
-  }, [isOpen, loadDocument, pdfBlobUrl])
+  }, [isOpen, loadDocument])
 
   const handleDownload = async () => {
     try {

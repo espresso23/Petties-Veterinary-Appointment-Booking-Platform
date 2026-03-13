@@ -9,7 +9,7 @@ import {
 import '../styles/brutalist.css'
 
 // Toast types
-type ToastType = 'success' | 'error' | 'warning' | 'info'
+export type ToastType = 'success' | 'error' | 'warning' | 'info'
 
 interface Toast {
     id: string

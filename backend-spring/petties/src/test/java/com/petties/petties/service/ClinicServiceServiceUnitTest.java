@@ -441,7 +441,8 @@ class ClinicServiceServiceUnitTest {
         return template;
     }
 
-    private ServiceWeightPrice createWeightPrice(ClinicService service, String minWeight, String maxWeight, String price) {
+    private ServiceWeightPrice createWeightPrice(ClinicService service, String minWeight, String maxWeight,
+            String price) {
         ServiceWeightPrice weightPrice = new ServiceWeightPrice();
         weightPrice.setService(service);
         weightPrice.setMinWeight(new BigDecimal(minWeight));

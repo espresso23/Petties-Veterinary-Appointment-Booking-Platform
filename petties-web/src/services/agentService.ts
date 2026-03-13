@@ -573,28 +573,28 @@ export const feedbackApi = {
 // ===== KNOWLEDGE GRAPH API =====
 
 export interface KGVisualizeResponse extends KGStatsResponse {
-  nodes: { id: string; label: string; type: string }[]
-  edges: { id: string; source: string; target: string; label: string }[]
+    nodes: { id: string; label: string; type: string }[]
+    edges: { id: string; source: string; target: string; label: string }[]
 }
 
 export interface KGQueryRequest {
-  query: string
-  top_k?: number
+    query: string
+    top_k?: number
 }
 
 export interface KGQueryResultItem {
-  subject: string
-  predicate: string
-  object: string
-  score?: number
-  source_nodes?: string[]
+    subject: string
+    predicate: string
+    object: string
+    score?: number
+    source_nodes?: string[]
 }
 
 export interface KGQueryResponse {
-  success: boolean
-  query: string
-  results: KGQueryResultItem[]
-  message?: string
+    success: boolean
+    query: string
+    results: KGQueryResultItem[]
+    message?: string
 }
 
 export const kgApi = {

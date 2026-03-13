@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuthStore } from '../../store/authStore'
-import { useToast } from '../../hooks/useToast'
+import { useToast, type ToastType } from '../../components/Toast'
 import { chatApi, feedbackApi, type ChatContextType, type ChatSessionMessage, type ChatSessionSummary } from '../../services/agentService'
 import { ChatMessage } from '../../components/admin/ChatMessage'
 import {
@@ -61,6 +61,15 @@ export const StaffAIChatPage = () => {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
+  const [, setReactSteps] = useState<Array<{
+    step_index: number
+    step_type: 'thought' | 'action' | 'observation'
+    content?: string
+    tool_name?: string
+    tool_params?: Record<string, unknown>
+    tool_result?: unknown
+    timestamp?: string
+  }>>([])
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   // Image Upload state
@@ -68,7 +77,7 @@ export const StaffAIChatPage = () => {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // ==================== HELPER ====================
-  const handleApiError = (err: unknown, toast: { showToast: (type: string, message: string) => void }, fallbackMessage: string) => {
+  const handleApiError = (err: unknown, toast: { showToast: (type: ToastType, message: string) => void }, fallbackMessage: string) => {
     const errorData = (err as { response?: { data?: unknown } })?.response?.data
     let message = fallbackMessage
     if (errorData && typeof errorData === 'object' && 'detail' in errorData) {

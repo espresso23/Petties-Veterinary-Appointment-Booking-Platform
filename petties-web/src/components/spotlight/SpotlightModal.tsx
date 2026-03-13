@@ -18,7 +18,7 @@ export interface SpotlightMessage {
     content: string
     timestamp: Date
     isLoading?: boolean
-    action?: AIAction
+    actions?: AIAction[]
     suggestions?: string[]
 }
 

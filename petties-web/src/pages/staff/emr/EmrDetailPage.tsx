@@ -15,7 +15,7 @@ export const EmrDetailPage = () => {
     const navigate = useNavigate()
     
     // Trim emrId to remove any accidental whitespace
-    const trimmedEmrId = emrId.trim()
+    const trimmedEmrId = emrId?.trim() || ''
 
     const [emr, setEmr] = useState<EmrRecord | null>(null)
     const [isLoading, setIsLoading] = useState(true)

@@ -7,7 +7,7 @@ import { useAIChatStore } from '../../store/aiChatStore'
 import { useNavigate } from 'react-router-dom'
 
 interface SpotlightProviderProps {
-    children: React.ReactNode
+    children?: React.ReactNode
 }
 
 export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {

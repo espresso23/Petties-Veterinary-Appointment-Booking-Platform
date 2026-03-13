@@ -69,7 +69,6 @@ export const ChatSidebar = ({
     const { 
         sessionId, 
         messages: storeMessages,
-        connectionStatus,
         setSessionId,
         setMessages,
         addMessage,

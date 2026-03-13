@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { PaperAirplaneIcon, XMarkIcon, SparklesIcon, PhotoIcon, BoltIcon, PaperClipIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
-import { useToast } from '../../hooks/useToast'
+import { useToast } from '../../components/Toast'
 
 export interface ChatMessage {
     id: string

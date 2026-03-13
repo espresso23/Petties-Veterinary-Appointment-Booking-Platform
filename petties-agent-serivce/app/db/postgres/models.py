@@ -252,8 +252,8 @@ class SystemSetting(Base):
     key = Column(String(100), unique=True, nullable=False, index=True)
     value = Column(Text, nullable=False)  # Encrypted if is_sensitive=True
     category = Column(
-        String(50), default="general"
-    )  # Changed from Enum for DB compatibility
+        Enum(SettingCategory), default=SettingCategory.GENERAL
+    )  # PostgreSQL enum type
     is_sensitive = Column(Boolean, default=False)  # Encrypt value if True
     description = Column(Text)
 
@@ -352,6 +352,21 @@ DEFAULT_SETTINGS = [
         "category": "vector_db",
         "is_sensitive": False,
         "description": "Qdrant collection name for RAG",
+    },
+    # ===== Jina Embeddings (for Image Case Memory) =====
+    {
+        "key": "JINA_API_KEY",
+        "value": "",
+        "category": "embeddings",
+        "is_sensitive": True,
+        "description": "Jina AI API Key for image embeddings (https://jina.ai/)",
+    },
+    {
+        "key": "JINA_IMAGE_EMBED_MODEL",
+        "value": "jina-clip-v2",
+        "category": "embeddings",
+        "is_sensitive": False,
+        "description": "Jina image embedding model (fixed: jina-clip-v2)",
     },
     # ===== General Settings =====
     {
