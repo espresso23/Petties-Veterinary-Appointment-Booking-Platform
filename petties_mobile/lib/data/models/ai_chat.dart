@@ -26,6 +26,103 @@ class AiChatMessage {
   }
 }
 
+class AiClinic {
+  final String id;
+  final String name;
+  final String address;
+  final double? distanceKm;
+  final double? rating;
+  final int? totalReviews;
+  final List<AiClinicService> services;
+  final bool hasSos;
+  final String? operatingHours;
+  final String? serviceError;
+
+  const AiClinic({
+    required this.id,
+    required this.name,
+    required this.address,
+    this.distanceKm,
+    this.rating,
+    this.totalReviews,
+    this.services = const [],
+    this.hasSos = false,
+    this.operatingHours,
+    this.serviceError,
+  });
+
+  factory AiClinic.fromJson(Map<String, dynamic> json) {
+    return AiClinic(
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      address: json['address']?.toString() ?? '',
+      distanceKm: json['distance_km'] is num ? (json['distance_km'] as num).toDouble() : null,
+      rating: json['rating'] is num ? (json['rating'] as num).toDouble() : null,
+      totalReviews: json['total_reviews'] is num ? (json['total_reviews'] as num).toInt() : null,
+      services: (json['services'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(AiClinicService.fromJson)
+          .toList(),
+      hasSos: json['has_sos'] == true,
+      operatingHours: json['operating_hours']?.toString(),
+      serviceError: json['service_error']?.toString(),
+    );
+  }
+}
+
+class AiClinicService {
+  final String name;
+  final String? category;
+  final double? basePrice;
+  final String? description;
+  final bool isVaccination;
+
+  const AiClinicService({
+    required this.name,
+    this.category,
+    this.basePrice,
+    this.description,
+    this.isVaccination = false,
+  });
+
+  factory AiClinicService.fromJson(Map<String, dynamic> json) {
+    return AiClinicService(
+      name: json['name']?.toString() ?? '',
+      category: json['category']?.toString(),
+      basePrice: json['base_price'] is num ? (json['base_price'] as num).toDouble() : null,
+      description: json['description']?.toString(),
+      isVaccination: json['is_vaccination'] == true,
+    );
+  }
+}
+
+class AiClinicSuggestion {
+  final List<AiClinic> clinics;
+  final int totalFound;
+  final double? latitude;
+  final double? longitude;
+
+  const AiClinicSuggestion({
+    required this.clinics,
+    required this.totalFound,
+    this.latitude,
+    this.longitude,
+  });
+
+  factory AiClinicSuggestion.fromJson(Map<String, dynamic> json) {
+    final location = json['location'] as Map<String, dynamic>?;
+    return AiClinicSuggestion(
+      clinics: (json['clinics'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(AiClinic.fromJson)
+          .toList(),
+      totalFound: json['total_found'] is num ? (json['total_found'] as num).toInt() : 0,
+      latitude: location?['lat'] is num ? (location!['lat'] as num).toDouble() : null,
+      longitude: location?['lng'] is num ? (location!['lng'] as num).toDouble() : null,
+    );
+  }
+}
+
 class AiChatSession {
   final String sessionId;
   final String? title;
@@ -72,6 +169,7 @@ enum AiChatSocketEventType {
   stream,
   complete,
   error,
+  clinicSuggestion,
   unknown;
 
   static AiChatSocketEventType fromString(String? value) {
@@ -94,6 +192,8 @@ enum AiChatSocketEventType {
         return AiChatSocketEventType.complete;
       case 'error':
         return AiChatSocketEventType.error;
+      case 'clinic_suggestion':
+        return AiChatSocketEventType.clinicSuggestion;
       default:
         return AiChatSocketEventType.unknown;
     }
@@ -113,6 +213,7 @@ class AiChatSocketEvent {
   final Map<String, dynamic>? reactStep;
   final Map<String, dynamic>? toolParams;
   final dynamic result;
+  final AiClinicSuggestion? clinicSuggestion;
 
   const AiChatSocketEvent({
     required this.type,
@@ -127,9 +228,15 @@ class AiChatSocketEvent {
     this.reactStep,
     this.toolParams,
     this.result,
+    this.clinicSuggestion,
   });
 
   factory AiChatSocketEvent.fromJson(Map<String, dynamic> json) {
+    AiClinicSuggestion? clinicSuggestion;
+    if (json['clinics'] != null || json['total_found'] != null) {
+      clinicSuggestion = AiClinicSuggestion.fromJson(json);
+    }
+
     return AiChatSocketEvent(
       type: AiChatSocketEventType.fromString(json['type']?.toString()),
       message: json['message']?.toString(),
@@ -150,6 +257,7 @@ class AiChatSocketEvent {
           .whereType<Map<String, dynamic>>()
           .map(AiChatMessage.fromJson)
           .toList(),
+      clinicSuggestion: clinicSuggestion,
     );
   }
 }

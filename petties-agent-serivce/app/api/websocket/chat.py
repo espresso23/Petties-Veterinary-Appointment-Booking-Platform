@@ -310,11 +310,45 @@ async def handle_chat_message(
                 )
             )
 
-            # 5. Streaming loop
+            # 5. Get chat history for context (include images from history)
+            chat_history_raw = await get_chat_history(session_id, limit=5)
+
+            chat_history = []
+            for msg in chat_history_raw:
+                role = msg.get("role")
+                content = msg.get("content", "")
+                if role in ["user", "assistant"] and content:
+                    metadata = msg.get("metadata", {})
+                    raw_images = metadata.get("images", [])
+
+                    images = []
+                    if raw_images:
+                        for img in raw_images:
+                            if isinstance(img, str) and img.strip():
+                                if img.startswith("http://") or img.startswith(
+                                    "https://"
+                                ):
+                                    images.append(img)
+                                elif img.startswith("data:") or len(img) > 100:
+                                    images.append(img)
+
+                    msg_data = {
+                        "role": role,
+                        "content": content,
+                    }
+                    if images:
+                        msg_data["images"] = images[:2]
+
+                    chat_history.append(msg_data)
+
+            # 6. Streaming loop
             try:
-                # IMPORTANT: Use validated image_urls instead of raw images
                 async for event in agent.stream(
-                    user_message, session_id, images=image_urls if image_urls else None
+                    user_message,
+                    session_id,
+                    images=image_urls if image_urls else None,
+                    chat_history=chat_history if chat_history else None,
+                    user_role=user.role,
                 ):
                     if not isinstance(event, dict):
                         continue
@@ -358,12 +392,16 @@ async def handle_chat_message(
                 reset_tool_runtime_context(runtime_token)
 
         # 6. Finalization & Persistence
-        
+
         # Fallback for empty responses (take last observation if available)
         if not full_response.strip() and react_trace:
             last_obs = next(
-                (s for s in reversed(react_trace) if s.get("step_type") == "observation"),
-                None
+                (
+                    s
+                    for s in reversed(react_trace)
+                    if s.get("step_type") == "observation"
+                ),
+                None,
             )
             if last_obs:
                 full_response = last_obs.get("content", "No content found in trace.")
@@ -393,8 +431,34 @@ async def handle_chat_message(
                 "timestamp": datetime.now(timezone.utc),
             }
         )
-        
+
         await touch_chat_session(session_id, {"agent_id": agent_id})
+
+        # Extract clinic data from react_trace for UI rendering
+        clinic_data = None
+        for step in react_trace:
+            if step.get("tool_name") == "search_clinics_nearby":
+                tool_result = step.get("tool_result", {})
+                if isinstance(tool_result, dict) and tool_result.get("clinics"):
+                    clinic_data = {
+                        "clinics": tool_result.get("clinics", [])[:5],
+                        "total_found": tool_result.get("total_found", 0),
+                        "location": tool_result.get("query_location", {}),
+                    }
+                    break
+
+        # Send clinic suggestion message if clinics found
+        if clinic_data and clinic_data.get("clinics"):
+            await manager.send_message(
+                session_id,
+                {
+                    "type": "clinic_suggestion",
+                    "clinics": clinic_data["clinics"],
+                    "total_found": clinic_data["total_found"],
+                    "location": clinic_data["location"],
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+            )
 
         await manager.send_message(
             session_id,
@@ -494,7 +558,7 @@ async def websocket_chat_endpoint(websocket: WebSocket, session_id: str = "defau
             # 4. History Restore
             history = await get_chat_history(session_id)
             now_iso = datetime.now(timezone.utc).isoformat()
-            
+
             await manager.send_message(
                 session_id,
                 {

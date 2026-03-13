@@ -32,7 +32,7 @@ class BookingService {
       '/bookings/$bookingId/checkout',
       data: overriddenSosFee != null
           ? {'overriddenSosFee': overriddenSosFee}
-          : null,
+          : <String, dynamic>{},
     );
     return BookingResponse.fromJson(response.data);
   }

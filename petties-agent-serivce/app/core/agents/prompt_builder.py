@@ -9,7 +9,7 @@ Package: app.core.agents
 Version: v1.1.0 (Extracted from single_agent.py)
 """
 
-from typing import List, Dict, Any, Set
+from typing import List, Dict, Any, Set, Optional
 import json
 
 from loguru import logger
@@ -19,12 +19,14 @@ from app.core.agents.booking_flow import build_booking_prompt_guidance
 
 
 # Maximum number of previous ReAct steps to include as context
-MAX_CONTEXT_STEPS = 10
+# Reduced for context engineering: fewer steps = less tokens, focus on recent interactions
+MAX_CONTEXT_STEPS = 5
 
 # Maximum length for observation content before truncation
-OBSERVATION_MAX_LENGTH = 3000
-OBSERVATION_HEAD_LENGTH = 2500
-OBSERVATION_TAIL_LENGTH = 300
+# Reduced for context engineering: shorter observations save tokens while preserving recent info
+OBSERVATION_MAX_LENGTH = 1500
+OBSERVATION_HEAD_LENGTH = 1000
+OBSERVATION_TAIL_LENGTH = 200
 
 
 def build_context(react_steps: List[Dict[str, Any]]) -> str:
@@ -80,6 +82,7 @@ def create_think_prompt(
     system_prompt: str,
     tool_schemas: List[Dict[str, Any]],
     enabled_tools_lower: Set[str],
+    user_role: Optional[str] = None,
 ) -> str:
     """Create the full prompt for the Think (LLM reasoning) node.
 
@@ -134,6 +137,24 @@ Final Answer: [Câu trả lời đầy đủ và thân thiện cho người dùn
 - Nếu có NHIỀU pet → hỏi người dùng CỤ THỂ bé nào (liệt kê tên + giống loài) trước khi tra cứu tiếp.
 - Khi đã xác định được pet → chỉ gọi tool với pet_id của bé đó, KHÔNG tra cứu cho tất cả pet.
 
+=== XÁC ĐỊNH VỊ TRÍ (Rất quan trọng) ===
+- Khi người dùng muốn tìm phòng khám gần, YÊU CẦU phải có tọa độ (latitude, longitude).
+- Nếu người dùng KHÔNG cung cấp vị trí cụ thể:
+  + HỎI NGƯỜI DÙNG trước: "Bạn đang ở đâu để mình tìm phòng khám gần nhất nhé?"
+  + Có thể hỏi địa chỉ cụ thể hoặc yêu cầu chia sẻ vị trí
+- TUYỆT ĐỐI KHÔNG gọi `search_clinics_nearby` khi chưa có latitude và longitude — tool sẽ báo lỗi.
+- Khi đã có tọa độ → gọi `search_clinics_nearby(latitude, longitude, radius_km=5.0, top_k=5)`
+
+=== PHÂN BIỆT TOOL TÌM KIẾM (Rất quan trọng) ===
+- `search_clinics_nearby`: Dùng khi người dùng muốn TÌM PHÒNG KHÁM gần một vị trí.
+  + Ví dụ: "tìm phòng khám gần Quận 7", "có phòng khám nào gần đây không", "địa chỉ phòng khám thú y"
+  + Cần latitude + longitude, KHÔNG cần query về triệu chứng
+  + Khi trả lời, CHỈ hiển thị TỐI ĐA 5 PHÒNG KHÁM gần nhất (đã được UI tự động render thành cards)
+- `pet_knowledge_search`: Dùng khi người dùng hỏi về TRIỆU CHỨNG, BỆNH, CHĂM SÓC, DINH DƯỠNG.
+  + Ví dụ: "chó bị nôn là bị gì", "cách chăm sóc mèo con", "mèo bị tiêu chảy phải làm sao"
+  + Cần query về triệu chứng/bệnh, KHÔNG cần location
+- TUYỆT ĐỐI KHÔNG dùng `pet_knowledge_search` khi người dùng chỉ muốn tìm phòng khám!
+
 === KHI NÀO VIẾT FINAL ANSWER NGAY (Rất quan trọng) ===
 - Sau khi gọi `check_vaccination_status`, `get_user_pets`, hoặc các booking tools trả về DỮ LIỆU CỤ THỂ CỦA NGƯỜI DÙNG (tên pet, lịch tiêm, mũi tiếp theo...), hãy TỔNG HỢP Final Answer NGAY từ dữ liệu đó + kiến thức thú y sẵn có của bạn.
 - KHÔNG gọi thêm `pet_knowledge_search` hay `web_search` khi đã có đủ dữ liệu cá nhân hóa từ các tool trên — knowledge base và web KHÔNG chứa thông tin riêng của người dùng.
@@ -157,6 +178,17 @@ CÁCH XỬ LÝ khi phát hiện lỗi chính tả có thể:
 LƯU Ý:
 - Nếu không cần gọi công cụ, hãy đi thẳng đến Final Answer. TUYỆT ĐỐI KHÔNG viết "Tool: Không", "Tool: None" hoặc bất kỳ giá trị không hợp lệ nào.
 - Chỉ sử dụng tên công cụ CHÍNH XÁC từ danh sách CÔNG CỤ CÓ SẴN bên dưới.
+
+=== PHÂN BIỆT TÔN ĨNH THEO VAI TRÒ (Rất quan trọng) ===
+- Nếu người dùng là NHÂN VIÊN (STAFF, CLINIC_MANAGER, CLINIC_OWNER):
+  + Khi tóm tắt bệnh án (EMR) hoặc phản hồi về y thú, HÃY DÙNG VĂN PHONG Y KHOA CHUYÊN NGHIỆP.
+  + Trình bày dưới dạng gạch đầu dòng súc tích: Chỉ số sinh tồn, Chẩn đoán, Phác đồ điều trị, Thuốc đã kê.
+  + Mục tiêu: Giúp bác sĩ/nhân viên đọc Nhanh nhất trước khi vào ca khám.
+  + Ví dụ: "Cân nặng: 28kg, Nhiệt độ: 38.5°C, Chẩn đoán: Viêm da dị ứng cấp, Thuốc: Cortisone 5mg x7 ngày"
+- Nếu người dùng là CHỦ NUÔI (PET_OWNER):
+  + HÃY DÙNG TỪ NGỮ THÂN THIẾN, DỄ HIỂU, GIẢI THÍCH CÁC THUẬT NGỮ Y KHOA PHỨC TẠP.
+  + Tập trung vào LỜI KHUYÊN CHĂM SÓC TẠI NHÀ và TIẾN TRÌNH TỐT NHẤT CHO THÚ CƯNG.
+  + Ví dụ: "Bé Cún của bạn có dấu hiệu dị ứng với gà. Bạn nên ngay lập tức ngừng cho ăn gà và theo dõi tình trạng trong 24h."
 
 Bối cảnh hệ thống:
 {context}

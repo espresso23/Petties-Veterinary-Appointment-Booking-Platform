@@ -41,13 +41,14 @@
 5. Check-in bệnh nhân ✅
 6. **Hoàn thành khám (Treatment Finished)**: Nhân viên xác nhận đã khám xong, gửi yêu cầu thanh toán tới Manager. ✅
 7. Xem hồ sơ y tế thú cưng ✅
-8. Xem sổ tiêm chủng của pet ✅
-9. **Tra cứu bệnh nhân cũ** (Patient Lookup): Tìm kiếm và xem hồ sơ bệnh nhân cũ của phòng khám ✅
-10. Ghi chú hồ sơ bệnh án (tạo EMR) - **[Bắt buộc gắn với Booking]** ✅
-11. Cập nhật sổ tiêm chủng - **[Bắt buộc gắn với Booking]** ✅
-12. **[SOS] Start moving / Arrived / Checkout** → Quy trình cứu hộ khép kín với tracking realtime ✅
-13. **[SOS] Detailed Checkout Dialog**: Xác nhận phí SOS, phí di chuyển và dịch vụ phát sinh ✅
-13. **Dashboard Tổng quan lịch hẹn (Summary Dashboard)** ✅
+8. **Tóm tắt Hồ sơ Y tế thú cưng (EMR) với Phân tích Hình ảnh**: AI tóm tắt nhanh hồ sơ bệnh án kèm chẩn đoán từ hình ảnh được gắn trong EMR. Dành riêng cho STAFF/CLINIC_MANAGER: Văn phong y khoa, gạch đầu dòng các chỉ số, chẩn đoán, phác đồ. ✅
+9. Xem sổ tiêm chủng của pet ✅
+10. **Tra cứu bệnh nhân cũ** (Patient Lookup): Tìm kiếm và xem hồ sơ bệnh nhân cũ của phòng khám ✅
+11. Ghi chú hồ sơ bệnh án (tạo EMR) - **[Bắt buộc gắn với Booking]** ✅
+12. Cập nhật sổ tiêm chủng - **[Bắt buộc gắn với Booking]** ✅
+13. **[SOS] Start moving / Arrived / Checkout** → Quy trình cứu hộ khép kín với tracking realtime ✅
+14. **[SOS] Detailed Checkout Dialog**: Xác nhận phí SOS, phí di chuyển và dịch vụ phát sinh ✅
+15. **Dashboard Tổng quan lịch hẹn (Summary Dashboard)** ✅
 
 ---
 

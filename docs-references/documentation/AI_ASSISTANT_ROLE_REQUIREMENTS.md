@@ -25,7 +25,7 @@
 **Sự khác biệt chính:**
 - **Pet Owner:** Passive assistant - chỉ trả lời khi được hỏi
 - **Staff:** Hỗ trợ đánh giá ca bệnh nhanh hơn nhờ triệu chứng, hồ sơ và hình ảnh lâm sàng.
-- **Clinic Manager:** Tập trung hỗ trợ vận hành clinic như SOS và phân công staff.
+- **Clinic Manager:** Tập trung hỗ trợ phân tích phản hồi khách hàng (Sentiment Analysis), tóm tắt báo cáo và chăm sóc khách hàng.
 - **Clinic Owner:** Tập trung generate danh mục dịch vụ để setup clinic, không đi theo hướng BI/phân tích tăng trưởng.
 
 ---
@@ -138,14 +138,14 @@
 
 ---
 
-## 4. 👔 CLINIC_MANAGER - Operations Assistant + Analytics
+## 4. 👔 CLINIC_MANAGER - Analytics & Customer Care Assistant
 
 ### 4.1 Use Cases
 | UC-ID | Tên | Priority | Proactive Trigger |
 |-------|-----|----------|-------------------|
-| UC-021 | AI Manager Assistant | P0 | SOS alert, Reassignment suggestion |
-| UC-024 | Assist creating staff schedules | P1 | Weekly schedule planning |
-| UC-030 | Auto-suggest staff assignments | P1 | New booking created |
+| UC-021 | Analyze customer feedback & reviews | P0 | Weekly/Monthly report |
+| UC-024 | Generate customer care content | P1 | On demand |
+| UC-030 | Summarize booking trends | P1 | On demand |
 
 ### 4.2 Interface Requirements
 **Web (Clinic Dashboard): Slide-in Panel + Dashboard Cards**
@@ -160,43 +160,39 @@
     "role": "CLINIC_MANAGER",
     "clinic_id": "uuid",
     "all_bookings": [...],  # Full access
-    "staff_list": [
-        {"id": "uuid", "name": "Dr. Hùng", "workload": 8, "specialties": ["Surgery"]}
-    ],
-    "permissions": ["manage_staff", "assign_bookings", "view_reports", "create_shifts"]
+    "permissions": ["manage_staff", "view_reports", "manage_customers"]
 }
 ```
 
 ### 4.4 AI Behavior
-- **Tone:** Thực tế, rõ ràng, ưu tiên hành động vận hành.
-- **Proactive:** ✅ Chủ động gửi notifications cho các tình huống cần xử lý nhanh.
+- **Tone:** Chuyên nghiệp, phân tích dữ liệu, hướng tới khách hàng.
+- **Proactive:** ✅ Chủ động gửi thông báo tóm tắt đánh giá của khách hàng (Sentiment analysis summary).
 - **Notification Types:**
-  1. 🔴 **URGENT:** SOS booking (countdown timer)
-  2. 🟡 **WARNING:** Workload imbalance, Tuần tới thiếu staff
-  3. 🟢 **INFO:** Reassignment suggestions
+  1. 🔴 **URGENT:** Có review 1 sao cần xử lý gấp.
+  2. 🟢 **INFO:** Tóm tắt tình hình đặt lịch/doanh thu tuần qua.
 
 ### 4.5 Proactive Notification Logic
-**Trigger 1: SOS Booking Alert**
+**Trigger 1: Negative Review Alert**
 ```python
-# Khi có SOS booking mới trong 3km radius
+# Khi có đánh giá rất thấp (1-2 sao)
 notification = {
     "type": "URGENT",
-    "title": "🚨 SOS KHẨN CẤP",
-    "message": "Pet Luna bị tai nạn - 2.5km - Countdown: 4:58",
-    "action": "CHẤP NHẬN NGAY",
-    "context": {"sos_booking_id": "uuid", "countdown_seconds": 298}
+    "title": "🚨 Phản hồi tiêu cực mới",
+    "message": "Khách hàng Nguyễn Văn A đánh giá 1 sao về thái độ phục vụ.",
+    "action": "XEM CHI TIẾT",
+    "context": {"review_id": "uuid"}
 }
 ```
 
-**Trigger 2: Reassignment Suggestion**
+**Trigger 2: Weekly Summary**
 ```python
-# Khi phát hiện staff workload imbalance
+# Gửi vào sáng thứ 2 hàng tuần
 notification = {
-    "type": "WARNING",
-    "title": "Gợi ý cân bằng workload",
-    "message": "Dr. Hùng: 12 bookings, Dr. Linh: 4 bookings. Gợi ý reassign 4 bookings?",
-    "action": "XEM GỢI Ý",
-    "context": {"reassignment_plan": [...]}
+    "type": "INFO",
+    "title": "Báo cáo AI tuần qua",
+    "message": "Phòng khám có 45 ca khám (tăng 12%), dịch vụ tiêm phòng được yêu cầu nhiều nhất.",
+    "action": "XEM TÓM TẮT",
+    "context": {"trend_data": [...]}
 }
 ```
 
@@ -204,9 +200,9 @@ notification = {
 | Tool | Allowed? | Notes |
 |------|----------|-------|
 | All Staff tools | ✅ | Full clinic access |
-| `suggest_staff_assignments` | ✅ | Own clinic staff |
-| `create_staff_shifts` | ✅ | Own clinic staff |
-| `analyze_revenue_trends` | ✅ | Own clinic data |
+| `analyze_customer_reviews` | ✅ | Own clinic data |
+| `generate_care_messages` | ✅ | Own clinic data |
+| `summarize_booking_trends` | ✅ | Own clinic data |
 | Owner tools | ❌ | Forbidden (cannot access multi-clinic data) |
 
 ---
@@ -329,10 +325,10 @@ Tone: Professional, hướng dẫn
         """,
         UserRole.CLINIC_MANAGER: """
 Bạn là AI assistant hỗ trợ quản lý phòng khám.
-- Chủ động cảnh báo SOS và hỗ trợ điều phối vận hành
-- Gợi ý phân công staff và cân bằng workload
-- Không tập trung vào phân tích doanh thu trong scope hiện tại
-Tone: Rõ ràng, hành động, thiên về vận hành
+- Phân tích và tổng hợp đánh giá của khách hàng
+- Hỗ trợ tạo nội dung chăm sóc khách hàng chuyên nghiệp
+- Tóm tắt tình hình đặt lịch và xu hướng dịch vụ
+Tone: Chuyên nghiệp, hướng tới khách hàng, phân tích dữ liệu
         """,
         UserRole.CLINIC_OWNER: """
 Bạn là AI assistant hỗ trợ thiết lập phòng khám.
@@ -359,9 +355,9 @@ def get_allowed_tools_by_role(role: UserRole) -> List[str]:
         ],
         UserRole.CLINIC_MANAGER: [
             # All Staff tools +
-            "suggest_staff_assignments",
-            "create_staff_shifts",
-            "analyze_revenue_trends"
+            "analyze_customer_reviews",
+            "generate_care_messages",
+            "summarize_booking_trends"
         ],
         UserRole.CLINIC_OWNER: [
             "generate_clinic_services"
@@ -472,9 +468,9 @@ class ProactiveNotificationService:
 - ✅ Hỗ trợ chẩn đoán phân biệt sơ bộ từ triệu chứng và bệnh sử
 
 **Manager:**
-- ✅ SOS alert realtime (< 10s latency)
-- ✅ Daily revenue report tự động 18:00
-- ✅ Reassignment suggestions accurate
+- ✅ Sentinel analysis & review summary accurate
+- ✅ Customer care templates generation useful
+- ✅ Booking trends summary reliable
 
 **Owner:**
 - ✅ Service generation tool hoạt động
@@ -484,7 +480,7 @@ class ProactiveNotificationService:
 
 ## 10. 📌 NOTES
 
-1. **Human-in-the-loop là BẮT BUỘC:** AI KHÔNG BAO GIỜ tự động execute critical actions (booking, reassignment, service generation) mà không có user confirmation.
+1. **Human-in-the-loop là BẮT BUỘC:** AI KHÔNG BAO GIỜ tự động execute critical actions (booking, gửi tin nhắn chăm sóc khách hàng, service generation) mà không có user confirmation.
 
 2. **Role permissions phải chặt chẽ:** Tools có kiểm tra JWT role + clinic_id để đảm bảo Staff không access data của clinic khác.
 

@@ -39,7 +39,7 @@ AI Agent Service là **thành phần tách biệt** (microservice Python FastAPI
 | | Chẩn đoán sơ bộ theo triệu chứng | Tool `pet_knowledge_search`: tra cứu thông tin triệu chứng/bệnh trong Knowledge Base, khuyên đặt lịch nếu cần. |
 | | Đặt lịch qua chat | Tools `get_user_pets`, `search_clinics_nearby`, `get_clinic_services`, `check_available_slots`, `create_booking_for_user` gọi Spring Boot API. |
 | **Vision** | Phân tích hình ảnh sức khỏe thú cưng | Planned / future scope, chưa được implement trong AI service hiện tại. |
-| **Clinic / Staff** | Hỗ trợ xử lý booking, FAQ, gợi ý reassign, thêm lịch làm việc | Dùng cùng Single Agent, có thể bật tools tương ứng cho role (Web) và chỉ thực thi khi người dùng xác nhận. |
+| **Clinic / Staff** | Hỗ trợ xử lý booking, FAQ, phân tích phản hồi, tạo template chăm sóc khách hàng | Dùng cùng Single Agent, có thể bật tools tương ứng cho role (Web) và chỉ thực thi khi người dùng xác nhận. |
 | **Admin** | Cấu hình Agent, Tools, Knowledge Base | REST API + Web: prompt, model, hyperparameters, enable/disable tools, upload/test RAG. |
 | **Fallback** | Trả lời khi confidence thấp | Tool `web_search` (ví dụ DuckDuckGo): bổ sung thông tin từ web khi RAG/vision trả về confidence thấp; vẫn trích dẫn nguồn và khuyên đi khám khi liên quan sức khỏe. |
 
@@ -71,15 +71,14 @@ Use cases được nhóm theo actor và boundary (theo SRS AI Agent Service).
 | UC-ID | Tên | Role | Mô tả ngắn |
 |-------|-----|------|-------------|
 | UC-020 | AI Staff Assistant (Proactive) | Staff | AI chủ động thông báo: "Bạn có 3 booking pending", "Phát hiện conflict lịch 14:00", "Pet Max sắp hết hạn vaccination". Staff chat để hỏi về booking, EMR, scheduling. |
-| UC-021 | AI Manager Assistant (Proactive) | Manager | AI chủ động alert: "CẢNH BÁO SOS mới - Countdown 50s", "Báo cáo ngày: 25 bookings, 15M doanh thu", "Gợi ý reassign 4 bookings để cân bằng workload", "Tuần tới thiếu 3 ca chiều". Manager chat để xử lý operations. |
-| UC-022 | AI Owner Assistant (Proactive) | Owner | AI chủ động insight: "Doanh thu tháng tăng 18%", "Top 3 dịch vụ revenue", "Booking giảm 12% tuần này do mưa", "Gợi ý mở rộng: Dental Cleaning có nhu cầu cao", "Dr. Hùng workload cao nhất, nên tuyển thêm?". Owner chat để business intelligence. |
-| UC-023 | Summarize patient info & EMR | Staff | Tool gọi API backend lấy pet/booking/EMR, tóm tắt thành patient summary cho Staff trước khi khám. |
-| UC-024 | Assist creating staff work schedules | Manager | AI đề xuất ca làm (ngày/giờ/nhân sự) dựa trên workload analysis, có thể gọi tool tạo shifts khi Manager xác nhận. Human-in-the-loop required. |
-| UC-025 | Suggest optimizing work schedules | Manager | AI phân tích shift patterns, suggest optimizations để cân bằng workload và reduce conflicts. |
-| UC-026 | Assist setting up clinic | Owner | AI-guided setup wizard: hướng dẫn checklist thiết lập phòng khám (địa chỉ, giờ làm, dịch vụ, phí SOS), gợi ý cấu hình phù hợp. |
+| UC-021 | AI Manager Assistant (Proactive) | Manager | AI chủ động phân tích và tóm tắt phản hồi, đánh giá của khách hàng (Sentiment Analysis). Gợi ý các mẫu tin nhắn chăm sóc khách hàng. |
+| UC-022 | Staff/Manager support chat (Internal Knowledge) | Staff, Manager | Staff/Manager có thể hỏi AI về nội quy, protocol khám, tài liệu phòng khám. (Sử dụng Tool Retrieval RAG - internal docs). |
+| UC-023 | Summarize patient info before examination | Staff | AI đọc EMR, note lịch sử bệnh, highlight dị ứng/bệnh mãn tính, giúp bác sĩ nắm nhanh case trước khi khám. |
+| UC-024 | Summarize booking trends | Manager | AI phân tích nhanh dữ liệu đặt lịch để báo cáo các khung giờ cao điểm, tỷ lệ hủy lịch, và dịch vụ được yêu cầu nhiều nhất. |
+| UC-025 | Generate customer care templates | Manager | AI hỗ trợ soạn thảo các mẫu tin nhắn nhắc lịch tái khám, tiêm phòng, hoặc hỏi thăm sức khỏe sau phẫu thuật. |
+| UC-026 | Assist setting up clinic | Owner | AI-guided setup wizard: tự động gợi ý danh mục dịch vụ phù hợp để thiết lập phòng khám mới. |
 | UC-027 | Generate & add clinic services | Owner | **AI tự động generate services:** Owner nhập clinic type + pet types + region → AI analyze master_services + market pricing → generate service list với Vietnamese descriptions + suggested prices → batch create services vào clinic sau confirmation. Human review before execution. |
 | UC-028 | Compose clinic description | Owner | AI viết/biên tập mô tả phòng khám dựa trên strengths, target customers, specialties. Generate professional Vietnamese text phù hợp hiển thị trên app. |
-| UC-030 | Auto-suggest staff assignments | Manager | AI reviews unassigned bookings, analyzes staff availability + specialties, suggests best-fit staff assignments. Manager review & approve before execution. |
 | UC-AI-031 | Proactive notification system | All Clinic Roles | AI chủ động gửi notifications (toast/panel) khi phát hiện issues, insights, hoặc opportunities. User click "XEM" → mở AI chat panel với context focused. Notification types: 🔴 Urgent / 🟡 Warning / 🟢 Info. |
 
 ### 2.3 Admin (Web)
@@ -164,7 +163,6 @@ flowchart TB
     RAG --> Cohere
     RAG --> Qdrant
     Clinic --> SpringBoot
-    StaffShiftTools --> SpringBoot
     Vision --> OpenRouter
     WebSearch --> DuckDuckGo
     Observe --> Think

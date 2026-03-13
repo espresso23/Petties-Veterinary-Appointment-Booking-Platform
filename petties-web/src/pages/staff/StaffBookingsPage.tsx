@@ -171,8 +171,33 @@ export const StaffBookingsPage = () => {
 
     // Navigate directly to vaccine record page
     const handleOpenVaccineModal = () => {
-        if (!selectedBooking) return
-        navigate(`/staff/vaccine/create/${selectedBooking.petId}?bookingId=${selectedBooking.bookingId}&bookingCode=${selectedBooking.bookingCode}`)
+        if (!selectedBooking) return;
+        
+        // Find the vaccine service to get its name
+        const allServiceItems = (selectedBooking.pets?.length ?? 0) > 0
+            ? (selectedBooking.pets ?? []).flatMap(p => p.services ?? [])
+            : (selectedBooking.services ?? []);
+            
+        const vaccService = allServiceItems.find(svc => {
+            const nameStr = svc.serviceName?.toLowerCase() || '';
+            const catStr = svc.serviceCategory || '';
+            return catStr === 'VACCINATION' || 
+                   nameStr.includes('vaccine') || 
+                   nameStr.includes('vắc-xin') || 
+                   nameStr.includes('vắc xin') || 
+                   nameStr.includes('tiêm') ||
+                   catStr.toLowerCase().includes('vaccine') ||
+                   catStr.toLowerCase().includes('vắc-xin') ||
+                   catStr.toLowerCase().includes('vắc xin') ||
+                   catStr.toLowerCase().includes('tiêm');
+        });
+
+        let url = `/staff/patients/${selectedBooking.petId}/vaccinations?bookingId=${selectedBooking.bookingId}&bookingCode=${selectedBooking.bookingCode}`;
+        if (vaccService && vaccService.serviceName) {
+            url += `&initialVaccineName=${encodeURIComponent(vaccService.serviceName)}`;
+        }
+        
+        navigate(url);
     }
 
     const handleOpenAddServiceModal = () => {
@@ -184,8 +209,9 @@ export const StaffBookingsPage = () => {
         if (!selectedBooking) return;
         setAddingService(true);
         try {
-            const updatedBooking = await addServiceToBooking(selectedBooking.bookingId, serviceId);
-            setSelectedBooking(updatedBooking);
+            await addServiceToBooking(selectedBooking.bookingId, serviceId);
+            const updated = await getBookingById(selectedBooking.bookingId);
+            setSelectedBooking(updated);
             // Refresh list
             fetchBookings();
             setAddServiceModalOpen(false);
@@ -424,6 +450,17 @@ export const StaffBookingsPage = () => {
                                     ? (selectedBooking.pets ?? []).flatMap(p => p.services ?? [])
                                     : (selectedBooking.services ?? []);
                                 const isAssignedToBooking = allServiceItems.some(svc => svc.assignedStaffId === user?.userId);
+                                const hasVaccineService = allServiceItems.some(svc => {
+                                    const nameStr = svc.serviceName?.toLowerCase() || '';
+                                    const catStr = svc.serviceCategory || '';
+                                    return catStr === 'VACCINATION' ||
+                                           nameStr.includes('vaccine') || 
+                                           nameStr.includes('vắc-xin') || 
+                                           nameStr.includes('vắc xin') ||
+                                           catStr.toLowerCase().includes('vaccine') ||
+                                           catStr.toLowerCase().includes('vắc-xin') ||
+                                           catStr.toLowerCase().includes('vắc xin');
+                                });
                                 return (
                             <>
                                 {/* Modal Header */}
@@ -518,17 +555,19 @@ export const StaffBookingsPage = () => {
                                                 <button
                                                     type="button"
                                                     onClick={() => navigate(`/staff/emr/create/${selectedBooking.petId}?bookingId=${selectedBooking.bookingId}&bookingCode=${selectedBooking.bookingCode}`)}
-                                                    className="bg-blue-500 text-white py-3 rounded-xl font-black uppercase text-xs tracking-widest border-2 border-stone-900 shadow-[2px_2px_0_0_#1c1917] hover:-translate-y-0.5 transition-all"
+                                                    className={`bg-blue-500 text-white py-3 rounded-xl font-black uppercase text-xs tracking-widest border-2 border-stone-900 shadow-[2px_2px_0_0_#1c1917] hover:-translate-y-0.5 transition-all ${!hasVaccineService ? 'col-span-1 sm:col-span-2' : ''}`}
                                                 >
                                                     TẠO BỆNH ÁN
                                                 </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={handleOpenVaccineModal}
-                                                    className="bg-emerald-500 text-white py-3 rounded-xl font-black uppercase text-xs tracking-widest border-2 border-emerald-700 shadow-[2px_2px_0_0_#065f46] hover:-translate-y-0.5 transition-all"
-                                                >
-                                                    TIÊM VACCINE
-                                                </button>
+                                                {hasVaccineService && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleOpenVaccineModal}
+                                                        className="bg-emerald-500 text-white py-3 rounded-xl font-black uppercase text-xs tracking-widest border-2 border-emerald-700 shadow-[2px_2px_0_0_#065f46] hover:-translate-y-0.5 transition-all"
+                                                    >
+                                                        TIÊM VACCINE
+                                                    </button>
+                                                )}
                                                 <button
                                                     type="button"
                                                     onClick={handleOpenAddServiceModal}

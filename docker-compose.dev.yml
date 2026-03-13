@@ -114,10 +114,15 @@ services:
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+      # JVM Options for DNS/IPv4
+      JAVA_TOOL_OPTIONS: "-Djava.net.preferIPv4Stack=true"
       #SePay API Token
       SEPAY_API_TOKEN: ${SEPAY_API_TOKEN:-}
       # Location Service (Goong.io)
       GOONG_API_KEY: ${GOONG_API_KEY:-}
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     volumes:
       - ./backend-spring/petties/src:/app/src:ro
     ports:

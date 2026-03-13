@@ -1142,11 +1142,15 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
         _booking!.services.any((s) => s.assignedStaffId == currentUserId);
     final canManageAddOn = status == 'IN_PROGRESS' &&
         (_booking!.type == 'HOME_VISIT' || _booking!.type == 'SOS');
-    final hasVaccinationService = _booking!.services.any(
-      (s) =>
-          s.serviceName?.toLowerCase().contains('vắc-xin') == true ||
-          s.serviceName?.toLowerCase().contains('vaccine') == true,
-    );
+    final hasVaccinationService = _booking!.services.any((s) {
+      final nameStr = (s.serviceName ?? '').trim().toLowerCase();
+      final categoryStr = (s.serviceCategory ?? '').trim().toUpperCase();
+      // Chỉ check category VACCINATION hoặc từ khóa cụ thể của vaccine
+      return categoryStr == 'VACCINATION' ||
+          nameStr.contains('vắc-xin') ||
+          nameStr.contains('vaccine') ||
+          nameStr.contains('vắc xin');
+    });
 
     Widget? actionButton;
 
@@ -1238,13 +1242,12 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
         ),
       ];
 
-      if (!isMyBooking && canManageAddOn) {
+      // Hiển thị nút THÊM DỊCH VỤ PHÁT SINH cho tất cả booking IN_PROGRESS (trừ SOS)
+      if (status == 'IN_PROGRESS' && _booking!.type != 'SOS') {
         actions.addAll([
           const SizedBox(height: 12),
           _buildActionButton(
-            label: _booking!.type == 'SOS'
-                ? 'THÊM DỊCH VỤ'
-                : 'THÊM DỊCH VỤ PHÁT SINH',
+            label: 'THÊM DỊCH VỤ PHÁT SINH',
             icon: Icons.add_circle_outline,
             color: AppColors.primary,
             onPressed: () async {
@@ -1261,9 +1264,8 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
         ]);
       }
 
-      // Với SOS, không hiển thị shortcut TIÊM VACCINE
-      // Support staff cũng có thể tiêm nếu booking có kèm dịch vụ vắc-xin
-      if (_booking!.type != 'SOS' && (isMyBooking || hasVaccinationService)) {
+      // Chỉ hiển thị TIÊM VACCINE khi thực sự có dịch vụ vaccine trong booking
+      if (_booking!.type != 'SOS' && hasVaccinationService) {
         actions.addAll([
           const SizedBox(height: 12),
           _buildActionButton(
@@ -1276,13 +1278,17 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
                 final petName = _booking!.petName ?? 'Thú cưng';
                 String? initialVaccineName;
                 try {
-                  final vaccService = _booking!.services.firstWhere(
-                    (s) =>
-                        s.serviceName?.toLowerCase().contains('vắc-xin') ==
-                            true ||
-                        s.serviceName?.toLowerCase().contains('vaccine') ==
-                            true,
-                  );
+                  final vaccService = _booking!.services.firstWhere((s) {
+                    final nameStr = s.serviceName?.toLowerCase() ?? '';
+                    final categoryStr = s.serviceCategory ?? '';
+                    return categoryStr == 'VACCINATION' ||
+                        nameStr.contains('vắc-xin') ||
+                        nameStr.contains('vaccine') ||
+                        nameStr.contains('tiêm') ||
+                        categoryStr.toLowerCase().contains('vắc-xin') ||
+                        categoryStr.toLowerCase().contains('vaccine') ||
+                        categoryStr.toLowerCase().contains('tiêm');
+                  });
                   initialVaccineName = vaccService.serviceName;
                 } catch (_) {
                   initialVaccineName = null;

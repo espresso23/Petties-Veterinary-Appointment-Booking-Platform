@@ -15,14 +15,14 @@ class Review {
     required this.createdAt,
   });
 
-  factory Review.fromJson(Map<String, dynamic> json) {
-    return Review(
-      reviewId: json['reviewId'],
-      rating: json['rating'],
-      comment: json['comment'] ?? '',
-      userName: json['userName'] ?? 'Người dùng ấn danh',
-      userAvatar: json['userAvatar'],
-      createdAt: DateTime.parse(json['createdAt']),
-    );
-  }
+factory Review.fromJson(Map<String, dynamic> json) {
+  return Review(
+    reviewId: json['reviewId'] ?? '',
+    rating: (json['rating'] as num?)?.toInt() ?? 0,
+    comment: json['comment'] ?? '',
+    userName: json['userName'] ?? 'Người dùng ẩn danh',
+    userAvatar: json['userAvatar'],
+    createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
+  );
+}
 }

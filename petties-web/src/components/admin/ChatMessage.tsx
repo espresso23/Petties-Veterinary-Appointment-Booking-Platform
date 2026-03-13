@@ -5,6 +5,7 @@ interface ChatMessageProps {
   role: 'user' | 'assistant'
   content: string
   timestamp?: Date
+  images?: string[] // Mảng các URL hình ảnh từ metadata
   citations?: Array<{ type: 'rag' | 'web'; source: string; url?: string }>
   thinkingProcess?: string[]
   toolCalls?: Array<{ tool: string; input: Record<string, unknown>; output?: unknown }>
@@ -85,6 +86,7 @@ export const ChatMessage = ({
   role,
   content,
   timestamp,
+  images = [],
   citations = [],
   thinkingProcess = [],
   toolCalls = [],
@@ -119,12 +121,26 @@ export const ChatMessage = ({
 
         {/* Message Bubble */}
         <div className={`
-          relative border-2 border-stone-900 p-3.5 w-fit
+          relative border-2 border-stone-900 p-3.5 w-fit max-w-full
           ${isUser
             ? 'bg-blue-500 text-white shadow-[3px_3px_0_#1c1917]'
             : 'bg-white text-stone-900 shadow-[3px_3px_0_#1c1917]'
           }
         `}>
+          {images.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {images.map((url, idx) => (
+                <div key={idx} className="w-32 h-32 border-2 border-stone-900 overflow-hidden relative">
+                  <img 
+                    src={url} 
+                    alt={`Image ${idx + 1}`} 
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
           <div className={`text-sm md:text-base font-bold whitespace-pre-wrap leading-relaxed ${isUser ? 'text-white' : 'text-stone-900'}`}>
             {content}
           </div>
