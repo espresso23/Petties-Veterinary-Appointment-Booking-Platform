@@ -7,6 +7,7 @@ export interface AISessionMessage {
     content: string
     timestamp: Date
     images?: string[]
+    isLoading?: boolean
 }
 
 interface AIChatState {
@@ -48,7 +49,7 @@ export const useAIChatStore = create<AIChatState>()(
                 if (lastIndex >= 0 && messages[lastIndex].role === 'assistant') {
                     messages[lastIndex] = {
                         ...messages[lastIndex],
-                        content: messages[lastIndex].content + content,
+                        content: content, // Replace content, not append
                         isLoading
                     } as AISessionMessage & { isLoading?: boolean }
                 } else {

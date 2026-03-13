@@ -340,8 +340,10 @@ public class ClinicServiceService {
         ClinicService service = clinicServiceRepository.findByServiceIdAndClinic(serviceId, clinic)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dịch vụ với ID: " + serviceId));
 
-        clinicServiceRepository.delete(service);
-        log.info("Service deleted: {} by user: {}", serviceId, getCurrentUser().getUserId());
+        // Soft-delete: set isActive = false instead of hard delete to preserve FK integrity
+        service.setIsActive(false);
+        clinicServiceRepository.save(service);
+        log.info("Service soft-deleted (deactivated): {} by user: {}", serviceId, getCurrentUser().getUserId());
     }
 
     /**

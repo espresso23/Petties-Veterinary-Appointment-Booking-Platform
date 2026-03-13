@@ -278,7 +278,8 @@ export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {
             id: `ai-${Date.now()}`,
             role: 'assistant',
             content: '',
-            timestamp: new Date()
+            timestamp: new Date(),
+            isLoading: true
         })
 
         // Send via WebSocket - use existing connection if available

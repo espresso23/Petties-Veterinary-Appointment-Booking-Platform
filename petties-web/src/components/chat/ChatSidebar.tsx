@@ -83,7 +83,7 @@ export const ChatSidebar = ({
         role: msg.role,
         content: msg.content,
         timestamp: msg.timestamp,
-        isLoading: false
+        isLoading: msg.isLoading ?? false
     }))
 
     // Load sessions list
@@ -301,10 +301,8 @@ export const ChatSidebar = ({
 
                 // Handle thinking type (for reasoning display)
                 if (data.type === 'thinking') {
-                    const step = data.step || {}
-                    const content = data.content || step.thought || step.content || ''
+                    const content = data.content || ''
                     
-                    // Update existing loading message instead of adding new one
                     if (content) {
                         updateLastMessage(content, true) // true = still loading/thinking
                     }
@@ -422,10 +420,11 @@ export const ChatSidebar = ({
 
         // Add loading message to store
         addMessage({
-            id: (Date.now() + 1).toString(),
+            id: `ai-${Date.now()}`,
             role: 'assistant',
             content: '',
-            timestamp: new Date()
+            timestamp: new Date(),
+            isLoading: true
         })
 
         // Send via WebSocket

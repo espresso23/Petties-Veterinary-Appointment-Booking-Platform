@@ -61,6 +61,13 @@ export const ChatbotUI = ({
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const { showToast } = useToast()
 
+    // Sync messages when initialMessages changes (for external updates like from store)
+    useEffect(() => {
+        if (initialMessages && initialMessages.length > 0) {
+            setMessages(initialMessages)
+        }
+    }, [initialMessages])
+
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
@@ -393,11 +400,11 @@ export const ChatbotUI = ({
                             {message.isLoading ? (
                                 <div className="flex items-center gap-2 px-4 py-3">
                                     <div className="flex gap-1">
-                                        <span className="w-2 h-2 bg-stone-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                                        <span className="w-2 h-2 bg-stone-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                                        <span className="w-2 h-2 bg-stone-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                                        <span className="w-2 h-2 bg-amber-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                                        <span className="w-2 h-2 bg-amber-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                                        <span className="w-2 h-2 bg-amber-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
                                     </div>
-                                    <span className="text-sm text-stone-500">AI đang suy nghĩ...</span>
+                                    <span className="text-sm text-amber-600 font-medium">AI đang suy nghĩ...</span>
                                 </div>
                             ) : (
                                 <p className="text-sm whitespace-pre-wrap px-4 py-3">{message.content}</p>

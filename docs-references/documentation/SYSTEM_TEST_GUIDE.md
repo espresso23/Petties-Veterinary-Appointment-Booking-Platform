@@ -24,7 +24,20 @@ Based on the current project status, the following business flows have been comp
 *   **System Test (This Document):** (User Level) Written and executed by QA/Testers. Simulates clicking and typing actions of end-users on the Web or Mobile App UI. Verifies screen outputs and corresponding data changes at the endpoints.
 
 ## 4. Test Report File Structure
-The defect reporting file (e.g., `_SEP490_SP26_Report5_Test Report.csv`) must adhere to the following structure:
+
+### 4.1 Test Planning Template (Index/Summary)
+Mẫu này dùng để tổng hợp danh sách các chức năng cần test trong hệ thống (thường là trang đầu tiên của file test):
+
+| Column | Description |
+| :--- | :--- |
+| **No** | Số thứ tự. |
+| **Function Name** | Tên chức năng (Feature Name). |
+| **Sheet Name** | Tên Sheet tương ứng chứa chi tiết các Test Case. |
+| **Description** | Mô tả ngắn gọn về chức năng. |
+| **Pre-Condition** | Điều kiện tiên quyết chung cho toàn bộ chức năng. |
+
+### 4.2 Detailed Test Case Template
+Mẫu chi tiết cho từng Test Case trong các sheet cụ thể:
 
 | Column | Description |
 | :--- | :--- |
