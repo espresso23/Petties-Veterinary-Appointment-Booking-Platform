@@ -298,12 +298,15 @@ class ChatMessage extends BaseModel {
           DateTime.now(),
       isUploading: json['isUploading'] ??
           false, // Default to false when parsing from JSON
-      actionButtons: (json['actionButtons'] ?? json['action_buttons']) != null
-          ? ((json['actionButtons'] ?? json['action_buttons']) as List)
-              .map((e) =>
-                  ActionButton.fromJson(Map<String, dynamic>.from(e as Map)))
-              .toList()
-          : null,
+      actionButtons: () {
+        final list = (json['actionButtons'] ?? json['action_buttons']) as List?;
+        if (list == null || list.isEmpty) return null;
+        final validButtons = list
+            .whereType<Map<dynamic, dynamic>>()
+            .map((e) => ActionButton.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
+        return validButtons.isEmpty ? null : validButtons;
+      }(),
     );
   }
 
