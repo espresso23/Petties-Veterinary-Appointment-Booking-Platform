@@ -574,20 +574,36 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.stone50,
-      appBar: AppBar(
-        backgroundColor: AppColors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.stone900),
-          onPressed: () => context.pop(),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go(AppRoutes.home);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.stone50,
+        appBar: AppBar(
+          backgroundColor: AppColors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppColors.stone900),
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go(AppRoutes.home);
+              }
+            },
+          ),
+          title: const Text('Chi tiết lịch hẹn',
+              style: TextStyle(
+                  color: AppColors.stone900, fontWeight: FontWeight.w700)),
+          centerTitle: true,
         ),
-        title: const Text('Chi tiết lịch hẹn',
-            style: TextStyle(
-                color: AppColors.stone900, fontWeight: FontWeight.w700)),
-        centerTitle: true,
-      ),
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(color: AppColors.primary))
@@ -601,7 +617,7 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
                   child: _buildContent(),
                 ),
       bottomNavigationBar: _booking != null ? _buildActionBar() : null,
-    );
+    ));
   }
 
   Widget _buildContent() {
@@ -1322,6 +1338,23 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
             icon: Icons.flag_circle,
             color: Colors.teal,
             onPressed: _handleArrived,
+          ),
+        ]);
+      }
+
+      if (isMyBooking &&
+          (_booking!.type == 'SOS' || _booking!.type == 'HOME_VISIT')) {
+        actions.addAll([
+          const SizedBox(height: 12),
+          _buildActionButton(
+            label: 'CHỈ ĐƯỜNG (MAPS)',
+            icon: Icons.directions,
+            color: Colors.green,
+            onPressed: () => _openMap(
+              _booking!.homeLat,
+              _booking!.homeLong,
+              _booking!.homeAddress ?? '',
+            ),
           ),
         ]);
       }

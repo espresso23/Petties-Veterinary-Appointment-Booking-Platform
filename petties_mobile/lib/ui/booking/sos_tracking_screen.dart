@@ -854,43 +854,60 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: const Text('THEO DÕI BÁC SĨ (SOS)'),
-        backgroundColor: AppColors.coral,
-        foregroundColor: Colors.white,
-      ),
-      body: Stack(
-        children: [
-          GoogleMap(
-            initialCameraPosition: const CameraPosition(
-              target: LatLng(10.762622, 106.660172), // Default HCM City
-              zoom: 15,
-            ),
-            onMapCreated: (GoogleMapController controller) {
-              _controller.complete(controller);
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go(AppRoutes.home);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go(AppRoutes.home);
+              }
             },
-            markers: _markers,
-            polylines: _polylines,
-            myLocationEnabled: true,
-            myLocationButtonEnabled: true,
-            padding: const EdgeInsets.only(
-              bottom: 220,
-              top: 100,
+          ),
+          title: const Text('THEO DÕI BÁC SĨ (SOS)'),
+          backgroundColor: AppColors.coral,
+          foregroundColor: Colors.white,
+        ),
+        body: Stack(
+          children: [
+            GoogleMap(
+              initialCameraPosition: const CameraPosition(
+                target: LatLng(10.762622, 106.660172), // Default HCM City
+                zoom: 15,
+              ),
+              onMapCreated: (GoogleMapController controller) {
+                _controller.complete(controller);
+              },
+              markers: _markers,
+              polylines: _polylines,
+              myLocationEnabled: true,
+              myLocationButtonEnabled: true,
+              padding: const EdgeInsets.only(
+                bottom: 220,
+                top: 100,
+              ),
             ),
-          ),
-          Positioned(
-            top: 16,
-            left: 16,
-            right: 16,
-            child: _buildBookingHeader(),
-          ),
-          _buildDraggableVetSheet(),
-        ],
+            Positioned(
+              top: 16,
+              left: 16,
+              right: 16,
+              child: _buildBookingHeader(),
+            ),
+            _buildDraggableVetSheet(),
+          ],
+        ),
       ),
     );
   }

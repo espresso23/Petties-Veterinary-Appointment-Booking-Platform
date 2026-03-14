@@ -67,7 +67,13 @@ class AppointmentDetailScreen extends StatelessWidget {
       backgroundColor: AppColors.white,
       elevation: 0,
       leading: GestureDetector(
-        onTap: () => Navigator.of(context).pop(),
+        onTap: () {
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.go(AppRoutes.petOwnerHome);
+          }
+        },
         child: Container(
           margin: const EdgeInsets.all(8),
           decoration: BoxDecoration(
