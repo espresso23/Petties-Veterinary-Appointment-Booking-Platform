@@ -475,7 +475,6 @@ export const StaffBookingsPage = () => {
                                 const allServiceItems = (selectedBooking.pets?.length ?? 0) > 0
                                     ? (selectedBooking.pets ?? []).flatMap(p => p.services ?? [])
                                     : (selectedBooking.services ?? []);
-                                const isAssignedToBooking = allServiceItems.some(svc => svc.assignedStaffId === user?.userId);
                                 const hasVaccineService = allServiceItems.some(svc => {
                                     const nameStr = svc.serviceName?.toLowerCase() || '';
                                     const catStr = svc.serviceCategory || '';
