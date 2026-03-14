@@ -555,6 +555,13 @@ export const StaffBookingsPage = () => {
                                     {(selectedBooking.status === 'CONFIRMED' || selectedBooking.status === 'IN_PROGRESS') && (
                                         <div className="p-4 bg-stone-50 rounded-2xl border-2 border-stone-900 shadow-[3px_3px_0_0_#1c1917] space-y-3">
                                             <div className="text-[10px] text-stone-500 font-black uppercase tracking-widest">Thao tác</div>
+                                            <button
+                                                type="button"
+                                                onClick={() => navigate('/staff/patients', { state: { focusPetId: selectedBooking.petId } })}
+                                                className="w-full bg-white text-stone-900 py-3 rounded-xl font-black uppercase text-xs tracking-widest border-2 border-stone-900 shadow-[2px_2px_0_0_#1c1917] hover:-translate-y-0.5 transition-all"
+                                            >
+                                                XEM HỒ SƠ BỆNH ÁN
+                                            </button>
                                             {selectedBooking.status === 'CONFIRMED' && (
                                                 <button
                                                     onClick={async () => {

@@ -8,6 +8,8 @@ import '../../../data/models/vaccination.dart';
 import '../../../data/services/emr_service.dart';
 import '../../../data/services/pet_service.dart';
 import '../../../data/services/auth_service.dart';
+import '../../../data/services/booking_service.dart';
+import '../../../routing/app_routes.dart';
 import '../../../data/services/vaccination_service.dart';
 import '../../../data/models/vaccine_template.dart';
 import '../../../data/services/vaccine_template_service.dart';
@@ -24,6 +26,7 @@ class PatientListScreen extends StatefulWidget {
 
 class _PatientListScreenState extends State<PatientListScreen> {
   final PetService _petService = PetService();
+  final BookingService _bookingService = BookingService();
 
   List<Pet> _patients = [];
   bool _isLoading = true;
@@ -83,6 +86,54 @@ class _PatientListScreenState extends State<PatientListScreen> {
         _isLoading = false;
       });
     }
+  }
+  Future<String?> _resolveActiveBookingId(Pet patient) async {
+    final bookingId = patient.bookingId;
+    if (bookingId != null && bookingId.isNotEmpty) return bookingId;
+
+    final bookingCode = patient.bookingCode;
+    if (bookingCode == null || bookingCode.isEmpty) return null;
+
+    final booking = await _bookingService.getBookingByCode(bookingCode);
+    return booking.bookingId;
+  }
+
+  Future<void> _openPatientOrBooking(Pet patient) async {
+    final status = patient.bookingStatus;
+    final isActiveBooking = status == 'IN_PROGRESS' || status == 'CONFIRMED';
+
+    if (isActiveBooking) {
+      try {
+        final bookingId = await _resolveActiveBookingId(patient);
+        if (bookingId != null && bookingId.isNotEmpty) {
+          await context.push(
+            AppRoutes.staffBookingDetail.replaceAll(':bookingId', bookingId),
+          );
+          if (!mounted) return;
+          await _loadPatients();
+          return;
+        }
+      } catch (e) {
+        debugPrint('Không thể mở chi tiết lịch hẹn hiện tại: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Không thể mở chi tiết lịch hẹn hiện tại'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PatientDetailScreen(patient: patient),
+      ),
+    );
+    if (!mounted) return;
+    await _loadPatients();
   }
 
   List<Pet> get filteredPatients {
@@ -410,13 +461,7 @@ class _PatientListScreenState extends State<PatientListScreen> {
   Widget _buildPatientCard(Pet patient) {
     return GestureDetector(
       onTap: () async {
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => PatientDetailScreen(patient: patient),
-          ),
-        );
-        _loadPatients(); // Refresh after returning
+        await _openPatientOrBooking(patient);
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
