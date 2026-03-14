@@ -199,8 +199,13 @@ class FakeBookingService extends Fake implements BookingService {
   Future<BookingResponse> getBookingById(String id) async => BookingResponse(
         bookingId: id,
         type: 'SOS',
-        status: 'CONFIRMED',
+        status: id == 'booking_123' ? 'IN_PROGRESS' : 'CONFIRMED',
         clinicName: 'Test Clinic',
+        assignedStaffName: id == 'booking_123' ? 'BS. Minh' : null,
+        homeLat: 10.1,
+        homeLong: 106.1,
+        clinicLat: 10.2,
+        clinicLong: 106.2,
       );
   @override
   Future<BookingResponse> startMoving(String bookingId) async =>
@@ -329,7 +334,7 @@ void main() {
       // Khi chưa nhận được tracking location nào, màn hình hiển thị trạng thái điều phối.
       expect(
         find.text(
-            'Hệ thống đang điều phối và chờ bác sĩ bắt đầu di chuyển...'),
+            'Bác sĩ đã bắt đầu di chuyển, đang chờ cập nhật vị trí...'),
         findsOneWidget,
       );
     });

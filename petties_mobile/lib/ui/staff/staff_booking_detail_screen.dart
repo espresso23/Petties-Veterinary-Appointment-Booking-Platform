@@ -8,6 +8,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../config/constants/app_colors.dart';
 import '../../data/services/booking_service.dart';
 import '../../data/services/emr_service.dart';
+import '../../data/services/pet_service.dart';
+import '../../data/models/pet.dart';
+import 'patient/patient_screens.dart';
 import '../../data/services/tracking_websocket_service.dart';
 import '../../data/models/booking.dart';
 import '../../data/models/emr.dart';
@@ -30,6 +33,7 @@ class StaffBookingDetailScreen extends StatefulWidget {
 class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
   final BookingService _bookingService = BookingService();
   final EmrService _emrService = EmrService();
+  final PetService _petService = PetService();
   BookingResponse? _booking;
   EmrRecord? _existingEmr;
   bool _isLoading = true;
@@ -89,6 +93,71 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
     }
   }
 
+  Future<void> _openPatientProfile() async {
+    final petId = _booking?.petId;
+    if (petId == null || petId.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không thể mở hồ sơ bệnh án.')),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      ),
+    );
+
+    try {
+      final fetchedPet = await _petService.getPetById(petId);
+      if (!mounted) return;
+
+      Navigator.of(context, rootNavigator: true).pop();
+
+      final petWithContext = Pet(
+        id: fetchedPet.id,
+        name: fetchedPet.name,
+        species: fetchedPet.species,
+        breed: fetchedPet.breed,
+        dateOfBirth: fetchedPet.dateOfBirth,
+        weight: fetchedPet.weight,
+        gender: fetchedPet.gender,
+        color: fetchedPet.color,
+        allergies: fetchedPet.allergies,
+        imageUrl: fetchedPet.imageUrl,
+        ownerName: fetchedPet.ownerName,
+        ownerPhone: fetchedPet.ownerPhone,
+        isAssignedToMe: fetchedPet.isAssignedToMe,
+        nextAppointment: fetchedPet.nextAppointment,
+        bookingStatus: _booking?.status ?? fetchedPet.bookingStatus,
+        bookingId: _booking?.bookingId ?? fetchedPet.bookingId,
+        bookingCode: _booking?.bookingCode ?? fetchedPet.bookingCode,
+        lastVisitDate: fetchedPet.lastVisitDate,
+      );
+
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PatientDetailScreen(patient: petWithContext),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không thể mở hồ sơ bệnh án.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      debugPrint('Không thể mở hồ sơ bệnh án: $e');
+    }
+  }
   Future<void> _openMap(double? lat, double? lng, String address) async {
     Uri url;
     if (lat != null && lng != null) {
@@ -574,20 +643,36 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.stone50,
-      appBar: AppBar(
-        backgroundColor: AppColors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.stone900),
-          onPressed: () => context.pop(),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go(AppRoutes.home);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.stone50,
+        appBar: AppBar(
+          backgroundColor: AppColors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppColors.stone900),
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go(AppRoutes.home);
+              }
+            },
+          ),
+          title: const Text('Chi tiết lịch hẹn',
+              style: TextStyle(
+                  color: AppColors.stone900, fontWeight: FontWeight.w700)),
+          centerTitle: true,
         ),
-        title: const Text('Chi tiết lịch hẹn',
-            style: TextStyle(
-                color: AppColors.stone900, fontWeight: FontWeight.w700)),
-        centerTitle: true,
-      ),
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(color: AppColors.primary))
@@ -601,7 +686,7 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
                   child: _buildContent(),
                 ),
       bottomNavigationBar: _booking != null ? _buildActionBar() : null,
-    );
+    ));
   }
 
   Widget _buildContent() {
@@ -1211,7 +1296,15 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
     else if (status == 'IN_PROGRESS') {
       final actions = <Widget>[
         _buildActionButton(
-          label: _existingEmr != null ? 'XEM BỆNH ÁN' : 'TẠO BỆNH ÁN',
+          label: 'XEM HỒ SƠ BỆNH ÁN',
+          icon: Icons.folder_open,
+          color: AppColors.teal600,
+          onPressed: () {
+            _openPatientProfile();
+          },
+        ),
+        const SizedBox(height: 12),
+        _buildActionButton(          label: _existingEmr != null ? 'XEM BỆNH ÁN' : 'TẠO BỆNH ÁN',
           icon: _existingEmr != null
               ? Icons.description_outlined
               : Icons.assignment_outlined,
@@ -1322,6 +1415,23 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
             icon: Icons.flag_circle,
             color: Colors.teal,
             onPressed: _handleArrived,
+          ),
+        ]);
+      }
+
+      if (isMyBooking &&
+          (_booking!.type == 'SOS' || _booking!.type == 'HOME_VISIT')) {
+        actions.addAll([
+          const SizedBox(height: 12),
+          _buildActionButton(
+            label: 'CHỈ ĐƯỜNG (MAPS)',
+            icon: Icons.directions,
+            color: Colors.green,
+            onPressed: () => _openMap(
+              _booking!.homeLat,
+              _booking!.homeLong,
+              _booking!.homeAddress ?? '',
+            ),
           ),
         ]);
       }

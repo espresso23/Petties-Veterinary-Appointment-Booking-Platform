@@ -9,7 +9,14 @@ import { useAuthStore } from '../../../store/authStore'
 
 // Mock dependencies
 vi.mock('react-router-dom', () => ({
-    useNavigate: () => vi.fn()
+    useNavigate: () => vi.fn(),
+    useLocation: () => ({
+        state: null,
+        pathname: '/staff/patients',
+        search: '',
+        hash: '',
+        key: 'default'
+    })
 }))
 
 vi.mock('../../../components/Toast', () => ({

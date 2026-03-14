@@ -12,8 +12,16 @@ class BookingSuccessScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.stone50,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        final provider = context.read<BookingWizardProvider>();
+        provider.resetBooking();
+        context.go(AppRoutes.petOwnerHome);
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.stone50,
       body: Consumer<BookingWizardProvider>(
         builder: (context, provider, _) {
           return SafeArea(
@@ -219,7 +227,7 @@ class BookingSuccessScreen extends StatelessWidget {
           );
         },
       ),
-    );
+    ));
   }
 
   Widget _buildInfoRow(IconData icon, String label, String value) {
