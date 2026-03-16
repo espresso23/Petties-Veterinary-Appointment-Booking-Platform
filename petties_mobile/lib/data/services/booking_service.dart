@@ -15,6 +15,12 @@ class BookingService {
     return BookingResponse.fromJson(response.data);
   }
 
+  /// Get booking by booking code
+  Future<BookingResponse> getBookingByCode(String bookingCode) async {
+    final response = await _apiClient.get('/bookings/code/$bookingCode');
+    return BookingResponse.fromJson(response.data);
+  }
+
   /// Check-in booking (Staff action: CONFIRMED → IN_PROGRESS)
   /// Used for both clinic and home visits
   Future<BookingResponse> checkIn(String bookingId) async {

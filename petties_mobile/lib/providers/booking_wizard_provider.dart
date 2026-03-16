@@ -79,6 +79,7 @@ class BookingWizardProvider extends ChangeNotifier {
   bool _isLoadingServices = false;
   bool _isLoadingSlots = false;
   bool _isCreatingBooking = false;
+  String? _createdBookingId;
   String? _error;
 
   BookingWizardProvider({BookingWizardService? bookingService})
@@ -122,6 +123,7 @@ class BookingWizardProvider extends ChangeNotifier {
   bool get isLoadingServices => _isLoadingServices;
   bool get isLoadingSlots => _isLoadingSlots;
   bool get isCreatingBooking => _isCreatingBooking;
+  String? get createdBookingId => _createdBookingId;
   String? get error => _error;
 
   /// Calculate total price (sum of all pets' services + distance fee)
@@ -865,6 +867,7 @@ class BookingWizardProvider extends ChangeNotifier {
       }
 
       final bookingId = responseData['bookingId']?.toString();
+        _createdBookingId = bookingId;
       final paymentMethod =
           (responseData['paymentMethod']?.toString().toUpperCase() ?? _paymentMethod);
       final qrImageUrl = responseData['qrImageUrl']?.toString();
@@ -906,6 +909,7 @@ class BookingWizardProvider extends ChangeNotifier {
     _selectedTimeSlots = [];
     _availableSlots = [];
     _expectedPickupTime = null;
+    _createdBookingId = null;
     _error = null;
     _bookingError = null;
   }
