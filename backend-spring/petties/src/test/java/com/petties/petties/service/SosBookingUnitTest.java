@@ -66,6 +66,8 @@ class SosBookingUnitTest {
     private NotificationService notificationService;
     @Mock
     private SosSessionManager sosSessionManager;
+    @Mock
+    private PaymentRepository paymentRepository;
     @InjectMocks
     private BookingService bookingService;
 
@@ -105,6 +107,9 @@ class SosBookingUnitTest {
         sosBooking.setBookingTime(nowTime);
         sosBooking.setStatus(BookingStatus.IN_PROGRESS);
         sosBooking.setBookingServices(new ArrayList<>());
+
+        lenient().when(paymentRepository.findByBookingBookingId(any(UUID.class))).thenReturn(Optional.empty());
+        lenient().when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Nested

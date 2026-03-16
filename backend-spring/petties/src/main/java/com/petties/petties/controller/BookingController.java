@@ -13,6 +13,7 @@ import com.petties.petties.dto.booking.ProxyBookingRequest;
 import com.petties.petties.dto.booking.ReassignStaffRequest;
 import com.petties.petties.dto.booking.StaffAvailabilityCheckResponse;
 import com.petties.petties.dto.booking.StaffOptionDTO;
+import com.petties.petties.exception.ResourceNotFoundException;
 import com.petties.petties.model.enums.BookingStatus;
 import com.petties.petties.service.BookingService;
 import jakarta.validation.Valid;
@@ -378,8 +379,7 @@ public class BookingController {
     public ResponseEntity<BookingResponse> complete(
             @PathVariable UUID bookingId,
             @RequestBody(required = false) CheckoutRequest request) {
-        BookingResponse response = bookingService.complete(bookingId, request);
-        return ResponseEntity.ok(response);
+        throw new ResourceNotFoundException("Endpoint đã ngừng hỗ trợ. Vui lòng sử dụng /bookings/{bookingId}/checkout");
     }
 
     /**

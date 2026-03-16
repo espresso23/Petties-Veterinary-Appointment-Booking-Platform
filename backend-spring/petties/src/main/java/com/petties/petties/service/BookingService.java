@@ -1189,6 +1189,16 @@ public class BookingService {
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
+                if (currentUser.getRole() == Role.STAFF || currentUser.getRole() == Role.CLINIC_MANAGER) {
+                        UUID userClinicId = currentUser.getWorkingClinic() != null
+                                        ? currentUser.getWorkingClinic().getClinicId()
+                                        : null;
+                        UUID bookingClinicId = booking.getClinic() != null ? booking.getClinic().getClinicId() : null;
+                        if (userClinicId == null || bookingClinicId == null || !bookingClinicId.equals(userClinicId)) {
+                                throw new ForbiddenException("Bạn không có quyền thao tác booking của phòng khám khác");
+                        }
+                }
+
                 // Validate status - only allow for active bookings
                 if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
                         throw new IllegalStateException(
@@ -1201,7 +1211,7 @@ public class BookingService {
 
                 // Validate service belongs to the same clinic
                 if (!service.getClinic().getClinicId().equals(booking.getClinic().getClinicId())) {
-                        throw new IllegalArgumentException("Dịch vụ không thuộc phòng khám này");
+                        throw new ForbiddenException("Bạn không thể thêm dịch vụ của phòng khám khác");
                 }
 
                 // Check if service already exists in booking
@@ -1334,8 +1344,7 @@ public class BookingService {
                         booking.setTotalPrice(servicesTotal.add(sosFee));
                 }
 
-                // Staff checkout chỉ chốt thông tin thanh toán, KHÔNG đổi trạng thái booking.
-                // Booking giữ IN_PROGRESS để Staff quyết định thời điểm hoàn tất.
+                // Checkout sẽ hoàn tất booking ngay sau khi chốt thông tin thanh toán.
                 String paymentMethod = request != null ? request.getPaymentMethod() : null;
                 PaymentMethod method = paymentMethod != null && !paymentMethod.isBlank()
                                 ? PaymentMethod.valueOf(paymentMethod.trim().toUpperCase())
@@ -1349,16 +1358,21 @@ public class BookingService {
                                         .method(method)
                                         .status(PaymentStatus.PENDING)
                                         .build();
-                } else if (payment.getStatus() != PaymentStatus.PAID) {
+                }
+
+                if (payment.getStatus() != PaymentStatus.PAID) {
                         payment.setMethod(method);
-                        payment.setStatus(PaymentStatus.PENDING);
-                        payment.setPaidAt(null);
+                        payment.markAsPaid();
                 }
 
                 paymentRepository.save(payment);
                 booking.setPayment(payment);
                 booking.syncPaymentStatus(payment);
-                booking = bookingRepository.save(booking);
+                booking.setStatus(BookingStatus.COMPLETED);
+                Booking savedBooking = bookingRepository.save(booking);
+                if (savedBooking != null) {
+                        booking = savedBooking;
+                }
 
                 try {
                         trackingService.clearTracking(bookingId);
@@ -1366,14 +1380,14 @@ public class BookingService {
                         log.warn("Failed to clear tracking data: {}", e.getMessage());
                 }
 
-                bookingNotificationService.pushBookingUpdateToUsers(booking, "IN_PROGRESS");
+                bookingNotificationService.pushBookingUpdateToUsers(booking, "COMPLETED");
                 try {
-                        notificationService.sendPaymentRequiredNotification(booking);
+                        notificationService.sendCompletedNotification(booking);
                 } catch (Exception e) {
-                        log.warn("Failed to send payment-required notification after checkout: {}", e.getMessage());
+                        log.warn("Failed to send completed notification after checkout: {}", e.getMessage());
                 }
 
-                log.info("Booking {} checked out by staff, payment left pending with method {}",
+                log.info("Booking {} checked out by staff and completed with method {}",
                                 booking.getBookingCode(), payment.getMethod());
                 return bookingMapper.mapToResponse(booking);
         }
@@ -1388,6 +1402,10 @@ public class BookingService {
 
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+
+                if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
+                        throw new IllegalStateException("Chỉ có thể xóa dịch vụ phát sinh khi booking đang thực hiện");
+                }
 
                 BookingServiceItem itemToRemove = booking.getBookingServices().stream()
                                 .filter(item -> item.getBookingServiceId().equals(bookingServiceId))
@@ -1433,6 +1451,16 @@ public class BookingService {
                         UUID bookingId, User currentUser) {
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+
+                if (currentUser.getRole() == Role.STAFF || currentUser.getRole() == Role.CLINIC_MANAGER) {
+                        UUID userClinicId = currentUser.getWorkingClinic() != null
+                                        ? currentUser.getWorkingClinic().getClinicId()
+                                        : null;
+                        UUID bookingClinicId = booking.getClinic() != null ? booking.getClinic().getClinicId() : null;
+                        if (userClinicId == null || bookingClinicId == null || !bookingClinicId.equals(userClinicId)) {
+                                throw new ForbiddenException("Bạn không có quyền xem dịch vụ của phòng khám khác");
+                        }
+                }
 
                 // Get all active services for the clinic
                 List<ClinicService> allActiveServices = clinicServiceRepository
@@ -1691,11 +1719,9 @@ public class BookingService {
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
                 // Validate status
-                if (booking.getStatus() != BookingStatus.IN_PROGRESS
-                                && booking.getStatus() != BookingStatus.COMPLETED
-                                && booking.getStatus() != BookingStatus.CONFIRMED) {
+                if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
                         throw new IllegalStateException(
-                                        "Chỉ có thể hoàn thành/thanh toán khi booking ở trạng thái CONFIRMED, IN_PROGRESS hoặc COMPLETED. Trạng thái hiện tại: "
+                                        "Chỉ có thể hoàn thành/thanh toán khi booking ở trạng thái IN_PROGRESS. Trạng thái hiện tại: "
                                                         + booking.getStatus());
                 }
 

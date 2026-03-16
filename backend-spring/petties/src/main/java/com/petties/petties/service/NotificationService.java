@@ -697,12 +697,6 @@ public class NotificationService {
                                 notification.getNotificationId(), petOwner.getUserId());
 
                 pushNotificationToUser(petOwner.getUserId(), notification);
-
-                // Also notify clinic managers
-                notifyClinicManagersForBooking(
-                                booking,
-                                NotificationType.BOOKING_CHECKIN,
-                                message);
         }
 
         /**
@@ -759,7 +753,7 @@ public class NotificationService {
                                 .clinic(booking.getClinic())
                                 .type(NotificationType.BOOKING_COMPLETED)
                                 .message(message)
-                                .actionData(booking.getBookingId().toString())
+                                .actionData(booking.getBookingId() != null ? booking.getBookingId().toString() : null)
                                 .read(false)
                                 .build();
 
@@ -768,12 +762,6 @@ public class NotificationService {
                                 notification.getNotificationId(), petOwner.getUserId());
 
                 pushNotificationToUser(petOwner.getUserId(), notification);
-
-                // Also notify clinic managers
-                notifyClinicManagersForBooking(
-                                booking,
-                                NotificationType.BOOKING_COMPLETED,
-                                message);
         }
 
         /**

@@ -56,6 +56,8 @@ class BookingServiceUnitTest {
     private com.petties.petties.mapper.BookingMapper bookingMapper;
     @Mock
     private BookingNotificationService bookingNotificationService;
+    @Mock
+    private PaymentRepository paymentRepository;
 
     @InjectMocks
     private BookingService bookingService;
@@ -116,6 +118,9 @@ class BookingServiceUnitTest {
         service.setServiceCategory(ServiceCategory.SURGERY);
         service.setDurationTime(30);
         service.setIsHomeVisit(true); // HOME_VISIT add-on tests: chỉ dịch vụ tại nhà
+
+        lenient().when(paymentRepository.findByBookingBookingId(any(UUID.class))).thenReturn(Optional.empty());
+        lenient().when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Nested

@@ -6,12 +6,14 @@ import com.petties.petties.exception.ResourceNotFoundException;
 import com.petties.petties.mapper.BookingMapper;
 import com.petties.petties.model.Booking;
 import com.petties.petties.model.Clinic;
+import com.petties.petties.model.Payment;
 import com.petties.petties.model.Pet;
 import com.petties.petties.model.User;
 import com.petties.petties.model.enums.BookingStatus;
 import com.petties.petties.model.enums.BookingType;
 import com.petties.petties.repository.BookingRepository;
 import com.petties.petties.repository.EmrRecordRepository;
+import com.petties.petties.repository.PaymentRepository;
 import com.petties.petties.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -61,6 +63,9 @@ class BookingStatusTransitionTest {
 
     @Mock
     private BookingNotificationService bookingNotificationService;
+
+    @Mock
+    private PaymentRepository paymentRepository;
 
     @InjectMocks
     private BookingService bookingService;
@@ -117,6 +122,9 @@ class BookingStatusTransitionTest {
                     .type(b.getType())
                     .build();
         });
+
+        lenient().when(paymentRepository.findByBookingBookingId(any(UUID.class))).thenReturn(Optional.empty());
+        lenient().when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     // ========== CHECK-IN TESTS ==========
