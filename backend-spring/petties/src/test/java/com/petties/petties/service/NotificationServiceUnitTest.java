@@ -372,34 +372,17 @@ class NotificationServiceUnitTest {
     }
 
     @Test
-    @DisplayName("Get Notifications By User - clinic manager should filter owner-facing notification types")
-    void getNotificationsByUser_clinicManager_shouldFilterOwnerFacingTypes() {
+        @DisplayName("Get Notifications By User Id - should query notifications by user id")
+        void getNotificationsByUserId_shouldQueryByUserId() {
         UUID managerId = UUID.randomUUID();
-        User manager = new User();
-        manager.setUserId(managerId);
-        manager.setRole(Role.CLINIC_MANAGER);
 
-        when(notificationRepository.findByUserUserIdAndTypeInOrderByCreatedAtDesc(
-                eq(managerId), any(), any()))
-                .thenReturn(new PageImpl<>(List.of()));
+        when(notificationRepository.findByUserUserIdOrderByCreatedAtDesc(
+            eq(managerId), any()))
+            .thenReturn(new PageImpl<>(List.of()));
 
-        notificationService.getNotificationsByUser(manager, PageRequest.of(0, 20));
+        notificationService.getNotificationsByUserId(managerId, PageRequest.of(0, 20));
 
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<Collection<NotificationType>> typesCaptor = ArgumentCaptor.forClass(Collection.class);
-        verify(notificationRepository).findByUserUserIdAndTypeInOrderByCreatedAtDesc(
-                eq(managerId),
-                typesCaptor.capture(),
-                any());
-        verify(notificationRepository, never()).findByUserUserIdOrderByCreatedAtDesc(any(), any());
-
-        Collection<NotificationType> visibleTypes = typesCaptor.getValue();
-        assertTrue(visibleTypes.contains(NotificationType.BOOKING_CREATED));
-        assertTrue(visibleTypes.contains(NotificationType.BOOKING_CANCELLED));
-        assertFalse(visibleTypes.contains(NotificationType.BOOKING_COMPLETED));
-        assertFalse(visibleTypes.contains(NotificationType.BOOKING_CHECKIN));
-        assertFalse(visibleTypes.contains(NotificationType.STAFF_ON_WAY));
-        assertFalse(visibleTypes.contains(NotificationType.STAFF_ARRIVED));
+        verify(notificationRepository).findByUserUserIdOrderByCreatedAtDesc(eq(managerId), any());
     }
 
     @Test

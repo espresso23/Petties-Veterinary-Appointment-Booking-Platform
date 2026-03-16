@@ -370,7 +370,7 @@ class BookingServiceUnitTest {
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
             when(bookingMapper.mapToResponse(any())).thenReturn(BookingResponse.builder().bookingId(bookingId).build());
 
-            BookingResponse response = bookingService.removeServiceFromBooking(bookingId, bookingServiceId, staff);
+            BookingResponse response = bookingService.removeServiceFromBooking(bookingId, bookingServiceId);
 
             assertNotNull(response);
             verify(bookingServiceItemRepository).delete(addOnItem);
@@ -395,7 +395,7 @@ class BookingServiceUnitTest {
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
 
             assertThrows(IllegalStateException.class,
-                    () -> bookingService.removeServiceFromBooking(bookingId, bookingServiceId, staff));
+                    () -> bookingService.removeServiceFromBooking(bookingId, bookingServiceId));
         }
     }
 

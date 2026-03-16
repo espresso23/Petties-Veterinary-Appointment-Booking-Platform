@@ -28,6 +28,7 @@
     "d3": "^7.9.0",
     "date-fns": "^4.1.0",
     "leaflet": "^1.9.4",
+    "pdfjs-dist": "^5.5.207",
     "react": "^19.2.0",
     "react-apexcharts": "^2.0.1",
     "react-datepicker": "^9.1.0",
