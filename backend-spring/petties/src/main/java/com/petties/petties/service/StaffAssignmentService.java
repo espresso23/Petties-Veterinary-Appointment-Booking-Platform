@@ -1188,6 +1188,13 @@ public class StaffAssignmentService {
         List<StaffShift> shifts = staffShiftRepository.findByClinic_ClinicIdAndWorkDate(clinicId, date);
         log.debug("Found {} shifts on date {}", shifts.size(), date);
 
+        // Step 4b: Get all active clinic bookings (PENDING, CONFIRMED, IN_PROGRESS) - exclude slots đã có người đặt
+        List<Booking> clinicBookings = bookingRepository.findByClinicIdAndDate(clinicId, date).stream()
+                .filter(b -> b.getStatus() != com.petties.petties.model.enums.BookingStatus.CANCELLED
+                        && b.getStatus() != com.petties.petties.model.enums.BookingStatus.NO_SHOW)
+                .toList();
+        log.debug("Found {} active clinic bookings on date {} (PENDING/CONFIRMED/IN_PROGRESS)", clinicBookings.size(), date);
+
         // Step 5: Generate all possible 30-minute slots (08:00 - 20:00)
         List<LocalTime> allPossibleSlots = new ArrayList<>();
         LocalTime start = LocalTime.of(8, 0);
@@ -1207,6 +1214,17 @@ public class StaffAssignmentService {
         for (LocalTime startTime : allPossibleSlots) {
             boolean isValid = true;
             LocalTime currentTime = startTime;
+
+            // Tính tổng thời lượng cho toàn bộ dịch vụ
+            int totalDurationMinutes = services.stream()
+                    .mapToInt(s -> s.getDurationTime() != null ? s.getDurationTime() : 30)
+                    .sum();
+            LocalTime slotEndTime = startTime.plusMinutes(totalDurationMinutes);
+
+            // Exclude slots that have a booking (PENDING/CONFIRMED/IN_PROGRESS) - even if no staff is assigned.
+            if (hasClinicBookingOverlap(clinicBookings, startTime, slotEndTime)) {
+                continue;
+            }
 
             for (com.petties.petties.model.ClinicService service : services) {
                 int durationMinutes = service.getDurationTime() != null ? service.getDurationTime() : 30;
@@ -1271,6 +1289,25 @@ public class StaffAssignmentService {
     private boolean hasBookingInTimeRange(UUID staffId, LocalDate date, LocalTime startTime, LocalTime endTime) {
         List<Booking> staffBookings = bookingRepository.findByStaffIdAndDate(staffId, date);
         for (Booking booking : staffBookings) {
+            LocalTime bookingStart = booking.getBookingTime();
+            int totalDuration = booking.getBookingServices().stream()
+                    .mapToInt(item -> item.getService().getDurationTime() != null ? item.getService().getDurationTime() : 30)
+                    .sum();
+            LocalTime bookingEnd = bookingStart.plusMinutes(totalDuration);
+            boolean overlaps = !bookingEnd.isBefore(startTime) && !bookingStart.isAfter(endTime);
+            if (overlaps) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Helper: Check if any clinic booking overlaps with the given time range.
+     * Using to exclude slots that have a booking (PENDING/CONFIRMED/IN_PROGRESS) - even if no staff is assigned.
+     */
+    private boolean hasClinicBookingOverlap(List<Booking> clinicBookings, LocalTime startTime, LocalTime endTime) {
+        for (Booking booking : clinicBookings) {
             LocalTime bookingStart = booking.getBookingTime();
             int totalDuration = booking.getBookingServices().stream()
                     .mapToInt(item -> item.getService().getDurationTime() != null ? item.getService().getDurationTime() : 30)
