@@ -1,8 +1,8 @@
 # II. Software Design Document
 
 **Project:** Petties - Veterinary Appointment Booking Platform  
-**Version:** 1.9.0 (Updated SOS Emergency Flow with BR references)  
-**Last Updated:** 2026-02-09  
+**Version:** 3.0.0 (Restructured Section 4 to match SRS 2.2 feature structure 1:1 - 17 features)  
+**Last Updated:** 2026-03-05  
 **Document Status:** In Progress
 
 ## TABLE OF CONTENTS
@@ -18,24 +18,25 @@
     - [3.2 Implemented Modules (AI Service - Python)](#32-implemented-modules-ai-service---python)
     - [3.3 Planned Modules (Backend)](#33-planned-modules-backend)
 - [4. Detailed Design](#4-detailed-design)
-    - [4.1 Authentication & Onboarding](#41-authentication--onboarding)
-    - [4.2 User Profile & Account Setup](#42-user-profile--account-setup)
-    - [4.3 Pet Records & Health Hub](#43-pet-records--health-hub)
-    - [4.4 Clinic Discovery Flow](#44-clinic-discovery-flow)
-    - [4.5 Clinical Operations & Service Setup](#45-clinical-operations--service-setup)
-    - [4.6 Staffing & Scheduling](#46-staffing--scheduling)
-    - [4.7 Booking & Appointment Lifecycle](#47-booking--appointment-lifecycle)
-    - [4.8 Electronic Medical Records (EMR)](#48-electronic-medical-records-emr)
-    - [4.9 SOS Emergency Flow](#49-sos-emergency-flow)
-    - [4.10 AI Assistance Flow](#410-ai-assistance-flow)
-    - [4.11 Governance & Reporting Flow](#411-governance--reporting-flow)
-    - [4.12 Clinic Setup AI Agent](#412-clinic-setup-ai-agent)
-    - [4.13 FCM Push Notifications](#413-fcm-push-notifications)
-    - [4.14 File Upload & Media Management](#414-file-upload--media-management)
-    - [4.15 SSE Real-time Notifications](#415-sse-real-time-notifications)
+    - [4.1 Authentication](#41-authentication)
+    - [4.2 User Profile Management](#42-user-profile-management)
+    - [4.3 Staff and Scheduling Management](#43-staff-and-scheduling-management)
+    - [4.4 Pet Profile Management](#44-pet-profile-management)
+    - [4.5 Patient Management](#45-patient-management)
+    - [4.6 EMR & Vaccination Management](#46-emr--vaccination-management)
+    - [4.7 Service Management](#47-service-management)
+    - [4.8 Chat Management](#48-chat-management)
+    - [4.9 Booking Review Management](#49-booking-review-management)
+    - [4.10 Clinic Management](#410-clinic-management)
+    - [4.11 Booking Management](#411-booking-management)
+    - [4.12 Clinic Discovery Management](#412-clinic-discovery-management)
+    - [4.13 Notification Management](#413-notification-management)
+    - [4.14 Payment Management](#414-payment-management)
+    - [4.15 System Management](#415-system-management)
+    - [4.16 Report Management](#416-report-management)
+    - [4.17 AI Assistant](#417-ai-assistant)
 - [5. Technology Stack Summary](#5-technology-stack-summary)
-
-
+- [Appendix A: File Upload & Media Management](#appendix-a-file-upload--media-management)
 
 ## 1. System Design
 
@@ -122,6 +123,78 @@ flowchart TD
     class Docker,GitHub,AWS,Vercel infra
     class Cohere,OpenRouter,GoogleMaps external
     class Firebase,Stripe planned
+```
+
+**Layered view (FE → BE → AI → DB)** – Sơ đồ dưới thể hiện cùng kiến trúc theo luồng từ trái sang phải: Frontend → Core Backend → AI Agent Service (cùng cấp với Backend) → Data & External. AI được tách thành một layer độc lập để làm rõ trách nhiệm và luồng request.
+
+```mermaid
+flowchart LR
+    subgraph FE["FRONTEND"]
+        direction TB
+        U["User<br/>Web & Mobile"]
+        F["Flutter 3.5<br/>Mobile"]
+        R["React 19<br/>Web"]
+        U --> F
+        U --> R
+    end
+
+    subgraph BE["CORE BACKEND"]
+        direction TB
+        NGINX["API Gateway<br/>NGINX"]
+        SB["Spring Boot 3.4<br/>REST · Auth · Biz"]
+        NGINX --> SB
+    end
+
+    subgraph AI["AI AGENT SERVICE"]
+        direction TB
+        FA["FastAPI<br/>Single Agent · ReAct"]
+        RAG["RAG Pipeline<br/>LlamaIndex"]
+        MCP["Tools<br/>FastMCP"]
+        FA --> RAG
+        FA --> MCP
+    end
+
+    subgraph DB["DATA & KNOWLEDGE"]
+        direction TB
+        PG[("PostgreSQL 16")]
+        MDB[("MongoDB 7")]
+        RD[("Redis 7")]
+        QD[("Qdrant Cloud")]
+        CL["Cloudinary"]
+        PG
+        MDB
+        RD
+        QD
+        CL
+    end
+
+    subgraph EXT["EXTERNAL SERVICES"]
+        direction TB
+        OR["OpenRouter<br/>LLM"]
+        CO["Cohere<br/>Embeddings"]
+        GM["Google Maps"]
+        OR
+        CO
+        GM
+    end
+
+    FE -->|"HTTPS / WSS"| BE
+    BE -->|"Proxy / API"| AI
+    AI -->|"Query · Config"| PG
+    AI -->|"Vectors"| QD
+    BE -->|"CRUD"| PG
+    BE --> RD
+    BE --> MDB
+    BE --> CL
+    BE --> GM
+    AI --> OR
+    AI --> CO
+
+    style AI fill:#c4b5fd,stroke:#6d28d9,stroke-width:3px
+    style FE fill:#dbeafe,stroke:#3b82f6
+    style BE fill:#fed7aa,stroke:#f97316
+    style DB fill:#d1fae5,stroke:#10b981
+    style EXT fill:#f3f4f6,stroke:#6b7280
 ```
 
 **The Petties Platform** is designed with a modern, scalable, and modular architecture, clearly separating frontend and backend responsibilities. This ensures high performance, flexibility for scaling, and easy integration with third-party services.
@@ -801,8 +874,8 @@ Petties uses a **Polyglot Persistence** architecture with multiple database type
 | Database | Type | Use Case | Tables/Collections |
 |----------|------|----------|-------------------|
 | **PostgreSQL 16** (Backend) | Relational (RDBMS) | Structured data with strict relationships | 17 tables |
-| **PostgreSQL 16** (AI Service) | Relational (RDBMS) | Agent configuration, chat history, RAG | 7 tables |
-| **MongoDB 7** | Document (NoSQL) | Flexible, nested, schema-less data | 4 collections |
+| **PostgreSQL 16** (AI Service) | Relational (RDBMS) | Agent configuration, tool governance, RAG metadata | 5 tables |
+| **MongoDB 7** | Document (NoSQL) | Flexible, nested, schema-less data, AI chat history | 6 collections |
 
 ---
 
@@ -813,7 +886,7 @@ PostgreSQL is used as the primary relational database for both Spring Boot Backe
 > **Database Architecture:**
 > - **Shared PostgreSQL Instance**: Both services connect to the same PostgreSQL server
 > - **Separate Schemas (optional)**: AI Service tables can use `ai_` prefix for logical separation
-> - **Total Tables**: 24 tables (17 Backend + 7 AI Service)
+> - **Total Tables**: 22 tables (17 Backend + 5 AI Service)
 
 #### 2.1.1 Entity Relationship Diagram (Conceptual)
 
@@ -832,9 +905,9 @@ PostgreSQL is used as the primary relational database for both Spring Boot Backe
 | **Vaccination** | Sổ tiêm chủng (MongoDB) | 1 Vaccination → 1 Pet, 1 Staff |
 | **StaffShift** | Lịch làm việc của nhân viên | 1 Shift → 1 Staff, 1 Clinic, N Slots |
 | **Slot** | Khung giờ khám (30 phút) | 1 Slot → 1 Shift, N Bookings |
-| **Agent** | AI Agent configuration | 1 Agent → N Tools, N PromptVersions, N ChatSessions |
+| **Agent** | AI Agent configuration | 1 Agent → N Tools, N PromptVersions |
 | **Tool** | MCP Tools cho AI Agent | N Tools → M Agents (many-to-many) |
-| **ChatSession** | Phiên chat với AI | 1 Session → 1 User, N Messages |
+| **AIChatSession** (MongoDB) | Phiên chat với AI | 1 Session → 1 User, N Messages (document-based) |
 | **KnowledgeDocument** | Tài liệu RAG Knowledge Base | Standalone |
 
 ##### B. Entity Relationships Diagram (ERD)
@@ -845,7 +918,6 @@ erDiagram
     USER ||--o{ BOOKING : creates
     USER }o--|| CLINIC : works_at
     USER ||--o{ STAFF_SHIFT : has
-    USER ||--o{ CHAT_SESSION : has
 
     PET ||--o{ BOOKING : scheduled_for
     PET ||--o{ EMR_RECORD : has
@@ -876,10 +948,7 @@ erDiagram
     USER ||--o{ NOTIFICATION : receives
 
     AGENT ||--o{ PROMPT_VERSION : has
-    AGENT ||--o{ CHAT_SESSION : handles
     AGENT }o--o{ TOOL : uses
-
-    CHAT_SESSION ||--o{ CHAT_MESSAGE : contains
 ```
 
 ##### C. Entity Groups by Domain
@@ -893,7 +962,7 @@ erDiagram
 | **Scheduling** | StaffShift, Slot | Lịch làm việc nhân viên, khung giờ |
 | **Booking** | Booking, BookingServiceItem, BookingSlot, Payment | Đặt lịch, chi tiết dịch vụ, thanh toán |
 | **Notifications** | Notification | Thông báo hệ thống |
-| **AI Service** | Agent, Tool, PromptVersion, ChatSession, ChatMessage, KnowledgeDocument, SystemSetting | AI chatbot, RAG, cấu hình |
+| **AI Service** | Agent, Tool, PromptVersion, KnowledgeDocument, SystemSetting, AIChatSession (Mongo), AIChatMessage (Mongo) | AI chatbot, RAG, cấu hình |
 
 ##### D. Detailed ERD (Database Design)
 
@@ -924,12 +993,11 @@ erDiagram
 | **Booking** | bookings, booking_service_items, booking_slots, payments | Appointments and payments |
 | **Notification** | notifications | System notifications |
 
-##### AI Agent Service Tables (7 tables)
+##### AI Agent Service Tables (5 tables)
 
 | Group | Tables | Description |
 |-------|--------|-------------|
 | **Agent Config** | agents, tools, prompt_versions | Single Agent and Tools configuration |
-| **Chat History** | chat_sessions, chat_messages | AI chat history |
 | **Knowledge Base** | knowledge_documents | RAG documents |
 | **Settings** | system_settings | API keys, LLM configs |
 
@@ -1185,7 +1253,7 @@ erDiagram
 | pet_id | UUID | FK→pets, NOT NULL | Pet being treated |
 | pet_owner_id | UUID | FK→users, NOT NULL | Pet owner |
 | clinic_id | UUID | FK→clinics, NOT NULL | Target clinic |
-| assigned_vet_id | UUID | FK→users | Assigned veterinarian |
+| assigned_staff_id | UUID | FK→users | Assigned staff |
 | booking_date | DATE | NOT NULL | Appointment date |
 | booking_time | TIME | NOT NULL | Appointment time |
 | type | ENUM | NOT NULL, DEFAULT 'IN_CLINIC' | IN_CLINIC, HOME_VISIT, SOS |
@@ -1203,7 +1271,7 @@ erDiagram
 
 **Booking Status State Machine:**
 ```
-PENDING → CONFIRMED → IN_PROGRESS → CHECK_OUT → COMPLETED
+PENDING → CONFIRMED → IN_PROGRESS → COMPLETED
 ```
 Alternative paths: CANCELLED, NO_SHOW
 
@@ -1216,7 +1284,7 @@ Alternative paths: CANCELLED, NO_SHOW
 | booking_service_id | UUID | PK | Primary Key |
 | booking_id | UUID | FK→bookings, NOT NULL | Parent booking |
 | service_id | UUID | FK→clinic_services, NOT NULL | Clinic service |
-| assigned_vet_id | UUID | FK→users | Staff assigned to this service |
+| assigned_staff_id | UUID | FK→users | Staff assigned to this service |
 | unit_price | DECIMAL(12,2) | | Price snapshot at booking time |
 | base_price | DECIMAL(12,2) | | Base price |
 | weight_price | DECIMAL(12,2) | | Weight-based price |
@@ -1320,6 +1388,11 @@ Alternative paths: CANCELLED, NO_SHOW
 
 **Purpose:** Version control for system prompts enabling rollback, A/B testing, and audit trail. Only one version can be active per agent at a time.
 
+**Có cần thiết không?**
+- **MVP nhỏ (1 prompt ổn định, ít thay đổi):** Có thể chạy mà không cần quy trình version đầy đủ.
+- **Môi trường thực tế (nhiều lần tuning prompt, nhiều admin):** **Nên có** để rollback nhanh khi prompt mới làm giảm chất lượng.
+- **Với Petties:** Khuyến nghị giữ `prompt_versions` vì có dashboard admin, nhiều tool và cần truy vết thay đổi hành vi agent theo thời gian.
+
 | Column | Type | Constraints | Purpose & Business Context |
 |--------|------|-------------|---------------------------|
 | id | INT | PK, AUTO_INCREMENT | Auto-increment primary key |
@@ -1331,39 +1404,13 @@ Alternative paths: CANCELLED, NO_SHOW
 | notes | TEXT | | Change notes describing what was modified. Helps with version comparison |
 | created_at | TIMESTAMPTZ | DEFAULT now() | Version creation timestamp |
 
-###### Table: chat_sessions
+###### AI Chat History Storage (MongoDB)
 
-**Purpose:** Tracks conversation boundaries between users and AI agent. Groups related messages together and enables conversation history retrieval.
+**Decision:** Chat giữa AI và người dùng được lưu tại MongoDB để phù hợp dữ liệu hội thoại có cấu trúc linh hoạt, nested metadata (thought/tool_calls/sources), và tốc độ ghi cao theo luồng streaming.
 
-**Cross-Service Reference:** `user_id` references `users.user_id` from Spring Boot Backend (logical reference, not enforced FK due to separate service).
-
-| Column | Type | Constraints | Purpose & Business Context |
-|--------|------|-------------|---------------------------|
-| id | INT | PK, AUTO_INCREMENT | Auto-increment primary key |
-| agent_id | INT | FK→agents (SET NULL) | Foreign key to agents table. Records which agent handled this session. SET NULL on agent deletion |
-| user_id | VARCHAR(100) | NOT NULL | User UUID from Spring Boot backend. Links AI conversations to pet owners |
-| session_id | VARCHAR(100) | UNIQUE, NOT NULL | Unique session identifier (UUID). Used by frontend to maintain conversation context |
-| started_at | TIMESTAMPTZ | DEFAULT now() | Session start timestamp. For analytics and timeout management |
-| ended_at | TIMESTAMPTZ | | Session end timestamp. NULL if session still active. Used for session cleanup |
-
-###### Table: chat_messages
-
-**Purpose:** Stores individual messages within chat sessions including user queries, AI responses, and tool execution results. Preserves complete conversation history for context and debugging.
-
-| Column | Type | Constraints | Purpose & Business Context |
-|--------|------|-------------|---------------------------|
-| id | INT | PK, AUTO_INCREMENT | Auto-increment primary key |
-| session_id | INT | FK→chat_sessions, NOT NULL | Foreign key to chat_sessions. Groups messages into conversations |
-| role | VARCHAR(20) | NOT NULL | Message sender type: `user` (pet owner), `assistant` (AI), `system` (instructions), `tool` (tool results) |
-| content | TEXT | NOT NULL | Actual message content. For tool role, contains serialized tool output |
-| message_metadata | JSON | | Additional data: tool calls made, ReAct reasoning steps, token counts, latency metrics |
-| timestamp | TIMESTAMPTZ | DEFAULT now() | Message timestamp for ordering and analytics |
-
-**Message Roles:**
-- `user`: Messages from Pet Owner
-- `assistant`: Responses from AI Agent
-- `system`: System instructions
-- `tool`: Results from tool execution
+**Scope:**
+- PostgreSQL giữ phần cấu hình và quản trị (agents/tools/prompt_versions/knowledge_documents/system_settings).
+- MongoDB giữ lịch sử chat AI-user (sessions + messages + trace metadata).
 
 ###### Table: knowledge_documents
 
@@ -1425,7 +1472,7 @@ JWT_SECRET
 | **staff_specialty** | VET, GROOMER |
 | **clinic_status** | PENDING, APPROVED, REJECTED, SUSPENDED |
 | **booking_type** | IN_CLINIC, HOME_VISIT, SOS |
-| **booking_status** | PENDING, CONFIRMED, IN_PROGRESS, CHECK_OUT, COMPLETED, CANCELLED, NO_SHOW |
+| **booking_status** | PENDING, SEARCHING, PENDING_CLINIC_CONFIRM, CONFIRMED, IN_PROGRESS, COMPLETED, CANCELLED, NO_SHOW |
 | **slot_status** | AVAILABLE, BOOKED, BLOCKED |
 | **service_category** | GROOMING_SPA, VACCINATION, CHECK_UP, SURGERY, DENTAL, DERMATOLOGY, OTHER |
 | **payment_method** | CASH, QR, CARD |
@@ -1467,17 +1514,11 @@ JWT_SECRET
 | agents | idx_agents_name | name | UNIQUE | Agent lookup by name |
 | tools | idx_tools_name | name | UNIQUE | Tool lookup by name |
 | tools | idx_tools_enabled | enabled | B-TREE | Filter enabled tools |
-| chat_sessions | idx_chat_sessions_user_id | user_id | B-TREE | User's sessions |
-| chat_sessions | idx_chat_sessions_session_id | session_id | UNIQUE | Session lookup |
 | system_settings | idx_system_settings_key | key | UNIQUE | Setting lookup |
 
 ##### Cross-Service References
 
-> **Note:** AI Agent Service và Spring Boot Backend share the same PostgreSQL server nhưng có thể dùng schemas riêng biệt. Các references giữa 2 services là **logical references** (không có FK constraint).
-
-| AI Service Table | Column | References Backend Table | Notes |
-|-----------------|--------|-------------------------|-------|
-| chat_sessions | user_id | users.user_id | User UUID stored as VARCHAR(100) |
+> **Note:** Với quyết định lưu AI chat trên MongoDB, mapping `user_id` từ Spring Boot backend được lưu như logical reference trong document Mongo (`ai_chat_sessions.user_id`).
 
 #### 2.1.6 Complete ERD (All Tables)
 
@@ -1509,14 +1550,18 @@ flowchart LR
         direction TB
         EMR["emr_records<br/>Electronic Medical Records"]
         VAX["vaccination_records<br/>Vaccination History"]
-        CONV["chat_conversations<br/>Chat Sessions"]
-        MSG["chat_messages<br/>Messages"]
+        CONV["chat_conversations<br/>Chat Sessions (Owner-Clinic)"]
+        MSG["chat_messages<br/>Messages (Owner-Clinic)"]
+        AICONV["ai_chat_sessions<br/>AI Chat Sessions"]
+        AIMSG["ai_chat_messages<br/>AI Chat Messages"]
     end
 
     style EMR fill:#90EE90
     style VAX fill:#87CEEB
     style CONV fill:#FFB6C1
     style MSG fill:#DDA0DD
+    style AICONV fill:#FFDAB9
+    style AIMSG fill:#E6E6FA
 ```
 
 | Collection | Description | Avg Doc Size | Reference to PostgreSQL |
@@ -1525,6 +1570,8 @@ flowchart LR
 | vaccination_records | Vaccination history | ~500B | pet_id, booking_id, vet_id |
 | chat_conversations | 1-1 chat sessions | ~300B | pet_owner_id, clinic_id |
 | chat_messages | Messages | ~200B | sender_id, chat_box_id (MongoDB _id) |
+| ai_chat_sessions | AI-user chat sessions | ~500B | user_id, agent_id (logical ref) |
+| ai_chat_messages | AI-user chat messages + metadata | ~1KB | session_id (MongoDB _id) |
 
 #### 2.2.2 Collection Descriptions
 
@@ -1686,6 +1733,50 @@ flowchart LR
 **Message Types:** TEXT, IMAGE, SYSTEM
 
 **Message Status:** SENT, DELIVERED, READ
+
+##### Collection: ai_chat_sessions
+
+**Description:** Session-level data cho hội thoại AI với người dùng.
+
+**Sample Document:**
+```json
+{
+    "_id": ObjectId("507f1f77bcf86cd799439015"),
+    "session_id": "ai-sess-9e5a",
+    "user_id": "550e8400-e29b-41d4-a716-446655440000",
+    "agent_name": "petties_agent",
+    "started_at": ISODate("2026-03-04T09:00:00Z"),
+    "ended_at": null,
+    "status": "ACTIVE"
+}
+```
+
+**Indexes:**
+- `{ session_id: 1 }` unique - session lookup
+- `{ user_id: 1, started_at: -1 }` - user session history
+
+##### Collection: ai_chat_messages
+
+**Description:** Message-level data cho chat AI-user, bao gồm trace metadata từ ReAct/tool execution.
+
+**Sample Document:**
+```json
+{
+    "_id": ObjectId("507f1f77bcf86cd799439016"),
+    "session_id": ObjectId("507f1f77bcf86cd799439015"),
+    "role": "assistant",
+    "content": "Bé có thể đang bị viêm dạ dày nhẹ...",
+    "message_metadata": {
+        "tool_calls": ["symptom_search"],
+        "sources": ["doc_12_chunk_3"]
+    },
+    "timestamp": ISODate("2026-03-04T09:00:05Z")
+}
+```
+
+**Indexes:**
+- `{ session_id: 1, timestamp: 1 }` - ordered conversation replay
+- `{ role: 1, timestamp: -1 }` - analytics by role
 
 **Indexes:**
 - `{ chat_box_id: 1, created_at: -1 }` - Messages in conversation
@@ -1872,7 +1963,7 @@ flowchart LR
 
 ## 4. DETAILED DESIGN
 
-### 4.1 Authentication & Onboarding (UC-PO-01, UC-VT-01, UC-CM-01, UC-CO-01)
+### 4.1 Authentication
 
 #### 4.1.1 Class Diagram - Authentication
 
@@ -2481,7 +2572,9 @@ sequenceDiagram
     deactivate UI
 ```
 
-### 4.2 User Profile & Account Setup (UC-PO-03, UC-VT-03, UC-CM-02, UC-CO-02, UC-PO-23)
+---
+
+### 4.2 User Profile Management
 
 #### 4.2.1 Class Diagram - User Profile
 
@@ -2684,9 +2777,229 @@ sequenceDiagram
     end
 ```
 
-### 4.3 Pet Records & Health Hub (UC-PO-04, UC-PO-11, UC-PO-26)
+---
 
-#### 4.3.1 Class Diagram - Pet Records
+### 4.3 Staff and Scheduling Management
+
+Tương tác quan trọng nhất là việc mời nhân viên (Staff/Manager) vào phòng khám và quản lý ca trực của họ.
+
+#### 4.3.1 Class Diagram - Staffing & Scheduling
+
+```mermaid
+classDiagram
+    class ClinicStaffController {
+        -ClinicStaffService staffService
+        +getStaff(UUID) ResponseEntity
+        +inviteByEmail(UUID, InviteByEmailRequest) ResponseEntity
+        +removeStaff(UUID, UUID) ResponseEntity
+    }
+
+    class ClinicStaffService {
+        -UserRepository userRepository
+        +getClinicStaff(UUID) List~StaffResponse~
+        +inviteByEmail(UUID, InviteByEmailRequest) void
+        +removeStaff(UUID, UUID) void
+    }
+
+    class VetShiftController {
+        -VetShiftService vetShiftService
+        +createShift(UUID, VetShiftRequest) ResponseEntity
+        +getShiftsByClinic(UUID, LocalDate, LocalDate) ResponseEntity
+        +deleteShift(UUID) ResponseEntity
+        +blockSlot(UUID) ResponseEntity
+    }
+
+    class VetShiftService {
+        -VetShiftRepository vetShiftRepository
+        -SlotRepository slotRepository
+        +createShifts(UUID, VetShiftRequest) List~VetShiftResponse~
+        +generateSlots(VetShift, LocalTime, LocalTime) void
+        +validateOperatingHours(...) void
+        +blockSlot(UUID) SlotResponse
+    }
+
+    class VetShiftRepository {
+        <<interface>>
+        +findByClinicAndDateRange(...) List
+        +existsByVet_UserIdAndWorkDateAndTimeRange(...) boolean
+        +save(VetShift) VetShift
+    }
+
+    ClinicStaffController --> ClinicStaffService
+    VetShiftController --> VetShiftService
+    VetShiftService --> VetShiftRepository
+    ClinicStaffService --> UserRepository
+```
+
+#### 4.3.2 Invite Staff by Email (UC-CM-03, UC-CO-06)
+
+```mermaid
+sequenceDiagram
+    actor O as Clinic Owner/Manager
+    participant UI as Staff List Screen
+    participant SC as ClinicStaffController
+    participant SS as ClinicStaffService
+    participant AS as AuthService
+    participant UR as UserRepository
+    participant DB as Database
+
+    O->>UI: 1. Input Email, Role, Specialty (No Name/Phone required)
+    UI->>SC: 2. inviteByEmail(clinicId, request)
+    activate SC
+    SC->>SS: 3. inviteByEmail(clinicId, request)
+    activate SS
+    SS->>AS: 4. getCurrentUser()
+    activate AS
+    AS-->>SS: 5. currentUser
+    deactivate AS
+    SS->>SS: 6. Validate Permissions (Owner vs Manager)
+    SS->>UR: 7. findByEmail(email)
+    activate UR
+    UR->>DB: 8. Query user
+    activate DB
+    DB-->>UR: 9. User Entity (or null)
+    deactivate DB
+    UR-->>SS: 10. User / null
+    deactivate UR
+    alt User Already Exists
+        SS->>SS: 11a. Check if assigned to another clinic
+        SS->>SS: 12a. Update Role & WorkingClinic
+    else New User
+        SS->>SS: 11b. Create User Entity (waiting for Google Login)
+        SS->>SS: 12b. Set Random Password & WorkingClinic
+    end
+    SS->>UR: 13. save(User)
+    activate UR
+    UR->>DB: 14. Save to DB
+    activate DB
+    DB-->>UR: 15. OK
+    deactivate DB
+    UR-->>SS: 16. OK
+    deactivate UR
+    SS-->>SC: 17. void
+    deactivate SS
+    SC-->>UI: 18. 200 OK (Success Message)
+    deactivate SC
+    UI-->>O: 19. "Staff invited successfully" notification
+```
+
+#### 4.3.3 Create Staff Shift (UC-CM-04, UC-CO-07)
+
+```mermaid
+sequenceDiagram
+    actor M as Clinic Manager
+    participant UI as VetShift Dashboard (Web)
+    participant C as VetShiftController
+    participant S as VetShiftService
+    participant R as VetShiftRepository
+    participant DB as Database
+
+    M->>UI: 1. Choose Staff, Dates, Time Range
+    UI->>C: 2. createShift(clinicId, request)
+    activate C
+    C->>S: 3. createShifts(clinicId, request)
+    activate S
+    loop For each WorkDate
+        S->>R: 4. Check for overlaps (existsBy...)
+        R-->>S: 5. Conflict found (Boolean/Entity)
+        alt forceUpdate = false AND Conflicts exist
+            S-->>C: 6a. throw ConflictException
+            C-->>UI: 7a. 409 Conflict (Return conflict details)
+            UI-->>M: 8a. Show Conflict Warning Modal
+        else No Conflicts OR forceUpdate = true
+            S->>S: 6b. Create VetShift Entity
+            S->>S: 7b. Generate 30-min Slots
+            S->>R: 8b. Save Shift & Slots
+            R->>DB: 9b. Persist
+            DB-->>R: 10b. OK
+        end
+    end
+    S-->>C: 11. List~VetShiftResponse~
+    deactivate S
+    C-->>UI: 12. 201 Created
+    deactivate C
+    UI-->>M: 13. Refresh Calendar
+```
+
+#### 4.3.4 Delete Shift & Slot Operations
+
+```mermaid
+sequenceDiagram
+    actor M as Clinic Manager
+    participant UI as Manager Dashboard (Web)
+    participant C as VetShiftController
+    participant S as VetShiftService
+    participant VSR as VetShiftRepository
+    participant SR as SlotRepository
+    participant DB as Database
+
+    M->>UI: 1. Select shift & click "Delete"
+    activate UI
+    UI->>C: 2. deleteShift(shiftId)
+    activate C
+    C->>S: 3. deleteShift(id)
+    activate S
+    S->>VSR: 4. findById(id)
+    activate VSR
+    VSR->>DB: 5. Query shift by ID
+    activate DB
+    DB-->>VSR: 6. VetShift with Slots
+    deactivate DB
+    VSR-->>S: 7. VetShift Entity
+    deactivate VSR
+    S->>S: 8. Check all slots AVAILABLE or BLOCKED
+    alt Has BOOKED slots
+        S-->>C: 9a. throw BadRequestException
+        C-->>UI: 10a. 400 Error: Cannot delete shift with bookings
+        UI-->>M: 11a. Show error message
+    else All slots deletable
+        S->>SR: 9b. deleteAll(slots)
+        activate SR
+        SR->>DB: 10b. Delete all slots of shift
+        activate DB
+        DB-->>SR: 11b. Deleted
+        deactivate DB
+        SR-->>S: 12b. OK
+        deactivate SR
+        S->>VSR: 13b. delete(shift)
+        activate VSR
+        VSR->>DB: 14b. Delete shift
+        activate DB
+        DB-->>VSR: 15b. Deleted
+        deactivate DB
+        VSR-->>S: 16b. OK
+        deactivate VSR
+        S-->>C: 17b. void
+        deactivate S
+        C-->>UI: 18b. 204 No Content
+        deactivate C
+        UI-->>M: 19b. Remove shift from Calendar
+        deactivate UI
+    end
+```
+#### 4.3.5 Business Rules
+
+1. **Staff Roles Control:** 
+    - CLINIC_OWNER có quyền thêm CLINIC_MANAGER và STAFF.
+    - CLINIC_MANAGER chỉ có quyền thêm Nhân viên (STAFF).
+2. **Manager Limit:** Mỗi phòng khám chỉ có tối đa 1 Manager.
+3. **Invitation Logic:** Hỗ trợ mời staff qua email. Nếu email chưa có tài khoản, hệ thống tạo user chờ đăng nhập qua Google OAuth. **Họ tên và Avatar sẽ được đồng bộ tự động từ Google Profile khi login lần đầu**, người mời không cần nhập. (Phone là thông tin không bắt buộc).
+4. **Slot Duration:** Tự động tạo slots 30 phút khi tạo shift.
+5. **Break Time Sync:** Giờ nghỉ tự động lấy từ Clinic Operating Hours nếu shift nằm trong khoảng đó.
+6. **Overnight Shifts:** Nếu endTime < startTime (vd: 22:00 → 06:00), hệ thống tự detect và set isOvernight = true.
+7. **Overlap Prevention:** Mỗi vet chỉ có 1 shift/ngày. Sử dụng forceUpdate=true để ghi đè shift cũ.
+8. **Delete Protection:** Không thể xóa shift có slots ở trạng thái BOOKED.
+9. **Block Permission:** Chỉ CLINIC_OWNER và CLINIC_MANAGER được block/unblock slots.
+10. **Repeat Weeks:** Có thể tạo lịch lặp lại tối đa 12 tuần liên tiếp.
+11. **Past Date Skip:** Không tạo shift cho ngày trong quá khứ.
+12. **Closed Day Skip:** Không tạo shift vào ngày phòng khám đóng cửa.
+13. **SSE Notifications:** Gửi batch notification cho Staff khi được assign shifts mới.
+
+---
+
+### 4.4 Pet Profile Management
+
+#### 4.4.1 Class Diagram - Pet Records
 
 ```mermaid
 classDiagram
@@ -2742,7 +3055,7 @@ classDiagram
     PetService --> CloudinaryService
 ```
 
-#### 4.3.2 Add New Pet Record (UC-PO-04)
+#### 4.4.2 Add New Pet Record (UC-PO-04)
 
 ```mermaid
 sequenceDiagram
@@ -2782,7 +3095,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 4.3.3 Update Pet Info (UC-PO-11)
+#### 4.4.3 Update Pet Info (UC-PO-11)
 
 ```mermaid
 sequenceDiagram
@@ -2824,7 +3137,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 4.3.4 Delete Pet (UC-PO-26)
+#### 4.4.4 Delete Pet (UC-PO-26)
 
 ```mermaid
 sequenceDiagram
@@ -2865,43 +3178,863 @@ sequenceDiagram
 ```
 
 
-### 4.4 Clinic Discovery Flow (UC-PO-05)
+---
 
-#### 4.4.1 Class Diagram - Clinic Discovery
-*(Logic maps to Clinic Service `findNearbyClinics`)*
+### 4.5 Patient Management
 
-#### 4.4.2 Search Nearby Clinics (UC-PO-05)
+Module quản lý bệnh nhân (Patient) tại phòng khám. Cho phép Staff và Clinic Manager tìm kiếm, xem danh sách và chi tiết hồ sơ bệnh nhân.
+
+#### 4.5.1 Class Diagram - Patient Management
+
+```mermaid
+classDiagram
+    class PatientController {
+        -PatientService patientService
+        +searchPatients(UUID, String) ResponseEntity
+        +getClinicPatients(UUID, Pageable) ResponseEntity
+        +getPatientDetail(UUID) ResponseEntity
+    }
+
+    class PatientService {
+        -PetRepository petRepository
+        -BookingRepository bookingRepository
+        -UserRepository userRepository
+        +searchPatients(UUID, String) List~PatientResponse~
+        +getClinicPatients(UUID, Pageable) Page~PatientResponse~
+        +getPatientDetail(UUID) PatientDetailResponse
+    }
+
+    class PetRepository {
+        <<interface>>
+        +findById(UUID) Optional~Pet~
+        +findByUserId(UUID) List~Pet~
+    }
+
+    class Pet {
+        +UUID id
+        +UUID userId
+        +String name
+        +String species
+        +String breed
+        +BigDecimal weight
+        +String imageUrl
+    }
+
+    PatientController --> PatientService
+    PatientService --> PetRepository
+    PetRepository ..> Pet
+```
+
+
+#### 4.5.2 Lookup Patient (UC-VT-12)
 
 ```mermaid
 sequenceDiagram
-    actor User as Pet Owner
-    participant UI as Clinic Search Screen (Mobile)
-    participant CC as ClinicController
-    participant CS as ClinicService
-    participant CR as ClinicRepository
+    actor V as Staff
+    participant UI as Search Interface
+    participant PC as PatientController
+    participant PS as PatientService
+    participant PR as PetRepository
+    participant UR as UserRepository
+    participant DB as PostgreSQL
 
-    User->>UI: 1. Allow location access
+    V->>UI: 1. Enter search query (name/owner/bookingId)
     activate UI
-    UI->>UI: 2. Get current coordinates (lat, lng)
-    UI->>CC: 3. findNearbyClinics(lat, lng, radius)
-    activate CC
-    CC->>CS: 4. findNearbyClinics(lat, lng, radius)
-    activate CS
-    CS->>CR: 5. findNearby(lat, lng, radius)
-    activate CR
-    CR-->>CS: 6. List of Clinics (Spatial Query)
-    deactivate CR
-    CS-->>CC: 7. List~ClinicResponse~
-    deactivate CS
-    CC-->>UI: 8. List<ClinicResponse>
-    deactivate CC
-    UI-->>User: 9. Display clinics on map & list
+    UI->>PC: 2. GET /patients/search?q=query&clinicId=xxx
+    activate PC
+    PC->>PS: 3. searchPatients(clinicId, query)
+    activate PS
+    PS->>PR: 4. findByNameContainingAndClinicId(query, clinicId)
+    activate PR
+    PR->>DB: 5. SELECT pets WHERE name LIKE %query%
+    activate DB
+    DB-->>PR: 6. List<Pet>
+    deactivate DB
+    PR-->>PS: 7. Pets matching name
+    deactivate PR
+    PS->>UR: 8. findByNameContaining(query)
+    activate UR
+    UR->>DB: 9. SELECT users WHERE fullName LIKE %query%
+    activate DB
+    DB-->>UR: 10. List<User> (Owners)
+    deactivate DB
+    UR-->>PS: 11. Users matching
+    deactivate UR
+    PS->>PS: 12. Merge & filter by clinic visits
+    PS-->>PC: 13. List<PatientSearchResponse>
+    deactivate PS
+    PC-->>UI: 14. 200 OK (paginated results)
+    deactivate PC
+    UI-->>V: 15. Display patient cards
     deactivate UI
 ```
 
-### 4.5 Clinical Operations & Service Setup (UC-CO-03, UC-CO-04, UC-CO-05)
+#### 4.5.3 View Patient List (UC-CM-08)
 
-#### 4.5.1 Class Diagram - Clinic & Services
+```mermaid
+sequenceDiagram
+    actor M as Manager
+    participant UI as Patient List Page
+    participant PC as PatientController
+    participant PS as PatientService
+    participant BR as BookingRepository
+    participant PR as PetRepository
+    participant DB as PostgreSQL
+
+    M->>UI: 1. Navigate to Patients Tab
+    activate UI
+    UI->>PC: 2. GET /patients?clinicId=xxx&page=0&size=20
+    activate PC
+    PC->>PS: 3. getPatientList(clinicId, filters, pageable)
+    activate PS
+    PS->>BR: 4. findDistinctPetsByClinicId(clinicId)
+    activate BR
+    BR->>DB: 5. SELECT DISTINCT pet_id FROM bookings WHERE clinic_id=xxx
+    activate DB
+    DB-->>BR: 6. List<UUID> petIds
+    deactivate DB
+    BR-->>PS: 7. Pet IDs
+    deactivate BR
+    PS->>PR: 8. findAllById(petIds)
+    activate PR
+    PR->>DB: 9. SELECT * FROM pets WHERE id IN (...)
+    activate DB
+    DB-->>PR: 10. List<Pet>
+    deactivate DB
+    PR-->>PS: 11. Pets with owner info
+    deactivate PR
+    PS->>PS: 12. Aggregate visit counts & last visit dates
+    PS-->>PC: 13. Page<PatientListResponse>
+    deactivate PS
+    PC-->>UI: 14. 200 OK (paginated list)
+    deactivate PC
+    UI-->>M: 15. Render patient table with filters
+    deactivate UI
+```
+
+#### 4.5.4 View Patient Records (UC-CM-09)
+
+```mermaid
+sequenceDiagram
+    actor M as Manager
+    participant UI as Patient Detail Page
+    participant PC as PatientController
+    participant PS as PatientService
+    participant PR as PetRepository
+    participant ER as EMRRepository
+    participant VR as VaccinationRepository
+    participant PG as PostgreSQL
+    participant MG as MongoDB
+
+    M->>UI: 1. Click patient row -> View Records
+    activate UI
+    UI->>PC: 2. GET /patients/{petId}/records?clinicId=xxx
+    activate PC
+    PC->>PS: 3. getPatientRecords(petId, clinicId)
+    activate PS
+    PS->>PR: 4. findById(petId)
+    activate PR
+    PR->>PG: 5. Query pet profile
+    activate PG
+    PG-->>PR: 6. Pet Entity
+    deactivate PG
+    PR-->>PS: 7. Pet with owner
+    deactivate PR
+    PS->>ER: 8. findByPetIdAndClinicId(petId, clinicId)
+    activate ER
+    ER->>MG: 9. Query EMR documents
+    activate MG
+    MG-->>ER: 10. List<EMRRecord>
+    deactivate MG
+    ER-->>PS: 11. EMR history
+    deactivate ER
+    PS->>VR: 12. findByPetId(petId)
+    activate VR
+    VR->>MG: 13. Query vaccination documents
+    activate MG
+    MG-->>VR: 14. List<VaccinationRecord>
+    deactivate MG
+    VR-->>PS: 15. Vaccination history
+    deactivate VR
+    PS->>PS: 16. Build timeline & aggregate
+    PS-->>PC: 17. PatientRecordsResponse
+    deactivate PS
+    PC-->>UI: 18. 200 OK (full history)
+    deactivate PC
+    UI-->>M: 19. Render timeline, tabs, export button
+    deactivate UI
+```
+
+---
+
+### 4.6 EMR & Vaccination Management
+
+#### 4.6.1 Class Diagram - EMR
+
+```mermaid
+classDiagram
+    class PatientController {
+        -PatientService patientService
+        +searchPatients(UUID, String) ResponseEntity
+        +getPetMedicalHistory(UUID) ResponseEntity
+        +createEMR(UUID, EMRRequest) ResponseEntity
+        +addVaccinationRecord(UUID, VaccinationRequest) ResponseEntity
+    }
+
+    class PatientService {
+        -PetRepository petRepository
+        -EMRRepository emrRepository
+        -VaccinationRepository vaccinationRepository
+        -BookingRepository bookingRepository
+        +searchPatients(UUID, String) List~PatientResponse~
+        +getPetMedicalHistory(UUID, UUID) PetHistoryResponse
+        +createEMR(UUID, EMRRequest) EMRResponse
+        +addVaccinationRecord(UUID, VaccinationRequest) VaccinationResponse
+    }
+
+    class EMRRepository {
+        <<interface>>
+        +findById(UUID) Optional~EMR~
+        +findByPet(Pet) List~EMR~
+        +save(EMR) EMR
+    }
+
+    class VaccinationRepository {
+        <<interface>>
+        +findByPet(Pet) List~Vaccination~
+        +save(Vaccination) Vaccination
+    }
+
+    class EMR {
+        +UUID emrId
+        +Booking booking
+        +Pet pet
+        +String subjective
+        +String objective
+        +String assessment
+        +String plan
+        +List~ClinicService~ additionalServices
+        +List~IncurredCost~ miscCosts
+    }
+
+    class IncurredCost {
+        +UUID costId
+        +String itemName
+        +BigDecimal amount
+        +Integer quantity
+    }
+
+    class Vaccination {
+        +UUID vaccinationId
+        +Pet pet
+        +String vaccineName
+        +LocalDate administeredDate
+        +LocalDate nextDueDate
+    }
+
+    PatientController --> PatientService
+    PatientService --> EMRRepository
+    PatientService --> VaccinationRepository
+    EMRRepository ..> EMR
+    EMR --> IncurredCost
+    VaccinationRepository ..> Vaccination
+```
+
+#### 4.6.2 View Pet Medical History (Cross-Clinic) (UC-VT-02)
+
+```mermaid
+sequenceDiagram
+    actor V as Staff
+    participant UI as Staff Dashboard
+    participant PC as PatientController
+    participant PS as PatientService
+    participant BR as BookingRepository
+    participant EMRR as EMRRepository
+    participant VR as VaccinationRepository
+    participant DB as Database
+
+    V->>UI: 1. Search Pet or Select from Booking
+    activate UI
+    UI->>PC: 2. getPetMedicalHistory(petId)
+    activate PC
+    PC->>PS: 3. getPetMedicalHistory(petId, clinicId)
+    activate PS
+    PS->>BR: 4. Check entitlement (petId, clinicId)
+    activate BR
+    BR->>DB: 5. Query pet bookings for clinic
+    activate DB
+    DB-->>BR: 6. Booking exists
+    deactivate DB
+    BR-->>PS: 7. Confirmed
+    deactivate BR
+    PS->>EMRR: 8. findByPet(petId)
+    activate EMRR
+    EMRR->>DB: 9. Query EMR records for pet
+    activate DB
+    DB-->>EMRR: 10. EMR List
+    deactivate DB
+    EMRR-->>PS: 11. List<EMR>
+    deactivate EMRR
+    PS->>VR: 12. findByPet(petId)
+    activate VR
+    VR->>DB: 13. Query vaccination records for pet
+    activate DB
+    DB-->>VR: 14. Vaccination List
+    deactivate DB
+    VR-->>PS: 15. List<Vaccination>
+    deactivate VR
+    PS-->>PC: 16. PetHistoryResponse
+    deactivate PS
+    PC-->>UI: 17. 200 OK
+    deactivate PC
+    UI-->>V: 18. Display history timeline
+    deactivate UI
+```
+
+#### 4.6.3 Create EMR (SOAP Notes) (EMR-2, UC-VT-06)
+
+```mermaid
+sequenceDiagram
+    actor V as Staff
+    participant UI as EMR Form (Mobile/Web)
+    participant PC as PatientController
+    participant PS as PatientService
+    participant BR as BookingRepository
+    participant PR as PetRepository
+    participant EMRR as EMRRepository
+    participant DB as Database
+
+    V->>UI: 1. Fill SOAP form (S, O, A, P + Weight)
+    activate UI
+    UI->>PC: 2. createEMR(bookingId, EMRRequest)
+    activate PC
+    PC->>PS: 3. createEMR(bookingId, request)
+    activate PS
+    PS->>BR: 4. findById(bookingId)
+    activate BR
+    BR->>DB: 5. Query booking by ID
+    activate DB
+    DB-->>BR: 6. Booking Entity
+    deactivate DB
+    BR-->>PS: 7. Booking
+    deactivate BR
+    PS->>PS: 8. Validate status == IN_PROGRESS
+    PS->>PS: 9. Validate Staff is assigned
+    PS->>EMRR: 10. save(EMR: subjective, objective, assessment, plan)
+    activate EMRR
+    EMRR->>DB: 11. Insert new EMR record
+    activate DB
+    DB-->>EMRR: 12. Inserted
+    deactivate DB
+    EMRR-->>PS: 13. Saved EMR
+    deactivate EMRR
+    PS->>PR: 14. updatePetWeight(petId, newWeight)
+    activate PR
+    PR->>DB: 15. Update pet weight
+    activate DB
+    DB-->>PR: 16. Updated
+    deactivate DB
+    PR-->>PS: 17. OK
+    deactivate PR
+    PS-->>PC: 18. EMRResponse
+    deactivate PS
+    PC-->>UI: 19. 201 Created
+    deactivate PC
+    UI-->>V: 20. Show success & update medical timeline
+    deactivate UI
+```
+
+#### 4.6.4 Add Vaccination Record (UC-VT-08)
+
+```mermaid
+sequenceDiagram
+    actor V as Staff
+    participant UI as Vaccination Form
+    participant PC as PatientController
+    participant PS as PatientService
+    participant PR as PetRepository
+    participant VR as VaccinationRepository
+    participant DB as Database
+
+    V->>UI: 1. Fill vaccine info & click "Add"
+    activate UI
+    UI->>PC: 2. addVaccinationRecord(petId, vaccinationRequest)
+    activate PC
+    PC->>PS: 3. addVaccinationRecord(petId, request)
+    activate PS
+    PS->>PR: 4. findById(petId)
+    activate PR
+    PR->>DB: 5. Query pet by ID
+    activate DB
+    DB-->>PR: 6. Pet Entity
+    deactivate DB
+    PR-->>PS: 7. Pet
+    deactivate PR
+    PS->>PS: 8. Validate entitlement
+    PS->>VR: 9. save(Vaccination entity)
+    activate VR
+    VR->>DB: 10. Insert vaccination record
+    activate DB
+    DB-->>VR: 11. Inserted
+    deactivate DB
+    VR-->>PS: 12. Saved Vaccination
+    deactivate VR
+    PS-->>PC: 13. VaccinationResponse
+    deactivate PS
+    PC-->>UI: 14. 201 Created
+    deactivate PC
+    UI-->>V: 15. Update vaccination card
+    deactivate UI
+```
+
+#### 4.6.5 Additional Service & Incurred Costs (UC-VT-10)
+
+```mermaid
+sequenceDiagram
+    actor V as Staff
+    participant UI as EMR Interface
+    participant PC as PatientController
+    participant PS as PatientService
+    participant SR as ServiceRepository
+    participant BR as BookingRepository
+    participant DB as Database
+
+    alt Standard Service
+        V->>UI: 1a. Select from Clinic Catalog
+        UI->>PC: 2a. addAdditionalService(bookingId, serviceId)
+        PC->>PS: 3a. addAdditionalService(...)
+        PS->>SR: 4a. findById(serviceId)
+        activate SR
+        SR->>DB: 5a. Query clinic service by ID
+        activate DB
+        DB-->>SR: 6a. Service Entity (Price)
+        deactivate DB
+        SR-->>PS: 7a. Service
+        deactivate SR
+    else Custom Incurred Cost
+        V->>UI: 1b. Type name & manual price
+        UI->>PC: 2b. addIncurredCost(bookingId, costRequest)
+        PC->>PS: 3b. addIncurredCost(...)
+        Note over PS: Create IncurredCost entity
+    end
+
+    PS->>BR: 8. findById(bookingId)
+    activate BR
+    BR->>DB: 9. Query booking by ID
+    activate DB
+    DB-->>BR: 10. Booking Entity
+    deactivate DB
+    BR-->>PS: 11. Booking
+    deactivate BR
+    
+    PS->>PS: 12. Recalculate totalPrice
+    Note over PS: Total = Base + Surcharge + Services + Misc
+    
+    PS->>BR: 13. save(Updated Booking)
+    activate BR
+    BR->>DB: 14. Update booking total price
+    activate DB
+    DB-->>BR: 15. Updated
+    deactivate DB
+    BR-->>PS: 16. OK
+    deactivate BR
+    
+    PS-->>PC: 17. Success
+    PC-->>UI: 18. 200 OK (Updated Balance)
+    UI-->>V: 19. Update UI with new Total
+```
+
+#### 4.6.6 Add Vaccination Record (UC-VT-08)
+
+```mermaid
+sequenceDiagram
+    actor V as Staff
+    participant UI as EMR/Health Hub
+    participant PC as PatientController
+    participant PS as PatientService
+    participant VR as VaccinationRepository
+    participant PR as PetRepository
+    participant DB as MongoDB
+
+    V->>UI: 1. Click "Add Vaccination"
+    activate UI
+    V->>UI: 2. Enter: VaccineName, BatchNo, Date, NextDue
+    UI->>PC: 3. POST /vaccinations (VaccinationRequest)
+    activate PC
+    PC->>PS: 4. addVaccinationRecord(petId, request)
+    activate PS
+    PS->>PR: 5. findById(petId)
+    activate PR
+    PR-->>PS: 6. Pet Entity
+    deactivate PR
+    PS->>VR: 7. save(VaccinationRecord)
+    activate VR
+    VR->>DB: 8. Insert vaccination document
+    activate DB
+    DB-->>VR: 9. Saved
+    deactivate DB
+    VR-->>PS: 10. VaccinationRecord
+    deactivate VR
+    PS->>PS: 11. Schedule reminder notification
+    PS-->>PC: 12. VaccinationResponse
+    deactivate PS
+    PC-->>UI: 13. 201 Created
+    deactivate PC
+    UI-->>V: 14. Show success & update Health Badge
+    deactivate UI
+```
+
+---
+
+### 4.7 Service Management
+
+Module quản lý dịch vụ phòng khám (Clinic Services) và dịch vụ mẫu hệ thống (Master Services). Cho phép Clinic Owner tạo, chỉnh sửa, xóa dịch vụ của phòng khám; Admin quản lý danh sách dịch vụ mẫu.
+
+#### 4.7.1 Class Diagram - Service Management
+
+```mermaid
+classDiagram
+    class ClinicServiceController {
+        -ClinicServiceService clinicServiceService
+        -VaccineDosePriceService vaccineDosePriceService
+        +createService(ClinicServiceRequest) ResponseEntity
+        +getAllServices() ResponseEntity
+        +getServiceById(UUID) ResponseEntity
+        +updateService(UUID, ClinicServiceUpdateRequest) ResponseEntity
+        +deleteService(UUID, UUID) ResponseEntity
+        +updateServiceStatus(UUID, Boolean) ResponseEntity
+        +updateHomeVisitStatus(UUID, Boolean) ResponseEntity
+        +inheritFromMasterService(UUID, UUID, BigDecimal, BigDecimal) ResponseEntity
+        +getServicesByClinicId(UUID) ResponseEntity
+        +getCompatibleServices(UUID, PetSpecies, Boolean) ResponseEntity
+        +getDosePrices(UUID) ResponseEntity
+        +setDosePrice(UUID, Integer, String, BigDecimal) ResponseEntity
+    }
+
+    class MasterServiceController {
+        -MasterServiceService masterServiceService
+        +createMasterService(MasterServiceRequest) ResponseEntity
+        +getAllMasterServices() ResponseEntity
+        +getMasterServiceById(UUID) ResponseEntity
+        +updateMasterService(UUID, MasterServiceUpdateRequest) ResponseEntity
+        +deleteMasterService(UUID) ResponseEntity
+        +searchMasterServices(String) ResponseEntity
+        +getMasterServicesByCategory(String) ResponseEntity
+        +getMasterServicesByPetType(String) ResponseEntity
+    }
+
+    class ClinicServiceService {
+        -ClinicServiceRepository serviceRepository
+        -MasterServiceRepository masterServiceRepository
+        +createService(ClinicServiceRequest) ClinicServiceResponse
+        +getAllServices() List~ClinicServiceResponse~
+        +getServiceById(UUID) ClinicServiceResponse
+        +updateService(UUID, ClinicServiceUpdateRequest) ClinicServiceResponse
+        +deleteService(UUID, UUID) void
+        +updateServiceStatus(UUID, Boolean) ClinicServiceResponse
+        +inheritFromMasterService(UUID, UUID, BigDecimal, BigDecimal) ClinicServiceResponse
+        +getCompatibleServices(UUID, PetSpecies, Boolean) List~ClinicServiceResponse~
+    }
+
+    class MasterServiceService {
+        -MasterServiceRepository masterServiceRepository
+        +createMasterService(MasterServiceRequest) MasterServiceResponse
+        +getAllMasterServices() List~MasterServiceResponse~
+        +getMasterServiceById(UUID) MasterServiceResponse
+        +updateMasterService(UUID, MasterServiceUpdateRequest) MasterServiceResponse
+        +deleteMasterService(UUID) void
+        +searchMasterServicesByName(String) List~MasterServiceResponse~
+    }
+
+    class VaccineDosePriceService {
+        -VaccineDosePriceRepository dosePriceRepository
+        +getDosePrices(UUID) List~VaccineDosePriceDTO~
+        +setDosePrice(UUID, Integer, String, BigDecimal) VaccineDosePriceDTO
+        +deleteDosePrice(UUID, Integer) void
+    }
+
+    class ClinicServiceRepository {
+        <<interface>>
+        +findById(UUID) Optional~ClinicService~
+        +findByClinicId(UUID) List~ClinicService~
+        +save(ClinicService) ClinicService
+        +deleteById(UUID) void
+    }
+
+    class MasterServiceRepository {
+        <<interface>>
+        +findById(UUID) Optional~MasterService~
+        +findAll() List~MasterService~
+        +findByNameContaining(String) List~MasterService~
+    }
+
+    class ClinicService {
+        +UUID serviceId
+        +UUID clinicId
+        +UUID masterServiceId
+        +Boolean isCustom
+        +String name
+        +String description
+        +BigDecimal basePrice
+        +Integer durationTime
+        +Integer slotsRequired
+        +Boolean isActive
+        +Boolean isHomeVisit
+        +ServiceCategory serviceCategory
+    }
+
+    class MasterService {
+        +UUID masterServiceId
+        +String name
+        +String description
+        +BigDecimal defaultPrice
+        +Integer durationTime
+        +Boolean isHomeVisit
+        +String serviceCategory
+        +String petType
+    }
+
+    class ServiceCategory {
+        <<enumeration>>
+        GROOMING_SPA
+        VACCINATION
+        CHECK_UP
+        SURGERY
+        DENTAL
+        DERMATOLOGY
+        OTHER
+    }
+
+    ClinicServiceController --> ClinicServiceService
+    ClinicServiceController --> VaccineDosePriceService
+    MasterServiceController --> MasterServiceService
+    ClinicServiceService --> ClinicServiceRepository
+    MasterServiceService --> MasterServiceRepository
+    ClinicServiceRepository ..> ClinicService
+    MasterServiceRepository ..> MasterService
+    ClinicService --> ServiceCategory
+```
+
+#### 4.7.2 Create Service
+
+> **Sequence Diagram:** TODO - Clinic Owner tạo dịch vụ mới cho phòng khám.
+
+#### 4.7.3 Create Master Service
+
+> **Sequence Diagram:** TODO - Admin tạo dịch vụ mẫu hệ thống.
+
+#### 4.7.4 Update Service
+
+> **Sequence Diagram:** TODO - Clinic Owner cập nhật thông tin dịch vụ.
+
+#### 4.7.5 Update Master Service
+
+> **Sequence Diagram:** TODO - Admin cập nhật dịch vụ mẫu.
+
+#### 4.7.6 Delete Service
+
+> **Sequence Diagram:** TODO - Clinic Owner xóa dịch vụ phòng khám.
+
+#### 4.7.7 Delete Master Service
+
+> **Sequence Diagram:** TODO - Admin xóa dịch vụ mẫu.
+
+#### 4.7.8 View All Service
+
+> **Sequence Diagram:** TODO - Xem danh sách dịch vụ của phòng khám.
+
+#### 4.7.9 View All Master Service
+
+> **Sequence Diagram:** TODO - Xem danh sách dịch vụ mẫu hệ thống.
+
+#### 4.7.10 View Detail Service
+
+> **Sequence Diagram:** TODO - Xem chi tiết dịch vụ phòng khám.
+
+#### 4.7.11 View Detail Master Service
+
+> **Sequence Diagram:** TODO - Xem chi tiết dịch vụ mẫu.
+
+#### 4.7.12 Inheritance Master Service For Clinics
+
+> **Sequence Diagram:** TODO - Clinic Owner kế thừa dịch vụ mẫu cho phòng khám.
+
+
+---
+
+### 4.8 Chat Management
+
+Module quản lý tin nhắn giữa Pet Owner và Clinic (1-1 chat). Hỗ trợ gửi tin nhắn text, hình ảnh, đánh dấu đã đọc, và WebSocket real-time.
+
+#### 4.8.1 Class Diagram - Chat Management
+
+```mermaid
+classDiagram
+    class ChatController {
+        -ChatService chatService
+        -AuthService authService
+        -CloudinaryService cloudinaryService
+        +createOrGetConversation(CreateConversationRequest) ResponseEntity
+        +getConversations(int, int) ResponseEntity
+        +getConversation(String) ResponseEntity
+        +getMessages(String, int, int) ResponseEntity
+        +sendMessage(String, SendMessageRequest) ResponseEntity
+        +sendMessageWithFile(String, String, MultipartFile) ResponseEntity
+        +uploadImage(String, MultipartFile) ResponseEntity
+        +markAsRead(String) ResponseEntity
+        +getUnreadCount() ResponseEntity
+    }
+
+    class ChatService {
+        -ChatConversationRepository conversationRepo
+        -ChatMessageRepository messageRepo
+        -SimpMessagingTemplate messagingTemplate
+        +createOrGetConversation(UUID, CreateConversationRequest) ConversationResponse
+        +getConversations(UUID, Role, Pageable) Page~ConversationResponse~
+        +getConversation(String, UUID) ConversationResponse
+        +sendMessage(String, UUID, SenderType, SendMessageRequest) MessageResponse
+        +getMessages(String, UUID, Pageable) Page~MessageResponse~
+        +markAsRead(String, UUID) void
+        +getUnreadCount(UUID, Role) UnreadCountResponse
+    }
+
+    class ChatConversationRepository {
+        <<interface>>
+        +findByPetOwnerIdAndClinicId(UUID, UUID) Optional~ChatConversation~
+        +findByPetOwnerId(UUID) List~ChatConversation~
+        +findByClinicId(UUID) List~ChatConversation~
+    }
+
+    class ChatConversation {
+        +ObjectId id
+        +UUID petOwnerId
+        +UUID clinicId
+        +String lastMessage
+        +DateTime lastMessageAt
+        +String status
+    }
+
+    class ChatMessage {
+        +ObjectId id
+        +ObjectId chatBoxId
+        +UUID senderId
+        +String senderType
+        +String content
+        +String messageType
+        +Boolean isRead
+    }
+
+    ChatController --> ChatService
+    ChatService --> ChatConversationRepository
+    ChatConversationRepository ..> ChatConversation
+    ChatConversation --* ChatMessage
+```
+
+#### 4.8.2 Create Conversation
+
+> **Sequence Diagram:** TODO - Pet Owner tạo cuộc hội thoại mới với phòng khám.
+
+#### 4.8.3 View All Conversation
+
+> **Sequence Diagram:** TODO - Xem danh sách tất cả cuộc hội thoại.
+
+#### 4.8.4 Delete Message
+
+> **Sequence Diagram:** TODO - Xóa tin nhắn trong cuộc hội thoại.
+
+#### 4.8.5 Send Message
+
+> **Sequence Diagram:** TODO - Gửi tin nhắn text/hình ảnh trong cuộc hội thoại.
+
+#### 4.8.6 View Chat History
+
+> **Sequence Diagram:** TODO - Xem lịch sử tin nhắn trong cuộc hội thoại.
+
+#### 4.8.7 Create Auto Reply
+
+> **Sequence Diagram:** TODO - Clinic tạo tin nhắn tự động trả lời.
+
+#### 4.8.8 Update Auto Reply Message
+
+> **Sequence Diagram:** TODO - Clinic cập nhật tin nhắn tự động trả lời.
+
+
+---
+
+### 4.9 Booking Review Management
+
+Module quản lý đánh giá (review) sau khi hoàn tất booking. Pet Owner có thể đánh giá phòng khám theo rating (1-5 sao) và nhận xét. Điểm đánh giá trung bình được cập nhật vào Clinic profile.
+
+#### 4.9.1 Class Diagram - Booking Review Management
+
+```mermaid
+classDiagram
+    class ReviewController {
+        -ReviewService reviewService
+        -UserRepository userRepository
+        +createReview(ReviewRequestDTO) ResponseEntity
+        +updateReview(UUID, ReviewRequestDTO) ResponseEntity
+        +deleteReview(UUID) ResponseEntity
+        +getClinicReviews(UUID) ResponseEntity
+    }
+
+    class ReviewService {
+        -ReviewRepository reviewRepository
+        -BookingRepository bookingRepository
+        -ClinicRepository clinicRepository
+        +createReview(User, ReviewRequestDTO) ReviewResponseDTO
+        +updateReview(UUID, User, ReviewRequestDTO) ReviewResponseDTO
+        +deleteReview(UUID, User) void
+        +getClinicReviews(UUID) List~ReviewResponseDTO~
+    }
+
+    class ReviewRepository {
+        <<interface>>
+        +findById(UUID) Optional~Review~
+        +findByClinicId(UUID) List~Review~
+        +findByBookingId(UUID) Optional~Review~
+        +save(Review) Review
+        +deleteById(UUID) void
+    }
+
+    class Review {
+        +UUID reviewId
+        +UUID bookingId
+        +UUID petOwnerId
+        +UUID clinicId
+        +Integer rating
+        +String comment
+        +LocalDateTime createdAt
+        +LocalDateTime updatedAt
+    }
+
+    ReviewController --> ReviewService
+    ReviewService --> ReviewRepository
+    ReviewRepository ..> Review
+```
+
+#### 4.9.2 Create Review
+
+> **Sequence Diagram:** TODO - Pet Owner tạo đánh giá sau khi hoàn tất booking.
+
+#### 4.9.3 Delete Review
+
+> **Sequence Diagram:** TODO - Pet Owner xóa đánh giá đã tạo.
+
+#### 4.9.4 Update Review
+
+> **Sequence Diagram:** TODO - Pet Owner cập nhật nội dung đánh giá.
+
+#### 4.9.5 View Clinic Review
+
+> **Sequence Diagram:** TODO - Xem danh sách đánh giá của phòng khám.
+
+
+---
+
+### 4.10 Clinic Management
+
+#### 4.10.1 Class Diagram - Clinic & Services
 
 ```mermaid
 classDiagram
@@ -2984,7 +4117,7 @@ classDiagram
     ClinicImageRepository ..> ClinicImage
 ```
 
-#### 4.5.2 Create Clinic (UC-CO-03)
+#### 4.10.2 Create Clinic (UC-CO-03)
 
 ```mermaid
 sequenceDiagram
@@ -3017,7 +4150,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 4.5.3 Approve/Reject Clinic (Admin Approval Flow)
+#### 4.10.3 Approve/Reject Clinic (Admin Approval Flow)
 
 ```mermaid
 sequenceDiagram
@@ -3050,7 +4183,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 4.5.4 Upload Clinic Image
+#### 4.10.4 Upload Clinic Image
 
 ```mermaid
 sequenceDiagram
@@ -3083,229 +4216,15 @@ sequenceDiagram
     deactivate UI
 ```
 
-### 4.6 Staffing & Scheduling Flow (UC-CM-03, UC-CO-06, UC-CM-04)
+---
 
-Tương tác quan trọng nhất là việc mời nhân viên (Staff/Manager) vào phòng khám và quản lý ca trực của họ.
-
-#### 4.6.1 Class Diagram - Staffing & Scheduling
-
-```mermaid
-classDiagram
-    class ClinicStaffController {
-        -ClinicStaffService staffService
-        +getStaff(UUID) ResponseEntity
-        +inviteByEmail(UUID, InviteByEmailRequest) ResponseEntity
-        +removeStaff(UUID, UUID) ResponseEntity
-    }
-
-    class ClinicStaffService {
-        -UserRepository userRepository
-        +getClinicStaff(UUID) List~StaffResponse~
-        +inviteByEmail(UUID, InviteByEmailRequest) void
-        +removeStaff(UUID, UUID) void
-    }
-
-    class VetShiftController {
-        -VetShiftService vetShiftService
-        +createShift(UUID, VetShiftRequest) ResponseEntity
-        +getShiftsByClinic(UUID, LocalDate, LocalDate) ResponseEntity
-        +deleteShift(UUID) ResponseEntity
-        +blockSlot(UUID) ResponseEntity
-    }
-
-    class VetShiftService {
-        -VetShiftRepository vetShiftRepository
-        -SlotRepository slotRepository
-        +createShifts(UUID, VetShiftRequest) List~VetShiftResponse~
-        +generateSlots(VetShift, LocalTime, LocalTime) void
-        +validateOperatingHours(...) void
-        +blockSlot(UUID) SlotResponse
-    }
-
-    class VetShiftRepository {
-        <<interface>>
-        +findByClinicAndDateRange(...) List
-        +existsByVet_UserIdAndWorkDateAndTimeRange(...) boolean
-        +save(VetShift) VetShift
-    }
-
-    ClinicStaffController --> ClinicStaffService
-    VetShiftController --> VetShiftService
-    VetShiftService --> VetShiftRepository
-    ClinicStaffService --> UserRepository
-```
-
-#### 4.6.2 Invite Staff by Email (UC-CM-03, UC-CO-06)
-
-```mermaid
-sequenceDiagram
-    actor O as Clinic Owner/Manager
-    participant UI as Staff List Screen
-    participant SC as ClinicStaffController
-    participant SS as ClinicStaffService
-    participant AS as AuthService
-    participant UR as UserRepository
-    participant DB as Database
-
-    O->>UI: 1. Input Email, Role, Specialty (No Name/Phone required)
-    UI->>SC: 2. inviteByEmail(clinicId, request)
-    activate SC
-    SC->>SS: 3. inviteByEmail(clinicId, request)
-    activate SS
-    SS->>AS: 4. getCurrentUser()
-    activate AS
-    AS-->>SS: 5. currentUser
-    deactivate AS
-    SS->>SS: 6. Validate Permissions (Owner vs Manager)
-    SS->>UR: 7. findByEmail(email)
-    activate UR
-    UR->>DB: 8. Query user
-    activate DB
-    DB-->>UR: 9. User Entity (or null)
-    deactivate DB
-    UR-->>SS: 10. User / null
-    deactivate UR
-    alt User Already Exists
-        SS->>SS: 11a. Check if assigned to another clinic
-        SS->>SS: 12a. Update Role & WorkingClinic
-    else New User
-        SS->>SS: 11b. Create User Entity (waiting for Google Login)
-        SS->>SS: 12b. Set Random Password & WorkingClinic
-    end
-    SS->>UR: 13. save(User)
-    activate UR
-    UR->>DB: 14. Save to DB
-    activate DB
-    DB-->>UR: 15. OK
-    deactivate DB
-    UR-->>SS: 16. OK
-    deactivate UR
-    SS-->>SC: 17. void
-    deactivate SS
-    SC-->>UI: 18. 200 OK (Success Message)
-    deactivate SC
-    UI-->>O: 19. "Staff invited successfully" notification
-```
-
-#### 4.6.3 Create Staff Shift (UC-CM-04, UC-CO-07)
-
-```mermaid
-sequenceDiagram
-    actor M as Clinic Manager
-    participant UI as VetShift Dashboard (Web)
-    participant C as VetShiftController
-    participant S as VetShiftService
-    participant R as VetShiftRepository
-    participant DB as Database
-
-    M->>UI: 1. Choose Staff, Dates, Time Range
-    UI->>C: 2. createShift(clinicId, request)
-    activate C
-    C->>S: 3. createShifts(clinicId, request)
-    activate S
-    loop For each WorkDate
-        S->>R: 4. Check for overlaps (existsBy...)
-        R-->>S: 5. Conflict found (Boolean/Entity)
-        alt forceUpdate = false AND Conflicts exist
-            S-->>C: 6a. throw ConflictException
-            C-->>UI: 7a. 409 Conflict (Return conflict details)
-            UI-->>M: 8a. Show Conflict Warning Modal
-        else No Conflicts OR forceUpdate = true
-            S->>S: 6b. Create VetShift Entity
-            S->>S: 7b. Generate 30-min Slots
-            S->>R: 8b. Save Shift & Slots
-            R->>DB: 9b. Persist
-            DB-->>R: 10b. OK
-        end
-    end
-    S-->>C: 11. List~VetShiftResponse~
-    deactivate S
-    C-->>UI: 12. 201 Created
-    deactivate C
-    UI-->>M: 13. Refresh Calendar
-```
-
-#### 4.6.4 Delete Shift & Slot Operations
-
-```mermaid
-sequenceDiagram
-    actor M as Clinic Manager
-    participant UI as Manager Dashboard (Web)
-    participant C as VetShiftController
-    participant S as VetShiftService
-    participant VSR as VetShiftRepository
-    participant SR as SlotRepository
-    participant DB as Database
-
-    M->>UI: 1. Select shift & click "Delete"
-    activate UI
-    UI->>C: 2. deleteShift(shiftId)
-    activate C
-    C->>S: 3. deleteShift(id)
-    activate S
-    S->>VSR: 4. findById(id)
-    activate VSR
-    VSR->>DB: 5. Query shift by ID
-    activate DB
-    DB-->>VSR: 6. VetShift with Slots
-    deactivate DB
-    VSR-->>S: 7. VetShift Entity
-    deactivate VSR
-    S->>S: 8. Check all slots AVAILABLE or BLOCKED
-    alt Has BOOKED slots
-        S-->>C: 9a. throw BadRequestException
-        C-->>UI: 10a. 400 Error: Cannot delete shift with bookings
-        UI-->>M: 11a. Show error message
-    else All slots deletable
-        S->>SR: 9b. deleteAll(slots)
-        activate SR
-        SR->>DB: 10b. Delete all slots of shift
-        activate DB
-        DB-->>SR: 11b. Deleted
-        deactivate DB
-        SR-->>S: 12b. OK
-        deactivate SR
-        S->>VSR: 13b. delete(shift)
-        activate VSR
-        VSR->>DB: 14b. Delete shift
-        activate DB
-        DB-->>VSR: 15b. Deleted
-        deactivate DB
-        VSR-->>S: 16b. OK
-        deactivate VSR
-        S-->>C: 17b. void
-        deactivate S
-        C-->>UI: 18b. 204 No Content
-        deactivate C
-        UI-->>M: 19b. Remove shift from Calendar
-        deactivate UI
-    end
-```
-#### 4.6.5 Business Rules
-
-1. **Staff Roles Control:** 
-    - CLINIC_OWNER có quyền thêm CLINIC_MANAGER và STAFF.
-    - CLINIC_MANAGER chỉ có quyền thêm Nhân viên (STAFF).
-2. **Manager Limit:** Mỗi phòng khám chỉ có tối đa 1 Manager.
-3. **Invitation Logic:** Hỗ trợ mời staff qua email. Nếu email chưa có tài khoản, hệ thống tạo user chờ đăng nhập qua Google OAuth. **Họ tên và Avatar sẽ được đồng bộ tự động từ Google Profile khi login lần đầu**, người mời không cần nhập. (Phone là thông tin không bắt buộc).
-4. **Slot Duration:** Tự động tạo slots 30 phút khi tạo shift.
-5. **Break Time Sync:** Giờ nghỉ tự động lấy từ Clinic Operating Hours nếu shift nằm trong khoảng đó.
-6. **Overnight Shifts:** Nếu endTime < startTime (vd: 22:00 → 06:00), hệ thống tự detect và set isOvernight = true.
-7. **Overlap Prevention:** Mỗi vet chỉ có 1 shift/ngày. Sử dụng forceUpdate=true để ghi đè shift cũ.
-8. **Delete Protection:** Không thể xóa shift có slots ở trạng thái BOOKED.
-9. **Block Permission:** Chỉ CLINIC_OWNER và CLINIC_MANAGER được block/unblock slots.
-10. **Repeat Weeks:** Có thể tạo lịch lặp lại tối đa 12 tuần liên tiếp.
-11. **Past Date Skip:** Không tạo shift cho ngày trong quá khứ.
-12. **Closed Day Skip:** Không tạo shift vào ngày phòng khám đóng cửa.
-13. **SSE Notifications:** Gửi batch notification cho Staff khi được assign shifts mới.
-
-### 4.7 Booking & Appointment Lifecycle (UC-PO-06, UC-PO-07, UC-CM-06, BOK-1)
+### 4.11 Booking Management
 
 Mô tả vòng đời của một lịch hẹn từ lúc khởi tạo trên Mobile App cho đến khi hoàn tất thanh toán tại phòng khám.
 
 **Last Updated:** 2026-01-23 (Added Sequence Diagrams: UC-PO-08, UC-PO-09, UC-VT-03, UC-VT-04, UC-VT-05, UC-VT-09, UC-CM-07, UC-CM-14, UC-CM-15, UC-CM-16)
 
-#### 4.7.0 API Specification Table
+#### 4.11.0 API Specification Table
 
 | # | Method | Endpoint | Role | Description | Status |
 |---|--------|----------|------|-------------|--------|
@@ -3323,22 +4242,25 @@ Mô tả vòng đời của một lịch hẹn từ lúc khởi tạo trên Mobi
 | 10 | GET | `/bookings/{id}/services/{serviceId}/available-vets` | MANAGER, ADMIN | Lấy danh sách vet có thể reassign | ✅ Done |
 | 11 | POST | `/bookings/{id}/services/{serviceId}/reassign` | MANAGER, ADMIN | Đổi vet cho dịch vụ | ✅ Done |
 | 12 | POST | `/bookings/{id}/add-service` | STAFF, MANAGER, ADMIN | Thêm dịch vụ phát sinh | ✅ Done |
-| 13 | PATCH | `/bookings/{id}/check-in` | STAFF, MANAGER | Check-in bắt đầu khám | ⏳ Pending |
-| 14 | PATCH | `/bookings/{id}/check-out` | STAFF, MANAGER | Check-out kết thúc khám | ⏳ Pending |
-| 15 | PATCH | `/bookings/{id}/complete` | MANAGER | Hoàn thành sau thanh toán | ⏳ Pending |
+| 13 | POST | `/bookings/{id}/check-in` | STAFF, ADMIN | Bắt đầu thực hiện dịch vụ (CONFIRMED → IN_PROGRESS) | ✅ Done |
+| 14 | POST | `/bookings/{id}/start-moving` | STAFF, CLINIC_MANAGER, ADMIN | Bắt đầu di chuyển cho SOS/HOME_VISIT (CONFIRMED → IN_PROGRESS) | ✅ Done |
+| 15 | POST | `/bookings/{id}/arrived` | STAFF, CLINIC_MANAGER, ADMIN | Đánh dấu đã đến nơi (giữ IN_PROGRESS, cập nhật arrivedAt) | ✅ Done |
+| 16 | POST | `/bookings/{id}/checkout` | STAFF, ADMIN | Chốt hóa đơn + thanh toán + COMPLETED | ✅ Done |
+| 17 | POST | `/bookings/{id}/complete` | STAFF, CLINIC_MANAGER, ADMIN | Hoàn thành lịch hẹn (IN_PROGRESS → COMPLETED) | ✅ Done |
 
 **Booking Status Flow:**
 ```
-PENDING → CONFIRMED → ASSIGNED → CHECK_IN → IN_PROGRESS → CHECK_OUT → COMPLETED
-                                                           ↓
-                                                       CANCELLED / NO_SHOW
+PENDING → CONFIRMED → IN_PROGRESS → COMPLETED
+          ↓            ↓
+      CANCELLED      NO_SHOW
 ```
 
 **Notes:**
-- IN_CLINIC & HOME_VISIT: Bỏ qua ON_THE_WAY, ARRIVED (đi thẳng từ ASSIGNED → CHECK_IN)
-- SOS: Sử dụng ON_THE_WAY → ARRIVED với GPS tracking tự động
+- IN_CLINIC/HOME_VISIT: Staff bắt đầu thực hiện dịch vụ bằng check-in (`CONFIRMED → IN_PROGRESS`)
+- SOS: Staff dùng start-moving (`CONFIRMED → IN_PROGRESS`) và có GPS tracking real-time
+- HOME_VISIT tiêu chuẩn không bật GPS tracking real-time
 
-#### 4.7.1 Class Diagram - Booking & Appointment
+#### 4.11.1 Class Diagram - Booking & Appointment
 
 ```mermaid
 classDiagram
@@ -3434,7 +4356,7 @@ classDiagram
     Booking "1" *-- "many" BookingServiceItem
 ```
 
-#### 4.7.2 Create Appointment (BOK-1 Mobile Booking Wizard)
+#### 4.11.2 Create Appointment (BOK-1 Mobile Booking Wizard)
 
 **Smart Availability Algorithm**:
 The system implements a "Smart Availability" feature that automatically filters available time slots based on:
@@ -3495,7 +4417,7 @@ sequenceDiagram
 - **Staff Assignment**: Intentionally omitted from mobile flow. Manager assigns vet post-booking via Dashboard (Section 3.8.4)
 - **Slot Reservation**: Slots are temporarily locked for 15 minutes to allow payment completion
 
-#### 4.7.3 Online Payment & Confirmation (UC-PO-10, UC-PO-20)
+#### 4.11.3 Online Payment & Confirmation (UC-PO-10, UC-PO-20)
 
 ```mermaid
 sequenceDiagram
@@ -3524,7 +4446,7 @@ sequenceDiagram
     deactivate BC
 ```
 
-#### 4.7.4 Clinician Assignment with Manual Staff Selection (UC-CM-06)
+#### 4.11.4 Clinician Assignment with Manual Staff Selection (UC-CM-06)
 
 Manager có thể chọn vet thủ công qua inline dropdown hoặc để hệ thống auto-assign.
 
@@ -3584,7 +4506,7 @@ sequenceDiagram
 | GROOMING_SPA | GROOMER |
 | VACCINATION, CHECK_UP, SURGERY, DENTAL, DERMATOLOGY, OTHER | VET |
 
-#### 4.7.5 Check Staff Availability
+#### 4.11.5 Check Staff Availability
 
 ```mermaid
 sequenceDiagram
@@ -3610,7 +4532,7 @@ sequenceDiagram
     UI-->>M: 8. Show availability status for each service
 ```
 
-#### 4.7.6 Reassign Staff
+#### 4.11.6 Reassign Staff
 
 ```mermaid
 sequenceDiagram
@@ -3639,7 +4561,7 @@ sequenceDiagram
     deactivate BC
 ```
 
-#### 4.7.7 Add-on Service During Examination
+#### 4.11.7 Add-on Service During Examination
 
 Thêm dịch vụ phát sinh trong lúc khám (chỉ hiện khi status = IN_PROGRESS hoặc ARRIVED cho SOS).
 
@@ -3679,7 +4601,7 @@ sequenceDiagram
 - Price is calculated based on pet's current weight
 - Only services from the same clinic can be added
 
-#### 4.7.8 Receive Payment & Checkout (SRS Screen #46, UC-CM-10)
+#### 4.11.8 Receive Payment & Checkout (SRS Screen #46, UC-CM-10)
 
 ```mermaid
 sequenceDiagram
@@ -3698,7 +4620,7 @@ sequenceDiagram
     activate BS
     BS->>DB: 4. findById(id)
     activate DB
-    DB-->>BS: 5. Booking Entity (Status: CHECK_OUT)
+    DB-->>BS: 5. Booking Entity (Status: IN_PROGRESS)
     deactivate DB
     BS->>PR: 6. findByBooking(booking)
     activate PR
@@ -3718,7 +4640,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 4.7.9 View My Bookings (UC-PO-08)
+#### 4.11.9 View My Bookings (UC-PO-08)
 
 ```mermaid
 sequenceDiagram
@@ -3749,11 +4671,11 @@ sequenceDiagram
 ```
 
 **Notes:**
-- Bookings are grouped into 3 tabs: Upcoming (PENDING, CONFIRMED, ASSIGNED, CHECK_IN, IN_PROGRESS), Completed (COMPLETED), Cancelled (CANCELLED, NO_SHOW)
+- Bookings are grouped into 3 tabs: Upcoming (PENDING, CONFIRMED, IN_PROGRESS), Completed (COMPLETED), Cancelled (CANCELLED, NO_SHOW)
 - Empty state shown if no bookings exist
 - Pet Owner can click on any booking to view details
 
-#### 4.7.10 Cancel Booking (UC-PO-09)
+#### 4.11.10 Cancel Booking (UC-PO-09)
 
 ```mermaid
 sequenceDiagram
@@ -3782,8 +4704,8 @@ sequenceDiagram
     deactivate DB
     BR-->>SVC: 9. Booking
     deactivate BR
-    SVC->>SVC: 10. Validate: status < CHECK_IN
-    alt Status < CHECK_IN
+    SVC->>SVC: 10. Validate: status != IN_PROGRESS && status != COMPLETED
+    alt Status allows cancellation
         SVC->>SVC: 11. Update booking.status = CANCELLED
         SVC->>SR: 12. findByBooking(booking)
         activate SR
@@ -3819,7 +4741,7 @@ sequenceDiagram
         API-->>UI: 26. 200 OK
         deactivate API
         UI-->>PO: 27. Show success toast + update UI
-    else Status >= CHECK_IN
+    else Status = IN_PROGRESS/COMPLETED
         SVC-->>API: 11. Throw BadRequestException
         deactivate SVC
         API-->>UI: 12. 400 Bad Request
@@ -3830,12 +4752,12 @@ sequenceDiagram
 ```
 
 **Notes:**
-- Only bookings with status < CHECK_IN can be cancelled
+- Only bookings with status trước IN_PROGRESS can be cancelled
 - Slots are restored to AVAILABLE status
 - Notifications sent to Clinic Manager and assigned Staff (if any)
 - If payment method is ONLINE, refund request is created (handled by UC-CM-07)
 
-#### 4.7.11 View Assigned Bookings (UC-VT-03)
+#### 4.11.11 View Assigned Bookings (UC-VT-03)
 
 ```mermaid
 sequenceDiagram
@@ -3847,9 +4769,9 @@ sequenceDiagram
 
     V->>UI: 1. Navigate to "Lịch hẹn" screen
     activate UI
-    UI->>API: 2. GET /api/bookings/assigned
+    UI->>API: 2. GET /api/bookings/staff/{staffId}
     activate API
-    API->>SVC: 3. getAssignedBookings(vetId, filters)
+    API->>SVC: 3. getBookingsByStaff(staffId, status, pageable)
     activate SVC
     SVC->>DB: 4. SELECT * FROM bookings WHERE vet_id = ? AND status IN (...)
     activate DB
@@ -3867,11 +4789,11 @@ sequenceDiagram
 
 **Notes:**
 - Filters available: Today, Upcoming, Completed, All
-- Status badges: ASSIGNED (yellow), CHECK_IN (blue), IN_PROGRESS (green), CHECK_OUT (purple)
+- Status badges: CONFIRMED (yellow), IN_PROGRESS (purple), COMPLETED (green), CANCELLED/NO_SHOW (gray/red)
 - Empty state shown if no assigned bookings
 - Staff can click on booking to view details and take actions
 
-#### 4.7.12 Update Appointment Progress (UC-VT-04)
+#### 4.11.12 Update Appointment Progress (UC-VT-04)
 
 ```mermaid
 sequenceDiagram
@@ -3886,8 +4808,8 @@ sequenceDiagram
     V->>UI: 1. View booking detail
     activate UI
     UI->>UI: 2. Show action button based on status
-    V->>UI: 3. Click action button (Check-in, Start Exam, Finish)
-    UI->>API: 4. POST /api/bookings/{id}/update-status
+    V->>UI: 3. Click action button (Check-in / Start moving / Checkout / Complete)
+    UI->>API: 4. POST /api/bookings/{id}/{action}
     activate API
     API->>SVC: 5. updateBookingStatus(bookingId, newStatus)
     activate SVC
@@ -3899,9 +4821,9 @@ sequenceDiagram
     deactivate DB
     BR-->>SVC: 9. Booking
     deactivate BR
-    SVC->>SVC: 10. Validate status transition
+    SVC->>SVC: 10. Validate status transition (CONFIRMED→IN_PROGRESS hoặc IN_PROGRESS→COMPLETED)
     alt Status transition valid
-        alt New Status = CHECK_IN
+        alt Action = check-in hoặc start-moving
             SVC->>ER: 11. createEMRShell(bookingId, petId, vetId)
             activate ER
             ER->>DB: 12. INSERT INTO emr (booking_id, pet_id, vet_id)
@@ -3909,7 +4831,7 @@ sequenceDiagram
             DB-->>ER: 13. EMR created
             deactivate DB
             deactivate ER
-        else New Status = CHECK_OUT
+        else Action = checkout/complete
             SVC->>ER: 14. findByBooking(bookingId)
             activate ER
             ER->>DB: 15. SELECT * FROM emr WHERE booking_id = ?
@@ -3951,12 +4873,12 @@ sequenceDiagram
 ```
 
 **Notes:**
-- Valid status transitions: ASSIGNED → CHECK_IN → IN_PROGRESS → CHECK_OUT
-- EMR shell is created when status changes to CHECK_IN
-- EMR must have Assessment and Plan before CHECK_OUT is allowed
+- Valid status transitions: CONFIRMED → IN_PROGRESS → COMPLETED
+- EMR shell is created when booking starts execution (check-in/start-moving)
+- Checkout/complete requires valid trạng thái hiện tại là IN_PROGRESS
 - Notifications sent to Pet Owner and Clinic Manager on status changes
 
-#### 4.7.13 Check-in Patient (UC-VT-05)
+#### 4.11.13 Check-in Patient (UC-VT-05)
 
 ```mermaid
 sequenceDiagram
@@ -3981,16 +4903,16 @@ sequenceDiagram
     activate BR
     BR->>DB: 7. SELECT * FROM bookings WHERE booking_id = ?
     activate DB
-    DB-->>BR: 8. Booking entity (Status: ASSIGNED)
+    DB-->>BR: 8. Booking entity (Status: CONFIRMED)
     deactivate DB
     BR-->>SVC: 9. Booking
     deactivate BR
-    SVC->>SVC: 10. Validate: status = ASSIGNED
-    alt Status = ASSIGNED
-        SVC->>SVC: 11. Update booking.status = CHECK_IN
+    SVC->>SVC: 10. Validate: status = CONFIRMED
+    alt Status = CONFIRMED
+        SVC->>SVC: 11. Update booking.status = IN_PROGRESS
         SVC->>BR: 12. save(booking)
         activate BR
-        BR->>DB: 13. UPDATE bookings SET status = 'CHECK_IN'
+        BR->>DB: 13. UPDATE bookings SET status = 'IN_PROGRESS'
         activate DB
         DB-->>BR: 14. OK
         deactivate DB
@@ -4009,7 +4931,7 @@ sequenceDiagram
         DB-->>NR: 20. OK
         deactivate DB
         deactivate NR
-        SVC-->>API: 21. BookingResponse (CHECK_IN)
+        SVC-->>API: 21. BookingResponse (IN_PROGRESS)
         deactivate SVC
         API-->>UI: 22. 200 OK
         deactivate API
@@ -4025,12 +4947,12 @@ sequenceDiagram
 ```
 
 **Notes:**
-- Only bookings with status ASSIGNED can be checked in
+- Only bookings with status CONFIRMED can be checked in
 - EMR shell is created with booking_id, pet_id, vet_id, created_at
 - Notification sent to Pet Owner: "Thú cưng của bạn đang được khám"
 - After check-in, Staff can start filling EMR (UC-VT-06)
 
-#### 4.7.14 Mark Treatment Finished (UC-VT-09)
+#### 4.11.14 Mark Treatment Finished (UC-VT-09)
 
 ```mermaid
 sequenceDiagram
@@ -4069,10 +4991,10 @@ sequenceDiagram
     deactivate ER
     SVC->>SVC: 14. Validate EMR completeness
     alt EMR has Assessment AND Plan
-        SVC->>SVC: 15. Update booking.status = CHECK_OUT
+        SVC->>SVC: 15. Update booking.status = COMPLETED
         SVC->>BR: 16. save(booking)
         activate BR
-        BR->>DB: 17. UPDATE bookings SET status = 'CHECK_OUT'
+        BR->>DB: 17. UPDATE bookings SET status = 'COMPLETED'
         activate DB
         DB-->>BR: 18. OK
         deactivate DB
@@ -4084,7 +5006,7 @@ sequenceDiagram
         DB-->>NR: 21. OK
         deactivate DB
         deactivate NR
-        SVC-->>API: 22. BookingResponse (CHECK_OUT)
+        SVC-->>API: 22. BookingResponse (COMPLETED)
         deactivate SVC
         API-->>UI: 23. 200 OK
         deactivate API
@@ -4101,11 +5023,11 @@ sequenceDiagram
 
 **Notes:**
 - EMR must have Assessment and Plan fields filled before treatment can be marked finished
-- Booking status changes from IN_PROGRESS to CHECK_OUT
-- Notification sent to Clinic Manager: "Cần thanh toán & checkout"
-- Notification sent to Pet Owner: "Khám xong, vui lòng thanh toán"
+- Booking status changes from IN_PROGRESS to COMPLETED
+- Notification sent to Clinic Manager: "Booking đã hoàn tất"
+- Notification sent to Pet Owner: "Lịch hẹn đã hoàn thành"
 
-#### 4.7.15 Handle Cancellations & Refunds (UC-CM-07)
+#### 4.11.15 Handle Cancellations & Refunds (UC-CM-07)
 
 ```mermaid
 sequenceDiagram
@@ -4189,7 +5111,7 @@ sequenceDiagram
 - CASH bookings are marked as cancelled without refund
 - Notification sent to Pet Owner with refund details
 
-#### 4.7.16 Check Staff Availability (UC-CM-14)
+#### 4.11.16 Check Staff Availability (UC-CM-14)
 
 ```mermaid
 sequenceDiagram
@@ -4248,7 +5170,7 @@ sequenceDiagram
 - Staff are sorted by availability and workload (least busy first)
 - Unavailable vets are shown with reason (No shift, Fully booked, Wrong specialty)
 
-#### 4.7.17 Reassign Staff to Service (UC-CM-15)
+#### 4.11.17 Reassign Staff to Service (UC-CM-15)
 
 ```mermaid
 sequenceDiagram
@@ -4333,7 +5255,7 @@ sequenceDiagram
   - New Staff: "Bạn được phân công lịch hẹn mới [Booking ID]"
   - Pet Owner: "Nhân viên của bạn đã được thay đổi thành Dr. [Name]"
 
-#### 4.7.18 Manage Shifts - Delete Shift (UC-CM-16)
+#### 4.11.18 Manage Shifts - Delete Shift (UC-CM-16)
 
 ```mermaid
 sequenceDiagram
@@ -4415,467 +5337,11 @@ sequenceDiagram
 - Manager must reassign or cancel bookings before deleting shift
 - All AVAILABLE and BLOCKED slots are deleted along with the shift
 
-### 4.8 Electronic Medical Records (EMR) Flow (UC-VT-02, UC-VT-06, EMR-2)
-
-#### 4.8.1 Class Diagram - EMR
-
-```mermaid
-classDiagram
-    class PatientController {
-        -PatientService patientService
-        +searchPatients(UUID, String) ResponseEntity
-        +getPetMedicalHistory(UUID) ResponseEntity
-        +createEMR(UUID, EMRRequest) ResponseEntity
-        +addVaccinationRecord(UUID, VaccinationRequest) ResponseEntity
-    }
-
-    class PatientService {
-        -PetRepository petRepository
-        -EMRRepository emrRepository
-        -VaccinationRepository vaccinationRepository
-        -BookingRepository bookingRepository
-        +searchPatients(UUID, String) List~PatientResponse~
-        +getPetMedicalHistory(UUID, UUID) PetHistoryResponse
-        +createEMR(UUID, EMRRequest) EMRResponse
-        +addVaccinationRecord(UUID, VaccinationRequest) VaccinationResponse
-    }
-
-    class EMRRepository {
-        <<interface>>
-        +findById(UUID) Optional~EMR~
-        +findByPet(Pet) List~EMR~
-        +save(EMR) EMR
-    }
-
-    class VaccinationRepository {
-        <<interface>>
-        +findByPet(Pet) List~Vaccination~
-        +save(Vaccination) Vaccination
-    }
-
-    class EMR {
-        +UUID emrId
-        +Booking booking
-        +Pet pet
-        +String subjective
-        +String objective
-        +String assessment
-        +String plan
-        +List~ClinicService~ additionalServices
-        +List~IncurredCost~ miscCosts
-    }
-
-    class IncurredCost {
-        +UUID costId
-        +String itemName
-        +BigDecimal amount
-        +Integer quantity
-    }
-
-    class Vaccination {
-        +UUID vaccinationId
-        +Pet pet
-        +String vaccineName
-        +LocalDate administeredDate
-        +LocalDate nextDueDate
-    }
-
-    PatientController --> PatientService
-    PatientService --> EMRRepository
-    PatientService --> VaccinationRepository
-    EMRRepository ..> EMR
-    EMR --> IncurredCost
-    VaccinationRepository ..> Vaccination
-```
-
-#### 4.8.2 View Pet Medical History (Cross-Clinic) (UC-VT-02)
-
-```mermaid
-sequenceDiagram
-    actor V as Staff
-    participant UI as Staff Dashboard
-    participant PC as PatientController
-    participant PS as PatientService
-    participant BR as BookingRepository
-    participant EMRR as EMRRepository
-    participant VR as VaccinationRepository
-    participant DB as Database
-
-    V->>UI: 1. Search Pet or Select from Booking
-    activate UI
-    UI->>PC: 2. getPetMedicalHistory(petId)
-    activate PC
-    PC->>PS: 3. getPetMedicalHistory(petId, clinicId)
-    activate PS
-    PS->>BR: 4. Check entitlement (petId, clinicId)
-    activate BR
-    BR->>DB: 5. Query pet bookings for clinic
-    activate DB
-    DB-->>BR: 6. Booking exists
-    deactivate DB
-    BR-->>PS: 7. Confirmed
-    deactivate BR
-    PS->>EMRR: 8. findByPet(petId)
-    activate EMRR
-    EMRR->>DB: 9. Query EMR records for pet
-    activate DB
-    DB-->>EMRR: 10. EMR List
-    deactivate DB
-    EMRR-->>PS: 11. List<EMR>
-    deactivate EMRR
-    PS->>VR: 12. findByPet(petId)
-    activate VR
-    VR->>DB: 13. Query vaccination records for pet
-    activate DB
-    DB-->>VR: 14. Vaccination List
-    deactivate DB
-    VR-->>PS: 15. List<Vaccination>
-    deactivate VR
-    PS-->>PC: 16. PetHistoryResponse
-    deactivate PS
-    PC-->>UI: 17. 200 OK
-    deactivate PC
-    UI-->>V: 18. Display history timeline
-    deactivate UI
-```
-
-#### 4.8.3 Create EMR (SOAP Notes) (EMR-2, UC-VT-06)
-
-```mermaid
-sequenceDiagram
-    actor V as Staff
-    participant UI as EMR Form (Mobile/Web)
-    participant PC as PatientController
-    participant PS as PatientService
-    participant BR as BookingRepository
-    participant PR as PetRepository
-    participant EMRR as EMRRepository
-    participant DB as Database
-
-    V->>UI: 1. Fill SOAP form (S, O, A, P + Weight)
-    activate UI
-    UI->>PC: 2. createEMR(bookingId, EMRRequest)
-    activate PC
-    PC->>PS: 3. createEMR(bookingId, request)
-    activate PS
-    PS->>BR: 4. findById(bookingId)
-    activate BR
-    BR->>DB: 5. Query booking by ID
-    activate DB
-    DB-->>BR: 6. Booking Entity
-    deactivate DB
-    BR-->>PS: 7. Booking
-    deactivate BR
-    PS->>PS: 8. Validate status == IN_PROGRESS
-    PS->>PS: 9. Validate Staff is assigned
-    PS->>EMRR: 10. save(EMR: subjective, objective, assessment, plan)
-    activate EMRR
-    EMRR->>DB: 11. Insert new EMR record
-    activate DB
-    DB-->>EMRR: 12. Inserted
-    deactivate DB
-    EMRR-->>PS: 13. Saved EMR
-    deactivate EMRR
-    PS->>PR: 14. updatePetWeight(petId, newWeight)
-    activate PR
-    PR->>DB: 15. Update pet weight
-    activate DB
-    DB-->>PR: 16. Updated
-    deactivate DB
-    PR-->>PS: 17. OK
-    deactivate PR
-    PS-->>PC: 18. EMRResponse
-    deactivate PS
-    PC-->>UI: 19. 201 Created
-    deactivate PC
-    UI-->>V: 20. Show success & update medical timeline
-    deactivate UI
-```
-
-#### 4.8.4 Add Vaccination Record (UC-VT-08)
-
-```mermaid
-sequenceDiagram
-    actor V as Staff
-    participant UI as Vaccination Form
-    participant PC as PatientController
-    participant PS as PatientService
-    participant PR as PetRepository
-    participant VR as VaccinationRepository
-    participant DB as Database
-
-    V->>UI: 1. Fill vaccine info & click "Add"
-    activate UI
-    UI->>PC: 2. addVaccinationRecord(petId, vaccinationRequest)
-    activate PC
-    PC->>PS: 3. addVaccinationRecord(petId, request)
-    activate PS
-    PS->>PR: 4. findById(petId)
-    activate PR
-    PR->>DB: 5. Query pet by ID
-    activate DB
-    DB-->>PR: 6. Pet Entity
-    deactivate DB
-    PR-->>PS: 7. Pet
-    deactivate PR
-    PS->>PS: 8. Validate entitlement
-    PS->>VR: 9. save(Vaccination entity)
-    activate VR
-    VR->>DB: 10. Insert vaccination record
-    activate DB
-    DB-->>VR: 11. Inserted
-    deactivate DB
-    VR-->>PS: 12. Saved Vaccination
-    deactivate VR
-    PS-->>PC: 13. VaccinationResponse
-    deactivate PS
-    PC-->>UI: 14. 201 Created
-    deactivate PC
-    UI-->>V: 15. Update vaccination card
-    deactivate UI
-```
-
-#### 4.8.5 Additional Service & Incurred Costs (UC-VT-10)
-
-```mermaid
-sequenceDiagram
-    actor V as Staff
-    participant UI as EMR Interface
-    participant PC as PatientController
-    participant PS as PatientService
-    participant SR as ServiceRepository
-    participant BR as BookingRepository
-    participant DB as Database
-
-    alt Standard Service
-        V->>UI: 1a. Select from Clinic Catalog
-        UI->>PC: 2a. addAdditionalService(bookingId, serviceId)
-        PC->>PS: 3a. addAdditionalService(...)
-        PS->>SR: 4a. findById(serviceId)
-        activate SR
-        SR->>DB: 5a. Query clinic service by ID
-        activate DB
-        DB-->>SR: 6a. Service Entity (Price)
-        deactivate DB
-        SR-->>PS: 7a. Service
-        deactivate SR
-    else Custom Incurred Cost
-        V->>UI: 1b. Type name & manual price
-        UI->>PC: 2b. addIncurredCost(bookingId, costRequest)
-        PC->>PS: 3b. addIncurredCost(...)
-        Note over PS: Create IncurredCost entity
-    end
-
-    PS->>BR: 8. findById(bookingId)
-    activate BR
-    BR->>DB: 9. Query booking by ID
-    activate DB
-    DB-->>BR: 10. Booking Entity
-    deactivate DB
-    BR-->>PS: 11. Booking
-    deactivate BR
-    
-    PS->>PS: 12. Recalculate totalPrice
-    Note over PS: Total = Base + Surcharge + Services + Misc
-    
-    PS->>BR: 13. save(Updated Booking)
-    activate BR
-    BR->>DB: 14. Update booking total price
-    activate DB
-    DB-->>BR: 15. Updated
-    deactivate DB
-    BR-->>PS: 16. OK
-    deactivate BR
-    
-    PS-->>PC: 17. Success
-    PC-->>UI: 18. 200 OK (Updated Balance)
-    UI-->>V: 19. Update UI with new Total
-```
-
-#### 4.8.6 Add Vaccination Record (UC-VT-08)
-
-```mermaid
-sequenceDiagram
-    actor V as Staff
-    participant UI as EMR/Health Hub
-    participant PC as PatientController
-    participant PS as PatientService
-    participant VR as VaccinationRepository
-    participant PR as PetRepository
-    participant DB as MongoDB
-
-    V->>UI: 1. Click "Add Vaccination"
-    activate UI
-    V->>UI: 2. Enter: VaccineName, BatchNo, Date, NextDue
-    UI->>PC: 3. POST /vaccinations (VaccinationRequest)
-    activate PC
-    PC->>PS: 4. addVaccinationRecord(petId, request)
-    activate PS
-    PS->>PR: 5. findById(petId)
-    activate PR
-    PR-->>PS: 6. Pet Entity
-    deactivate PR
-    PS->>VR: 7. save(VaccinationRecord)
-    activate VR
-    VR->>DB: 8. Insert vaccination document
-    activate DB
-    DB-->>VR: 9. Saved
-    deactivate DB
-    VR-->>PS: 10. VaccinationRecord
-    deactivate VR
-    PS->>PS: 11. Schedule reminder notification
-    PS-->>PC: 12. VaccinationResponse
-    deactivate PS
-    PC-->>UI: 13. 201 Created
-    deactivate PC
-    UI-->>V: 14. Show success & update Health Badge
-    deactivate UI
-```
-
-#### 4.8.7 Lookup Patient (UC-VT-12)
-
-```mermaid
-sequenceDiagram
-    actor V as Staff
-    participant UI as Search Interface
-    participant PC as PatientController
-    participant PS as PatientService
-    participant PR as PetRepository
-    participant UR as UserRepository
-    participant DB as PostgreSQL
-
-    V->>UI: 1. Enter search query (name/owner/bookingId)
-    activate UI
-    UI->>PC: 2. GET /patients/search?q=query&clinicId=xxx
-    activate PC
-    PC->>PS: 3. searchPatients(clinicId, query)
-    activate PS
-    PS->>PR: 4. findByNameContainingAndClinicId(query, clinicId)
-    activate PR
-    PR->>DB: 5. SELECT pets WHERE name LIKE %query%
-    activate DB
-    DB-->>PR: 6. List<Pet>
-    deactivate DB
-    PR-->>PS: 7. Pets matching name
-    deactivate PR
-    PS->>UR: 8. findByNameContaining(query)
-    activate UR
-    UR->>DB: 9. SELECT users WHERE fullName LIKE %query%
-    activate DB
-    DB-->>UR: 10. List<User> (Owners)
-    deactivate DB
-    UR-->>PS: 11. Users matching
-    deactivate UR
-    PS->>PS: 12. Merge & filter by clinic visits
-    PS-->>PC: 13. List<PatientSearchResponse>
-    deactivate PS
-    PC-->>UI: 14. 200 OK (paginated results)
-    deactivate PC
-    UI-->>V: 15. Display patient cards
-    deactivate UI
-```
-
-#### 4.8.8 View Patient List (UC-CM-08)
-
-```mermaid
-sequenceDiagram
-    actor M as Manager
-    participant UI as Patient List Page
-    participant PC as PatientController
-    participant PS as PatientService
-    participant BR as BookingRepository
-    participant PR as PetRepository
-    participant DB as PostgreSQL
-
-    M->>UI: 1. Navigate to Patients Tab
-    activate UI
-    UI->>PC: 2. GET /patients?clinicId=xxx&page=0&size=20
-    activate PC
-    PC->>PS: 3. getPatientList(clinicId, filters, pageable)
-    activate PS
-    PS->>BR: 4. findDistinctPetsByClinicId(clinicId)
-    activate BR
-    BR->>DB: 5. SELECT DISTINCT pet_id FROM bookings WHERE clinic_id=xxx
-    activate DB
-    DB-->>BR: 6. List<UUID> petIds
-    deactivate DB
-    BR-->>PS: 7. Pet IDs
-    deactivate BR
-    PS->>PR: 8. findAllById(petIds)
-    activate PR
-    PR->>DB: 9. SELECT * FROM pets WHERE id IN (...)
-    activate DB
-    DB-->>PR: 10. List<Pet>
-    deactivate DB
-    PR-->>PS: 11. Pets with owner info
-    deactivate PR
-    PS->>PS: 12. Aggregate visit counts & last visit dates
-    PS-->>PC: 13. Page<PatientListResponse>
-    deactivate PS
-    PC-->>UI: 14. 200 OK (paginated list)
-    deactivate PC
-    UI-->>M: 15. Render patient table with filters
-    deactivate UI
-```
-
-#### 4.8.9 View Patient Records (UC-CM-09)
-
-```mermaid
-sequenceDiagram
-    actor M as Manager
-    participant UI as Patient Detail Page
-    participant PC as PatientController
-    participant PS as PatientService
-    participant PR as PetRepository
-    participant ER as EMRRepository
-    participant VR as VaccinationRepository
-    participant PG as PostgreSQL
-    participant MG as MongoDB
-
-    M->>UI: 1. Click patient row -> View Records
-    activate UI
-    UI->>PC: 2. GET /patients/{petId}/records?clinicId=xxx
-    activate PC
-    PC->>PS: 3. getPatientRecords(petId, clinicId)
-    activate PS
-    PS->>PR: 4. findById(petId)
-    activate PR
-    PR->>PG: 5. Query pet profile
-    activate PG
-    PG-->>PR: 6. Pet Entity
-    deactivate PG
-    PR-->>PS: 7. Pet with owner
-    deactivate PR
-    PS->>ER: 8. findByPetIdAndClinicId(petId, clinicId)
-    activate ER
-    ER->>MG: 9. Query EMR documents
-    activate MG
-    MG-->>ER: 10. List<EMRRecord>
-    deactivate MG
-    ER-->>PS: 11. EMR history
-    deactivate ER
-    PS->>VR: 12. findByPetId(petId)
-    activate VR
-    VR->>MG: 13. Query vaccination documents
-    activate MG
-    MG-->>VR: 14. List<VaccinationRecord>
-    deactivate MG
-    VR-->>PS: 15. Vaccination history
-    deactivate VR
-    PS->>PS: 16. Build timeline & aggregate
-    PS-->>PC: 17. PatientRecordsResponse
-    deactivate PS
-    PC-->>UI: 18. 200 OK (full history)
-    deactivate PC
-    UI-->>M: 19. Render timeline, tabs, export button
-    deactivate UI
-```
 
 ---
 
-### 4.9 SOS Emergency Flow (SOS-01 -> SOS-13)
 
-#### 4.9.1 Class Diagram - SOS Emergency
+#### 4.11.19 Class Diagram - SOS Emergency
 
 **Business Rules:** BR-59, BR-60, BR-61, BR-62, BR-63, BR-64, BR-65, BR-66
 
@@ -5048,7 +5514,7 @@ classDiagram
 - **BR-65:** Session TTL = 60s * 5 clinics + 60s buffer = 360s
 - **BR-66:** Unique booking code format: `SOS-{timestamp}-{random}`
 
-#### 4.9.2 Request SOS & Auto-Match (UC-SOS-01, UC-SOS-09)
+#### 4.11.20 Request SOS & Auto-Match (UC-SOS-01, UC-SOS-09)
 
 **Business Rules:** BR-59 (10km radius), BR-60 (max 5 clinics), BR-61 (60s timeout), BR-62 (no duplicate active SOS), BR-64 (status flow), BR-66 (unique booking code)
 
@@ -5140,7 +5606,7 @@ sequenceDiagram
     end
 ```
 
-#### 4.9.X SOS Emergency Booking – Matching & Real-Time Tracking (UC-SOS-01, UC-SOS-02, UC-PO-15)
+#### 4.11.21 SOS Emergency Booking – Matching & Real-Time Tracking (UC-SOS-01, UC-SOS-02, UC-PO-15)
 
 This subsection describes the end-to-end SOS booking experience from the Pet Owner’s perspective, combining matching and real-time tracking flows.
 
@@ -5249,7 +5715,7 @@ sequenceDiagram
     end
 ```
 
-#### 4.9.3 Accept/Decline SOS Request (UC-SOS-10)
+#### 4.11.22 Accept/Decline SOS Request (UC-SOS-10)
 
 ```mermaid
 sequenceDiagram
@@ -5292,7 +5758,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 4.9.4 SOS Escalation & Timeout (UC-SOS-11, UC-SOS-12)
+#### 4.11.23 SOS Escalation & Timeout (UC-SOS-11, UC-SOS-12)
 
 ```mermaid
 sequenceDiagram
@@ -5338,7 +5804,7 @@ sequenceDiagram
     end
 ```
 
-#### 4.9.5 Track Staff Location (UC-SOS-02)
+#### 4.11.24 Track Staff Location (UC-SOS-02)
 
 ```mermaid
 sequenceDiagram
@@ -5370,7 +5836,7 @@ sequenceDiagram
     end
 ```
 
-#### 4.9.6 Staff Move & Start Service (UC-SOS-06, UC-SOS-07)
+#### 4.11.25 Staff Move & Start Service (UC-SOS-06, UC-SOS-07)
 **Transitions:** `CONFIRMED → IN_PROGRESS` (khi Staff bấm "Bắt đầu di chuyển")
 
 ```mermaid
@@ -5409,7 +5875,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 4.9.7 SOS Service Completion & Checkout (UC-SOS-08)
+#### 4.11.26 SOS Service Completion & Checkout (UC-SOS-08)
 **Transitions:** `IN_PROGRESS → COMPLETED` (khi Staff bấm "Checkout")
 
 ```mermaid
@@ -5438,916 +5904,43 @@ sequenceDiagram
 
 ---
 
-### 4.10 AI Assistance Flow (UC-PO-14, UC-PO-14d)
+### 4.12 Clinic Discovery Management
 
-#### 4.10.1 Class Diagram - AI Service
+#### 4.12.1 Class Diagram - Clinic Discovery
+*(Logic maps to Clinic Service `findNearbyClinics`)*
 
-```mermaid
-classDiagram
-    class AgentController {
-        -AgentService agentService
-        +chat(ChatRequest) StreamingResponse
-        +clearHistory(UUID) void
-    }
-
-    class AgentService {
-        -LangGraphEngine engine
-        -ToolRegistry toolRegistry
-        -RAGEngine ragEngine
-        +processQuery(userId, query) Stream
-    }
-
-    class LangGraphEngine {
-        -StateStore stateStore
-        +runReActLoop(prompt) Node
-    }
-
-    class ToolRegistry {
-        -FastMCPProtocol mcp
-        +callTool(toolName, args) ToolOutput
-    }
-
-    class RAGEngine {
-        -QdrantClient vectorDb
-        -CohereEmbedding embedding
-        +retrieveContext(query) List~Node~
-    }
-
-    AgentController --> AgentService
-    AgentService --> LangGraphEngine
-    AgentService --> ToolRegistry
-    AgentService --> RAGEngine
-```
-
-#### 4.10.2 Sequence Diagram: AI ReAct Loop
+#### 4.12.2 Search Nearby Clinics (UC-PO-05)
 
 ```mermaid
 sequenceDiagram
-    actor PO as Pet Owner
-    participant UI as Chat UI (Mobile)
-    participant AC as AgentController
-    participant AS as AgentService
-    participant LG as LangGraphEngine
-    participant TR as ToolRegistry
-    participant RE as RAGEngine
+    actor User as Pet Owner
+    participant UI as Clinic Search Screen (Mobile)
+    participant CC as ClinicController
+    participant CS as ClinicService
+    participant CR as ClinicRepository
 
-    PO->>UI: 1. Send "Book Staff for Bella tomorrow"
+    User->>UI: 1. Allow location access
     activate UI
-    UI->>AC: 2. chatRequest(query)
-    activate AC
-    AC->>AS: 3. processQuery(userId, query)
-    activate AS
-    AS->>LG: 4. runReActLoop(state)
-    activate LG
-    
-    Note over LG: Step 1: Reasoning (Thought)
-    LG-->>AS: 5. Request Tool: "find_slots"
-    AS->>TR: 6. callTool("find_slots", {pet: "Bella", date: "tomorrow"})
-    activate TR
-    Note right of TR: Call fast-mcp plugin link to Spring Boot
-    TR-->>AS: 7. Observation: "Available slots: 09:00, 10:00"
-    deactivate TR
-    AS->>LG: 8. Update State with Observation
-    
-    Note over LG: Step 2: Reasoning (Thought)
-    LG-->>AS: 9. Final Answer: "Tôi tìm thấy 2 khung giờ..."
-    deactivate LG
-    
-    AS-->>AC: 10. StreamingResponse (Chunks)
-    deactivate AS
-    AC-->>UI: 11. WebSocket / SSE Stream
-    deactivate AC
-    UI-->>PO: 12. Display text progressively
-    deactivate UI
-```
-
-#### 4.10.3 AI Vision Pet Health Analysis (UC-PO-14d)
-
-```mermaid
-classDiagram
-    %% === AI SERVICE LAYER ===
-    class ChatWebSocket {
-        <<FastAPI WebSocket>>
-        +connect(websocket, user_id)
-        +receive_message(message)
-        +send_stream_response(chunks)
-    }
-
-    class SingleAgent {
-        -llm_client: OpenRouterClient
-        -enabled_tools: List~str~
-        -system_prompt: str
-        +invoke(message: str, context: dict) str
-        +stream(message: str) AsyncIterator
-        -_think_node(state) dict
-        -_act_node(state) dict
-        -_observe_node(state) dict
-    }
-
-    class OpenRouterClient {
-        -api_key: str
-        -model: str
-        +generate(prompt: str) LLMResponse
-        +generate_with_image(prompt: str, image_url: str) LLMResponse
-        +stream(prompt: str) AsyncIterator
-    }
-
-    %% === VISION TOOLS ===
-    class VisionTools {
-        <<@mcp.tool>>
-        +analyze_pet_image(image_url, pet_type, symptoms) VisionAnalysisResult
-    }
-
-    class VisionAnalysisResult {
-        +detected_issues: List~DetectedIssue~
-        +severity: SeverityLevel
-        +recommended_services: List~UUID~
-        +urgent_warning: str
-        +next_steps: str
-    }
-
-    class DetectedIssue {
-        +name: str
-        +description: str
-        +confidence: float
-        +affected_area: str
-    }
-
-    class SeverityLevel {
-        <<enumeration>>
-        MILD
-        MODERATE
-        SEVERE
-        URGENT
-    }
-
-    %% === BOOKING TOOLS ===
-    class BookingTools {
-        <<@mcp.tool>>
-        +search_nearby_clinics(lat, lng, radius_km) List~ClinicResult~
-        +get_user_pets(user_id) List~PetSummary~
-        +create_booking_suggestion(pet_id, clinic_id, service_ids, urgency) BookingSuggestion
-    }
-
-    class ClinicResult {
-        +clinic_id: UUID
-        +name: str
-        +address: str
-        +distance_km: float
-        +rating: float
-        +available_services: List~str~
-    }
-
-    class PetSummary {
-        +pet_id: UUID
-        +name: str
-        +species: str
-        +breed: str
-        +image_url: str
-    }
-
-    class BookingSuggestion {
-        +pet_id: UUID
-        +clinic_id: UUID
-        +clinic_name: str
-        +clinic_address: str
-        +services: List~ServiceInfo~
-        +suggested_date: date
-        +suggested_time: time
-        +estimated_price: int
-        +urgency: str
-        +warning_message: str
-        +confirmation_action: dict
-    }
-
-    %% === WEBSOCKET SCHEMAS ===
-    class ImageMessage {
-        +type: str = "image"
-        +image_url: str
-        +latitude: float
-        +longitude: float
-        +text: str
-    }
-
-    class BookingSuggestionMessage {
-        +type: str = "booking_suggestion"
-        +suggestion: BookingSuggestion
-    }
-
-    %% === RELATIONSHIPS ===
-    ChatWebSocket --> SingleAgent : uses
-    SingleAgent --> OpenRouterClient : uses
-    SingleAgent --> VisionTools : calls
-    SingleAgent --> BookingTools : calls
-    VisionTools --> VisionAnalysisResult : returns
-    VisionTools --> OpenRouterClient : calls generate_with_image
-    BookingTools --> ClinicResult : returns
-    BookingTools --> PetSummary : returns
-    BookingTools --> BookingSuggestion : returns
-    VisionAnalysisResult --> DetectedIssue : contains
-    VisionAnalysisResult --> SeverityLevel : has
-    ChatWebSocket --> ImageMessage : receives
-    ChatWebSocket --> BookingSuggestionMessage : sends
-```
-
-#### 4.10.4 Class Specifications
-
-**1. OpenRouterClient (Extended)**
-- **Responsibility:** Giao tiếp với OpenRouter API, hỗ trợ cả text và multimodal (image) input.
-- **Key Methods:**
-    - `generate_with_image(prompt, image_url)`: Gửi prompt kèm hình ảnh đến Vision LLM (Gemini 2.0 Flash).
-    - Trả về structured response với detected issues.
-
-**2. VisionTools (@mcp.tool)**
-- **Responsibility:** Phân tích hình ảnh thú cưng để nhận diện vấn đề sức khỏe.
-- **Key Methods:**
-    - `analyze_pet_image(image_url, pet_type, symptoms_description)`:
-        - Gọi Vision LLM với prompt chuyên biệt cho pet health analysis.
-        - Parse response để trích xuất detected issues, severity.
-        - Map issues sang recommended service categories.
-
-**3. BookingTools (@mcp.tool)**
-- **Responsibility:** Hỗ trợ tìm clinic và tạo booking suggestion.
-- **Key Methods:**
-    - `search_nearby_clinics(lat, lng, radius_km)`: Gọi Spring Boot API `/clinics/nearby` với Haversine distance.
-    - `get_user_pets(user_id)`: Gọi API `/pets/my` để lấy danh sách pet của user.
-    - `create_booking_suggestion(...)`: Tạo booking suggestion object với thông tin đã điền sẵn.
-
-**4. BookingSuggestion**
-- **Responsibility:** Data object chứa thông tin booking được AI đề xuất.
-- **Fields:**
-    - `confirmation_action`: Deep link params để mobile app navigate đến booking screen.
-
-#### 4.10.5 Sequence Diagram: AI Vision Analysis to Booking
-
-```mermaid
-sequenceDiagram
-    actor PO as Pet Owner
-    participant UI as Chat UI (Mobile)
-    participant CD as Cloudinary
-    participant WS as ChatWebSocket (FastAPI)
-    participant SA as SingleAgent
-    participant VT as VisionTools
-    participant LLM as OpenRouter (Gemini 2.0)
-    participant BT as BookingTools
-    participant API as Spring Boot API
-
-    Note over PO, UI: Step 1: Upload Image
-    PO->>UI: 1. Tap camera icon, select pet photo
-    activate UI
-    UI->>CD: 2. Upload image
-    activate CD
-    CD-->>UI: 3. Return image_url
-    deactivate CD
-
-    Note over UI, WS: Step 2: Send Image Message
-    UI->>WS: 4. WebSocket: {type: "image", image_url, lat, lng}
-    activate WS
-    WS->>SA: 5. invoke(message, context)
-    activate SA
-
-    Note over SA: Step 3: ReAct - Thought
-    SA->>SA: 6. Detect image in message
-    SA->>SA: 7. Decide to call analyze_pet_image tool
-
-    Note over SA, LLM: Step 4: Vision Analysis
-    SA->>VT: 8. analyze_pet_image(image_url, pet_type)
-    activate VT
-    VT->>LLM: 9. generate_with_image(prompt, image_url)
-    activate LLM
-    Note right of LLM: Vision LLM analyzes image
-    LLM-->>VT: 10. Analysis result (JSON)
-    deactivate LLM
-    VT-->>SA: 11. VisionAnalysisResult {issues, severity: "moderate", services}
-    deactivate VT
-
-    Note over SA: Step 5: ReAct - Observe & Think
-    SA->>SA: 12. Severity >= moderate → Need booking
-
-    Note over SA, API: Step 6: Find Nearby Clinics
-    SA->>BT: 13. search_nearby_clinics(lat, lng)
-    activate BT
-    BT->>API: 14. GET /clinics/nearby?lat=...&lng=...
-    activate API
-    API-->>BT: 15. List of clinics
-    deactivate API
-    BT-->>SA: 16. [Clinic A, Clinic B, ...]
-    deactivate BT
-
-    Note over SA, API: Step 7: Get User Pets
-    SA->>BT: 17. get_user_pets(user_id)
-    activate BT
-    BT->>API: 18. GET /pets/my
-    activate API
-    API-->>BT: 19. [Lucky, Mimi, Bella]
-    deactivate API
-    BT-->>SA: 20. List of pets
-    deactivate BT
-
-    Note over SA, UI: Step 8: Ask Pet Selection (if multiple)
-    SA-->>WS: 21. Stream: "Bạn muốn đặt lịch cho bé nào?"
-    WS-->>UI: 22. Display pet selection
-    UI-->>PO: 23. Show pet options
-    PO->>UI: 24. Select "Lucky"
-    UI->>WS: 25. {type: "text", content: "Lucky"}
-    WS->>SA: 26. Continue with pet selection
-
-    Note over SA, BT: Step 9: Create Booking Suggestion
-    SA->>BT: 27. create_booking_suggestion(pet_id, clinic_id, services, urgency)
-    activate BT
-    BT-->>SA: 28. BookingSuggestion object
-    deactivate BT
-
-    Note over SA, UI: Step 10: Return Final Response
-    SA-->>WS: 29. Stream: Warning + BookingSuggestion
-    deactivate SA
-    WS-->>UI: 30. {type: "booking_suggestion", suggestion: {...}}
-    deactivate WS
-    UI-->>PO: 31. Display warning + "Đặt lịch ngay" button
-    deactivate UI
-
-    Note over PO, UI: Step 11: Confirm Booking
-    PO->>UI: 32. Tap "Đặt lịch ngay"
-    UI->>UI: 33. Navigate to BookingScreen with params
-```
-
-#### 4.10.6 WebSocket Message Schemas
-
-**1. Image Message (Client → Server)**
-```json
-{
-  "type": "image",
-  "image_url": "https://res.cloudinary.com/petties/image/upload/v123/pet_photo.jpg",
-  "text": "Bé nhà mình bị như này có sao không?",
-  "latitude": 10.7769,
-  "longitude": 106.7009
-}
-```
-
-**2. Booking Suggestion Message (Server → Client)**
-```json
-{
-  "type": "booking_suggestion",
-  "warning_message": "⚠️ CẢNH BÁO: Phát hiện dấu hiệu viêm da, nghi ngờ nhiễm nấm. Nên đưa đến nhân viên thú y trong 24-48h.",
-  "suggestion": {
-    "pet_id": "uuid-pet",
-    "pet_name": "Lucky",
-    "clinic_id": "uuid-clinic",
-    "clinic_name": "Phòng khám ABC",
-    "clinic_address": "123 Nguyễn Văn A, Quận 7",
-    "services": [
-      {"id": "uuid-service", "name": "Khám da liễu", "price": 200000}
-    ],
-    "suggested_date": "2026-01-16",
-    "suggested_time": "09:00",
-    "estimated_price": 200000,
-    "urgency": "moderate",
-    "confirmation_action": {
-      "action": "open_booking",
-      "params": {
-        "pet_id": "uuid-pet",
-        "clinic_id": "uuid-clinic",
-        "service_ids": ["uuid-service"],
-        "date": "2026-01-16",
-        "time": "09:00"
-      }
-    }
-  }
-}
-```
-
-**3. Pet Selection Message (Server → Client)**
-```json
-{
-  "type": "pet_selection",
-  "message": "Bạn muốn đặt lịch cho bé nào?",
-  "pets": [
-    {"pet_id": "uuid-1", "name": "Lucky", "species": "Chó", "image_url": "..."},
-    {"pet_id": "uuid-2", "name": "Mimi", "species": "Mèo", "image_url": "..."}
-  ]
-}
-```
-
-#### 4.10.7 Severity Mapping to Actions
-
-| Severity | Description | AI Action |
-|----------|-------------|-----------|
-| `MILD` | Không phát hiện vấn đề nghiêm trọng | Chỉ đưa lời khuyên, không đề xuất booking |
-| `MODERATE` | Vấn đề cần theo dõi | Đề xuất booking trong 24-48h |
-| `SEVERE` | Vấn đề nghiêm trọng | Đề xuất booking trong ngày |
-| `URGENT` | Cấp cứu | Cảnh báo mạnh + đề xuất SOS hoặc booking ngay |
-
----
-
-### 4.11 Governance & Reporting Flow (UC-PO-16)
-
-#### 4.11.1 Class Diagram - Reporting
-
-```mermaid
-classDiagram
-    class ReportController {
-        -ReportService reportService
-        +submitReport(ReportRequest) ResponseEntity
-        +getMyReports(UUID, Pageable) ResponseEntity
-        +getPendingReports(Pageable) ResponseEntity
-        +processReport(UUID, ProcessRequest) ResponseEntity
-    }
-
-    class ReportService {
-        -ReportRepository reportRepository
-        -UserRepository userRepository
-        -NotificationService notificationService
-        +createReport(ReportRequest) ReportResponse
-        +getUserReports(UUID, Pageable) Page~ReportResponse~
-        +getPendingReports(Pageable) Page~ReportResponse~
-        +processReport(UUID, ProcessRequest) void
-    }
-
-    class Report {
-        +UUID reportId
-        +User reporter
-        +User reportedUser
-        +Clinic reportedClinic
-        +Booking relatedBooking
-        +ReportCategory category
-        +String description
-        +List~String~ evidenceUrls
-        +ReportStatus status
-        +String adminNotes
-        +LocalDateTime createdAt
-        +LocalDateTime processedAt
-    }
-
-    class ReportRepository {
-        <<interface>>
-        +findById(UUID) Optional~Report~
-        +findByReporter(User, Pageable) Page~Report~
-        +findByStatus(ReportStatus, Pageable) Page~Report~
-        +save(Report) Report
-    }
-
-    ReportController --> ReportService
-    ReportService --> ReportRepository
-    ReportService --> NotificationService
-    ReportRepository ..> Report
-```
-
-#### 4.11.2 Submit Platform Violation Report (UC-PO-16)
-
-```mermaid
-sequenceDiagram
-    actor U as User (Pet Owner/Manager)
-    participant UI as Report Form
-    participant RC as ReportController
-    participant RS as ReportService
-    participant CS as CloudinaryService
-    participant RR as ReportRepository
-    participant NS as NotificationService
-    participant DB as Database
-
-    U->>UI: 1. Click "Report Issue" on Booking Detail
-    activate UI
-    U->>UI: 2. Select category (Abuse, Hygiene, No-show...)
-    U->>UI: 3. Enter description & upload evidence photos
-    UI->>CS: 4. Upload photos
+    UI->>UI: 2. Get current coordinates (lat, lng)
+    UI->>CC: 3. findNearbyClinics(lat, lng, radius)
+    activate CC
+    CC->>CS: 4. findNearbyClinics(lat, lng, radius)
     activate CS
-    CS-->>UI: 5. Evidence URLs
+    CS->>CR: 5. findNearby(lat, lng, radius)
+    activate CR
+    CR-->>CS: 6. List of Clinics (Spatial Query)
+    deactivate CR
+    CS-->>CC: 7. List~ClinicResponse~
     deactivate CS
-    UI->>RC: 6. POST /reports (ReportRequest)
-    activate RC
-    RC->>RS: 7. createReport(request)
-    activate RS
-    RS->>RS: 8. Validate & enrich with user context
-    RS->>RR: 9. save(Report)
-    activate RR
-    RR->>DB: 10. INSERT report
-    activate DB
-    DB-->>RR: 11. Saved
-    deactivate DB
-    RR-->>RS: 12. Report Entity
-    deactivate RR
-    RS->>NS: 13. notifyAdmins(NEW_REPORT_ALERT)
-    activate NS
-    NS-->>RS: 14. Sent
-    deactivate NS
-    RS-->>RC: 15. ReportResponse
-    deactivate RS
-    RC-->>UI: 16. 201 Created
-    deactivate RC
-    UI-->>U: 17. Show success message
+    CC-->>UI: 8. List<ClinicResponse>
+    deactivate CC
+    UI-->>User: 9. Display clinics on map & list
     deactivate UI
 ```
 
-#### 4.11.3 Admin Process Report
-
-```mermaid
-sequenceDiagram
-    actor A as Admin
-    participant UI as Admin Dashboard
-    participant RC as ReportController
-    participant RS as ReportService
-    participant RR as ReportRepository
-    participant UR as UserRepository
-    participant NS as NotificationService
-    participant DB as Database
-
-    A->>UI: 1. Navigate to Pending Reports
-    activate UI
-    UI->>RC: 2. GET /admin/reports?status=PENDING
-    activate RC
-    RC->>RS: 3. getPendingReports(pageable)
-    activate RS
-    RS->>RR: 4. findByStatus(PENDING, pageable)
-    activate RR
-    RR-->>RS: 5. Page<Report>
-    deactivate RR
-    RS-->>RC: 6. Page<ReportResponse>
-    deactivate RS
-    RC-->>UI: 7. 200 OK (list)
-    deactivate RC
-    UI-->>A: 8. Display reports table
-    
-    A->>UI: 9. Click report -> Review details
-    A->>UI: 10. Enter admin notes & select action
-    UI->>RC: 11. PATCH /admin/reports/{id}/process
-    activate RC
-    RC->>RS: 12. processReport(id, ProcessRequest)
-    activate RS
-    RS->>RR: 13. findById(id)
-    activate RR
-    RR-->>RS: 14. Report
-    deactivate RR
-    
-    alt Action: WARN_USER
-        RS->>UR: 15a. Update user warning count
-        RS->>NS: 16a. Notify reported user (WARNING)
-    else Action: BAN_USER
-        RS->>UR: 15b. Update user status = BANNED
-        RS->>NS: 16b. Notify user (ACCOUNT_BANNED)
-    else Action: SUSPEND_CLINIC
-        RS->>DB: 15c. Update clinic status = SUSPENDED
-        RS->>NS: 16c. Notify clinic owner
-    else Action: DISMISS
-        Note over RS: No action on reported entity
-    end
-    
-    RS->>RR: 17. save(updatedReport with status=PROCESSED)
-    RS->>NS: 18. Notify reporter (REPORT_PROCESSED)
-    RS-->>RC: 19. OK
-    deactivate RS
-    RC-->>UI: 20. 200 OK
-    deactivate RC
-    UI-->>A: 21. Refresh list
-    deactivate UI
- ```
-
 ---
 
-### 4.12 Clinic Setup AI Agent (UC-CO-14, UC-CO-15, UC-CO-16)
-
-#### 4.12.1 Overview
-
-**Feature Description:**
-
-Clinic Setup AI Agent là một AI-powered wizard giúp Clinic Owner thiết lập nhanh chóng và chuyên nghiệp thông tin phòng khám trên nền tảng Petties. Agent sử dụng ReAct pattern để:
-- Generate danh sách services phù hợp với loại hình phòng khám.
-- Tạo mô tả chi tiết, chuyên nghiệp cho từng service.
-- Đề xuất giá cả dựa trên phân tích thị trường.
-- Cấu hình weight-based pricing tiers.
-- Hỗ trợ đa ngôn ngữ (Vietnamese/English).
-
-#### 4.12.2 Class Diagram
-
-```mermaid
-classDiagram
-    class ClinicSetupController {
-        <<REST Controller>>
-        +initSetup(clinicId)
-        +generateServices(request)
-        +updateService(serviceData)
-        +saveServices(clinicId, services)
-        +getPricingSuggestions(request)
-        +translateDescriptions(request)
-    }
-
-    class ClinicSetupService {
-        <<Business Logic>>
-        -agentService: AgentService
-        -clinicService: ClinicService
-        -clinicServiceRepository: ClinicServiceRepository
-        -masterServiceRepository: MasterServiceRepository
-        
-        +initSetup(clinicId)
-        +generateClinicServices(request)
-        +saveGeneratedServices(clinicId, services)
-        +getMarketPricingAnalysis(request)
-        +translateServiceContent(request)
-    }
-
-    class AgentService {
-        <<AI Service>>
-        -agent: CompiledStateGraph
-        -chatHistoryService: ChatHistoryService
-        
-        +executeClinicSetupTask(taskType, params)
-        +generateServices(params)
-        +analyzePricing(params)
-        +translateContent(params)
-    }
-
-    class ClinicSetupAgentTools {
-        <<FastMCP Tools>>
-        +generate_clinic_services()
-        +generate_service_description()
-        +analyze_market_pricing()
-        +suggest_weight_tiers()
-        +translate_service_descriptions()
-        +import_master_services()
-    }
-
-    class ClinicService {
-        <<Entity>>
-        -clinicServiceId: UUID
-        -name: String
-        -description: String
-        -basePrice: BigDecimal
-        -duration: Integer
-        -category: ServiceCategory
-        -isAiGenerated: Boolean
-        -aiConfidenceScore: Float
-    }
-
-    class ServicePricingTier {
-        <<Entity>>
-        -tierId: UUID
-        -weightRange: String
-        -multiplier: Float
-        -finalPrice: BigDecimal
-    }
-
-    class MasterService {
-        <<Entity>>
-        -masterServiceId: UUID
-        -name: String
-        -description: String
-        -basePrice: BigDecimal
-        -category: ServiceCategory
-    }
-
-    ClinicSetupController --> ClinicSetupService
-    ClinicSetupService --> AgentService
-    ClinicSetupService --> ClinicService
-    ClinicSetupService --> MasterService
-    
-    AgentService --> ClinicSetupAgentTools
-    AgentService --> ChatHistoryService
-    
-    ClinicService "1" --> "*" ServicePricingTier
-```
-
-#### 4.12.3 Class Specifications
-
-**1. ClinicSetupController**
-
-- **Responsibility:** REST API endpoints cho AI-assisted clinic setup wizard.
-- **Key Methods:**
-
-| Method | HTTP | Path | Description |
-|--------|------|------|-------------|
-| `initSetup` | POST | `/api/ai/clinic-setup/init` | Khởi tạo setup session cho clinic |
-| `generateServices` | POST | `/api/ai/clinic-setup/services` | Generate services theo loại hình |
-| `updateService` | PUT | `/api/ai/clinic-setup/services/{id}` | Update một service |
-| `saveServices` | POST | `/api/ai/clinic-setup/save` | Lưu tất cả services đã approve |
-| `getPricingSuggestions` | POST | `/api/ai/clinic-setup/pricing` | Lấy gợi ý pricing |
-| `translateDescriptions` | POST | `/api/ai/clinic-setup/translate` | Dịch service descriptions |
-
-**2. ClinicSetupService**
-
-- **Responsibility:** Business logic cho clinic setup workflow.
-- **Key Methods:**
-
-| Method | Description |
-|--------|-------------|
-| `initSetup(clinicId)` | Khởi tạo session, lấy clinic profile |
-| `generateClinicServices(request)` | Gọi AI Agent để generate services |
-| `saveGeneratedServices(clinicId, services)` | Save services với metadata (ai_generated=true) |
-| `getMarketPricingAnalysis(request)` | Phân tích market pricing |
-| `translateServiceContent(request)` | Translate descriptions |
-
-**3. AgentService (Clinic Setup Methods)**
-
-- **Responsibility:** Handle AI operations cho clinic setup.
-- **Key Methods:**
-
-| Method | Description |
-|--------|-------------|
-| `executeClinicSetupTask(taskType, params)` | Execute clinic setup task via ReAct agent |
-| `generateServices(params)` | Generate services list |
-| `analyzePricing(params)` | Analyze market pricing |
-| `translateContent(params)` | Translate content |
-
-**4. ClinicSetupAgentTools**
-
-- **Responsibility:** FastMCP tools cho clinic setup operations.
-
-| Tool Name | Description |
-|-----------|-------------|
-| `generate_clinic_services` | Generate services based on clinic type |
-| `generate_service_description` | Generate professional descriptions |
-| `analyze_market_pricing` | Analyze regional pricing data |
-| `suggest_weight_tiers` | Suggest weight-based pricing tiers |
-| `translate_service_descriptions` | Translate to target language |
-| `import_master_services` | Import from master service templates |
-
-#### 4.12.4 Sequence Diagram: AI Clinic Setup Flow
-
-```mermaid
-sequenceDiagram
-    participant CO as Clinic Owner
-    participant UI as Web Dashboard
-    participant CSC as ClinicSetupController
-    participant CSS as ClinicSetupService
-    participant AS as AgentService
-    participant KB as Knowledge Base (Qdrant)
-    participant DB as PostgreSQL
-    participant MR as MasterServiceRepository
-
-    CO->>UI: 1. Click "Start AI Setup"
-    UI->>CSC: 2. POST /api/ai/clinic-setup/init {clinicId}
-    activate CSC
-    CSC->>CSS: 3. initSetup(clinicId)
-    activate CSS
-    CSS->>DB: 4. getClinicById(clinicId)
-    DB-->>CSS: 5. Clinic entity
-    CSS-->>CSC: 6. SetupResponse
-    CSC-->>UI: 7. 200 OK
-    UI-->>CO: 8. Display wizard step 1
-    
-    CO->>UI: 9. Select clinic type & pets
-    UI->>CSC: 10. POST /api/ai/clinic-setup/services {clinicType, pets, location}
-    CSC->>CSS: 11. generateClinicServices(request)
-    activate CSS
-    CSS->>AS: 12. generateServices(params)
-    activate AS
-    
-    AS->>KB: 13. Query standard services by type
-    KB-->>AS: 14. Service templates
-    
-    AS->>AS: 15. Generate descriptions (LLM)
-    AS->>KB: 16. Query pricing data (optional)
-    KB-->>AS: 17. Market pricing ranges
-    
-    AS-->>CSS: 18. Generated services array
-    CSS-->>CSC: 19. ServicesResponse
-    CSC-->>UI: 20. 200 OK
-    
-    UI-->>CO: 21. Display service cards
-    
-    loop Review Loop
-        CO->>UI: 22. Edit/Regenerate service
-        UI->>CSC: 23. PUT /api/ai/clinic-setup/services/{id}
-        CSC->>CSS: 24. updateService(data)
-        CSS->>AS: 25. generateServiceDescription()
-        AS-->>CSS: 26. Regenerated content
-        CSS-->>CSC: 27. Updated service
-        CSC-->>UI: 28. 200 OK
-        UI-->>CO: 29. Updated card
-    end
-    
-    CO->>UI: 30. Click "Save All"
-    UI->>CSC: 31. POST /api/ai/clinic-setup/save {services[]}
-    CSC->>CSS: 32. saveGeneratedServices(clinicId, services)
-    activate CSS
-    
-    loop Each Service
-        CSS->>DB: 33a. save(service with ai_metadata)
-    end
-    
-    DB-->>CSS: 34. Saved confirmations
-    CSS-->>CSC: 35. SaveResult
-    CSC-->>UI: 36. 200 OK
-    UI-->>CO: 37. Success message
-    
-    deactivate CSS
-    deactivate CSC
-```
-
-#### 4.12.5 API Endpoints
-
-**Clinic Setup API**
-
-| Method | Endpoint | Description | Request | Response |
-|--------|----------|-------------|---------|----------|
-| `POST` | `/api/ai/clinic-setup/init` | Initialize setup session | `{clinicId}` | `{sessionId, clinicInfo, steps[]}` |
-| `POST` | `/api/ai/clinic-setup/services` | Generate services | `{clinicType, petTypes[], location, language}` | `{services: [{name, description, category, price, duration, aiConfidence}]}` |
-| `PUT` | `/api/ai/clinic-setup/services/{id}` | Update service | `{name, description, price, duration}` | `{updated}` |
-| `POST` | `/api/ai/clinic-setup/save` | Save all services | `{services[], pricingTiers[]}` | `{savedCount, serviceIds[]}` |
-| `POST` | `/api/ai/clinic-setup/pricing` | Get pricing suggestions | `{serviceCategory, region}` | `{marketAvg, priceRange, suggestion}` |
-| `POST` | `/api/ai/clinic-setup/translate` | Translate descriptions | `{serviceIds[], targetLang}` | `{translations: [{serviceId, name, description}]}` |
-| `GET` | `/api/ai/clinic-setup/{sessionId}` | Get session status | - | `{step, services[], progress}` |
-
-**Request/Response Objects**
-
-```typescript
-// Generate Services Request
-interface GenerateServicesRequest {
-    clinicType: 'GENERAL_PRACTICE' | 'SPECIALTY' | 'EMERGENCY' | 'MULTI_SPECIALTY' | 'MOBILE_CLINIC';
-    petTypes: ('DOG' | 'CAT' | 'EXOTIC')[];
-    location: string;  // e.g., "Ho Chi Minh City, District 7"
-    language: 'VI' | 'EN';
-    operatingHours?: string;
-}
-
-// Generated Service
-interface GeneratedService {
-    id?: UUID;
-    name: string;
-    description: string;
-    category: ServiceCategory;
-    basePrice: number;  // VND
-    duration: number;   // minutes
-    weightTiers?: WeightTier[];
-    aiConfidence: number;  // 0.0 - 1.0
-    isAiGenerated: boolean;
-}
-
-// Weight Tier
-interface WeightTier {
-    weightRange: string;      // "<5kg", "5-15kg", ">15kg"
-    multiplier: number;       // 1.0, 1.2, 1.5
-    finalPrice: number;
-}
-
-// Pricing Suggestion
-interface PricingSuggestion {
-    serviceCategory: string;
-    marketAverage: number;
-    priceRangeLow: number;
-    priceRangeHigh: number;
-    recommendation: string;
-    confidence: number;
-}
-
-// Save Request
-interface SaveServicesRequest {
-    clinicId: UUID;
-    services: GeneratedService[];
-    pricingTiers: ServicePricingTier[];
-}
-```
-
-#### 4.12.6 Database Schema Additions
-
-**New/Modified Tables:**
-
-| Table | Type | Description |
-|-------|------|-------------|
-| `clinic_services` | Modified | Add `is_ai_generated`, `ai_confidence_score`, `ai_prompt_version` columns |
-| `service_pricing_tiers` | Existing | Already exists, used for weight-based pricing |
-| `ai_setup_sessions` | New | Track setup wizard sessions |
-| `ai_generated_content_log` | New | Audit log for AI-generated content |
-
-**AI Setup Session Table:**
-
-```sql
-CREATE TABLE ai_setup_sessions (
-    session_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    clinic_id UUID NOT NULL REFERENCES clinics(clinic_id),
-    step VARCHAR(50) NOT NULL,
-    clinic_type VARCHAR(50),
-    pet_types JSONB,
-    language VARCHAR(10) DEFAULT 'VI',
-    status VARCHAR(20) DEFAULT 'IN_PROGRESS',
-    created_at TIMESTAMP DEFAULT NOW(),
-    completed_at TIMESTAMP,
-    metadata JSONB
-);
-```
-
-**AI Content Audit Log:**
-
-```sql
-CREATE TABLE ai_generated_content_log (
-    log_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    entity_type VARCHAR(50) NOT NULL,
-    entity_id UUID NOT NULL,
-    content_type VARCHAR(50) NOT NULL,
-    original_content TEXT,
-    generated_content TEXT,
-    ai_prompt TEXT,
-    confidence_score FLOAT,
-    owner_approved BOOLEAN DEFAULT FALSE,
-    approved_by UUID,
-    approved_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-```
-
----
-
----
-
-### 4.13 FCM Push Notifications
+### 4.13 Notification Management
 
 Firebase Cloud Messaging (FCM) enables real-time push notifications to mobile devices. This module handles FCM token management and notification delivery across Android and iOS platforms.
 
@@ -6535,184 +6128,6 @@ sequenceDiagram
 
 ---
 
-### 4.14 File Upload & Media Management
-
-Cloudinary-based file upload service for handling images and documents. Supports multiple use cases with optimized transformations for avatars, clinic images, and clinical photos.
-
-**Key Features:**
-- Multi-format support (JPEG, PNG, GIF, WEBP, PDF)
-- Automatic image optimization (quality, format, size)
-- Use-case specific transformations (avatar resize, clinic image limits)
-- File validation (size, content type)
-- Cloudinary folder organization
-- Secure file deletion
-
-#### 4.14.1 Class Diagram - File Upload
-
-```mermaid
-classDiagram
-    class FileController {
-        -CloudinaryService cloudinaryService
-        +uploadAvatar(MultipartFile) ResponseEntity~UploadResponse~
-        +uploadClinicImage(MultipartFile) ResponseEntity~UploadResponse~
-        +uploadEmrImage(MultipartFile) ResponseEntity~UploadResponse~
-        +deleteFile(String) ResponseEntity~Map~
-    }
-    class CloudinaryService {
-        -Cloudinary cloudinary
-        +uploadFile(MultipartFile, String) UploadResponse
-        +uploadAvatar(MultipartFile) UploadResponse
-        +uploadClinicImage(MultipartFile) UploadResponse
-        +uploadEmrImage(MultipartFile) UploadResponse
-        +deleteFile(String) boolean
-        -validateFile(MultipartFile) void
-        -checkCloudinaryConfig() void
-        -mapUploadResult(Map) UploadResponse
-    }
-    class UploadResponse {
-        +String url
-        +String publicId
-        +String format
-        +int width
-        +int height
-        +long bytes
-    }
-    class Cloudinary {
-        <<external>>
-        +uploader() Uploader
-        +config CloudinaryConfig
-    }
-
-    FileController --> CloudinaryService
-    CloudinaryService --> Cloudinary
-```
-
-#### 4.14.2 Class Specifications
-
-**1. FileController**
-- **Responsibility:** Handle file upload endpoints for different use cases
-- **Key Methods:**
-  - `uploadAvatar()`: Upload user avatar (300x300 crop)
-  - `uploadClinicImage()`: Upload clinic photo (1200x800 limit)
-  - `uploadEmrImage()`: Upload clinical image (1600x1200 limit)
-  - `deleteFile()`: Delete file from Cloudinary
-
-**2. CloudinaryService**
-- **Responsibility:** Manage file upload/deletion with Cloudinary
-- **Key Methods:**
-  - `uploadFile()`: Generic upload with folder path
-  - `uploadAvatar()`: Avatar-specific transformation (face detection crop)
-  - `uploadClinicImage()`: Clinic image transformation (limit dimensions)
-  - `uploadEmrImage()`: Clinical image transformation (high quality)
-  - `deleteFile()`: Delete file by publicId
-
-**Business Rules:**
-- **BR-FILE-01:** Max file size 10MB
-- **BR-FILE-02:** Allowed formats: JPEG, PNG, GIF, WEBP, PDF
-- **BR-FILE-03:** Avatar auto-cropped to 300x300 with face detection
-- **BR-FILE-04:** Clinic images limited to 1200x800
-- **BR-FILE-05:** EMR images limited to 1600x1200 for quality
-- **BR-FILE-06:** Files organized in folders: `petties/avatars/`, `petties/clinics/`, `petties/emr/`
-
-#### 4.14.3 Sequence Diagram: Upload Avatar
-
-```mermaid
-sequenceDiagram
-    actor U as User
-    participant UI as Web/Mobile
-    participant FC as FileController
-    participant CS as CloudinaryService
-    participant C as Cloudinary API
-    participant UR as UserRepository
-    participant DB as Database
-
-    U->>UI: 1. Select avatar image
-    activate UI
-    UI->>FC: 2. POST /api/files/upload/avatar (file)
-    activate FC
-    FC->>CS: 3. uploadAvatar(file)
-    activate CS
-
-    CS->>CS: 4. validateFile(file)
-    alt File invalid (size > 10MB or wrong format)
-        CS-->>FC: 5a. throw BadRequestException
-        FC-->>UI: 6a. 400 Bad Request
-        UI-->>U: 7a. "File không hợp lệ"
-    else File valid
-        CS->>CS: 5b. checkCloudinaryConfig()
-        CS->>C: 6b. upload(file, folder="petties/avatars", transformation={width:300, height:300, crop:"fill", gravity:"face"})
-        activate C
-        C->>C: 7b. Resize & optimize image
-        C-->>CS: 8b. Upload result (url, publicId, format, dimensions)
-        deactivate C
-
-        CS->>CS: 9b. mapUploadResult()
-        CS-->>FC: 10b. UploadResponse
-        deactivate CS
-        FC-->>UI: 11b. 200 OK (url, publicId)
-        deactivate FC
-
-        UI->>UR: 12b. Update user.avatar = url
-        UR->>DB: 13b. UPDATE users SET avatar = ?
-        UI-->>U: 14b. Show new avatar
-        deactivate UI
-    end
-```
-
-#### 4.14.4 Sequence Diagram: Delete Old File
-
-```mermaid
-sequenceDiagram
-    actor U as Clinic Owner
-    participant UI as Web Dashboard
-    participant FC as FileController
-    participant CS as CloudinaryService
-    participant C as Cloudinary API
-
-    U->>UI: 1. Upload new clinic image
-    activate UI
-    UI->>UI: 2. Check if old image exists (publicId)
-
-    alt Has old image
-        UI->>FC: 3. DELETE /api/files/delete?publicId=old_image_id
-        activate FC
-        FC->>CS: 4. deleteFile(publicId)
-        activate CS
-        CS->>CS: 5. checkCloudinaryConfig()
-        CS->>C: 6. destroy(publicId)
-        activate C
-        C-->>CS: 7. {"result": "ok"}
-        deactivate C
-        CS-->>FC: 8. return true
-        deactivate CS
-        FC-->>UI: 9. 200 OK {"message": "Deleted"}
-        deactivate FC
-    end
-
-    UI->>FC: 10. POST /api/files/upload/clinic (newFile)
-    FC->>CS: 11. uploadClinicImage(newFile)
-    CS->>C: 12. upload(file, transformation={width:1200, height:800, crop:"limit"})
-    C-->>CS: 13. Upload result
-    CS-->>FC: 14. UploadResponse
-    FC-->>UI: 15. 200 OK (newUrl, newPublicId)
-    UI-->>U: 16. Display new clinic image
-    deactivate UI
-```
-
-#### 4.14.5 Cross-Reference to SRS
-
-| Requirement | Description | Implementation |
-|------------|-------------|----------------|
-| FR-FILE-01 | Upload avatar with face crop | `CloudinaryService.uploadAvatar()` with gravity:"face" |
-| FR-FILE-02 | Upload clinic images | `CloudinaryService.uploadClinicImage()` |
-| FR-FILE-03 | Upload clinical photos (EMR) | `CloudinaryService.uploadEmrImage()` |
-| FR-FILE-04 | Delete old files | `CloudinaryService.deleteFile()` |
-| NFR-FILE-01 | Max file size 10MB | Validation in `validateFile()` |
-| NFR-FILE-02 | Auto image optimization | Cloudinary transformation `quality:"auto:good"` |
-
----
-
-### 4.15 SSE Real-time Notifications
 
 Server-Sent Events (SSE) provide unidirectional real-time updates from server to client. Unlike WebSocket (bidirectional), SSE is ideal for push notifications, live status updates, and event streaming.
 
@@ -6729,7 +6144,7 @@ Server-Sent Events (SSE) provide unidirectional real-time updates from server to
 - Better for one-way push notifications
 - No need for bidirectional communication
 
-#### 4.15.1 Class Diagram - SSE Real-time
+#### 4.13.6 Class Diagram - SSE Real-time
 
 ```mermaid
 classDiagram
@@ -6772,7 +6187,7 @@ classDiagram
     SseEmitterService --> SseEmitter
 ```
 
-#### 4.15.2 Class Specifications
+#### 4.13.7 Class Specifications
 
 **1. SseController**
 - **Responsibility:** Handle SSE subscription endpoint
@@ -6803,7 +6218,7 @@ classDiagram
 - **BR-SSE-04:** Auto-cleanup on timeout/error/completion
 - **BR-SSE-05:** Initial CONNECTED event sent on subscription
 
-#### 4.15.3 Sequence Diagram: SSE Subscription
+#### 4.13.8 Sequence Diagram: SSE Subscription
 
 ```mermaid
 sequenceDiagram
@@ -6848,7 +6263,7 @@ sequenceDiagram
     Note over UI: Connection stays alive
 ```
 
-#### 4.15.4 Sequence Diagram: Push Notification via SSE
+#### 4.13.9 Sequence Diagram: Push Notification via SSE
 
 ```mermaid
 sequenceDiagram
@@ -6889,7 +6304,7 @@ sequenceDiagram
     deactivate SS
 ```
 
-#### 4.15.5 Sequence Diagram: Connection Timeout
+#### 4.13.10 Sequence Diagram: Connection Timeout
 
 ```mermaid
 sequenceDiagram
@@ -6912,7 +6327,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 4.15.6 Cross-Reference to SRS
+#### 4.13.11 Cross-Reference to SRS
 
 | Requirement | Description | Implementation |
 |------------|-------------|----------------|
@@ -6926,7 +6341,1043 @@ sequenceDiagram
 
 ---
 
+### 4.14 Payment Management
+
+Module quản lý thanh toán cho các booking. Hỗ trợ thanh toán QR (SePay), kiểm tra trạng thái, xem lịch sử giao dịch, và quản lý ví phòng khám.
+
+#### 4.14.1 Class Diagram - Payment Management
+
+```mermaid
+classDiagram
+    class PaymentController {
+        -QrPaymentService qrPaymentService
+        -PaymentHistoryService paymentHistoryService
+        -TransactionService transactionService
+        -AuthService authService
+        +checkPaymentStatus(UUID) ResponseEntity
+        +getPaymentMethod(UUID) ResponseEntity
+        +getBookingTotal(UUID) ResponseEntity
+        +getPaymentDescription(UUID) ResponseEntity
+        +getMyPayments(Integer, String) ResponseEntity
+        +getMyClinicPayments(Integer, String) ResponseEntity
+        +getClinicPayments(UUID, Integer, String) ResponseEntity
+        +listSePayTransactions(Integer, String, String, String, String) ResponseEntity
+    }
+
+    class QrPaymentService {
+        -PaymentRepository paymentRepository
+        -SePayClient sePayClient
+        +checkQrStatus(UUID) QrStatusResult
+    }
+
+    class PaymentHistoryService {
+        -PaymentRepository paymentRepository
+        -BookingRepository bookingRepository
+        +getPaymentHistoryByPetOwnerId(UUID, Integer, String) List~Map~
+        +getPaymentHistoryByClinicId(UUID, Integer, String) List~Map~
+    }
+
+    class TransactionService {
+        -BookingRepository bookingRepository
+        -PaymentRepository paymentRepository
+        +generatePaymentDescription(UUID) String
+        +getBookingTotalPrice(UUID) BigDecimal
+        +isQrPayment(UUID) boolean
+        +getAllBookings() List~Booking~
+    }
+
+    class PaymentRepository {
+        <<interface>>
+        +findByBookingId(UUID) Optional~Payment~
+        +findByStatus(PaymentStatus) List~Payment~
+    }
+
+    class Payment {
+        +UUID paymentId
+        +UUID bookingId
+        +BigDecimal amount
+        +PaymentMethod method
+        +PaymentStatus status
+        +String stripePaymentId
+        +LocalDateTime paidAt
+    }
+
+    class PaymentStatus {
+        <<enumeration>>
+        PENDING
+        PAID
+        REFUNDED
+        FAILED
+    }
+
+    class PaymentMethod {
+        <<enumeration>>
+        CASH
+        QR
+        CARD
+    }
+
+    PaymentController --> QrPaymentService
+    PaymentController --> PaymentHistoryService
+    PaymentController --> TransactionService
+    QrPaymentService --> PaymentRepository
+    PaymentHistoryService --> PaymentRepository
+    TransactionService --> PaymentRepository
+    PaymentRepository ..> Payment
+    Payment --> PaymentStatus
+    Payment --> PaymentMethod
+```
+
+#### 4.14.2 Create QR Payment
+
+> **Sequence Diagram:** TODO - Tạo mã QR thanh toán cho booking.
+
+#### 4.14.3 View Invoice
+
+> **Sequence Diagram:** TODO - Xem hóa đơn chi tiết của booking.
+
+#### 4.14.4 View Payment Transactions History
+
+> **Sequence Diagram:** TODO - Xem lịch sử giao dịch thanh toán.
+
+#### 4.14.5 Process Withdraw
+
+> **Sequence Diagram:** TODO - Xử lý yêu cầu rút tiền từ ví phòng khám.
+
+#### 4.14.6 View List Withdraw Request
+
+> **Sequence Diagram:** TODO - Xem danh sách yêu cầu rút tiền.
+
+#### 4.14.7 View Wallet's Clinic
+
+> **Sequence Diagram:** TODO - Xem thông tin ví của phòng khám.
+
+
 ---
+
+### 4.15 System Management
+
+Module quản lý hệ thống dành cho Admin. Cung cấp thống kê tổng quan nền tảng (số lượng users, clinics, bookings, revenue).
+
+#### 4.15.1 Class Diagram - System Management
+
+> **TODO:** Class diagram sẽ được bổ sung khi implement AdminDashboardController.
+
+#### 4.15.2 View Platform Statistics
+
+> **Sequence Diagram:** TODO - Admin xem thống kê tổng quan nền tảng (users, clinics, bookings, revenue).
+
+
+---
+
+### 4.16 Report Management
+
+#### 4.16.1 Class Diagram - Reporting
+
+```mermaid
+classDiagram
+    class ReportController {
+        -ReportService reportService
+        +submitReport(ReportRequest) ResponseEntity
+        +getMyReports(UUID, Pageable) ResponseEntity
+        +getPendingReports(Pageable) ResponseEntity
+        +processReport(UUID, ProcessRequest) ResponseEntity
+    }
+
+    class ReportService {
+        -ReportRepository reportRepository
+        -UserRepository userRepository
+        -NotificationService notificationService
+        +createReport(ReportRequest) ReportResponse
+        +getUserReports(UUID, Pageable) Page~ReportResponse~
+        +getPendingReports(Pageable) Page~ReportResponse~
+        +processReport(UUID, ProcessRequest) void
+    }
+
+    class Report {
+        +UUID reportId
+        +User reporter
+        +User reportedUser
+        +Clinic reportedClinic
+        +Booking relatedBooking
+        +ReportCategory category
+        +String description
+        +List~String~ evidenceUrls
+        +ReportStatus status
+        +String adminNotes
+        +LocalDateTime createdAt
+        +LocalDateTime processedAt
+    }
+
+    class ReportRepository {
+        <<interface>>
+        +findById(UUID) Optional~Report~
+        +findByReporter(User, Pageable) Page~Report~
+        +findByStatus(ReportStatus, Pageable) Page~Report~
+        +save(Report) Report
+    }
+
+    ReportController --> ReportService
+    ReportService --> ReportRepository
+    ReportService --> NotificationService
+    ReportRepository ..> Report
+```
+
+#### 4.16.2 Submit Platform Violation Report (UC-PO-16)
+
+```mermaid
+sequenceDiagram
+    actor U as User (Pet Owner/Manager)
+    participant UI as Report Form
+    participant RC as ReportController
+    participant RS as ReportService
+    participant CS as CloudinaryService
+    participant RR as ReportRepository
+    participant NS as NotificationService
+    participant DB as Database
+
+    U->>UI: 1. Click "Report Issue" on Booking Detail
+    activate UI
+    U->>UI: 2. Select category (Abuse, Hygiene, No-show...)
+    U->>UI: 3. Enter description & upload evidence photos
+    UI->>CS: 4. Upload photos
+    activate CS
+    CS-->>UI: 5. Evidence URLs
+    deactivate CS
+    UI->>RC: 6. POST /reports (ReportRequest)
+    activate RC
+    RC->>RS: 7. createReport(request)
+    activate RS
+    RS->>RS: 8. Validate & enrich with user context
+    RS->>RR: 9. save(Report)
+    activate RR
+    RR->>DB: 10. INSERT report
+    activate DB
+    DB-->>RR: 11. Saved
+    deactivate DB
+    RR-->>RS: 12. Report Entity
+    deactivate RR
+    RS->>NS: 13. notifyAdmins(NEW_REPORT_ALERT)
+    activate NS
+    NS-->>RS: 14. Sent
+    deactivate NS
+    RS-->>RC: 15. ReportResponse
+    deactivate RS
+    RC-->>UI: 16. 201 Created
+    deactivate RC
+    UI-->>U: 17. Show success message
+    deactivate UI
+```
+
+#### 4.16.3 Admin Process Report
+
+```mermaid
+sequenceDiagram
+    actor A as Admin
+    participant UI as Admin Dashboard
+    participant RC as ReportController
+    participant RS as ReportService
+    participant RR as ReportRepository
+    participant UR as UserRepository
+    participant NS as NotificationService
+    participant DB as Database
+
+    A->>UI: 1. Navigate to Pending Reports
+    activate UI
+    UI->>RC: 2. GET /admin/reports?status=PENDING
+    activate RC
+    RC->>RS: 3. getPendingReports(pageable)
+    activate RS
+    RS->>RR: 4. findByStatus(PENDING, pageable)
+    activate RR
+    RR-->>RS: 5. Page<Report>
+    deactivate RR
+    RS-->>RC: 6. Page<ReportResponse>
+    deactivate RS
+    RC-->>UI: 7. 200 OK (list)
+    deactivate RC
+    UI-->>A: 8. Display reports table
+    
+    A->>UI: 9. Click report -> Review details
+    A->>UI: 10. Enter admin notes & select action
+    UI->>RC: 11. PATCH /admin/reports/{id}/process
+    activate RC
+    RC->>RS: 12. processReport(id, ProcessRequest)
+    activate RS
+    RS->>RR: 13. findById(id)
+    activate RR
+    RR-->>RS: 14. Report
+    deactivate RR
+    
+    alt Action: WARN_USER
+        RS->>UR: 15a. Update user warning count
+        RS->>NS: 16a. Notify reported user (WARNING)
+    else Action: BAN_USER
+        RS->>UR: 15b. Update user status = BANNED
+        RS->>NS: 16b. Notify user (ACCOUNT_BANNED)
+    else Action: SUSPEND_CLINIC
+        RS->>DB: 15c. Update clinic status = SUSPENDED
+        RS->>NS: 16c. Notify clinic owner
+    else Action: DISMISS
+        Note over RS: No action on reported entity
+    end
+    
+    RS->>RR: 17. save(updatedReport with status=PROCESSED)
+    RS->>NS: 18. Notify reporter (REPORT_PROCESSED)
+    RS-->>RC: 19. OK
+    deactivate RS
+    RC-->>UI: 20. 200 OK
+    deactivate RC
+    UI-->>A: 21. Refresh list
+    deactivate UI
+ ```
+
+---
+
+### 4.17 AI Assistant
+
+#### 4.17.1 Class Diagram - AI Service
+
+```mermaid
+classDiagram
+    class AgentController {
+        -AgentService agentService
+        +chat(ChatRequest) StreamingResponse
+        +clearHistory(UUID) void
+    }
+
+    class AgentService {
+        -LangGraphEngine engine
+        -ToolRegistry toolRegistry
+        -RAGEngine ragEngine
+        +processQuery(userId, query) Stream
+    }
+
+    class LangGraphEngine {
+        -StateStore stateStore
+        +runReActLoop(prompt) Node
+    }
+
+    class ToolRegistry {
+        -FastMCPProtocol mcp
+        +callTool(toolName, args) ToolOutput
+    }
+
+    class RAGEngine {
+        -QdrantClient vectorDb
+        -CohereEmbedding embedding
+        +retrieveContext(query) List~Node~
+    }
+
+    AgentController --> AgentService
+    AgentService --> LangGraphEngine
+    AgentService --> ToolRegistry
+    AgentService --> RAGEngine
+```
+
+#### 4.17.2 Sequence Diagram: AI ReAct Loop
+
+```mermaid
+sequenceDiagram
+    actor PO as Pet Owner
+    participant UI as Chat UI (Mobile)
+    participant AC as AgentController
+    participant AS as AgentService
+    participant LG as LangGraphEngine
+    participant TR as ToolRegistry
+    participant RE as RAGEngine
+
+    PO->>UI: 1. Send "Book Staff for Bella tomorrow"
+    activate UI
+    UI->>AC: 2. chatRequest(query)
+    activate AC
+    AC->>AS: 3. processQuery(userId, query)
+    activate AS
+    AS->>LG: 4. runReActLoop(state)
+    activate LG
+    
+    Note over LG: Step 1: Reasoning (Thought)
+    LG-->>AS: 5. Request Tool: "find_slots"
+    AS->>TR: 6. callTool("find_slots", {pet: "Bella", date: "tomorrow"})
+    activate TR
+    Note right of TR: Call fast-mcp plugin link to Spring Boot
+    TR-->>AS: 7. Observation: "Available slots: 09:00, 10:00"
+    deactivate TR
+    AS->>LG: 8. Update State with Observation
+    
+    Note over LG: Step 2: Reasoning (Thought)
+    LG-->>AS: 9. Final Answer: "Tôi tìm thấy 2 khung giờ..."
+    deactivate LG
+    
+    AS-->>AC: 10. StreamingResponse (Chunks)
+    deactivate AS
+    AC-->>UI: 11. WebSocket / SSE Stream
+    deactivate AC
+    UI-->>PO: 12. Display text progressively
+    deactivate UI
+```
+
+#### 4.17.3 AI Vision Pet Health Analysis (UC-PO-14d)
+
+```mermaid
+classDiagram
+    %% === AI SERVICE LAYER ===
+    class ChatWebSocket {
+        <<FastAPI WebSocket>>
+        +connect(websocket, user_id)
+        +receive_message(message)
+        +send_stream_response(chunks)
+    }
+
+    class SingleAgent {
+        -llm_client: OpenRouterClient
+        -enabled_tools: List~str~
+        -system_prompt: str
+        +invoke(message: str, context: dict) str
+        +stream(message: str) AsyncIterator
+        -_think_node(state) dict
+        -_act_node(state) dict
+        -_observe_node(state) dict
+    }
+
+    class OpenRouterClient {
+        -api_key: str
+        -model: str
+        +generate(prompt: str) LLMResponse
+        +generate_with_image(prompt: str, image_url: str) LLMResponse
+        +stream(prompt: str) AsyncIterator
+    }
+
+    %% === VISION TOOLS ===
+    class VisionTools {
+        <<@mcp.tool>>
+        +analyze_pet_image(image_url, pet_type, symptoms) VisionAnalysisResult
+    }
+
+    class VisionAnalysisResult {
+        +detected_issues: List~DetectedIssue~
+        +severity: SeverityLevel
+        +recommended_services: List~UUID~
+        +urgent_warning: str
+        +next_steps: str
+    }
+
+    class DetectedIssue {
+        +name: str
+        +description: str
+        +confidence: float
+        +affected_area: str
+    }
+
+    class SeverityLevel {
+        <<enumeration>>
+        MILD
+        MODERATE
+        SEVERE
+        URGENT
+    }
+
+    %% === BOOKING TOOLS ===
+    class BookingTools {
+        <<@mcp.tool>>
+        +search_nearby_clinics(lat, lng, radius_km) List~ClinicResult~
+        +get_user_pets(user_id) List~PetSummary~
+        +create_booking_suggestion(pet_id, clinic_id, service_ids, urgency) BookingSuggestion
+    }
+
+    class ClinicResult {
+        +clinic_id: UUID
+        +name: str
+        +address: str
+        +distance_km: float
+        +rating: float
+        +available_services: List~str~
+    }
+
+    class PetSummary {
+        +pet_id: UUID
+        +name: str
+        +species: str
+        +breed: str
+        +image_url: str
+    }
+
+    class BookingSuggestion {
+        +pet_id: UUID
+        +clinic_id: UUID
+        +clinic_name: str
+        +clinic_address: str
+        +services: List~ServiceInfo~
+        +suggested_date: date
+        +suggested_time: time
+        +estimated_price: int
+        +urgency: str
+        +warning_message: str
+        +confirmation_action: dict
+    }
+
+    %% === WEBSOCKET SCHEMAS ===
+    class ImageMessage {
+        +type: str = "image"
+        +image_url: str
+        +latitude: float
+        +longitude: float
+        +text: str
+    }
+
+    class BookingSuggestionMessage {
+        +type: str = "booking_suggestion"
+        +suggestion: BookingSuggestion
+    }
+
+    %% === RELATIONSHIPS ===
+    ChatWebSocket --> SingleAgent : uses
+    SingleAgent --> OpenRouterClient : uses
+    SingleAgent --> VisionTools : calls
+    SingleAgent --> BookingTools : calls
+    VisionTools --> VisionAnalysisResult : returns
+    VisionTools --> OpenRouterClient : calls generate_with_image
+    BookingTools --> ClinicResult : returns
+    BookingTools --> PetSummary : returns
+    BookingTools --> BookingSuggestion : returns
+    VisionAnalysisResult --> DetectedIssue : contains
+    VisionAnalysisResult --> SeverityLevel : has
+    ChatWebSocket --> ImageMessage : receives
+    ChatWebSocket --> BookingSuggestionMessage : sends
+```
+
+#### 4.17.4 Class Specifications
+
+**1. OpenRouterClient (Extended)**
+- **Responsibility:** Giao tiếp với OpenRouter API, hỗ trợ cả text và multimodal (image) input.
+- **Key Methods:**
+    - `generate_with_image(prompt, image_url)`: Gửi prompt kèm hình ảnh đến Vision LLM (Gemini 2.0 Flash).
+    - Trả về structured response với detected issues.
+
+**2. VisionTools (@mcp.tool)**
+- **Responsibility:** Phân tích hình ảnh thú cưng để nhận diện vấn đề sức khỏe.
+- **Key Methods:**
+    - `analyze_pet_image(image_url, pet_type, symptoms_description)`:
+        - Gọi Vision LLM với prompt chuyên biệt cho pet health analysis.
+        - Parse response để trích xuất detected issues, severity.
+        - Map issues sang recommended service categories.
+
+**3. BookingTools (@mcp.tool)**
+- **Responsibility:** Hỗ trợ tìm clinic và tạo booking suggestion.
+- **Key Methods:**
+    - `search_nearby_clinics(lat, lng, radius_km)`: Gọi Spring Boot API `/clinics/nearby` với Haversine distance.
+    - `get_user_pets(user_id)`: Gọi API `/pets/my` để lấy danh sách pet của user.
+    - `create_booking_suggestion(...)`: Tạo booking suggestion object với thông tin đã điền sẵn.
+
+**4. BookingSuggestion**
+- **Responsibility:** Data object chứa thông tin booking được AI đề xuất.
+- **Fields:**
+    - `confirmation_action`: Deep link params để mobile app navigate đến booking screen.
+
+#### 4.17.5 Sequence Diagram: AI Vision Analysis to Booking
+
+```mermaid
+sequenceDiagram
+    actor PO as Pet Owner
+    participant UI as Chat UI (Mobile)
+    participant CD as Cloudinary
+    participant WS as ChatWebSocket (FastAPI)
+    participant SA as SingleAgent
+    participant VT as VisionTools
+    participant LLM as OpenRouter (Gemini 2.0)
+    participant BT as BookingTools
+    participant API as Spring Boot API
+
+    Note over PO, UI: Step 1: Upload Image
+    PO->>UI: 1. Tap camera icon, select pet photo
+    activate UI
+    UI->>CD: 2. Upload image
+    activate CD
+    CD-->>UI: 3. Return image_url
+    deactivate CD
+
+    Note over UI, WS: Step 2: Send Image Message
+    UI->>WS: 4. WebSocket: {type: "image", image_url, lat, lng}
+    activate WS
+    WS->>SA: 5. invoke(message, context)
+    activate SA
+
+    Note over SA: Step 3: ReAct - Thought
+    SA->>SA: 6. Detect image in message
+    SA->>SA: 7. Decide to call analyze_pet_image tool
+
+    Note over SA, LLM: Step 4: Vision Analysis
+    SA->>VT: 8. analyze_pet_image(image_url, pet_type)
+    activate VT
+    VT->>LLM: 9. generate_with_image(prompt, image_url)
+    activate LLM
+    Note right of LLM: Vision LLM analyzes image
+    LLM-->>VT: 10. Analysis result (JSON)
+    deactivate LLM
+    VT-->>SA: 11. VisionAnalysisResult {issues, severity: "moderate", services}
+    deactivate VT
+
+    Note over SA: Step 5: ReAct - Observe & Think
+    SA->>SA: 12. Severity >= moderate → Need booking
+
+    Note over SA, API: Step 6: Find Nearby Clinics
+    SA->>BT: 13. search_nearby_clinics(lat, lng)
+    activate BT
+    BT->>API: 14. GET /clinics/nearby?lat=...&lng=...
+    activate API
+    API-->>BT: 15. List of clinics
+    deactivate API
+    BT-->>SA: 16. [Clinic A, Clinic B, ...]
+    deactivate BT
+
+    Note over SA, API: Step 7: Get User Pets
+    SA->>BT: 17. get_user_pets(user_id)
+    activate BT
+    BT->>API: 18. GET /pets/my
+    activate API
+    API-->>BT: 19. [Lucky, Mimi, Bella]
+    deactivate API
+    BT-->>SA: 20. List of pets
+    deactivate BT
+
+    Note over SA, UI: Step 8: Ask Pet Selection (if multiple)
+    SA-->>WS: 21. Stream: "Bạn muốn đặt lịch cho bé nào?"
+    WS-->>UI: 22. Display pet selection
+    UI-->>PO: 23. Show pet options
+    PO->>UI: 24. Select "Lucky"
+    UI->>WS: 25. {type: "text", content: "Lucky"}
+    WS->>SA: 26. Continue with pet selection
+
+    Note over SA, BT: Step 9: Create Booking Suggestion
+    SA->>BT: 27. create_booking_suggestion(pet_id, clinic_id, services, urgency)
+    activate BT
+    BT-->>SA: 28. BookingSuggestion object
+    deactivate BT
+
+    Note over SA, UI: Step 10: Return Final Response
+    SA-->>WS: 29. Stream: Warning + BookingSuggestion
+    deactivate SA
+    WS-->>UI: 30. {type: "booking_suggestion", suggestion: {...}}
+    deactivate WS
+    UI-->>PO: 31. Display warning + "Đặt lịch ngay" button
+    deactivate UI
+
+    Note over PO, UI: Step 11: Confirm Booking
+    PO->>UI: 32. Tap "Đặt lịch ngay"
+    UI->>UI: 33. Navigate to BookingScreen with params
+```
+
+#### 4.17.6 WebSocket Message Schemas
+
+**1. Image Message (Client → Server)**
+```json
+{
+  "type": "image",
+  "image_url": "https://res.cloudinary.com/petties/image/upload/v123/pet_photo.jpg",
+  "text": "Bé nhà mình bị như này có sao không?",
+  "latitude": 10.7769,
+  "longitude": 106.7009
+}
+```
+
+**2. Booking Suggestion Message (Server → Client)**
+```json
+{
+  "type": "booking_suggestion",
+  "warning_message": "⚠️ CẢNH BÁO: Phát hiện dấu hiệu viêm da, nghi ngờ nhiễm nấm. Nên đưa đến nhân viên thú y trong 24-48h.",
+  "suggestion": {
+    "pet_id": "uuid-pet",
+    "pet_name": "Lucky",
+    "clinic_id": "uuid-clinic",
+    "clinic_name": "Phòng khám ABC",
+    "clinic_address": "123 Nguyễn Văn A, Quận 7",
+    "services": [
+      {"id": "uuid-service", "name": "Khám da liễu", "price": 200000}
+    ],
+    "suggested_date": "2026-01-16",
+    "suggested_time": "09:00",
+    "estimated_price": 200000,
+    "urgency": "moderate",
+    "confirmation_action": {
+      "action": "open_booking",
+      "params": {
+        "pet_id": "uuid-pet",
+        "clinic_id": "uuid-clinic",
+        "service_ids": ["uuid-service"],
+        "date": "2026-01-16",
+        "time": "09:00"
+      }
+    }
+  }
+}
+```
+
+**3. Pet Selection Message (Server → Client)**
+```json
+{
+  "type": "pet_selection",
+  "message": "Bạn muốn đặt lịch cho bé nào?",
+  "pets": [
+    {"pet_id": "uuid-1", "name": "Lucky", "species": "Chó", "image_url": "..."},
+    {"pet_id": "uuid-2", "name": "Mimi", "species": "Mèo", "image_url": "..."}
+  ]
+}
+```
+
+#### 4.17.7 Severity Mapping to Actions
+
+| Severity | Description | AI Action |
+|----------|-------------|-----------|
+| `MILD` | Không phát hiện vấn đề nghiêm trọng | Chỉ đưa lời khuyên, không đề xuất booking |
+| `MODERATE` | Vấn đề cần theo dõi | Đề xuất booking trong 24-48h |
+| `SEVERE` | Vấn đề nghiêm trọng | Đề xuất booking trong ngày |
+| `URGENT` | Cấp cứu | Cảnh báo mạnh + đề xuất SOS hoặc booking ngay |
+
+---
+
+
+#### 4.17.8 Overview
+
+**Feature Description:**
+
+Clinic Setup AI Agent là một AI-powered wizard giúp Clinic Owner thiết lập nhanh chóng và chuyên nghiệp thông tin phòng khám trên nền tảng Petties. Agent sử dụng ReAct pattern để:
+- Generate danh sách services phù hợp với loại hình phòng khám.
+- Tạo mô tả chi tiết, chuyên nghiệp cho từng service.
+- Đề xuất giá cả dựa trên phân tích thị trường.
+- Cấu hình weight-based pricing tiers.
+- Hỗ trợ đa ngôn ngữ (Vietnamese/English).
+
+#### 4.17.9 Class Diagram
+
+```mermaid
+classDiagram
+    class ClinicSetupController {
+        <<REST Controller>>
+        +initSetup(clinicId)
+        +generateServices(request)
+        +updateService(serviceData)
+        +saveServices(clinicId, services)
+        +getPricingSuggestions(request)
+        +translateDescriptions(request)
+    }
+
+    class ClinicSetupService {
+        <<Business Logic>>
+        -agentService: AgentService
+        -clinicService: ClinicService
+        -clinicServiceRepository: ClinicServiceRepository
+        -masterServiceRepository: MasterServiceRepository
+        
+        +initSetup(clinicId)
+        +generateClinicServices(request)
+        +saveGeneratedServices(clinicId, services)
+        +getMarketPricingAnalysis(request)
+        +translateServiceContent(request)
+    }
+
+    class AgentService {
+        <<AI Service>>
+        -agent: CompiledStateGraph
+        -chatHistoryService: ChatHistoryService
+        
+        +executeClinicSetupTask(taskType, params)
+        +generateServices(params)
+        +analyzePricing(params)
+        +translateContent(params)
+    }
+
+    class ClinicSetupAgentTools {
+        <<FastMCP Tools>>
+        +generate_clinic_services()
+        +generate_service_description()
+        +analyze_market_pricing()
+        +suggest_weight_tiers()
+        +translate_service_descriptions()
+        +import_master_services()
+    }
+
+    class ClinicService {
+        <<Entity>>
+        -clinicServiceId: UUID
+        -name: String
+        -description: String
+        -basePrice: BigDecimal
+        -duration: Integer
+        -category: ServiceCategory
+        -isAiGenerated: Boolean
+        -aiConfidenceScore: Float
+    }
+
+    class ServicePricingTier {
+        <<Entity>>
+        -tierId: UUID
+        -weightRange: String
+        -multiplier: Float
+        -finalPrice: BigDecimal
+    }
+
+    class MasterService {
+        <<Entity>>
+        -masterServiceId: UUID
+        -name: String
+        -description: String
+        -basePrice: BigDecimal
+        -category: ServiceCategory
+    }
+
+    ClinicSetupController --> ClinicSetupService
+    ClinicSetupService --> AgentService
+    ClinicSetupService --> ClinicService
+    ClinicSetupService --> MasterService
+    
+    AgentService --> ClinicSetupAgentTools
+    AgentService --> ChatHistoryService
+    
+    ClinicService "1" --> "*" ServicePricingTier
+```
+
+#### 4.17.10 Class Specifications
+
+**1. ClinicSetupController**
+
+- **Responsibility:** REST API endpoints cho AI-assisted clinic setup wizard.
+- **Key Methods:**
+
+| Method | HTTP | Path | Description |
+|--------|------|------|-------------|
+| `initSetup` | POST | `/api/ai/clinic-setup/init` | Khởi tạo setup session cho clinic |
+| `generateServices` | POST | `/api/ai/clinic-setup/services` | Generate services theo loại hình |
+| `updateService` | PUT | `/api/ai/clinic-setup/services/{id}` | Update một service |
+| `saveServices` | POST | `/api/ai/clinic-setup/save` | Lưu tất cả services đã approve |
+| `getPricingSuggestions` | POST | `/api/ai/clinic-setup/pricing` | Lấy gợi ý pricing |
+| `translateDescriptions` | POST | `/api/ai/clinic-setup/translate` | Dịch service descriptions |
+
+**2. ClinicSetupService**
+
+- **Responsibility:** Business logic cho clinic setup workflow.
+- **Key Methods:**
+
+| Method | Description |
+|--------|-------------|
+| `initSetup(clinicId)` | Khởi tạo session, lấy clinic profile |
+| `generateClinicServices(request)` | Gọi AI Agent để generate services |
+| `saveGeneratedServices(clinicId, services)` | Save services với metadata (ai_generated=true) |
+| `getMarketPricingAnalysis(request)` | Phân tích market pricing |
+| `translateServiceContent(request)` | Translate descriptions |
+
+**3. AgentService (Clinic Setup Methods)**
+
+- **Responsibility:** Handle AI operations cho clinic setup.
+- **Key Methods:**
+
+| Method | Description |
+|--------|-------------|
+| `executeClinicSetupTask(taskType, params)` | Execute clinic setup task via ReAct agent |
+| `generateServices(params)` | Generate services list |
+| `analyzePricing(params)` | Analyze market pricing |
+| `translateContent(params)` | Translate content |
+
+**4. ClinicSetupAgentTools**
+
+- **Responsibility:** FastMCP tools cho clinic setup operations.
+
+| Tool Name | Description |
+|-----------|-------------|
+| `generate_clinic_services` | Generate services based on clinic type |
+| `generate_service_description` | Generate professional descriptions |
+| `analyze_market_pricing` | Analyze regional pricing data |
+| `suggest_weight_tiers` | Suggest weight-based pricing tiers |
+| `translate_service_descriptions` | Translate to target language |
+| `import_master_services` | Import from master service templates |
+
+#### 4.17.11 Sequence Diagram: AI Clinic Setup Flow
+
+```mermaid
+sequenceDiagram
+    participant CO as Clinic Owner
+    participant UI as Web Dashboard
+    participant CSC as ClinicSetupController
+    participant CSS as ClinicSetupService
+    participant AS as AgentService
+    participant KB as Knowledge Base (Qdrant)
+    participant DB as PostgreSQL
+    participant MR as MasterServiceRepository
+
+    CO->>UI: 1. Click "Start AI Setup"
+    UI->>CSC: 2. POST /api/ai/clinic-setup/init {clinicId}
+    activate CSC
+    CSC->>CSS: 3. initSetup(clinicId)
+    activate CSS
+    CSS->>DB: 4. getClinicById(clinicId)
+    DB-->>CSS: 5. Clinic entity
+    CSS-->>CSC: 6. SetupResponse
+    CSC-->>UI: 7. 200 OK
+    UI-->>CO: 8. Display wizard step 1
+    
+    CO->>UI: 9. Select clinic type & pets
+    UI->>CSC: 10. POST /api/ai/clinic-setup/services {clinicType, pets, location}
+    CSC->>CSS: 11. generateClinicServices(request)
+    activate CSS
+    CSS->>AS: 12. generateServices(params)
+    activate AS
+    
+    AS->>KB: 13. Query standard services by type
+    KB-->>AS: 14. Service templates
+    
+    AS->>AS: 15. Generate descriptions (LLM)
+    AS->>KB: 16. Query pricing data (optional)
+    KB-->>AS: 17. Market pricing ranges
+    
+    AS-->>CSS: 18. Generated services array
+    CSS-->>CSC: 19. ServicesResponse
+    CSC-->>UI: 20. 200 OK
+    
+    UI-->>CO: 21. Display service cards
+    
+    loop Review Loop
+        CO->>UI: 22. Edit/Regenerate service
+        UI->>CSC: 23. PUT /api/ai/clinic-setup/services/{id}
+        CSC->>CSS: 24. updateService(data)
+        CSS->>AS: 25. generateServiceDescription()
+        AS-->>CSS: 26. Regenerated content
+        CSS-->>CSC: 27. Updated service
+        CSC-->>UI: 28. 200 OK
+        UI-->>CO: 29. Updated card
+    end
+    
+    CO->>UI: 30. Click "Save All"
+    UI->>CSC: 31. POST /api/ai/clinic-setup/save {services[]}
+    CSC->>CSS: 32. saveGeneratedServices(clinicId, services)
+    activate CSS
+    
+    loop Each Service
+        CSS->>DB: 33a. save(service with ai_metadata)
+    end
+    
+    DB-->>CSS: 34. Saved confirmations
+    CSS-->>CSC: 35. SaveResult
+    CSC-->>UI: 36. 200 OK
+    UI-->>CO: 37. Success message
+    
+    deactivate CSS
+    deactivate CSC
+```
+
+#### 4.17.12 API Endpoints
+
+**Clinic Setup API**
+
+| Method | Endpoint | Description | Request | Response |
+|--------|----------|-------------|---------|----------|
+| `POST` | `/api/ai/clinic-setup/init` | Initialize setup session | `{clinicId}` | `{sessionId, clinicInfo, steps[]}` |
+| `POST` | `/api/ai/clinic-setup/services` | Generate services | `{clinicType, petTypes[], location, language}` | `{services: [{name, description, category, price, duration, aiConfidence}]}` |
+| `PUT` | `/api/ai/clinic-setup/services/{id}` | Update service | `{name, description, price, duration}` | `{updated}` |
+| `POST` | `/api/ai/clinic-setup/save` | Save all services | `{services[], pricingTiers[]}` | `{savedCount, serviceIds[]}` |
+| `POST` | `/api/ai/clinic-setup/pricing` | Get pricing suggestions | `{serviceCategory, region}` | `{marketAvg, priceRange, suggestion}` |
+| `POST` | `/api/ai/clinic-setup/translate` | Translate descriptions | `{serviceIds[], targetLang}` | `{translations: [{serviceId, name, description}]}` |
+| `GET` | `/api/ai/clinic-setup/{sessionId}` | Get session status | - | `{step, services[], progress}` |
+
+**Request/Response Objects**
+
+```typescript
+// Generate Services Request
+interface GenerateServicesRequest {
+    clinicType: 'GENERAL_PRACTICE' | 'SPECIALTY' | 'EMERGENCY' | 'MULTI_SPECIALTY' | 'MOBILE_CLINIC';
+    petTypes: ('DOG' | 'CAT' | 'EXOTIC')[];
+    location: string;  // e.g., "Ho Chi Minh City, District 7"
+    language: 'VI' | 'EN';
+    operatingHours?: string;
+}
+
+// Generated Service
+interface GeneratedService {
+    id?: UUID;
+    name: string;
+    description: string;
+    category: ServiceCategory;
+    basePrice: number;  // VND
+    duration: number;   // minutes
+    weightTiers?: WeightTier[];
+    aiConfidence: number;  // 0.0 - 1.0
+    isAiGenerated: boolean;
+}
+
+// Weight Tier
+interface WeightTier {
+    weightRange: string;      // "<5kg", "5-15kg", ">15kg"
+    multiplier: number;       // 1.0, 1.2, 1.5
+    finalPrice: number;
+}
+
+// Pricing Suggestion
+interface PricingSuggestion {
+    serviceCategory: string;
+    marketAverage: number;
+    priceRangeLow: number;
+    priceRangeHigh: number;
+    recommendation: string;
+    confidence: number;
+}
+
+// Save Request
+interface SaveServicesRequest {
+    clinicId: UUID;
+    services: GeneratedService[];
+    pricingTiers: ServicePricingTier[];
+}
+```
+
+#### 4.17.13 Database Schema Additions
+
+**New/Modified Tables:**
+
+| Table | Type | Description |
+|-------|------|-------------|
+| `clinic_services` | Modified | Add `is_ai_generated`, `ai_confidence_score`, `ai_prompt_version` columns |
+| `service_pricing_tiers` | Existing | Already exists, used for weight-based pricing |
+| `ai_setup_sessions` | New | Track setup wizard sessions |
+| `ai_generated_content_log` | New | Audit log for AI-generated content |
+
+**AI Setup Session Table:**
+
+```sql
+CREATE TABLE ai_setup_sessions (
+    session_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    clinic_id UUID NOT NULL REFERENCES clinics(clinic_id),
+    step VARCHAR(50) NOT NULL,
+    clinic_type VARCHAR(50),
+    pet_types JSONB,
+    language VARCHAR(10) DEFAULT 'VI',
+    status VARCHAR(20) DEFAULT 'IN_PROGRESS',
+    created_at TIMESTAMP DEFAULT NOW(),
+    completed_at TIMESTAMP,
+    metadata JSONB
+);
+```
+
+**AI Content Audit Log:**
+
+```sql
+CREATE TABLE ai_generated_content_log (
+    log_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    entity_type VARCHAR(50) NOT NULL,
+    entity_id UUID NOT NULL,
+    content_type VARCHAR(50) NOT NULL,
+    original_content TEXT,
+    generated_content TEXT,
+    ai_prompt TEXT,
+    confidence_score FLOAT,
+    owner_approved BOOLEAN DEFAULT FALSE,
+    approved_by UUID,
+    approved_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+---
+
+---
+
 
 ## 5. TECHNOLOGY STACK SUMMARY
 
@@ -6987,5 +7438,185 @@ sequenceDiagram
 ---
 
 **Prepared by:** Petties Development Team
-**Document Version:** 1.6.0 (Added FCM, File Upload, SSE, Extended SOS Architecture)
-**Last Updated:** 2026-02-21
+**Document Version:** 3.0.0 (Restructured Section 4 to match SRS 2.2 feature structure 1:1)
+**Last Updated:** 2026-03-05
+
+---
+
+## Appendix A: File Upload & Media Management
+
+Cloudinary-based file upload service for handling images and documents. Supports multiple use cases with optimized transformations for avatars, clinic images, and clinical photos.
+
+**Key Features:**
+- Multi-format support (JPEG, PNG, GIF, WEBP, PDF)
+- Automatic image optimization (quality, format, size)
+- Use-case specific transformations (avatar resize, clinic image limits)
+- File validation (size, content type)
+- Cloudinary folder organization
+- Secure file deletion
+
+#### A.1 Class Diagram - File Upload
+
+```mermaid
+classDiagram
+    class FileController {
+        -CloudinaryService cloudinaryService
+        +uploadAvatar(MultipartFile) ResponseEntity~UploadResponse~
+        +uploadClinicImage(MultipartFile) ResponseEntity~UploadResponse~
+        +uploadEmrImage(MultipartFile) ResponseEntity~UploadResponse~
+        +deleteFile(String) ResponseEntity~Map~
+    }
+    class CloudinaryService {
+        -Cloudinary cloudinary
+        +uploadFile(MultipartFile, String) UploadResponse
+        +uploadAvatar(MultipartFile) UploadResponse
+        +uploadClinicImage(MultipartFile) UploadResponse
+        +uploadEmrImage(MultipartFile) UploadResponse
+        +deleteFile(String) boolean
+        -validateFile(MultipartFile) void
+        -checkCloudinaryConfig() void
+        -mapUploadResult(Map) UploadResponse
+    }
+    class UploadResponse {
+        +String url
+        +String publicId
+        +String format
+        +int width
+        +int height
+        +long bytes
+    }
+    class Cloudinary {
+        <<external>>
+        +uploader() Uploader
+        +config CloudinaryConfig
+    }
+
+    FileController --> CloudinaryService
+    CloudinaryService --> Cloudinary
+```
+
+#### A.2 Class Specifications
+
+**1. FileController**
+- **Responsibility:** Handle file upload endpoints for different use cases
+- **Key Methods:**
+  - `uploadAvatar()`: Upload user avatar (300x300 crop)
+  - `uploadClinicImage()`: Upload clinic photo (1200x800 limit)
+  - `uploadEmrImage()`: Upload clinical image (1600x1200 limit)
+  - `deleteFile()`: Delete file from Cloudinary
+
+**2. CloudinaryService**
+- **Responsibility:** Manage file upload/deletion with Cloudinary
+- **Key Methods:**
+  - `uploadFile()`: Generic upload with folder path
+  - `uploadAvatar()`: Avatar-specific transformation (face detection crop)
+  - `uploadClinicImage()`: Clinic image transformation (limit dimensions)
+  - `uploadEmrImage()`: Clinical image transformation (high quality)
+  - `deleteFile()`: Delete file by publicId
+
+**Business Rules:**
+- **BR-FILE-01:** Max file size 10MB
+- **BR-FILE-02:** Allowed formats: JPEG, PNG, GIF, WEBP, PDF
+- **BR-FILE-03:** Avatar auto-cropped to 300x300 with face detection
+- **BR-FILE-04:** Clinic images limited to 1200x800
+- **BR-FILE-05:** EMR images limited to 1600x1200 for quality
+- **BR-FILE-06:** Files organized in folders: `petties/avatars/`, `petties/clinics/`, `petties/emr/`
+
+#### A.3 Sequence Diagram: Upload Avatar
+
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant UI as Web/Mobile
+    participant FC as FileController
+    participant CS as CloudinaryService
+    participant C as Cloudinary API
+    participant UR as UserRepository
+    participant DB as Database
+
+    U->>UI: 1. Select avatar image
+    activate UI
+    UI->>FC: 2. POST /api/files/upload/avatar (file)
+    activate FC
+    FC->>CS: 3. uploadAvatar(file)
+    activate CS
+
+    CS->>CS: 4. validateFile(file)
+    alt File invalid (size > 10MB or wrong format)
+        CS-->>FC: 5a. throw BadRequestException
+        FC-->>UI: 6a. 400 Bad Request
+        UI-->>U: 7a. "File không hợp lệ"
+    else File valid
+        CS->>CS: 5b. checkCloudinaryConfig()
+        CS->>C: 6b. upload(file, folder="petties/avatars", transformation={width:300, height:300, crop:"fill", gravity:"face"})
+        activate C
+        C->>C: 7b. Resize & optimize image
+        C-->>CS: 8b. Upload result (url, publicId, format, dimensions)
+        deactivate C
+
+        CS->>CS: 9b. mapUploadResult()
+        CS-->>FC: 10b. UploadResponse
+        deactivate CS
+        FC-->>UI: 11b. 200 OK (url, publicId)
+        deactivate FC
+
+        UI->>UR: 12b. Update user.avatar = url
+        UR->>DB: 13b. UPDATE users SET avatar = ?
+        UI-->>U: 14b. Show new avatar
+        deactivate UI
+    end
+```
+
+#### A.4 Sequence Diagram: Delete Old File
+
+```mermaid
+sequenceDiagram
+    actor U as Clinic Owner
+    participant UI as Web Dashboard
+    participant FC as FileController
+    participant CS as CloudinaryService
+    participant C as Cloudinary API
+
+    U->>UI: 1. Upload new clinic image
+    activate UI
+    UI->>UI: 2. Check if old image exists (publicId)
+
+    alt Has old image
+        UI->>FC: 3. DELETE /api/files/delete?publicId=old_image_id
+        activate FC
+        FC->>CS: 4. deleteFile(publicId)
+        activate CS
+        CS->>CS: 5. checkCloudinaryConfig()
+        CS->>C: 6. destroy(publicId)
+        activate C
+        C-->>CS: 7. {"result": "ok"}
+        deactivate C
+        CS-->>FC: 8. return true
+        deactivate CS
+        FC-->>UI: 9. 200 OK {"message": "Deleted"}
+        deactivate FC
+    end
+
+    UI->>FC: 10. POST /api/files/upload/clinic (newFile)
+    FC->>CS: 11. uploadClinicImage(newFile)
+    CS->>C: 12. upload(file, transformation={width:1200, height:800, crop:"limit"})
+    C-->>CS: 13. Upload result
+    CS-->>FC: 14. UploadResponse
+    FC-->>UI: 15. 200 OK (newUrl, newPublicId)
+    UI-->>U: 16. Display new clinic image
+    deactivate UI
+```
+
+#### A.5 Cross-Reference to SRS
+
+| Requirement | Description | Implementation |
+|------------|-------------|----------------|
+| FR-FILE-01 | Upload avatar with face crop | `CloudinaryService.uploadAvatar()` with gravity:"face" |
+| FR-FILE-02 | Upload clinic images | `CloudinaryService.uploadClinicImage()` |
+| FR-FILE-03 | Upload clinical photos (EMR) | `CloudinaryService.uploadEmrImage()` |
+| FR-FILE-04 | Delete old files | `CloudinaryService.deleteFile()` |
+| NFR-FILE-01 | Max file size 10MB | Validation in `validateFile()` |
+| NFR-FILE-02 | Auto image optimization | Cloudinary transformation `quality:"auto:good"` |
+
+---
+

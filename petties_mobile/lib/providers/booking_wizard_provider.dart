@@ -10,6 +10,29 @@ import '../data/services/booking_wizard_service.dart';
 /// Booking type enum
 enum BookingType { atClinic, homeVisit }
 
+class BookingCreationResult {
+  final bool success;
+  final String? bookingId;
+  final String paymentMethod;
+  final String? qrImageUrl;
+  final String? paymentDescription;
+  final double totalPrice;
+
+  const BookingCreationResult({
+    required this.success,
+    this.bookingId,
+    this.paymentMethod = 'CASH',
+    this.qrImageUrl,
+    this.paymentDescription,
+    this.totalPrice = 0,
+  });
+
+  bool get requiresQrPayment =>
+      paymentMethod == 'QR' && (qrImageUrl?.isNotEmpty ?? false);
+
+  static const BookingCreationResult failed = BookingCreationResult(success: false);
+}
+
 /// Provider for booking wizard state management
 class BookingWizardProvider extends ChangeNotifier {
   final BookingWizardService _bookingService;
@@ -34,6 +57,7 @@ class BookingWizardProvider extends ChangeNotifier {
   // Key: petId, Value: List of services for that pet
   final Map<String, List<ClinicServiceModel>> _petServices = {};
   String _notes = '';
+  String _paymentMethod = 'QR';
 
   // Track which pet is currently being selected for services
   String? _currentPetIdForServiceSelection;
@@ -80,6 +104,7 @@ class BookingWizardProvider extends ChangeNotifier {
   List<ClinicServiceModel> get availableServices => _availableServices;
   Map<String, List<ClinicServiceModel>> get petServices => _petServices;
   String get notes => _notes;
+  String get paymentMethod => _paymentMethod;
 
   String? get currentPetIdForServiceSelection =>
       _currentPetIdForServiceSelection;
@@ -221,10 +246,10 @@ class BookingWizardProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Initialize booking with pre-selected services and pet (for quick booking from All Services screen)
+  /// Initialize booking with pre-selected services and pets (for quick booking from All Services screen)
   void initBookingWithPreselectedServices({
     required Clinic clinic,
-    required Pet pet,
+    required List<Pet> pets,
     required List<ClinicServiceModel> preselectedServices,
     BookingType? bookingType,
     String? userAddress,
@@ -236,9 +261,11 @@ class BookingWizardProvider extends ChangeNotifier {
     _userLatitude = userLatitude;
     _userLongitude = userLongitude;
     _selectedPets.clear();
-    _selectedPets.add(pet);
+    _selectedPets.addAll(pets);
     _petServices.clear();
-    _petServices[pet.id] = List.from(preselectedServices);
+    for (final pet in pets) {
+      _petServices[pet.id] = List.from(preselectedServices);
+    }
     _bookingType = bookingType ?? BookingType.atClinic;
     _notes = '';
     _selectedDate = null;
@@ -248,7 +275,7 @@ class BookingWizardProvider extends ChangeNotifier {
     _bookingError = null;
 
     // Set current pet for service selection
-    _currentPetIdForServiceSelection = pet.id;
+    _currentPetIdForServiceSelection = pets.isNotEmpty ? pets.first.id : null;
 
     notifyListeners();
     // Load all available services for clinic (to show in services screen)
@@ -427,14 +454,14 @@ class BookingWizardProvider extends ChangeNotifier {
         _availableServices = services.where((s) => s.isActive).toList();
       } else {
         // No pet selected yet, load all services
-        final services =
-            await _bookingService.getClinicServices(_clinic!.clinicId);
-        // Filter by booking type
+      final services =
+          await _bookingService.getClinicServices(_clinic!.clinicId);
+      // Filter by booking type
         if (isHomeVisit) {
-          _availableServices =
-              services.where((s) => s.isHomeVisit && s.isActive).toList();
-        } else {
-          _availableServices = services.where((s) => s.isActive).toList();
+        _availableServices =
+            services.where((s) => s.isHomeVisit && s.isActive).toList();
+      } else {
+        _availableServices = services.where((s) => s.isActive).toList();
         }
       }
     } catch (e) {
@@ -479,6 +506,15 @@ class BookingWizardProvider extends ChangeNotifier {
   /// Set notes
   void setNotes(String notes) {
     _notes = notes;
+    notifyListeners();
+  }
+
+  /// Set preferred payment method for booking confirmation screen
+  /// Allowed values: QR, CASH
+  void setPaymentMethod(String method) {
+    final normalized = method.trim().toUpperCase();
+    if (normalized != 'QR' && normalized != 'CASH') return;
+    _paymentMethod = normalized;
     notifyListeners();
   }
 
@@ -751,9 +787,13 @@ class BookingWizardProvider extends ChangeNotifier {
   }
 
   /// Create booking
-  Future<bool> createBooking() async {
-    if (!canConfirmBooking || _clinic == null) return false;
-    if (_isCreatingBooking) return false;
+  Future<BookingCreationResult> createBooking() async {
+    if (!canConfirmBooking || _clinic == null) {
+      return BookingCreationResult.failed;
+    }
+    if (_isCreatingBooking) {
+      return BookingCreationResult.failed;
+    }
 
     _isCreatingBooking = true;
     _bookingError = null;
@@ -763,6 +803,7 @@ class BookingWizardProvider extends ChangeNotifier {
       final String bookingTypeApi =
           _bookingType == BookingType.homeVisit ? 'HOME_VISIT' : 'IN_CLINIC';
 
+      Map<String, dynamic> responseData;
       if (isBookingForOthers && _beneficiary != null) {
         // Đặt hộ: build items payload theo schema /bookings/proxy
         final List<Map<String, dynamic>> itemsPayload = [];
@@ -782,13 +823,14 @@ class BookingWizardProvider extends ChangeNotifier {
           });
         }
 
-        await _bookingService.createBookingForOthers(
+        responseData = await _bookingService.createBookingForOthers(
           clinicId: _clinic!.clinicId,
           beneficiary: _beneficiary!,
           bookingDate: _selectedDate!,
           bookingTime: _selectedTime!,
           bookingType: bookingTypeApi,
           items: itemsPayload,
+          paymentMethod: _paymentMethod,
           notes: _notes.isNotEmpty ? _notes : null,
         );
       } else {
@@ -804,12 +846,13 @@ class BookingWizardProvider extends ChangeNotifier {
           }
         }
 
-        await _bookingService.createBooking(
+        responseData = await _bookingService.createBooking(
           clinicId: _clinic!.clinicId,
           bookingDate: _selectedDate!,
           bookingTime: _selectedTime!,
           bookingType: bookingTypeApi,
           items: itemsPayload,
+          paymentMethod: _paymentMethod,
           notes: _notes.isNotEmpty ? _notes : null,
           homeAddress:
               _bookingType == BookingType.homeVisit ? _userAddress : null,
@@ -820,12 +863,27 @@ class BookingWizardProvider extends ChangeNotifier {
               _bookingType == BookingType.homeVisit ? distanceToClinic : null,
         );
       }
-      return true;
+
+      final bookingId = responseData['bookingId']?.toString();
+      final paymentMethod =
+          (responseData['paymentMethod']?.toString().toUpperCase() ?? _paymentMethod);
+      final qrImageUrl = responseData['qrImageUrl']?.toString();
+      final paymentDescription = responseData['paymentDescription']?.toString();
+      final totalPrice = (responseData['totalPrice'] as num?)?.toDouble() ?? this.totalPrice;
+
+      return BookingCreationResult(
+        success: true,
+        bookingId: bookingId,
+        paymentMethod: paymentMethod,
+        qrImageUrl: qrImageUrl,
+        paymentDescription: paymentDescription,
+        totalPrice: totalPrice,
+      );
     } catch (e) {
       // Parse API error message (tiếng Việt từ backend)
       _bookingError = _parseBookingError(e);
       debugPrint('Error creating booking: $e');
-      return false;
+      return BookingCreationResult.failed;
     } finally {
       _isCreatingBooking = false;
       notifyListeners();
@@ -842,6 +900,7 @@ class BookingWizardProvider extends ChangeNotifier {
     _beneficiaryPets.clear();
     _availableServices = [];
     _notes = '';
+    _paymentMethod = 'QR';
     _selectedDate = null;
     _selectedTime = null;
     _selectedTimeSlots = [];

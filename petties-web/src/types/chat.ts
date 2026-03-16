@@ -27,13 +27,6 @@ export interface CreateConversationRequest {
 
 // ======================== MESSAGE ========================
 
-/** Action button on a message (e.g. from auto-reply) */
-export interface ChatActionButton {
-  id: string
-  label: string
-  type: 'MENU' | 'OFFER' | 'BOOKING' | 'CUSTOM'
-}
-
 export interface ChatMessage {
   id: string
   conversationId: string
@@ -50,8 +43,11 @@ export interface ChatMessage {
   createdAt: string
   isMe: boolean
   isUploading?: boolean // Used for optimistic UI during upload
-  /** Interactive action buttons (e.g. from auto-reply) */
-  actionButtons?: ChatActionButton[] | null
+  actionButtons?: {
+    id: string
+    label: string
+    type: 'MENU' | 'OFFER' | 'BOOKING' | 'CUSTOM'
+  }[]
 }
 
 export interface SendMessageRequest {
@@ -96,30 +92,38 @@ export interface PageResponse<T> {
   empty: boolean
 }
 
-// ======================== AUTO-REPLY (CLINIC) ========================
+// ======================== BACKWARD COMPATIBILITY ========================
+// Deprecated: Use Conversation instead
+export type ChatBox = Conversation
+export type CreateChatBoxRequest = CreateConversationRequest
+
+// ======================== AUTO REPLY SETTINGS ========================
 
 export type AutoReplyCondition = 'OFF_HOURS' | 'ALWAYS'
 
 export interface ChatAutoReplySettings {
   clinicId: string
   quickReplyEnabled: boolean
-  quickReplyMessage: string | null
+  quickReplyMessage: string
   awayMessageEnabled: boolean
   awayCondition: AutoReplyCondition
-  awayMessage: string | null
-  actionButtons: ChatActionButton[] | null
+  awayMessage: string
+  actionButtons?: {
+    id: string
+    label: string
+    type: 'MENU' | 'OFFER' | 'BOOKING' | 'CUSTOM'
+  }[]
 }
 
 export interface UpdateChatAutoReplySettingsRequest {
   quickReplyEnabled: boolean
-  quickReplyMessage?: string
+  quickReplyMessage: string
   awayMessageEnabled: boolean
   awayCondition: AutoReplyCondition
-  awayMessage?: string
-  actionButtons?: ChatActionButton[] | null
+  awayMessage: string
+  actionButtons?: {
+    id: string
+    label: string
+    type: 'MENU' | 'OFFER' | 'BOOKING' | 'CUSTOM'
+  }[]
 }
-
-// ======================== BACKWARD COMPATIBILITY ========================
-// Deprecated: Use Conversation instead
-export type ChatBox = Conversation
-export type CreateChatBoxRequest = CreateConversationRequest

@@ -81,7 +81,6 @@ const MODELS_BY_PROVIDER: Record<LLMProvider, Array<{ id: string; name: string }
     { id: 'google/gemini-2.5-flash-preview', name: 'Gemini 2.5 Flash Preview' },
     { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B' },
     { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet' },
-    { id: 'openai/gpt-4o', name: 'GPT-4o' },
     { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B' },
   ],
   deepseek: [

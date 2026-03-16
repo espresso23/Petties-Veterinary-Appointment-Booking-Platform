@@ -11,7 +11,8 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * Đơn hoàn tiền: Clinic nộp đơn để rút phần doanh thu sau khi trừ 5% phí nền tảng.
+ * Đơn hoàn tiền: Clinic nộp đơn để rút phần doanh thu sau khi trừ 5% phí nền
+ * tảng.
  * Admin duyệt (APPROVED/REJECTED).
  */
 @Entity
@@ -54,7 +55,19 @@ public class RefundApplication {
     @Column(name = "web_deduction_amount", nullable = false, precision = 19, scale = 2)
     private BigDecimal webDeductionAmount;
 
-    /** Số tiền nhận được sau khấu trừ (VND) */
+    /** Doanh thu từ QR (VND) */
+    @Column(name = "qr_revenue", nullable = false, precision = 19, scale = 2)
+    private BigDecimal qrRevenue;
+
+    /** Doanh thu từ Tiền mặt (VND) */
+    @Column(name = "cash_revenue", nullable = false, precision = 19, scale = 2)
+    private BigDecimal cashRevenue;
+
+    /** Số tiền yêu cầu rút (Amount After Deduction) */
+    @Column(name = "requested_amount", nullable = false, precision = 19, scale = 2)
+    private BigDecimal requestedAmount;
+
+    /** Số tiền nhận được (Sau khi cân đối QR - (5% Cash + 5% QR)) */
     @Column(name = "amount_after_deduction", nullable = false, precision = 19, scale = 2)
     private BigDecimal amountAfterDeduction;
 

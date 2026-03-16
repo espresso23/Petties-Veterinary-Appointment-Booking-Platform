@@ -118,7 +118,7 @@ class Settings(BaseSettings):
     )
 
     # ==================== AI/LLM Configuration ====================
-    LLM_PROVIDER: str = Field(default="openrouter", description="LLM provider: openrouter, ollama, openai")
+    LLM_PROVIDER: str = Field(default="openrouter", description="LLM provider: openrouter, deepseek")
 
     # ===== OpenRouter (RECOMMENDED - Cloud API) =====
     OPENROUTER_API_KEY: str = Field(
@@ -157,14 +157,6 @@ class Settings(BaseSettings):
         default="embed-multilingual-v3.0",
         description="Cohere embedding model (multilingual for Vietnamese)"
     )
-
-    # ===== OpenAI (Backup) =====
-    OPENAI_API_KEY: str = Field(default="", description="OpenAI API key (backup for embeddings)")
-    OPENAI_EMBEDDING_MODEL: str = Field(
-        default="text-embedding-3-small",
-        description="OpenAI embedding model"
-    )
-    OPENAI_CHAT_MODEL: str = Field(default="gpt-4-turbo", description="OpenAI chat model")
 
     # ==================== Agent Configuration (Single Agent + ReAct) ====================
     AGENT_TEMPERATURE: float = Field(

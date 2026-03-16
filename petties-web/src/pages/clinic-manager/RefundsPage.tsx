@@ -6,7 +6,7 @@ import {
     type ClinicPaymentItem,
     type RevenueSummaryItem,
 } from '../../services/paymentService';
-import { createRefundApplication } from '../../services/refundApplicationService';
+import { createRefundApplication, getMyClinicRefundApplications, type RefundApplicationItem } from '../../services/refundApplicationService';
 import { PAYMENT_STATUS_LABELS, PAYMENT_METHOD_LABELS } from '../../types/booking';
 import {
     CurrencyDollarIcon,
@@ -15,6 +15,7 @@ import {
     ArrowPathIcon,
     DocumentPlusIcon,
     XMarkIcon,
+    ClockIcon,
 } from '@heroicons/react/24/outline';
 import ReactApexChart from 'react-apexcharts';
 import type { ApexOptions } from 'apexcharts';
@@ -62,6 +63,25 @@ function formatDateTime(iso?: string): string {
     });
 }
 
+// Refund Application Status Badge
+function RefundStatusBadge({ status }: { status: string }) {
+    const map: Record<string, string> = {
+        PENDING: 'bg-yellow-100 text-yellow-800 border-yellow-400',
+        APPROVED: 'bg-teal-100 text-teal-800 border-teal-500',
+        REJECTED: 'bg-red-100 text-red-800 border-red-400',
+    };
+    const labels: Record<string, string> = {
+        PENDING: 'Chờ duyệt',
+        APPROVED: 'Đã duyệt',
+        REJECTED: 'Từ chối',
+    };
+    return (
+        <span className={`inline-block px-2.5 py-0.5 rounded-full border font-bold text-xs ${map[status] || 'bg-stone-100 text-stone-700 border-stone-300'}`}>
+            {labels[status] || status}
+        </span>
+    );
+}
+
 /**
  * Refunds / Transactions page - Clinic Manager
  * Xem tất cả giao dịch của phòng khám, filter theo trạng thái booking/thanh toán, bảng tổng doanh thu theo kỳ.
@@ -73,8 +93,10 @@ export const RefundsPage = () => {
     const { showToast } = useToast();
     const [payments, setPayments] = useState<ClinicPaymentItem[]>([]);
     const [revenueItems, setRevenueItems] = useState<RevenueSummaryItem[]>([]);
+    const [refundApplications, setRefundApplications] = useState<RefundApplicationItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [revenueLoading, setRevenueLoading] = useState(true);
+    const [refundLoading, setRefundLoading] = useState(true);
     const [paymentStatusFilter, setPaymentStatusFilter] = useState('');
     const [bookingStatusFilter, setBookingStatusFilter] = useState('');
     const [period, setPeriod] = useState<'DAY' | 'WEEK' | 'MONTH' | 'YEAR'>('MONTH');
@@ -110,10 +132,15 @@ export const RefundsPage = () => {
         try {
             await createRefundApplication({
                 monthRevenue: Math.round(monthRevenue * 100) / 100,
+                qrRevenue: 0,
+                cashRevenue: 0,
+                requestedAmount: Math.round(monthRevenue * 100) / 100,
                 periodYearMonth: new Date().toISOString().slice(0, 7),
             });
             showToast('success', 'Đã nộp đơn hoàn tiền thành công. Đơn đang chờ admin duyệt.');
             closeRefundModal();
+            // Refresh refund applications list
+            fetchRefundApplications();
         } catch (e: unknown) {
             const msg = e && typeof e === 'object' && 'response' in e && e.response && typeof (e.response as { data?: { message?: string } }).data?.message === 'string'
                 ? (e.response as { data: { message: string } }).data.message
@@ -123,6 +150,22 @@ export const RefundsPage = () => {
             setRefundSubmitting(false);
         }
     };
+
+    const fetchRefundApplications = useCallback(async () => {
+        if (!clinicId) return;
+        setRefundLoading(true);
+        try {
+            const res = await getMyClinicRefundApplications();
+            if (res.success) {
+                setRefundApplications(res.items || []);
+            }
+        } catch (e) {
+            console.error('Failed to fetch refund applications:', e);
+            setRefundApplications([]);
+        } finally {
+            setRefundLoading(false);
+        }
+    }, [clinicId]);
 
     const fetchPayments = useCallback(async () => {
         if (!clinicId) return;
@@ -159,7 +202,8 @@ export const RefundsPage = () => {
 
     useEffect(() => {
         fetchPayments();
-    }, [fetchPayments]);
+        fetchRefundApplications();
+    }, [fetchPayments, fetchRefundApplications]);
 
     useEffect(() => {
         fetchRevenue();
@@ -436,6 +480,81 @@ export const RefundsPage = () => {
                                         </td>
                                         <td className="py-3 px-2 text-stone-600 text-sm">
                                             {formatDateTime(p.paidAt)}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+            </section>
+
+            {/* Refund Applications History */}
+            <section
+                className="bg-white border-2 border-stone-900 rounded-xl shadow-[4px_4px_0_#1c1917] overflow-hidden transition-all hover:shadow-[6px_6px_0_#1c1917] hover:-translate-x-0.5 hover:-translate-y-0.5"
+                aria-labelledby="refund-applications-heading"
+            >
+                <div className="p-4 border-b-2 border-stone-900 flex items-center justify-between">
+                    <h2 id="refund-applications-heading" className="text-lg font-bold text-stone-900 flex items-center gap-2">
+                        <ClockIcon className="w-5 h-5" />
+                        Lịch sử đơn hoàn tiền
+                    </h2>
+                    <button
+                        type="button"
+                        onClick={() => fetchRefundApplications()}
+                        className="px-4 py-2 rounded-lg font-bold uppercase text-sm border-2 border-stone-900 shadow-[3px_3px_0_#1c1917] bg-white text-stone-800 hover:bg-stone-100 hover:shadow-[5px_5px_0_#1c1917] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all flex items-center gap-2"
+                    >
+                        <ArrowPathIcon className="w-4 h-4" />
+                        Làm mới
+                    </button>
+                </div>
+                <div className="p-4 overflow-x-auto">
+                    {refundLoading ? (
+                        <div className="flex items-center justify-center py-8 gap-2 text-stone-500">
+                            <ArrowPathIcon className="w-5 h-5 animate-spin" />
+                            <span>Đang tải...</span>
+                        </div>
+                    ) : refundApplications.length === 0 ? (
+                        <p className="text-stone-500 py-4">Chưa có đơn hoàn tiền nào.</p>
+                    ) : (
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b-2 border-stone-900">
+                                    <th className="text-xs font-bold uppercase text-stone-600 py-3 px-2">Kỳ</th>
+                                    <th className="text-xs font-bold uppercase text-stone-600 py-3 px-2">Doanh thu</th>
+                                    <th className="text-xs font-bold uppercase text-stone-600 py-3 px-2">Khấu trừ</th>
+                                    <th className="text-xs font-bold uppercase text-stone-600 py-3 px-2">Số tiền rút</th>
+                                    <th className="text-xs font-bold uppercase text-stone-600 py-3 px-2">Trạng thái</th>
+                                    <th className="text-xs font-bold uppercase text-stone-600 py-3 px-2">Ngày nộp</th>
+                                    <th className="text-xs font-bold uppercase text-stone-600 py-3 px-2">Ngày duyệt</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {refundApplications.map((app) => (
+                                    <tr
+                                        key={app.refundApplicationId}
+                                        className="border-b border-stone-200 hover:bg-stone-50"
+                                    >
+                                        <td className="py-3 px-2 font-medium text-stone-900">
+                                            {app.periodYearMonth}
+                                        </td>
+                                        <td className="py-3 px-2 font-bold text-stone-900">
+                                            {formatCurrency(app.monthRevenue)}
+                                        </td>
+                                        <td className="py-3 px-2 text-red-600 font-medium">
+                                            -{formatCurrency(app.webDeductionAmount)}
+                                        </td>
+                                        <td className="py-3 px-2 font-bold text-teal-700">
+                                            {formatCurrency(app.amountAfterDeduction)}
+                                        </td>
+                                        <td className="py-3 px-2">
+                                            <RefundStatusBadge status={app.status} />
+                                        </td>
+                                        <td className="py-3 px-2 text-stone-600 text-sm">
+                                            {formatDateTime(app.createdAt)}
+                                        </td>
+                                        <td className="py-3 px-2 text-stone-600 text-sm">
+                                            {formatDateTime(app.reviewedAt)}
                                         </td>
                                     </tr>
                                 ))}

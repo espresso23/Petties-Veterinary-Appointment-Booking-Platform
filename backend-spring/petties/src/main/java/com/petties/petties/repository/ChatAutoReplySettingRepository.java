@@ -12,3 +12,4 @@ public interface ChatAutoReplySettingRepository extends JpaRepository<ChatAutoRe
 
     Optional<ChatAutoReplySetting> findByClinicClinicId(UUID clinicId);
 }
+

@@ -68,27 +68,23 @@ public class BookingDataSeeder implements CommandLineRunner {
 
                 log.info("📦 Seeding booking mock data...");
 
-                try {
-                        log.info("   Cleaning up old data to ensure fresh seeding...");
-                        // Order of deletion to avoid FK constraints
-                        bookingSlotRepository.deleteAll();
-                        slotRepository.deleteAll();
-                        vaccinationRecordRepository.deleteAll();
-                        bookingRepository.deleteAll();
-                        staffShiftRepository.deleteAll();
+                log.info("   Cleaning up old data to ensure fresh seeding...");
+                // Order of deletion to avoid FK constraints
+                bookingSlotRepository.deleteAll();
+                slotRepository.deleteAll();
+                vaccinationRecordRepository.deleteAll();
+                bookingRepository.deleteAll();
+                staffShiftRepository.deleteAll();
 
-                        bookingRepository.flush();
-                        staffShiftRepository.flush();
+                bookingRepository.flush();
+                staffShiftRepository.flush();
 
-                        seedMockPets();
-                        seedMockStaffShifts();
-                        seedMockServices(); // Add services with required categories
-                        seedMockBookings();
+                seedMockPets();
+                seedMockStaffShifts();
+                seedMockServices(); // Add services with required categories
+                seedMockBookings();
 
-                        log.info("✅ Booking mock data seeded successfully!");
-                } catch (Exception e) {
-                        log.error("❌ Failed to seed booking mock data: ", e);
-                }
+                log.info("✅ Booking mock data seeded successfully!");
         }
 
         /**

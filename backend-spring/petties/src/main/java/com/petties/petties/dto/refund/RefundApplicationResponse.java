@@ -21,8 +21,13 @@ public class RefundApplicationResponse {
     private UUID refundApplicationId;
     private UUID clinicId;
     private String clinicName;
+    private String bankName;
+    private String accountNumber;
     private String periodYearMonth;
     private BigDecimal monthRevenue;
+    private BigDecimal qrRevenue;
+    private BigDecimal cashRevenue;
+    private BigDecimal requestedAmount;
     private Integer webDeductionPercent;
     private BigDecimal webDeductionAmount;
     private BigDecimal amountAfterDeduction;

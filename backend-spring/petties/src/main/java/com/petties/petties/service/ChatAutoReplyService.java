@@ -1,13 +1,10 @@
 package com.petties.petties.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petties.petties.dto.chat.ChatAutoReplySettingsResponse;
 import com.petties.petties.dto.chat.UpdateChatAutoReplySettingsRequest;
 import com.petties.petties.exception.BadRequestException;
 import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.model.ChatAutoReplySetting;
-import com.petties.petties.model.ChatMessage.ActionButton;
 import com.petties.petties.model.Clinic;
 import com.petties.petties.model.User;
 import com.petties.petties.model.enums.AutoReplyCondition;
@@ -19,8 +16,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.UUID;
+import java.util.List;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.petties.petties.model.ChatMessage.ActionButton;
 
 @Service
 @RequiredArgsConstructor
@@ -31,6 +31,9 @@ public class ChatAutoReplyService {
     private final ClinicRepository clinicRepository;
     private final ObjectMapper objectMapper;
 
+    /**
+     * Lấy cấu hình tin nhắn tự động cho phòng khám mà user hiện tại đang quản lý.
+     */
     @Transactional(readOnly = true)
     public ChatAutoReplySettingsResponse getSettingsForUser(User currentUser) {
         Clinic clinic = resolveClinicForUser(currentUser);
@@ -41,6 +44,9 @@ public class ChatAutoReplyService {
         return mapToResponse(setting);
     }
 
+    /**
+     * Cập nhật cấu hình tin nhắn tự động cho phòng khám mà user hiện tại đang quản lý.
+     */
     @Transactional
     public ChatAutoReplySettingsResponse updateSettingsForUser(User currentUser,
                                                                UpdateChatAutoReplySettingsRequest request) {
@@ -49,6 +55,7 @@ public class ChatAutoReplyService {
         ChatAutoReplySetting setting = autoReplySettingRepository.findByClinicClinicId(clinic.getClinicId())
                 .orElseGet(() -> buildDefaultSettings(clinic));
 
+        // Normalize messages: trim and fallback to sensible defaults if empty
         String quickReplyMessage = request.getQuickReplyMessage() != null
                 ? request.getQuickReplyMessage().trim()
                 : setting.getQuickReplyMessage();
@@ -117,13 +124,14 @@ public class ChatAutoReplyService {
     }
 
     private ChatAutoReplySetting buildDefaultSettings(Clinic clinic) {
+        // Default messages follow existing UI placeholders
         String defaultQuickReply = "Xin chào! Cảm ơn bạn đã liên hệ với chúng tôi. Chúng tôi đã nhận được tin nhắn và sẽ phản hồi trong thời gian sớm nhất.";
         String defaultAwayMessage = "Hiện tại chúng tôi không có mặt tại phòng khám. Vui lòng để lại lời nhắn hoặc liên hệ hotline để được hỗ trợ khẩn cấp.";
 
         List<ActionButton> defaultButtons = List.of(
-                ActionButton.builder().id("btn-services").label("Xem dịch vụ").type("MENU").build(),
-                ActionButton.builder().id("btn-booking").label("Đặt lịch ngay").type("BOOKING").build(),
-                ActionButton.builder().id("btn-offers").label("Khám phá ưu đãi").type("OFFER").build()
+            ActionButton.builder().id("btn-services").label("Show dịch vụ").type("MENU").build(),
+            ActionButton.builder().id("btn-booking").label("Book lịch ngay").type("BOOKING").build(),
+            ActionButton.builder().id("btn-offers").label("Khám phá ưu đãi").type("OFFER").build()
         );
 
         String buttonsJson = null;
@@ -167,3 +175,4 @@ public class ChatAutoReplyService {
                 .build();
     }
 }
+

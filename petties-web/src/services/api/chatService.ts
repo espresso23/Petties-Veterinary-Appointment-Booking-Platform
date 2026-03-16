@@ -114,10 +114,10 @@ export const chatService = {
     return response.data
   },
 
-  // ======================== AUTO-REPLY (CLINIC_MANAGER / CLINIC_OWNER) ========================
+  // ======================== AUTO REPLY SETTINGS ========================
 
   /**
-   * Get chat auto-reply settings for the current user's clinic
+   * Get chat auto-reply settings for the current clinic (Clinic Owner / Manager).
    */
   getAutoReplySettings: async (): Promise<ChatAutoReplySettings> => {
     const response = await apiClient.get<ChatAutoReplySettings>('/chat/auto-reply/settings')
@@ -125,12 +125,12 @@ export const chatService = {
   },
 
   /**
-   * Update chat auto-reply settings
+   * Update chat auto-reply settings for the current clinic.
    */
   updateAutoReplySettings: async (
-    payload: UpdateChatAutoReplySettingsRequest
+    request: UpdateChatAutoReplySettingsRequest
   ): Promise<ChatAutoReplySettings> => {
-    const response = await apiClient.put<ChatAutoReplySettings>('/chat/auto-reply/settings', payload)
+    const response = await apiClient.put<ChatAutoReplySettings>('/chat/auto-reply/settings', request)
     return response.data
   },
 }

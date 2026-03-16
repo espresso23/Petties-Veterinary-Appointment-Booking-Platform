@@ -62,7 +62,8 @@ flowchart TB
     end
 
     subgraph Database["Databases"]
-        PG[(PostgreSQL<br/>Configs, Chat History)]
+      PG[(PostgreSQL<br/>Configs & Governance)]
+      MG[(MongoDB<br/>AI Chat History)]
     end
 
     Mobile -->|Chat Messages| WS
@@ -77,6 +78,7 @@ flowchart TB
     SingleAgent -->|LLM Calls| OpenRouter
     RAG -->|Embeddings| Cohere
     RAG -->|Vector Search| Qdrant
+    SingleAgent --> MG
 
     API --> PG
     SingleAgent --> PG
@@ -294,8 +296,8 @@ flowchart TB
   - AF2: Nếu LLM API error → Retry 3 lần, sau đó hiển thị "Đã có lỗi xảy ra, vui lòng thử lại"
   - AF3: Nếu timeout (>30s) → Hiển thị "Request timeout, vui lòng thử lại"
 - **Postcondition:**
-  - Chat message được lưu vào database (chat_messages table)
-  - Session history được cập nhật
+  - Chat message được lưu vào MongoDB (`ai_chat_messages`)
+  - Session history được cập nhật trong MongoDB (`ai_chat_sessions`)
 - **Business Rules:**
   - BR-001: Mỗi session giới hạn 50 messages
   - BR-002: Session tự động expire sau 24h không hoạt động
@@ -1152,21 +1154,22 @@ flowchart TB
   - Chat sessions tồn tại trong database
 - **Main Flow:**
   1. Cronjob chạy hàng ngày lúc 2:00 AM
-  2. Job query sessions cũ:
-     ```sql
-     SELECT id FROM chat_sessions
-     WHERE ended_at < NOW() - INTERVAL '30 days'
-        OR (started_at < NOW() - INTERVAL '7 days' AND ended_at IS NULL);
+  2. Job query sessions cũ trong MongoDB:
+     ```javascript
+     db.ai_chat_sessions.find({
+      $or: [
+       { ended_at: { $lt: ISODate("now - 30 days") } },
+       { started_at: { $lt: ISODate("now - 7 days") }, ended_at: null }
+      ]
+     })
      ```
   3. Job xóa messages của sessions này:
-     ```sql
-     DELETE FROM chat_messages
-     WHERE session_id IN ([session_ids]);
+     ```javascript
+     db.ai_chat_messages.deleteMany({ session_id: { $in: [session_ids] } })
      ```
   4. Job xóa sessions:
-     ```sql
-     DELETE FROM chat_sessions
-     WHERE id IN ([session_ids]);
+     ```javascript
+     db.ai_chat_sessions.deleteMany({ _id: { $in: [session_ids] } })
      ```
   5. Job log kết quả: "Deleted X sessions, Y messages"
 - **Alternative Flow:**
@@ -1377,7 +1380,7 @@ As an **Admin**, I want **to test connections với external services**, so that
 | **FR-013** | Knowledge Base | Hệ thống phải cho phép xóa documents và cleanup vectors | Medium | KB-02 |
 | **FR-014** | Knowledge Base | Hệ thống phải cung cấp Test Retrieval với Top-K configurable | Medium | KB-03 |
 | **FR-015** | Chat/Conversation | Hệ thống phải hỗ trợ WebSocket real-time streaming | High | PG-01 |
-| **FR-016** | Chat/Conversation | Hệ thống phải lưu chat history vào PostgreSQL | High | PG-01 |
+| **FR-016** | Chat/Conversation | Hệ thống phải lưu chat history vào MongoDB (`ai_chat_sessions`, `ai_chat_messages`) | High | PG-01 |
 | **FR-017** | Chat/Conversation | Hệ thống phải implement ReAct pattern (Think-Act-Observe) | High | PG-02 |
 | **FR-018** | Chat/Conversation | Hệ thống phải log tool calls và results vào metadata | Medium | PG-03 |
 | **FR-019** | Chat/Conversation | Hệ thống phải cite sources khi sử dụng RAG | High | PG-04 |
@@ -2068,13 +2071,11 @@ sequenceDiagram
 
 ## 9. DATA MODELS
 
-### 9.1 Database Schema (PostgreSQL)
+### 9.1 Database Schema (PostgreSQL + MongoDB)
 
 ```mermaid
 erDiagram
     AGENTS ||--o{ PROMPT_VERSIONS : has
-    AGENTS ||--o{ CHAT_SESSIONS : uses
-    CHAT_SESSIONS ||--o{ CHAT_MESSAGES : contains
 
     AGENTS {
         int id PK
@@ -2114,24 +2115,6 @@ erDiagram
         timestamp created_at
     }
 
-    CHAT_SESSIONS {
-        int id PK
-        int agent_id FK
-        string user_id
-        string session_id UK
-        timestamp started_at
-        timestamp ended_at
-    }
-
-    CHAT_MESSAGES {
-        int id PK
-        int session_id FK
-        string role
-        text content
-        json message_metadata
-        timestamp timestamp
-    }
-
     KNOWLEDGE_DOCUMENTS {
         int id PK
         string filename
@@ -2157,6 +2140,8 @@ erDiagram
         timestamp updated_at
     }
 ```
+
+  > **Note:** Chat AI-user được lưu trên MongoDB collections `ai_chat_sessions` và `ai_chat_messages`; không mô hình hóa dưới dạng bảng PostgreSQL.
 
 ### 9.2 Entity Descriptions
 
@@ -2228,11 +2213,12 @@ Version control cho system prompts
 
 ---
 
-#### **chat_sessions**
+#### **ai_chat_sessions (MongoDB collection)**
 Lưu chat sessions của users
 
-**Foreign Keys:**
-- `agent_id` → `agents(id)` ON DELETE SET NULL
+**Logical References:**
+- `user_id` → `users.user_id` (Spring Boot Backend)
+- `agent_name` → `agents.name` (AI config)
 
 **Unique Constraints:**
 - `session_id` UNIQUE
@@ -2244,11 +2230,11 @@ Lưu chat sessions của users
 
 ---
 
-#### **chat_messages**
+#### **ai_chat_messages (MongoDB collection)**
 Lưu từng message trong session
 
-**Foreign Keys:**
-- `session_id` → `chat_sessions(id)` ON DELETE CASCADE
+**Logical References:**
+- `session_id` → `_id` của `ai_chat_sessions`
 
 **Indexes:**
 - `session_id` (BTREE)

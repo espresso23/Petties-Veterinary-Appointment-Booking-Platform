@@ -32,13 +32,17 @@ class BookingService {
   /// Only callable when status is COMPLETED
   /// @param bookingId Booking UUID
   /// @param overriddenSosFee Optional: Override SOS fee (for staff adjustment)
+  /// @param paymentMethod Payment method: QR or CASH (default QR)
   Future<BookingResponse> checkout(String bookingId,
-      {double? overriddenSosFee}) async {
+      {double? overriddenSosFee, String paymentMethod = 'QR'}) async {
+    final payload = <String, dynamic>{'paymentMethod': paymentMethod};
+    if (overriddenSosFee != null) {
+      payload['overriddenSosFee'] = overriddenSosFee;
+    }
+
     final response = await _apiClient.post(
       '/bookings/$bookingId/checkout',
-      data: overriddenSosFee != null
-          ? {'overriddenSosFee': overriddenSosFee}
-          : null,
+      data: payload,
     );
     return BookingResponse.fromJson(response.data);
   }

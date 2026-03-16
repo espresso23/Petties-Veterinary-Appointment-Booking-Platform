@@ -186,46 +186,11 @@ export function ChatBox({
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const [showImageGallery, setShowImageGallery] = useState(false)
-  const [galleryImages, setGalleryImages] = useState<{ url: string; timestamp: string; sender: string; id: string }[]>([])
-  const [galleryPage, setGalleryPage] = useState(0)
-  const [galleryHasMore, setGalleryHasMore] = useState(false)
-  const [galleryLoading, setGalleryLoading] = useState(false)
-  const galleryImagesPerPage = 20
 
   // Image modal state (shared between single images and gallery)
   const [showImageModal, setShowImageModal] = useState(false)
   const [modalImages, setModalImages] = useState<ChatMessage[]>([])
   const [currentModalIndex, setCurrentModalIndex] = useState(0)
-
-  // Get all images from messages
-  const getConversationImages = () => {
-    return messages
-      .filter(message => message.messageType === 'IMAGE' && message.imageUrl)
-      .map(message => ({
-        url: message.imageUrl!,
-        timestamp: message.createdAt,
-        sender: message.senderName,
-        id: message.id
-      }))
-    // Show newest first
-  }
-
-  // Load images for gallery with pagination
-  const loadGalleryImages = (page = 0, append = false) => {
-    const allImages = getConversationImages()
-    const startIndex = page * galleryImagesPerPage
-    const endIndex = startIndex + galleryImagesPerPage
-    const pageImages = allImages.slice(startIndex, endIndex)
-
-    if (append) {
-      setGalleryImages(prev => [...prev, ...pageImages])
-    } else {
-      setGalleryImages(pageImages)
-    }
-
-    setGalleryHasMore(endIndex < allImages.length)
-    setGalleryPage(page)
-  }
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -338,7 +303,7 @@ export function ChatBox({
   }
 
   // Handle click on image in ImageGroup
-  const handleImageGroupClick = (imageUrl: string) => {
+  const handleImageGroupClick = (imageUrl: string, _groupMessages?: ChatMessage[]) => {
     // Always show counter in total conversation images
     const allImages = displayMessages.filter(msg => msg.messageType === 'IMAGE' && msg.imageUrl)
     const idx = allImages.findIndex(img => img.imageUrl === imageUrl)
@@ -361,202 +326,225 @@ export function ChatBox({
   }
 
   // Handle gallery scroll for infinite loading
-  const handleGalleryScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget
-    if (scrollTop + clientHeight >= scrollHeight - 100 && galleryHasMore && !galleryLoading) {
-      setGalleryLoading(true)
-      loadGalleryImages(galleryPage + 1, true)
-      setGalleryLoading(false)
-    }
-  }
-
   return (
-    <div className="flex-1 flex flex-col bg-white">
-      {/* Chat Header */}
-      <header className="h-20 px-6 border-b-2 border-stone-900 flex items-center justify-between bg-white z-10">
-        <div className="flex items-center gap-4">
-          {/* Avatar */}
-          <div className="relative">
-            {chatBox.petOwnerAvatar ? (
-              <img
-                src={chatBox.petOwnerAvatar}
-                alt={chatBox.petOwnerName}
-                className="w-12 h-12 rounded-full border-2 border-stone-900 object-cover"
-              />
-            ) : (
-              <div className="w-12 h-12 rounded-full border-2 border-stone-900 bg-amber-100 flex items-center justify-center">
-                <span className="text-amber-700 font-bold text-lg">
-                  {chatBox.petOwnerName?.charAt(0).toUpperCase() || 'U'}
-                </span>
-              </div>
-            )}
-            {chatBox.partnerOnline && (
-              <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full"></span>
-            )}
-          </div>
-
-          {/* Name and status */}
-          <div>
-            <h2 className="text-lg font-bold text-stone-900">
-              {chatBox.petOwnerName || 'Khách hàng'}
-            </h2>
-            <p className="text-sm text-stone-500 font-medium flex items-center gap-2">
-              {isPartnerTyping ? (
-                <span className="text-amber-600">Đang nhập...</span>
-              ) : chatBox.partnerOnline ? (
-                <span className="text-green-600">Đang hoạt động</span>
+    <div className="flex-1 flex flex-row overflow-hidden bg-stone-100 p-3 gap-3">
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col bg-white min-w-0 rounded-2xl border-2 border-stone-900 shadow-[4px_4px_0_#1c1917] overflow-hidden">
+        {/* Chat Header */}
+        <header className="h-20 px-6 border-b-2 border-stone-900 flex items-center justify-between bg-white z-10">
+          <div className="flex items-center gap-4">
+            {/* Avatar */}
+            <div className="relative">
+              {chatBox.petOwnerAvatar ? (
+                <img
+                  src={chatBox.petOwnerAvatar}
+                  alt={chatBox.petOwnerName}
+                  className="w-12 h-12 rounded-full border-2 border-stone-900 object-cover"
+                />
               ) : (
-                <span>Không trực tuyến</span>
+                <div className="w-12 h-12 rounded-full border-2 border-stone-900 bg-amber-100 flex items-center justify-center">
+                  <span className="text-amber-700 font-bold text-lg">
+                    {chatBox.petOwnerName?.charAt(0).toUpperCase() || 'U'}
+                  </span>
+                </div>
               )}
-            </p>
+              {chatBox.partnerOnline && (
+                <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full"></span>
+              )}
+            </div>
+
+            {/* Name and status */}
+            <div>
+              <h2 className="text-lg font-bold text-stone-900">
+                {chatBox.petOwnerName || 'Khách hàng'}
+              </h2>
+              <p className="text-sm text-stone-500 font-medium flex items-center gap-2">
+                {isPartnerTyping ? (
+                  <span className="text-amber-600">Đang nhập...</span>
+                ) : chatBox.partnerOnline ? (
+                  <span className="text-green-600">Đang hoạt động</span>
+                ) : (
+                  <span>Không trực tuyến</span>
+                )}
+              </p>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowImageGallery(!showImageGallery)}
+              className={`p-2 border-2 border-stone-900 rounded-lg font-bold shadow-[2px_2px_0_#1c1917] hover:shadow-[3px_3px_0_#1c1917] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all ${showImageGallery ? 'bg-amber-600 text-white' : 'bg-white text-stone-900'}`}
+              title="Xem ảnh đã gửi"
+            >
+              <EllipsisVerticalIcon className="w-5 h-5" />
+            </button>
+          </div>
+        </header>
+
+        {/* Messages Area */}
+        <div
+          ref={messagesContainerRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto p-6 bg-stone-50"
+        >
+          <div className="w-full">
+            {/* Load more button */}
+            {hasMore && (
+              <div className="flex justify-center mb-6">
+                <button
+                  onClick={onLoadMore}
+                  disabled={loading}
+                  className="text-sm text-amber-600 font-bold hover:underline disabled:opacity-50"
+                >
+                  {loading ? 'Đang tải...' : 'Tải thêm tin nhắn cũ'}
+                </button>
+              </div>
+            )}
+
+            {/* Messages */}
+            {groupedMessages.map((item, index) => {
+              if (Array.isArray(item)) {
+                // Image group
+                return (
+                  <ImageGroup
+                    key={`group-${index}`}
+                    messages={item}
+                    onImageClick={handleImageGroupClick}
+                    myAvatar={myAvatar}
+                    partnerAvatar={partnerAvatar}
+                  />
+                )
+              } else {
+                // Single message
+                return (
+                  <MessageBubble
+                    key={item.id}
+                    message={item}
+                    onImageClick={handleSingleImageClick}
+                    myAvatar={myAvatar}
+                    partnerAvatar={partnerAvatar}
+                  />
+                )
+              }
+            })}
+
+            {/* Typing indicator */}
+            {isPartnerTyping && (
+              <div className="flex items-center gap-2 mb-4 ml-2">
+                <div className="flex gap-1">
+                  <span className="w-2 h-2 bg-stone-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-2 h-2 bg-stone-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-2 h-2 bg-stone-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => {
-              if (!showImageGallery) {
-                loadGalleryImages(0, false)
-              }
-              setShowImageGallery(!showImageGallery)
-            }}
-            className="p-2 bg-white border-2 border-stone-900 rounded-lg font-bold shadow-[2px_2px_0_#1c1917] hover:shadow-[3px_3px_0_#1c1917] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all"
-            title="Xem ảnh đã gửi"
-          >
-            <EllipsisVerticalIcon className="w-5 h-5" />
-          </button>
-        </div>
-      </header>
-
-      {/* Messages Area */}
-      <div
-        ref={messagesContainerRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-6 bg-stone-50"
-      >
-        <div className="w-full">
-          {/* Load more button */}
-          {hasMore && (
-            <div className="flex justify-center mb-6">
-              <button
-                onClick={onLoadMore}
-                disabled={loading}
-                className="text-sm text-amber-600 font-bold hover:underline disabled:opacity-50"
-              >
-                {loading ? 'Đang tải...' : 'Tải thêm tin nhắn cũ'}
-              </button>
-            </div>
-          )}
-
-          {/* Messages */}
-          {groupedMessages.map((item, index) => {
-            if (Array.isArray(item)) {
-              // Image group
-              return (
-                <ImageGroup
-                  key={`group-${index}`}
-                  messages={item}
-                  onImageClick={handleImageGroupClick}
-                  myAvatar={myAvatar}
-                  partnerAvatar={partnerAvatar}
-                />
-              )
-            } else {
-              // Single message
-              return (
-                <MessageBubble
-                  key={item.id}
-                  message={item}
-                  onImageClick={handleSingleImageClick}
-                  myAvatar={myAvatar}
-                  partnerAvatar={partnerAvatar}
-                />
-              )
-            }
-          })}
-
-          {/* Typing indicator */}
-          {isPartnerTyping && (
-            <div className="flex items-center gap-2 mb-4 ml-2">
-              <div className="flex gap-1">
-                <span className="w-2 h-2 bg-stone-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-2 h-2 bg-stone-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-2 h-2 bg-stone-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-              </div>
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
+        {/* Message Input */}
+        <MessageInput onSend={onSendMessage} onImageUpload={onImageUpload} onCombinedMessage={onCombinedMessage} onTyping={onTyping} onError={onError} />
       </div>
 
-      {/* Message Input */}
-      <MessageInput onSend={onSendMessage} onImageUpload={onImageUpload} onCombinedMessage={onCombinedMessage} onTyping={onTyping} onError={onError} />
+      {/* Side Panel - Messenger style */}
+      {showImageGallery && (() => {
+        // Real-time images from messages (newest first)
+        const realtimeImages = displayMessages
+          .filter(msg => msg.messageType === 'IMAGE' && msg.imageUrl)
+          .reverse()
 
-      {/* Image Gallery Sidebar */}
-      {showImageGallery && (
-        <div className="fixed right-0 top-0 h-full w-96 bg-white border-l-2 border-stone-900 shadow-[-4px_0_8px_rgba(0,0,0,0.1)] z-50 transform transition-transform duration-300 ease-in-out">
-          {/* Header */}
-          <div className="h-20 px-6 border-b-2 border-stone-900 bg-stone-50 flex items-center">
-            <div className="flex items-center justify-between w-full">
-              <h3 className="text-xl font-bold text-stone-900">
-                Ảnh đã gửi
-              </h3>
+        return (
+          <div className="w-80 bg-stone-50 rounded-2xl border-2 border-stone-900 shadow-[4px_4px_0_#1c1917] flex flex-col flex-shrink-0 overflow-hidden">
+            {/* Close button */}
+            <div className="flex justify-end p-3 pb-0">
               <button
                 onClick={() => setShowImageGallery(false)}
-                className="p-2 bg-stone-900 text-white border-2 border-stone-900 rounded-lg font-bold shadow-[2px_2px_0_#1c1917] hover:shadow-[3px_3px_0_#1c1917] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all"
+                className="w-8 h-8 bg-stone-900 text-white rounded-full flex items-center justify-center hover:bg-stone-700 transition-colors text-sm font-bold"
               >
                 ✕
               </button>
             </div>
-          </div>
 
-          {/* Content */}
-          <div
-            className="p-6 overflow-y-auto h-full pb-24"
-            onScroll={handleGalleryScroll}
-          >
-            {galleryImages.length === 0 ? (
-              <div className="text-center py-12">
-                <PhotoIcon className="w-16 h-16 text-stone-300 mx-auto mb-4" />
-                <p className="text-lg font-bold text-stone-500">
-                  Chưa có file nào được gửi
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {galleryImages.map((image, index) => (
-                  <div key={`${image.id}-${index}`} className="group relative">
-                    <img
-                      src={image.url}
-                      alt={`Ảnh ${index + 1}`}
-                      className="w-full h-48 object-cover rounded-lg transition-all cursor-pointer"
-                      onClick={() => handleGalleryImageClick(image.url)}
-                    />
-                    <div className="absolute bottom-2 left-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                      {new Date(image.timestamp).toLocaleDateString('vi-VN')}
-                    </div>
-                  </div>
-                ))}
-                {galleryLoading && (
-                  <div className="text-center py-4">
-                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-amber-600"></div>
-                    <p className="text-sm text-stone-500 mt-2">Đang tải thêm...</p>
+            {/* Avatar + Name centered */}
+            <div className="flex flex-col items-center pb-4 pt-1">
+              <div className="relative mb-2">
+                {chatBox.petOwnerAvatar ? (
+                  <img
+                    src={chatBox.petOwnerAvatar}
+                    alt={chatBox.petOwnerName}
+                    className="w-20 h-20 rounded-full border-3 border-stone-900 object-cover shadow-[2px_2px_0_#1c1917]"
+                  />
+                ) : (
+                  <div className="w-20 h-20 rounded-full border-3 border-stone-900 bg-amber-100 flex items-center justify-center shadow-[2px_2px_0_#1c1917]">
+                    <span className="text-amber-700 font-black text-2xl">
+                      {chatBox.petOwnerName?.charAt(0).toUpperCase() || 'U'}
+                    </span>
                   </div>
                 )}
-                {!galleryHasMore && galleryImages.length > 0 && (
-                  <div className="text-center py-4">
-                    <p className="text-sm text-stone-500">Đã tải hết ảnh</p>
+                {/* Online indicator */}
+                <span className={`absolute bottom-1 right-1 w-4.5 h-4.5 rounded-full border-[3px] border-stone-50 ${chatBox.partnerOnline ? 'bg-green-500' : 'bg-stone-400'}`}
+                  style={{ width: '18px', height: '18px' }}
+                ></span>
+              </div>
+              <h3 className="text-sm font-black text-stone-900">
+                {chatBox.petOwnerName || 'Khách hàng'}
+              </h3>
+              <p className="text-[11px] font-medium text-stone-400 mt-0.5">
+                {chatBox.partnerOnline ? 'Đang hoạt động' : 'Không trực tuyến'}
+              </p>
+            </div>
+
+            {/* Media Gallery Section */}
+            <div className="flex-1 overflow-y-auto border-t-2 border-stone-200">
+              {/* Section header */}
+              <div className="px-4 py-3 flex items-center gap-2">
+                <PhotoIcon className="w-5 h-5 text-amber-600" />
+                <h4 className="text-sm font-black text-stone-900">
+                  File phương tiện
+                </h4>
+                {realtimeImages.length > 0 && (
+                  <span className="ml-auto text-[11px] font-bold text-stone-400 bg-stone-200 px-2 py-0.5 rounded-full">
+                    {realtimeImages.length}
+                  </span>
+                )}
+              </div>
+
+              {/* Images grid - Messenger style */}
+              <div className="px-2 pb-4">
+                {realtimeImages.length === 0 ? (
+                  <div className="text-center py-10">
+                    <PhotoIcon className="w-12 h-12 text-stone-200 mx-auto mb-2" />
+                    <p className="text-xs font-bold text-stone-400">
+                      Chưa có ảnh nào
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-[3px]">
+                    {realtimeImages.map((msg, index) => (
+                      <div
+                        key={msg.id}
+                        className="relative aspect-square cursor-pointer group overflow-hidden"
+                        onClick={() => handleGalleryImageClick(msg.imageUrl!)}
+                      >
+                        <img
+                          src={msg.imageUrl!}
+                          alt={`Ảnh ${index + 1}`}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors" />
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
-            )}
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
-      {/* Image Modal - Messenger Style */}
+      {/* Image Modal - Fullscreen Viewer */}
       {showImageModal && modalImages.length > 0 && (
         <div
           className="fixed inset-0 bg-black/90 flex items-center justify-center z-50"

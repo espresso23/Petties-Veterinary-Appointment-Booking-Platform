@@ -37,6 +37,10 @@ class ReviewService {
     return Review.fromJson(response.data);
   }
 
+  Future<void> deleteReview({required String reviewId}) async {
+    await _apiClient.delete('/reviews/$reviewId');
+  }
+
   Future<List<Review>> getClinicReviews(String clinicId) async {
     final response = await _apiClient.get('/reviews/clinic/$clinicId');
     if (response.data is List) {

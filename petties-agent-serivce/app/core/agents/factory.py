@@ -21,8 +21,7 @@ from app.core.agents.single_agent import SingleAgent, build_react_agent
 from app.services.llm_client import (
     create_llm_client_from_db,
     LLMConfig,
-    OpenRouterClient,
-    OllamaClient
+    OpenRouterClient
 )
 from app.db.postgres.models import Agent as AgentModel, Tool
 
@@ -59,7 +58,7 @@ class AgentFactory:
 
         Returns:
             SingleAgent instance voi:
-            - LLM client (OpenRouter/DeepSeek/Ollama)
+            - LLM client (OpenRouter/DeepSeek)
             - System prompt tu DB
             - Enabled tools tu DB
 

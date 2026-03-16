@@ -352,24 +352,52 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
   }
 
   Future<void> _handleComplete() async {
+    final booking = _booking;
+    if (booking == null) return;
+
+    final isQr = booking.paymentMethod?.toUpperCase() == 'QR';
+
+    if (isQr) {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Xác nhận hoàn tất đơn'),
+          content: const Text('Bạn chắc chắn hoàn thành đơn?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Hủy'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Xác nhận'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm != true) return;
+    }
+
     setState(() => _isActionLoading = true);
     try {
       await _bookingService.complete(widget.bookingId);
-      _stopTracking(); // Stop tracking on completion
       await _fetchBookingDetail();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('Cập nhật trạng thái hoàn thành!'),
-              backgroundColor: Colors.green),
+            content: Text('Đã hoàn tất đơn thành công'),
+            backgroundColor: Colors.green,
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Lỗi cập nhật hoàn thành: $e'),
-              backgroundColor: Colors.red),
+            content: Text('Không thể hoàn tất đơn: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
@@ -379,6 +407,8 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
 
   Future<void> _handleCheckout() async {
     double overriddenFee = _booking?.sosFee ?? 0;
+    String selectedPaymentMethod =
+        _booking?.paymentMethod?.toUpperCase() == 'CASH' ? 'CASH' : 'QR';
     final feeController =
         TextEditingController(text: overriddenFee.toStringAsFixed(0));
 
@@ -402,7 +432,7 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
                 children: [
                   const Icon(Icons.payment, color: AppColors.primary),
                   const SizedBox(width: 8),
-                  const Text('Xác nhận thanh toán'),
+                  const Text('Hoàn tất khám'),
                 ],
               ),
               content: SingleChildScrollView(
@@ -487,6 +517,51 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'PHƯƠNG THỨC THANH TOÁN',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        color: AppColors.stone500,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AppColors.stone300),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        children: [
+                          RadioListTile<String>(
+                            value: 'QR',
+                            groupValue: selectedPaymentMethod,
+                            activeColor: AppColors.primary,
+                            title: const Text('QR - Pet Owner tự thanh toán'),
+                            onChanged: (value) {
+                              if (value == null) return;
+                              setDialogState(() {
+                                selectedPaymentMethod = value;
+                              });
+                            },
+                          ),
+                          const Divider(height: 1),
+                          RadioListTile<String>(
+                            value: 'CASH',
+                            groupValue: selectedPaymentMethod,
+                            activeColor: AppColors.primary,
+                            title: const Text('Tiền mặt - chờ xác nhận thanh toán'),
+                            onChanged: (value) {
+                              if (value == null) return;
+                              setDialogState(() {
+                                selectedPaymentMethod = value;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -499,7 +574,7 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
                   onPressed: () => Navigator.pop(ctx, true),
                   style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary),
-                  child: const Text('Xác nhận thanh toán',
+                  child: const Text('Xác nhận hoàn tất khám',
                       style: TextStyle(color: Colors.white)),
                 ),
               ],
@@ -513,30 +588,36 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
     _stopTracking();
     setState(() => _isActionLoading = true);
     try {
-      // Nếu vẫn đang khám thì hoàn tất khám trước khi thanh toán
-      if (_booking?.status == 'IN_PROGRESS') {
-        await _bookingService.complete(widget.bookingId);
-      }
-      // Với SOS, cho phép điều chỉnh phí SOS; các loại khác chỉ checkout bình thường
-      if (_booking?.type == 'SOS') {
-        await _bookingService.checkout(widget.bookingId,
-            overriddenSosFee: overriddenFee);
-      } else {
-        await _bookingService.checkout(widget.bookingId);
-      }
+      final paymentMethod = selectedPaymentMethod;
+      await (_booking?.type == 'SOS'
+          ? _bookingService.checkout(
+              widget.bookingId,
+              overriddenSosFee: overriddenFee,
+              paymentMethod: paymentMethod,
+            )
+          : _bookingService.checkout(
+              widget.bookingId,
+              paymentMethod: paymentMethod,
+            ));
+
       await _fetchBookingDetail();
+
       if (mounted) {
+        final message = paymentMethod == 'QR'
+            ? 'Đã hoàn tất khám. Khách hàng sẽ thanh toán QR trong màn chi tiết lịch hẹn.'
+            : 'Đã hoàn tất khám. Booking đã chuyển sang chờ thanh toán tiền mặt.';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Thanh toán thành công!'),
-              backgroundColor: Colors.green),
+          SnackBar(
+            content: Text(message),
+            backgroundColor: paymentMethod == 'QR' ? Colors.blue : Colors.green,
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Lỗi thanh toán: $e'), backgroundColor: Colors.red),
+              content: Text('Lỗi: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -1105,11 +1186,6 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
         textColor = AppColors.primaryDark;
         label = 'Đã xác nhận';
         break;
-      case 'ASSIGNED':
-        bgColor = AppColors.primarySurface;
-        textColor = AppColors.primary;
-        label = 'Đã gán BS';
-        break;
       case 'IN_PROGRESS':
         bgColor = AppColors.primarySurface;
         textColor = AppColors.primary;
@@ -1232,7 +1308,7 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
             ),
           ] else if (_booking!.type == 'HOME_VISIT') ...[
             _buildActionButton(
-              label: 'BẮT ĐẦU KHÁM',
+              label: 'BẮT ĐẦU THỰC HIỆN DỊCH VỤ',
               icon: Icons.play_arrow,
               color: AppColors.primary,
               onPressed: _handleCheckIn,
@@ -1250,7 +1326,7 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
             ),
           ] else
             _buildActionButton(
-              label: 'BẮT ĐẦU KHÁM',
+              label: 'BẮT ĐẦU THỰC HIỆN DỊCH VỤ',
               icon: Icons.play_arrow,
               color: AppColors.primary,
               onPressed: _handleCheckIn,
@@ -1370,7 +1446,7 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
           ),
         ]);
       } else {
-        // Các loại khác: có bước hoàn tất khám riêng
+        // Các loại khác: Staff chủ động hoàn tất đơn khi đã đủ điều kiện.
         actions.addAll([
           const SizedBox(height: 12),
           _buildActionButton(

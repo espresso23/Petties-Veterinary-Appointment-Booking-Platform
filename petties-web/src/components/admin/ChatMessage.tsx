@@ -1,18 +1,12 @@
 import { CheckIcon, XMarkIcon, LinkIcon, CpuChipIcon, WrenchScrewdriverIcon, UserIcon, BoltIcon } from '@heroicons/react/24/outline'
 
-interface ToolCall {
-  tool: string
-  input: Record<string, unknown>
-  output?: unknown
-}
-
 interface ChatMessageProps {
   role: 'user' | 'assistant'
   content: string
   timestamp?: Date
   citations?: Array<{ type: 'rag' | 'web'; source: string; url?: string }>
   thinkingProcess?: string[]
-  toolCalls?: ToolCall[]
+  toolCalls?: Array<{ tool: string; input: any; output?: any }>
   feedback?: 'good' | 'bad' | null
   onFeedback?: (feedback: 'good' | 'bad') => void
 }
@@ -154,13 +148,13 @@ export const ChatMessage = ({
                           <span className="font-black text-stone-400 mr-2">IN:</span>
                           <span className="text-stone-900">{JSON.stringify(call.input)}</span>
                         </div>
-                        {!!call.output && (
+                        {call.output && (
                           <div className="text-[10px] font-mono bg-green-50 p-1.5 border border-green-200">
                             <span className="font-black text-green-600 mr-2">OUT:</span>
                             <span className="text-stone-900">
                               {typeof call.output === 'string'
                                 ? call.output.slice(0, 100) + (call.output.length > 100 ? '...' : '')
-                                : (JSON.stringify(call.output) || '').slice(0, 100)}
+                                : JSON.stringify(call.output).slice(0, 100)}
                             </span>
                           </div>
                         )}

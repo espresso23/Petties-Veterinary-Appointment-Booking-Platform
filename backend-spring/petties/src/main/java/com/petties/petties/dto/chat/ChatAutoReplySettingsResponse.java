@@ -6,9 +6,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
 import java.util.UUID;
-
+import java.util.List;
 import com.petties.petties.model.ChatMessage.ActionButton;
 
 /**
@@ -31,3 +30,4 @@ public class ChatAutoReplySettingsResponse {
 
     private List<ActionButton> actionButtons;
 }
+

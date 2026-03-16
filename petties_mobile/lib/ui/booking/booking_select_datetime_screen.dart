@@ -267,9 +267,6 @@ class _BookingSelectDateTimeScreenState
           ],
         ),
         const SizedBox(height: 8),
-        // Legend
-        _buildSlotsLegend(),
-        const SizedBox(height: 12),
         if (provider.selectedDate == null)
           _buildNoDateSelected()
         else if (provider.isLoadingSlots)
@@ -356,51 +353,6 @@ class _BookingSelectDateTimeScreenState
       );
     }
     return const SizedBox.shrink();
-  }
-
-  Widget _buildSlotsLegend() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.stone100,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildLegendItem(AppColors.white, AppColors.stone300, 'Trống'),
-          _buildLegendItem(AppColors.stone200, AppColors.stone300, 'Đã đặt'),
-          _buildLegendItem(AppColors.coral.withValues(alpha: 0.15),
-              AppColors.coral.withValues(alpha: 0.5), 'Nghỉ'),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLegendItem(Color bgColor, Color borderColor, String label) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 16,
-          height: 16,
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: borderColor, width: 1.5),
-          ),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: AppColors.stone600,
-          ),
-        ),
-      ],
-    );
   }
 
   Widget _buildNoDateSelected() {
@@ -523,123 +475,109 @@ class _BookingSelectDateTimeScreenState
 
   Widget _buildSlotChips(
       BookingWizardProvider provider, List<AvailableSlot> slots) {
-    return Column(
-      children: slots.map((slot) {
-        final isSelected = provider.selectedTimeSlots.contains(slot.startTime);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const spacing = 8.0;
+        const columns = 5;
+        final chipWidth =
+            (constraints.maxWidth - (spacing * (columns - 1))) / columns;
 
-        // Check if slot is in the past
-        bool isPastTime = false;
-        if (provider.selectedDate != null &&
-            isSameDay(provider.selectedDate!, DateTime.now())) {
-          try {
-            final parts = slot.startTime.split(':');
-            final slotHour = int.parse(parts[0]);
-            final slotMinute = int.parse(parts[1]);
-            final now = DateTime.now();
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: slots.map((slot) {
+            final isSelected =
+                provider.selectedTimeSlots.contains(slot.startTime);
 
-            if (now.hour > slotHour ||
-                (now.hour == slotHour && now.minute > slotMinute)) {
-              isPastTime = true;
+            bool isPastTime = false;
+            if (provider.selectedDate != null &&
+                isSameDay(provider.selectedDate!, DateTime.now())) {
+              try {
+                final parts = slot.startTime.split(':');
+                final slotHour = int.parse(parts[0]);
+                final slotMinute = int.parse(parts[1]);
+                final now = DateTime.now();
+
+                if (now.hour > slotHour ||
+                    (now.hour == slotHour && now.minute > slotMinute)) {
+                  isPastTime = true;
+                }
+              } catch (_) {}
             }
-          } catch (_) {}
-        }
 
-        final isAvailable = slot.available && !isPastTime;
-        final isBreakTime = slot.isBreakTime;
+            final isAvailable = slot.available && !isPastTime;
+            final isBreakTime = slot.isBreakTime;
 
-        // Determine colors based on state
-        Color bgColor;
-        Color borderColor;
-        Color textColor;
-        String statusLabel;
+            Color bgColor = AppColors.white;
+            Color borderColor = AppColors.stone300;
+            Color textColor = AppColors.stone700;
 
-        if (isSelected) {
-          // Single selected slot (drop-off time)
-          bgColor = AppColors.primaryBackground;
-          borderColor = AppColors.primary;
-          textColor = AppColors.primaryDark;
-          statusLabel = 'Đã chọn';
-        } else if (isBreakTime) {
-          bgColor = AppColors.coral.withValues(alpha: 0.15);
-          borderColor = AppColors.coral.withValues(alpha: 0.5);
-          textColor = AppColors.coral;
-          statusLabel = 'Nghỉ';
-        } else if (!isAvailable) {
-          bgColor = AppColors.stone200;
-          borderColor = AppColors.stone300;
-          textColor = AppColors.stone500;
-          statusLabel = isPastTime ? 'Đã qua giờ' : 'Đã đầy';
-        } else {
-          bgColor = AppColors.successLight;
-          borderColor = AppColors.successDark;
-          textColor = AppColors.successDark;
-          statusLabel = 'Khả dụng';
-        }
+            if (isSelected) {
+              bgColor = AppColors.primary;
+              borderColor = AppColors.primaryDark;
+              textColor = AppColors.white;
+            } else if (isBreakTime) {
+              bgColor = AppColors.coral.withValues(alpha: 0.12);
+              borderColor = AppColors.coral.withValues(alpha: 0.5);
+              textColor = AppColors.coral;
+            } else if (!isAvailable) {
+              bgColor = AppColors.stone100;
+              borderColor = AppColors.stone300;
+              textColor = AppColors.stone500;
+            }
 
-        return Tooltip(
-          message: isPastTime
-              ? 'Đã qua giờ'
-              : slot.reason ?? (isAvailable ? 'Khả dụng' : ''),
-          child: GestureDetector(
-            onTap:
-                isAvailable ? () => provider.selectTime(slot.startTime) : null,
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: bgColor,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: borderColor, width: 2),
-                boxShadow: isSelected
-                    ? const [
-                        BoxShadow(
-                          color: AppColors.stone900,
-                          offset: Offset(2, 2),
-                        ),
-                      ]
+            return SizedBox(
+              width: chipWidth,
+              child: GestureDetector(
+                onTap: isAvailable
+                    ? () => provider.selectTime(slot.startTime)
                     : null,
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    isBreakTime
-                        ? Icons.free_breakfast
-                        : (isAvailable ? Icons.radio_button_unchecked : Icons.block),
-                    size: 18,
-                    color: textColor,
+                child: Container(
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: bgColor,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: borderColor, width: 2),
+                    boxShadow: isSelected
+                        ? const [
+                            BoxShadow(
+                              color: AppColors.stone900,
+                              offset: Offset(2, 2),
+                            ),
+                          ]
+                        : null,
                   ),
-                  const SizedBox(width: 10),
-                  Text(
-                    slot.startTime,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: textColor,
-                    ),
-                  ),
-                  const Spacer(),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: textColor.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      statusLabel,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: textColor,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        slot.startTime,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: textColor,
+                        ),
                       ),
-                    ),
+                      if (isBreakTime)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            'Nghỉ',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: textColor,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
+            );
+          }).toList(),
         );
-      }).toList(),
+      },
     );
   }
 

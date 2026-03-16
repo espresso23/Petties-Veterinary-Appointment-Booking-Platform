@@ -19,11 +19,11 @@ import {
     CalendarIcon,
     ClipboardDocumentListIcon,
     ChatBubbleLeftRightIcon,
-    CurrencyDollarIcon,
     BellIcon,
     UserCircleIcon,
     ClipboardDocumentCheckIcon,
-    HomeModernIcon
+    HomeModernIcon,
+    ChartBarIcon
 } from '@heroicons/react/24/outline'
 import '../styles/brutalist.css'
 
@@ -159,7 +159,7 @@ export const ClinicManagerLayout = () => {
             title: 'HỆ THỐNG',
             items: [
                 { path: '/clinic-manager/chat', label: 'CHAT', icon: ChatBubbleLeftRightIcon, unreadCount: chatUnreadCount },
-                { path: '/clinic-manager/refunds', label: 'HOÀN TIỀN', icon: CurrencyDollarIcon },
+                { path: '/clinic-manager/revenue', label: 'DOANH THU', icon: ChartBarIcon },
                 { path: '/clinic-manager/notifications', label: 'THÔNG BÁO', icon: BellIcon, unreadCount },
                 { path: '/clinic-manager/profile', label: 'HỒ SƠ CÁ NHÂN', icon: UserCircleIcon },
             ]

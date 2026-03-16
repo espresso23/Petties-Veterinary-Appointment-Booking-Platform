@@ -108,6 +108,7 @@ export const StaffBookingsPage = () => {
 
     // Subscribe to SSE for real-time booking updates
     useSseNotification({
+        silent: true,
         onBookingUpdate: (data) => {
             console.log('[StaffBookingsPage] Booking update received:', data)
             showToast('info', `Có cập nhật booking: ${data.bookingCode}`)
@@ -509,7 +510,7 @@ export const StaffBookingsPage = () => {
                                                 disabled={actionLoading}
                                                 className="w-full bg-amber-600 text-white py-3 rounded-xl font-black uppercase text-sm tracking-widest border-2 border-stone-900 shadow-[3px_3px_0_0_#1c1917] hover:-translate-y-0.5 hover:shadow-[5px_5px_0_0_#1c1917] active:translate-y-0 transition-all disabled:opacity-50"
                                             >
-                                                {actionLoading ? 'ĐANG XỬ LÝ...' : 'BẮT ĐẦU KHÁM'}
+                                                {actionLoading ? 'ĐANG XỬ LÝ...' : 'BẮT ĐẦU THỰC HIỆN DỊCH VỤ'}
                                             </button>
                                         )}
                                         {selectedBooking.status === 'IN_PROGRESS' && (

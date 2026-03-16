@@ -108,3 +108,48 @@ export const getClinicRevenueSummary = async (
     );
     return response.data;
 };
+
+// ========== REVENUE BREAKDOWN & FLUCTUATION ==========
+
+export interface BalanceFluctuationItem {
+    paymentId: string;
+    bookingCode: string;
+    petOwnerName?: string;
+    amount: number;
+    platformFee: number;
+    netAmount: number;
+    paidAt: string;
+}
+
+export interface RevenueBreakdownResponse {
+    success: boolean;
+    clinicId: string;
+    totalRevenue: number;
+    qrRevenue: number;
+    cashRevenue: number;
+    withdrawableBalance: number;
+    totalWithdrawn: number;
+    lastRefundDate?: string;
+}
+
+/**
+ * Get detailed balance fluctuation list (per-booking paid payments)
+ */
+export const getBalanceFluctuation = async (
+    clinicId: string,
+    method: 'QR' | 'CASH',
+    limit: number = 100
+): Promise<{ items: BalanceFluctuationItem[] }> => {
+    const response = await axios.get(`${PAYMENT_API}/history/clinic/${clinicId}/fluctuation?method=${method}&limit=${limit}`);
+    return response.data;
+};
+
+/**
+ * Get detailed revenue breakdown (QR vs CASH vs Withdrawable)
+ */
+export const getClinicRevenueBreakdown = async (
+    clinicId: string
+): Promise<RevenueBreakdownResponse> => {
+    const response = await axios.get(`${PAYMENT_API}/history/clinic/${clinicId}/breakdown`);
+    return response.data;
+};

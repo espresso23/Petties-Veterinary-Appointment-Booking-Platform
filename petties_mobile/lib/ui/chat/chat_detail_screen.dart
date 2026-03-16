@@ -95,9 +95,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         _conversation = conversation;
         _messages = messages.reversed.toList(); // Newest at bottom
         _isLoading = false;
-        
+
         // Debug clinic logo
-        print('DEBUG: Conversation loaded. Clinic: ${_conversation?.clinicName}, Logo: "${_conversation?.clinicLogo}"');
+        print(
+            'DEBUG: Conversation loaded. Clinic: ${_conversation?.clinicName}, Logo: "${_conversation?.clinicLogo}"');
       });
 
       // Connect WebSocket and subscribe
@@ -148,20 +149,21 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               _messages.add(wsMessage.message!);
             });
             _scrollToBottom();
-
-
           }
         }
         break;
 
       case WsMessageType.typing:
-        if (wsMessage.senderType == 'CLINIC') {
+        // Partner (Clinic) is typing. Filter out our own events if server loops them back.
+        if (wsMessage.senderType == 'CLINIC' &&
+            wsMessage.senderId != _conversation?.petOwnerId) {
           setState(() => _isPartnerTyping = true);
         }
         break;
 
       case WsMessageType.stopTyping:
-        if (wsMessage.senderType == 'CLINIC') {
+        if (wsMessage.senderType == 'CLINIC' &&
+            wsMessage.senderId != _conversation?.petOwnerId) {
           setState(() => _isPartnerTyping = false);
         }
         break;
@@ -180,7 +182,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         break;
 
       case WsMessageType.online:
-        if (wsMessage.senderType == 'CLINIC') {
+        if (wsMessage.senderType == 'CLINIC' &&
+            wsMessage.senderId != _conversation?.petOwnerId) {
           setState(() {
             _conversation = _conversation?.copyWith(isClinicOnline: true);
           });
@@ -188,7 +191,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         break;
 
       case WsMessageType.offline:
-        if (wsMessage.senderType == 'CLINIC') {
+        if (wsMessage.senderType == 'CLINIC' &&
+            wsMessage.senderId != _conversation?.petOwnerId) {
           setState(() {
             _conversation = _conversation?.copyWith(isClinicOnline: false);
           });
@@ -256,7 +260,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       // Upload image to server - message will be added via WebSocket broadcast
       // DO NOT add message to state here to avoid duplicate
       // WebSocket will broadcast the message back to us
-      final imageMessage = await _chatService.uploadImage(_conversation!.id, imageFile);
+      final imageMessage =
+          await _chatService.uploadImage(_conversation!.id, imageFile);
       return imageMessage;
     } catch (e) {
       if (mounted) {
@@ -274,7 +279,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   Future<void> _sendCombinedMessage(String content, File imageFile) async {
-    print('DEBUG: _sendCombinedMessage called with content: "$content", imageFile: ${imageFile.path}');
+    print(
+        'DEBUG: _sendCombinedMessage called with content: "$content", imageFile: ${imageFile.path}');
     if (_conversation == null || _isSending) return;
 
     setState(() => _isSending = true);
@@ -310,7 +316,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   List<ChatMessage> _getConversationImages() {
     return _messages
         .where((message) =>
-            (message.messageType == MessageType.image || message.messageType == MessageType.imageText) &&
+            (message.messageType == MessageType.image ||
+                message.messageType == MessageType.imageText) &&
             message.imageUrl != null &&
             message.imageUrl!.isNotEmpty)
         .toList()
@@ -446,7 +453,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                   children: [
                                     GestureDetector(
                                       onTap: () {
-                                        final index = _galleryImages.indexOf(message);
+                                        final index =
+                                            _galleryImages.indexOf(message);
                                         _showFullScreenImage(index);
                                       },
                                       child: Container(
@@ -470,14 +478,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                           borderRadius:
                                               BorderRadius.circular(10),
                                           child: Image.network(
-                                            message.imageUrl!,
+                                            message.secureImageUrl ??
+                                                message.imageUrl!,
                                             width: double.infinity,
+                                            height: 200,
                                             fit: BoxFit.cover,
                                             loadingBuilder: (context, child,
                                                 loadingProgress) {
-                                              if (loadingProgress == null) {
+                                              if (loadingProgress == null)
                                                 return child;
-                                              }
                                               return Container(
                                                 height: 150,
                                                 color: AppColors.stone100,
@@ -563,11 +572,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   void _showFullScreenImage(int initialIndex) {
     // Filter out messages without valid image URLs
-    final validMessages = _galleryImages.where((msg) =>
-      msg.messageType == MessageType.image &&
-      msg.imageUrl != null &&
-      msg.imageUrl!.isNotEmpty
-    ).toList();
+    final validMessages = _galleryImages
+        .where((msg) =>
+            msg.messageType == MessageType.image &&
+            msg.imageUrl != null &&
+            msg.imageUrl!.isNotEmpty)
+        .toList();
 
     if (validMessages.isEmpty) return;
 
@@ -603,7 +613,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 itemBuilder: (context, index) {
                   return InteractiveViewer(
                     child: Image.network(
-                      validMessages[index].imageUrl ?? '',
+                      validMessages[index].secureImageUrl ??
+                          validMessages[index].imageUrl ??
+                          '',
                       fit: BoxFit.contain,
                       width: double.infinity,
                       height: double.infinity,
@@ -682,8 +694,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-
-
   String _formatMessageDate(DateTime date) {
     final now = DateTime.now();
     final difference = now.difference(date);
@@ -745,7 +755,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                             _conversation!.secureClinicLogo!,
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) {
-                              debugPrint('DEBUG: AppBar Avatar Error: $error, URL: ${_conversation!.clinicLogo}');
+                              debugPrint(
+                                  'DEBUG: AppBar Avatar Error: $error, URL: ${_conversation!.clinicLogo}');
                               return Image.asset(
                                 'assets/images/logo/app_icon.png',
                                 fit: BoxFit.cover,
@@ -936,44 +947,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   clinicLogo: message.senderType == SenderType.clinic
                       ? _conversation?.clinicLogo
                       : null,
+                  conversation: _conversation,
                   onImageTap: (tappedMessage) {
                     // Always show counter in total conversation images
                     final allImages = _messages
-                        .where((msg) => msg.messageType == MessageType.image || msg.messageType == MessageType.imageText)
+                        .where((msg) =>
+                            msg.messageType == MessageType.image ||
+                            msg.messageType == MessageType.imageText)
                         .toList();
-                    
+
                     // Find the index of the tapped message in all images
                     final imageIndex = allImages.indexOf(tappedMessage);
-                    
+
                     if (imageIndex >= 0) {
                       _showImageGroupCarousel(allImages, imageIndex);
-                    }
-                  },
-                  onActionButtonTap: (msg, button) {
-                    if (!mounted) return;
-                    switch (button.type.toUpperCase()) {
-                      case 'BOOKING':
-                        if (_conversation?.clinicId != null) {
-                          context.push('/booking/${_conversation!.clinicId}');
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Chọn phòng khám để đặt lịch.')),
-                          );
-                        }
-                        break;
-                      case 'MENU':
-                        if (_conversation?.clinicId != null) {
-                          context.push('/clinics/${_conversation!.clinicId}');
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(button.label)),
-                          );
-                        }
-                        break;
-                      default:
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(button.label)),
-                        );
                     }
                   },
                 );
@@ -1054,7 +1041,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     for (var i = 0; i < messages.length; i++) {
       final message = messages[i];
 
-      if ((message.messageType == MessageType.image || message.messageType == MessageType.imageText) &&
+      if ((message.messageType == MessageType.image ||
+              message.messageType == MessageType.imageText) &&
           message.imageUrl != null &&
           message.imageUrl!.isNotEmpty) {
         // Check if we can add to current group
@@ -1086,7 +1074,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               nextMsg.createdAt.difference(message.createdAt).inMilliseconds;
           final isSameSender = nextMsg.senderId == message.senderId;
           final isWithinTimeWindow = timeDiff < 30000;
-          final isImage = (nextMsg.messageType == MessageType.image || nextMsg.messageType == MessageType.imageText) &&
+          final isImage = (nextMsg.messageType == MessageType.image ||
+                  nextMsg.messageType == MessageType.imageText) &&
               nextMsg.imageUrl != null &&
               nextMsg.imageUrl!.isNotEmpty;
 
@@ -1170,7 +1159,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           crossAxisCount: 2,
           crossAxisSpacing: 8,
           mainAxisSpacing: 8,
-          childAspectRatio: 1, // Fixed 1:1 aspect ratio for uniform sizing like Messenger
+          childAspectRatio:
+              1, // Fixed 1:1 aspect ratio for uniform sizing like Messenger
         ),
         itemCount: count > 3 ? 3 : count,
         itemBuilder: (context, index) {
@@ -1254,7 +1244,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   /// Build grid image
-  Widget _buildGridImage(ChatMessage message, int index, int total, List<ChatMessage> messages) {
+  Widget _buildGridImage(
+      ChatMessage message, int index, int total, List<ChatMessage> messages) {
     // Check if image URL is valid
     if (message.imageUrl == null || message.imageUrl!.isEmpty) {
       return Container(
@@ -1285,7 +1276,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(8),
-          child: SizedBox(
+          child: Container(
             width: double.infinity,
             height: double.infinity,
             child: Image.network(
@@ -1298,7 +1289,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   child: const Center(
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(AppColors.primary),
                     ),
                   ),
                 );
@@ -1325,18 +1317,21 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   /// Show carousel view for all images in a group
   void _showImageGroupCarousel(List<ChatMessage> messages, int initialIndex) {
     // Get all images in conversation for global counting
-    final allImages = _messages.where((msg) =>
-      msg.messageType == MessageType.image &&
-      msg.imageUrl != null &&
-      msg.imageUrl!.isNotEmpty
-    ).toList();
+    final allImages = _messages
+        .where((msg) =>
+            msg.messageType == MessageType.image &&
+            msg.imageUrl != null &&
+            msg.imageUrl!.isNotEmpty)
+        .toList();
 
     // Filter out messages without valid image URLs for the group
-    final validMessages = messages.where((msg) =>
-      (msg.messageType == MessageType.image || msg.messageType == MessageType.imageText) &&
-      msg.imageUrl != null &&
-      msg.imageUrl!.isNotEmpty
-    ).toList();
+    final validMessages = messages
+        .where((msg) =>
+            (msg.messageType == MessageType.image ||
+                msg.messageType == MessageType.imageText) &&
+            msg.imageUrl != null &&
+            msg.imageUrl!.isNotEmpty)
+        .toList();
 
     if (validMessages.isEmpty) return;
 
@@ -1356,7 +1351,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     // Calculate global position
     int getGlobalPosition(int groupIndex) {
       final currentMessage = validMessages[groupIndex];
-      return allImages.indexWhere((msg) => msg.id == currentMessage.id) + 1; // 1-based
+      return allImages.indexWhere((msg) => msg.id == currentMessage.id) +
+          1; // 1-based
     }
 
     showDialog(
@@ -1488,7 +1484,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 child: const Center(
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(AppColors.primary),
                   ),
                 ),
               );
@@ -1565,43 +1562,4 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  /// Build message timestamp
-  Widget _buildMessageTimestamp(ChatMessage message) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          DateFormat('HH:mm').format(message.createdAt),
-          style: TextStyle(
-            fontSize: 11,
-            color: message.isMine ? AppColors.white : AppColors.stone500,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        if (message.isMine && message.status == MessageStatus.seen)
-          const Padding(
-            padding: EdgeInsets.only(left: 4),
-            child: Icon(
-              Icons.done_all,
-              size: 12,
-              color: Colors.blue,
-            ),
-          ),
-      ],
-    );
-  }
-
-  /// Scroll to a specific message
-  void _scrollToMessage(String messageId) {
-    final messageIndex = _messages.indexWhere((msg) => msg.id == messageId);
-    if (messageIndex != -1) {
-      // Calculate approximate position
-      final estimatedHeight = messageIndex * 80.0; // Rough estimate per message
-      _scrollController.animateTo(
-        estimatedHeight.clamp(0, _scrollController.position.maxScrollExtent),
-        duration: const Duration(milliseconds: 500),
-        curve: Curves.easeOut,
-      );
-    }
-  }
 }

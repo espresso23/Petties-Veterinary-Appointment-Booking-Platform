@@ -66,6 +66,8 @@ interface UseSseNotificationOptions {
   reconnectDelay?: number
   /** Max reconnect attempts before giving up (default: 10) */
   maxReconnectAttempts?: number
+  /** Disable default toast + unread side effects (useful for page-level secondary subscriptions) */
+  silent?: boolean
   /** Callback when new notification received */
   onNotification?: (notification: NotificationData) => void
   /** Callback when shift update received */
@@ -122,6 +124,7 @@ export function useSseNotification(
   const {
     reconnectDelay = 5000,
     maxReconnectAttempts = 10,
+    silent = false,
     onNotification,
     onShiftUpdate,
     onBookingUpdate,
@@ -197,7 +200,7 @@ export function useSseNotification(
           showToast('warning', message || 'Lịch hẹn đã bị hủy')
           break
         case 'BOOKING_CHECKIN':
-          showToast('info', message || 'Bác sĩ đã bắt đầu khám')
+          showToast('info', message || 'Bác sĩ đã bắt đầu thực hiện dịch vụ')
           break
         case 'BOOKING_COMPLETED':
           showToast('success', message || 'Lịch hẹn đã hoàn thành')
@@ -225,10 +228,12 @@ export function useSseNotification(
           case 'NOTIFICATION':
             if (data.data) {
               console.log('[SSE] Notification received:', data.data)
-              // Increment unread count
-              incrementUnreadCount()
-              // Show toast
-              showNotificationToast(data.data as NotificationData)
+              if (!silent) {
+                // Increment unread count
+                incrementUnreadCount()
+                // Show toast
+                showNotificationToast(data.data as NotificationData)
+              }
               // Call callback
               onNotificationRef.current?.(data.data as NotificationData)
             }
@@ -267,7 +272,7 @@ export function useSseNotification(
         console.error('[SSE] Failed to parse event data:', error)
       }
     },
-    [incrementUnreadCount, showNotificationToast, setPendingCount]
+    [incrementUnreadCount, showNotificationToast, setPendingCount, silent]
   )
 
   // Connect to SSE

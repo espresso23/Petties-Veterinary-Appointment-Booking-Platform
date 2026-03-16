@@ -37,6 +37,7 @@ import '../ui/booking/booking_select_datetime_screen.dart';
 import '../ui/booking/booking_confirm_screen.dart';
 import '../ui/booking/booking_success_screen.dart';
 import '../ui/booking/booking_detail_screen.dart';
+import '../ui/booking/booking_detail_by_id_screen.dart';
 import '../ui/booking/sos_request_screen.dart';
 import '../ui/booking/sos_radar_map_screen.dart';
 import '../ui/booking/sos_tracking_screen.dart';
@@ -257,7 +258,8 @@ class AppRouterConfig {
             final petName = state.uri.queryParameters['petName'] ?? 'Thú cưng';
             final bookingId = state.uri.queryParameters['bookingId'];
             final bookingCode = state.uri.queryParameters['bookingCode'];
-            final initialVaccineName = state.uri.queryParameters['initialVaccineName'];
+            final initialVaccineName =
+                state.uri.queryParameters['initialVaccineName'];
             return VaccinationFormScreen(
               petId: petId,
               petName: petName,
@@ -323,7 +325,10 @@ class AppRouterConfig {
           path: AppRoutes.clinicDetail,
           builder: (context, state) {
             final id = state.pathParameters['id']!;
-            return ClinicDetailView(clinicId: id);
+            final scrollToReviews =
+                state.uri.queryParameters['scrollToReviews'] == 'true';
+            return ClinicDetailView(
+                clinicId: id, scrollToReviews: scrollToReviews);
           },
         ),
 
@@ -367,8 +372,23 @@ class AppRouterConfig {
         GoRoute(
           path: '/bookings/detail',
           builder: (context, state) {
-            final booking = state.extra as dynamic;
-            return AppointmentDetailScreen(booking: booking);
+            final booking = state.extra;
+
+            if (booking is BookingResponse &&
+                booking.bookingId != null &&
+                booking.bookingId!.isNotEmpty) {
+              return BookingDetailByIdScreen(bookingId: booking.bookingId!);
+            }
+
+            return AppointmentDetailScreen(booking: booking as BookingResponse);
+          },
+        ),
+
+        GoRoute(
+          path: AppRoutes.bookingDetails,
+          builder: (context, state) {
+            final bookingId = state.pathParameters['id']!;
+            return BookingDetailByIdScreen(bookingId: bookingId);
           },
         ),
 

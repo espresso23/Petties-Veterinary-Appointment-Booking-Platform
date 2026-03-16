@@ -65,6 +65,7 @@ public class BookingResponse {
     private String paymentMethod; // CASH, QR, CARD
     private String paymentDescription; // SePay payment description for QR matching
     private String qrImageUrl; // QR code image URL (only for QR + PENDING)
+    private Boolean canShowQrPaymentButton; // Stable UI flag for Pet Owner QR action
 
     // ========== BOOKING INFO ==========
     @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd")

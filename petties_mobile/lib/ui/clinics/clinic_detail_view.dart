@@ -17,10 +17,12 @@ import 'package:intl/intl.dart';
 /// Clinic Detail View - Neobrutalism Style
 class ClinicDetailView extends StatefulWidget {
   final String clinicId;
+  final bool scrollToReviews;
 
   const ClinicDetailView({
     super.key,
     required this.clinicId,
+    this.scrollToReviews = false,
   });
 
   @override
@@ -47,6 +49,9 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
   double? _localRatingAvg;
   int? _localRatingCount;
 
+  // Key for scrolling to review section
+  final GlobalKey _reviewSectionKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -61,11 +66,9 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
       if (mounted) {
         double? localAvg;
         if (reviews.isNotEmpty) {
-           double total = 0;
-           for (var r in reviews) {
-             total += r.rating;
-           }
-           localAvg = total / reviews.length;
+          double total = 0;
+          for (var r in reviews) total += r.rating;
+          localAvg = total / reviews.length;
         }
 
         setState(() {
@@ -74,6 +77,13 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
           _localRatingCount = reviews.length;
           _isLoadingReviews = false;
         });
+
+        // Auto-scroll to review section if requested
+        if (widget.scrollToReviews) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _scrollToReviewSection();
+          });
+        }
       }
     } catch (e) {
       debugPrint('Error fetching reviews: $e');
@@ -82,6 +92,17 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
           _isLoadingReviews = false;
         });
       }
+    }
+  }
+
+  void _scrollToReviewSection() {
+    final context = _reviewSectionKey.currentContext;
+    if (context != null) {
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
     }
   }
 
@@ -380,7 +401,8 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (clinic.ratingAvg != null && clinic.ratingAvg! > 0) ...[
-                      const Icon(Icons.star, color: AppColors.warning, size: 18),
+                      const Icon(Icons.star,
+                          color: AppColors.warning, size: 18),
                       const SizedBox(width: 4),
                       Text(
                         clinic.ratingAvg!.toStringAsFixed(1),
@@ -405,7 +427,8 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
                         ),
                       ],
                     ] else ...[
-                      const Icon(Icons.star_border, color: AppColors.stone400, size: 18),
+                      const Icon(Icons.star_border,
+                          color: AppColors.stone400, size: 18),
                       const SizedBox(width: 4),
                       const Text(
                         '0.0',
@@ -589,10 +612,13 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
     );
   }
 
-  Widget _buildLocationSection(BuildContext context, Clinic clinic, ClinicProvider provider) {
+  Widget _buildLocationSection(
+      BuildContext context, Clinic clinic, ClinicProvider provider) {
     // Ưu tiên tính khoảng cách từ vị trí hiện tại để tránh hiển thị sai (do cache/API trả về lat-lng nhầm thứ tự hoặc đơn vị).
     double? displayKm;
-    if (provider.currentPosition != null && clinic.latitude != null && clinic.longitude != null) {
+    if (provider.currentPosition != null &&
+        clinic.latitude != null &&
+        clinic.longitude != null) {
       displayKm = MapUtils.distanceKm(
         provider.currentPosition!.latitude,
         provider.currentPosition!.longitude,
@@ -731,15 +757,14 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
                           onMapCreated: (controller) =>
                               _mapController = controller,
                           initialCameraPosition: CameraPosition(
-                            target: LatLng(
-                                clinic.latitude!, clinic.longitude!),
+                            target: LatLng(clinic.latitude!, clinic.longitude!),
                             zoom: 15,
                           ),
                           markers: {
                             Marker(
                               markerId: const MarkerId('clinic'),
-                              position: LatLng(
-                                  clinic.latitude!, clinic.longitude!),
+                              position:
+                                  LatLng(clinic.latitude!, clinic.longitude!),
                             ),
                           },
                           zoomControlsEnabled: false,
@@ -1277,11 +1302,12 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
         child: Center(child: CircularProgressIndicator()),
       );
     }
-    
+
     // Only show latest 3 reviews
     final displayReviews = _reviews.take(3).toList();
-    
+
     return Container(
+      key: _reviewSectionKey,
       margin: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
@@ -1316,15 +1342,19 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
                           builder: (context) => Scaffold(
                             backgroundColor: AppColors.stone50,
                             appBar: AppBar(
-                              title: const Text('Tất cả đánh giá', style: TextStyle(fontWeight: FontWeight.bold)),
+                              title: const Text('Tất cả đánh giá',
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.bold)),
                               backgroundColor: AppColors.white,
                               elevation: 0,
-                              iconTheme: const IconThemeData(color: AppColors.stone900),
+                              iconTheme: const IconThemeData(
+                                  color: AppColors.stone900),
                             ),
                             body: ListView.builder(
                               padding: const EdgeInsets.all(16),
                               itemCount: _reviews.length,
-                              itemBuilder: (context, index) => _buildReviewItem(_reviews[index]),
+                              itemBuilder: (context, index) =>
+                                  _buildReviewItem(_reviews[index]),
                             ),
                           ),
                         ),
@@ -1350,7 +1380,8 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
                 child: Row(
                   children: [
                     Text(
-                      (_localRatingAvg ?? clinic.ratingAvg ?? 0).toStringAsFixed(1),
+                      (_localRatingAvg ?? clinic.ratingAvg ?? 0)
+                          .toStringAsFixed(1),
                       style: const TextStyle(
                         fontSize: 32,
                         fontWeight: FontWeight.w800,
@@ -1365,8 +1396,12 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
                           children: List.generate(5, (index) {
                             return Icon(
                               Icons.star,
-                              color: index < ((_localRatingAvg ?? clinic.ratingAvg ?? 0)).round() 
-                                  ? AppColors.warning 
+                              color: index <
+                                      ((_localRatingAvg ??
+                                              clinic.ratingAvg ??
+                                              0))
+                                          .round()
+                                  ? AppColors.warning
                                   : AppColors.stone300,
                               size: 16,
                             );
@@ -1396,11 +1431,14 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
                 ),
                 child: Column(
                   children: [
-                    const Icon(Icons.rate_review_outlined, color: AppColors.stone400, size: 32),
+                    const Icon(Icons.rate_review_outlined,
+                        color: AppColors.stone400, size: 32),
                     const SizedBox(height: 8),
                     const Text(
                       'Chưa có đánh giá nào',
-                      style: TextStyle(color: AppColors.stone500, fontStyle: FontStyle.italic),
+                      style: TextStyle(
+                          color: AppColors.stone500,
+                          fontStyle: FontStyle.italic),
                     ),
                   ],
                 ),
@@ -1408,7 +1446,9 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
             else
               // Review List
               Column(
-                children: displayReviews.map((review) => _buildReviewItem(review)).toList(),
+                children: displayReviews
+                    .map((review) => _buildReviewItem(review))
+                    .toList(),
               ),
           ],
         ),
@@ -1433,13 +1473,15 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
             children: List.generate(5, (index) {
               return Icon(
                 Icons.star,
-                color: index < review.rating ? AppColors.warning : AppColors.stone300,
+                color: index < review.rating
+                    ? AppColors.warning
+                    : AppColors.stone300,
                 size: 14,
               );
             }),
           ),
           const SizedBox(height: 8),
-          
+
           // Comment
           if (review.comment.isNotEmpty)
             Padding(
@@ -1454,7 +1496,7 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
                 ),
               ),
             ),
-            
+
           // User info
           Row(
             children: [
@@ -1472,7 +1514,9 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Center(
                               child: Text(
-                            review.userName.isNotEmpty ? review.userName[0].toUpperCase() : 'U',
+                            review.userName.isNotEmpty
+                                ? review.userName[0].toUpperCase()
+                                : 'U',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
@@ -1482,7 +1526,9 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
                         )
                       : Center(
                           child: Text(
-                            review.userName.isNotEmpty ? review.userName[0].toUpperCase() : 'U',
+                            review.userName.isNotEmpty
+                                ? review.userName[0].toUpperCase()
+                                : 'U',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,

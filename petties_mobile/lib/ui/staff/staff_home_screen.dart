@@ -594,8 +594,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
           statusTag = 'ĐANG KHÁM';
           tagColor = AppColors.successLight;
           tagTextColor = AppColors.successDark;
-        } else if (booking.status == 'ASSIGNED' ||
-            booking.status == 'CONFIRMED') {
+        } else if (booking.status == 'CONFIRMED') {
           statusTag = 'CHỜ KHÁM';
           tagColor = AppColors.warningLight;
           tagTextColor = AppColors.primaryDark;

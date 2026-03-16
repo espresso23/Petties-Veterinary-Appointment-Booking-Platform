@@ -371,7 +371,7 @@ public class BookingController {
 
     /**
      * Complete booking (Manager action - after payment confirmed)
-     * Transitions: IN_PROGRESS → COMPLETED
+          * Transitions: IN_PROGRESS → COMPLETED
      */
     @PreAuthorize("hasAnyRole('STAFF', 'CLINIC_MANAGER', 'ADMIN')")
     @PostMapping("/{bookingId}/complete")

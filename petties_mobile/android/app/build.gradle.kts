@@ -72,7 +72,18 @@ android {
         resValue("string", "app_name", "Petties")
     }
 
-    // No flavors - using .env file for environment configuration instead
+    flavorDimensions += "environment"
+    productFlavors {
+        create("dev") {
+            dimension = "environment"
+            applicationId = "world.petties.mobile"
+            resValue("string", "app_name", "Petties Dev")
+        }
+        create("prod") {
+            dimension = "environment"
+            resValue("string", "app_name", "Petties")
+        }
+    }
 
     buildTypes {
         release {

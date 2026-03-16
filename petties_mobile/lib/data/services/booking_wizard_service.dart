@@ -102,9 +102,26 @@ class BookingWizardService {
       );
 
       if (response.data is Map && response.data['availableSlots'] != null) {
-        return (response.data['availableSlots'] as List)
-            .map((e) => AvailableSlot.fromString(e.toString()))
-            .toList();
+        final rawSlots = response.data['availableSlots'];
+        if (rawSlots is List) {
+          return rawSlots
+              .map((entry) {
+                if (entry is Map<String, dynamic>) {
+                  final parsed = AvailableSlot.fromJson(entry);
+                  return AvailableSlot(
+                    startTime: _normalizeTimeString(parsed.startTime),
+                    available: parsed.available,
+                    isBreakTime: parsed.isBreakTime,
+                    reason: parsed.reason,
+                  );
+                }
+
+                final normalized = _normalizeTimeString(entry.toString());
+                return AvailableSlot.fromString(normalized);
+              })
+              .where((slot) => slot.startTime.isNotEmpty)
+              .toList();
+        }
       }
 
       return [];
@@ -113,13 +130,30 @@ class BookingWizardService {
     }
   }
 
+  String _normalizeTimeString(String raw) {
+    final value = raw.trim();
+    if (value.isEmpty) return '';
+
+    final parts = value.split(':');
+    if (parts.length < 2) return value;
+
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+    if (hour == null || minute == null) {
+      return value;
+    }
+
+    return '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+  }
+
   /// Create booking
-  Future<String> createBooking({
+  Future<Map<String, dynamic>> createBooking({
     required String clinicId,
     required DateTime bookingDate,
     required String bookingTime,
     required String bookingType,
     required List<Map<String, dynamic>> items,
+    String? paymentMethod,
     String? notes,
     String? homeAddress,
     double? homeLat,
@@ -136,6 +170,7 @@ class BookingWizardService {
         'bookingTime': bookingTime,
         'type': bookingType,
         'items': items,
+        if (paymentMethod != null) 'paymentMethod': paymentMethod,
         if (notes != null) 'notes': notes,
         if (homeAddress != null) 'homeAddress': homeAddress,
         if (homeLat != null) 'homeLat': homeLat,
@@ -147,20 +182,21 @@ class BookingWizardService {
 
       final response = await _apiClient.post('/bookings', data: body);
 
-      return response.data['bookingId'] ?? '';
+      return Map<String, dynamic>.from(response.data as Map);
     } catch (e) {
       rethrow;
     }
   }
 
   /// Create booking for others (Đặt hộ)
-  Future<String> createBookingForOthers({
+  Future<Map<String, dynamic>> createBookingForOthers({
     required String clinicId,
     required BeneficiaryInfo beneficiary,
     required DateTime bookingDate,
     required String bookingTime,
     required String bookingType,
     required List<Map<String, dynamic>> items,
+    String? paymentMethod,
     String? notes,
   }) async {
     try {
@@ -178,18 +214,19 @@ class BookingWizardService {
         'bookingDate': dateStr,
         'bookingTime': bookingTime,
         'type': bookingType,
+        if (paymentMethod != null) 'paymentMethod': paymentMethod,
         if (notes != null) 'notes': notes,
       };
 
       debugPrint('body booking proxy: $body');
 
-      final response =
-          await _apiClient.post('/bookings/proxy', data: body);
-      return response.data['bookingId'] ?? '';
+      final response = await _apiClient.post('/bookings/proxy', data: body);
+      return Map<String, dynamic>.from(response.data as Map);
     } catch (e) {
       rethrow;
     }
   }
+
   /// Get estimated completion time.
   /// POST /bookings/public/estimated-completion?clinicId={clinicId}
   /// Body: startDateTime (yyyy-MM-ddTHH:mm:ss), type, pets: [{ petId, petWeight, serviceIds }]
