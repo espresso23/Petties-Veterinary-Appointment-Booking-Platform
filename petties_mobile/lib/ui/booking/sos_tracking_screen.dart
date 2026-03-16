@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
 import '../../config/constants/app_colors.dart';
@@ -13,6 +13,7 @@ import '../../data/models/booking.dart';
 import '../../data/services/booking_service.dart';
 import '../../data/services/tracking_websocket_service.dart';
 import '../../data/services/tracking_rest_service.dart';
+import '../../routing/app_routes.dart';
 import '../../utils/storage_service.dart';
 import '../../utils/map_utils.dart';
 
@@ -37,7 +38,7 @@ class SosTrackingScreen extends StatefulWidget {
 
 class _SosTrackingScreenState extends State<SosTrackingScreen>
     with WidgetsBindingObserver {
-  static const bool _kDebugTracking = false; // Bật true khi cần debug chi tiết
+  static const bool _kDebugTracking = true; // Bật true khi cần debug chi tiết
 
   static const double _kSheetMinSize = 0.18;
   // Sheet dạng Grab-style:
@@ -61,7 +62,7 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
   BitmapDescriptor? _vetIcon;
   BitmapDescriptor? _clinicIcon;
   bool _staffArrived = false;
-  Timer? _arrivalPollTimer;
+  bool _isHandlingArrival = false;
   int? _etaMinutes;
   double? _distanceKm;
   LatLng? _currentVetPosition;
@@ -97,36 +98,59 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
       _websocketService.setAccessToken(token);
     }
 
-    if (widget.booking != null) {
-      _booking = widget.booking;
-      // Nếu booking đã có arrivedAt (mở lại màn hình sau khi bác sĩ đến) thì set cờ luôn
-      _staffArrived = _booking?.arrivedAt != null;
-      await _updateAvatarIcons();
-      setState(() => _isLoading = false);
-      _initializeMarkers();
-      await _loadInitialStaffLocation();
-      _startTracking();
-    } else if (widget.bookingId != null) {
-      try {
-        final booking = await _bookingService.getBookingById(widget.bookingId!);
-        if (mounted) {
-          _booking = booking;
-          _staffArrived = _booking?.arrivedAt != null;
-          await _updateAvatarIcons();
-          setState(() {
-            _isLoading = false;
+    final targetBookingId = widget.booking?.bookingId ?? widget.bookingId;
+
+    if (targetBookingId == null) {
+      if (mounted) {
+        setState(() {
+          _error = 'Không thể tải thông tin booking';
+          _isLoading = false;
+        });
+      }
+      return;
+    }
+
+    try {
+      final booking = await _bookingService.getBookingById(targetBookingId);
+      if (mounted) {
+        _booking = booking;
+        _staffArrived = _booking?.arrivedAt != null;
+        await _updateAvatarIcons();
+        setState(() {
+          _isLoading = false;
+        });
+        _initializeMarkers();
+        await _loadInitialStaffLocation();
+        if (_staffArrived) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _handleStaffArrivedAndExit();
           });
-          _initializeMarkers();
-          await _loadInitialStaffLocation();
-          _startTracking();
+          return;
         }
-      } catch (e) {
-        if (mounted) {
-          setState(() {
-            _error = 'Không thể tải thông tin booking';
-            _isLoading = false;
+        _startTracking();
+      }
+    } catch (e) {
+      if (widget.booking != null && mounted) {
+        _booking = widget.booking;
+        _staffArrived = _booking?.arrivedAt != null;
+        await _updateAvatarIcons();
+        setState(() {
+          _isLoading = false;
+        });
+        _initializeMarkers();
+        await _loadInitialStaffLocation();
+        if (_staffArrived) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _handleStaffArrivedAndExit();
           });
+          return;
         }
+        _startTracking();
+      } else if (mounted) {
+        setState(() {
+          _error = 'Không thể tải thông tin booking';
+          _isLoading = false;
+        });
       }
     }
   }
@@ -156,53 +180,35 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
     if (_booking?.bookingId == null) return;
 
     _trackingHandler = (location) {
+      if (_kDebugTracking) {
+        debugPrint('[SOS Tracking][WS] Nhận dữ liệu mới: arrived=${location.arrived}, lat=${location.latitude}, lng=${location.longitude}');
+      }
       if (!mounted) return;
+
+      if (location.arrived) {
+        _stopTrackingSubscription();
+        setState(() {
+          _staffArrived = true;
+        });
+        _handleStaffArrivedAndExit();
+        return;
+      }
 
       if (_kDebugTracking) {
         debugPrint(
           '[SOS Tracking][WS] booking=${location.bookingId} '
           'lat=${location.latitude}, lng=${location.longitude}, '
           'eta=${location.etaMinutes}, distanceKm=${location.distanceKm}, '
-          'arrived=${location.arrived}, updated=${location.lastUpdated.toIso8601String()}',
+          'updated=${location.lastUpdated.toIso8601String()}',
         );
-      }
-
-      // Nếu backend push arrived=true qua WebSocket → cập nhật ngay, dừng polling
-      if (location.arrived) {
-        if (_staffArrived) return; // Prevent duplicate execution
-
-        _stopArrivalPolling();
-        _vetAnimationTimer?.cancel();
-        _websocketService.unsubscribeFromTracking(
-          _booking!.bookingId!,
-          _trackingHandler!,
-        );
-        _trackingHandler = null;
-
-        setState(() {
-          _staffArrived = true;
-        });
-
-        // Hiển thị thông điệp và auto đóng giống logic polling cũ
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('🎉 Bác sĩ đã đến nơi! Chúc thú cưng mau khỏe.'),
-            backgroundColor: Color(0xFF16A34A),
-            duration: Duration(seconds: 3),
-          ),
-        );
-        Future.delayed(const Duration(seconds: 3), () {
-          if (mounted) {
-            context.go('/bookings/detail', extra: _booking);
-          }
-        });
-        return;
       }
 
       // Cập nhật ETA & khoảng cách
       double? distance;
       if (_booking?.homeLat != null && _booking?.homeLong != null) {
+        if (_kDebugTracking) {
+          debugPrint('[SOS Tracking] Đang tính toán khoảng cách: Staff(${location.latitude}, ${location.longitude}) -> Home(${_booking!.homeLat}, ${_booking!.homeLong})');
+        }
         distance = _computeDistanceKm(
           LatLng(location.latitude, location.longitude),
           LatLng(_booking!.homeLat!, _booking!.homeLong!),
@@ -229,61 +235,54 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
       _booking!.bookingId!,
       _trackingHandler!,
     );
-
-    // Polling giữ lại nhưng giảm tần suất để làm fallback khi WebSocket lỗi
-    _startArrivalPolling();
   }
 
-  void _startArrivalPolling() {
-    _arrivalPollTimer?.cancel();
-    // Poll mỗi 10 giây làm fallback, ưu tiên real-time qua WebSocket
-    _arrivalPollTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
-      if (_booking?.bookingId == null || _staffArrived) return;
+  void _stopTrackingSubscription() {
+    if (_booking?.bookingId != null && _trackingHandler != null) {
+      trackingWebsocket.unsubscribeFromTracking(
+        _booking!.bookingId!,
+        _trackingHandler!,
+      );
+      _trackingHandler = null;
+    }
+    _vetAnimationTimer?.cancel();
+  }
+
+  Future<void> _handleStaffArrivedAndExit() async {
+    if (_isHandlingArrival || _booking == null || !mounted) return;
+
+    _isHandlingArrival = true;
+    _stopTrackingSubscription();
+
+    BookingResponse bookingForDetail = _booking!;
+    final bookingId = bookingForDetail.bookingId;
+
+    if (bookingId != null) {
       try {
-        final updated =
-            await _bookingService.getBookingById(_booking!.bookingId!);
-        if (updated.arrivedAt != null && mounted) {
-          if (_staffArrived) return; // Prevent duplicate execution
-
-          _stopArrivalPolling();
-          // Stop tracking WebSocket
-          if (_trackingHandler != null) {
-            _websocketService.unsubscribeFromTracking(
-              _booking!.bookingId!,
-              _trackingHandler!,
-            );
-            _trackingHandler = null;
-          }
-          setState(() {
-            _staffArrived = true;
-            _booking = updated;
-          });
-          // Show confirmation and auto-close after 3 seconds
-          if (mounted) {
-            ScaffoldMessenger.of(context).clearSnackBars();
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('🎉 Bác sĩ đã đến nơi! Chúc thú cưng mau khỏe.'),
-                backgroundColor: Color(0xFF16A34A),
-                duration: Duration(seconds: 3),
-              ),
-            );
-            Future.delayed(const Duration(seconds: 3), () {
-              if (mounted) {
-                context.go('/bookings/detail', extra: _booking);
-              }
-            });
-          }
-        }
-      } catch (e) {
-        debugPrint('Arrival poll error: $e');
+        bookingForDetail = await _bookingService.getBookingById(bookingId);
+        _booking = bookingForDetail;
+      } catch (_) {
+        // Fall back to the current booking snapshot if refresh fails.
       }
-    });
-  }
+    }
 
-  void _stopArrivalPolling() {
-    _arrivalPollTimer?.cancel();
-    _arrivalPollTimer = null;
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Nhân viên đã đến nơi. Đang chuyển về chi tiết lịch hẹn...',
+          ),
+          duration: Duration(milliseconds: 1200),
+        ),
+      );
+
+    await Future.delayed(const Duration(milliseconds: 700));
+    if (!mounted) return;
+
+    context.go(AppRoutes.bookingDetailView, extra: bookingForDetail);
   }
 
   void _initializeMarkers() {
@@ -340,7 +339,7 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
           '[SOS Tracking][REST] booking=${location.bookingId} '
           'lat=${location.latitude}, lng=${location.longitude}, '
           'eta=${location.etaMinutes}, distanceKm=${location.distanceKm}, '
-          'arrived=${location.arrived}, updated=${location.lastUpdated.toIso8601String()}',
+          'updated=${location.lastUpdated.toIso8601String()}',
         );
       }
 
@@ -492,7 +491,7 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
           infoWindow: const InfoWindow(title: 'Bác sĩ đang di chuyển'),
           icon: _vetIcon ??
               BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
-          zIndex: 3,
+          zIndexInt: 3,
           anchor: const Offset(0.5, 0.5),
         ),
       );
@@ -505,7 +504,7 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
             position: rawPosition,
             icon: BitmapDescriptor.defaultMarkerWithHue(
                 BitmapDescriptor.hueAzure),
-            zIndex: 2,
+            zIndexInt: 2,
           ),
         );
       }
@@ -664,7 +663,7 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
             Polyline(
               polylineId: const PolylineId('route_to_home_fallback'),
               points: [origin, destination],
-              color: AppColors.coral.withOpacity(0.5),
+              color: AppColors.coral.withValues(alpha: 0.5),
               width: 3,
               patterns: [PatternItem.dash(10), PatternItem.gap(10)],
             ),
@@ -682,7 +681,7 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
             Polyline(
               polylineId: const PolylineId('route_to_home_fallback'),
               points: [origin, destination],
-              color: AppColors.coral.withOpacity(0.5),
+              color: AppColors.coral.withValues(alpha: 0.5),
               width: 3,
               patterns: [PatternItem.dash(10), PatternItem.gap(10)],
             ),
@@ -795,14 +794,7 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
 
   @override
   void dispose() {
-    _stopArrivalPolling();
-    _vetAnimationTimer?.cancel();
-    if (_booking?.bookingId != null && _trackingHandler != null) {
-      trackingWebsocket.unsubscribeFromTracking(
-        _booking!.bookingId!,
-        _trackingHandler!,
-      );
-    }
+    _stopTrackingSubscription();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -815,13 +807,15 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
       // Khi app quay lại foreground, đảm bảo:
       // - Có snapshot vị trí mới nhất
       // - Đã subscribe WebSocket nếu trước đó bị mất kết nối
-      if (_booking?.bookingId != null && !_staffArrived) {
+      if (_booking?.bookingId != null) {
         _loadInitialStaffLocation();
 
         // Nếu vì lý do nào đó handler đã bị huỷ (ví dụ do lỗi trước đó),
         // khởi tạo lại tracking an toàn.
         if (_trackingHandler == null) {
-          _startTracking();
+          if (!_staffArrived) {
+            _startTracking();
+          }
         }
       }
     }
@@ -860,43 +854,60 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: const Text('THEO DÕI BÁC SĨ (SOS)'),
-        backgroundColor: AppColors.coral,
-        foregroundColor: Colors.white,
-      ),
-      body: Stack(
-        children: [
-          GoogleMap(
-            initialCameraPosition: const CameraPosition(
-              target: LatLng(10.762622, 106.660172), // Default HCM City
-              zoom: 15,
-            ),
-            onMapCreated: (GoogleMapController controller) {
-              _controller.complete(controller);
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go(AppRoutes.home);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go(AppRoutes.home);
+              }
             },
-            markers: _markers,
-            polylines: _polylines,
-            myLocationEnabled: true,
-            myLocationButtonEnabled: true,
-            padding: const EdgeInsets.only(
-              bottom: 220,
-              top: 100,
+          ),
+          title: const Text('THEO DÕI BÁC SĨ (SOS)'),
+          backgroundColor: AppColors.coral,
+          foregroundColor: Colors.white,
+        ),
+        body: Stack(
+          children: [
+            GoogleMap(
+              initialCameraPosition: const CameraPosition(
+                target: LatLng(10.762622, 106.660172), // Default HCM City
+                zoom: 15,
+              ),
+              onMapCreated: (GoogleMapController controller) {
+                _controller.complete(controller);
+              },
+              markers: _markers,
+              polylines: _polylines,
+              myLocationEnabled: true,
+              myLocationButtonEnabled: true,
+              padding: const EdgeInsets.only(
+                bottom: 220,
+                top: 100,
+              ),
             ),
-          ),
-          Positioned(
-            top: 16,
-            left: 16,
-            right: 16,
-            child: _buildBookingHeader(),
-          ),
-          _buildDraggableVetSheet(),
-        ],
+            Positioned(
+              top: 16,
+              left: 16,
+              right: 16,
+              child: _buildBookingHeader(),
+            ),
+            _buildDraggableVetSheet(),
+          ],
+        ),
       ),
     );
   }
@@ -909,12 +920,12 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
         borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
-        border: Border.all(color: AppColors.coral.withOpacity(0.3)),
+        border: Border.all(color: AppColors.coral.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -922,7 +933,7 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: AppColors.coral.withOpacity(0.1),
+              color: AppColors.coral.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(Icons.pets, size: 16, color: AppColors.coral),
@@ -965,11 +976,15 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
     // Text trạng thái chính, ưu tiên cảm giác “gần như Grab”
     String statusText;
     if (_staffArrived) {
-      statusText = 'Bác sĩ đã đến nơi';
+      statusText = 'Bác sĩ đã đến nơi. Tracking đã dừng.';
     } else if (!hasTrackingData) {
-      // Tránh trùng với dòng text phía trên, nhấn mạnh trạng thái điều phối
-      statusText =
-          'Hệ thống đang điều phối và chờ bác sĩ bắt đầu di chuyển...';
+      if (_booking?.status == 'IN_PROGRESS') {
+        statusText = 'Bác sĩ đã bắt đầu di chuyển, đang chờ cập nhật vị trí...';
+      } else {
+        // Tránh trùng với dòng text phía trên, nhấn mạnh trạng thái điều phối
+        statusText =
+            'Hệ thống đang điều phối và chờ bác sĩ bắt đầu di chuyển...';
+      }
     } else if (rawDistance != null && rawDistance <= 0.1) {
       statusText = 'Bác sĩ đã ở rất gần vị trí của bạn';
     } else if (rawDistance != null && rawDistance <= 0.5) {
@@ -986,7 +1001,7 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15),
+            color: Colors.black.withValues(alpha: 0.15),
             blurRadius: 20,
             spreadRadius: 2,
           ),
@@ -1064,9 +1079,7 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
                   width: 10,
                   height: 10,
                   decoration: BoxDecoration(
-                    color: _staffArrived
-                        ? AppColors.successDark
-                        : AppColors.successDark,
+                    color: AppColors.successDark,
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -1167,8 +1180,7 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
           ),
       ],
@@ -1235,13 +1247,13 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.12),
+                            color: Colors.black.withValues(alpha: 0.12),
                             blurRadius: 12,
                             offset: const Offset(0, -2),
                           ),
                         ],
                         border: Border.all(
-                          color: AppColors.coral.withOpacity(0.2),
+                          color: AppColors.coral.withValues(alpha: 0.2),
                         ),
                       ),
                       child: _buildVetInfoRow(compact: true),

@@ -1,0 +1,127 @@
+workflows:
+  # ====================================================================
+  # WORKFLOW 1: Release (Lần đầu hoặc khi bump version)
+  # Dùng khi: Cài app mới lên iPhone lần đầu hoặc ra phiên bản mới
+  # ====================================================================
+  ios-shorebird-release:
+    name: "iOS Release (Lần đầu)"
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    working_directory: petties_mobile
+    environment:
+      groups:
+        - google-service-account
+      flutter: stable
+      xcode: latest
+      vars:
+        COCOAPODS_DISABLE_STATS: "true"
+    scripts:
+      - name: Install Shorebird
+        script: |
+          curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash
+          $HOME/.shorebird/bin/shorebird --version
+      - name: Create .env from CodeMagic Variables
+        script: |
+          echo "API_BASE_URL=$API_BASE_URL" > .env
+          echo "AI_SERVICE_URL=$AI_SERVICE_URL" >> .env
+          echo "WS_URL=$WS_URL" >> .env
+          echo "GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID" >> .env
+          echo "GOONG_API_KEY=$GOONG_API_KEY" >> .env
+          echo "MAP_API_KEY=$MAP_API_KEY" >> .env
+          echo "SENTRY_DSN=$SENTRY_DSN" >> .env
+          echo "ENVIRONMENT=$ENVIRONMENT" >> .env
+          echo "✅ .env file created:"
+          cat .env
+      - name: Flutter pub get
+        script: flutter pub get
+      - name: Configure Git and Install Pods
+        script: |
+          cd ios
+          git config --global http.postBuffer 524288000
+          git config --global http.lowSpeedLimit 0
+          git config --global http.lowSpeedTime 999999
+          n=0
+          until [ "$n" -ge 3 ]
+          do
+             pod install && break
+             n=$((n+1))
+             echo "Pod install failed... retrying ($n/3)"
+             sleep 5
+          done
+      - name: Shorebird Release iOS
+        script: |
+          $HOME/.shorebird/bin/shorebird release ios --no-codesign || {
+            echo "⚠️ Release failed (version may already exist). Continuing..."
+          }
+      - name: Package IPA for Sideloading
+        script: |
+          RUNNER_APP=$(find build/ios -name "Runner.app" -type d | head -1)
+          if [ -z "$RUNNER_APP" ]; then
+            echo "❌ Runner.app not found!"
+            find build -name "Runner.app" -type d || true
+            exit 1
+          fi
+          echo "✅ Found Runner.app at: $RUNNER_APP"
+          rm -rf Payload Runner.ipa
+          mkdir -p Payload
+          cp -r "$RUNNER_APP" Payload/
+          zip -r Runner.ipa Payload
+          ls -la Runner.ipa
+          echo "✅ IPA ready: $(du -h Runner.ipa)"
+    artifacts:
+      - Runner.ipa
+      - ./**/*.ipa
+
+  # ====================================================================
+  # WORKFLOW 2: Patch (Các lần sau - CẬP NHẬT OTA)
+  # Dùng khi: Sửa code Dart, push lên, app tự cập nhật trên iPhone
+  # Nhanh hơn Release rất nhiều (~2-3 phút)
+  # ====================================================================
+  ios-shorebird-patch:
+    name: "iOS Patch (Cập nhật OTA)"
+    max_build_duration: 30
+    instance_type: mac_mini_m2
+    working_directory: petties_mobile
+    environment:
+      groups:
+        - google-service-account
+      flutter: stable
+      xcode: latest
+      vars:
+        COCOAPODS_DISABLE_STATS: "true"
+    scripts:
+      - name: Install Shorebird
+        script: |
+          curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash
+          $HOME/.shorebird/bin/shorebird --version
+      - name: Create .env from CodeMagic Variables
+        script: |
+          echo "API_BASE_URL=$API_BASE_URL" > .env
+          echo "AI_SERVICE_URL=$AI_SERVICE_URL" >> .env
+          echo "WS_URL=$WS_URL" >> .env
+          echo "GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID" >> .env
+          echo "GOONG_API_KEY=$GOONG_API_KEY" >> .env
+          echo "MAP_API_KEY=$MAP_API_KEY" >> .env
+          echo "SENTRY_DSN=$SENTRY_DSN" >> .env
+          echo "ENVIRONMENT=$ENVIRONMENT" >> .env
+          echo "✅ .env file created:"
+          cat .env
+      - name: Flutter pub get
+        script: flutter pub get
+      - name: Configure Git and Install Pods
+        script: |
+          cd ios
+          git config --global http.postBuffer 524288000
+          n=0
+          until [ "$n" -ge 3 ]
+          do
+             pod install && break
+             n=$((n+1))
+             echo "Pod install failed... retrying ($n/3)"
+             sleep 5
+          done
+      - name: Shorebird Patch iOS
+        script: |
+          echo "🔄 Patching existing release..."
+          $HOME/.shorebird/bin/shorebird patch ios
+          echo "✅ Patch published! App sẽ tự cập nhật khi mở lại."

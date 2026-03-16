@@ -64,6 +64,7 @@ export const SmartVaccinationForm = ({
     // Fetch Clinic Services on Modal Open
     useEffect(() => {
         if (templateModalOpen && clinicServices.length === 0) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setIsLoadingServices(true)
             setErrorServices(null)
             getAllServices()
@@ -78,16 +79,22 @@ export const SmartVaccinationForm = ({
                 })
                 .finally(() => setIsLoadingServices(false))
         }
-    }, [templateModalOpen])
+    }, [templateModalOpen, clinicServices.length])
 
     // Load Initial Data
     useEffect(() => {
         if (initialData) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setVaccineName(initialData.vaccineName || '')
             setSelectedTemplateId(initialData.vaccineTemplateId || null)
             setDoseSequence(initialData.doseSequence || '1')
-            setVaccinationDate(initialData.vaccinationDate || new Date())
-            setNextDueDate(initialData.nextDueDate || null)
+            
+            if (initialData.vaccinationDate) {
+                setVaccinationDate(initialData.vaccinationDate)
+            }
+            if (initialData.nextDueDate !== undefined) {
+                setNextDueDate(initialData.nextDueDate)
+            }
 
             // Clear temporary/predicted notes so they don't become permanent
             const initialNotes = initialData.notes || '';
@@ -95,6 +102,7 @@ export const SmartVaccinationForm = ({
             setNotes(isTemporaryNote ? '' : initialNotes)
         } else {
             // Reset if no initial data (Create Mode default)
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setVaccineName('')
             setSelectedTemplateId(null)
             setDoseSequence('1')
@@ -115,17 +123,20 @@ export const SmartVaccinationForm = ({
         if (doseSequence === 'ANNUAL') {
             const nextDate = new Date(vaccinationDate)
             nextDate.setFullYear(nextDate.getFullYear() + 1)
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setNextDueDate(nextDate)
         } else if (template.repeatIntervalDays) {
             const seqNum = parseInt(doseSequence);
             if (!isNaN(seqNum) && seqNum < template.seriesDoses) {
                 const nextDate = new Date(vaccinationDate)
                 nextDate.setDate(nextDate.getDate() + template.repeatIntervalDays)
+                // eslint-disable-next-line react-hooks/set-state-in-effect
                 setNextDueDate(nextDate)
             } else if (!isNaN(seqNum) && seqNum >= template.seriesDoses) {
                 // Final dose in series, suggest annual follow up
                 const nextDate = new Date(vaccinationDate)
                 nextDate.setFullYear(nextDate.getFullYear() + 1)
+                // eslint-disable-next-line react-hooks/set-state-in-effect
                 setNextDueDate(nextDate)
             }
         }
@@ -287,7 +298,7 @@ export const SmartVaccinationForm = ({
                                 locale="vi"
                                 className="w-full px-5 py-4 pl-12 bg-white border-2 border-stone-100 rounded-2xl focus:outline-none focus:border-orange-400 focus:ring-4 focus:ring-orange-50 transition-all font-bold text-stone-800 shadow-sm hover:border-stone-200 cursor-pointer"
                             />
-                            <CalendarIcon className="w-5 h-5 text-stone-300 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-orange-500 transition-colors" />
+                            <CalendarIcon className="w-5 h-5 text-stone-500 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-stone-900 transition-colors" />
                         </div>
                     </div>
 
@@ -304,7 +315,7 @@ export const SmartVaccinationForm = ({
                                 className="w-full px-5 py-4 pl-12 bg-white border-2 border-stone-100 rounded-2xl focus:outline-none focus:border-orange-400 focus:ring-4 focus:ring-orange-50 transition-all font-bold text-stone-800 shadow-sm hover:border-stone-200 cursor-pointer placeholder:text-stone-300 placeholder:font-medium"
                                 minDate={vaccinationDate}
                             />
-                            <CalendarIcon className="w-5 h-5 text-stone-300 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-orange-500 transition-colors" />
+                            <CalendarIcon className="w-5 h-5 text-stone-500 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-stone-900 transition-colors" />
                         </div>
                     </div>
                 </div>

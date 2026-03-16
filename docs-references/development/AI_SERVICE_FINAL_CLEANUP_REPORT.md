@@ -10,7 +10,7 @@
 
 ### Files & Directories Deleted
 
-#### ❌ Multi-Agent Prompt Templates
+#### ❌ Legacy Prompt Templates
 ```
 ✓ Deleted: petties-agent-serivce/app/core/prompts/templates/booking_agent.txt
 ✓ Deleted: petties-agent-serivce/app/core/prompts/templates/main_agent.txt
@@ -18,7 +18,7 @@
 ✓ Deleted: petties-agent-serivce/app/core/prompts/templates/research_agent.txt
 ✓ Deleted: petties-agent-serivce/app/core/prompts/ (entire directory)
 ```
-**Reason:** Single Agent loads prompts từ database, không cần template files
+**Reason:** Single Agent loads prompts từ database, không cần legacy prompt template files
 
 #### ❌ Unused Config Directory
 ```
@@ -109,7 +109,7 @@ petties-agent-serivce/
 │   │   │   └── rag_engine.py
 │   │   └── tools/
 │   │       └── mcp_tools/
-│   │           └── medical_tools.py  # ✅ 2 RAG tools only
+│   │           └── medical_tools.py  # ✅ Unified knowledge + web fallback tools
 │   ├── db/postgres/
 │   └── services/
 │       ├── embeddings.py          # ✅ Cohere
@@ -122,7 +122,7 @@ petties-agent-serivce/
 - ✅ No `core/prompts/` directory
 - ✅ No `core/config/` directory
 - ✅ No `__pycache__/` directories
-- ✅ No Multi-Agent files
+- ✅ No legacy supervisor files
 - ✅ No unused imports
 - ✅ `.gitignore` present
 
@@ -174,7 +174,7 @@ __pycache__/
 
 | Category | Count Before | Count After | Deleted |
 |----------|--------------|-------------|---------|
-| **Multi-Agent prompt templates** | 4 files | 0 | ✅ 4 |
+| **Legacy prompt templates** | 4 files | 0 | ✅ 4 |
 | **Unused config files** | 2 files | 0 | ✅ 2 |
 | **__pycache__ directories** | 10+ | 0 | ✅ 10+ |
 | **Compiled .pyc files** | 50+ | 0 | ✅ 50+ |
@@ -196,10 +196,10 @@ petties-agent-serivce/app/core/
 │   └── __init__.py
 ├── prompts/                        # ❌ Unused directory
 │   └── templates/
-│       ├── booking_agent.txt       # ❌ Multi-Agent prompts
-│       ├── main_agent.txt          # ❌ Multi-Agent prompts
-│       ├── medical_agent.txt       # ❌ Multi-Agent prompts
-│       └── research_agent.txt      # ❌ Multi-Agent prompts
+│       ├── booking_agent.txt       # ❌ legacy prompt file
+│       ├── main_agent.txt          # ❌ legacy prompt file
+│       ├── medical_agent.txt       # ❌ legacy prompt file
+│       └── research_agent.txt      # ❌ legacy prompt file
 ├── rag/
 └── tools/
     ├── __pycache__/                # ❌ Cache files
@@ -223,14 +223,14 @@ petties-agent-serivce/app/core/
 │   └── rag_engine.py
 └── tools/
     └── mcp_tools/
-        └── medical_tools.py        # ✅ 2 RAG tools only
+        └── medical_tools.py        # ✅ Unified knowledge + web fallback tools
 ```
 
 **Improvements:**
 - ✅ 70+ files deleted
 - ✅ 0 cache files
 - ✅ 0 unused directories
-- ✅ 0 Multi-Agent remnants
+- ✅ 0 legacy supervisor remnants
 - ✅ Clean, minimal structure
 
 ---
@@ -253,7 +253,7 @@ petties-agent-serivce/app/core/
 
 ## ✅ Cleanup Checklist
 
-- [x] Delete Multi-Agent prompt templates
+- [x] Delete legacy prompt templates
 - [x] Delete unused `core/config` directory
 - [x] Delete all `__pycache__` directories
 - [x] Delete all compiled `.pyc` files
@@ -281,7 +281,7 @@ petties-agent-serivce/app/core/
 - ✅ OpenRouter Cloud API
 - ✅ Cohere multilingual embeddings
 - ✅ Qdrant RAG pipeline
-- ✅ 2 RAG tools only
+- ✅ Unified knowledge + web fallback tools only
 
 **Next Steps:**
 1. Deploy to test environment

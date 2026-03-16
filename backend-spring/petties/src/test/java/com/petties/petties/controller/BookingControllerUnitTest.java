@@ -6,6 +6,7 @@ import com.petties.petties.config.JwtTokenProvider;
 import com.petties.petties.config.UserDetailsServiceImpl;
 import com.petties.petties.dto.booking.*;
 import com.petties.petties.exception.BadRequestException;
+import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.exception.ResourceNotFoundException;
 import com.petties.petties.model.enums.BookingStatus;
 import com.petties.petties.model.enums.BookingType;
@@ -1027,6 +1028,7 @@ class BookingControllerUnitTest {
                 // Arrange
                 UUID bookingId = UUID.randomUUID();
                 UUID serviceId = UUID.randomUUID();
+                UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
                 BookingResponse response = createMockBookingResponse(); // Has 1 service initially
                 response.setPets(List.of(
@@ -1036,14 +1038,16 @@ class BookingControllerUnitTest {
                                                 .services(Collections.emptyList())
                                                 .build())); // Service removed
 
-                when(bookingService.removeServiceFromBooking(bookingId, serviceId)).thenReturn(response);
+                setupUserPrincipalAuth(userId);
+                when(bookingService.getCurrentUserById(userId)).thenReturn(new com.petties.petties.model.User());
+                when(bookingService.removeServiceFromBooking(eq(bookingId), eq(serviceId), any(com.petties.petties.model.User.class))).thenReturn(response);
 
                 // Act & Assert
                 mockMvc.perform(delete("/bookings/{bookingId}/services/{serviceId}", bookingId, serviceId))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.pets[0].services").isEmpty());
 
-                verify(bookingService).removeServiceFromBooking(bookingId, serviceId);
+                verify(bookingService).removeServiceFromBooking(eq(bookingId), eq(serviceId), any(com.petties.petties.model.User.class));
         }
         // ==================== GET AVAILABLE SLOTS TESTS ====================
 
@@ -1227,7 +1231,7 @@ class BookingControllerUnitTest {
                 response.setStatus(BookingStatus.COMPLETED);
 
                 when(bookingService.getCurrentUserById(userId)).thenReturn(new com.petties.petties.model.User());
-                when(bookingService.processCheckout(eq(bookingId), any(CheckoutRequest.class), any()))
+                when(bookingService.processCheckoutAuthorized(eq(bookingId), any(CheckoutRequest.class), any()))
                                 .thenReturn(response);
 
                 mockMvc.perform(post("/bookings/{bookingId}/checkout", bookingId)
@@ -1236,7 +1240,68 @@ class BookingControllerUnitTest {
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.status").value("COMPLETED"));
 
-                verify(bookingService).processCheckout(eq(bookingId), any(CheckoutRequest.class), any());
+                verify(bookingService).processCheckoutAuthorized(eq(bookingId), any(CheckoutRequest.class), any());
+        }
+
+        @Test
+        @DisplayName("TC-BOOKING-CHECKOUT-002: Checkout booking - Manager role - Returns 200")
+        @WithMockUser(username = "11111111-1111-1111-1111-111111111111", roles = "CLINIC_MANAGER")
+        void checkout_managerRole_returns200() throws Exception {
+                UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+                setupUserPrincipalAuth(userId);
+
+                UUID bookingId = UUID.randomUUID();
+                CheckoutRequest request = new CheckoutRequest();
+
+                BookingResponse response = createMockBookingResponse();
+                response.setStatus(BookingStatus.COMPLETED);
+
+                when(bookingService.getCurrentUserById(userId)).thenReturn(new com.petties.petties.model.User());
+                when(bookingService.processCheckoutAuthorized(eq(bookingId), any(CheckoutRequest.class), any()))
+                                .thenReturn(response);
+
+                mockMvc.perform(post("/bookings/{bookingId}/checkout", bookingId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.status").value("COMPLETED"));
+
+                verify(bookingService).processCheckoutAuthorized(eq(bookingId), any(CheckoutRequest.class), any());
+        }
+
+        @Test
+        @DisplayName("TC-BOOKING-CHECKOUT-003: Checkout booking - Admin role - Returns 403")
+        @WithMockUser(username = "11111111-1111-1111-1111-111111111111", roles = "ADMIN")
+        void checkout_adminRole_returns403() throws Exception {
+                UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+                setupUserPrincipalAuth(userId);
+
+                UUID bookingId = UUID.randomUUID();
+                CheckoutRequest request = new CheckoutRequest();
+
+                com.petties.petties.model.User admin = new com.petties.petties.model.User();
+                when(bookingService.getCurrentUserById(userId)).thenReturn(admin);
+                when(bookingService.processCheckoutAuthorized(eq(bookingId), any(CheckoutRequest.class), any()))
+                                .thenThrow(new ForbiddenException("Admin không được checkout booking"));
+
+                mockMvc.perform(post("/bookings/{bookingId}/checkout", bookingId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                                .andExpect(status().isForbidden());
+
+                verify(bookingService).processCheckoutAuthorized(eq(bookingId), any(CheckoutRequest.class), any());
+        }
+
+        @Test
+        @DisplayName("TC-BOOKING-LEGACY-001: Legacy complete endpoint - Returns 404")
+        @WithMockUser(username = "11111111-1111-1111-1111-111111111111", roles = "CLINIC_MANAGER")
+        void complete_legacyEndpoint_returns404() throws Exception {
+                UUID bookingId = UUID.randomUUID();
+
+                mockMvc.perform(post("/bookings/{bookingId}/complete", bookingId))
+                                .andExpect(status().isNotFound());
+
+                verifyNoInteractions(bookingService);
         }
 
         // ==================== CLINIC TODAY BOOKINGS TESTS ====================

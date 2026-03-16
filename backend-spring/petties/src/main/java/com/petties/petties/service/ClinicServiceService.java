@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -38,6 +39,8 @@ public class ClinicServiceService {
     private final AuthService authService;
     private final MasterServiceRepository masterServiceRepository;
     private final com.petties.petties.repository.VaccineTemplateRepository vaccineTemplateRepository;
+
+    private static final int MINUTES_PER_SLOT = 30;
 
     /**
      * Get current authenticated user
@@ -93,6 +96,165 @@ public class ClinicServiceService {
         throw new ForbiddenException("Chỉ Clinic Owner hoặc nhân viên phòng khám mới có quyền thực hiện thao tác này");
     }
 
+    private void validateClinicModificationPermission(Clinic clinic) {
+        User currentUser = getCurrentUser();
+        boolean isOwner = clinic.getOwner() != null && clinic.getOwner().getUserId().equals(currentUser.getUserId());
+        boolean isManager = currentUser.getRole() == Role.CLINIC_MANAGER && currentUser.getWorkingClinic() != null
+                && currentUser.getWorkingClinic().getClinicId().equals(clinic.getClinicId());
+
+        if (!isOwner && !isManager) {
+            throw new ForbiddenException("Bạn không có quyền thêm dịch vụ cho clinic này");
+        }
+    }
+
+    private void applyCreateFields(ClinicService service, ClinicServiceRequest request) {
+        service.setName(request.getName());
+        service.setDescription(request.getDescription());
+        service.setBasePrice(request.getBasePrice());
+        service.setSlotsRequired(request.getSlotsRequired());
+        service.setDurationTime(calculateDurationTime(request.getSlotsRequired()));
+        service.setIsActive(request.getIsActive() != null ? request.getIsActive() : true);
+        service.setIsHomeVisit(request.getIsHomeVisit() != null ? request.getIsHomeVisit() : false);
+        service.setServiceCategory(request.getServiceCategory());
+        service.setPetType(request.getPetType());
+        service.setReminderInterval(request.getReminderInterval());
+        service.setReminderUnit(request.getReminderUnit());
+        assignVaccineTemplate(service, request.getVaccineTemplateId());
+        syncWeightPrices(service, request.getWeightPrices());
+        syncDosePrices(service, request.getDosePrices());
+    }
+
+    private void applyUpdateFields(ClinicService service, ClinicServiceUpdateRequest request) {
+        if (request.getName() != null) {
+            service.setName(request.getName());
+        }
+        if (request.getDescription() != null) {
+            service.setDescription(request.getDescription());
+        }
+        if (request.getBasePrice() != null) {
+            service.setBasePrice(request.getBasePrice());
+        }
+        if (request.getSlotsRequired() != null) {
+            service.setSlotsRequired(request.getSlotsRequired());
+            service.setDurationTime(calculateDurationTime(request.getSlotsRequired()));
+        }
+        if (request.getIsActive() != null) {
+            service.setIsActive(request.getIsActive());
+        }
+        if (request.getIsHomeVisit() != null) {
+            service.setIsHomeVisit(request.getIsHomeVisit());
+        }
+        if (request.getServiceCategory() != null) {
+            service.setServiceCategory(request.getServiceCategory());
+        }
+        if (request.getPetType() != null) {
+            service.setPetType(request.getPetType());
+        }
+        if (request.getReminderInterval() != null) {
+            service.setReminderInterval(request.getReminderInterval());
+        }
+        if (request.getReminderUnit() != null) {
+            service.setReminderUnit(request.getReminderUnit());
+        }
+        if (request.getWeightPrices() != null) {
+            syncWeightPrices(service, request.getWeightPrices());
+        }
+        if (request.getVaccineTemplateId() != null) {
+            assignVaccineTemplate(service, request.getVaccineTemplateId());
+        }
+        if (request.getDosePrices() != null) {
+            syncDosePrices(service, request.getDosePrices());
+        }
+    }
+
+    private int calculateDurationTime(Integer slotsRequired) {
+        return slotsRequired * MINUTES_PER_SLOT;
+    }
+
+    private void assignVaccineTemplate(ClinicService service, UUID vaccineTemplateId) {
+        if (vaccineTemplateId == null) {
+            service.setVaccineTemplate(null);
+            return;
+        }
+
+        com.petties.petties.model.VaccineTemplate template = vaccineTemplateRepository
+                .findById(vaccineTemplateId)
+                .orElse(null);
+        service.setVaccineTemplate(template);
+    }
+
+    private void syncWeightPrices(ClinicService service, List<WeightPriceDto> weightPrices) {
+        service.getWeightPrices().clear();
+
+        if (weightPrices == null || weightPrices.isEmpty()) {
+            return;
+        }
+
+        weightPrices.stream()
+                .map(dto -> toWeightPriceEntity(service, dto))
+                .forEach(service.getWeightPrices()::add);
+    }
+
+    private ServiceWeightPrice toWeightPriceEntity(ClinicService service, WeightPriceDto dto) {
+        ServiceWeightPrice weightPrice = new ServiceWeightPrice();
+        weightPrice.setService(service);
+        weightPrice.setMinWeight(dto.getMinWeight());
+        weightPrice.setMaxWeight(dto.getMaxWeight());
+        weightPrice.setPrice(dto.getPrice());
+        return weightPrice;
+    }
+
+    private void syncDosePrices(ClinicService service,
+            List<com.petties.petties.dto.clinicService.VaccineDosePriceDTO> dosePrices) {
+        service.getDosePrices().clear();
+
+        if (dosePrices == null || dosePrices.isEmpty()) {
+            return;
+        }
+
+        dosePrices.stream()
+                .map(dto -> toDosePriceEntity(service, dto))
+                .forEach(service.getDosePrices()::add);
+    }
+
+    private com.petties.petties.model.VaccineDosePrice toDosePriceEntity(ClinicService service,
+            com.petties.petties.dto.clinicService.VaccineDosePriceDTO dto) {
+        com.petties.petties.model.VaccineDosePrice dosePrice = new com.petties.petties.model.VaccineDosePrice();
+        dosePrice.setService(service);
+        dosePrice.setDoseNumber(dto.doseNumber());
+        dosePrice.setDoseLabel(dto.doseLabel());
+        dosePrice.setPrice(dto.price() != null ? dto.price() : BigDecimal.ZERO);
+        dosePrice.setIsActive(dto.isActive() != null ? dto.isActive() : true);
+        return dosePrice;
+    }
+
+    private List<WeightPriceDto> mapWeightPrices(List<ServiceWeightPrice> weightPrices) {
+        return weightPrices == null ? Collections.emptyList() : weightPrices.stream()
+                .map(wp -> WeightPriceDto.builder()
+                        .minWeight(wp.getMinWeight())
+                        .maxWeight(wp.getMaxWeight())
+                        .price(wp.getPrice())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    private void copyWeightPricesFromMasterService(ClinicService clinicService, MasterService masterService) {
+        if (masterService.getWeightPrices() == null || masterService.getWeightPrices().isEmpty()) {
+            return;
+        }
+
+        masterService.getWeightPrices().stream()
+                .map(masterWeightPrice -> {
+                    ServiceWeightPrice clinicWeightPrice = new ServiceWeightPrice();
+                    clinicWeightPrice.setService(clinicService);
+                    clinicWeightPrice.setMinWeight(masterWeightPrice.getMinWeight());
+                    clinicWeightPrice.setMaxWeight(masterWeightPrice.getMaxWeight());
+                    clinicWeightPrice.setPrice(masterWeightPrice.getPrice());
+                    return clinicWeightPrice;
+                })
+                .forEach(clinicService.getWeightPrices()::add);
+    }
+
     /**
      * Create a new service for the clinic
      */
@@ -102,66 +264,11 @@ public class ClinicServiceService {
                 .orElseThrow(
                         () -> new ResourceNotFoundException("Không tìm thấy clinic với ID: " + request.getClinicId()));
 
-        // Validate ownership - Only Owner or Manager can create services
-        User currentUser = getCurrentUser();
-        boolean isOwner = clinic.getOwner() != null && clinic.getOwner().getUserId().equals(currentUser.getUserId());
-        boolean isManager = currentUser.getRole() == Role.CLINIC_MANAGER && currentUser.getWorkingClinic() != null
-                && currentUser.getWorkingClinic().getClinicId().equals(clinic.getClinicId());
-
-        if (!isOwner && !isManager) {
-            throw new ForbiddenException("Bạn không có quyền thêm dịch vụ cho clinic này");
-        }
+        validateClinicModificationPermission(clinic);
 
         ClinicService service = new ClinicService();
         service.setClinic(clinic);
-        service.setName(request.getName());
-        service.setDescription(request.getDescription());
-        service.setBasePrice(request.getBasePrice());
-        service.setSlotsRequired(request.getSlotsRequired());
-        // Auto-calculate durationTime: 1 slot = 30 minutes
-        service.setDurationTime(request.getSlotsRequired() * 30);
-        service.setIsActive(request.getIsActive() != null ? request.getIsActive() : true);
-        service.setIsHomeVisit(request.getIsHomeVisit() != null ? request.getIsHomeVisit() : false);
-
-        service.setServiceCategory(request.getServiceCategory());
-        service.setPetType(request.getPetType());
-
-        // Handle reminder schedule
-        service.setReminderInterval(request.getReminderInterval());
-        service.setReminderUnit(request.getReminderUnit());
-
-        // Set Vaccine Template
-        if (request.getVaccineTemplateId() != null) {
-            com.petties.petties.model.VaccineTemplate template = vaccineTemplateRepository
-                    .findById(request.getVaccineTemplateId())
-                    .orElse(null);
-            service.setVaccineTemplate(template);
-        }
-
-        // Handle weight prices
-        if (request.getWeightPrices() != null && !request.getWeightPrices().isEmpty()) {
-            for (WeightPriceDto dto : request.getWeightPrices()) {
-                ServiceWeightPrice weightPrice = new ServiceWeightPrice();
-                weightPrice.setService(service);
-                weightPrice.setMinWeight(dto.getMinWeight());
-                weightPrice.setMaxWeight(dto.getMaxWeight());
-                weightPrice.setPrice(dto.getPrice());
-                service.getWeightPrices().add(weightPrice);
-            }
-        }
-
-        // Handle dose prices
-        if (request.getDosePrices() != null && !request.getDosePrices().isEmpty()) {
-            for (com.petties.petties.dto.clinicService.VaccineDosePriceDTO dto : request.getDosePrices()) {
-                com.petties.petties.model.VaccineDosePrice dosePrice = new com.petties.petties.model.VaccineDosePrice();
-                dosePrice.setService(service);
-                dosePrice.setDoseNumber(dto.doseNumber());
-                dosePrice.setDoseLabel(dto.doseLabel());
-                dosePrice.setPrice(dto.price() != null ? dto.price() : BigDecimal.ZERO);
-                dosePrice.setIsActive(dto.isActive() != null ? dto.isActive() : true);
-                service.getDosePrices().add(dosePrice);
-            }
-        }
+        applyCreateFields(service, request);
 
         ClinicService savedService = clinicServiceRepository.save(service);
         log.info("Service created: {} by user: {} for clinic: {}",
@@ -197,79 +304,7 @@ public class ClinicServiceService {
     public ClinicServiceResponse updateService(UUID serviceId, ClinicServiceUpdateRequest request) {
         ClinicService service = getServiceAndValidateOwnership(serviceId);
 
-        if (request.getName() != null) {
-            service.setName(request.getName());
-        }
-        if (request.getDescription() != null) {
-            service.setDescription(request.getDescription());
-        }
-        if (request.getBasePrice() != null) {
-            service.setBasePrice(request.getBasePrice());
-        }
-        if (request.getSlotsRequired() != null) {
-            service.setSlotsRequired(request.getSlotsRequired());
-            // Auto-calculate durationTime: 1 slot = 30 minutes
-            service.setDurationTime(request.getSlotsRequired() * 30);
-        }
-        if (request.getIsActive() != null) {
-            service.setIsActive(request.getIsActive());
-        }
-        if (request.getIsHomeVisit() != null) {
-            service.setIsHomeVisit(request.getIsHomeVisit());
-        }
-        if (request.getServiceCategory() != null) {
-            service.setServiceCategory(request.getServiceCategory());
-        }
-        if (request.getPetType() != null) {
-            service.setPetType(request.getPetType());
-        }
-        if (request.getReminderInterval() != null) {
-            service.setReminderInterval(request.getReminderInterval());
-        }
-        if (request.getReminderUnit() != null) {
-            service.setReminderUnit(request.getReminderUnit());
-        }
-
-        // Handle weight prices update
-        if (request.getWeightPrices() != null) {
-            // Clear existing weight prices
-            service.getWeightPrices().clear();
-
-            // Add new weight prices
-            for (WeightPriceDto dto : request.getWeightPrices()) {
-                ServiceWeightPrice weightPrice = new ServiceWeightPrice();
-                weightPrice.setService(service);
-                weightPrice.setMinWeight(dto.getMinWeight());
-                weightPrice.setMaxWeight(dto.getMaxWeight());
-                weightPrice.setPrice(dto.getPrice());
-                service.getWeightPrices().add(weightPrice);
-            }
-        }
-
-        // Handle vaccine template update
-        if (request.getVaccineTemplateId() != null) {
-            com.petties.petties.model.VaccineTemplate template = vaccineTemplateRepository
-                    .findById(request.getVaccineTemplateId())
-                    .orElse(null);
-            service.setVaccineTemplate(template);
-        }
-
-        // Handle dose prices update
-        if (request.getDosePrices() != null) {
-            // Clear existing dose prices
-            service.getDosePrices().clear();
-
-            // Add new dose prices
-            for (com.petties.petties.dto.clinicService.VaccineDosePriceDTO dto : request.getDosePrices()) {
-                com.petties.petties.model.VaccineDosePrice dosePrice = new com.petties.petties.model.VaccineDosePrice();
-                dosePrice.setService(service);
-                dosePrice.setDoseNumber(dto.doseNumber());
-                dosePrice.setDoseLabel(dto.doseLabel());
-                dosePrice.setPrice(dto.price() != null ? dto.price() : BigDecimal.ZERO);
-                dosePrice.setIsActive(dto.isActive() != null ? dto.isActive() : true);
-                service.getDosePrices().add(dosePrice);
-            }
-        }
+        applyUpdateFields(service, request);
 
         ClinicService updatedService = clinicServiceRepository.save(service);
         log.info("Service updated: {} by user: {}", updatedService.getServiceId(), getCurrentUser().getUserId());
@@ -305,8 +340,10 @@ public class ClinicServiceService {
         ClinicService service = clinicServiceRepository.findByServiceIdAndClinic(serviceId, clinic)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dịch vụ với ID: " + serviceId));
 
-        clinicServiceRepository.delete(service);
-        log.info("Service deleted: {} by user: {}", serviceId, getCurrentUser().getUserId());
+        // Soft-delete: set isActive = false instead of hard delete to preserve FK integrity
+        service.setIsActive(false);
+        clinicServiceRepository.save(service);
+        log.info("Service soft-deleted (deactivated): {} by user: {}", serviceId, getCurrentUser().getUserId());
     }
 
     /**
@@ -405,17 +442,7 @@ public class ClinicServiceService {
 
         // Sửa: Copy weightPrices từ master service sang clinic service, set đúng quan
         // hệ JPA
-        if (masterService.getWeightPrices() != null && !masterService.getWeightPrices().isEmpty()) {
-            for (ServiceWeightPrice masterWeightPrice : masterService.getWeightPrices()) {
-                ServiceWeightPrice clinicWeightPrice = new ServiceWeightPrice();
-                clinicWeightPrice.setService(clinicService); // Liên kết với clinic service
-                clinicWeightPrice.setMinWeight(masterWeightPrice.getMinWeight());
-                clinicWeightPrice.setMaxWeight(masterWeightPrice.getMaxWeight());
-                clinicWeightPrice.setPrice(masterWeightPrice.getPrice());
-                // KHÔNG set masterWeightPrice cho clinicWeightPrice
-                clinicService.getWeightPrices().add(clinicWeightPrice);
-            }
-        }
+        copyWeightPricesFromMasterService(clinicService, masterService);
 
         log.info("Saving clinic service for clinic {} and master {}", clinic.getClinicId(),
                 masterService.getMasterServiceId());
@@ -513,13 +540,7 @@ public class ClinicServiceService {
      * Map ClinicService entity to ClinicServiceResponse DTO
      */
     private ClinicServiceResponse mapToResponse(ClinicService service) {
-        List<WeightPriceDto> weightPriceDtos = service.getWeightPrices().stream()
-                .map(wp -> WeightPriceDto.builder()
-                        .minWeight(wp.getMinWeight())
-                        .maxWeight(wp.getMaxWeight())
-                        .price(wp.getPrice())
-                        .build())
-                .collect(Collectors.toList());
+        List<WeightPriceDto> weightPriceDtos = mapWeightPrices(service.getWeightPrices());
 
         // Map vaccine dose prices
         List<com.petties.petties.dto.clinicService.VaccineDosePriceDTO> dosePriceDtos = service.getDosePrices() != null

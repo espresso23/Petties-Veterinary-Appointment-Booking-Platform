@@ -126,6 +126,8 @@ public class SosMatchingService {
 
             // 8. Broadcast status to Pet Owner
             double distanceKm = calculateDistance(request, firstClinic);
+                booking.setDistanceKm(BigDecimal.valueOf(distanceKm));
+                bookingRepository.save(booking);
             sosNotificationService.notifyOwnerClinicContacted(
                     booking.getBookingId(), firstClinic, 0, totalClinics, distanceKm);
 
@@ -228,6 +230,7 @@ public class SosMatchingService {
         User staff = null;
         if (assignedStaffId != null) {
             staff = findUserById(assignedStaffId);
+            validateAssignedStaffForSos(staff, clinic);
             // 1. Gán vào đơn hàng chính (để đồng bộ với Manager Web)
             booking.setAssignedStaff(staff);
             // 2. Gán vào các mục dịch vụ (nếu có - though SOS often empty)
@@ -263,6 +266,9 @@ public class SosMatchingService {
                 .bookingId(booking.getBookingId())
                 .status(BookingStatus.CONFIRMED)
                 .message("Đã xác nhận! Phòng khám sẽ liên hệ với bạn ngay.")
+                .petId(booking.getPet() != null ? booking.getPet().getId() : null)
+                .petName(booking.getPet() != null ? booking.getPet().getName() : null)
+                .petAvatarUrl(booking.getPet() != null ? booking.getPet().getImageUrl() : null)
                 .clinicId(clinic.getClinicId())
                 .clinicName(clinic.getName())
                 .clinicPhone(clinic.getPhone())
@@ -358,6 +364,8 @@ public class SosMatchingService {
                 sessionManager.updateNotifiedAt(bookingId);
 
                 // Update Booking
+                double distanceKm = calculateDistance(booking, nextClinic);
+                booking.setDistanceKm(BigDecimal.valueOf(distanceKm));
                 booking.setClinic(nextClinic);
                 booking.setStatus(BookingStatus.PENDING_CLINIC_CONFIRM);
                 bookingRepository.save(booking);
@@ -458,6 +466,9 @@ public class SosMatchingService {
         SosMatchResponse.SosMatchResponseBuilder response = SosMatchResponse.builder()
                 .bookingId(bookingId)
                 .status(booking.getStatus())
+                .petId(booking.getPet() != null ? booking.getPet().getId() : null)
+                .petName(booking.getPet() != null ? booking.getPet().getName() : null)
+                .petAvatarUrl(booking.getPet() != null ? booking.getPet().getImageUrl() : null)
                 .wsTopicUrl("/topic/sos-matching/" + bookingId);
 
         if (booking.getClinic() != null) {
@@ -477,6 +488,13 @@ public class SosMatchingService {
         if (indexOpt.isPresent() && clinicIdsOpt.isPresent()) {
             int index = indexOpt.get();
             List<String> clinicIds = clinicIdsOpt.get();
+            long remainingSeconds = Math.max(0,
+                sessionManager.getClinicTimeoutSeconds() - sessionManager.getElapsedSeconds(bookingId));
+
+            response.currentClinicIndex(index + 1)
+                .totalClinicsInRange(clinicIds.size())
+                .remainingSeconds(remainingSeconds);
+
             if (index < clinicIds.size()) {
                 UUID currentClinicId = UUID.fromString(clinicIds.get(index));
                 clinicRepository.findById(currentClinicId)
@@ -557,6 +575,7 @@ public class SosMatchingService {
 
         if (booking.getPet() != null) {
             builder.petName(booking.getPet().getName())
+                    .petAvatarUrl(booking.getPet().getImageUrl())
                     .petSpecies(booking.getPet().getSpecies() != null ? booking.getPet().getSpecies().name() : null)
                     .petBreed(booking.getPet().getBreed())
                     .petWeight(booking.getPet().getWeight());
@@ -685,6 +704,28 @@ public class SosMatchingService {
                 clinic.getLongitude());
     }
 
+    private double calculateDistance(Booking booking, Clinic clinic) {
+        return locationService.calculateDistance(
+                booking.getHomeLat(),
+                booking.getHomeLong(),
+                clinic.getLatitude(),
+                clinic.getLongitude());
+    }
+
+    private void validateAssignedStaffForSos(User staff, Clinic clinic) {
+        if (staff.getRole() != Role.STAFF) {
+            throw new SosMatchingException(
+                    "Nhân sự được chọn phải có vai trò STAFF",
+                    SosErrorCode.MANAGER_NOT_AUTHORIZED);
+        }
+
+        if (staff.getWorkingClinic() == null || !staff.getWorkingClinic().getClinicId().equals(clinic.getClinicId())) {
+            throw new SosMatchingException(
+                    "Nhân sự được chọn không thuộc phòng khám xác nhận yêu cầu SOS",
+                    SosErrorCode.MANAGER_NOT_AUTHORIZED);
+        }
+    }
+
     private SosMatchResponse buildMatchingStartedResponse(Booking booking, Clinic firstClinic,
             SosMatchRequest request) {
         int maxClinics = sessionManager.getMaxClinicsToTry();
@@ -694,6 +735,9 @@ public class SosMatchingService {
                 .bookingId(booking.getBookingId())
                 .status(booking.getStatus())
                 .message("Đang tìm phòng khám gần bạn...")
+                .petId(booking.getPet() != null ? booking.getPet().getId() : null)
+                .petName(booking.getPet() != null ? booking.getPet().getName() : null)
+                .petAvatarUrl(booking.getPet() != null ? booking.getPet().getImageUrl() : null)
                 .clinicId(firstClinic.getClinicId())
                 .clinicName(firstClinic.getName())
                 .clinicPhone(firstClinic.getPhone())
@@ -716,6 +760,9 @@ public class SosMatchingService {
                 .bookingId(booking.getBookingId())
                 .status(booking.getStatus())
                 .message("Bạn đang có một yêu cầu SOS đang hoạt động")
+                .petId(booking.getPet() != null ? booking.getPet().getId() : null)
+                .petName(booking.getPet() != null ? booking.getPet().getName() : null)
+                .petAvatarUrl(booking.getPet() != null ? booking.getPet().getImageUrl() : null)
                 .clinicId(clinic != null ? clinic.getClinicId() : null)
                 .clinicName(clinic != null ? clinic.getName() : null)
                 .clinicPhone(clinic != null ? clinic.getPhone() : null)

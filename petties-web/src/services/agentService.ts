@@ -1,9 +1,10 @@
 /**
  * Agent Service - API calls to petties-agent-service
  * 
- * Direct connection to AI Service (no gateway)
- * - Development: http://localhost:8000
- * - Production: Configure via VITE_AGENT_SERVICE_URL environment variable
+ * Direct connection to AI Service.
+ * Supports both:
+ * - Dedicated AI domain/service
+ * - Unified reverse proxy (/ai for REST, /ws/chat for WebSocket)
  */
 
 import { useAuthStore } from '../store/authStore'
@@ -11,7 +12,8 @@ import { env } from '../config/env'
 
 // Direct AI Service URL (no gateway)
 // Use centralized env config for consistency
-const AGENT_SERVICE_URL = env.AGENT_SERVICE_URL
+const AGENT_API_BASE_URL = env.AGENT_API_BASE_URL
+const AGENT_WS_BASE_URL = env.AGENT_WS_BASE_URL
 
 // Get auth token from authStore (single source of truth)
 const getAuthHeaders = (): Record<string, string> => {
@@ -106,19 +108,182 @@ export interface QueryResult {
     score: number
 }
 
+// ===== AI INSIGHTS TYPES =====
+
+export interface FeedbackStatsResponse {
+    total: number
+    period_days: number
+    by_type: Record<string, number>
+    by_category: Record<string, number>
+    positive_rate: number
+    error?: string
+}
+
+export interface FeedbackItem {
+    feedback_id: string
+    message_id: string
+    session_id: string
+    user_id: string
+    user_role: string
+    feedback_type: string
+    feedback_category: string
+    feedback_reason: string
+    feedback_text: string
+    tool_used: string
+    message_content: string
+    weight: number
+    created_at: string
+}
+
+export interface FeedbackListResponse {
+    total: number
+    page: number
+    page_size: number
+    items: FeedbackItem[]
+}
+
+export interface FeedbackListParams {
+    page?: number
+    page_size?: number
+    feedback_type?: string
+    feedback_category?: string
+    user_role?: string
+    date_from?: string
+    date_to?: string
+}
+
+export interface SubmitFeedbackRequest {
+    message_id: string
+    session_id: string
+    feedback_type: 'thumbs_up' | 'thumbs_down' | 'report' | 'confirmed' | 'vet_confirmed'
+    feedback_category?: string
+    feedback_reason?: string
+    feedback_text?: string
+}
+
+export interface SubmitFeedbackResponse {
+    status: string
+    feedback_id?: string
+    case_embedded: boolean
+    category: string
+    weight: number
+    error?: string
+}
+
+export interface KGStatsResponse {
+    success: boolean
+    triplet_count: number
+    entity_count: number
+    relation_types: string[]
+    relation_type_count: number
+    sample_triplets?: Array<{ subject: string; predicate: string; object: string }>
+}
+
+export interface KGBuildResponse {
+    success: boolean
+    message: string
+    documents_processed: number
+    documents_skipped: number[]
+    triplets_extracted: number
+    processing_time_ms: number
+}
+
+export interface CaseMemoryStatsResponse {
+    success: boolean
+    total_cases: number
+    collection_status: string
+    [key: string]: unknown
+}
+
+export interface CaseMemoryPruneResponse {
+    success: boolean
+    message: string
+    pruned_count: number
+    criteria: {
+        max_feedback_below: number
+        older_than_days: number
+    }
+}
+
+export type ChatContextType = 'BUSINESS_CHAT' | 'PLAYGROUND_TEST'
+
+export interface CreateChatSessionRequest {
+    agent_id?: number
+    title?: string
+    context_type: ChatContextType
+}
+
+export interface CreateChatSessionResponse {
+    success: boolean
+    session_id: string
+    agent_id?: number
+    context_type: ChatContextType
+    user_role: string
+    clinic_id?: string | null
+    created_at: string
+}
+
+export interface ChatSessionMessage {
+    message_id?: string
+    user_id?: string
+    role: 'user' | 'assistant' | 'system'
+    content: string
+    context_type?: ChatContextType
+    timestamp?: string
+    react_trace?: Array<{
+        step_index?: number
+        step_type?: 'thought' | 'action' | 'observation'
+        content?: string
+        tool_name?: string
+        tool_params?: Record<string, unknown>
+        tool_result?: unknown
+        timestamp?: string
+    }>
+    metadata?: Record<string, any>
+}
+
+export interface ChatSessionDetail {
+    session_id: string
+    agent_id?: number
+    title?: string
+    context_type: ChatContextType
+    user_role?: string
+    clinic_id?: string | null
+    messages: ChatSessionMessage[]
+    created_at?: string
+    updated_at?: string
+}
+
+export interface ChatSessionSummary {
+    session_id: string
+    agent_id?: number
+    title?: string
+    context_type: ChatContextType
+    user_role?: string
+    clinic_id?: string | null
+    messages: ChatSessionMessage[]
+    created_at?: string
+    updated_at?: string
+}
+
+export interface SessionListResponse {
+    total: number
+    sessions: ChatSessionSummary[]
+}
+
 // ===== AGENT APIs =====
 
 export const agentApi = {
     // Get all agents with hierarchy
     async getAgents(): Promise<AgentListResponse> {
-        const response = await fetchWithAuth(`${AGENT_SERVICE_URL}/api/v1/agents`)
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/agents`)
         if (!response.ok) throw new Error('Failed to fetch agents')
         return response.json()
     },
 
     // Get single agent
     async getAgent(id: number): Promise<Agent> {
-        const response = await fetchWithAuth(`${AGENT_SERVICE_URL}/api/v1/agents/${id}`)
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/agents/${id}`)
         if (!response.ok) throw new Error('Failed to fetch agent')
         const data = await response.json()
         return data.agent
@@ -126,7 +291,7 @@ export const agentApi = {
 
     // Update agent config
     async updateAgent(id: number, data: Partial<Agent>): Promise<Agent> {
-        const response = await fetchWithAuth(`${AGENT_SERVICE_URL}/api/v1/agents/${id}`, {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/agents/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
@@ -138,7 +303,7 @@ export const agentApi = {
 
     // Update system prompt
     async updatePrompt(id: number, promptText: string, notes?: string): Promise<void> {
-        const response = await fetchWithAuth(`${AGENT_SERVICE_URL}/api/v1/agents/${id}/prompt`, {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/agents/${id}/prompt`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -152,7 +317,7 @@ export const agentApi = {
 
     // Get prompt history
     async getPromptHistory(id: number): Promise<PromptVersion[]> {
-        const response = await fetchWithAuth(`${AGENT_SERVICE_URL}/api/v1/agents/${id}/prompt-history`)
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/agents/${id}/prompt-history`)
         if (!response.ok) throw new Error('Failed to fetch prompt history')
         const data = await response.json()
         return data.versions
@@ -160,7 +325,7 @@ export const agentApi = {
 
     // Test agent - returns response with thinking process and tool calls
     async testAgent(id: number, message: string, model?: string): Promise<AgentTestResponse> {
-        const response = await fetchWithAuth(`${AGENT_SERVICE_URL}/api/v1/agents/${id}/test`, {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/agents/${id}/test`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message, model })
@@ -199,14 +364,14 @@ export interface AgentTestResponse {
 export const toolApi = {
     // Get all tools
     async getTools(): Promise<{ total: number; tools: Tool[] }> {
-        const response = await fetchWithAuth(`${AGENT_SERVICE_URL}/api/v1/tools`)
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/tools`)
         if (!response.ok) throw new Error('Failed to fetch tools')
         return response.json()
     },
 
     // Toggle tool enabled
     async toggleTool(id: number, enabled: boolean): Promise<void> {
-        const response = await fetchWithAuth(`${AGENT_SERVICE_URL}/api/v1/tools/${id}/enable`, {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/tools/${id}/enable`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ enabled })
@@ -214,19 +379,9 @@ export const toolApi = {
         if (!response.ok) throw new Error('Failed to toggle tool')
     },
 
-    // Assign tool to agent
-    async assignToAgent(id: number, agentName: string): Promise<void> {
-        const response = await fetchWithAuth(`${AGENT_SERVICE_URL}/api/v1/tools/${id}/assign`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ agent_name: agentName })
-        })
-        if (!response.ok) throw new Error('Failed to assign tool')
-    },
-
     // Scan code tools
     async scanTools(): Promise<ScanToolsResult> {
-        const response = await fetchWithAuth(`${AGENT_SERVICE_URL}/api/v1/tools/scan`, {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/tools/scan`, {
             method: 'POST'
         })
         if (!response.ok) throw new Error('Failed to scan tools')
@@ -239,7 +394,7 @@ export const toolApi = {
 export const knowledgeApi = {
     // Get all documents
     async getDocuments(): Promise<{ total: number; documents: Document[] }> {
-        const response = await fetchWithAuth(`${AGENT_SERVICE_URL}/api/v1/knowledge/documents`)
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/documents`)
         if (!response.ok) throw new Error('Failed to fetch documents')
         return response.json()
     },
@@ -251,7 +406,7 @@ export const knowledgeApi = {
         if (notes) formData.append('notes', notes)
         formData.append('uploaded_by', 'admin')
 
-        const response = await fetchWithAuth(`${AGENT_SERVICE_URL}/api/v1/knowledge/upload`, {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/upload`, {
             method: 'POST',
             body: formData
         })
@@ -274,7 +429,7 @@ export const knowledgeApi = {
 
     // Process document to create vectors
     async processDocument(documentId: number): Promise<ProcessDocumentResult> {
-        const response = await fetchWithAuth(`${AGENT_SERVICE_URL}/api/v1/knowledge/documents/${documentId}/process`, {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/documents/${documentId}/process`, {
             method: 'POST'
         })
 
@@ -289,7 +444,7 @@ export const knowledgeApi = {
 
     // Delete document
     async deleteDocument(id: number): Promise<void> {
-        const response = await fetchWithAuth(`${AGENT_SERVICE_URL}/api/v1/knowledge/documents/${id}`, {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/documents/${id}`, {
             method: 'DELETE'
         })
         if (!response.ok) throw new Error('Failed to delete document')
@@ -297,7 +452,7 @@ export const knowledgeApi = {
 
     // Query knowledge base
     async query(queryText: string, topK: number = 5, minScore: number = 0.5): Promise<QueryResult[]> {
-        const response = await fetchWithAuth(`${AGENT_SERVICE_URL}/api/v1/knowledge/query`, {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/query`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ query: queryText, top_k: topK, min_score: minScore })
@@ -307,10 +462,206 @@ export const knowledgeApi = {
         return data.chunks
     },
 
+    // Fetch document blob for preview (handles auth via headers)
+    async fetchDocumentBlob(documentId: number): Promise<{ blob: Blob; contentType: string }> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/documents/${documentId}/download`)
+        if (!response.ok) throw new Error('Không thể tải tài liệu')
+        const blob = await response.blob()
+        return { blob, contentType: response.headers.get('content-type') || 'application/octet-stream' }
+    },
+
+    // Fetch text content for TXT/MD preview
+    async fetchDocumentText(documentId: number): Promise<string> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/documents/${documentId}/download`)
+        if (!response.ok) throw new Error('Không thể tải tài liệu')
+        return response.text()
+    },
+
     // Get status
     async getStatus(): Promise<KnowledgeStatusResult> {
-        const response = await fetchWithAuth(`${AGENT_SERVICE_URL}/api/v1/knowledge/status`)
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/status`)
         if (!response.ok) throw new Error('Failed to fetch status')
+        return response.json()
+    }
+}
+
+// ===== CHAT APIs =====
+
+export const chatApi = {
+    async createSession(payload: CreateChatSessionRequest): Promise<CreateChatSessionResponse> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/chat/sessions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+
+        if (!response.ok) throw new Error('Failed to create chat session')
+        return response.json()
+    },
+
+    async getSession(sessionId: string): Promise<ChatSessionDetail> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/chat/sessions/${sessionId}`)
+        if (!response.ok) throw new Error('Failed to fetch chat session')
+        return response.json()
+    },
+
+    async listSessions(contextType?: ChatContextType, limit: number = 20): Promise<SessionListResponse> {
+        const params = new URLSearchParams({ limit: String(limit) })
+        if (contextType) {
+            params.set('context_type', contextType)
+        }
+
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/chat/sessions?${params.toString()}`)
+        if (!response.ok) throw new Error('Failed to fetch chat sessions')
+        return response.json()
+    },
+
+    async deleteSession(sessionId: string): Promise<void> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/chat/sessions/${sessionId}`, {
+            method: 'DELETE'
+        })
+        if (!response.ok) throw new Error('Failed to delete chat session')
+    }
+}
+
+// ===== FEEDBACK API =====
+
+export const feedbackApi = {
+    async getStats(days: number = 30): Promise<FeedbackStatsResponse> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/chat/feedback/stats?days=${days}`)
+        if (!response.ok) throw new Error('Không thể lấy thống kê feedback')
+        return response.json()
+    },
+
+    async list(params: FeedbackListParams = {}): Promise<FeedbackListResponse> {
+        const searchParams = new URLSearchParams()
+        if (params.page) searchParams.set('page', String(params.page))
+        if (params.page_size) searchParams.set('page_size', String(params.page_size))
+        if (params.feedback_type) searchParams.set('feedback_type', params.feedback_type)
+        if (params.feedback_category) searchParams.set('feedback_category', params.feedback_category)
+        if (params.user_role) searchParams.set('user_role', params.user_role)
+        if (params.date_from) searchParams.set('date_from', params.date_from)
+        if (params.date_to) searchParams.set('date_to', params.date_to)
+
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/chat/feedback/list?${searchParams.toString()}`)
+        if (!response.ok) throw new Error('Không thể lấy danh sách feedback')
+        return response.json()
+    },
+
+    async submitFeedback(data: SubmitFeedbackRequest): Promise<SubmitFeedbackResponse> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/chat/feedback`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        if (!response.ok) throw new Error('Không thể gửi feedback')
+        return response.json()
+    },
+
+    async deleteFeedback(feedbackId: string): Promise<{ success: boolean; feedback_id: string; case_deleted: boolean; message: string }> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/chat/feedback/${feedbackId}`, {
+            method: 'DELETE'
+        })
+        if (!response.ok) {
+            const err = await response.json().catch(() => null)
+            throw new Error(err?.detail || 'Không thể xóa feedback')
+        }
+        return response.json()
+    }
+}
+
+// ===== KNOWLEDGE GRAPH API =====
+
+export interface KGVisualizeResponse extends KGStatsResponse {
+    nodes: { id: string; label: string; type: string }[]
+    edges: { id: string; source: string; target: string; label: string }[]
+}
+
+export interface KGQueryRequest {
+    query: string
+    top_k?: number
+}
+
+export interface KGQueryResultItem {
+    subject: string
+    predicate: string
+    object: string
+    score?: number
+    source_nodes?: string[]
+}
+
+export interface KGQueryResponse {
+    success: boolean
+    query: string
+    results: KGQueryResultItem[]
+    message?: string
+}
+
+export const kgApi = {
+    async getStats(): Promise<KGStatsResponse> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/kg-stats`)
+        if (!response.ok) throw new Error('Không thể lấy thống kê Knowledge Graph')
+        return response.json()
+    },
+
+    async build(documentIds?: number[], maxTriplets: number = 10): Promise<KGBuildResponse> {
+        const params = new URLSearchParams()
+        if (documentIds?.length) {
+            documentIds.forEach(id => params.append('document_ids', String(id)))
+        }
+        params.set('max_triplets', String(maxTriplets))
+
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/build-kg?${params.toString()}`, {
+            method: 'POST'
+        })
+        if (!response.ok) {
+            const err = await response.json().catch(() => null)
+            throw new Error(err?.detail || 'Không thể xây dựng Knowledge Graph')
+        }
+        return response.json()
+    },
+
+    async visualize(): Promise<KGVisualizeResponse> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/kg-visualize`)
+        if (!response.ok) throw new Error('Không thể lấy dữ liệu visualization KG')
+        return response.json()
+    },
+
+    async queryKG(data: KGQueryRequest): Promise<KGQueryResponse> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/kg-query`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        if (!response.ok) {
+            const err = await response.json().catch(() => null)
+            throw new Error(err?.detail || 'Không thể truy vấn Knowledge Graph')
+        }
+        return response.json()
+    }
+}
+
+// ===== CASE MEMORY API =====
+
+export const caseMemoryApi = {
+    async getStats(): Promise<CaseMemoryStatsResponse> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/case-memory/stats`)
+        if (!response.ok) throw new Error('Không thể lấy thống kê Case Memory')
+        return response.json()
+    },
+
+    async prune(olderThanDays: number = 90, maxFeedbackBelow: number = 0): Promise<CaseMemoryPruneResponse> {
+        const params = new URLSearchParams({
+            older_than_days: String(olderThanDays),
+            max_feedback_below: String(maxFeedbackBelow)
+        })
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/case-memory/prune?${params.toString()}`, {
+            method: 'POST'
+        })
+        if (!response.ok) {
+            const err = await response.json().catch(() => null)
+            throw new Error(err?.detail || 'Không thể dọn dẹp Case Memory')
+        }
         return response.json()
     }
 }
@@ -320,25 +671,32 @@ export const knowledgeApi = {
 /**
  * Create WebSocket connection for chat
  * Automatically converts http/https to ws/wss
+ * Includes JWT token as query param for authentication
  */
-export const createChatWebSocket = (sessionId: string): WebSocket => {
-    // Convert HTTP/HTTPS to WS/WSS
-    let wsUrl = AGENT_SERVICE_URL
-    if (wsUrl.startsWith('https://')) {
-        wsUrl = wsUrl.replace('https://', 'wss://')
-    } else if (wsUrl.startsWith('http://')) {
-        wsUrl = wsUrl.replace('http://', 'ws://')
+export const createChatWebSocket = (sessionId: string, contextType?: string): WebSocket => {
+    const token = useAuthStore.getState().accessToken
+    const params = new URLSearchParams()
+
+    if (token) {
+        params.set('token', token)
+    }
+    if (contextType) {
+        params.set('context_type', contextType)
     }
 
-    const fullWsUrl = `${wsUrl}/ws/chat/${sessionId}`
+    const queryString = params.toString()
+    const fullWsUrl = `${AGENT_WS_BASE_URL}/ws/chat/${sessionId}${queryString ? `?${queryString}` : ''}`
 
-    // Debug log in development
+    // Debug log in development (mask token)
     if (import.meta.env.DEV) {
-        console.log('🔌 WebSocket URL:', fullWsUrl)
+        const maskedUrl = token
+            ? fullWsUrl.replace(token, `${token.slice(0, 8)}...`)
+            : fullWsUrl
+        console.log('WebSocket URL:', maskedUrl)
     }
 
     return new WebSocket(fullWsUrl)
 }
 
-export default { agentApi, toolApi, knowledgeApi, createChatWebSocket }
+export default { agentApi, toolApi, knowledgeApi, chatApi, feedbackApi, kgApi, caseMemoryApi, createChatWebSocket }
 

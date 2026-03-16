@@ -132,6 +132,10 @@ public class Clinic {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    @Version
+    @Column(name = "version")
+    private Long version;
+
     // Relationships
     @Builder.Default
     @OneToMany(mappedBy = "clinic", cascade = CascadeType.ALL, orphanRemoval = true)

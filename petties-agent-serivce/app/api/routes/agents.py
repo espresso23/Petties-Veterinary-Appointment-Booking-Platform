@@ -18,6 +18,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from typing import List, Optional
 from loguru import logger
+from uuid import uuid4
+
 
 from app.api.schemas.agent_schemas import (
     AgentResponse,
@@ -34,11 +36,12 @@ from app.api.schemas.agent_schemas import (
     ReActStepSchema,
     AgentErrorResponse
 )
+from app.api.middleware.auth import get_admin_user
 from app.db.postgres.models import Agent, Tool, PromptVersion
 from app.db.postgres.session import get_db
 
 # Initialize router
-router = APIRouter(prefix="/agents", tags=["Agents"])
+router = APIRouter(prefix="/agents", tags=["Agents"], dependencies=[Depends(get_admin_user)])
 
 
 # ===== GET ALL AGENTS =====
@@ -76,6 +79,11 @@ async def get_agents(
         result = await db.execute(query)
         agents = result.scalars().all()
 
+        # Get enabled tools once (Fix N+1 query)
+        tools_query = select(Tool).where(Tool.enabled == True)
+        tools_result = await db.execute(tools_query)
+        enabled_tool_names = [t.name for t in tools_result.scalars().all()]
+
         agent_responses = []
         for agent in agents:
             agent_response = AgentResponse(
@@ -91,13 +99,7 @@ async def get_agents(
                 created_at=agent.created_at,
                 updated_at=agent.updated_at
             )
-
-            # Get enabled tools
-            tools_query = select(Tool).where(Tool.enabled == True)
-            tools_result = await db.execute(tools_query)
-            tools = tools_result.scalars().all()
-            agent_response.tools = [t.name for t in tools]
-
+            agent_response.tools = enabled_tool_names
             agent_responses.append(agent_response)
 
         return AgentListResponse(
@@ -249,6 +251,9 @@ async def update_agent(
         if request.enabled is not None:
             agent.enabled = request.enabled
 
+        from datetime import datetime, timezone
+        agent.updated_at = datetime.now(timezone.utc)
+
         await db.commit()
         await db.refresh(agent)
 
@@ -303,10 +308,20 @@ async def update_prompt(
     """
     Update system prompt (Admin Supervisor Tuning - UC-01)
 
+    **Hướng dẫn cho Admin:**
+    System prompt chỉ nên chứa nhân cách, giọng điệu, nhiệm vụ và quy tắc nghiệp vụ.
+    KHÔNG cần thêm: ReAct pattern, danh sách tools, quy tắc format kỹ thuật (code đã quản lý tự động).
+
+    **Ví dụ nội dung phù hợp:**
+    - Vai trò & giọng điệu (xưng hô, mức độ thân thiện)
+    - Nhiệm vụ chính (tư vấn sức khỏe, đặt lịch, tìm phòng khám)
+    - Quy tắc nghiệp vụ (không chẩn đoán, ưu tiên an toàn)
+    - Phạm vi tư vấn (chỉ thú cưng, từ chối ngoài phạm vi)
+
     Body:
         {
             "prompt_text": "Ban la Petties AI Assistant...",
-            "notes": "Updated for ReAct pattern",
+            "notes": "Updated personality and business rules",
             "created_by": "admin"
         }
     """
@@ -320,22 +335,17 @@ async def update_prompt(
         if not agent:
             raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
 
-        # Get current max version
-        version_result = await db.execute(
-            select(PromptVersion.version)
-            .where(PromptVersion.agent_id == agent_id)
-            .order_by(desc(PromptVersion.version))
-            .limit(1)
-        )
-        max_version = version_result.scalar_one_or_none() or 0
-        new_version = max_version + 1
+        if not request.prompt_text or len(request.prompt_text.strip()) < 10:
+            raise HTTPException(status_code=400, detail="System prompt quá ngắn (tối thiểu 10 ký tự)")
 
-        # Deactivate all previous versions
-        await db.execute(
-            PromptVersion.__table__.update()
-            .where(PromptVersion.agent_id == agent_id)
-            .values(is_active=False)
+        # Get current versions to deactivate (ORM-based for consistency)
+        old_versions_query = select(PromptVersion).where(
+            PromptVersion.agent_id == agent_id,
+            PromptVersion.is_active == True
         )
+        old_versions_result = await db.execute(old_versions_query)
+        for old_v in old_versions_result.scalars().all():
+            old_v.is_active = False
 
         # Create new version
         new_prompt = PromptVersion(
@@ -348,12 +358,16 @@ async def update_prompt(
         )
         db.add(new_prompt)
 
-        # Update agent's current system_prompt
+        # Update agent's current system_prompt and timestamp
         agent.system_prompt = request.prompt_text
+        from datetime import datetime, timezone
+        agent.updated_at = datetime.now(timezone.utc)
 
         await db.commit()
 
         logger.info(f"Created prompt version {new_version} for agent {agent.name}")
+
+        prompt_preview = request.prompt_text[:200] + "..." if len(request.prompt_text) > 200 else request.prompt_text
 
         return UpdatePromptResponse(
             success=True,
@@ -361,7 +375,7 @@ async def update_prompt(
             agent_id=agent_id,
             agent_name=agent.name,
             version=new_version,
-            prompt_preview=request.prompt_text[:200] + "..." if len(request.prompt_text) > 200 else request.prompt_text
+            prompt_preview=prompt_preview
         )
 
     except HTTPException:
@@ -459,39 +473,74 @@ async def test_agent(
     Returns ReAct trace (Thought -> Action -> Observation).
     """
     try:
-        # Load agent from DB with AgentFactory
-        from app.core.agents.factory import AgentFactory
-
-        agent = await AgentFactory.get_agent_by_id(agent_id, db)
-
-        # Get agent name from DB
+        # 1. Load agent metadata and check existence (Optimize DB query)
         result = await db.execute(
             select(Agent).where(Agent.id == agent_id)
         )
         agent_db = result.scalar_one_or_none()
+        
+        if not agent_db:
+            raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
 
-        # Invoke agent
-        response = await agent.invoke(request.message)
+        # 2. Get functional agent from factory
+        from app.core.agents.factory import AgentFactory
+        agent = await AgentFactory.get_agent_by_id(agent_id, db)
 
-        # Get ReAct trace if available
-        react_steps = []
-        # Note: ReAct trace would come from agent state
-        # For now, return basic thinking process
+        # 3. Stream agent response to collect real ReAct trace (Inconsistent with chat fix)
+        react_trace = []
+        full_response = ""
+        tool_calls = []
+
+        try:
+            async for event in agent.stream(request.message, session_id=f"test-{uuid4().hex[:8]}"):
+                if not isinstance(event, dict):
+                    continue
+                
+                event_type = event.get("type", "")
+                
+                if event_type == "react_step":
+                    step = event.get("step", {})
+                    react_trace.append(step)
+                    if step.get("tool_name"):
+                        tool_calls.append({
+                            "tool_name": step.get("tool_name"),
+                            "tool_params": step.get("tool_params"),
+                            "tool_result": step.get("tool_result")
+                        })
+                
+                elif event_type in ("token", "final_answer"):
+                    full_response += event.get("content", "")
+                
+                elif event_type == "error":
+                    raise Exception(event.get("content", "Agent error during testing"))
+        except Exception as e:
+            logger.error(f"Test stream failed: {e}")
+            if not full_response:
+                full_response = f"Lỗi xử lý: {str(e)}"
+
+        # 4. Fallback for empty responses
+        if not full_response.strip() and react_trace:
+            last_obs = next(
+                (s for s in reversed(react_trace) if s.get("step_type") == "observation"),
+                None
+            )
+            if last_obs:
+                full_response = last_obs.get("content", "Agent finished with trace but no final answer.")
 
         return TestAgentResponse(
             success=True,
-            agent_name=agent_db.name if agent_db else "unknown",
+            agent_name=agent_db.name,
             message=request.message,
-            response=response,
-            react_steps=react_steps,
+            response=full_response,
+            react_steps=[ReActStepSchema(**s) for s in react_trace],
             thinking_process=[
-                f"1. Loaded agent '{agent_db.name if agent_db else 'unknown'}' from DB",
+                f"1. Loaded agent '{agent_db.name}' from DB",
                 "2. Using system prompt from database",
-                f"3. Model: {agent_db.model if agent_db else 'unknown'}",
-                "4. Processing with ReAct pattern...",
+                f"3. Model: {agent_db.model}",
+                f"4. Processing with ReAct pattern ({len(react_trace)} steps)...",
                 "5. Generated response"
             ],
-            tool_calls=[]
+            tool_calls=tool_calls
         )
 
     except ValueError as e:

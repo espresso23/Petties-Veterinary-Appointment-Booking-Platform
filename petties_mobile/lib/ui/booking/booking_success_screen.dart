@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../config/constants/app_colors.dart';
+import '../../data/services/booking_service.dart';
 import '../../providers/booking_wizard_provider.dart';
+import '../../routing/app_routes.dart';
 
 /// Booking Success Screen
 class BookingSuccessScreen extends StatelessWidget {
@@ -10,8 +12,16 @@ class BookingSuccessScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.stone50,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        final provider = context.read<BookingWizardProvider>();
+        provider.resetBooking();
+        context.go(AppRoutes.petOwnerHome);
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.stone50,
       body: Consumer<BookingWizardProvider>(
         builder: (context, provider, _) {
           return SafeArea(
@@ -125,10 +135,36 @@ class BookingSuccessScreen extends StatelessWidget {
 
                   // Action buttons
                   GestureDetector(
-                    onTap: () {
-                      provider.resetBooking();
-                      // TODO: Navigate to my appointments when screen is ready
-                      context.go('/pet-owner/home');
+                    onTap: () async {
+                      final createdBookingId = provider.createdBookingId;
+                      if (createdBookingId == null || createdBookingId.isEmpty) {
+                        provider.resetBooking();
+                        if (context.mounted) {
+                          context.go('${AppRoutes.petOwnerHome}?tab=2');
+                        }
+                        return;
+                      }
+
+                      try {
+                        final booking =
+                            await BookingService().getBookingById(createdBookingId);
+                        provider.resetBooking();
+                        if (context.mounted) {
+                          context.go(AppRoutes.bookingDetailView, extra: booking);
+                        }
+                      } catch (_) {
+                        provider.resetBooking();
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Không thể mở trực tiếp lịch hẹn mới. Đã chuyển tới danh sách lịch hẹn.',
+                              ),
+                            ),
+                          );
+                          context.go('${AppRoutes.petOwnerHome}?tab=2');
+                        }
+                      }
                     },
                     child: Container(
                       width: double.infinity,
@@ -162,7 +198,7 @@ class BookingSuccessScreen extends StatelessWidget {
                   GestureDetector(
                     onTap: () {
                       provider.resetBooking();
-                      context.go('/home');
+                      context.go(AppRoutes.petOwnerHome);
                     },
                     child: Container(
                       width: double.infinity,
@@ -191,7 +227,7 @@ class BookingSuccessScreen extends StatelessWidget {
           );
         },
       ),
-    );
+    ));
   }
 
   Widget _buildInfoRow(IconData icon, String label, String value) {

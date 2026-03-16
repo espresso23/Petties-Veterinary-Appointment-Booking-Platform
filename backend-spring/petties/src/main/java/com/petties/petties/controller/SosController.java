@@ -128,7 +128,8 @@ public class SosController {
                         if (booking.getPet() != null) {
                             responseBuilder
                                     .petId(booking.getPet().getId())
-                                    .petName(booking.getPet().getName());
+                                    .petName(booking.getPet().getName())
+                                    .petAvatarUrl(booking.getPet().getImageUrl());
                         }
 
                         if (booking.getClinic() != null) {

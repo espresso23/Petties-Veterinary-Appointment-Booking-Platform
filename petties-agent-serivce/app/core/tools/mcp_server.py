@@ -16,12 +16,48 @@ from fastmcp import FastMCP
 from typing import Any, Dict, List
 import logging
 import asyncio
+import json
 
 logger = logging.getLogger(__name__)
 
-# ===== CREATE FASTMCP SERVER =====
 # FastMCP server instance - single source of truth cho tất cả tools
 mcp_server = FastMCP("Petties Agent Tools")
+
+# ===== MCP TOOLS CACHE =====
+# Cache cho list_tools() để tránh gọi lại mỗi request
+_mcp_tools_cache = None
+_mcp_tools_cache_lock = asyncio.Lock()
+
+
+async def _get_tools_with_cache() -> List[Any]:
+    """
+    Internal helper to get tools with caching.
+    Ensures safe concurrent initialization.
+    """
+    global _mcp_tools_cache
+    if _mcp_tools_cache is not None:
+        return _mcp_tools_cache
+
+    async with _mcp_tools_cache_lock:
+        if _mcp_tools_cache is not None:
+            return _mcp_tools_cache
+
+        logger.info("📡 Refilling MCP tools cache...")
+        try:
+            _mcp_tools_cache = await mcp_server.list_tools()
+            logger.info(f"✅ Cached {len(_mcp_tools_cache)} MCP tools")
+        except Exception as e:
+            logger.error(f"❌ Failed to list tools from FastMCP: {e}")
+            return []
+
+    return _mcp_tools_cache
+
+
+def invalidate_mcp_tools_cache() -> None:
+    """Explicitly invalidate the tools cache."""
+    global _mcp_tools_cache
+    _mcp_tools_cache = None
+    logger.info("♻️ MCP tools cache invalidated")
 
 
 # Note: health_check is NOT an MCP tool for agents
@@ -36,10 +72,10 @@ async def get_mcp_tools_metadata() -> List[Dict[str, Any]]:
     """
     tools_metadata = []
 
-    # FastMCP 2.x uses async get_tools() method
-    tools = await mcp_server.get_tools()
+    tools = await _get_tools_with_cache()
 
-    for tool_name, tool in tools.items():
+    for tool in tools:
+        tool_name = tool.name
         # Extract input schema from tool parameters
         input_schema = None
         if hasattr(tool, 'parameters') and tool.parameters:
@@ -83,6 +119,80 @@ def get_mcp_tools_metadata_sync() -> List[Dict[str, Any]]:
 
 
 # ===== TOOL EXECUTION =====
+def _normalize_mcp_result(value: Any) -> Any:
+    """
+    Convert FastMCP/Pydantic tool results to JSON-serializable primitives.
+
+    Priority:
+    1. `structured_content` when available
+    2. Pydantic `model_dump()` / `dict()` data
+    3. Lists/dicts recursively
+    4. Text JSON payloads if parsable
+    5. String fallback
+    """
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+
+    if isinstance(value, dict):
+        return {str(k): _normalize_mcp_result(v) for k, v in value.items()}
+
+    if isinstance(value, (list, tuple, set)):
+        return [_normalize_mcp_result(item) for item in value]
+
+    structured_content = getattr(value, "structured_content", None)
+    if structured_content is not None:
+        return _normalize_mcp_result(structured_content)
+
+    if hasattr(value, "model_dump"):
+        try:
+            return _normalize_mcp_result(value.model_dump(mode="json"))
+        except TypeError:
+            return _normalize_mcp_result(value.model_dump())
+
+    if hasattr(value, "dict"):
+        try:
+            return _normalize_mcp_result(value.dict())
+        except Exception:
+            pass
+
+    content = getattr(value, "content", None)
+    meta = getattr(value, "meta", None)
+    if content is not None or meta is not None:
+        normalized_payload: Dict[str, Any] = {}
+        if content is not None:
+            normalized_payload["content"] = _normalize_mcp_result(content)
+        if meta is not None:
+            normalized_payload["meta"] = _normalize_mcp_result(meta)
+        return normalized_payload
+
+    text = getattr(value, "text", None)
+    if isinstance(text, str):
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            return text
+
+    if hasattr(value, "json"):
+        try:
+            return json.loads(value.json())
+        except Exception:
+            pass
+
+    if hasattr(value, "__dict__"):
+        try:
+            public_attrs = {
+                key: attr_value
+                for key, attr_value in vars(value).items()
+                if not key.startswith("_")
+            }
+            if public_attrs:
+                return _normalize_mcp_result(public_attrs)
+        except Exception:
+            pass
+
+    return str(value)
+
+
 async def call_mcp_tool(tool_name: str, parameters: Dict[str, Any] = None) -> Any:
     """
     Execute a registered MCP tool by name
@@ -97,32 +207,27 @@ async def call_mcp_tool(tool_name: str, parameters: Dict[str, Any] = None) -> An
     if parameters is None:
         parameters = {}
 
-    # Get registered tools using async API
-    registered_tools = await mcp_server.get_tools()
+    # Get registered tools from cache
+    registered_tools = await _get_tools_with_cache()
+    available_tools = [tool.name for tool in registered_tools]
 
-    if tool_name not in registered_tools:
-        available_tools = list(registered_tools.keys())
+    if tool_name not in available_tools:
         raise ValueError(
             f"Tool '{tool_name}' not found. Available tools: {available_tools}"
         )
 
-    # Get the tool
-    tool = registered_tools[tool_name]
+    # Get the tool metadata
+    tool = await mcp_server.get_tool(tool_name)
 
     logger.info(f"🔧 Executing MCP tool: {tool_name} with params: {parameters}")
 
     try:
-        # Execute the tool - FastMCP handles both sync and async tools
-        if hasattr(tool, 'fn'):
-            result = tool.fn(**parameters)
-            if asyncio.iscoroutine(result):
-                result = await result
-        else:
-            # Fallback: try calling tool directly
-            result = await mcp_server._tool_manager.call_tool(tool_name, parameters)
+        # Execute the tool - FastMCP hiện tại expose call_tool trực tiếp
+        result = await mcp_server.call_tool(tool_name, parameters)
+        normalized_result = _normalize_mcp_result(result)
         
         logger.info(f"✅ Tool '{tool_name}' executed successfully")
-        return result
+        return normalized_result
 
     except TypeError as e:
         logger.error(f"❌ Parameter error for tool '{tool_name}': {e}")
@@ -137,7 +242,7 @@ async def call_mcp_tool(tool_name: str, parameters: Dict[str, Any] = None) -> An
 async def get_server_info_async() -> Dict[str, Any]:
     """Get MCP server information (async)"""
     try:
-        tools = await mcp_server.get_tools()
+        tools = await _get_tools_with_cache()
         tools_count = len(tools)
     except Exception:
         tools_count = 0

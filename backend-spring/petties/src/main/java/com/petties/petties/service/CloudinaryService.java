@@ -119,11 +119,10 @@ public class CloudinaryService {
                                     .fetchFormat("auto")));
 
             log.info("Clinic image uploaded successfully: {}", uploadResult.get("public_id"));
-
             return mapUploadResult(uploadResult);
 
         } catch (Exception e) {
-            log.error("Failed to upload clinic image to Cloudinary: {}", e.getMessage(), e);
+            log.error("Failed to upload clinic image: {}", e.getMessage(), e);
             throw new BadRequestException("Không thể upload ảnh phòng khám: " + e.getMessage());
         }
     }

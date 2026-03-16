@@ -129,18 +129,20 @@ class BookingResponse {
             .toList() ??
         [];
 
-    // Flatten services from all pets if services is not directly provided or empty
-    // But since the new API provides services inside pets, we should flatten them to maintain compatibility
-    // with existing UI that uses `services` field.
+    // Flatten services from both direct services field AND pets
+    // to ensure we capture all services regardless of API structure
     List<BookingServiceItem> allServices = [];
-    if (json['services'] != null) {
+    
+    // Add services from direct field if not empty
+    if (json['services'] != null && (json['services'] as List).isNotEmpty) {
       allServices = (json['services'] as List<dynamic>)
           .map((e) => BookingServiceItem.fromJson(e))
           .toList();
-    } else {
-      for (final pet in petsList) {
-        allServices.addAll(pet.services);
-      }
+    }
+    
+    // Also add services from pets (for multi-pet bookings)
+    for (final pet in petsList) {
+      allServices.addAll(pet.services);
     }
 
     return BookingResponse(

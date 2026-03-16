@@ -133,7 +133,7 @@ class ClinicStaffControllerUnitTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                                 .andExpect(status().isOk())
-                                .andExpect(content().string("Staff invited successfully"));
+                                .andExpect(content().string("Mời nhân viên thành công"));
 
                 verify(staffService).inviteByEmail(eq(clinicId), any(InviteByEmailRequest.class));
         }
@@ -255,7 +255,7 @@ class ClinicStaffControllerUnitTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"specialty\": \"GROOMER\"}"))
                                 .andExpect(status().isOk())
-                                .andExpect(content().string("Staff specialty updated successfully"));
+                                .andExpect(content().string("Cập nhật chuyên môn nhân viên thành công"));
         }
 
         @Test
@@ -283,7 +283,7 @@ class ClinicStaffControllerUnitTest {
                 mockMvc.perform(delete("/clinics/{clinicId}/staff/{userId}", clinicId, userId)
                                 .with(csrf()))
                                 .andExpect(status().isOk())
-                                .andExpect(content().string("Staff removed successfully"));
+                                .andExpect(content().string("Xóa nhân viên thành công"));
 
                 verify(staffService).removeStaff(clinicId, userId);
         }

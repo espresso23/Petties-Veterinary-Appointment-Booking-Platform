@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
-import { getBookingsByStaff, getBookingById, checkInBooking, addServiceToBooking, removeServiceFromBooking } from '../../services/bookingService'
+import { getBookingsByStaff, getBookingById, checkInBooking, checkoutBooking, addServiceToBooking, removeServiceFromBooking } from '../../services/bookingService'
 import type { Booking, BookingStatus } from '../../types/booking'
 import { BOOKING_STATUS_CONFIG, BOOKING_TYPE_CONFIG } from '../../types/booking'
 import { useSseNotification } from '../../hooks/useSseNotification'
@@ -63,6 +63,8 @@ export const StaffBookingsPage = () => {
     const [addServiceModalOpen, setAddServiceModalOpen] = useState(false);
     const [addingService, setAddingService] = useState(false);
     const [removeConfirmService, setRemoveConfirmService] = useState<{ bookingServiceId: string; serviceName: string } | null>(null);
+    const [checkoutConfirmBookingId, setCheckoutConfirmBookingId] = useState<string | null>(null);
+    const checkoutInFlightRef = useRef(false);
     const [totalPages, setTotalPages] = useState(0)
     const [totalElements, setTotalElements] = useState(0)
     const pageSize = 10
@@ -171,8 +173,33 @@ export const StaffBookingsPage = () => {
 
     // Navigate directly to vaccine record page
     const handleOpenVaccineModal = () => {
-        if (!selectedBooking) return
-        navigate(`/staff/vaccine/create/${selectedBooking.petId}?bookingId=${selectedBooking.bookingId}&bookingCode=${selectedBooking.bookingCode}`)
+        if (!selectedBooking) return;
+        
+        // Find the vaccine service to get its name
+        const allServiceItems = (selectedBooking.pets?.length ?? 0) > 0
+            ? (selectedBooking.pets ?? []).flatMap(p => p.services ?? [])
+            : (selectedBooking.services ?? []);
+            
+        const vaccService = allServiceItems.find(svc => {
+            const nameStr = svc.serviceName?.toLowerCase() || '';
+            const catStr = svc.serviceCategory || '';
+            return catStr === 'VACCINATION' || 
+                   nameStr.includes('vaccine') || 
+                   nameStr.includes('vắc-xin') || 
+                   nameStr.includes('vắc xin') || 
+                   nameStr.includes('tiêm') ||
+                   catStr.toLowerCase().includes('vaccine') ||
+                   catStr.toLowerCase().includes('vắc-xin') ||
+                   catStr.toLowerCase().includes('vắc xin') ||
+                   catStr.toLowerCase().includes('tiêm');
+        });
+
+        let url = `/staff/patients/${selectedBooking.petId}/vaccinations?bookingId=${selectedBooking.bookingId}&bookingCode=${selectedBooking.bookingCode}`;
+        if (vaccService && vaccService.serviceName) {
+            url += `&initialVaccineName=${encodeURIComponent(vaccService.serviceName)}`;
+        }
+        
+        navigate(url);
     }
 
     const handleOpenAddServiceModal = () => {
@@ -184,8 +211,9 @@ export const StaffBookingsPage = () => {
         if (!selectedBooking) return;
         setAddingService(true);
         try {
-            const updatedBooking = await addServiceToBooking(selectedBooking.bookingId, serviceId);
-            setSelectedBooking(updatedBooking);
+            await addServiceToBooking(selectedBooking.bookingId, serviceId);
+            const updated = await getBookingById(selectedBooking.bookingId);
+            setSelectedBooking(updated);
             // Refresh list
             fetchBookings();
             setAddServiceModalOpen(false);
@@ -218,6 +246,30 @@ export const StaffBookingsPage = () => {
         } finally {
             setActionLoading(false);
             setRemoveConfirmService(null);
+        }
+    };
+
+    const handleCheckoutConfirm = async () => {
+        if (!checkoutConfirmBookingId) return;
+        if (checkoutInFlightRef.current) return;
+        checkoutInFlightRef.current = true;
+        setActionLoading(true);
+        try {
+            await checkoutBooking(checkoutConfirmBookingId);
+            const updated = await getBookingById(checkoutConfirmBookingId);
+            setSelectedBooking(updated);
+            fetchBookings();
+            showToast('success', 'Hoàn thành khám thành công.');
+        } catch (error: unknown) {
+            console.error('Checkout failed:', error);
+            const msg = (error && typeof error === 'object' && 'response' in error && (error as { response?: { data?: { message?: string } } }).response?.data?.message)
+                ? (error as { response: { data: { message: string } } }).response.data.message
+                : 'Hoàn thành khám thất bại.';
+            showToast('error', msg);
+        } finally {
+            setActionLoading(false);
+            setCheckoutConfirmBookingId(null);
+            checkoutInFlightRef.current = false;
         }
     };
 
@@ -423,7 +475,17 @@ export const StaffBookingsPage = () => {
                                 const allServiceItems = (selectedBooking.pets?.length ?? 0) > 0
                                     ? (selectedBooking.pets ?? []).flatMap(p => p.services ?? [])
                                     : (selectedBooking.services ?? []);
-                                const isAssignedToBooking = allServiceItems.some(svc => svc.assignedStaffId === user?.userId);
+                                const hasVaccineService = allServiceItems.some(svc => {
+                                    const nameStr = svc.serviceName?.toLowerCase() || '';
+                                    const catStr = svc.serviceCategory || '';
+                                    return catStr === 'VACCINATION' ||
+                                           nameStr.includes('vaccine') || 
+                                           nameStr.includes('vắc-xin') || 
+                                           nameStr.includes('vắc xin') ||
+                                           catStr.toLowerCase().includes('vaccine') ||
+                                           catStr.toLowerCase().includes('vắc-xin') ||
+                                           catStr.toLowerCase().includes('vắc xin');
+                                });
                                 return (
                             <>
                                 {/* Modal Header */}
@@ -489,46 +551,56 @@ export const StaffBookingsPage = () => {
                                     </div>
 
                                     {/* Thao tác - đặt trên cao để staff luôn thấy */}
-                                    <div className="p-4 bg-stone-50 rounded-2xl border-2 border-stone-900 shadow-[3px_3px_0_0_#1c1917] space-y-3">
-                                        <div className="text-[10px] text-stone-500 font-black uppercase tracking-widest">Thao tác</div>
-                                        {selectedBooking.status === 'CONFIRMED' && isAssignedToBooking && (
+                                    {(selectedBooking.status === 'CONFIRMED' || selectedBooking.status === 'IN_PROGRESS') && (
+                                        <div className="p-4 bg-stone-50 rounded-2xl border-2 border-stone-900 shadow-[3px_3px_0_0_#1c1917] space-y-3">
+                                            <div className="text-[10px] text-stone-500 font-black uppercase tracking-widest">Thao tác</div>
                                             <button
-                                                onClick={async () => {
-                                                    setActionLoading(true)
-                                                    try {
-                                                        await checkInBooking(selectedBooking.bookingId)
-                                                        handleViewDetail(selectedBooking.bookingId)
-                                                        fetchBookings()
-                                                        showToast('success', 'Check-in thành công')
-                                                    } catch (err) {
-                                                        console.error('Check-in failed:', err)
-                                                        showToast('error', 'Check-in thất bại')
-                                                    } finally {
-                                                        setActionLoading(false)
-                                                    }
-                                                }}
-                                                disabled={actionLoading}
-                                                className="w-full bg-amber-600 text-white py-3 rounded-xl font-black uppercase text-sm tracking-widest border-2 border-stone-900 shadow-[3px_3px_0_0_#1c1917] hover:-translate-y-0.5 hover:shadow-[5px_5px_0_0_#1c1917] active:translate-y-0 transition-all disabled:opacity-50"
+                                                type="button"
+                                                onClick={() => navigate('/staff/patients', { state: { focusPetId: selectedBooking.petId } })}
+                                                className="w-full bg-white text-stone-900 py-3 rounded-xl font-black uppercase text-xs tracking-widest border-2 border-stone-900 shadow-[2px_2px_0_0_#1c1917] hover:-translate-y-0.5 transition-all"
                                             >
-                                                {actionLoading ? 'ĐANG XỬ LÝ...' : 'BẮT ĐẦU THỰC HIỆN DỊCH VỤ'}
+                                                XEM HỒ SƠ BỆNH ÁN
                                             </button>
-                                        )}
-                                        {selectedBooking.status === 'IN_PROGRESS' && (
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            {selectedBooking.status === 'CONFIRMED' && (
                                                 <button
-                                                    type="button"
-                                                    onClick={() => navigate(`/staff/emr/create/${selectedBooking.petId}?bookingId=${selectedBooking.bookingId}&bookingCode=${selectedBooking.bookingCode}`)}
-                                                    className="bg-blue-500 text-white py-3 rounded-xl font-black uppercase text-xs tracking-widest border-2 border-stone-900 shadow-[2px_2px_0_0_#1c1917] hover:-translate-y-0.5 transition-all"
+                                                    onClick={async () => {
+                                                        setActionLoading(true)
+                                                        try {
+                                                            await checkInBooking(selectedBooking.bookingId)
+                                                            handleViewDetail(selectedBooking.bookingId)
+                                                            fetchBookings()
+                                                            showToast('success', 'Check-in thành công')
+                                                        } catch (err) {
+                                                            console.error('Check-in failed:', err)
+                                                            showToast('error', 'Check-in thất bại')
+                                                        } finally {
+                                                            setActionLoading(false)
+                                                        }
+                                                    }}
+                                                    disabled={actionLoading}
+                                                    className="w-full bg-amber-600 text-white py-3 rounded-xl font-black uppercase text-sm tracking-widest border-2 border-stone-900 shadow-[3px_3px_0_0_#1c1917] hover:-translate-y-0.5 hover:shadow-[5px_5px_0_0_#1c1917] active:translate-y-0 transition-all disabled:opacity-50"
                                                 >
-                                                    TẠO BỆNH ÁN
+                                                    {actionLoading ? 'ĐANG XỬ LÝ...' : 'BẮT ĐẦU THỰC HIỆN DỊCH VỤ'}
                                                 </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={handleOpenVaccineModal}
-                                                    className="bg-emerald-500 text-white py-3 rounded-xl font-black uppercase text-xs tracking-widest border-2 border-emerald-700 shadow-[2px_2px_0_0_#065f46] hover:-translate-y-0.5 transition-all"
-                                                >
-                                                    TIÊM VACCINE
-                                                </button>
+                                            )}
+                                            {selectedBooking.status === 'IN_PROGRESS' && (
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => navigate(`/staff/emr/create/${selectedBooking.petId}?bookingId=${selectedBooking.bookingId}&bookingCode=${selectedBooking.bookingCode}`)}
+                                                        className={`bg-blue-500 text-white py-3 rounded-xl font-black uppercase text-xs tracking-widest border-2 border-stone-900 shadow-[2px_2px_0_0_#1c1917] hover:-translate-y-0.5 transition-all ${!hasVaccineService ? 'col-span-1 sm:col-span-2' : ''}`}
+                                                    >
+                                                        TẠO BỆNH ÁN
+                                                    </button>
+                                                    {hasVaccineService && (
+                                                        <button
+                                                        type="button"
+                                                        onClick={handleOpenVaccineModal}
+                                                        className="bg-emerald-500 text-white py-3 rounded-xl font-black uppercase text-xs tracking-widest border-2 border-emerald-700 shadow-[2px_2px_0_0_#065f46] hover:-translate-y-0.5 transition-all"
+                                                    >
+                                                        TIÊM VACCINE
+                                                    </button>
+                                                )}
                                                 <button
                                                     type="button"
                                                     onClick={handleOpenAddServiceModal}
@@ -536,9 +608,17 @@ export const StaffBookingsPage = () => {
                                                 >
                                                     THÊM DỊCH VỤ PHÁT SINH
                                                 </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setCheckoutConfirmBookingId(selectedBooking.bookingId)}
+                                                    className="col-span-1 sm:col-span-2 bg-amber-600 text-white py-3 rounded-xl font-black uppercase text-xs tracking-widest border-2 border-stone-900 shadow-[3px_3px_0_0_#1c1917] hover:-translate-y-0.5 transition-all"
+                                                >
+                                                    HOÀN THÀNH KHÁM
+                                                </button>
                                             </div>
                                         )}
-                                    </div>
+                                        </div>
+                                    )}
 
                                     {/* Pet Info */}
                                     <div className="p-5 bg-white rounded-2xl border-2 border-stone-900 shadow-[4px_4px_0_0_#1c1917]">
@@ -645,7 +725,7 @@ export const StaffBookingsPage = () => {
                                                                             <span className="font-black text-stone-700">
                                                                                 {svc.price?.toLocaleString('vi-VN')}đ
                                                                             </span>
-                                                                            {svc.bookingServiceId && (
+                                                                            {svc.bookingServiceId && selectedBooking.status === 'IN_PROGRESS' && (
                                                                                 <button
                                                                                     type="button"
                                                                                     onClick={() => setRemoveConfirmService({ bookingServiceId: svc.bookingServiceId!, serviceName: svc.serviceName })}
@@ -706,6 +786,17 @@ export const StaffBookingsPage = () => {
                                         isDanger
                                         onConfirm={handleRemoveAddOnConfirm}
                                         onCancel={() => setRemoveConfirmService(null)}
+                                    />
+                                    
+                                    {/* Confirm checkout */}
+                                    <ConfirmModal
+                                        isOpen={!!checkoutConfirmBookingId}
+                                        title="Hoàn thành khám"
+                                        message="Bạn có chắc chắn muốn hoàn thành lượt khám này? Hành động này sẽ cập nhật trạng thái đơn đặt lịch."
+                                        confirmLabel="HOÀN THÀNH"
+                                        cancelLabel="HỦY BỎ"
+                                        onConfirm={handleCheckoutConfirm}
+                                        onCancel={() => setCheckoutConfirmBookingId(null)}
                                     />
                                 </div>
                             </>

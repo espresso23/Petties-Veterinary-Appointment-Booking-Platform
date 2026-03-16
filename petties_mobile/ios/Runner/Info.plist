@@ -52,6 +52,12 @@
 		<key>NSCameraUsageDescription</key>
 		<string>Ứng dụng cần truy cập camera để chụp ảnh bệnh án.</string>
 
+		<!-- Location Permissions -->
+		<key>NSLocationWhenInUseUsageDescription</key>
+		<string>Ứng dụng cần truy cập vị trí để tìm phòng khám thú y gần bạn.</string>
+		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+		<string>Ứng dụng cần truy cập vị trí để tìm phòng khám thú y gần bạn.</string>
+
 		<!-- App Transport Security - Allow HTTP for development -->
 		<key>NSAppTransportSecurity</key>
 		<dict>
@@ -69,11 +75,10 @@
 		<array>
 			<string>fetch</string>
 			<string>remote-notification</string>
+			<string>location</string>
 		</array>
 
 		<!-- Google Sign-In Configuration -->
-		<!-- Thay YOUR_IOS_CLIENT_ID bằng iOS Client ID từ Google Cloud Console -->
-		<!-- Format: com.googleusercontent.apps.XXXXXXXXXX-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX -->
 		<key>CFBundleURLTypes</key>
 		<array>
 			<dict>
@@ -81,15 +86,15 @@
 				<string>Editor</string>
 				<key>CFBundleURLSchemes</key>
 				<array>
-					<string>com.googleusercontent.apps.YOUR_IOS_CLIENT_ID</string>
+					<string>com.googleusercontent.apps.620454234596-i6r63vqld6s6cvbbek8eteoqnf53ehic</string>
 				</array>
 			</dict>
 		</array>
 		<key>GIDClientID</key>
-		<string>YOUR_IOS_CLIENT_ID.apps.googleusercontent.com</string>
-		<key>UIBackgroundModes</key>
-		<array>
-		<string>location</string>
-		</array>
+		<string>620454234596-i6r63vqld6s6cvbbek8eteoqnf53ehic.apps.googleusercontent.com</string>
+
+		<!-- Google Maps API Key (read from Secrets.xcconfig) -->
+		<key>GoogleMapsAPIKey</key>
+		<string>$(GOOGLE_MAPS_API_KEY)</string>
 	</dict>
 </plist>

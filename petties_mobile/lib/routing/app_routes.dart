@@ -50,6 +50,7 @@ class AppRoutes {
   static const String bookingConfirm = '/booking/confirm';
   static const String bookingSuccess = '/booking/success';
   static const String bookingDetails = '/booking/:id';
+  static const String bookingDetailView = '/bookings/detail';
 
   // Profile & Settings
   static const String editProfile = '/profile/edit';
@@ -69,6 +70,7 @@ class AppRoutes {
   // Chat
   static const String chatList = '/chat';
   static const String chatDetail = '/chat/detail';
+    static const String aiChat = '/chat/ai';
 
   // SOS Emergency Booking (Pet Owner)
   static const String sosRequest = '/sos/request';

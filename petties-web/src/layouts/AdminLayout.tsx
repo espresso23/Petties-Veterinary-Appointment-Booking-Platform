@@ -16,6 +16,7 @@ import {
   BookOpenIcon,
   WrenchIcon,
   PlayIcon,
+  ChartBarSquareIcon,
   BellIcon,
   UserCircleIcon,
   BanknotesIcon
@@ -64,6 +65,7 @@ export const AdminLayout = () => {
         { path: '/admin/knowledge', label: 'KNOWLEDGE BASE', icon: BookOpenIcon },
         { path: '/admin/tools', label: 'TOOLS', icon: WrenchIcon },
         { path: '/admin/playground', label: 'PLAYGROUND', icon: PlayIcon },
+        { path: '/admin/ai-insights', label: 'AI INSIGHTS', icon: ChartBarSquareIcon },
       ]
     },
     {

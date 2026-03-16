@@ -1,7 +1,7 @@
 # Booking Workflow - Petties
 
-**Version:** 1.6.0  
-**Last Updated:** 2026-03-04  
+**Version:** 1.7.0  
+**Last Updated:** 2026-03-09  
 
 ---
 
@@ -175,6 +175,13 @@ sequenceDiagram
 
 ## 5. Payment Flow
 
+## 5.1 AI Booking Guardrails
+
+- Với business chat, AI phải hỏi rõ `IN_CLINIC` hay `HOME_VISIT` trước khi kiểm tra slot hoặc tạo booking nếu người dùng chưa nêu rõ.
+- Nếu người dùng đã cung cấp sẵn phòng khám, dịch vụ, thú cưng hoặc thời gian, AI không được hỏi lại các trường đã có.
+- Với `HOME_VISIT`, AI chỉ được tạo booking khi đã có đủ địa chỉ, GPS và khoảng cách di chuyển.
+- Trước khi gọi tool tạo booking, AI phải tóm tắt lại loại khám, pet, clinic, ngày, giờ, dịch vụ và yêu cầu người dùng xác nhận rõ ràng.
+
 ```mermaid
 flowchart TD
     A[IN_PROGRESS] --> B[Staff hoàn thành khám]
@@ -241,8 +248,8 @@ TTL:   60 seconds
 
 ## 9. Reassign Staff & Availability Check (v1.5.0) ✅
 
-- **UC-CM-14:** Kiểm tra tính khả dụng của Staff trước khi gán (Check Staff Availability).
-- **UC-CM-15:** Gán lại nhân viên (Reassign Staff) khi có thay đổi nhân sự hoặc cấp cứu.
+- **UC-BOOK-06:** Kiểm tra tính khả dụng của Staff trước khi gán và xác nhận booking.
+- **UC-BOOK-07:** Gán lại nhân viên (Reassign Staff) cho từng service item khi có thay đổi nhân sự hoặc cấp cứu.
 - **UC-VT-14:** Nhân viên xem tổng quan Dashboard lịch của mình (Staff Home Dashboard Summary).
 
 *Document này mô tả toàn bộ booking workflow cho project Petties.*

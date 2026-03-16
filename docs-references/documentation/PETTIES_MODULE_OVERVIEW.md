@@ -2,7 +2,7 @@
 
 **Document Purpose:** Tổng hợp đầy đủ các module/feature của project Petties khi hoàn thành
 **For:** Stakeholder review, scope verification, team alignment
-**Last Updated:** 2026-01-22  
+**Last Updated:** 2026-03-11  
 
 ---
 
@@ -17,7 +17,7 @@
 | 05 | **Service Management** | Master services (Admin), Clinic services (Owner) | 8 | ✅ Done |
 | 06 | **Pricing** | Dynamic pricing rules, price calculation | 3 | ✅ Done |
 | 07 | **Staff Management** | Quick add staff, deactivate, list | 4 | ✅ Done |
-| 08 | **VetShift & Slot** | Create shifts, auto-generate 30-min slots, block/unblock (STAFF shifts) | 8 | ✅ Done |
+| 08 | **StaffShift & Slot** | Create shifts, auto-generate 30-min slots, block/unblock | 8 | ✅ Done |
 | 09 | **Booking** | Create, assign, approve/reject, check-in/out, cancel, incurred services | 12 | ⏳ Pending |
 | 10 | **Chat (1-1)** | Conversations, messages, WebSocket realtime | 7+WS | ⏳ Pending |
 | 11 | **EMR** | Create/view medical records linked to booking | 4 | ❌ Phase 2 |
@@ -39,7 +39,7 @@
 | No | Module | Description | Status |
 |----|--------|-------------|:------:|
 | 01 | **Single Agent (ReAct)** | LangGraph-based agent with Thought → Action → Observation loop | ✅ Done |
-| 02 | **MCP Tools** | FastMCP tools: pet_care_qa, symptom_search, search_clinics, check_slots, create_booking | 🔄 Partial |
+| 02 | **MCP Tools** | FastMCP tools: pet_knowledge_search, web_search, search_clinics_nearby, check_available_slots, create_booking_for_user | 🔄 Partial |
 | 03 | **RAG Engine** | LlamaIndex + Cohere embeddings + Qdrant Cloud | ✅ Done |
 | 04 | **Agent Config** | Admin UI for prompt, hyperparameters, model selection | ✅ Done |
 | 05 | **Tool Management** | Enable/disable tools, view schemas | ✅ Done |
@@ -47,6 +47,11 @@
 | 07 | **Agent Playground** | Interactive chat testing with ReAct trace | ✅ Done |
 | 08 | **WebSocket Chat** | Real-time streaming responses | ✅ Done |
 | 09 | **AI Vision Analysis** | Image-based pet health analysis & alerts | ✅ In Scope |
+| 10 | **Query Expander** | LLM-based short query expansion trước khi search RAG | ✅ Done |
+| 11 | **Knowledge Graph** | LlamaIndex KGIndex + SimpleGraphStore, trích xuất quan hệ từ tài liệu | ✅ Done |
+| 12 | **Case Memory** | Confirmed case storage trong Qdrant với feedback-weighted re-ranking | ✅ Done |
+| 13 | **Feedback Service** | Thu thập feedback, auto-classify, auto-embed positive cases | ✅ Done |
+| 14 | **Hybrid RAG Engine** | Tổng hợp RAG + KG + Case Memory với parallel search | ✅ Done |
 
 ---
 
@@ -124,7 +129,7 @@
 | 09 | **Shared EMR** | Medical records accessible across clinics | All | ❌ Phase 2 |
 | 10 | **Shared Vaccination** | Vaccination history shared across clinics | All | ❌ Phase 2 |
 | 11 | **Slot Management** | Auto-generate 30-min slots from shifts | BE + Web | ⏳ Pending |
-| 12 | **Booking State Machine** | PENDING → ASSIGNED → CONFIRMED → IN_PROGRESS → COMPLETED | All | ⏳ Pending |
+| 12 | **Booking State Machine** | PENDING → CONFIRMED → IN_PROGRESS → COMPLETED | All | ⏳ Pending |
 | 13 | **Error Handling** | Centralized with Vietnamese messages | All | ✅ Done |
 | 14 | **Neobrutalism Design** | Consistent UI design system | Web + Mobile | ✅ Done |
 | 15 | **Incurred Services** | Staff can add extra services during examination | BE + Mobile | ⏳ Pending |
@@ -139,7 +144,7 @@
 | No | Feature | Reason | Priority |
 |----|---------|--------|:--------:|
 | 03 | Video Consultation | WebRTC phức tạp | Low |
-| 04 | Multi-Agent Architecture | Simplified to Single Agent | Low |
+| 04 | Single Agent + ReAct enhancements | Continue hardening current architecture | Low |
 | 05 | Email/SMS Notifications | Push đủ cho MVP | Medium |
 | 06 | Multi-language | Defer sau MVP | Low |
 
@@ -162,13 +167,13 @@
 | Category | Total | Done | In Progress | Pending | Phase 2 |
 |----------|:-----:|:----:|:-----------:|:-------:|:-------:|
 | Backend Modules | 19 | 12 | 1 | 0 | 6 |
-| AI Service Modules | 9 | 7 | 2 | 0 | 0 |
+| AI Service Modules | 14 | 12 | 2 | 0 | 0 |
 | Web Frontend Modules | 22 | 19 | 1 | 1 | 1 |
 | Mobile Frontend Modules | 23 | 11 | 2 | 3 | 7 |
 | Cross-Cutting Features | 16 | 12 | 1 | 0 | 3 |
-| **TOTAL** | **89** | **61** | **7** | **4** | **17** |
+| **TOTAL** | **94** | **66** | **7** | **4** | **17** |
 
-**Overall Progress:** ~83.5% Complete (Based on 91/109 Use Cases)
+**Overall Progress:** ~85.1% Complete (Based on 96/113 Use Cases)
 
 ---
 
@@ -177,7 +182,7 @@
 | Service | Endpoint Count | Base Path |
 |---------|:--------------:|-----------|
 | Spring Boot Backend | ~90 | `/api/*` |
-| AI Agent Service | ~15 + WebSocket | `/ai/*` |
+| AI Agent Service | ~21 + WebSocket | `/ai/*` |
 | **Total** | **~105** | - |
 
 ---
@@ -192,9 +197,9 @@
 
 ---
 
-**Document Version:** 1.6.0
-**Last Updated:** 2026-01-27
-**Change Note:** Updated Role.STAFF → Role.STAFF throughout documentation
+**Document Version:** 1.7.0
+**Last Updated:** 2026-03-11
+**Change Note:** Added 5 AI Service modules (Query Expander, Knowledge Graph, Case Memory, Feedback Service, Hybrid RAG Engine)
 **Prepared by:** Petties Development Team
 **References:**
 - `PETTIES_Features.md` - Feature specifications

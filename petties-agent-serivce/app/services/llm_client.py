@@ -27,14 +27,14 @@ from pydantic import BaseModel
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
 
-
-
 # ============================================================
 # CONFIG MODELS
 # ============================================================
 
+
 class LLMConfig(BaseModel):
     """Configuration cho LLM client"""
+
     provider: str = "openrouter"  # openrouter | deepseek | openai
     model: str = "google/gemini-2.0-flash-exp:free"  # Default: Free Gemini
     fallback_model: str = "meta-llama/llama-3.3-70b-instruct"  # Fallback model
@@ -47,6 +47,7 @@ class LLMConfig(BaseModel):
 
 class LLMResponse(BaseModel):
     """Response tu LLM"""
+
     content: str
     model: str
     usage: Optional[Dict[str, int]] = None
@@ -57,6 +58,7 @@ class LLMResponse(BaseModel):
 # BASE CLASS
 # ============================================================
 
+
 class BaseLLMClient(ABC):
     """Abstract base class cho LLM clients"""
 
@@ -65,20 +67,14 @@ class BaseLLMClient(ABC):
 
     @abstractmethod
     async def generate(
-        self,
-        prompt: str,
-        system_prompt: Optional[str] = None,
-        **kwargs
+        self, prompt: str, system_prompt: Optional[str] = None, **kwargs
     ) -> LLMResponse:
         """Generate response tu LLM"""
         pass
 
     @abstractmethod
     async def stream(
-        self,
-        prompt: str,
-        system_prompt: Optional[str] = None,
-        **kwargs
+        self, prompt: str, system_prompt: Optional[str] = None, **kwargs
     ) -> AsyncIterator[str]:
         """Stream response tokens"""
         pass
@@ -88,7 +84,7 @@ class BaseLLMClient(ABC):
         self,
         messages: List[Dict[str, str]],
         system_prompt: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> LLMResponse:
         """Chat voi message history"""
         pass
@@ -97,6 +93,7 @@ class BaseLLMClient(ABC):
 # ============================================================
 # OPENROUTER CLIENT (RECOMMENDED)
 # ============================================================
+
 
 class OpenRouterClient(BaseLLMClient):
     """
@@ -139,8 +136,8 @@ class OpenRouterClient(BaseLLMClient):
                 "Authorization": f"Bearer {self.api_key}",
                 "HTTP-Referer": "https://petties.world",
                 "X-Title": "Petties AI Agent",
-                "Content-Type": "application/json"
-            }
+                "Content-Type": "application/json",
+            },
         )
 
         logger.info(f"OpenRouterClient initialized: {config.model}")
@@ -149,7 +146,8 @@ class OpenRouterClient(BaseLLMClient):
         self,
         prompt: str,
         system_prompt: Optional[str] = None,
-        **kwargs
+        images: Optional[List[str]] = None,
+        **kwargs,
     ) -> LLMResponse:
         """
         Generate response from OpenRouter
@@ -157,6 +155,7 @@ class OpenRouterClient(BaseLLMClient):
         Args:
             prompt: User prompt
             system_prompt: System prompt (optional)
+            images: Optional list ảnh (URL https, data URL, hoặc base64 raw)
             **kwargs: temperature, max_tokens, top_p
 
         Returns:
@@ -168,7 +167,37 @@ class OpenRouterClient(BaseLLMClient):
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
+
+        # Build user message content (text + images for multimodal)
+        if images:
+            # Multimodal content: text + image_url parts
+            user_content = [{"type": "text", "text": prompt}]
+            for img_data in images:
+                if not isinstance(img_data, str):
+                    continue
+                img_data = img_data.strip()
+                # 1) data URL
+                if img_data.startswith("data:"):
+                    user_content.append(
+                        {"type": "image_url", "image_url": {"url": img_data}}
+                    )
+                # 2) URL trực tiếp (Cloudinary/S3/HTTPS)
+                elif img_data.startswith("http://") or img_data.startswith("https://"):
+                    user_content.append(
+                        {"type": "image_url", "image_url": {"url": img_data}}
+                    )
+                else:
+                    # 3) raw base64 -> thêm data URL prefix
+                    user_content.append(
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{img_data}"},
+                        }
+                    )
+            messages.append({"role": "user", "content": user_content})
+        else:
+            # Simple text-only content
+            messages.append({"role": "user", "content": prompt})
 
         payload = {
             "model": kwargs.get("model", self.model),
@@ -192,19 +221,20 @@ class OpenRouterClient(BaseLLMClient):
                 usage={
                     "prompt_tokens": usage.get("prompt_tokens", 0),
                     "completion_tokens": usage.get("completion_tokens", 0),
-                    "total_tokens": usage.get("total_tokens", 0)
+                    "total_tokens": usage.get("total_tokens", 0),
                 },
-                finish_reason=data.get("choices", [{}])[0].get("finish_reason", "stop")
+                finish_reason=data.get("choices", [{}])[0].get("finish_reason", "stop"),
             )
 
         except httpx.HTTPStatusError as e:
-            logger.error(f"OpenRouter HTTP error: {e.response.status_code} - {e.response.text}")
+            logger.error(
+                f"OpenRouter HTTP error: {e.response.status_code} - {e.response.text}"
+            )
             # Try fallback model
             if kwargs.get("model") != self.fallback_model:
                 logger.info(f"Trying fallback model: {self.fallback_model}")
                 return await self.generate(
-                    prompt, system_prompt,
-                    model=self.fallback_model, **kwargs
+                    prompt, system_prompt, images=images, model=self.fallback_model, **kwargs
                 )
             raise
 
@@ -213,10 +243,7 @@ class OpenRouterClient(BaseLLMClient):
             raise
 
     async def stream(
-        self,
-        prompt: str,
-        system_prompt: Optional[str] = None,
-        **kwargs
+        self, prompt: str, system_prompt: Optional[str] = None, **kwargs
     ) -> AsyncIterator[str]:
         """
         Stream response tokens from OpenRouter
@@ -233,7 +260,24 @@ class OpenRouterClient(BaseLLMClient):
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
+        
+        # Multimodal content support for streaming
+        images = kwargs.get("images")
+        if images:
+            user_content = [{"type": "text", "text": prompt}]
+            for img_data in images:
+                if not isinstance(img_data, str):
+                    continue
+                img_data = img_data.strip()
+                if img_data.startswith("data:"):
+                    user_content.append({"type": "image_url", "image_url": {"url": img_data}})
+                elif img_data.startswith("http://") or img_data.startswith("https://"):
+                    user_content.append({"type": "image_url", "image_url": {"url": img_data}})
+                else:
+                    user_content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_data}"}})
+            messages.append({"role": "user", "content": user_content})
+        else:
+            messages.append({"role": "user", "content": prompt})
 
         payload = {
             "model": kwargs.get("model", self.model),
@@ -241,11 +285,13 @@ class OpenRouterClient(BaseLLMClient):
             "temperature": kwargs.get("temperature", self.config.temperature),
             "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
             "top_p": kwargs.get("top_p", self.config.top_p),
-            "stream": True
+            "stream": True,
         }
 
         try:
-            async with self.client.stream("POST", "/chat/completions", json=payload) as response:
+            async with self.client.stream(
+                "POST", "/chat/completions", json=payload
+            ) as response:
                 response.raise_for_status()
                 async for line in response.aiter_lines():
                     if line.startswith("data: "):
@@ -269,7 +315,7 @@ class OpenRouterClient(BaseLLMClient):
         self,
         messages: List[Dict[str, str]],
         system_prompt: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> LLMResponse:
         """
         Chat voi full message history
@@ -287,10 +333,9 @@ class OpenRouterClient(BaseLLMClient):
             formatted_messages.append({"role": "system", "content": system_prompt})
 
         for msg in messages:
-            formatted_messages.append({
-                "role": msg.get("role", "user"),
-                "content": msg.get("content", "")
-            })
+            formatted_messages.append(
+                {"role": msg.get("role", "user"), "content": msg.get("content", "")}
+            )
 
         payload = {
             "model": kwargs.get("model", self.model),
@@ -314,9 +359,9 @@ class OpenRouterClient(BaseLLMClient):
                 usage={
                     "prompt_tokens": usage.get("prompt_tokens", 0),
                     "completion_tokens": usage.get("completion_tokens", 0),
-                    "total_tokens": usage.get("total_tokens", 0)
+                    "total_tokens": usage.get("total_tokens", 0),
                 },
-                finish_reason=data.get("choices", [{}])[0].get("finish_reason", "stop")
+                finish_reason=data.get("choices", [{}])[0].get("finish_reason", "stop"),
             )
 
         except httpx.HTTPError as e:
@@ -336,25 +381,20 @@ class OpenRouterClient(BaseLLMClient):
         """
         try:
             # Test with a simple completion
-            response = await self.generate(
-                prompt="Hello",
-                max_tokens=5
-            )
+            response = await self.generate(prompt="Hello", max_tokens=5)
             return {
                 "status": "success",
                 "model": self.model,
-                "response_length": len(response.content)
+                "response_length": len(response.content),
             }
         except Exception as e:
-            return {
-                "status": "error",
-                "message": str(e)
-            }
+            return {"status": "error", "message": str(e)}
 
 
 # ============================================================
 # DEEPSEEK CLIENT (FALLBACK)
 # ============================================================
+
 
 class DeepSeekClient(BaseLLMClient):
     """
@@ -397,17 +437,14 @@ class DeepSeekClient(BaseLLMClient):
             timeout=120.0,
             headers={
                 "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
+                "Content-Type": "application/json",
+            },
         )
 
         logger.info(f"DeepSeekClient initialized: {self.model} @ {self.base_url}")
 
     async def generate(
-        self,
-        prompt: str,
-        system_prompt: Optional[str] = None,
-        **kwargs
+        self, prompt: str, system_prompt: Optional[str] = None, **kwargs
     ) -> LLMResponse:
         """Generate response from DeepSeek"""
         logger.debug(f"Generating with DeepSeek {self.model}: {prompt[:50]}...")
@@ -439,13 +476,15 @@ class DeepSeekClient(BaseLLMClient):
                 usage={
                     "prompt_tokens": usage.get("prompt_tokens", 0),
                     "completion_tokens": usage.get("completion_tokens", 0),
-                    "total_tokens": usage.get("total_tokens", 0)
+                    "total_tokens": usage.get("total_tokens", 0),
                 },
-                finish_reason=data.get("choices", [{}])[0].get("finish_reason", "stop")
+                finish_reason=data.get("choices", [{}])[0].get("finish_reason", "stop"),
             )
 
         except httpx.HTTPStatusError as e:
-            logger.error(f"DeepSeek HTTP error: {e.response.status_code} - {e.response.text}")
+            logger.error(
+                f"DeepSeek HTTP error: {e.response.status_code} - {e.response.text}"
+            )
             raise
 
         except httpx.HTTPError as e:
@@ -453,10 +492,7 @@ class DeepSeekClient(BaseLLMClient):
             raise
 
     async def stream(
-        self,
-        prompt: str,
-        system_prompt: Optional[str] = None,
-        **kwargs
+        self, prompt: str, system_prompt: Optional[str] = None, **kwargs
     ) -> AsyncIterator[str]:
         """Stream response tokens from DeepSeek"""
         logger.debug(f"Streaming with DeepSeek {self.model}: {prompt[:50]}...")
@@ -472,11 +508,13 @@ class DeepSeekClient(BaseLLMClient):
             "temperature": kwargs.get("temperature", self.config.temperature),
             "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
             "top_p": kwargs.get("top_p", self.config.top_p),
-            "stream": True
+            "stream": True,
         }
 
         try:
-            async with self.client.stream("POST", "/v1/chat/completions", json=payload) as response:
+            async with self.client.stream(
+                "POST", "/v1/chat/completions", json=payload
+            ) as response:
                 response.raise_for_status()
                 async for line in response.aiter_lines():
                     if line.startswith("data: "):
@@ -500,7 +538,7 @@ class DeepSeekClient(BaseLLMClient):
         self,
         messages: List[Dict[str, str]],
         system_prompt: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> LLMResponse:
         """Chat with full message history"""
         formatted_messages = []
@@ -509,10 +547,9 @@ class DeepSeekClient(BaseLLMClient):
             formatted_messages.append({"role": "system", "content": system_prompt})
 
         for msg in messages:
-            formatted_messages.append({
-                "role": msg.get("role", "user"),
-                "content": msg.get("content", "")
-            })
+            formatted_messages.append(
+                {"role": msg.get("role", "user"), "content": msg.get("content", "")}
+            )
 
         payload = {
             "model": kwargs.get("model", self.model),
@@ -536,9 +573,9 @@ class DeepSeekClient(BaseLLMClient):
                 usage={
                     "prompt_tokens": usage.get("prompt_tokens", 0),
                     "completion_tokens": usage.get("completion_tokens", 0),
-                    "total_tokens": usage.get("total_tokens", 0)
+                    "total_tokens": usage.get("total_tokens", 0),
                 },
-                finish_reason=data.get("choices", [{}])[0].get("finish_reason", "stop")
+                finish_reason=data.get("choices", [{}])[0].get("finish_reason", "stop"),
             )
 
         except httpx.HTTPError as e:
@@ -552,25 +589,20 @@ class DeepSeekClient(BaseLLMClient):
     async def test_connection(self) -> Dict[str, Any]:
         """Test DeepSeek connection"""
         try:
-            response = await self.generate(
-                prompt="Hello",
-                max_tokens=5
-            )
+            response = await self.generate(prompt="Hello", max_tokens=5)
             return {
                 "status": "success",
                 "model": self.model,
-                "response_length": len(response.content)
+                "response_length": len(response.content),
             }
         except Exception as e:
-            return {
-                "status": "error",
-                "message": str(e)
-            }
+            return {"status": "error", "message": str(e)}
 
 
 # ============================================================
 # FACTORY FUNCTIONS
 # ============================================================
+
 
 def create_llm_client(config: Optional[LLMConfig] = None) -> BaseLLMClient:
     """
@@ -588,10 +620,12 @@ def create_llm_client(config: Optional[LLMConfig] = None) -> BaseLLMClient:
         # Default to OpenRouter
         config = LLMConfig(
             provider="openrouter",
-            model=getattr(settings, 'OPENROUTER_MODEL', 'google/gemini-2.0-flash-exp:free'),
-            api_key=getattr(settings, 'OPENROUTER_API_KEY', ''),
+            model=getattr(
+                settings, "OPENROUTER_MODEL", "google/gemini-2.0-flash-exp:free"
+            ),
+            api_key=getattr(settings, "OPENROUTER_API_KEY", ""),
             temperature=0.7,
-            max_tokens=2000
+            max_tokens=2000,
         )
 
     provider = config.provider.lower()
@@ -601,13 +635,15 @@ def create_llm_client(config: Optional[LLMConfig] = None) -> BaseLLMClient:
     elif provider == "deepseek":
         return DeepSeekClient(config)
     else:
-        raise ValueError(f"Unknown LLM provider: {provider}. Supported: openrouter, deepseek")
+        raise ValueError(
+            f"Unknown LLM provider: {provider}. Supported: openrouter, deepseek"
+        )
 
 
 async def create_llm_client_from_db(
     db_session,
     provider_override: Optional[str] = None,
-    model_override: Optional[str] = None
+    model_override: Optional[str] = None,
 ) -> BaseLLMClient:
     """
     Async factory function to create LLM client from DB settings
@@ -624,7 +660,9 @@ async def create_llm_client_from_db(
 
     # Determine provider: override > default (openrouter)
     provider = (provider_override or "openrouter").lower()
-    logger.info(f"Creating LLM client: provider={provider}, model_override={model_override}")
+    logger.info(
+        f"Creating LLM client: provider={provider}, model_override={model_override}"
+    )
 
     # === DeepSeek Provider ===
     if provider == "deepseek":
@@ -634,14 +672,18 @@ async def create_llm_client_from_db(
             logger.warning("DeepSeek API key not found, falling back to OpenRouter")
             provider = "openrouter"
         else:
-            model = model_override or await get_setting("DEEPSEEK_MODEL", db_session) or "deepseek-chat"
+            model = (
+                model_override
+                or await get_setting("DEEPSEEK_MODEL", db_session)
+                or "deepseek-chat"
+            )
             config = LLMConfig(
                 provider="deepseek",
                 model=model,
                 api_key=deepseek_api_key,
                 base_url="https://api.deepseek.com",
                 temperature=0.7,
-                max_tokens=2000
+                max_tokens=2000,
             )
             logger.info(f"Using DeepSeek: model={model}")
             return DeepSeekClient(config)
@@ -651,8 +693,15 @@ async def create_llm_client_from_db(
         openrouter_api_key = await get_setting("OPENROUTER_API_KEY", db_session)
 
         if openrouter_api_key:
-            model = model_override or await get_setting("OPENROUTER_DEFAULT_MODEL", db_session) or "google/gemini-2.0-flash-exp:free"
-            fallback_model = await get_setting("OPENROUTER_FALLBACK_MODEL", db_session) or "meta-llama/llama-3.3-70b-instruct"
+            model = (
+                model_override
+                or await get_setting("OPENROUTER_DEFAULT_MODEL", db_session)
+                or "google/gemini-2.0-flash-exp:free"
+            )
+            fallback_model = (
+                await get_setting("OPENROUTER_FALLBACK_MODEL", db_session)
+                or "meta-llama/llama-3.3-70b-instruct"
+            )
 
             config = LLMConfig(
                 provider="openrouter",
@@ -660,7 +709,7 @@ async def create_llm_client_from_db(
                 fallback_model=fallback_model,
                 api_key=openrouter_api_key,
                 temperature=0.7,
-                max_tokens=2000
+                max_tokens=2000,
             )
             logger.info(f"Using OpenRouter: model={model}")
             return OpenRouterClient(config)
@@ -714,4 +763,17 @@ __all__ = [
     "create_llm_client_from_db",
     "get_llm_client",
     "reset_llm_client",
+    "close_llm_client",
 ]
+
+async def close_llm_client():
+    """Cleanup LLM client resources during shutdown"""
+    global _client_instance
+    if _client_instance:
+        logger.info("Cleaning up LLM client resources...")
+        try:
+            await _client_instance.close()
+            _client_instance = None
+            logger.info("LLM client resources cleaned up")
+        except Exception as e:
+            logger.error(f"Error during LLM client cleanup: {e}")

@@ -1,13 +1,42 @@
 import 'dart:io';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-/// Environment configuration for different build modes
+/// Environment configuration (không phụ thuộc flavor)
 class Environment {
   /// WebSocket URL override from --dart-define=WS_URL
   static const String _wsUrlOverride = String.fromEnvironment('WS_URL');
 
-  /// Get the WebSocket URL from --dart-define, trả về rỗng nếu không có
-  static String get wsUrl => _wsUrlOverride;
+  /// Get the WebSocket URL
+  /// IMPORTANT: Dart's Uri.parse() returns port 0 for 'wss://' scheme
+  /// (it only recognizes http/https). This causes BAD_DECRYPT errors.
+  /// Solution: Always derive WS URL from baseUrl and set port explicitly.
+  static String get wsUrl {
+    // 1. dart-define override (compile time) - used for specific overrides
+    if (_wsUrlOverride.isNotEmpty) {
+      return _wsUrlOverride;
+    }
+
+    // 2. Derive from baseUrl (most reliable approach)
+    // baseUrl is always https:// or http://, which Dart handles correctly
+    final base = baseUrl; // e.g. https://ngrok-domain/api
+    final serverUrl = base.replaceAll('/api', ''); // https://ngrok-domain
+
+    if (serverUrl.startsWith('https://')) {
+      // Extract host from https:// URL
+      final host = serverUrl.replaceFirst('https://', '');
+      // Use wss:// with explicit port 443 to avoid Dart port 0 bug
+      return 'wss://$host:443/api/ws-native';
+    } else if (serverUrl.startsWith('http://')) {
+      final host = serverUrl.replaceFirst('http://', '');
+      // Local dev: ws:// with the port from the URL (usually 8080)
+      // If host already has port (e.g., localhost:8080), don't add another
+      return 'ws://$host/api/ws-native';
+    }
+
+    // Fallback
+    return 'ws://localhost:8080/api/ws-native';
+  }
+
   Environment._();
 
   // ============================================================
@@ -34,51 +63,31 @@ class Environment {
     return 'http://localhost:8080/api';
   }
 
-  static const String _stagingBaseUrl = 'https://api-test.petties.world/api';
-  static const String _prodBaseUrl = 'https://api.petties.world/api';
-  static const String _stagingAiServiceUrl =
-      'https://api-test.petties.world/ai';
-
-  // Flavor from build arguments
-  static const String _flavor = String.fromEnvironment(
-    'FLAVOR',
-    defaultValue: 'dev',
-  );
   static const String _apiUrlOverride = String.fromEnvironment('API_URL');
 
-  /// Get the base URL based on flavor
+  /// Get the base URL (dart-define -> .env -> local fallback)
   static String get baseUrl {
-    // Priority 1: API_URL passed via --dart-define
+    // 1. Priority: API_URL passed via --dart-define (compile time)
     if (_apiUrlOverride.isNotEmpty) {
       return _apiUrlOverride;
     }
 
-    // Priority 2: API_URL from .env file (via dotenv)
+    // 2. Priority: API_BASE_URL from .env file (auto-appends /api)
+    // This is the primary way for Local Dev and CodeMagic
+    final envBase = _devBaseUrl;
+    if (!envBase.contains('localhost') && !envBase.contains('10.0.2.2')) {
+      return envBase;
+    }
+
+    // 3. Fallback: Check if there's a specific API_URL in .env
     try {
       final envUrl = dotenv.env['API_URL'] ?? '';
       if (envUrl.isNotEmpty) return envUrl;
     } catch (_) {}
 
-    // Priority 3: Flavor specific defaults
-    switch (_flavor) {
-      case 'prod':
-        return _prodBaseUrl;
-      case 'staging':
-      case 'test':
-        return _stagingBaseUrl;
-      default:
-        return _devBaseUrl;
-    }
+    // 4. Final fallback: local dev values (localhost/10.0.2.2)
+    return envBase;
   }
-
-  /// Check if running in production mode
-  static bool get isProduction => _flavor == 'prod';
-
-  /// Check if running in staging/test mode
-  static bool get isStaging => _flavor == 'staging' || _flavor == 'test';
-
-  /// Get current flavor
-  static String get flavor => _flavor;
 
   /// AI Service URL
   /// Priority: AI_SERVICE_URL from .env > same as baseUrl (for ngrok/nginx setup) > default localhost
@@ -104,18 +113,8 @@ class Environment {
     return 'http://localhost:8000';
   }
 
-  static const String _prodAiServiceUrl = 'https://ai.petties.world';
-
   static String get aiServiceUrl {
-    switch (_flavor) {
-      case 'prod':
-        return _prodAiServiceUrl;
-      case 'staging':
-      case 'test':
-        return _stagingAiServiceUrl;
-      default:
-        return _devAiServiceUrl;
-    }
+    return _devAiServiceUrl;
   }
 
   // ============================================================
@@ -127,13 +126,22 @@ class Environment {
   // Backend uses this to verify the ID token sent from mobile app
   static const String _googleServerClientId = String.fromEnvironment(
     'GOOGLE_SERVER_CLIENT_ID',
-    // Web Client ID (client_type: 3) from google-services.json
-    defaultValue:
-        '620454234596-vv1v2t95mmsvpgfj6h2oodj0030fguia.apps.googleusercontent.com',
+    defaultValue: '',
   );
 
   /// Google Server Client ID for backend token verification
-  static String get googleServerClientId => _googleServerClientId;
+  static String get googleServerClientId {
+    if (_googleServerClientId.isNotEmpty) {
+      return _googleServerClientId;
+    }
+
+    try {
+      final envClientId = dotenv.env['GOOGLE_CLIENT_ID'] ?? '';
+      if (envClientId.isNotEmpty) return envClientId;
+    } catch (_) {}
+
+    return '620454234596-vv1v2t95mmsvpgfj6h2oodj0030fguia.apps.googleusercontent.com';
+  }
 
   // ============================================================
   // Google Maps Configuration
@@ -153,10 +161,6 @@ class Environment {
   static void printConfig() {
     // ignore: avoid_print
     print('=== Environment Configuration ===');
-    // ignore: avoid_print
-    print('Flavor: $_flavor');
-    // ignore: avoid_print
-    print('Is Production: $isProduction');
     // ignore: avoid_print
     print('Base URL: $baseUrl');
     // ignore: avoid_print

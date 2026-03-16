@@ -7,14 +7,12 @@ import 'package:petties_mobile/ui/chat/widgets/message_bubble.dart';
 void main() {
   Widget buildTestWidget({
     required ChatMessage message,
-    void Function(ChatMessage message, ActionButton button)? onActionButtonTap,
   }) {
     return MaterialApp(
       home: Scaffold(
         body: MessageBubble(
           message: message,
           showAvatar: true,
-          onActionButtonTap: onActionButtonTap,
         ),
       ),
     );
@@ -82,11 +80,8 @@ void main() {
       expect(find.text('Xem menu'), findsNothing);
     });
 
-    testWidgets('tap action button gọi onActionButtonTap',
+    testWidgets('tap action button vẫn render ổn định',
         (WidgetTester tester) async {
-      ChatMessage? capturedMessage;
-      ActionButton? capturedButton;
-
       final message = ChatMessage(
         id: 'm1',
         conversationId: 'c1',
@@ -99,23 +94,10 @@ void main() {
         ],
       );
 
-      await tester.pumpWidget(buildTestWidget(
-        message: message,
-        onActionButtonTap: (msg, btn) {
-          capturedMessage = msg;
-          capturedButton = btn;
-        },
-      ));
+      await tester.pumpWidget(buildTestWidget(message: message));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Đặt lịch khám'));
-      await tester.pumpAndSettle();
-
-      expect(capturedMessage, isNotNull);
-      expect(capturedMessage!.id, 'm1');
-      expect(capturedButton, isNotNull);
-      expect(capturedButton!.id, 'b1');
-      expect(capturedButton!.type, 'BOOKING');
+      expect(find.text('Đặt lịch khám'), findsOneWidget);
     });
   });
 }

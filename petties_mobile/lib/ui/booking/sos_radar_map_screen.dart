@@ -427,6 +427,7 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
       } else if (status.isPendingConfirm) {
         _statusText = 'Đang chờ xác nhận...';
         _isSearching = true;
+        _countdownSeconds = status.remainingSeconds?.clamp(0, 9999) ?? 60;
         _updateMapElements(); // Re-render to highlight current clinic
         _updateMapWithClinic();
       } else if (status.isConfirmed) {
@@ -508,9 +509,9 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
       Circle(
         circleId: const CircleId('search_radius'),
         center: userLatLng,
-        radius: 5000, // 5km radius
-        fillColor: Colors.blue.withOpacity(0.1),
-        strokeColor: Colors.blue.withOpacity(0.3),
+        radius: 10000, // Đồng bộ với backend SOS_SEARCH_RADIUS_KM = 10km
+        fillColor: Colors.blue.withValues(alpha: 0.1),
+        strokeColor: Colors.blue.withValues(alpha: 0.3),
         strokeWidth: 2,
       ),
     };
@@ -860,7 +861,7 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withOpacity(0.5),
+                    Colors.black.withValues(alpha: 0.5),
                     Colors.transparent,
                   ],
                 ),
@@ -956,7 +957,7 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
   Widget _buildErrorOverlay() {
     return Positioned.fill(
       child: Container(
-        color: Colors.black.withOpacity(0.5),
+        color: Colors.black.withValues(alpha: 0.5),
         child: Center(
           child: Container(
             margin: const EdgeInsets.all(32),

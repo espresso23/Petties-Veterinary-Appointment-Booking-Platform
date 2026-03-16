@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
 import org.springframework.core.env.Environment;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.Arrays;
 
@@ -418,6 +419,22 @@ public class GlobalExceptionHandler {
         @ExceptionHandler(java.util.concurrent.TimeoutException.class)
         public void handleTimeoutException(java.util.concurrent.TimeoutException ex, HttpServletRequest request) {
                 log.debug("Timeout exception for path: {}", request.getRequestURI());
+        }
+
+        @ExceptionHandler(NoResourceFoundException.class)
+        public ResponseEntity<ErrorResponse> handleNoResourceFoundException(
+                        NoResourceFoundException ex,
+                        HttpServletRequest request) {
+                ErrorResponse error = ErrorResponse.builder()
+                                .timestamp(LocalDateTime.now())
+                                .status(HttpStatus.NOT_FOUND.value())
+                                .error(HttpStatus.NOT_FOUND.getReasonPhrase())
+                                .message("Không tìm thấy tài nguyên yêu cầu")
+                                .path(request.getRequestURI())
+                                .build();
+
+                log.warn("Resource not found at {}: {}", request.getRequestURI(), ex.getMessage());
+                return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
         }
 
         @ExceptionHandler(Exception.class) // Code: 500

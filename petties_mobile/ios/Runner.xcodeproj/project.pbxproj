@@ -426,6 +426,48 @@
 			remoteGlobalIDString = 337652A9806A3FED0B8DC4CD2DE81878;
 			remoteInfo = "video_player_avfoundation-video_player_avfoundation_privacy";
 		};
+		FAC853B12F597DCA00094F9D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = AD23E40CD48FC8E37DB61F915EBE813E;
+			remoteInfo = camera_avfoundation;
+		};
+		FAC853B32F597DCA00094F9D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = F98E22378D717282AC5FEBD48292E0CC;
+			remoteInfo = "camera_avfoundation-camera_avfoundation_privacy";
+		};
+		FAC853B52F597DCA00094F9D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = D3623D441D45E15202B29F0C04CDBC97;
+			remoteInfo = geocoding_ios;
+		};
+		FAC853B72F597DCA00094F9D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = CB5F229A2342306EC58B4866935B5199;
+			remoteInfo = "geocoding_ios-geocoding_ios_privacy";
+		};
+		FAC853B92F597DCA00094F9D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 7B7C06D35B3BC2BD649AAA1A489E49DA;
+			remoteInfo = url_launcher_ios;
+		};
+		FAC853BB2F597DCA00094F9D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = DBA6F34C072B134D3BE38983776DD1C3;
+			remoteInfo = "url_launcher_ios-url_launcher_ios_privacy";
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -571,6 +613,8 @@
 				FAAAE4162EFA417300FAAB61 /* AppAuth.framework */,
 				FAAAE4182EFA417300FAAB61 /* AppAuthCore_Privacy.bundle */,
 				FAAAE41A2EFA417300FAAB61 /* AppCheckCore.framework */,
+				FAC853B22F597DCA00094F9D /* camera_avfoundation.framework */,
+				FAC853B42F597DCA00094F9D /* camera_avfoundation_privacy.bundle */,
 				FAAAE41C2EFA417300FAAB61 /* firebase_core.framework */,
 				FAAAE41E2EFA417300FAAB61 /* firebase_messaging.framework */,
 				FAAAE4202EFA417300FAAB61 /* firebase_messaging_Privacy.bundle */,
@@ -584,6 +628,8 @@
 				FAAAE4302EFA417300FAAB61 /* FirebaseMessaging_Privacy.bundle */,
 				FA208FDC2F0F531D00FEDE6D /* flutter_local_notifications.framework */,
 				FA208FDE2F0F531D00FEDE6D /* flutter_local_notifications_privacy.bundle */,
+				FAC853B62F597DCA00094F9D /* geocoding_ios.framework */,
+				FAC853B82F597DCA00094F9D /* geocoding_ios_privacy.bundle */,
 				FAAAE4322EFA417300FAAB61 /* geolocator_apple.framework */,
 				FAAAE4342EFA417300FAAB61 /* geolocator_apple_privacy.bundle */,
 				FAAAE4362EFA417300FAAB61 /* GoogleMapsUtils.framework */,
@@ -623,6 +669,8 @@
 				FAAAE4702EFA417300FAAB61 /* shared_preferences_foundation_privacy.bundle */,
 				FAAAE4722EFA417300FAAB61 /* sqflite_darwin.framework */,
 				FAAAE4742EFA417300FAAB61 /* sqflite_darwin_privacy.bundle */,
+				FAC853BA2F597DCA00094F9D /* url_launcher_ios.framework */,
+				FAC853BC2F597DCA00094F9D /* url_launcher_ios_privacy.bundle */,
 				FAAAE4762EFA417300FAAB61 /* video_player_avfoundation.framework */,
 				FAAAE4782EFA417300FAAB61 /* video_player_avfoundation_privacy.bundle */,
 			);
@@ -1117,6 +1165,48 @@
 			remoteRef = FAAAE4772EFA417300FAAB61 /* PBXContainerItemProxy */;
 			sourceTree = BUILT_PRODUCTS_DIR;
 		};
+		FAC853B22F597DCA00094F9D /* camera_avfoundation.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = camera_avfoundation.framework;
+			remoteRef = FAC853B12F597DCA00094F9D /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAC853B42F597DCA00094F9D /* camera_avfoundation_privacy.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = camera_avfoundation_privacy.bundle;
+			remoteRef = FAC853B32F597DCA00094F9D /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAC853B62F597DCA00094F9D /* geocoding_ios.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = geocoding_ios.framework;
+			remoteRef = FAC853B52F597DCA00094F9D /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAC853B82F597DCA00094F9D /* geocoding_ios_privacy.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = geocoding_ios_privacy.bundle;
+			remoteRef = FAC853B72F597DCA00094F9D /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAC853BA2F597DCA00094F9D /* url_launcher_ios.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = url_launcher_ios.framework;
+			remoteRef = FAC853B92F597DCA00094F9D /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAC853BC2F597DCA00094F9D /* url_launcher_ios_privacy.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = url_launcher_ios_privacy.bundle;
+			remoteRef = FAC853BB2F597DCA00094F9D /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
 /* End PBXReferenceProxy section */
 
 /* Begin PBXResourcesBuildPhase section */
@@ -1323,6 +1413,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = 8PA993XYV8;
 				ENABLE_BITCODE = NO;
@@ -1512,6 +1603,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = 8PA993XYV8;
 				ENABLE_BITCODE = NO;
@@ -1537,6 +1629,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = 8PA993XYV8;
 				ENABLE_BITCODE = NO;
@@ -1576,7 +1669,7 @@
 				249021D3217E4FDB00AE95B9 /* Profile */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = "Debug-dev";
+			defaultConfigurationName = Release;
 		};
 		97C147051CF9000F007C117D /* Build configuration list for PBXNativeTarget "Runner" */ = {
 			isa = XCConfigurationList;

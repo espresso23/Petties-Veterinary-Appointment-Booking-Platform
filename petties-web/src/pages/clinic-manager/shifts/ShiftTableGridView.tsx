@@ -140,9 +140,10 @@ export const ShiftTableGridView = ({
         setSelectEndIdx(null)
     }, [slots, dateStr, onTimeRangeSelect])
 
+    const selectedDayStr = selectedDay.toDateString()
     useEffect(() => {
         setTimeout(() => setCommittedSelection(null), 0) // Xóa khi đổi ngày
-    }, [selectedDay.toDateString()])
+    }, [selectedDayStr])
 
     useEffect(() => {
         if (formStaffId != null && committedSelection && formStaffId !== committedSelection.staffId) {

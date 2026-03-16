@@ -9,6 +9,7 @@ import '../../data/services/pet_service.dart';
 import '../../config/constants/app_colors.dart';
 import '../../routing/app_routes.dart';
 import '../../providers/auth_provider.dart';
+import '../chat/ai_chat_bubble.dart';
 import '../common/pet_owner_bottom_nav.dart';
 
 class PetDetailScreen extends StatefulWidget {
@@ -304,6 +305,43 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                         ],
                       ),
 
+                      // Allergies (if any)
+                      if (pet.allergies != null &&
+                          pet.allergies!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.stone200),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Dị ứng / Lưu ý',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.stone500,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                pet.allergies!,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.stone900,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+
                       const SizedBox(height: 32),
                       // Actions
                       _buildActionButton(
@@ -335,6 +373,8 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
           );
         },
       ),
+      floatingActionButton: isPetOwner ? const AiChatBubble() : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: isPetOwner
           ? PetOwnerBottomNav(
               currentIndex: 4,

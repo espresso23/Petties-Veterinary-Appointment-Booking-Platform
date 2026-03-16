@@ -9,7 +9,14 @@ import { useAuthStore } from '../../../store/authStore'
 
 // Mock dependencies
 vi.mock('react-router-dom', () => ({
-    useNavigate: () => vi.fn()
+    useNavigate: () => vi.fn(),
+    useLocation: () => ({
+        state: null,
+        pathname: '/staff/patients',
+        search: '',
+        hash: '',
+        key: 'default'
+    })
 }))
 
 vi.mock('../../../components/Toast', () => ({
@@ -155,9 +162,9 @@ describe('StaffPatientsPage', () => {
             // Check Vaccine Name
             expect(screen.getByText('Rabies')).toBeInTheDocument()
             // Check Staff Name (Data Integrity Check)
-            // The component renders: Dr. {staffName.split(' ').pop()}
-            // "Trần Văn B" -> "B" -> "Dr. B"
-            expect(screen.getByText('Dr. B')).toBeInTheDocument()
+            // The component renders: NV. {staffName.split(' ').pop()}
+            // "Trần Văn B" -> "B" -> "NV. B"
+            expect(screen.getByText('NV. B')).toBeInTheDocument()
         })
     })
 })

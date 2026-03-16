@@ -378,8 +378,8 @@ Release:
 git checkout develop
 git pull origin develop
 git checkout -b feature/booking-scheduler
-git commit -m "feat: add vet_shifts table"
-git commit -m "feat: implement get_available_vets"
+git commit -m "feat: add staff_shifts table"
+git commit -m "feat: implement get_available_staff"
 git push origin feature/booking-scheduler
 ```
 

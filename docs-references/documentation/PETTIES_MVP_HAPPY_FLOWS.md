@@ -62,16 +62,16 @@
 ```
 1. Dashboard → Xem booking mới (PENDING)
 2. Chọn booking → Gán nhân viên
-3. Xác nhận → Status: ASSIGNED
+3. Xác nhận → Status: CONFIRMED
 4. Nhân viên nhận thông báo
 ```
 
 **Actor:** Staff (Mobile/Web)
 
 ```
-1. Xem lịch hẹn → Booking mới (ASSIGNED)
-2. Chấp nhận → Status: CONFIRMED
-3. Pet Owner nhận thông báo "Đã xác nhận"
+1. Xem lịch hẹn → Booking mới (CONFIRMED)
+2. Mở chi tiết booking
+3. Pet Owner đã nhận thông báo "Đã xác nhận"
 ```
 
 ---
@@ -82,8 +82,8 @@
 
 ```
 1. Pet Owner đến phòng khám
-2. Check-in → Status: CHECK_IN
-3. Bắt đầu khám → Status: IN_PROGRESS
+2. Check-in (action) → Booking chuyển sang `IN_PROGRESS`
+3. Bắt đầu khám khi booking đã ở `IN_PROGRESS`
 4. Xem lịch sử bệnh (EMR cũ)
 5. Khám, chẩn đoán → Nhập EMR mới:
    - Triệu chứng
@@ -91,7 +91,7 @@
    - Kế hoạch điều trị
    - Đơn thuốc (optional)
    - Cập nhật tiêm chủng (optional)
-6. Lưu EMR → Checkout → Status: CHECK_OUT
+6. Lưu EMR → Checkout (action)
 7. Thu tiền (nếu Cash) → Status: COMPLETED
 ```
 
@@ -264,13 +264,13 @@
 
 ```
 BOOKING:
-PENDING → ASSIGNED → CONFIRMED → ON_THE_WAY → CHECK_IN → IN_PROGRESS → CHECK_OUT → COMPLETED
+PENDING → CONFIRMED → IN_PROGRESS → COMPLETED
 
 PAYMENT:
 UNPAID (Cash) → PAID (after checkout)
 PAID (Online) → PAID (at booking)
 
-VET_SHIFT:
+STAFF_SHIFT:
 SCHEDULED → COMPLETED (sau khi hết ngày)
           → CANCELLED (nếu hủy trước)
 ```
@@ -329,7 +329,7 @@ SCHEDULED → COMPLETED (sau khi hết ngày)
    - pet_id: MIMI
    - booking_date: 2024-12-25
    - booking_time: 09:00
-   - assigned_vet_id: NULL
+   - assigned_staff_id: NULL
    - status: PENDING
    - total_price: 150,000 VND
 
@@ -377,7 +377,7 @@ SCHEDULED → COMPLETED (sau khi hết ngày)
    
    SELECT v.id, v.full_name, shift.start_time, shift.end_time
    FROM users v
-   JOIN vet_shifts shift ON shift.vet_id = v.id
+   JOIN staff_shifts shift ON shift.staff_id = v.id
    JOIN slots s ON s.shift_id = shift.id
    WHERE shift.clinic_id = 'ABC'
      AND shift.work_date = '2024-12-25'
@@ -418,8 +418,8 @@ VALUES ('B001', [slot_09:00_id]);
 
 -- 3. Update booking
 UPDATE bookings SET 
-    assigned_vet_id = [Dr.Minh_id],
-    status = 'ASSIGNED'
+    assigned_staff_id = [Dr.Minh_id],
+    status = 'PENDING_CLINIC_CONFIRM'
 WHERE id = 'B001';
 
 -- 4. Create notification for Staff
@@ -433,7 +433,7 @@ COMMIT;
 **UI Feedback:**
 ```
 ✅ Toast: "Đã gán Dr. Minh cho booking #B001"
-✅ Booking status badge: PENDING → ASSIGNED (màu vàng)
+✅ Booking status badge: PENDING → CONFIRMED (màu xanh)
 ✅ Staff nhận push notification
 ```
 
@@ -447,7 +447,7 @@ COMMIT;
 
 ```
 1. System tự động:
-   - Status: ASSIGNED → CONFIRMED
+   - Status: PENDING → CONFIRMED
    - Notify Pet Owner: "Lịch hẹn đã xác nhận"
    - Notify Staff: "Bạn có lịch hẹn mới"
 
@@ -471,7 +471,7 @@ COMMIT;
 ```sql
 -- 1. Update booking - trực tiếp CONFIRMED
 UPDATE bookings SET 
-    assigned_vet_id = [Dr.Minh_id],
+    assigned_staff_id = [Dr.Minh_id],
     status = 'CONFIRMED'
 WHERE id = 'B001';
 
@@ -519,7 +519,7 @@ VALUES ([Dr.Minh_id], 'BOOKING', 'Lịch hẹn mới',
 ```sql
 SELECT v.id, v.full_name
 FROM users v
-JOIN vet_shifts shift ON shift.vet_id = v.id
+ JOIN staff_shifts shift ON shift.staff_id = v.id
 WHERE shift.clinic_id = 'ABC'
   AND shift.work_date = '2024-12-25'
   AND EXISTS (
@@ -575,7 +575,7 @@ WHERE shift.clinic_id = 'ABC'
 |------|-------|
 | Không có Staff nào có slot trống | Hiển thị "Không có nhân viên khả dụng. Vui lòng chọn giờ khác." |
 | Staff được gán nhưng shift bị hủy | Manager tự động được notify để gán lại |
-| Pet Owner hủy lúc ASSIGNED | Slot được restore, Staff được notify |
+| Pet Owner hủy lúc CONFIRMED | Slot được restore, Staff được notify |
 | Double-assign (race condition) | Database constraint + Transaction isolation |
 
 ---
@@ -592,7 +592,7 @@ WHERE shift.clinic_id = 'ABC'
 
 ```
 ✅ Booking type = SOS (Emergency)
-✅ Booking status = CONFIRMED hoặc ASSIGNED (SOS mode)
+✅ Booking status = CONFIRMED hoặc IN_PROGRESS (SOS mode)
 ✅ Đến giờ hẹn (hoặc trước 30 phút)
 ✅ Staff app có quyền GPS
 ✅ Pet Owner app có internet
@@ -633,9 +633,9 @@ WHERE shift.clinic_id = 'ABC'
 ```sql
 -- 1. Update booking status
 UPDATE bookings SET 
-    status = 'ON_THE_WAY',
-    vet_current_lat = [current_lat],
-    vet_current_long = [current_long]
+    status = 'IN_PROGRESS',
+    staff_current_lat = [current_lat],
+    staff_current_long = [current_long]
 WHERE id = 'B001';
 
 -- 2. Notify Pet Owner
@@ -646,7 +646,7 @@ VALUES ([PetOwner_id], 'BOOKING', 'Nhân viên đang đến!',
 
 **System Actions:**
 ```
-✅ Booking status: CONFIRMED → ON_THE_WAY
+✅ Booking status: CONFIRMED → IN_PROGRESS
 ✅ GPS tracking started (interval: 30 giây)
 ✅ Push notification → Pet Owner
 ✅ Staff app hiển thị: "Đang tracking vị trí..."
@@ -659,11 +659,11 @@ VALUES ([PetOwner_id], 'BOOKING', 'Nhân viên đang đến!',
 **Actor:** System (Background Service)
 
 ```
-Trong khi status = ON_THE_WAY:
+Trong khi status = IN_PROGRESS:
   1. App Staff gửi GPS coordinates mỗi 30 giây
   2. System cập nhật vào booking:
-     - vet_current_lat
-     - vet_current_long
+     - staff_current_lat
+     - staff_current_long
   3. Tính toán ETA (estimated time of arrival)
   4. Kiểm tra khoảng cách đến địa chỉ
 ```
@@ -756,7 +756,7 @@ PUT /api/bookings/B001/location
     "body": "Dr. Minh còn cách nhà bạn khoảng 500m. Vui lòng chuẩn bị.",
     "data": {
         "booking_id": "B001",
-        "type": "VET_ARRIVING"
+        "type": "STAFF_ARRIVING"
     }
 }
 ```
@@ -807,7 +807,7 @@ graph TD
 ```
 
 > [!IMPORTANT]
-> `ON_THE_WAY` and `CHECK_OUT` are NOT official statuses in the database. 
+> `ON_THE_WAY` and `CHECK_OUT` are NOT official statuses in the database.
 > They are UI states or logical actions that happen while the Booking is in `IN_PROGRESS` or transitioning to it.
 
 ---
@@ -819,8 +819,8 @@ graph TD
 | `booking.type` | ENUM | = 'HOME_VISIT' |
 | `booking.status` | ENUM | PENDING → CONFIRMED → IN_PROGRESS → COMPLETED |
 | `booking.home_address` | VARCHAR | Địa chỉ nhà khách |
-| `booking.vet_current_lat` | DECIMAL | Latitude hiện tại của Staff |
-| `booking.vet_current_long` | DECIMAL | Longitude hiện tại của Staff |
+| `booking.staff_current_lat` | DECIMAL | Latitude hiện tại của Staff |
+| `booking.staff_current_long` | DECIMAL | Longitude hiện tại của Staff |
 | `booking.distance_km` | DECIMAL | Khoảng cách tính từ clinic |
 
 ---
@@ -879,7 +879,7 @@ graph TD
 
 ```
 ✅ Pet Owner có booking với Clinic
-✅ Booking status: ASSIGNED hoặc CONFIRMED trở lên
+✅ Booking status: CONFIRMED hoặc IN_PROGRESS
 ✅ Cả 2 bên có tài khoản active
 ```
 
@@ -914,7 +914,7 @@ graph TD
 
 ### 15.3 Kịch bản: Pet Owner Chat với Staff
 
-**Trigger:** Sau khi Staff được gán cho booking (status = ASSIGNED)
+**Trigger:** Sau khi Staff được gán cho booking (status = CONFIRMED)
 
 ```
 1. Pet Owner mở chi tiết booking
@@ -989,7 +989,7 @@ CREATE TABLE chat_messages (
 4. Agent reasoning (internal):
    ┌─────────────────────────────────────────────┐
    │ THOUGHT: User hỏi về triệu chứng sổ mũi    │
-   │ ACTION: Call pet_care_qa("mèo sổ mũi")     │
+   │ ACTION: Call pet_knowledge_search("mèo sổ mũi") │
    │ OBSERVATION: RAG trả về 3 chunks...        │
    │ THOUGHT: Có đủ thông tin để trả lời        │
    │ ANSWER: "Mèo sổ mũi có thể do..."          │
@@ -1009,11 +1009,11 @@ CREATE TABLE chat_messages (
 2. Agent reasoning:
    ┌─────────────────────────────────────────────┐
    │ THOUGHT: User mô tả triệu chứng, cần lookup │
-   │ ACTION: symptom_search("chó bỏ ăn, uống    │
+   │ ACTION: pet_knowledge_search("chó bỏ ăn, uống │
    │         nước nhiều, lông xù")               │
    │ OBSERVATION: Có thể: Tiểu đường, Suy thận..│
    │ THOUGHT: Cần thêm context từ RAG           │
-   │ ACTION: pet_care_qa("chó tiểu đường")      │
+   │ ACTION: pet_knowledge_search("chó tiểu đường") │
    │ OBSERVATION: Triệu chứng, cách nhận biết...│
    │ ANSWER: "Dựa trên triệu chứng, có thể..."  │
    └─────────────────────────────────────────────┘
@@ -1031,22 +1031,24 @@ CREATE TABLE chat_messages (
 2. Agent reasoning:
    ┌─────────────────────────────────────────────┐
    │ THOUGHT: User muốn đặt lịch, cần tìm clinic │
-   │ ACTION: search_clinics("Quận 7")            │
+   │ ACTION: search_clinics_nearby(user_location) │
    │ OBSERVATION: 3 clinics: ABC, XYZ, DEF...    │
    │ ANSWER: "Có 3 phòng khám gần bạn..."        │
    └─────────────────────────────────────────────┘
 3. User: "Chọn ABC, ngày mai có slot không?"
 4. Agent:
    ┌─────────────────────────────────────────────┐
-   │ ACTION: check_slots("clinic_abc", "2025-01")│
+   │ ACTION: check_available_slots("clinic_abc", │
+   │         "2025-01", ["service_checkup"])    │
    │ OBSERVATION: Slots: 09:00, 10:30, 14:00... │
    │ ANSWER: "Ngày mai có các slot: ..."         │
    └─────────────────────────────────────────────┘
 5. User: "Đặt lúc 14:00 cho mèo Mimi, khám tổng quát"
 6. Agent:
    ┌─────────────────────────────────────────────┐
-   │ ACTION: create_booking(clinic_abc, slot_14, │
-   │         pet_mimi, service_checkup)          │
+   │ ACTION: create_booking_for_user(            │
+   │         pet_mimi, clinic_abc, date_tomorrow,│
+   │         slot_14, [service_checkup])         │
    │ OBSERVATION: Booking created, code: #B123   │
    │ ANSWER: "Đã đặt lịch thành công! #B123..."  │
    └─────────────────────────────────────────────┘
@@ -1076,11 +1078,12 @@ CREATE TABLE chat_messages (
    │ Max Tokens: [2048]                          │
    │                                             │
    │ Tools:                                      │
-   │ [✅] pet_care_qa                            │
-   │ [✅] symptom_search                         │
-   │ [✅] search_clinics                         │
-   │ [✅] check_slots                            │
-   │ [✅] create_booking                         │
+   │ [✅] pet_knowledge_search                   │
+   │ [✅] web_search                             │
+   │ [✅] get_user_pets                          │
+   │ [✅] search_clinics_nearby                  │
+   │ [✅] check_available_slots                  │
+   │ [✅] create_booking_for_user                │
    │                                             │
    │ Knowledge Base: 15 docs | 2,456 vectors     │
    │ [📤 Upload] [🗑️ Clear] [🔄 Re-index]        │
@@ -1092,7 +1095,7 @@ CREATE TABLE chat_messages (
 
 ---
 
-### 16.7 Kịch bản: Phân tích hình ảnh (Vision Health Analysis)
+### 16.7 Kịch bản: Phân tích hình ảnh (Vision Health Analysis - Planned Scope, chưa implement)
 
 **Actor:** Pet Owner (Mobile)
 
@@ -1108,7 +1111,7 @@ CREATE TABLE chat_messages (
    │ OBSERVATION: Phát hiện "viêm da dị ứng",    │
    │              mức độ: Moderate               │
    │ THOUGHT: Cần tìm clinic gần nhất để gợi ý   │
-   │ ACTION: search_clinics(lat, lng)            │
+   │ ACTION: search_clinics_nearby(lat, lng)     │
    │ OBSERVATION: 3 clinics nearby...            │
    │ ANSWER: "Phát hiện dấu hiệu viêm da. Nên..."│
    └─────────────────────────────────────────────┘
@@ -1373,18 +1376,18 @@ LIMIT 20;
 
 **Database Changes:**
 ```sql
-INSERT INTO vet_reviews (
-    booking_id, pet_owner_id, vet_id, rating, comment, created_at
+INSERT INTO staff_reviews (
+    booking_id, pet_owner_id, staff_id, rating, comment, created_at
 ) VALUES (
-    'B001', 'owner_123', 'vet_minh', 5, 
+    'B001', 'owner_123', 'staff_minh', 5, 
     'Nhân viên rất tận tình...', NOW()
 );
 
 -- Update Staff's average rating
 UPDATE users SET 
-    rating_avg = (SELECT AVG(rating) FROM vet_reviews WHERE vet_id = 'vet_minh'),
-    rating_count = (SELECT COUNT(*) FROM vet_reviews WHERE vet_id = 'vet_minh')
-WHERE user_id = 'vet_minh';
+    rating_avg = (SELECT AVG(rating) FROM staff_reviews WHERE staff_id = 'staff_minh'),
+    rating_count = (SELECT COUNT(*) FROM staff_reviews WHERE staff_id = 'staff_minh')
+WHERE user_id = 'staff_minh';
 ```
 
 ---

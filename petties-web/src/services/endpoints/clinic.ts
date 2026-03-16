@@ -23,7 +23,7 @@ export interface ClinicResponse {
  * @returns Promise<ClinicResponse[]>
  */
 export async function getMyClinics(): Promise<ClinicResponse[]> {
-  // Call my-clinics endpoint first (returns ALL clinics of owner including PENDING, APPROVED, REJECTED)
+  // Call my-clinics endpoint (returns ALL clinics of owner including PENDING, APPROVED, REJECTED)
   try {
     const resp = await apiClient.get<unknown>('/clinics/owner/my-clinics?size=100')
     const body = resp.data
@@ -41,27 +41,8 @@ export async function getMyClinics(): Promise<ClinicResponse[]> {
     // Case C: backend returns plain array under data or at top-level
     if (Array.isArray(body)) return body as ClinicResponse[]
     if (body && typeof body === 'object' && 'data' in body && Array.isArray(body.data)) return body.data as ClinicResponse[]
-
-    // Otherwise continue to fallback
   } catch (e) {
-    console.warn('getMyClinics: my-clinics endpoint failed, trying fallback', e)
-  }
-
-  // Fallback to owner/approved endpoint
-  try {
-    const resp2 = await apiClient.get<unknown>('/clinics/owner/approved?size=100')
-    const body2 = resp2.data
-
-    if (body2 && typeof body2 === 'object' && 'content' in body2 && Array.isArray(body2.content)) {
-      return body2.content as ClinicResponse[]
-    }
-    if (body2 && typeof body2 === 'object' && 'data' in body2 && typeof body2.data === 'object' && body2.data && 'content' in body2.data && Array.isArray(body2.data.content)) {
-      return body2.data.content as ClinicResponse[]
-    }
-    if (Array.isArray(body2)) return body2 as ClinicResponse[]
-    if (body2 && typeof body2 === 'object' && 'data' in body2 && Array.isArray(body2.data)) return body2.data as ClinicResponse[]
-  } catch (e) {
-    console.warn('getMyClinics: fallback endpoint failed', e)
+    console.warn('getMyClinics: my-clinics endpoint failed', e)
   }
 
   return []
@@ -93,20 +74,3 @@ export async function updateClinicPricing(clinicId: string, pricing: { pricePerK
   return data
 }
 
-/**
- * Get stored price per km for a clinic
- * @deprecated Use getClinicPricing instead
- */
-export async function getClinicPricePerKm(clinicId: string): Promise<number | null> {
-  const pricing = await getClinicPricing(clinicId)
-  return pricing.pricePerKm
-}
-
-/**
- * Update stored price per km for a clinic (owner only)
- * @deprecated Use updateClinicPricing instead
- */
-export async function updateClinicPricePerKm(clinicId: string, pricePerKm: number): Promise<number> {
-  const data = await updateClinicPricing(clinicId, { pricePerKm })
-  return (data as { pricePerKm?: number }).pricePerKm ?? 0
-}

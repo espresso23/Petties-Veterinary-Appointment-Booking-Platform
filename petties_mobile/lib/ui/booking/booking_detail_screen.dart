@@ -71,7 +71,13 @@ class AppointmentDetailScreen extends StatelessWidget {
       backgroundColor: AppColors.white,
       elevation: 0,
       leading: GestureDetector(
-        onTap: () => Navigator.of(context).pop(),
+        onTap: () {
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.go(AppRoutes.petOwnerHome);
+          }
+        },
         child: Container(
           margin: const EdgeInsets.all(8),
           decoration: BoxDecoration(
@@ -842,9 +848,10 @@ class AppointmentDetailScreen extends StatelessWidget {
         ),
       );
     } else if (booking.type == 'SOS' &&
-      ['CONFIRMED', 'IN_PROGRESS'].contains(booking.status)) {
+        ['CONFIRMED', 'IN_PROGRESS'].contains(booking.status)) {
       // For SOS, if it's confirmed or in progress (moving), check if it can be cancelled
       // It can be cancelled if arrivedAt is null (still on the way)
+      final bool canTrack = booking.arrivedAt == null;
       final bool canCancel =
           booking.status == 'CONFIRMED' || (booking.arrivedAt == null);
 
@@ -857,26 +864,48 @@ class AppointmentDetailScreen extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  context.push(
-                    AppRoutes.sosTracking
-                        .replaceFirst(':bookingId', booking.bookingId ?? ''),
-                    extra: booking,
-                  );
-                },
-                icon: const Icon(Icons.location_on, color: Colors.white),
-                label: const Text('THEO DÕI BÁC SĨ',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.coral,
-                  foregroundColor: AppColors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+            if (canTrack)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    context.push(
+                      AppRoutes.sosTracking
+                          .replaceFirst(':bookingId', booking.bookingId ?? ''),
+                      extra: booking,
+                    );
+                  },
+                  icon: const Icon(Icons.location_on, color: Colors.white),
+                  label: const Text('THEO DÕI BÁC SĨ',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.coral,
+                    foregroundColor: AppColors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+              )
+            else
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                decoration: BoxDecoration(
+                  color: AppColors.successLight,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.successDark.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: const Text(
+                  'Nhân viên đã đến nơi. Vui lòng theo dõi cập nhật trực tiếp trong chi tiết lịch hẹn.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.successDark,
+                  ),
                 ),
               ),
-            ),
             if (canCancel) ...[
               const SizedBox(height: 12),
               SizedBox(

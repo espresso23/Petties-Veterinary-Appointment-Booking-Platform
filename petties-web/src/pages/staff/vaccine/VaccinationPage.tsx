@@ -20,6 +20,7 @@ const VaccinationPage = () => {
     const [searchParams] = useSearchParams()
     const bookingId = searchParams.get('bookingId')
     const bookingCode = searchParams.get('bookingCode')
+    const initialVaccineName = searchParams.get('initialVaccineName')
     const { showToast } = useToast()
 
     const [records, setRecords] = useState<VaccinationRecord[]>([])
@@ -32,7 +33,9 @@ const VaccinationPage = () => {
 
     // Edit State
     const [editingId, setEditingId] = useState<string | null>(null)
-    const [formInitialData, setFormInitialData] = useState<Partial<VaccinationFormData> | undefined>(undefined)
+    const [formInitialData, setFormInitialData] = useState<Partial<VaccinationFormData> | undefined>(
+        initialVaccineName ? { vaccineName: initialVaccineName } : undefined
+    )
 
     // Fetchers
     const fetchUpcoming = useCallback(async () => {
@@ -106,7 +109,8 @@ const VaccinationPage = () => {
                 // Set editing mode for this pending draft
                 setEditingId(pendingRecord.id);
 
-                const newVaccDate = pendingRecord.vaccinationDate ? new Date(pendingRecord.vaccinationDate) : new Date();
+                // Always default vaccinationDate to today, regardless of draft's date
+                const newVaccDate = new Date();
                 let nextDueDateObj: Date | undefined = undefined;
 
                 if (pendingRecord.vaccineTemplateId) {
@@ -371,8 +375,8 @@ const VaccinationPage = () => {
                                                 <div
                                                     className="font-bold text-stone-800 flex items-center gap-2 hover:text-orange-600 cursor-pointer transition-colors"
                                                     onClick={() => {
-                                                        if (isPending && (rec as any).id) {
-                                                            setEditingId((rec as any).id);
+                                                        if (isPending && rec.id) {
+                                                            setEditingId(rec.id);
                                                         } else {
                                                             setEditingId(null);
                                                         }
@@ -416,8 +420,8 @@ const VaccinationPage = () => {
                                             </div>
                                             <button
                                                 onClick={() => {
-                                                    if (isPending && (rec as any).id) {
-                                                        setEditingId((rec as any).id);
+                                                    if (isPending && rec.id) {
+                                                        setEditingId(rec.id);
                                                     } else {
                                                         setEditingId(null);
                                                     }

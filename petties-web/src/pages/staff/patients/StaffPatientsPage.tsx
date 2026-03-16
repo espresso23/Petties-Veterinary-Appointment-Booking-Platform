@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useToast } from '../../../components/Toast'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
     MagnifyingGlassIcon,
     PlusIcon,
@@ -19,7 +19,7 @@ import type { EmrRecord } from '../../../services/emrService'
 import { vaccinationService, type VaccinationRecord } from '../../../services/vaccinationService'
 import { vaccineTemplateService, type VaccineTemplate } from '../../../services/api/vaccineTemplateService'
 import 'react-datepicker/dist/react-datepicker.css'
-import { getBookingsByStaff, getClinicTodayBookings } from '../../../services/bookingService'
+import { getBookingByCode, getBookingsByStaff, getClinicTodayBookings } from '../../../services/bookingService'
 import type { Booking } from '../../../types/booking'
 import { useAuthStore } from '../../../store/authStore'
 import { VaccinationRoadmap } from '../vaccine/components/VaccinationRoadmap'
@@ -54,6 +54,7 @@ type DetailTab = 'overview' | 'emr' | 'vaccinations' | 'lab' | 'documents'
 // ============= COMPONENT =============
 export const StaffPatientsPage = () => {
     const navigate = useNavigate()
+    const location = useLocation()
     const { showToast } = useToast()
     const { user } = useAuthStore()
 
@@ -132,6 +133,9 @@ export const StaffPatientsPage = () => {
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
     const [recordIdToDelete, setRecordIdToDelete] = useState<string | null>(null)
 
+    const openedFromStateRef = useRef(false)
+    const focusPetId = (location.state as { focusPetId?: string } | null)?.focusPetId
+
     // Fetch Templates on mount
     useEffect(() => {
         vaccineTemplateService.getAllTemplates().then(setVaccineTemplates).catch(console.error)
@@ -184,6 +188,38 @@ export const StaffPatientsPage = () => {
             loadPatients()
         }
     }, [user?.userId, user?.workingClinicId])
+    useEffect(() => {
+        if (openedFromStateRef.current) return
+        if (!focusPetId) return
+        const patientToOpen = patients.find(p => p.id === focusPetId)
+        if (!patientToOpen) return
+
+        setSelectedPatient(patientToOpen)
+        setActiveTab('emr')
+        openedFromStateRef.current = true
+    }, [focusPetId, patients])
+
+    const handleRowClick = useCallback(async (patient: Patient) => {
+        const isActiveBooking = !!patient.bookingStatus && ['IN_PROGRESS', 'CONFIRMED'].includes(patient.bookingStatus)
+        if (!isActiveBooking || !patient.bookingCode) {
+            setSelectedPatient(patient)
+            return
+        }
+
+        try {
+            const activeBooking = bookings.find(b =>
+                b.petId === patient.id &&
+                (b.status === 'IN_PROGRESS' || b.status === 'CONFIRMED')
+            )
+
+            const bookingId = activeBooking?.bookingId ?? (await getBookingByCode(patient.bookingCode)).bookingId
+            navigate('/staff/bookings', { state: { focusBookingId: bookingId } })
+        } catch (err) {
+            console.error('Không thể mở chi tiết booking hiện tại:', err)
+            showToast('error', 'Không thể mở chi tiết lịch hẹn hiện tại')
+            setSelectedPatient(patient)
+        }
+    }, [bookings, navigate, showToast])
 
     const fetchVaccinations = useCallback(async () => {
         if (!selectedPatient) return
@@ -268,7 +304,8 @@ export const StaffPatientsPage = () => {
         } catch (error) {
             console.error(error)
             showToast('error', 'Lỗi khi lưu hồ sơ')
-            const errorMessage = (error as any)?.response?.data?.message || (error as any)?.message || 'Lỗi khi lưu hồ sơ'
+            const err = error as { response?: { data?: { message?: string } }; message?: string }
+            const errorMessage = err?.response?.data?.message || err?.message || 'Lỗi khi lưu hồ sơ'
             showToast('error', errorMessage)
         } finally {
             setIsSubmittingVaccination(false)
@@ -432,7 +469,7 @@ export const StaffPatientsPage = () => {
                                 {sortedPatients.map((patient, idx) => (
                                     <tr
                                         key={patient.id}
-                                        onClick={() => setSelectedPatient(patient)}
+                                        onClick={() => void handleRowClick(patient)}
                                         className="border-b border-stone-100 hover:bg-amber-50 cursor-pointer transition-colors"
                                     >
                                         <td className="px-4 py-3 text-stone-500">{(currentPage - 1) * rowsPerPage + idx + 1}</td>
@@ -717,7 +754,7 @@ export const StaffPatientsPage = () => {
                                                                 <p className="text-sm text-stone-500">
                                                                     {new Date(emr.examinationDate).toLocaleDateString('vi-VN')}
                                                                     <span className="mx-2">•</span>
-                                                                    BS. {emr.staffName}
+                                                                    NV. {emr.staffName}
                                                                     {emr.bookingCode && (
                                                                         <span className="ml-2 font-mono text-xs bg-stone-100 px-1.5 py-0.5 rounded border border-stone-200">
                                                                             #{emr.bookingCode}
@@ -897,7 +934,7 @@ export const StaffPatientsPage = () => {
                                                                 </div>
                                                                 <button
                                                                     onClick={() => {
-                                                                        if (isPending && (rec as any).id) {
+                                                                        if (isPending && rec.id) {
                                                                             setSelectedVaccination(rec as VaccinationRecord);
                                                                             setIsEditingVaccination(true); // Treat as edit to update PENDING -> COMPLETED
                                                                         } else {
@@ -1073,7 +1110,7 @@ export const StaffPatientsPage = () => {
                                                                             {record.staffName ? record.staffName.charAt(0) : '?'}
                                                                         </div>
                                                                         <div className="text-sm font-medium text-stone-700">
-                                                                            {record.staffName ? `Dr.${record.staffName.split(' ').pop()} ` : 'Chưa phân công'}
+                                                                            {record.staffName ? `NV. ${record.staffName.split(' ').pop()}` : 'Chưa phân công'}
                                                                         </div>
                                                                     </div>
                                                                 </td>

@@ -28,6 +28,7 @@ public class SosMatchResponse {
     // Pet info (for resuming matching on mobile)
     private UUID petId;
     private String petName;
+    private String petAvatarUrl;
 
     // Clinic info (when matched)
     private UUID clinicId;
@@ -50,4 +51,9 @@ public class SosMatchResponse {
 
     // WebSocket topic for real-time updates
     private String wsTopicUrl;
+
+    // Matching progress info
+    private Integer currentClinicIndex;
+    private Integer totalClinicsInRange;
+    private Long remainingSeconds;
 }

@@ -13,6 +13,7 @@ from loguru import logger
 
 from app.db.postgres.models import Tool
 from app.db.postgres.session import AsyncSessionLocal
+from app.core.tool_runtime_context import get_tool_runtime_context
 
 
 class ToolExecutor:
@@ -31,9 +32,7 @@ class ToolExecutor:
         pass
 
     async def execute(
-        self,
-        tool_name: str,
-        parameters: Dict[str, Any] = None
+        self, tool_name: str, parameters: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """
         Execute tool with parameters
@@ -60,13 +59,6 @@ class ToolExecutor:
         if parameters is None:
             parameters = {}
 
-        # Normalize parameter keys: strip whitespace from keys
-        # LLM sometimes outputs { "query ": "..." } with trailing space in key names
-        if parameters and isinstance(parameters, dict):
-            parameters = {k.strip(): v for k, v in parameters.items()}
-
-        logger.info(f"Executing tool: {tool_name} with params: {parameters}")
-
         # Step 1: Load tool from database
         tool = await self._load_tool(tool_name)
 
@@ -75,6 +67,36 @@ class ToolExecutor:
 
         if not tool.enabled:
             raise Exception(f"Tool '{tool_name}' is not enabled")
+
+        # Normalize parameter keys: strip whitespace from keys
+        # LLM sometimes outputs { "query ": "..." } with trailing space in key names
+        if parameters and isinstance(parameters, dict):
+            parameters = {k.strip(): v for k, v in parameters.items()}
+
+        # Filter out parameters không có trong schema để tránh lỗi
+        # "Unexpected keyword argument" từ Pydantic/FastMCP (ví dụ key "type" dư)
+        if tool.input_schema and isinstance(tool.input_schema, dict):
+            schema = tool.input_schema
+            allowed_keys = set()
+            properties = schema.get("properties")
+            if isinstance(properties, dict):
+                allowed_keys = set(properties.keys())
+
+            if allowed_keys:
+                original_keys = set(parameters.keys())
+                filtered_parameters = {
+                    k: v for k, v in parameters.items() if k in allowed_keys
+                }
+                dropped = original_keys - set(filtered_parameters.keys())
+                if dropped:
+                    logger.warning(
+                        f"Dropping unsupported params for tool '{tool_name}': {dropped}"
+                    )
+                parameters = filtered_parameters
+
+        logger.info(f"Executing tool: {tool_name} with params: {parameters}")
+
+        parameters = self._inject_contextual_parameters(tool_name, parameters)
 
         # Step 2: Validate parameters
         self._validate_parameters(tool, parameters)
@@ -97,9 +119,7 @@ class ToolExecutor:
             Tool object or None
         """
         async with AsyncSessionLocal() as session:
-            result = await session.execute(
-                select(Tool).where(Tool.name == tool_name)
-            )
+            result = await session.execute(select(Tool).where(Tool.name == tool_name))
             return result.scalar_one_or_none()
 
     def _validate_parameters(self, tool: Tool, parameters: Dict[str, Any]):
@@ -122,15 +142,37 @@ class ToolExecutor:
         for param_name in required:
             if param_name not in parameters:
                 # Log available keys for debugging
-                logger.error(f"Missing required parameter '{param_name}'. Available keys: {list(parameters.keys())}")
+                logger.error(
+                    f"Missing required parameter '{param_name}'. Available keys: {list(parameters.keys())}"
+                )
                 raise Exception(f"Missing required parameter: {param_name}")
 
         logger.debug(f"Parameters validated for tool: {tool.name}")
 
-    async def _execute_mcp_tool(
+    def _inject_contextual_parameters(
         self,
         tool_name: str,
-        parameters: Dict[str, Any]
+        parameters: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Inject runtime context vao tool params khi can."""
+        context = get_tool_runtime_context()
+        if context is None:
+            return parameters
+
+        contextual_tools = {
+            "get_user_pets": ["user_id"],
+            "create_booking_for_user": ["user_id"],
+        }
+
+        injected = dict(parameters)
+        for field_name in contextual_tools.get(tool_name, []):
+            if field_name == "user_id":
+                injected["user_id"] = context.user_id
+
+        return injected
+
+    async def _execute_mcp_tool(
+        self, tool_name: str, parameters: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Execute tool via FastMCP server
@@ -147,23 +189,14 @@ class ToolExecutor:
 
             result = await call_mcp_tool(tool_name, parameters)
 
-            return {
-                "success": True,
-                "data": result,
-                "tool_name": tool_name
-            }
+            return {"success": True, "data": result, "tool_name": tool_name}
 
         except Exception as e:
             logger.error(f"Error executing tool {tool_name}: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "tool_name": tool_name
-            }
+            return {"success": False, "error": str(e), "tool_name": tool_name}
 
     async def execute_batch(
-        self,
-        tool_calls: List[Dict[str, Any]]
+        self, tool_calls: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
         Execute multiple tools in batch (parallel)
@@ -171,8 +204,8 @@ class ToolExecutor:
         Args:
             tool_calls: List of tool call configs:
                 [
-                    {"tool_name": "check_slot", "parameters": {...}},
-                    {"tool_name": "create_booking", "parameters": {...}}
+                    {"tool_name": "check_available_slots", "parameters": {...}},
+                    {"tool_name": "create_booking_for_user", "parameters": {...}}
                 ]
 
         Returns:
@@ -182,8 +215,7 @@ class ToolExecutor:
 
         tasks = [
             self.execute(
-                tool_name=call["tool_name"],
-                parameters=call.get("parameters", {})
+                tool_name=call["tool_name"], parameters=call.get("parameters", {})
             )
             for call in tool_calls
         ]
@@ -191,15 +223,15 @@ class ToolExecutor:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         return [
-            result if not isinstance(result, Exception) else {
-                "success": False,
-                "error": str(result)
-            }
+            result
+            if not isinstance(result, Exception)
+            else {"success": False, "error": str(result)}
             for result in results
         ]
 
 
 # ===== HELPER FUNCTIONS =====
+
 
 async def get_tool_by_name(tool_name: str) -> Optional[Tool]:
     """
@@ -212,9 +244,7 @@ async def get_tool_by_name(tool_name: str) -> Optional[Tool]:
         Tool object or None
     """
     async with AsyncSessionLocal() as session:
-        result = await session.execute(
-            select(Tool).where(Tool.name == tool_name)
-        )
+        result = await session.execute(select(Tool).where(Tool.name == tool_name))
         return result.scalar_one_or_none()
 
 
@@ -231,8 +261,7 @@ async def get_enabled_tools_for_agent(agent_name: str) -> List[Tool]:
     async with AsyncSessionLocal() as session:
         result = await session.execute(
             select(Tool).where(
-                Tool.enabled == True,
-                Tool.assigned_agents.contains([agent_name])
+                Tool.enabled == True, Tool.assigned_agents.contains([agent_name])
             )
         )
         return result.scalars().all()
@@ -254,11 +283,8 @@ async def get_tool_schemas_for_agent(agent_name: str) -> List[Dict[str, Any]]:
         {
             "name": tool.name,
             "description": tool.description,
-            "parameters": tool.input_schema or {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
+            "parameters": tool.input_schema
+            or {"type": "object", "properties": {}, "required": []},
         }
         for tool in tools
     ]
@@ -269,6 +295,7 @@ tool_executor = ToolExecutor()
 
 
 # ===== CONVENIENCE FUNCTION FOR SINGLE AGENT =====
+
 
 async def execute_tool(tool_name: str, params: dict) -> dict:
     """
@@ -285,6 +312,6 @@ async def execute_tool(tool_name: str, params: dict) -> dict:
 
     Usage in SingleAgent:
         from app.core.tools.executor import execute_tool
-        result = await execute_tool("search_symptoms", {"symptoms": ["sot", "non"]})
+        result = await execute_tool("pet_knowledge_search", {"query": "chó bị tiêu chảy"})
     """
     return await tool_executor.execute(tool_name, params)

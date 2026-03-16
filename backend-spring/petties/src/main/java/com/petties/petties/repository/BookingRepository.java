@@ -106,6 +106,11 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
                         Pageable pageable);
 
         /**
+         * Check whether a pet has any booking in active statuses.
+         */
+        boolean existsByPet_IdAndStatusIn(UUID petId, List<BookingStatus> statuses);
+
+        /**
          * Delete all bookings for a pet owner (for cleanup/seeding)
          */
         void deleteAllByPetOwner_UserId(UUID userId);

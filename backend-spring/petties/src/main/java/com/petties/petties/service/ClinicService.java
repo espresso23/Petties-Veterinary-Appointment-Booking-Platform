@@ -18,8 +18,7 @@ import com.petties.petties.repository.ClinicRepository;
 import com.petties.petties.repository.UserRepository;
 import com.petties.petties.model.enums.NotificationType;
 import com.petties.petties.model.Notification;
-import com.petties.petties.model.ClinicPricePerKm;
-import com.petties.petties.repository.ClinicPricePerKmRepository;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -50,7 +49,7 @@ public class ClinicService {
         private final CloudinaryService cloudinaryService;
         private final EmailService emailService;
         private final NotificationService notificationService;
-        private final ClinicPricePerKmRepository clinicPricePerKmRepository;
+        private final ClinicPriceService clinicPriceService;
 
         @Transactional(readOnly = true)
         public List<ClinicLocationResponse> getActiveLocations() {
@@ -60,21 +59,21 @@ public class ClinicService {
         @Transactional(readOnly = true)
         public Page<ClinicResponse> getAllClinics(ClinicStatus status, String name, Pageable pageable) {
                 Page<Clinic> clinics = clinicRepository.findWithFilters(status, name, pageable);
-                return clinics.map(this::mapToResponse);
+                return mapToResponsePage(clinics);
         }
 
         @Transactional(readOnly = true)
         public ClinicResponse getClinicById(UUID clinicId) {
                 Clinic clinic = clinicRepository.findByIdAndNotDeleted(clinicId)
                                 .orElseThrow(() -> new ResourceNotFoundException(
-                                                "Clinic not found with id: " + clinicId));
+                                                "Không tìm thấy phòng khám với ID: " + clinicId));
                 return mapToResponse(clinic);
         }
 
         @Transactional
         public ClinicResponse createClinic(ClinicRequest request, UUID ownerId) {
                 User owner = userRepository.findById(ownerId)
-                                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
 
                 // Verify user is CLINIC_OWNER
                 if (owner.getRole() != Role.CLINIC_OWNER) {
@@ -121,13 +120,9 @@ public class ClinicService {
 
                 clinic = clinicRepository.saveAndFlush(clinic);
 
-                // Save or update SOS fee
+                // Save or update SOS fee via dedicated service
                 if (request.getSosFee() != null) {
-                        ClinicPricePerKm pricing = new ClinicPricePerKm();
-                        pricing.setClinicId(clinic.getClinicId());
-                        pricing.setClinic(clinic);
-                        pricing.setSosFee(request.getSosFee());
-                        clinicPricePerKmRepository.save(pricing);
+                        clinicPriceService.updatePricing(clinic.getClinicId(), null, request.getSosFee());
                 }
 
                 log.info("Clinic created: {} by owner: {}", clinic.getClinicId(), ownerId);
@@ -149,20 +144,9 @@ public class ClinicService {
         @Transactional
         public ClinicResponse updateClinic(UUID clinicId, ClinicRequest request, UUID ownerId) {
                 Clinic clinic = clinicRepository.findByIdAndNotDeleted(clinicId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
 
-                // Check ownership or management rights
-                User currentUser = userRepository.findById(ownerId)
-                                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-                boolean isOwner = clinic.getOwner().getUserId().equals(ownerId);
-                boolean isManager = currentUser.getRole() == Role.CLINIC_MANAGER &&
-                                currentUser.getWorkingClinic() != null &&
-                                currentUser.getWorkingClinic().getClinicId().equals(clinicId);
-
-                if (!isOwner && !isManager) {
-                        throw new ForbiddenException("Bạn không có quyền cập nhật phòng khám này");
-                }
+                validateClinicAccess(clinic, ownerId, "cập nhật");
 
                 // !! FIX: Capture old address BEFORE updating to detect changes
                 String oldAddress = clinic.getAddress();
@@ -205,18 +189,9 @@ public class ClinicService {
 
                 clinic = clinicRepository.save(clinic);
 
-                // Update SOS fee
+                // Update SOS fee via dedicated service
                 if (request.getSosFee() != null) {
-                        final Clinic finalClinic = clinic;
-                        ClinicPricePerKm pricing = clinicPricePerKmRepository.findById(clinicId)
-                                        .orElseGet(() -> {
-                                                ClinicPricePerKm p = new ClinicPricePerKm();
-                                                p.setClinicId(clinicId);
-                                                p.setClinic(finalClinic);
-                                                return p;
-                                        });
-                        pricing.setSosFee(request.getSosFee());
-                        clinicPricePerKmRepository.save(pricing);
+                        clinicPriceService.updatePricing(clinicId, null, request.getSosFee());
                         log.info("SOS fee updated for clinic {}: {}", clinicId, request.getSosFee());
                 }
 
@@ -227,7 +202,7 @@ public class ClinicService {
         @Transactional
         public void deleteClinic(UUID clinicId, UUID ownerId) {
                 Clinic clinic = clinicRepository.findByIdAndNotDeleted(clinicId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
 
                 // Check ownership
                 // Note: Only Owners should be able to delete clinics. Managers can only update.
@@ -255,9 +230,13 @@ public class ClinicService {
                                 province, district, minPrice, maxPrice, service);
 
                 // 2. Map and calculate distances
+                // Batch fetch pricing
+                List<java.util.UUID> clinicIds = clinics.stream().map(Clinic::getClinicId).toList();
+                java.util.Map<java.util.UUID, com.petties.petties.model.ClinicPricePerKm> priceMap = clinicPriceService.getPricingBatch(clinicIds);
+                
                 List<ClinicResponse> responses = clinics.stream()
                                 .map(clinic -> {
-                                        ClinicResponse response = mapToResponse(clinic);
+                                        ClinicResponse response = mapToResponse(clinic, priceMap.get(clinic.getClinicId()));
                                         if (latitude != null && longitude != null && clinic.getLatitude() != null
                                                         && clinic.getLongitude() != null) {
                                                 double distance = locationService.calculateDistance(
@@ -362,9 +341,13 @@ public class ClinicService {
                 List<Clinic> clinics = clinicRepository.findNearbyClinics(latitude, longitude, radius);
 
                 // Calculate distances and map to response
+                // Batch fetch pricing
+                List<java.util.UUID> clinicIds = clinics.stream().map(Clinic::getClinicId).toList();
+                java.util.Map<java.util.UUID, com.petties.petties.model.ClinicPricePerKm> priceMap = clinicPriceService.getPricingBatch(clinicIds);
+                
                 List<ClinicResponse> responses = clinics.stream()
                                 .map(clinic -> {
-                                        ClinicResponse response = mapToResponse(clinic);
+                                        ClinicResponse response = mapToResponse(clinic, priceMap.get(clinic.getClinicId()));
                                         double distance = locationService.calculateDistance(
                                                         latitude, longitude,
                                                         clinic.getLatitude(), clinic.getLongitude());
@@ -391,7 +374,7 @@ public class ClinicService {
         @Transactional(readOnly = true)
         public DistanceResponse calculateDistance(UUID clinicId, BigDecimal latitude, BigDecimal longitude) {
                 Clinic clinic = clinicRepository.findByIdAndNotDeleted(clinicId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
 
                 if (clinic.getLatitude() == null || clinic.getLongitude() == null) {
                         throw new BadRequestException("Vị trí phòng khám chưa được thiết lập");
@@ -405,7 +388,7 @@ public class ClinicService {
         @Transactional(readOnly = true)
         public Page<ClinicResponse> getPendingClinics(Pageable pageable) {
                 Page<Clinic> clinics = clinicRepository.findByStatus(ClinicStatus.PENDING, pageable);
-                return clinics.map(this::mapToResponse);
+                return mapToResponsePage(clinics);
         }
 
         @Transactional(readOnly = true)
@@ -416,7 +399,7 @@ public class ClinicService {
         @Transactional
         public ClinicResponse approveClinic(UUID clinicId, String reason) {
                 Clinic clinic = clinicRepository.findByIdAndNotDeleted(clinicId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
 
                 if (clinic.getStatus() != ClinicStatus.PENDING) {
                         throw new BadRequestException("Chỉ có thể duyệt phòng khám đang chờ xét duyệt");
@@ -453,7 +436,7 @@ public class ClinicService {
         @Transactional
         public ClinicResponse rejectClinic(UUID clinicId, String reason) {
                 Clinic clinic = clinicRepository.findByIdAndNotDeleted(clinicId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
 
                 if (clinic.getStatus() != ClinicStatus.PENDING) {
                         throw new BadRequestException("Chỉ có thể từ chối phòng khám đang chờ xét duyệt");
@@ -493,7 +476,7 @@ public class ClinicService {
         @Transactional(readOnly = true)
         public Page<ClinicResponse> getClinicsByOwner(UUID userId, Pageable pageable) {
                 User user = userRepository.findById(userId)
-                                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
 
                 if (user.getRole() == Role.CLINIC_MANAGER && user.getWorkingClinic() != null) {
                         // Manager: Return only the assigned clinic
@@ -502,27 +485,16 @@ public class ClinicService {
 
                 // Owner: Return all owned clinics
                 Page<Clinic> clinics = clinicRepository.findByOwnerUserId(userId, pageable);
-                return clinics.map(this::mapToResponse);
+                return mapToResponsePage(clinics);
         }
 
         @Transactional
         public ClinicResponse uploadClinicImage(UUID clinicId, String imageUrl, String caption,
                         Integer displayOrder, Boolean isPrimary, UUID ownerId) {
                 Clinic clinic = clinicRepository.findByIdAndNotDeleted(clinicId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
 
-                // Check ownership or management rights
-                User currentUser = userRepository.findById(ownerId)
-                                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-                boolean isOwner = clinic.getOwner().getUserId().equals(ownerId);
-                boolean isManager = currentUser.getRole() == Role.CLINIC_MANAGER &&
-                                currentUser.getWorkingClinic() != null &&
-                                currentUser.getWorkingClinic().getClinicId().equals(clinicId);
-
-                if (!isOwner && !isManager) {
-                        throw new ForbiddenException("Bạn không có quyền tải ảnh lên cho phòng khám này");
-                }
+                validateClinicAccess(clinic, ownerId, "tải ảnh lên cho");
 
                 // If this is set as primary, unset other primary images
                 if (Boolean.TRUE.equals(isPrimary)) {
@@ -553,31 +525,20 @@ public class ClinicService {
 
                 // Reload clinic to get updated images
                 clinic = clinicRepository.findByIdAndNotDeleted(clinicId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
                 return mapToResponse(clinic);
         }
 
         @Transactional
         public void deleteClinicImage(UUID clinicId, UUID imageId, UUID ownerId) {
                 Clinic clinic = clinicRepository.findByIdAndNotDeleted(clinicId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
 
-                // Check ownership or management rights
-                User currentUser = userRepository.findById(ownerId)
-                                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-                boolean isOwner = clinic.getOwner().getUserId().equals(ownerId);
-                boolean isManager = currentUser.getRole() == Role.CLINIC_MANAGER &&
-                                currentUser.getWorkingClinic() != null &&
-                                currentUser.getWorkingClinic().getClinicId().equals(clinicId);
-
-                if (!isOwner && !isManager) {
-                        throw new ForbiddenException("Bạn không có quyền xóa ảnh từ phòng khám này");
-                }
+                validateClinicAccess(clinic, ownerId, "xóa ảnh từ");
 
                 ClinicImage clinicImage = clinicImageRepository
                                 .findByImageIdAndClinicClinicId(imageId, clinicId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Clinic image not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy ảnh phòng khám"));
 
                 // Extract publicId from imageUrl to delete from Cloudinary
                 String imageUrl = clinicImage.getImageUrl();
@@ -604,23 +565,12 @@ public class ClinicService {
         @Transactional
         public ClinicResponse setPrimaryClinicImage(UUID clinicId, UUID imageId, UUID ownerId) {
                 Clinic clinic = clinicRepository.findByIdAndNotDeleted(clinicId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
 
-                // Check ownership or management rights
-                User currentUser = userRepository.findById(ownerId)
-                                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-                boolean isOwner = clinic.getOwner().getUserId().equals(ownerId);
-                boolean isManager = currentUser.getRole() == Role.CLINIC_MANAGER &&
-                                currentUser.getWorkingClinic() != null &&
-                                currentUser.getWorkingClinic().getClinicId().equals(clinicId);
-
-                if (!isOwner && !isManager) {
-                        throw new ForbiddenException("Bạn không có quyền cập nhật ảnh cho phòng khám này");
-                }
+                validateClinicAccess(clinic, ownerId, "cập nhật ảnh cho");
 
                 ClinicImage targetImage = clinicImageRepository.findByImageIdAndClinicClinicId(imageId, clinicId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Clinic image not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy ảnh phòng khám"));
 
                 // Set all images isPrimary=false, then set target true
                 clinic.getImages().forEach(img -> img.setIsPrimary(false));
@@ -636,20 +586,9 @@ public class ClinicService {
         @Transactional
         public ClinicResponse updateClinicLogo(UUID clinicId, String logoUrl, UUID ownerId) {
                 Clinic clinic = clinicRepository.findByIdAndNotDeleted(clinicId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
 
-                // Check ownership or management rights
-                User currentUser = userRepository.findById(ownerId)
-                                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-                boolean isOwner = clinic.getOwner().getUserId().equals(ownerId);
-                boolean isManager = currentUser.getRole() == Role.CLINIC_MANAGER &&
-                                currentUser.getWorkingClinic() != null &&
-                                currentUser.getWorkingClinic().getClinicId().equals(clinicId);
-
-                if (!isOwner && !isManager) {
-                        throw new ForbiddenException("Bạn không có quyền cập nhật logo cho phòng khám này");
-                }
+                validateClinicAccess(clinic, ownerId, "cập nhật logo cho");
 
                 // Delete old logo from Cloudinary if exists
                 String oldLogoUrl = clinic.getLogo();
@@ -676,7 +615,35 @@ public class ClinicService {
                 return mapToResponse(clinic);
         }
 
+        private void validateClinicAccess(Clinic clinic, UUID ownerId, String actionName) {
+                User currentUser = userRepository.findById(ownerId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
+
+                boolean isOwner = clinic.getOwner().getUserId().equals(ownerId);
+                boolean isManager = currentUser.getRole() == Role.CLINIC_MANAGER &&
+                                currentUser.getWorkingClinic() != null &&
+                                currentUser.getWorkingClinic().getClinicId().equals(clinic.getClinicId());
+
+                if (!isOwner && !isManager) {
+                        throw new ForbiddenException("Bạn không có quyền " + actionName + " phòng khám này");
+                }
+        }
+
         private ClinicResponse mapToResponse(Clinic clinic) {
+                com.petties.petties.model.ClinicPricePerKm pricing = clinicPriceService.getPricing(clinic.getClinicId()).orElse(null);
+                return mapToResponse(clinic, pricing);
+        }
+
+        private Page<ClinicResponse> mapToResponsePage(Page<Clinic> clinics) {
+                if (clinics.isEmpty()) return clinics.map(c -> mapToResponse(c, null));
+                
+                List<UUID> clinicIds = clinics.getContent().stream().map(Clinic::getClinicId).toList();
+                java.util.Map<UUID, com.petties.petties.model.ClinicPricePerKm> priceMap = clinicPriceService.getPricingBatch(clinicIds);
+                
+                return clinics.map(c -> mapToResponse(c, priceMap.get(c.getClinicId())));
+        }
+
+        private ClinicResponse mapToResponse(Clinic clinic, com.petties.petties.model.ClinicPricePerKm pricing) {
                 List<ClinicImage> sortedImages = clinic.getImages().stream()
                                 .sorted((a, b) -> {
                                         boolean aPrimary = Boolean.TRUE.equals(a.getIsPrimary());
@@ -729,12 +696,8 @@ public class ClinicService {
                                 .email(clinic.getEmail())
                                 .bankName(clinic.getBankName())
                                 .accountNumber(clinic.getAccountNumber())
-                                .sosFee(clinicPricePerKmRepository.findById(clinic.getClinicId())
-                                                .map(ClinicPricePerKm::getSosFee)
-                                                .orElse(null))
-                                .pricePerKm(clinicPricePerKmRepository.findById(clinic.getClinicId())
-                                                .map(ClinicPricePerKm::getPricePerKm)
-                                                .orElse(null))
+                                .sosFee(pricing != null ? pricing.getSosFee() : null)
+                                .pricePerKm(pricing != null ? pricing.getPricePerKm() : null)
                                 .latitude(clinic.getLatitude())
                                 .longitude(clinic.getLongitude())
                                 .operatingHours(clinic.getOperatingHours())

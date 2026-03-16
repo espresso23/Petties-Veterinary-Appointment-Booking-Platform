@@ -10,7 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.UUID;
 
 @Repository
@@ -25,9 +25,26 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
     Page<Notification> findByUserUserIdOrderByCreatedAtDesc(@Param("userId") UUID userId, Pageable pageable);
 
     /**
+     * Find visible notifications for a user limited to specific types.
+     */
+    @Query("SELECT n FROM Notification n LEFT JOIN n.clinic c " +
+            "WHERE n.user.userId = :userId " +
+            "AND n.type IN :types " +
+            "AND (c IS NULL OR c.deletedAt IS NULL)")
+    Page<Notification> findByUserUserIdAndTypeInOrderByCreatedAtDesc(
+            @Param("userId") UUID userId,
+            @Param("types") Collection<NotificationType> types,
+            Pageable pageable);
+
+    /**
      * Count unread notifications for a user
      */
     long countByUserUserIdAndReadFalse(UUID userId);
+
+    /**
+     * Count unread notifications for a user limited to specific types.
+     */
+    long countByUserUserIdAndTypeInAndReadFalse(UUID userId, Collection<NotificationType> types);
 
     /**
      * Mark all notifications as read for a user

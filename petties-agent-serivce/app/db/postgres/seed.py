@@ -8,11 +8,16 @@ from pathlib import Path
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.postgres.models import (
-    Agent, Tool, SystemSetting,
-    DEFAULT_SETTINGS, PromptVersion
+    Agent,
+    Tool,
+    ToolType,
+    SystemSetting,
+    DEFAULT_SETTINGS,
+    PromptVersion,
 )
 
 logger = logging.getLogger(__name__)
+
 
 async def seed_data(db: AsyncSession, force: bool = False):
     """
@@ -20,7 +25,9 @@ async def seed_data(db: AsyncSession, force: bool = False):
     """
     try:
         # Templates directory
-        templates_dir = Path(__file__).parent.parent.parent / "core" / "prompts" / "templates"
+        templates_dir = (
+            Path(__file__).parent.parent.parent / "core" / "prompts" / "templates"
+        )
 
         def load_template(agent_name: str) -> str:
             """Load template file"""
@@ -32,11 +39,7 @@ async def seed_data(db: AsyncSession, force: bool = False):
                 logger.warning(f"Failed to load template {agent_name}: {e}")
             return ""
 
-        results = {
-            "system_settings": 0,
-            "agents": 0,
-            "tools": 0
-        }
+        results = {"system_settings": 0, "agents": 0, "tools": 0}
 
         # 1. Seed system settings
         if force:
@@ -51,7 +54,7 @@ async def seed_data(db: AsyncSession, force: bool = False):
                     value=setting_data["value"],
                     category=setting_data["category"],  # Now a simple string
                     is_sensitive=setting_data["is_sensitive"],
-                    description=setting_data["description"]
+                    description=setting_data["description"],
                 )
                 settings_list.append(setting)
             db.add_all(settings_list)
@@ -65,7 +68,9 @@ async def seed_data(db: AsyncSession, force: bool = False):
 
         existing_agents = await db.execute(select(Agent))
         if not existing_agents.scalars().first() or force:
-            single_agent_prompt = load_template("single_agent") or load_template("main_agent")
+            single_agent_prompt = load_template("single_agent") or load_template(
+                "main_agent"
+            )
 
             if not single_agent_prompt:
                 single_agent_prompt = """Bạn là Petties AI Assistant - trợ lý AI chuyên về chăm sóc thú cưng.
@@ -99,7 +104,7 @@ async def seed_data(db: AsyncSession, force: bool = False):
                 top_p=0.9,
                 model="google/gemini-2.0-flash-exp:free",
                 system_prompt=single_agent_prompt,
-                enabled=True
+                enabled=True,
             )
 
             db.add(single_agent)
@@ -114,35 +119,255 @@ async def seed_data(db: AsyncSession, force: bool = False):
 
             tools = [
                 Tool(
-                    name="pet_care_qa",
-                    description="""Tim kiếm kiến thức chăm sóc thú cưng từ knowledge base (RAG Q&A).""",
-                    tool_type="code_based",
+                    name="pet_knowledge_search",
+                    description="""Tìm kiếm kiến thức chăm sóc thú cưng từ Knowledge Base (RAG). Trả về dữ liệu thô để LLM tự phân tích.""",
+                    tool_type=ToolType.CODE_BASED,
                     input_schema={
                         "type": "object",
                         "properties": {
-                            "query": {"type": "string", "description": "Câu hỏi khóa tìm kiếm"},
-                            "top_k": {"type": "integer", "default": 5}
+                            "query": {
+                                "type": "string",
+                                "description": "Câu hỏi hoặc mô tả triệu chứng",
+                            },
+                            "pet_type": {
+                                "type": "string",
+                                "default": "dog",
+                                "description": "Loại thú cưng",
+                            },
+                            "top_k": {"type": "integer", "default": 5},
+                            "min_score": {"type": "number", "default": 0.4},
                         },
-                        "required": ["query"]
+                        "required": ["query"],
                     },
                     enabled=True,
-                    assigned_agents=["petties_agent"]
+                    assigned_agents=["petties_agent"],
+                ),
+                 Tool(
+                     name="web_search",
+                     description="Tìm kiếm thông tin trên web khi knowledge base chưa đủ dữ liệu. Chỉ dùng cho nội dung liên quan đến thú cưng, thú y, chăm sóc, dinh dưỡng, triệu chứng.",
+                     tool_type=ToolType.CODE_BASED,
+                     input_schema={
+                         "type": "object",
+                         "properties": {
+                             "query": {
+                                 "type": "string",
+                                 "description": "Câu hỏi tìm trên web",
+                             },
+                             "max_results": {"type": "integer", "default": 5},
+                         },
+                         "required": ["query"],
+                     ),
+                     enabled=True,
+                     assigned_agents=["petties_agent"],
+                 ),
+                 Tool(
+                     name="get_user_pets",
+                     description="Lấy danh sách thú cưng của pet owner hiện tại để phục vụ quy trình đặt lịch.",
+                     tool_type=ToolType.CODE_BASED,
+                     input_schema={
+                         "type": "object",
+                         "properties": {
+                             "user_id": {
+                                 "type": "string",
+                                 "description": "User ID được tự động inject từ session",
+                             }
+                         },
+                         "required": [],
+                     ),
+                     enabled=True,
+                     assigned_agents=["petties_agent"],
+                 ),
+                Tool(
+                    name="search_clinics_nearby",
+                    description="Tim phong kham gan vi tri user de goi y dat lich.",
+                    tool_type=ToolType.CODE_BASED,
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "latitude": {"type": "number"},
+                            "longitude": {"type": "number"},
+                            "radius_km": {"type": "number", "default": 5},
+                            "service_names": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                            "top_k": {"type": "integer", "default": 5},
+                        },
+                        "required": ["latitude", "longitude"],
+                    },
+                    enabled=True,
+                    assigned_agents=["petties_agent"],
                 ),
                 Tool(
-                    name="symptom_search",
-                    description="""Tim bệnh dựa trên triệu chứng su dung RAG (Symptom Checker).""",
-                    tool_type="code_based",
+                    name="get_clinic_services",
+                    description="Lay danh sach dich vu dang hoat dong cua phong kham.",
+                    tool_type=ToolType.CODE_BASED,
                     input_schema={
                         "type": "object",
                         "properties": {
-                            "symptoms": {"type": "array", "items": {"type": "string"}},
-                            "pet_type": {"type": "string", "default": "dog"}
+                            "clinic_id": {"type": "string"},
+                            "pet_species": {"type": "string"},
+                            "is_home_visit": {"type": "boolean"},
                         },
-                        "required": ["symptoms"]
+                        "required": ["clinic_id"],
                     },
                     enabled=True,
-                    assigned_agents=["petties_agent"]
+                    assigned_agents=["petties_agent"],
                 ),
+                Tool(
+                    name="check_vaccination_status",
+                    description="Lay lich su tiem va goi y mui sap toi cua pet de ho tro tu van booking tiem chung trong flow binh thuong.",
+                    tool_type=ToolType.CODE_BASED,
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "pet_id": {"type": "string"},
+                            "vaccine_template_id": {"type": "string"},
+                        },
+                        "required": ["pet_id"],
+                    },
+                    enabled=True,
+                    assigned_agents=["petties_agent"],
+                ),
+                Tool(
+                    name="check_available_slots",
+                    description="Kiem tra khung gio trong cua phong kham cho danh sach dich vu.",
+                    tool_type=ToolType.CODE_BASED,
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "clinic_id": {"type": "string"},
+                            "date": {"type": "string"},
+                            "service_ids": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                        },
+                        "required": ["clinic_id", "date", "service_ids"],
+                    },
+                    enabled=True,
+                    assigned_agents=["petties_agent"],
+                ),
+                Tool(
+                    name="create_booking_for_user",
+                    description="Tao booking that cho pet owner sau khi da xac nhan day du thong tin.",
+                    tool_type=ToolType.CODE_BASED,
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "pet_id": {"type": "string"},
+                            "clinic_id": {"type": "string"},
+                            "booking_date": {"type": "string"},
+                            "start_time": {"type": "string"},
+                            "service_ids": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                            "booking_type": {
+                                "type": "string",
+                                "enum": ["IN_CLINIC", "HOME_VISIT"],
+                            },
+                            "notes": {"type": "string"},
+                            "home_address": {"type": "string"},
+                            "home_lat": {"type": "number"},
+                            "home_long": {"type": "number"},
+                            "distance_km": {"type": "number"},
+                            "confirmed": {"type": "boolean", "default": false},
+                        },
+                        "required": [
+                            "pet_id",
+                            "clinic_id",
+                            "booking_date",
+                            "start_time",
+                            "service_ids",
+                            "confirmed",
+                        ],
+                    },
+                    enabled=True,
+                    assigned_agents=["petties_agent"],
+                ),
+                 # === STAFF DIAGNOSTIC SUPPORT TOOLS ===
+                 Tool(
+                     name="get_staff_patients",
+                     description="Lấy danh sách thú cưng của staff hiện tại để tìm kiếm nhanh theo tên. Dùng khi staff muốn tìm thú cưng để xem chi tiết bệnh án.",
+                     tool_type=ToolType.CODE_BASED,
+                     input_schema={
+                         "type": "object",
+                         "properties": {
+                             "query_name": {
+                                 "type": "string",
+                                 "description": "Tên thú cưng cần tìm (tùy chọn)",
+                             },
+                             "limit": {
+                                 "type": "integer",
+                                 "default": 10,
+                                 "description": "Số lượng kết quả tối đa",
+                             },
+                         },
+                     },
+                     enabled=True,
+                     assigned_agents=["petties_agent"],
+                 ),
+                 Tool(
+                     name="get_patient_summary",
+                     description="Lấy tóm tắt nhanh hồ sơ y tế của một thú cưng: thông tin cơ bản, 2 lần khám gần nhất, và đường link hình ảnh y tế.",
+                     tool_type=ToolType.CODE_BASED,
+                     input_schema={
+                         "type": "object",
+                         "properties": {
+                             "pet_id": {
+                                 "type": "string",
+                                 "description": "ID của thú cưng",
+                             },
+                         },
+                         "required": ["pet_id"],
+                     },
+                     enabled=True,
+                     assigned_agents=["petties_agent"],
+                 ),
+                 Tool(
+                     name="get_emr_history",
+                     description="Lấy lịch sử bệnh án đầy đủ của một thú cưng với giới hạn số lượng lần khám.",
+                     tool_type=ToolType.CODE_BASED,
+                     input_schema={
+                         "type": "object",
+                         "properties": {
+                             "pet_id": {
+                                 "type": "string",
+                                 "description": "ID của thú cưng",
+                             },
+                             "limit": {
+                                 "type": "integer",
+                                 "default": 5,
+                                 "description": "Số lượng lần khám tối đa để trả về",
+                             },
+                         },
+                         "required": ["pet_id"],
+                     ],
+                     enabled=True,
+                     assigned_agents=["petties_agent"],
+                 ),
+                 Tool(
+                     name="analyze_pet_image",
+                     description="Phân tích hình ảnh y tế thú cưng để chẩn đoán sơ bộ. Trả về kết quả chuẩn gồm chẩn đoán, mức độ nghiêm trọng, vùng bị ảnh hưởng và các hành động đề xuất.",
+                     tool_type=ToolType.CODE_BASED,
+                     input_schema={
+                         "type": "object",
+                         "properties": {
+                             "image_url": {
+                                 "type": "string",
+                                 "description": "URL của hình ảnh cần phân tích (phải là đường link công khai)",
+                             },
+                             "context": {
+                                 "type": "string",
+                                 "description": "Mô tả thêm về tình hình thú cưng (tùy chọn)",
+                             },
+                         },
+                         "required": ["image_url"],
+                     },
+                     enabled=True,
+                     assigned_agents=["petties_agent"],
+                 ),
             ]
 
             db.add_all(tools)

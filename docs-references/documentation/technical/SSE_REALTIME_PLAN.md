@@ -10,9 +10,9 @@ Hệ thống SSE hiện đã được tích hợp hoàn tất cho các luồng t
     *   `APPROVED`/`REJECTED`: Gửi cho **Clinic Owner** ngay khi Admin phê duyệt hoặc từ chối phòng khám.
     *   `CLINIC_PENDING_APPROVAL`: Gửi cho tất cả **Admin** ngay khi có phòng khám mới đăng ký.
 *   **Thông báo Lịch làm việc (Staff Shift Notifications):**
-    *   `VET_SHIFT_ASSIGNED`: Gửi cho **Nhân viên** khi được gán ca làm việc mới.
-    *   `VET_SHIFT_UPDATED`: Gửi cho **Nhân viên** khi lịch trực bị thay đổi.
-    *   `VET_SHIFT_DELETED`: Gửi cho **Nhân viên** khi ca làm việc bị hủy.
+    *   `STAFF_SHIFT_ASSIGNED`: Gửi cho **Nhân viên** khi được gán ca làm việc mới.
+    *   `STAFF_SHIFT_UPDATED`: Gửi cho **Nhân viên** khi lịch trực bị thay đổi.
+    *   `STAFF_SHIFT_DELETED`: Gửi cho **Nhân viên** khi ca làm việc bị hủy.
 *   **Hệ thống đếm thông báo Real-time:**
     *   Cập nhật con số chưa đọc (Unread Badge) trên thanh Sidebar ngay lập tức cho 5 roles. ✅
 *   **Hệ thống đếm Phòng khám chờ duyệt (Admin Clinic Counter):**
@@ -40,8 +40,8 @@ Hệ thống SSE hiện đã được tích hợp hoàn tất cho các luồng t
 ## 3. Lộ trình triển khai (Implementation Phases)
 
 ### Giai đoạn 1: Đồng bộ hóa Lịch trình (Quý 1)
-*   [ ] Tích hợp SSE vào màn hình `VetSchedulePage` và `ClinicManagerPage`.
-*   [ ] Sự kiện: `BOOKING_CREATED`, `BOOKING_CANCELLED`, `VET_CHECK_IN`.
+*   [ ] Tích hợp SSE vào màn hình `StaffSchedulePage` và `ClinicManagerPage`.
+*   [ ] Sự kiện: `BOOKING_CREATED`, `BOOKING_CANCELLED`, `STAFF_CHECK_IN`.
 
 ### Giai đoạn 2: Trải nghiệm AI & Thanh toán (Quý 2)
 *   [ ] Triển khai Streaming cho AI Agent.

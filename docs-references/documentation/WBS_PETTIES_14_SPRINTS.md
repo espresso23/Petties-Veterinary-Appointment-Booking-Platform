@@ -124,9 +124,9 @@
 | US-AUTH-02 | Đăng nhập Username/Password | ✅ |
 | US-CLN-02 | Duyệt phòng khám (Approve/Reject) | ✅ |
 | US-CLN-03 | Quản lý Master Services | ✅ |
-| US-AI-01 | Cấu hình RAG Knowledge Base | ✅ |
-| US-NTF-02 | Nhận Real-time Notification (SSE) | ✅ |
-| US-NTF-03 | Xem Notification Center | ✅ |
+| US-AD-11 | AI Feedback Audit & Visual Learning | ✅ |
+| US-AD-12 | Knowledge Graph Management | ✅ |
+| US-AD-13 | Knowledge Graph Query Testing | ✅ |
 
 ---
 
@@ -138,7 +138,7 @@
 | **Staff** | 10 | 6 | 0 | 4 |
 | **Clinic Manager** | 13 | 11 | 0 | 2 |
 | **Clinic Owner** | 7 | 7 | 0 | 0 |
-| **Admin** | 6 | 6 | 0 | 0 |
+| **Admin** | 9 | 9 | 0 | 0 |
 
 ---
 
@@ -312,6 +312,8 @@
 - `US-AI-04` AI-assisted booking via conversation
 - `US-AI-05` Web search for pet products (DuckDuckGo)
 - `US-AI-06` AI Vision Pet Health Analysis (Images)
+- `US-AI-11` AI Feedback Audit & Visual Learning
+- `US-AI-12` Knowledge Graph Management & Visualization
 
 **Dependencies:** EPIC-DISCOVERY (for AI booking), external AI services
 
@@ -415,8 +417,12 @@
 | **S6** | 06/01 - 12/01/2026 | DISCOVERY, AI | Nearby search, Clinic detail, AI Chat | ✅ Done |
 | **S7** | 13/01 - 19/01/2026 | DISCOVERY, APPOINTMENT | Clinic filters, Booking wizard | ✅ Done |
 | **S8** | 20/01 - 26/01/2026 | APPOINTMENT, MEDICAL | Check-in/out, EMR SOAP, Vaccination | ✅ Done |
-| **S9** | 27/01 - 02/02/2026 | SOS, PAYMENT | SOS booking, GPS tracking, Payments | 🔄 Current |
-| **S10+** | 03/02 - 23/02/2026 | AI (Advanced) | AI booking, Review system, Bug fixes | 💡 Planned |
+| **S9** | 27/01 - 02/02/2026 | SOS, PAYMENT | SOS booking, GPS tracking, Payments | ✅ Done |
+| **S10** | 03/02 - 09/02/2026 | AI (Advanced) | AI booking, AI Recommend, Web Search | ✅ Done |
+| **S11** | 10/02 - 16/02/2026 | PT_REVIEW | Review system, UI polishing (Neobrutalism) | ✅ Done |
+| **S12** | 17/02 - 01/03/2026 | TESTING | Integration Testing, System Testing | ✅ Done |
+| **S13** | 02/03 - 11/03/2026 | AI_DATA_IMPR | Feedback Audit, Knowledge Graph Query | ✅ Done |
+| **S14** | 12/03 - 15/03/2026 | RELEASE | Final Audit, Walkthrough, Production Release | 🔄 Current |
 
 ---
 
@@ -899,13 +905,13 @@
 > **As a** Clinic Manager, **I want to** create work shifts for veterinarians  
 > **So that** I can schedule my vets and the system auto-generates bookable slots
 
-**Sprint:** S4 | **Verified Files:** `VetShift.java`, `Slot.java`, `VetShiftService.createShifts()`
+**Sprint:** S4 | **Verified Files:** `StaffShift.java`, `Slot.java`, `StaffShiftService.createShifts()`
 
 | Sub-task | Assignee | Effort | Status |
 |----------|----------|--------|--------|
 | Viết spec (Report 3) | DEV-1 | 3h | ✅ |
 | Viết class/sequence diagram (Report 4) | DEV-1 | 5h | ✅ |
-| Code BE: VetShift, Slot auto-generation | DEV-1 | 12h | ✅ |
+| Code BE: StaffShift, Slot auto-generation | DEV-1 | 12h | ✅ |
 | Code FE: Web Shift Calendar View | DEV-2 | 10h | ✅ |
 | Viết unit test | DEV-1 | 3h | ✅ |
 | Viết system test (Report 5) | DEV-4 | 3h | ✅ |
@@ -918,7 +924,7 @@
 > **As a** Clinic Manager, **I want to** block or unblock specific time slots  
 > **So that** I can temporarily disable slots for breaks, meetings, or emergencies
 
-**Sprint:** S5 | **Verified Files:** `VetShiftService.blockSlot()`, `VetShiftService.unblockSlot()`
+**Sprint:** S5 | **Verified Files:** `StaffShiftService.blockSlot()`, `StaffShiftService.unblockSlot()`
 
 | Sub-task | Assignee | Effort | Status |
 |----------|----------|--------|--------|
@@ -937,7 +943,7 @@
 > **As a** Staff, **I want to** view my personal work schedule on my mobile  
 > **So that** I know when and where I need to work each day
 
-**Sprint:** S5 | **Verified Files:** `vet_schedule_screen.dart`, `vet_home_screen.dart`
+**Sprint:** S5 | **Verified Files:** `staff_schedule_screen.dart`, `staff_home_screen.dart`
 
 | Sub-task | Assignee | Effort | Status |
 |----------|----------|--------|--------|
@@ -1134,7 +1140,7 @@
 
 #### Acceptance Criteria:
 1. **Add Incurred Service:**
-   - Có thể thêm dịch vụ khi booking đang CONFIRMED, ASSIGNED, IN_PROGRESS (trước khi CHECKOUT)
+   - Có thể thêm dịch vụ khi booking đang CONFIRMED hoặc IN_PROGRESS (trước khi checkout)
    - Chọn từ danh sách dịch vụ của clinic
    - Nhập số lượng (quantity)
    - Ghi chú lý do (optional)
@@ -1258,7 +1264,7 @@
 |----------|----------|--------|--------|
 | Viết spec (Report 3) | DEV-5 | 3h | ⏳ |
 | Viết class/sequence diagram (Report 4) | DEV-5 | 4h | ⏳ |
-| Code AI: create_booking tool + function calling | DEV-5 | 12h | ⏳ |
+| Code AI: create_booking_for_user tool + function calling | DEV-5 | 12h | ⏳ |
 | Code BE: AI Booking API integration | DEV-1 | 6h | ⏳ |
 | Code FE: Mobile AI Booking confirmation | DEV-3 | 6h | ⏳ |
 | Viết unit test | DEV-5 | 2h | ⏳ |

@@ -1,7 +1,7 @@
 """
 PETTIES AGENT SERVICE - Single Agent with ReAct Pattern
 
-Single Agent architecture su dung LangGraph StateGraph voi ReAct loop:
+Single Agent architecture using LangGraph StateGraph with ReAct loop:
 Thought -> Action (Tool Call) -> Observation -> Loop until done
 
 Flow:
@@ -11,72 +11,91 @@ Flow:
 4. Observe -> Think (Loop) OR End (Final answer)
 
 Package: app.core.agents
-Purpose: Single Agent with ReAct pattern for Petties AI Assistant
-Version: v1.0.0
+Purpose: Lean orchestrator — delegates domain logic to extracted modules
+Version: v2.0.0 (Refactored from 1710-line god class)
 """
 
 from typing import Optional, List, Dict, Any, Literal
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 from loguru import logger
 import json
 import uuid
-import re
 
 from app.core.agents.state import ReActState, ReActStep, create_initial_react_state
 
+# Extracted modules
+from app.core.agents.text_utils import extract_latest_user_message
+from app.core.agents.thought_parser import parse_thought
+from app.core.agents.response_formatter import format_tool_observation
+from app.core.agents.tool_routing import (
+    apply_booking_tool_routing,
+)
+from app.core.agents.enrichment_strategy import (
+    build_web_search_fallback_call,
+    build_final_answer_from_tool_result,
+)
+from app.core.agents.prompt_builder import build_context, create_think_prompt
+
 
 # ===== DEFAULT SYSTEM PROMPT =====
+#
+# NGUYÊN TẮC PHÂN TÁCH PROMPT (Best Practice):
+#
+# DEFAULT_SYSTEM_PROMPT (Admin-editable via Dashboard/DB):
+#   → Nhân cách, giọng điệu, nhiệm vụ, quy tắc nghiệp vụ
+#   → Admin CÓ THỂ chỉnh sửa mà KHÔNG ảnh hưởng kỹ thuật
+#
+# create_think_prompt() (Code-managed, hardcoded in prompt_builder.py):
+#   → ReAct format, công cụ có sẵn (auto từ tool_schemas)
+#   → Nguyên tắc trả lời, nhận diện lỗi chính tả
+#   → KHÔNG NÊN thay đổi qua Dashboard
+#
+# Admin chỉ cần chỉnh: vai trò, giọng điệu, nhiệm vụ, quy tắc nghiệp vụ.
+# Các quy tắc kỹ thuật (ReAct, tools, cách trả lời) do code quản lý.
+#
 
 DEFAULT_SYSTEM_PROMPT = """Bạn là Petties AI Assistant - trợ lý AI chuyên về chăm sóc thú cưng.
 
+## VAI TRÒ & GIỌNG ĐIỆU
+- Xưng "mình", gọi người dùng là "bạn"
+- Thân thiện, dễ hiểu, không dùng thuật ngữ quá chuyên môn
+- Trả lời bằng tiếng Việt (trừ khi người dùng hỏi bằng tiếng Anh)
+
 ## NHIỆM VỤ
-- Tư vấn sức khỏe thú cưng, chẩn đoán bệnh dựa trên triệu chứng
+- Tư vấn sức khỏe thú cưng, nhận diện triệu chứng bệnh
+- Hướng dẫn chăm sóc thú cưng (dinh dưỡng, vệ sinh, huấn luyện)
 - Hỗ trợ đặt lịch khám tại phòng khám thú y
-- Tìm kiếm thông tin về chăm sóc thú cưng, sản phẩm, dịch vụ
-- Trả lời câu hỏi về thú cưng bằng tiếng Việt thân thiện
+- Tìm kiếm phòng khám gần người dùng
 
-## QUY TẮC
-1. Luôn trả lời bằng tiếng Việt, thân thiện và dễ hiểu
-2. Khi cần thông tin, sử dụng tools được cung cấp
-3. Không đưa ra chẩn đoán cuối cùng - luôn khuyến khích gặp bác sĩ thú y
-4. Uu tiên an toàn và sức khỏe của thú cưng
-
-## REACT PATTERN
-Su dung patternThought -> Action -> Observation:
-1.Thought: Suy nghĩ về câu hỏi của user và xác định cần làm gì
-2.Action: Gọi tool phù hợp (nếu cần)
-3.Observation: Xem kết quả từ tool
-4. Repeat hoặc trả lời cuối cùng
-
-## TOOLS
-Ban có thể sử dụng các tools sau (chỉ khi enabled):
-- search_symptoms: Tìm bệnh dựa trên triệu chứng
-- RAG_search: Tìm kiếm kiến thức từ knowledge base
-- check_slot: Kiểm tra slot trong tai phòng khám
-- create_booking: Tạo lịch hẹn khám
-- search_clinics: Tìm phòng khám gần vị trí user
+## QUY TẮC NGHIỆP VỤ
+- Không đưa ra chẩn đoán cuối cùng - luôn khuyến khích đưa thú cưng đi khám bác sĩ
+- Ưu tiên an toàn & sức khỏe của thú cưng
+- Khi triệu chứng nguy hiểm (co giật, nôn ra máu, khó thở), nhấn mạnh cần đi khám NGAY
+- Chỉ tư vấn trong phạm vi chăm sóc thú cưng, từ chối lịch sự nếu hỏi ngoài phạm vi
 """
+# NOTE cho Admin: Prompt này chỉ nên chứa nhân cách, giọng điệu, nhiệm vụ, quy tắc nghiệp vụ.
+# KHÔNG thêm: ReAct pattern, danh sách tools, quy tắc format kỹ thuật (code đã quản lý).
 
 
 class SingleAgent:
     """
-    Single Agent voi ReAct Pattern
+    Single Agent with ReAct Pattern — Lean Orchestrator.
 
-    Su dung LangGraph StateGraph de implement ReAct loop:
-    - Think: LLM reasoning ve user message
+    Delegates domain logic to extracted modules:
+    - text_utils: message extraction, pet type inference
+    - thought_parser: LLM output parsing
+    - response_formatter: tool result formatting
+    - tool_routing: post-parse tool selection overrides
+    - booking_flow: booking domain logic
+    - enrichment_strategy: auto-chain & fallback decisions
+    - prompt_builder: LLM prompt assembly
+
+    Uses LangGraph StateGraph to implement ReAct loop:
+    - Think: LLM reasoning about user message
     - Act: Execute tool call
     - Observe: Process tool result
-    - Loop cho den khi co final answer
-
-    Attributes:
-        llm_client: LLM client (OpenRouter/DeepSeek)
-        system_prompt: System prompt tu DB hoac default
-        temperature: Temperature cho LLM
-        max_tokens: Max tokens cho response
-        enabled_tools: Danh sach tools duoc phep su dung
-        graph: Compiled LangGraph StateGraph
+    - Loop until final answer
     """
 
     def __init__(
@@ -90,21 +109,22 @@ class SingleAgent:
         top_p: float = 0.9,
         enabled_tools: Optional[List[str]] = None,
         tool_schemas: Optional[List[Dict[str, Any]]] = None,
-        max_iterations: int = 5  # Reduced from 10 to prevent excessive looping
+        max_iterations: int = 5,
     ):
         """
-        Khoi tao Single Agent
+        Initialize Single Agent.
 
         Args:
-            llm_client: LLM client instance (OpenRouterClient hoac DeepSeekClient)
+            llm_client: LLM client instance (OpenRouterClient or DeepSeekClient)
             name: Name of the agent
             agent_type: Type of the agent
-            system_prompt: System prompt (load tu DB hoac dung default)
+            system_prompt: System prompt (loaded from DB or default)
             temperature: Temperature parameter (0.0-1.0)
-            max_tokens: Max tokens cho response
+            max_tokens: Max tokens for response
             top_p: Top-P parameter (0.0-1.0)
             enabled_tools: List of enabled tool names
-            max_iterations: Max ReAct iterations truoc khi force stop
+            tool_schemas: List of tool schema dicts
+            max_iterations: Max ReAct iterations before force stop
         """
         self.llm_client = llm_client
         self.name = name
@@ -117,14 +137,19 @@ class SingleAgent:
         self.tool_schemas = tool_schemas or []
         self.max_iterations = max_iterations
 
+        # Pre-compute lowercase set for module functions (computed once, reused everywhere)
+        self._enabled_tools_lower = {t.lower() for t in self.enabled_tools}
+
         # Build LangGraph
         self.graph = self._build_graph()
 
-        logger.info(f"SingleAgent initialized with {len(self.enabled_tools)} enabled tools")
+        logger.info(
+            f"SingleAgent initialized with {len(self.enabled_tools)} enabled tools"
+        )
 
     def _build_graph(self) -> StateGraph:
         """
-        Build LangGraph StateGraph voi ReAct pattern
+        Build LangGraph StateGraph with ReAct pattern.
 
         Graph structure:
             START -> think -> should_continue?
@@ -132,7 +157,7 @@ class SingleAgent:
                             -> END (if final answer)
 
         Returns:
-            Compiled StateGraph voi MemorySaver checkpointer
+            Compiled StateGraph with MemorySaver checkpointer
         """
         workflow = StateGraph(ReActState)
 
@@ -149,9 +174,9 @@ class SingleAgent:
             "think",
             self._should_continue,
             {
-                "act": "act",       # Co tool call -> execute
-                "end": END          # Khong co tool call -> final answer
-            }
+                "act": "act",  # Tool call needed -> execute
+                "end": END,  # No tool call -> final answer
+            },
         )
 
         # Act -> Observe -> Think (loop)
@@ -162,34 +187,39 @@ class SingleAgent:
         memory = MemorySaver()
         return workflow.compile(checkpointer=memory)
 
+    # ===== GRAPH NODES =====
+
     async def _think_node(self, state: ReActState) -> Dict[str, Any]:
         """
-        Think Node - LLM reasoning
+        Think Node - LLM reasoning.
 
-        Analyze user message va quyet dinh:
-        1. Can goi tool khong?
-        2. Tool nao phu hop?
-        3. Hoac tra loi truc tiep?
-
-        Args:
-            state: Current ReActState
-
-        Returns:
-            Updated state voi thought va possible tool_call
+        Analyzes user message and decides:
+        1. Should a tool be called?
+        2. Which tool is appropriate?
+        3. Or should we answer directly?
         """
         logger.debug("Entering THINK node")
 
         iteration = state.get("iteration", 0)
         react_steps = state.get("react_steps", [])
         messages = state.get("messages", [])
-        logger.info(f"THINK Node: iteration={iteration}, max_iterations={self.max_iterations}")
+
+        # Get images from context for multimodal input
+        context = state.get("context", {})
+        images = context.get("images", [])
+
+        logger.info(
+            f"THINK Node: iteration={iteration}, max_iterations={self.max_iterations}, has_images={len(images) > 0}"
+        )
 
         # Check max iterations
         if iteration >= self.max_iterations:
-            logger.warning(f"Safety Break: Max iterations ({self.max_iterations}) reached.")
+            logger.warning(
+                f"Safety Break: Max iterations ({self.max_iterations}) reached."
+            )
             return {
                 "final_answer": "Rất tiếc, tôi đã đạt giới hạn suy luận tối đa mà chưa tìm được câu trả lời hoàn chỉnh. Vui lòng thử lại với câu hỏi cụ thể hơn.",
-                "should_end": True
+                "should_end": True,
             }
 
         logger.debug(f"DEBUG: react_steps type: {type(react_steps)}")
@@ -197,97 +227,208 @@ class SingleAgent:
             logger.error(f"react_steps is not a list: {react_steps}")
             react_steps = []
 
-        # Build context from previous steps
-        context = self._build_context(react_steps)
+        # Build context from previous steps (delegated to prompt_builder)
+        context = build_context(react_steps)
 
-        # 3. Detect repetitive tool calls and inject warning
-        last_action = next((s for s in reversed(react_steps) if s.get("step_type") == "action"), None)
-        
+        last_tool_result = state.get("last_tool_result")
+
+        # Find the last action step
+        last_action = next(
+            (s for s in reversed(react_steps) if s.get("step_type") == "action"),
+            None,
+        )
+
+        # --- Pre-LLM enrichment checks (delegated to enrichment_strategy) ---
+
+        # 1. Auto-chain web_search when KB returns insufficient results
+        web_fallback_call = build_web_search_fallback_call(
+            last_action=last_action,
+            tool_result=last_tool_result,
+            react_steps=react_steps,
+            messages=messages,
+            enabled_tools_lower=self._enabled_tools_lower,
+        )
+        if web_fallback_call:
+            fallback_thought = "Knowledge base chưa đủ thông tin, tôi sẽ tìm thêm trên web từ các nguồn liên quan thú cưng/thú y."
+            logger.info("Auto fallback to web_search after insufficient KB result")
+            step = ReActStep(
+                step_type="thought",
+                content=fallback_thought,
+                tool_name="web_search",
+                tool_params=web_fallback_call["arguments"],
+                tool_result=None,
+            )
+            return {
+                "react_steps": [step],
+                "current_thought": fallback_thought,
+                "pending_tool_call": web_fallback_call,
+                "should_end": False,
+                "final_answer": None,
+                "iteration": iteration + 1,
+            }
+
+        # 3. Auto-finalize from tool result (error or no-LLM mode)
+        auto_final_answer = build_final_answer_from_tool_result(
+            tool_name=last_action.get("tool_name") if last_action else None,
+            tool_result=last_tool_result,
+            react_steps=react_steps,
+            messages=messages,
+            llm_client=self.llm_client,
+            enabled_tools_lower=self._enabled_tools_lower,
+        )
+        if auto_final_answer:
+            logger.info(
+                f"Auto-finalized response from tool result: "
+                f"{last_action.get('tool_name') if last_action else 'unknown'}"
+            )
+            step = ReActStep(
+                step_type="thought",
+                content=auto_final_answer,
+                tool_name=None,
+                tool_params={},
+                tool_result=None,
+            )
+            return {
+                "react_steps": [step],
+                "current_thought": auto_final_answer,
+                "pending_tool_call": None,
+                "should_end": True,
+                "final_answer": auto_final_answer,
+                "iteration": iteration + 1,
+            }
+
+        # --- Post-observation guidance suffix ---
         warning_suffix = ""
         if last_action and iteration > 0:
-            warning_suffix = f"\n\nLƯU Ý: Bạn đã thực hiện hành động '{last_action.get('tool_name')}' ở bước trước. Nếu Observation đã có câu trả lời, hãy ưu tiên trả lời (Final Answer) thay vì gọi lại công cụ."
+            remaining = self.max_iterations - iteration
+            warning_suffix = (
+                f"\n\nBạn đã gọi '{last_action.get('tool_name')}' và nhận Observation ở trên (còn {remaining} lượt gọi tool)."
+                f"\nHãy tự đánh giá:"
+                f"\n- Nếu CẦN THÊM thông tin để trả lời đầy đủ → gọi tiếp tool phù hợp (Thought + Tool + Tool Input)"
+                f"\n- Nếu ĐÃ ĐỦ thông tin → viết Final Answer"
+                f"\n"
+                f"\nKhi viết Final Answer:"
+                f"\n1. Đọc lại CÂU HỎI — họ hỏi CỤ THỂ điều gì?"
+                f"\n2. KẾT HỢP dữ liệu từ tất cả Observations + kiến thức thú y của bạn"
+                f"\n3. Trả lời ĐÚNG TRỌNG TÂM, CỤ THỂ (hỏi 'ăn gì' → liệt kê thức ăn, hỏi 'phòng khám' → gợi ý phòng khám cụ thể)"
+            )
 
-        # Create prompt for LLM
-        think_prompt = self._create_think_prompt(messages, context) + warning_suffix
+        # --- Call LLM ---
+        # Prompt assembly delegated to prompt_builder
+        think_prompt = (
+            create_think_prompt(
+                messages,
+                context,
+                agent_name=self.name,
+                agent_type=self.agent_type,
+                system_prompt=self.system_prompt,
+                tool_schemas=self.tool_schemas,
+                enabled_tools_lower=self._enabled_tools_lower,
+            )
+            + warning_suffix
+        )
 
         try:
-            # Call LLM
             response = await self.llm_client.generate(
                 prompt=think_prompt,
                 system_prompt=self.system_prompt,
                 temperature=self.temperature,
-                max_tokens=self.max_tokens
+                max_tokens=self.max_tokens,
+                images=images if images else None,
             )
 
             thought_content = response.content
 
-            # 4. Parse response to determine action
-            parsed = self._parse_thought(thought_content)
-            
-            # 4.1. ACTIVE LOOP PREVENTION: Intercept if LLM repeats same tool/params
-            if last_action and parsed.get("tool_name") == last_action.get("tool_name") and parsed.get("tool_params") == last_action.get("tool_params"):
-                logger.warning(f"Loop prevention: Intercepted repetitive tool call to {parsed.get('tool_name')}")
-                # Force end and use the last observation to build an answer if possible
-                last_obs = next((s for s in reversed(react_steps) if s.get("step_type") == "observation"), None)
+            # Parse response (delegated to thought_parser)
+            parsed = parse_thought(thought_content, self.enabled_tools)
+
+            # Post-parse routing overrides (delegated to tool_routing)
+            parsed = apply_booking_tool_routing(
+                parsed,
+                messages,
+                react_steps,
+                self._enabled_tools_lower,
+                build_context,
+            )
+
+            # Active loop prevention: intercept if LLM repeats same tool/params
+            if (
+                last_action
+                and parsed.get("tool_name") == last_action.get("tool_name")
+                and parsed.get("tool_params") == last_action.get("tool_params")
+            ):
+                logger.warning(
+                    f"Loop prevention: Intercepted repetitive tool call to {parsed.get('tool_name')}"
+                )
+                last_obs = next(
+                    (
+                        s
+                        for s in reversed(react_steps)
+                        if s.get("step_type") == "observation"
+                    ),
+                    None,
+                )
                 obs_text = last_obs.get("content", "") if last_obs else ""
-                
+
                 parsed["should_end"] = True
                 parsed["tool_name"] = None
-                parsed["thought"] = f"Tôi đã tìm thấy thông tin cần thiết từ lần tra cứu trước: {obs_text[:200]}..."
+                parsed["thought"] = (
+                    f"Tôi đã tìm thấy thông tin cần thiết từ lần tra cứu trước: {obs_text[:200]}..."
+                )
                 if "KẾT QUẢ TRA CỨU:" in obs_text:
-                    parsed["thought"] = obs_text.split("\n\n")[0].replace("KẾT QUẢ TRA CỨU: ", "")
-            
+                    parsed["thought"] = obs_text.split("\n\n")[0].replace(
+                        "KẾT QUẢ TRA CỨU: ", ""
+                    )
+
             if not isinstance(parsed, dict):
                 logger.error(f"Parsed thought is not a dict: {type(parsed)} - {parsed}")
                 parsed = {"thought": thought_content, "should_end": True}
 
-            # 5. Log ReAct step
-            step = ReActStep(
-                step_type="thought",
-                content=parsed.get("thought", thought_content),
-                tool_name=parsed.get("tool_name"),
-                tool_params=parsed.get("tool_params"),
-                tool_result=None
-            )
-
-            new_react_steps = [step]
-            logger.info(f"THOUGHT: {parsed.get('thought', thought_content)[:100]}...")
-
-            # 6. Create pending tool call if tool name is found AND params are valid
+            # Create pending tool call if tool name is found AND params are valid
             pending_tool_call = None
             should_end = parsed.get("should_end", False)
-
             tool_name = parsed.get("tool_name")
             tool_params = parsed.get("tool_params", {})
 
             if tool_name:
-                # Check if tool_params is empty - if so, don't make the call
-                # because it will fail with "Missing required parameter"
                 if not tool_params or len(tool_params) == 0:
-                    logger.warning(f"Tool '{tool_name}' called with empty params - skipping to avoid error")
-                    # Force end and provide helpful message
+                    logger.warning(
+                        f"Tool '{tool_name}' called with empty params - skipping to avoid error"
+                    )
                     should_end = True
-                    parsed["thought"] = f"Không thể gọi tool {tool_name} do thiếu tham số. Vui lòng đặt câu hỏi cụ thể hơn."
+                    parsed["thought"] = (
+                        f"Không thể gọi tool {tool_name} do thiếu tham số. Vui lòng đặt câu hỏi cụ thể hơn."
+                    )
                 else:
                     pending_tool_call = {
                         "name": tool_name,
-                        "arguments": tool_params
+                        "arguments": tool_params,
                     }
-                    # If there is a valid tool call, we MUST NOT end yet
                     should_end = False
 
-            # 5. Determine final answer
+            # Determine final answer
             final_answer = None
             if should_end:
                 final_answer = parsed.get("thought", thought_content)
 
+            # Log ReAct step
+            step = ReActStep(
+                step_type="thought",
+                content=parsed.get("thought", thought_content),
+                tool_name=tool_name if pending_tool_call else None,
+                tool_params=tool_params if pending_tool_call else {},
+                tool_result=None,
+            )
+
+            logger.info(f"THOUGHT: {parsed.get('thought', thought_content)[:100]}...")
+
             return {
-                "react_steps": new_react_steps,
+                "react_steps": [step],
                 "current_thought": parsed.get("thought", thought_content),
                 "pending_tool_call": pending_tool_call,
                 "should_end": should_end,
                 "final_answer": final_answer,
-                "iteration": iteration + 1
+                "iteration": iteration + 1,
             }
 
         except Exception as e:
@@ -295,130 +436,18 @@ class SingleAgent:
             return {
                 "error": str(e),
                 "should_end": True,
-                "final_answer": f"Loi ket noi LLM: {str(e)}. Vui long kiem tra lai cấu hình/số dư tài khoản."
+                "final_answer": f"Lỗi kết nối LLM: {str(e)}. Vui lòng kiểm tra lại cấu hình/số dư tài khoản.",
             }
-
-    def _parse_thought(self, thought_content: str) -> Dict[str, Any]:
-        """
-        Parse thought content tu LLM de tim Tool call hoac Final Answer.
-        Ho tro format Markdown (**Tool:**) va linh hoat hon.
-        """
-        if not thought_content:
-            return {"thought": "", "should_end": True}
-
-        # 1. Tim Tool name (Ho tro ca Markdown **Tool:** hoac Tool:)
-        tool_name = None
-        # Pattern bao quat hon: Tim sau tu khoa Tool hoac Action, bo qua các ky tu Markdown nhu *
-        tool_match = re.search(r"(?:\*+|#|)\s*(?:Tool|Action)\s*(?:\*+|#|):\s*([\w_]+)", thought_content, re.IGNORECASE)
-        if tool_match:
-            extracted_name = tool_match.group(1).strip()
-            # Validate tool name against enabled_tools to prevent hallucinated tool names
-            # e.g., "Không" (Vietnamese for "No") being parsed as a tool name
-            if extracted_name.upper() in [t.upper() for t in self.enabled_tools]:
-                tool_name = extracted_name
-            else:
-                logger.warning(f"Extracted tool name '{extracted_name}' not in enabled_tools {self.enabled_tools}, ignoring")
-        
-        # 2. Tim Tool Input (JSON) - Multiple patterns for different LLM output formats
-        tool_params = {}
-
-        # Pattern 1: Standard format - Tool Input: {...} or Action Input: {...}
-        input_match = re.search(
-            r"(?:\*+|#|)\s*(?:Tool Input|Action Input|Input)\s*(?:\*+|#|):\s*(\{.*?\})",
-            thought_content,
-            re.DOTALL | re.IGNORECASE
-        )
-
-        # Pattern 2: JSON on new line after Tool Input:
-        if not input_match:
-            input_match = re.search(
-                r"(?:Tool Input|Action Input|Input)\s*(?:\*+|#|)?:\s*\n\s*(\{.*?\})",
-                thought_content,
-                re.DOTALL | re.IGNORECASE
-            )
-
-        # Pattern 3: Fallback - find any JSON object in the content (only if tool_name found)
-        if not input_match and tool_name:
-            # Find the last JSON object in the content (more likely to be params)
-            json_objects = re.findall(r"(\{[^{}]*\})", thought_content)
-            if json_objects:
-                # Try the last JSON object first (usually the params)
-                for json_str in reversed(json_objects):
-                    try:
-                        potential_params = json.loads(json_str)
-                        if isinstance(potential_params, dict) and len(potential_params) > 0:
-                            tool_params = potential_params
-                            logger.info(f"Extracted params from fallback JSON: {tool_params}")
-                            break
-                    except:
-                        continue
-
-        # Parse JSON if pattern matched
-        if input_match:
-            try:
-                params_str = input_match.group(1).strip()
-                tool_params = json.loads(params_str)
-            except Exception as e:
-                logger.warning(f"Failed to parse tool params JSON: {e}")
-                # Try to extract just the JSON part
-                json_match = re.search(r"(\{[^{}]*\})", params_str)
-                if json_match:
-                    try:
-                        tool_params = json.loads(json_match.group(1))
-                    except:
-                        tool_params = {}
-
-        # Normalize parameter keys: strip whitespace from keys
-        # LLM sometimes outputs { "query ": "..." } with trailing space
-        if tool_params and isinstance(tool_params, dict):
-            tool_params = {k.strip(): v for k, v in tool_params.items()}
-            logger.debug(f"Normalized tool params: {tool_params}")
-
-        # 3. Clean thought content
-        clean_thought = thought_content
-        if tool_name:
-            # Cut everything from "Tool:" or "Action:" onwards to get only reasoning
-            parts = re.split(r"(?:\*+|#|)\s*(?:Tool|Action)\s*(?:\*+|#|):", thought_content, flags=re.IGNORECASE)
-            if parts:
-                clean_thought = parts[0].strip()
-                # Loai bo tu "Thought:" neu co
-                clean_thought = re.sub(r"^(?:\*+|#|)\s*Thought\s*(?:\*+|#|):\s*", "", clean_thought, flags=re.IGNORECASE).strip()
-
-        # 4. Check if should end
-        should_end = False
-        if "Final Answer:" in thought_content or "final answer:" in thought_content.lower():
-            should_end = True
-            # Extract final answer content
-            fa_parts = re.split(r"Final Answer:", thought_content, flags=re.IGNORECASE)
-            if len(fa_parts) > 1:
-                clean_thought = fa_parts[1].strip()
-        elif not tool_name:
-            # Neu ko co tool va ko co Final Answer keyword -> coi nhu Final Answer
-            should_end = True
-
-        return {
-            "thought": clean_thought or thought_content,
-            "tool_name": tool_name,
-            "tool_params": tool_params,
-            "should_end": should_end
-        }
 
     async def _act_node(self, state: ReActState) -> Dict[str, Any]:
         """
-        Act Node - Execute tool call
+        Act Node - Execute tool call.
 
-        Execute tool duoc chon o Think node
-
-        Args:
-            state: Current ReActState voi pending_tool_call
-
-        Returns:
-            Updated state voi tool execution result
+        Executes the tool selected by the Think node via MCP.
         """
         logger.debug("Entering ACT node")
 
         tool_call = state.get("pending_tool_call")
-        react_steps = state.get("react_steps", [])
 
         if not tool_call:
             logger.warning("No pending tool call in ACT node")
@@ -426,15 +455,16 @@ class SingleAgent:
 
         # Safety check: ensure tool_call is a dictionary
         if not isinstance(tool_call, dict):
-            logger.error(f"pending_tool_call is not a dict: {type(tool_call)} - {tool_call}")
-            # Try to recover if it's a JSON string
+            logger.error(
+                f"pending_tool_call is not a dict: {type(tool_call)} - {tool_call}"
+            )
             if isinstance(tool_call, str):
                 try:
                     tool_call = json.loads(tool_call)
-                except:
+                except (json.JSONDecodeError, ValueError):
                     return {
                         "error": f"Invalid tool call format: {tool_call}",
-                        "pending_tool_call": None
+                        "pending_tool_call": None,
                     }
             else:
                 return {"pending_tool_call": None}
@@ -446,311 +476,215 @@ class SingleAgent:
         if tool_name not in self.enabled_tools:
             logger.warning(f"Tool '{tool_name}' is not enabled")
             error_result = {
-                "error": f"Tool '{tool_name}' khong duoc enabled. Vui long lien he admin.",
-                "available_tools": self.enabled_tools
+                "error": f"Tool '{tool_name}' không được enabled. Vui lòng liên hệ admin.",
+                "available_tools": self.enabled_tools,
             }
-
             step = ReActStep(
                 step_type="action",
                 content=f"Called {tool_name} (DISABLED)",
                 tool_name=tool_name,
                 tool_params=tool_params,
-                tool_result=error_result
+                tool_result=error_result,
             )
-
             return {
                 "react_steps": [step],
                 "last_tool_result": error_result,
-                "pending_tool_call": None
+                "pending_tool_call": None,
             }
 
         try:
-            # Execute tool via MCP
             from app.core.tools.executor import execute_tool
 
             result = await execute_tool(tool_name, tool_params)
 
-            # Log ReAct step
             step = ReActStep(
                 step_type="action",
                 content=f"Called {tool_name}",
                 tool_name=tool_name,
                 tool_params=tool_params,
-                tool_result=result
+                tool_result=result,
             )
-
             logger.info(f"ACTION: Called {tool_name} with {tool_params}")
 
             return {
                 "react_steps": [step],
                 "last_tool_result": result,
-                "pending_tool_call": None  # Clear pending
+                "pending_tool_call": None,
             }
 
         except Exception as e:
             logger.error(f"Error executing tool {tool_name}: {e}")
             error_result = {"error": str(e)}
-
             step = ReActStep(
                 step_type="action",
                 content=f"Error calling {tool_name}: {e}",
                 tool_name=tool_name,
                 tool_params=tool_params,
-                tool_result=error_result
+                tool_result=error_result,
             )
-
             return {
                 "react_steps": [step],
                 "last_tool_result": error_result,
-                "pending_tool_call": None
+                "pending_tool_call": None,
             }
 
     async def _observe_node(self, state: ReActState) -> Dict[str, Any]:
         """
-        Observe Node - Process tool result
+        Observe Node - Process tool result.
 
-        Format tool result de LLM co the hieu va su dung
-
-        Args:
-            state: Current ReActState voi last_tool_result
-
-        Returns:
-            Updated state voi observation
+        Formats tool result so the LLM can synthesize a final answer
+        from context + its own knowledge.
         """
         logger.debug("Entering OBSERVE node")
 
         tool_result = state.get("last_tool_result", {})
-        
-        # Format observation - SMARTER EXTRACTION
+
+        # Format observation (delegated to response_formatter)
         observation = ""
         if isinstance(tool_result, dict):
             if "error" in tool_result:
                 observation = f"Tool returned error: {tool_result['error']}"
-            elif "data" in tool_result and isinstance(tool_result["data"], dict) and "answer" in tool_result["data"]:
-                # If RAG tool already synthesized an answer, put it FIRST
-                rag_data = tool_result["data"]
-                observation = f"KẾT QUẢ TRA CỨU: {rag_data['answer']}\n\n"
-                if "sources_used" in rag_data:
-                    observation += f"(Dựa trên {rag_data['sources_used']} đoạn tài liệu)\n"
+            elif "data" in tool_result and isinstance(tool_result["data"], dict):
+                observation = format_tool_observation(tool_result["data"])
             else:
-                # Fallback to JSON but cleaner
                 observation = json.dumps(tool_result, ensure_ascii=False, indent=2)
         else:
             observation = str(tool_result)
 
-        # Log ReAct step
         step = ReActStep(
             step_type="observation",
             content=observation,
             tool_name=None,
             tool_params=None,
-            tool_result=tool_result
+            tool_result=tool_result,
         )
 
         logger.info(f"OBSERVATION: {observation[:100]}...")
 
         return {
             "react_steps": [step],
-            "current_observation": observation
+            "current_observation": observation,
         }
 
     def _should_continue(self, state: ReActState) -> Literal["act", "end"]:
-        """Router - Quyet dinh tiep tuc hay ket thuc"""
+        """Router — decide whether to continue or end the ReAct loop."""
         iteration = state.get("iteration", 0)
-        
-        # 1. Check safety break
+
+        # 1. Safety break
         if iteration >= self.max_iterations:
-            logger.warning(f"Should Continue: Max iterations {self.max_iterations} reached. Stopping.")
+            logger.warning(
+                f"Should Continue: Max iterations {self.max_iterations} reached. Stopping."
+            )
             return "end"
 
-        # 2. Check explicit end flag
+        # 2. Explicit end flag
         if state.get("should_end", False):
             return "end"
 
-        # 3. Check for pending tool call
+        # 3. Pending tool call
         if state.get("pending_tool_call"):
             return "act"
 
-        # 4. Check for final answer
+        # 4. Final answer present
         if state.get("final_answer"):
             return "end"
 
         return "end"
 
-    def _build_context(self, react_steps: List[ReActStep]) -> str:
-        """Build context string tu previous ReAct steps"""
-        if not react_steps:
-            return ""
+    # ===== PUBLIC API =====
 
-        context_parts = []
-        # Increase history to 10 steps to cover more reasoning cycles
-        for step in react_steps[-10:]:
-            # Safety check: ensure step is a dictionary
-            if not isinstance(step, dict):
-                logger.warning(f"ReActStep is not a dict: {type(step)} - {step}")
-                continue
-
-            step_type = step.get("step_type")
-            content = step.get("content", "")
-            
-            if step_type == "thought":
-                context_parts.append(f"Thought: {content}")
-            elif step_type == "action":
-                # Include tool params so the LLM knows WHAT it sent
-                tool_name = step.get("tool_name", "Unknown")
-                tool_params = step.get("tool_params", {})
-                context_parts.append(f"Action: {tool_name} with parameters {json.dumps(tool_params, ensure_ascii=False)}")
-            elif step_type == "observation":
-                # Smart Truncation: keep more from the BEGINNING where we now put the answer
-                if len(content) > 3000:
-                    obs_content = content[:2500] + "\n... [Dữ liệu quá dài, đã bị lược bớt] ...\n" + content[-300:]
-                else:
-                    obs_content = content
-                context_parts.append(f"Observation: {obs_content}")
-
-        return "\n".join(context_parts)
-
-    def _create_think_prompt(self, messages: List[Any], context: str) -> str:
-        """Create prompt for THINK node với hướng dẫn ReAct nghiêm ngặt"""
-        # Get last user message
-        user_message = ""
-        for msg in reversed(messages):
-            # Safety check: msg must be a dict or have attributes
-            content = ""
-            role = "user"
-
-            if isinstance(msg, dict):
-                content = msg.get('content', '')
-                role = msg.get('role', 'user')
-            elif hasattr(msg, 'content'):
-                content = getattr(msg, 'content', '')
-                role = getattr(msg, 'role', 'user')
-            elif isinstance(msg, str):
-                content = msg
-                role = "user"
-            else:
-                content = str(msg)
-                role = "user"
-
-            if role == 'user':
-                user_message = content
-                break
-
-        # Build prompt parts - USE SYSTEM PROMPT FROM DATABASE
-        prompt_parts = [
-            f"""Hệ thống: {self.name} ({self.agent_type})
-
-=== HƯỚNG DẪN TỪ ADMIN (Database) ===
-{self.system_prompt}
-
-=== QUY TẮC REACT FORMAT (Bắt buộc) ===
-Để gọi công cụ, bạn PHẢI viết theo định dạng CHÍNH XÁC:
-Thought: [Giải thích tại sao bạn cần gọi công cụ này]
-Tool: [Tên công cụ chính xác từ danh sách CÔNG CỤ CÓ SẴN]
-Tool Input: {{ "param_name": "giá trị" }}
-
-Sau khi nhận được kết quả (Observation), nếu đã đủ thông tin, bạn trả lời bằng định dạng:
-Thought: [Tổng hợp thông tin thu thập được]
-Final Answer: [Câu trả lời đầy đủ và thân thiện cho người dùng bằng tiếng Việt]
-
-LƯU Ý QUAN TRỌNG:
-- Nếu không cần gọi công cụ, hãy đi thẳng đến Final Answer. TUYỆT ĐỐI KHÔNG viết "Tool: Không", "Tool: None" hoặc bất kỳ giá trị không hợp lệ nào.
-- Chỉ sử dụng tên công cụ CHÍNH XÁC từ danh sách CÔNG CỤ CÓ SẴN bên dưới.
-
-Bối cảnh hệ thống:
-{context}
-"""
-        ]
-
-        # Add available tools description
-        tool_schemas = self.tool_schemas or []
-        if tool_schemas:
-            tool_descriptions = []
-            for tool in tool_schemas:
-                # Trích xuất mô tả chi tiết từ schema
-                params = tool.get('input_schema') or tool.get('parameters') or {}
-                tool_descriptions.append(
-                    f"- {tool['name']}: {tool['description']} (Tham số cần có: {json.dumps(params)})"
-                )
-            prompt_parts.append(f"""CÔNG CỤ CÓ SẴN (Ưu tiên sử dụng):
-{chr(10).join(tool_descriptions)}
-"""
-            )
-
-        prompt_parts.append(f"""CÂU HỎI CỦA NGƯỜI DÙNG:
-{user_message}
-
-Bây giờ, hãy bắt đầu quy trình ReAct của bạn:
-Thought:""")
-
-        return "\n".join(prompt_parts)
-
-
-    async def invoke(self, message: str, session_id: Optional[str] = None) -> str:
+    async def invoke(
+        self,
+        message: str,
+        session_id: Optional[str] = None,
+        chat_history: Optional[List[Dict[str, Any]]] = None,
+        user_role: Optional[str] = None,
+    ) -> str:
         """
-        Invoke agent voi user message
+        Invoke agent with user message.
 
         Args:
             message: User message
             session_id: Optional session ID for conversation tracking
+            chat_history: Optional previous chat messages for context
+            user_role: Optional user role for role-based guidance
 
         Returns:
             Agent response string
         """
-        # Create initial state
         state = create_initial_react_state(
             user_message=message,
-            context={"session_id": session_id or str(uuid.uuid4())}
+            context={"session_id": session_id or str(uuid.uuid4())},
+            chat_history=chat_history,
+            user_role=user_role,
         )
 
-        # Run graph
         config = {"configurable": {"thread_id": session_id or "default"}}
 
         try:
             final_state = await self.graph.ainvoke(state, config)
 
-            # Get final answer
             final_answer = final_state.get("final_answer", "")
 
             if not final_answer:
-                # Try to construct answer from last thought
                 react_steps = final_state.get("react_steps", [])
                 if react_steps:
                     last_thought = next(
-                        (s for s in reversed(react_steps) if s["step_type"] == "thought"),
-                        None
+                        (
+                            s
+                            for s in reversed(react_steps)
+                            if s["step_type"] == "thought"
+                        ),
+                        None,
                     )
                     if last_thought:
                         final_answer = last_thought["content"]
 
             if not final_answer:
-                final_answer = "Xin lỗi, tôi không thể xử lý yêu cầu của bạn. Vui lòng thử lại."
+                final_answer = (
+                    "Xin lỗi, tôi không thể xử lý yêu cầu của bạn. Vui lòng thử lại."
+                )
 
             return final_answer
 
         except Exception as e:
             logger.error(f"Error invoking agent: {e}")
-            return f"Loi khi xu ly yeu cau: {str(e)}"
+            return f"Lỗi khi xử lý yêu cầu: {str(e)}"
 
-    async def stream(self, message: str, session_id: Optional[str] = None):
+    async def stream(
+        self,
+        message: str,
+        session_id: Optional[str] = None,
+        images: Optional[List[str]] = None,
+        chat_history: Optional[List[Dict[str, Any]]] = None,
+        user_role: Optional[str] = None,
+    ):
         """
-        Stream agent response
+        Stream agent response.
 
         Args:
             message: User message
             session_id: Optional session ID
+            images: Optional list of base64 images for multimodal input
+            chat_history: Optional previous chat messages for context
+            user_role: Optional user role for role-based guidance
 
         Yields:
-            ReAct steps va final answer tokens
+            ReAct steps and final answer tokens
         """
         state = create_initial_react_state(
             user_message=message,
-            context={"session_id": session_id or str(uuid.uuid4())}
+            context={
+                "session_id": session_id or str(uuid.uuid4()),
+                "images": images or [],  # Pass images through context
+            },
+            chat_history=chat_history,
+            user_role=user_role,
         )
 
         config = {
             "configurable": {"thread_id": session_id or "default"},
-            "recursion_limit": 100  # Increase from default 25 to allow 10+ iterations (10 * 3 nodes = 30)
+            "recursion_limit": 100,  # Allow 10+ iterations (10 * 3 nodes = 30)
         }
 
         try:
@@ -764,36 +698,33 @@ Thought:""")
                     if not isinstance(chunk, dict):
                         continue
 
-                    # LangGraph yields state updates per node
                     for node_name, state_update in chunk.items():
                         if not isinstance(state_update, dict):
                             continue
 
-                        # Yield ONLY the newest ReAct step (the last one in the update)
-                        # This prevents quadratic duplication when using astream_events with reducers
+                        # Yield ONLY the newest ReAct step (prevents quadratic duplication)
                         steps = state_update.get("react_steps", [])
                         if isinstance(steps, list) and steps:
                             yield {
                                 "type": "react_step",
-                                "step": steps[-1]
+                                "step": steps[-1],
                             }
 
-                        # Yield final answer if present
                         final_ans = state_update.get("final_answer")
                         if final_ans:
                             yield {
                                 "type": "final_answer",
-                                "content": final_ans
+                                "content": final_ans,
                             }
 
                 # 2. Handle Token streaming (from LLM)
                 elif event_type == "on_chat_model_stream":
                     data = event.get("data", {})
                     chunk = data.get("chunk", {})
-                    if hasattr(chunk, 'content') and chunk.content:
+                    if hasattr(chunk, "content") and chunk.content:
                         yield {
                             "type": "token",
-                            "content": chunk.content
+                            "content": chunk.content,
                         }
 
                 # 3. Handle Final result
@@ -803,81 +734,15 @@ Thought:""")
                     if isinstance(output, dict) and output.get("final_answer"):
                         yield {
                             "type": "final_answer",
-                            "content": output["final_answer"]
+                            "content": output["final_answer"],
                         }
 
         except Exception as e:
             import traceback
+
             error_trace = traceback.format_exc()
             logger.error(f"Error streaming agent: {e}\n{error_trace}")
             yield {
                 "type": "error",
-                "content": str(e)
+                "content": str(e),
             }
-
-    def get_react_trace(self, state: ReActState) -> List[Dict[str, Any]]:
-        """
-        Get ReAct trace for debugging
-
-        Args:
-            state: Final ReActState
-
-        Returns:
-            List of trace steps for visualization
-        """
-        react_steps = state.get("react_steps", [])
-
-        trace = []
-        for i, step in enumerate(react_steps):
-            trace.append({
-                "step_index": i,
-                "step_type": step["step_type"],
-                "content": step["content"],
-                "tool_name": step.get("tool_name"),
-                "tool_params": step.get("tool_params"),
-                "tool_result": step.get("tool_result")
-            })
-
-        return trace
-
-
-# ===== BUILDER FUNCTION =====
-
-def build_react_agent(
-    llm_client,
-    name: str = "petties_agent",
-    agent_type: str = "single_agent",
-    system_prompt: Optional[str] = None,
-    temperature: float = 0.7,
-    max_tokens: int = 2000,
-    top_p: float = 0.9,
-    enabled_tools: Optional[List[str]] = None,
-    tool_schemas: Optional[List[Dict[str, Any]]] = None
-) -> SingleAgent:
-    """
-    Builder function de tao SingleAgent instance
-
-    Args:
-        llm_client: LLM client (OpenRouterClient)
-        name: Name of the agent
-        agent_type: Type of the agent
-        system_prompt: System prompt tu DB
-        temperature: Temperature parameter
-        max_tokens: Max tokens
-        top_p: Top-P parameter
-        enabled_tools: List of enabled tool names
-
-    Returns:
-        Configured SingleAgent instance
-    """
-    return SingleAgent(
-        llm_client=llm_client,
-        name=name,
-        agent_type=agent_type,
-        system_prompt=system_prompt,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        top_p=top_p,
-        enabled_tools=enabled_tools,
-        tool_schemas=tool_schemas
-    )

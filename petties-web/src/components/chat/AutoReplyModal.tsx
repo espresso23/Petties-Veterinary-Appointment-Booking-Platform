@@ -52,7 +52,7 @@ export function AutoReplyModal({ isOpen, onClose }: AutoReplyModalProps) {
         try {
             const stored = localStorage.getItem('mock_action_buttons')
             if (stored) return JSON.parse(stored)
-        } catch { }
+        } catch { /* Ignore parse errors */ }
         return [
             { id: 'btn_menu', label: 'Khám phá Menu', type: 'MENU' },
             { id: 'btn_offer', label: 'Nhận ưu đãi', type: 'OFFER' },
@@ -167,7 +167,7 @@ export function AutoReplyModal({ isOpen, onClose }: AutoReplyModalProps) {
                 localStorage.setItem('mock_action_buttons', JSON.stringify(actionButtons))
                 localStorage.setItem('mock_quick_reply', updated.quickReplyMessage || quickReplyText)
                 localStorage.setItem('mock_away_message', updated.awayMessage || awayMessageText)
-            } catch { }
+            } catch { /* Ignore storage errors */ }
 
             if (updated.actionButtons) {
                 setActionButtons(updated.actionButtons)

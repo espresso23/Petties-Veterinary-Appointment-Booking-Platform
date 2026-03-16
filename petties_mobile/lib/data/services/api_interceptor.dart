@@ -32,6 +32,9 @@ class ApiInterceptor extends Interceptor {
       options.headers['Authorization'] = 'Bearer $token';
     }
 
+    // Skip ngrok browser warning (required for ngrok Free Tier)
+    options.headers['ngrok-skip-browser-warning'] = 'true';
+
     super.onRequest(options, handler);
   }
 

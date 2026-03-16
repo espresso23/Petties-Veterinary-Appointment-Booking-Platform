@@ -9,6 +9,7 @@ export const ROUTES = {
     tools: '/admin/tools',
     knowledge: '/admin/knowledge',
     playground: '/admin/playground',
+    aiInsights: '/admin/ai-insights',
     settings: '/admin/settings',
   },
 

@@ -26,12 +26,12 @@ Thay vì xây dựng một công cụ tạo Agent (No-code builder), hệ thốn
 │  └── System Prompt (Admin Configurable)                             │
 │                                                                     │
 │  🔧 Skills/Tools (FastMCP @mcp.tool)                                │
-│  ├── @mcp.tool: pet_care_qa       → RAG-based Q&A                  │
-│  ├── @mcp.tool: symptom_search    → Symptom → Disease lookup       │
-│  ├── @mcp.tool: search_clinics    → Find nearby clinics            │
-│  ├── @mcp.tool: check_slots       → Check available slots          │
-│  ├── @mcp.tool: create_booking    → Create booking via chat        │
-│  └── (Extensible: Add more tools via @mcp.tool)                     │
+│  ├── @mcp.tool: pet_knowledge_search  → RAG knowledge retrieval    │
+│  ├── @mcp.tool: web_search            → Web fallback search        │
+│  ├── @mcp.tool: search_clinics_nearby → Find nearby clinics        │
+│  ├── @mcp.tool: check_available_slots → Check available slots      │
+│  ├── @mcp.tool: create_booking_for_user → Create booking via chat  │
+│  └── (Extensible: Add more tools via @mcp.tool)                    │
 │                                                                     │
 │  📚 RAG Engine (LlamaIndex + Qdrant)                                │
 │  ├── LlamaIndex: Document processing, chunking, retrieval          │
@@ -84,9 +84,9 @@ graph.add_edge("observe", "think")
 4. **Loop**: Lặp lại nếu cần thêm thông tin
 5. **Answer**: Tổng hợp và trả lời user
 
-### **C. Khác biệt với Multi-Agent (Tham khảo)**
+### **C. Khác biệt với kiến trúc legacy (Tham khảo)**
 
-| Aspect | Multi-Agent (Cũ) | Single Agent + ReAct (Mới) |
+| Aspect | Legacy supervisor architecture | Single Agent + ReAct |
 |--------|-----------------|---------------------------|
 | **Complexity** | Cao (supervisor, handoffs) | Thấp |
 | **Development** | 3-4 tuần | 1-2 tuần |
@@ -144,11 +144,11 @@ Module này đảm bảo tính nhất quán giữa Code và Cấu hình cho các
 > - Parameters cần được thiết kế natural language friendly
 
 1. **Available Tools (Single Agent):**
-   * `pet_care_qa` - Hỏi đáp về chăm sóc thú cưng (RAG-based)
-   * `symptom_search` - Tìm bệnh dựa trên triệu chứng
-   * `search_clinics` - Tìm phòng khám gần đây
-   * `check_slots` - Kiểm tra slot trống
-   * `create_booking` - Tạo lịch hẹn qua chat
+   * `pet_knowledge_search` - Tra cứu kiến thức thú y và triệu chứng từ knowledge base
+   * `web_search` - Tìm kiếm web khi knowledge base chưa đủ dữ liệu
+   * `search_clinics_nearby` - Tìm phòng khám gần đây
+   * `check_available_slots` - Kiểm tra slot trống
+   * `create_booking_for_user` - Tạo lịch hẹn qua chat
 
 2. **Schema Definition:** Mỗi tool hiển thị rõ Request/Response schema để Admin hiểu.
 
@@ -172,7 +172,7 @@ Quản lý dữ liệu kiến thức thú y mà Agent sử dụng để trả l�
 1. **Interactive Chat Simulator:** Khung chat giả lập người dùng thật.  
 2. **ReAct Flow Visualization:**  
    * Hiển thị rõ luồng ReAct: **Thought → Action → Observation → Loop**
-   * *Log Ví dụ:* User → Agent (Thought: cần tìm bệnh) → Tool: symptom_search → Observation: kết quả → Answer
+   * *Log Ví dụ:* User → Agent (Thought: cần tìm thông tin triệu chứng) → Tool: pet_knowledge_search → Observation: kết quả → Answer
 3. **Tool Call Inspector:** Xem chi tiết parameters và response của mỗi tool call.
 4. **Response Feedback:** Admin đánh giá câu trả lời (Good/Bad).
 
@@ -181,7 +181,7 @@ Quản lý dữ liệu kiến thức thú y mà Agent sử dụng để trả l�
 ### **Backend (Python/FastAPI + LangGraph)**
 
 * **LangGraph:** Sử dụng **ReAct pattern** với StateGraph. Single Agent với loop: Think → Act → Observe.
-* **State Management:** AgentState lưu messages, tool_calls, observations.
+* **State Management:** ReActState lưu messages, react_steps, observations, final answer.
 * **Dynamic Configuration Loader:** Module thay thế python-dotenv. Khi khởi tạo, module này truy vấn bảng system_configs trong Postgres để lấy API Keys và settings.
 * **MCP Integration:** Tools được implement với @mcp.tool decorator.
 
@@ -275,7 +275,7 @@ Danh sách chi tiết các công nghệ được sử dụng để xây dựng h
 * **Agent Orchestration:** LangGraph (Single Agent với ReAct Pattern)
   * **Pattern:** ReAct (Reason + Act) - Thought → Action → Observation → Loop
   * **State Management:** StateGraph với AgentState lưu messages, tool_calls, observations
-  * **Không Multi-Agent:** MVP sử dụng Single Agent với nhiều tools thay vì Supervisor-Worker
+  * **Kiến trúc hiện tại:** MVP sử dụng Single Agent với nhiều tools thay vì supervisor-worker flow
 * **Data Framework:** LlamaIndex (Framework chính cho RAG Pipeline).  
 * **Tool Framework:** FastMCP (Embedded Mode)
   * **Cơ chế:** FastMCP được nhúng trực tiếp vào AI Service (FastAPI) như một thư viện.
@@ -288,34 +288,34 @@ Danh sách chi tiết các công nghệ được sử dụng để xây dựng h
     mcp = FastMCP("PettiesToolServer")
     
     @mcp.tool()
-    def pet_care_qa(question: str) -> str:
-        """Hỏi đáp về chăm sóc thú cưng (RAG-based)."""
-        # Implementation: Gọi RAG engine để tìm câu trả lời
+    def pet_knowledge_search(query: str) -> dict:
+        """Tra cứu kiến thức thú y và triệu chứng từ knowledge base."""
+        # Implementation: Gọi RAG engine để lấy raw results
         return "..."
     
     @mcp.tool()
-    def symptom_search(symptoms: str) -> str:
-        """Tìm bệnh dựa trên triệu chứng."""
-        # Implementation: Tra cứu DB bệnh theo triệu chứng
+    def web_search(query: str) -> dict:
+        """Tìm thêm nguồn web khi knowledge base chưa đủ dữ liệu."""
+        # Implementation: DuckDuckGo search + filter pet/vet scope
         return "..."
     
     @mcp.tool()
-    def search_clinics(location: str) -> str:
-        """Tìm phòng khám gần đây."""
+    def search_clinics_nearby(latitude: float, longitude: float) -> dict:
+        """Tìm phòng khám gần vị trí người dùng."""
         # Implementation: Gọi Spring Boot API
         return "..."
     
     @mcp.tool()
-    def check_slots(clinic_id: str, date: str) -> str:
-        """Kiểm tra slot trống."""
+    def check_available_slots(clinic_id: str, date: str, service_ids: list[str]) -> dict:
+        """Kiểm tra slot trống theo dịch vụ."""
         # Implementation: Gọi Spring Boot API
         return "..."
     
     @mcp.tool()
-    def create_booking(clinic_id: str, slot_id: str, pet_id: str) -> str:
-        """Tạo lịch hẹn thú y cho thú cưng."""
+    def create_booking_for_user(pet_id: str, clinic_id: str, booking_date: str, start_time: str, service_ids: list[str]) -> dict:
+        """Tạo lịch hẹn thú y cho thú cưng sau khi người dùng xác nhận."""
         # Implementation: Gọi Spring Boot API để tạo booking
-        return f"Created booking at clinic {clinic_id}, slot {slot_id}, for pet {pet_id}"
+        return {"success": True}
     ```
   * **Lưu ý:** 
     - Docstring sẽ được FastMCP dùng để sinh schema cho tool
@@ -368,15 +368,38 @@ Danh sách chi tiết các công nghệ được sử dụng để xây dựng h
   * **Multilingual:** Top-tier cho tiếng Việt, Anh, Hàn, Nhật
   * **Dimension:** 1024 (cân bằng quality/storage)
   * **Lợi ích so với nomic-embed-text:**
-    * Không cần Ollama server
+    * Không cần local LLM server
     * Chất lượng Vietnamese tốt hơn
     * Cloud-native, zero infrastructure
 
 * **Web Search:** Tavily Search API
   * Free tier: 1,000 searches/month
-  * Optimized cho AI agents (trả về structured data)
+  * Optimized cho AI agents (tra ve structured data)
 
-* **Domain Knowledge:** Veterinary Knowledge Graph (future enhancement)
+* **Domain Knowledge & Intelligence:**
+
+  * **Knowledge Graph (LlamaIndex KnowledgeGraphIndex):**
+    * Extracts triplets from veterinary documents: (Symptom) --points_to--> (Disease) --common_in--> (Species)
+    * Hybrid Query: RAG (vector similarity) + KG (graph traversal) for reasoning over chains
+    * Backend: SimpleGraphStore (MVP) → Neo4j (at scale)
+    * Example: "Dry cough + runny nose" → KG infers "Upper respiratory infection" → "Antibiotics + keep warm"
+
+  * **Visual Case Memory (Qdrant `petties_case_memory` collection):**
+    * Vision LLM describes the image, then embeds the **textual description** (visual_description + diagnosis + symptoms) with Cohere and stores it together with metadata (species, disease, feedback, image_url, etc.)
+    * On similar future images, retrieves confirmed cases to increase accuracy and provide explanations such as "based on a previous case confirmed by Staff/Vet"
+    * Feedback-weighted retrieval: cases confirmed many times are boosted in ranking
+    * **Phase 2 (Planned):** Add a layer of **CLIP-style image embeddings** in a dedicated Qdrant collection for images, combined with text embeddings to better capture purely visual patterns. Not implemented in the current codebase.
+
+  * **Query Expansion:**
+    * LLM automatically expands short queries ("dog not eating" → synonyms, clinical terms, related symptoms)
+    * Increases recall for RAG search
+
+  * **Feedback Loop:**
+    * Thumbs up/down stored in MongoDB `chat_feedback` → confirmed cases embedded into Case Memory
+    * Prompt optimization based on patterns found in feedback data
+    * Periodic prune: remove low-value cases, prioritize verified ones
+
+  * **Details:** See `AI_AGENT_DATA_IMPROVEMENT_STRATEGY.md` Sections 7–11
 
 ### **D. Infrastructure & Real-time (AWS EC2 Production)**
 
@@ -415,9 +438,11 @@ Các tính năng được phân nhóm theo chức năng và mức độ ưu tiê
 
 ### **Tools Management (@mcp.tool)**
 
+> **Current runtime note:** Trong code hiện tại, runtime tools đang được sync và sử dụng thực tế gồm `pet_knowledge_search`, `web_search`, `get_user_pets`, `get_clinic_services`, `check_vaccination_status`, `search_clinics_nearby`, `check_available_slots`, `create_booking_for_user`. Nếu tài liệu khác nhắc tới capability ngoài danh sách này thì xem là planned scope.
+
 | ID | Feature Name | Tech Stack Context & Description | Priority |
 | :---- | :---- | :---- | :---- |
-| **TL-01** | **Tool List View** | Hiển thị danh sách tools đã được code (@mcp.tool): pet_care_qa, symptom_search, search_clinics, check_slots, create_booking. | **✅ Done** |
+| **TL-01** | **Tool List View** | Hiển thị danh sách tools đã được code (@mcp.tool): pet_knowledge_search, web_search, search_clinics_nearby, check_available_slots, create_booking_for_user. | **✅ Done** |
 | **TL-02** | **Tool Enable/Disable** | Bật/tắt từng tool riêng lẻ. Agent chỉ gọi được tools đang Enable. | **✅ Done** |
 | **TL-03** | **Schema Viewer** | Xem Request/Response schema của mỗi tool để Admin hiểu tool làm gì. | **✅ Done** |
 
@@ -428,6 +453,10 @@ Các tính năng được phân nhóm theo chức năng và mức độ ưu tiê
 | **KB-01** | **Document Upload** | Upload tài liệu (PDF, DOCX, TXT, MD) cho RAG. LlamaIndex xử lý chunking. | **✅ Done** |
 | **KB-02** | **Indexing Status** | Theo dõi trạng thái indexing: parsing → chunking → embedding → Qdrant. | **✅ Done** |
 | **KB-03** | **RAG Retrieval Test** | Admin nhập query test để xem RAG trả về chunks nào từ knowledge base. | **✅ Done** |
+| **KB-04** | **Query Expansion** | LLM tu dong mo rong query ngan gon truoc khi RAG search. Tang recall cho cau hoi ngan cua Staff. | **✅ Done** |
+| **KB-05** | **Knowledge Graph Index** | LlamaIndex KG extract triplets (trieu chung->benh->loai) tu tai lieu. Hybrid query RAG + KG. | **Planned (Phase 2)** |
+| **KB-06** | **Visual Case Memory** | Luu mo ta hinh anh + chan doan + feedback vao Qdrant. Tim case tuong tu cho lan sau. | **✅ Done** |
+| **KB-07** | **Feedback Loop & Case Embedding** | Thu thap feedback (thumbs up/down), embed confirmed cases vao Case Memory. | **✅ Done** |
 
 ### **Agent Testing & Debugging**
 
@@ -437,7 +466,7 @@ Các tính năng được phân nhóm theo chức năng và mức độ ưu tiê
 | **PG-02** | **ReAct Flow Visualization** | Hiển thị luồng ReAct: Thought → Action → Observation → Loop → Answer. | **✅ Done** |
 | **PG-03** | **Tool Call Inspector** | Xem chi tiết parameters và response của mỗi tool call. | **✅ Done** |
 | **PG-04** | **Citation View** | Hiển thị nguồn trích dẫn từ RAG (filename, chunks). | **🔄 In Progress** |
-| **PG-05** | **Response Feedback** | Admin đánh giá câu trả lời (Good/Bad) để improve prompt. | **Medium** |
+| **PG-05** | **Response Feedback** | User/Admin danh gia cau tra loi (Good/Bad) de improve prompt. Luu vao MongoDB `chat_feedback`. | **✅ Done** |
 
 
 ## **10\. Use Case Descriptions (Mô tả Kịch bản Sử dụng)**
