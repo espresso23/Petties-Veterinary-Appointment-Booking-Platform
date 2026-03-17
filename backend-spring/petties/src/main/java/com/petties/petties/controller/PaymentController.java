@@ -62,7 +62,7 @@ public class PaymentController {
      * Previously: GET /payments/{bookingId}/qr-status
      */
     @GetMapping("/{bookingId}/status")
-    @PreAuthorize("hasRole('PET_OWNER')")
+    @PreAuthorize("hasAnyRole('PET_OWNER','STAFF','CLINIC_MANAGER','ADMIN')")
     public ResponseEntity<Map<String, Object>> checkPaymentStatus(@PathVariable UUID bookingId) {
         log.info("Check payment status for bookingId: {}", bookingId);
 
@@ -219,24 +219,30 @@ public class PaymentController {
     }
 
     /**
-     * ClinicOwner/Manager: Get payment history for their clinic
-     * NEW: Clinic-based payment history with ownership verification
+     * ClinicOwner/Manager: Get payment history for their clinic.
+     * CLINIC_OWNER: clinic by owner; CLINIC_MANAGER: clinic by workingClinicId.
      */
     @GetMapping("/history/my-clinic")
     @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER')")
     public ResponseEntity<Map<String, Object>> getMyClinicPayments(
             @RequestParam(defaultValue = "50") Integer limit,
-            @RequestParam(required = false) String status) {
-        UUID userId = getCurrentUserId();
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) List<String> bookingStatus) {
+        com.petties.petties.model.User currentUser = authService.getCurrentUser();
+        UUID userId = currentUser.getUserId();
         log.info("User {} requesting clinic payment history", userId);
 
-        // Find user's clinic
-        Clinic clinic = clinicRepository.findFirstByOwnerUserId(userId)
-                .orElseThrow(() -> new com.petties.petties.exception.ResourceNotFoundException(
-                        "Bạn chưa có phòng khám nào"));
+        Clinic clinic;
+        if (currentUser.getWorkingClinic() != null) {
+            clinic = currentUser.getWorkingClinic();
+        } else {
+            clinic = clinicRepository.findFirstByOwnerUserId(userId)
+                    .orElseThrow(() -> new com.petties.petties.exception.ResourceNotFoundException(
+                            "Bạn chưa có phòng khám nào"));
+        }
 
         List<Map<String, Object>> payments = paymentHistoryService.getPaymentHistoryByClinicId(
-                clinic.getClinicId(), limit, status);
+                clinic.getClinicId(), limit, status, bookingStatus);
 
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);
@@ -259,26 +265,28 @@ public class PaymentController {
     public ResponseEntity<Map<String, Object>> getClinicPayments(
             @PathVariable UUID clinicId,
             @RequestParam(defaultValue = "50") Integer limit,
-            @RequestParam(required = false) String status) {
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) List<String> bookingStatus) {
         UUID userId = getCurrentUserId();
         log.info("User {} requesting payment history for clinic {}", userId, clinicId);
 
-        // Verify clinic exists
         Clinic clinic = clinicRepository.findById(clinicId)
                 .orElseThrow(() -> new com.petties.petties.exception.ResourceNotFoundException(
                         "Không tìm thấy phòng khám"));
 
-        // Check ownership for non-admin users
         boolean isAdmin = authService.getCurrentUser().getRole().name().equals("ADMIN");
         if (!isAdmin) {
             boolean ownsClinic = clinicRepository.existsByClinicIdAndOwnerUserId(clinicId, userId);
-            if (!ownsClinic) {
+            com.petties.petties.model.User currentUser = authService.getCurrentUser();
+            boolean managesClinic = currentUser.getWorkingClinic() != null
+                    && currentUser.getWorkingClinic().getClinicId().equals(clinicId);
+            if (!ownsClinic && !managesClinic) {
                 throw new ForbiddenException("Bạn không có quyền xem lịch sử thanh toán của phòng khám này");
             }
         }
 
         List<Map<String, Object>> payments = paymentHistoryService.getPaymentHistoryByClinicId(
-                clinicId, limit, status);
+                clinicId, limit, status, bookingStatus);
 
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);
@@ -288,6 +296,101 @@ public class PaymentController {
         response.put("payments", payments);
         response.put("message", "Lấy lịch sử thanh toán thành công");
 
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Revenue summary for clinic by period (DAY, WEEK, MONTH, YEAR).
+     * Returns aggregated totals for chart/table.
+     */
+    @GetMapping("/history/clinic/{clinicId}/revenue")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CLINIC_OWNER', 'CLINIC_MANAGER')")
+    public ResponseEntity<Map<String, Object>> getClinicRevenueSummary(
+            @PathVariable UUID clinicId,
+            @RequestParam(defaultValue = "MONTH") String period) {
+        UUID userId = getCurrentUserId();
+        log.info("User {} requesting revenue summary for clinic {}, period={}", userId, clinicId, period);
+
+        Clinic clinic = clinicRepository.findById(clinicId)
+                .orElseThrow(() -> new com.petties.petties.exception.ResourceNotFoundException(
+                        "Không tìm thấy phòng khám"));
+
+        boolean isAdmin = authService.getCurrentUser().getRole().name().equals("ADMIN");
+        if (!isAdmin) {
+            boolean ownsClinic = clinicRepository.existsByClinicIdAndOwnerUserId(clinicId, userId);
+            com.petties.petties.model.User currentUser = authService.getCurrentUser();
+            boolean managesClinic = currentUser.getWorkingClinic() != null
+                    && currentUser.getWorkingClinic().getClinicId().equals(clinicId);
+            if (!ownsClinic && !managesClinic) {
+                throw new ForbiddenException("Bạn không có quyền xem doanh thu của phòng khám này");
+            }
+        }
+
+        List<Map<String, Object>> items = paymentHistoryService.getRevenueSummaryByClinicId(clinicId, period);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("clinicId", clinicId);
+        response.put("clinicName", clinic.getName());
+        response.put("period", period);
+        response.put("items", items);
+        response.put("message", "Lấy tổng doanh thu thành công");
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Get revenue breakdown for revenue page (QR vs Cash vs Withdrawable).
+     */
+    @GetMapping("/history/clinic/{clinicId}/breakdown")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CLINIC_OWNER', 'CLINIC_MANAGER')")
+    public ResponseEntity<Map<String, Object>> getRevenueBreakdown(@PathVariable UUID clinicId) {
+        log.info("Requesting revenue breakdown for clinic {}", clinicId);
+
+        // Ownership check
+        com.petties.petties.model.User currentUser = authService.getCurrentUser();
+        boolean isAdmin = currentUser.getRole().name().equals("ADMIN");
+        if (!isAdmin) {
+            boolean ownsClinic = clinicRepository.existsByClinicIdAndOwnerUserId(clinicId, currentUser.getUserId());
+            boolean managesClinic = currentUser.getWorkingClinic() != null
+                    && currentUser.getWorkingClinic().getClinicId().equals(clinicId);
+            if (!ownsClinic && !managesClinic) {
+                throw new com.petties.petties.exception.ForbiddenException(
+                        "Bạn không có quyền xem doanh thu của phòng khám này");
+            }
+        }
+
+        Map<String, Object> breakdown = paymentHistoryService.getRevenueBreakdown(clinicId);
+        return ResponseEntity.ok(breakdown);
+    }
+
+    /**
+     * Get detailed balance fluctuation list (per-booking paid payments).
+     */
+    @GetMapping("/history/clinic/{clinicId}/fluctuation")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CLINIC_OWNER', 'CLINIC_MANAGER')")
+    public ResponseEntity<Map<String, Object>> getBalanceFluctuation(
+            @PathVariable UUID clinicId,
+            @RequestParam String method,
+            @RequestParam(defaultValue = "100") int limit) {
+        log.info("Requesting balance fluctuation for clinic {}, method={}, limit={}", clinicId, method, limit);
+
+        // Ownership check
+        com.petties.petties.model.User currentUser = authService.getCurrentUser();
+        boolean isAdmin = currentUser.getRole().name().equals("ADMIN");
+        if (!isAdmin) {
+            boolean ownsClinic = clinicRepository.existsByClinicIdAndOwnerUserId(clinicId, currentUser.getUserId());
+            boolean managesClinic = currentUser.getWorkingClinic() != null
+                    && currentUser.getWorkingClinic().getClinicId().equals(clinicId);
+            if (!ownsClinic && !managesClinic) {
+                throw new com.petties.petties.exception.ForbiddenException(
+                        "Bạn không có quyền xem doanh thu của phòng khám này");
+            }
+        }
+
+        List<Map<String, Object>> items = paymentHistoryService.getBalanceFluctuation(clinicId, method, limit);
+        Map<String, Object> response = new HashMap<>();
+        response.put("items", items);
         return ResponseEntity.ok(response);
     }
 

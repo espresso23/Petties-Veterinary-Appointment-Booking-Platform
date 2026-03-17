@@ -72,4 +72,10 @@ public class BookingRequest {
      * Optional notes from pet owner
      */
     private String notes;
+
+    /**
+     * Preferred payment method selected by pet owner on confirmation screen.
+     * Allowed values: QR, CASH. This is a preference for checkout phase.
+     */
+    private String paymentMethod;
 }

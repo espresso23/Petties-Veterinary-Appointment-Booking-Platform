@@ -2,14 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../config/constants/app_colors.dart';
 import '../../data/models/booking.dart';
+import '../../data/services/qr_payment_service.dart';
+import '../../data/services/booking_service.dart';
 import '../../utils/format_utils.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../routing/app_routes.dart';
 
 class AppointmentDetailScreen extends StatelessWidget {
   final BookingResponse booking;
+  final QrPaymentService _qrPaymentService = QrPaymentService();
+  final BookingService _bookingService = BookingService();
 
-  const AppointmentDetailScreen({super.key, required this.booking});
+  AppointmentDetailScreen({super.key, required this.booking});
 
   Future<void> _makePhoneCall(String phoneNumber) async {
     final Uri launchUri = Uri(
@@ -794,28 +798,53 @@ class AppointmentDetailScreen extends StatelessWidget {
       );
     } else if (['CANCELLED', 'REJECTED', 'NO_SHOW', 'COMPLETED']
         .contains(booking.status)) {
+      final showQrButton = _shouldShowQrButton();
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: const BoxDecoration(
           color: AppColors.white,
           border: Border(top: BorderSide(color: AppColors.stone200)),
         ),
-        child: SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () {
-              if (booking.clinicId != null) {
-                context.push('/booking/${booking.clinicId}/pet');
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (showQrButton) ...[
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _handleQrPaymentTap(context),
+                  icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
+                  label: const Text(
+                    'THANH TOÁN QR',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.amber.shade700,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  if (booking.clinicId != null) {
+                    context.push('/booking/${booking.clinicId}/pet');
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: const Text('ĐẶT LẠI',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
             ),
-            child: const Text('ĐẶT LẠI',
-                style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
+          ],
         ),
       );
     } else if (booking.type == 'SOS' &&
@@ -903,7 +932,267 @@ class AppointmentDetailScreen extends StatelessWidget {
         ),
       );
     }
+    // Hiển thị nút QR thanh toán theo PAYMENT STATUS (PAID thì ẩn)
+    final showQrButton = _shouldShowQrButton();
+
+    if (showQrButton) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: const BoxDecoration(
+          color: AppColors.white,
+          border: Border(top: BorderSide(color: AppColors.stone200)),
+        ),
+        child: SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () => _handleQrPaymentTap(context),
+            icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
+            label: const Text(
+              'THANH TOÁN QR',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.amber.shade700,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+          ),
+        ),
+      );
+    }
     return const SizedBox.shrink();
+  }
+
+  /// Kiểm tra xem có nên hiển thị nút QR hay không
+  /// Hiển thị khi payment chưa PAID (trừ khi booking đã hủy)
+  bool _shouldShowQrButton() {
+    final status = booking.status?.trim().toUpperCase() ?? '';
+    final paymentStatus = booking.paymentStatus?.trim().toUpperCase();
+    if (paymentStatus == 'PAID') {
+      return false;
+    }
+    return status != 'CANCELLED';
+  }
+
+  /// Kiểm tra xem booking này có phải QR payment booking hay không
+  bool _isQrPaymentBooking(BookingResponse booking) {
+    // Kiểm tra flag từ backend
+    if (booking.canShowQrPaymentButton == true) {
+      return true;
+    }
+
+    // Fallback: kiểm tra phương thức thanh toán và trạng thái
+    final paymentMethod = _resolvePaymentMethod(booking);
+    final paymentStatus = booking.paymentStatus?.trim().toUpperCase();
+
+    return paymentMethod == 'QR' && 
+        paymentStatus != 'PAID' &&
+        ((booking.qrImageUrl?.trim().isNotEmpty ?? false) ||
+            (booking.paymentDescription?.trim().isNotEmpty ?? false));
+  }
+
+  /// Xử lý khi người dùng click nút Thanh toán QR
+  Future<void> _handleQrPaymentTap(BuildContext context) async {
+    final bookingId = booking.bookingId;
+    if (bookingId == null || bookingId.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Không tìm thấy mã lịch hẹn.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      // Refetch booking từ backend để lấy dữ liệu tươi
+      final freshBooking = await _bookingService.getBookingById(bookingId);
+      
+      // Kiểm tra nếu đây có phải QR payment booking không
+      if (_isQrPaymentBooking(freshBooking)) {
+        if (context.mounted) {
+          await _showQrDialog(context, freshBooking);
+        }
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Lịch hẹn này không sử dụng thanh toán QR.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  String? _resolvePaymentMethod(BookingResponse booking) {
+    final explicitMethod = booking.paymentMethod?.trim().toUpperCase();
+    if (explicitMethod == 'QR' || explicitMethod == 'CASH') {
+      return explicitMethod;
+    }
+
+    final notes = booking.notes?.toLowerCase() ?? '';
+    if (notes.contains('phương thức thanh toán mong muốn: chuyển khoản qr') ||
+        notes.contains('phuong thuc thanh toan mong muon: chuyen khoan qr') ||
+        notes.contains('chuyển khoản qr') ||
+        notes.contains('chuyen khoan qr') ||
+        notes.contains('qr')) {
+      return 'QR';
+    }
+
+    if (notes.contains('phương thức thanh toán mong muốn: tiền mặt') ||
+        notes.contains('phuong thuc thanh toan mong muon: tien mat') ||
+        notes.contains('tiền mặt') ||
+        notes.contains('tien mat')) {
+      return 'CASH';
+    }
+
+    return null;
+  }
+
+  Future<void> _showQrDialog(BuildContext context, BookingResponse qrBooking) async {
+    final isPaid = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.qr_code_2, color: Colors.amber),
+            SizedBox(width: 8),
+            Text('Thanh toán QR', style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Quét mã QR để thanh toán lịch hẹn #${qrBooking.bookingCode ?? ""}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            if (qrBooking.qrImageUrl != null && qrBooking.qrImageUrl!.isNotEmpty)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  qrBooking.qrImageUrl!,
+                  width: 220,
+                  height: 220,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 220,
+                    height: 220,
+                    color: Colors.grey.shade100,
+                    child: const Icon(Icons.qr_code_2,
+                        size: 80, color: Colors.grey),
+                  ),
+                ),
+              )
+            else
+              Container(
+                width: 220,
+                height: 220,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Center(
+                  child: Icon(Icons.qr_code_2, size: 80, color: Colors.grey),
+                ),
+              ),
+            const SizedBox(height: 16),
+            Text(
+              FormatUtils.formatCurrency(qrBooking.totalPrice ?? 0),
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.amber.shade700,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              final bookingId = qrBooking.bookingId;
+              if (bookingId == null || bookingId.isEmpty) {
+                if (ctx.mounted) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(
+                      content: Text('Không tìm thấy mã lịch hẹn để kiểm tra thanh toán.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+                return;
+              }
+
+              try {
+                final result = await _qrPaymentService.checkQrStatus(bookingId);
+                final status =
+                    (result['status'] ?? '').toString().trim().toUpperCase();
+
+                if (status == 'PAID') {
+                  if (ctx.mounted) Navigator.pop(ctx, true);
+                  return;
+                }
+
+                final message =
+                    (result['message'] ?? 'Chưa nhận được thanh toán.').toString();
+                if (ctx.mounted) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    SnackBar(
+                      content: Text(message),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                }
+              } catch (_) {
+                if (ctx.mounted) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(
+                      content: Text('Không thể kiểm tra trạng thái thanh toán. Vui lòng thử lại.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('KIỂM TRA TRẠNG THÁI'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('ĐÓNG'),
+          ),
+        ],
+      ),
+    );
+
+    if (isPaid == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Thanh toán thành công! Đang cập nhật trạng thái thanh toán.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // Pop detail screen và return 'PAID' để list refetch
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (context.mounted) {
+        Navigator.of(context).pop('PAID');
+      }
+    }
   }
 
   String _formatDateString(String? dateStr) {

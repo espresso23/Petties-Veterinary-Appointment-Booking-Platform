@@ -2,6 +2,8 @@ package com.petties.petties.model;
 
 import com.petties.petties.model.enums.BookingStatus;
 import com.petties.petties.model.enums.BookingType;
+import com.petties.petties.model.enums.PaymentMethod;
+import com.petties.petties.model.enums.PaymentStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -138,6 +140,16 @@ public class Booking {
     @Column(name = "cancelled_by")
     private UUID cancelledBy;
 
+    // ========== PAYMENT STATUS (denormalized) ==========
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", length = 20)
+    private PaymentStatus paymentStatus;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method", length = 20)
+    private PaymentMethod paymentMethod;
+
     // ========== NOTES ==========
 
     @Column(name = "notes", columnDefinition = "TEXT")
@@ -227,5 +239,16 @@ public class Booking {
      */
     public boolean isHomeService() {
         return type == BookingType.HOME_VISIT || type == BookingType.SOS;
+    }
+
+    /**
+     * Sync denormalized payment fields from Payment entity.
+     * Gọi mỗi khi Payment được tạo mới hoặc cập nhật status/method.
+     */
+    public void syncPaymentStatus(Payment payment) {
+        if (payment != null) {
+            this.paymentStatus = payment.getStatus();
+            this.paymentMethod = payment.getMethod();
+        }
     }
 }

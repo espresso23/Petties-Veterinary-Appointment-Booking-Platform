@@ -1040,14 +1040,14 @@ class BookingControllerUnitTest {
 
                 setupUserPrincipalAuth(userId);
                 when(bookingService.getCurrentUserById(userId)).thenReturn(new com.petties.petties.model.User());
-                when(bookingService.removeServiceFromBooking(eq(bookingId), eq(serviceId), any(com.petties.petties.model.User.class))).thenReturn(response);
+                when(bookingService.removeServiceFromBooking(eq(bookingId), eq(serviceId))).thenReturn(response);
 
                 // Act & Assert
                 mockMvc.perform(delete("/bookings/{bookingId}/services/{serviceId}", bookingId, serviceId))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.pets[0].services").isEmpty());
 
-                verify(bookingService).removeServiceFromBooking(eq(bookingId), eq(serviceId), any(com.petties.petties.model.User.class));
+                verify(bookingService).removeServiceFromBooking(eq(bookingId), eq(serviceId));
         }
         // ==================== GET AVAILABLE SLOTS TESTS ====================
 
@@ -1231,7 +1231,7 @@ class BookingControllerUnitTest {
                 response.setStatus(BookingStatus.COMPLETED);
 
                 when(bookingService.getCurrentUserById(userId)).thenReturn(new com.petties.petties.model.User());
-                when(bookingService.processCheckoutAuthorized(eq(bookingId), any(CheckoutRequest.class), any()))
+                when(bookingService.processCheckout(eq(bookingId), any(CheckoutRequest.class), any()))
                                 .thenReturn(response);
 
                 mockMvc.perform(post("/bookings/{bookingId}/checkout", bookingId)
@@ -1240,7 +1240,7 @@ class BookingControllerUnitTest {
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.status").value("COMPLETED"));
 
-                verify(bookingService).processCheckoutAuthorized(eq(bookingId), any(CheckoutRequest.class), any());
+                verify(bookingService).processCheckout(eq(bookingId), any(CheckoutRequest.class), any());
         }
 
         @Test
@@ -1257,7 +1257,7 @@ class BookingControllerUnitTest {
                 response.setStatus(BookingStatus.COMPLETED);
 
                 when(bookingService.getCurrentUserById(userId)).thenReturn(new com.petties.petties.model.User());
-                when(bookingService.processCheckoutAuthorized(eq(bookingId), any(CheckoutRequest.class), any()))
+                when(bookingService.processCheckout(eq(bookingId), any(CheckoutRequest.class), any()))
                                 .thenReturn(response);
 
                 mockMvc.perform(post("/bookings/{bookingId}/checkout", bookingId)
@@ -1266,7 +1266,7 @@ class BookingControllerUnitTest {
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.status").value("COMPLETED"));
 
-                verify(bookingService).processCheckoutAuthorized(eq(bookingId), any(CheckoutRequest.class), any());
+                verify(bookingService).processCheckout(eq(bookingId), any(CheckoutRequest.class), any());
         }
 
         @Test
@@ -1281,7 +1281,7 @@ class BookingControllerUnitTest {
 
                 com.petties.petties.model.User admin = new com.petties.petties.model.User();
                 when(bookingService.getCurrentUserById(userId)).thenReturn(admin);
-                when(bookingService.processCheckoutAuthorized(eq(bookingId), any(CheckoutRequest.class), any()))
+                when(bookingService.processCheckout(eq(bookingId), any(CheckoutRequest.class), any()))
                                 .thenThrow(new ForbiddenException("Admin không được checkout booking"));
 
                 mockMvc.perform(post("/bookings/{bookingId}/checkout", bookingId)
@@ -1289,7 +1289,7 @@ class BookingControllerUnitTest {
                                 .content(objectMapper.writeValueAsString(request)))
                                 .andExpect(status().isForbidden());
 
-                verify(bookingService).processCheckoutAuthorized(eq(bookingId), any(CheckoutRequest.class), any());
+                verify(bookingService).processCheckout(eq(bookingId), any(CheckoutRequest.class), any());
         }
 
         @Test

@@ -383,11 +383,19 @@ class FcmService {
       case 'BOOKING_CONFIRMED':
       case 'BOOKING_CANCELLED':
       case 'BOOKING_CHECKIN':
+      case 'BOOKING_PAYMENT_REQUIRED':
       case 'BOOKING_COMPLETED':
       case 'STAFF_ON_WAY':
       case 'STAFF_ARRIVED':
-        // Nếu sau này payload có bookingId, có thể deep-link chi tiết.
-        // Hiện tại điều hướng giống logic trong NotificationListScreen:
+        final bookingId = ((data['bookingId'] ?? data['actionData']) as String?)
+            ?.trim();
+        if (role == 'PET_OWNER' && bookingId != null && bookingId.isNotEmpty) {
+          final detailPath =
+              AppRoutes.bookingDetails.replaceFirst(':id', bookingId);
+          context.push(detailPath);
+          break;
+        }
+
         if (role == 'STAFF') {
           context.push(AppRoutes.staffBookings);
         } else {

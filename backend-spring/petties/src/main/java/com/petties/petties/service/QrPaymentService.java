@@ -10,6 +10,7 @@ import com.petties.petties.model.Booking;
 import com.petties.petties.model.Payment;
 import com.petties.petties.model.enums.PaymentMethod;
 import com.petties.petties.model.enums.PaymentStatus;
+import com.petties.petties.model.enums.Role;
 import com.petties.petties.repository.BookingRepository;
 import com.petties.petties.repository.PaymentRepository;
 import com.petties.petties.service.AuthService;
@@ -25,6 +26,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -33,12 +35,15 @@ public class QrPaymentService {
 
     private static final DateTimeFormatter SEPAY_TIME_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT);
+    private static final Pattern WHITESPACE_PATTERN = Pattern.compile("\\s+");
+    private static final Pattern NON_ALNUM_PATTERN = Pattern.compile("[^a-zA-Z0-9]");
 
     private final PaymentRepository paymentRepository;
     private final BookingRepository bookingRepository;
     private final AuthService authService;
     private final TransactionService transactionService;
     private final SePayClient sePayClient;
+    private final NotificationService notificationService;
 
     @Value("${sepay.account-number:}")
     private String sepayAccountNumber;
@@ -49,8 +54,18 @@ public class QrPaymentService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy booking"));
 
         var currentUser = authService.getCurrentUser();
-        if (booking.getPetOwner() == null || booking.getPetOwner().getUserId() == null
-                || !booking.getPetOwner().getUserId().equals(currentUser.getUserId())) {
+        Role currentRole = currentUser.getRole();
+        if (currentRole == Role.PET_OWNER) {
+            if (booking.getPetOwner() == null || booking.getPetOwner().getUserId() == null
+                    || !booking.getPetOwner().getUserId().equals(currentUser.getUserId())) {
+                throw new ForbiddenException("Bạn không có quyền kiểm tra thanh toán của booking này");
+            }
+        } else if (currentRole == Role.STAFF || currentRole == Role.CLINIC_MANAGER) {
+            if (booking.getClinic() == null || currentUser.getWorkingClinic() == null
+                    || !booking.getClinic().getClinicId().equals(currentUser.getWorkingClinic().getClinicId())) {
+                throw new ForbiddenException("Bạn không có quyền kiểm tra thanh toán của booking này");
+            }
+        } else if (currentRole != Role.ADMIN) {
             throw new ForbiddenException("Bạn không có quyền kiểm tra thanh toán của booking này");
         }
 
@@ -62,6 +77,7 @@ public class QrPaymentService {
         }
 
         if (payment.getStatus() == PaymentStatus.PAID) {
+            notificationService.sendQrPaymentSuccessNotificationToStaffAndManagers(booking);
             return QrStatusResult.paid("Thanh toán đã được xác nhận trước đó", null);
         }
 
@@ -96,6 +112,7 @@ public class QrPaymentService {
 
         BigDecimal expectedAmount = payment.getAmount();
         SePayTransactionDto matched = null;
+        String normalizedPaymentDescription = normalizeForMatching(paymentDescription);
 
         for (SePayTransactionDto tx : transactions) {
             if (tx == null) {
@@ -103,14 +120,16 @@ public class QrPaymentService {
             }
 
             String content = tx.getTransactionContent();
-            if (content == null || !content.contains(paymentDescription)) {
+            String normalizedContent = normalizeForMatching(content);
+            if (normalizedContent == null || normalizedPaymentDescription == null
+                    || !normalizedContent.contains(normalizedPaymentDescription)) {
                 continue;
             }
 
             if (expectedAmount != null) {
                 BigDecimal amountIn;
                 try {
-                    amountIn = new BigDecimal(tx.getAmountIn());
+                    amountIn = parseAmount(tx.getAmountIn());
                 } catch (Exception e) {
                     continue;
                 }
@@ -123,7 +142,8 @@ public class QrPaymentService {
             if (paymentCreatedAt != null && tx.getTransactionDate() != null) {
                 try {
                     LocalDateTime txTime = LocalDateTime.parse(tx.getTransactionDate(), SEPAY_TIME_FORMATTER);
-                    if (txTime.isBefore(paymentCreatedAt)) {
+                    // Allow up to 2 minutes clock drift between systems.
+                    if (txTime.isBefore(paymentCreatedAt.minusMinutes(2))) {
                         continue;
                     }
                 } catch (Exception e) {
@@ -142,9 +162,34 @@ public class QrPaymentService {
         payment.markAsPaid();
         paymentRepository.save(payment);
 
+        // Chỉ sync trạng thái thanh toán vào Booking.
+        // Booking status phải giữ IN_PROGRESS và chỉ Staff mới được complete.
+        booking.syncPaymentStatus(payment);
+        bookingRepository.save(booking);
+
         log.info("QR payment matched for booking {} - tx {}", booking.getBookingCode(), matched.getId());
 
-        return QrStatusResult.paid("Thanh toán thành công", matched.getId());
+        notificationService.sendQrPaymentSuccessNotificationToStaffAndManagers(booking);
+
+        return QrStatusResult.paid("Đã xác nhận thanh toán QR thành công", matched.getId());
+    }
+
+    private String normalizeForMatching(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String normalized = raw.toLowerCase(Locale.ROOT).trim();
+        normalized = WHITESPACE_PATTERN.matcher(normalized).replaceAll("");
+        normalized = NON_ALNUM_PATTERN.matcher(normalized).replaceAll("");
+        return normalized;
+    }
+
+    private BigDecimal parseAmount(String rawAmount) {
+        if (rawAmount == null || rawAmount.isBlank()) {
+            throw new IllegalArgumentException("amountIn is blank");
+        }
+        String cleaned = rawAmount.replace(",", "").trim();
+        return new BigDecimal(cleaned);
     }
 
     public record QrStatusResult(String status, String message, String matchedTransactionId) {

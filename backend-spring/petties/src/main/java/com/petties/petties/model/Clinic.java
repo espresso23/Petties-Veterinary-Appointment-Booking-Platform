@@ -99,10 +99,12 @@ public class Clinic {
     @Convert(converter = com.petties.petties.converter.OperatingHoursConverter.class)
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "operating_hours", columnDefinition = "jsonb")
+    @Builder.Default
     private Map<String, OperatingHours> operatingHours = new HashMap<>();
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
+    @Builder.Default
     private ClinicStatus status = ClinicStatus.PENDING;
 
     @Column(name = "rejection_reason", columnDefinition = "TEXT")

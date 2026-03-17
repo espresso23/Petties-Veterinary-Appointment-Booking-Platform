@@ -42,6 +42,10 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
                       _buildBookingDetailsCard(provider),
                       const SizedBox(height: 16),
 
+                      // Payment method selection (show earlier to avoid being missed)
+                      _buildPaymentMethodCard(provider),
+                      const SizedBox(height: 16),
+
                       // Pets and Services
                       _buildPetsAndServicesCard(provider),
                       const SizedBox(height: 16),
@@ -539,6 +543,9 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
   }
 
   Widget _buildTotalCard(BookingWizardProvider provider) {
+    final paymentLabel =
+        provider.paymentMethod == 'CASH' ? 'Tiền mặt' : 'Chuyển khoản QR';
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -549,10 +556,10 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Column(
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              const Text(
                 'TỔNG CỘNG',
                 style: TextStyle(
                   fontSize: 11,
@@ -561,9 +568,9 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
                   letterSpacing: 0.5,
                 ),
               ),
-              SizedBox(height: 2),
+              const SizedBox(height: 2),
               Text(
-                'Thanh toán tại phòng khám',
+                'Phương thức: $paymentLabel',
                 style: TextStyle(
                   fontSize: 11,
                   color: AppColors.stone500,
@@ -580,6 +587,111 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentMethodCard(BookingWizardProvider provider) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.stone200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'PHƯƠNG THỨC THANH TOÁN',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: AppColors.stone500,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _buildPaymentOption(
+            provider: provider,
+            value: 'QR',
+            title: 'Chuyển khoản QR',
+            subtitle: 'Quét mã QR để thanh toán nhanh',
+            icon: Icons.qr_code_2,
+          ),
+          const SizedBox(height: 10),
+          _buildPaymentOption(
+            provider: provider,
+            value: 'CASH',
+            title: 'Tiền mặt',
+            subtitle: 'Thanh toán trực tiếp tại phòng khám',
+            icon: Icons.payments,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentOption({
+    required BookingWizardProvider provider,
+    required String value,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+  }) {
+    final isSelected = provider.paymentMethod == value;
+    return InkWell(
+      onTap: () => provider.setPaymentMethod(value),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.primary.withValues(alpha: 0.08)
+              : AppColors.stone50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? AppColors.primary : AppColors.stone200,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon,
+                color: isSelected ? AppColors.primary : AppColors.stone500),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color:
+                          isSelected ? AppColors.primary : AppColors.stone900,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.stone500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              isSelected
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
+              color: isSelected ? AppColors.primary : AppColors.stone400,
+              size: 20,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -627,10 +739,11 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
               absorbing: provider.isCreatingBooking,
               child: GestureDetector(
                 onTap: () async {
-                  final success = await provider.createBooking();
-                  if (success && context.mounted) {
-                    context.go('/booking/success');
+                  final result = await provider.createBooking();
+                  if (!context.mounted || !result.success) {
+                    return;
                   }
+                  context.go('/booking/success');
                 },
                 child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 16),

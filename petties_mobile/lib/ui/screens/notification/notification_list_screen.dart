@@ -246,6 +246,11 @@ class _NotificationItem extends StatelessWidget {
         iconColor = AppColors.secondary;
         bgColor = AppColors.secondaryLight;
         break;
+      case NotificationType.BOOKING_PAYMENT_REQUIRED:
+        iconData = Icons.payments_outlined;
+        iconColor = Colors.amber.shade700;
+        bgColor = Colors.amber.withOpacity(0.1);
+        break;
       case NotificationType.BOOKING_CANCELLED:
         iconData = Icons.block_flipped;
         iconColor = Colors.red;
@@ -296,6 +301,7 @@ class _NotificationItem extends StatelessWidget {
       case NotificationType.BOOKING_CONFIRMED:
       case NotificationType.BOOKING_ASSIGNED:
       case NotificationType.BOOKING_CHECKIN:
+      case NotificationType.BOOKING_PAYMENT_REQUIRED:
       case NotificationType.BOOKING_COMPLETED:
       case NotificationType.BOOKING_CANCELLED:
       case NotificationType.STAFF_ON_WAY:

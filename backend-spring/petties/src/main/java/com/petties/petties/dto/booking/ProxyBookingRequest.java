@@ -73,4 +73,10 @@ public class ProxyBookingRequest {
     // ========== NOTES ==========
 
     private String notes;
+
+    /**
+     * Preferred payment method selected on confirmation screen.
+     * Allowed values: QR, CASH.
+     */
+    private String paymentMethod;
 }

@@ -104,6 +104,7 @@ public class User {
 
     // For Clinic Owners: The clinics they own (1 owner can have multiple clinics)
     @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL)
+    @Builder.Default
     private List<Clinic> ownedClinics = new ArrayList<>();
 
     // For Managers and Staff: The clinic they belong to

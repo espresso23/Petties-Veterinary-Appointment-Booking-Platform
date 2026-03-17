@@ -75,6 +75,8 @@ export interface Booking {
     // Payment info
     paymentStatus?: string; // PENDING, PAID, REFUNDED, FAILED
     paymentMethod?: string; // CASH, QR, CARD
+    paymentDescription?: string; // SePay payment description for QR matching
+    qrImageUrl?: string; // QR code image URL (only for QR + PENDING)
 
     // Booking info
     bookingDate: string;
