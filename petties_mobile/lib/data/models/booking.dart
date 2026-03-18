@@ -58,6 +58,11 @@ class BookingResponse {
   final String? assignedStaffPhone;
   final String? assignedStaffSpecialty;
   final String? assignedStaffAvatarUrl;
+  final String? paymentStatus;
+  final String? paymentMethod;
+  final String? paymentDescription;
+  final String? qrImageUrl;
+  final bool? canShowQrPaymentButton;
   final bool? isReviewed;
   final String? reviewId;
   final int? rating;
@@ -105,6 +110,11 @@ class BookingResponse {
     this.assignedStaffPhone,
     this.assignedStaffSpecialty,
     this.assignedStaffAvatarUrl,
+    this.paymentStatus,
+    this.paymentMethod,
+    this.paymentDescription,
+    this.qrImageUrl,
+    this.canShowQrPaymentButton,
     this.isReviewed,
     this.reviewId,
     this.rating,
@@ -176,6 +186,11 @@ class BookingResponse {
       assignedStaffPhone: json['assignedStaffPhone'],
       assignedStaffSpecialty: json['assignedStaffSpecialty'],
       assignedStaffAvatarUrl: json['assignedStaffAvatarUrl'],
+      paymentStatus: json['paymentStatus'],
+      paymentMethod: json['paymentMethod'],
+      paymentDescription: json['paymentDescription'],
+      qrImageUrl: json['qrImageUrl'],
+      canShowQrPaymentButton: json['canShowQrPaymentButton'] != null ? json['canShowQrPaymentButton'] == true : null,
       isReviewed: json['isReviewed'],
       reviewId: json['reviewId'],
       rating: json['rating'],

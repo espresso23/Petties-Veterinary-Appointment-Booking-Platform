@@ -17,7 +17,8 @@ import java.util.UUID;
 public interface NotificationRepository extends JpaRepository<Notification, UUID> {
 
     /**
-     * Find all notifications for a user (including StaffShift notifications without clinic)
+     * Find all notifications for a user (including StaffShift notifications without
+     * clinic)
      * Load notifications for non-deleted clinics OR notifications without clinic
      */
     @Query("SELECT n FROM Notification n LEFT JOIN n.clinic c WHERE n.user.userId = :userId AND (c IS NULL OR c.deletedAt IS NULL)")
@@ -75,5 +76,10 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
             @Param("userId") UUID userId,
             @Param("clinicId") UUID clinicId,
             @Param("type") NotificationType type);
-}
 
+    @Query("SELECT COUNT(n) > 0 FROM Notification n WHERE n.user.userId = :userId AND n.type = :type AND n.actionData = :actionData")
+    boolean existsByUserUserIdAndTypeAndActionData(
+            @Param("userId") UUID userId,
+            @Param("type") NotificationType type,
+            @Param("actionData") String actionData);
+}

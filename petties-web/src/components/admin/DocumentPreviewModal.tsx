@@ -14,7 +14,6 @@ import {
 import { knowledgeApi } from '../../services/agentService'
 import type { Document } from '../../services/agentService'
 
-// Configure PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
 
 interface DocumentPreviewModalProps {
@@ -162,10 +161,8 @@ export const DocumentPreviewModal = ({ isOpen, onClose, document }: DocumentPrev
           </div>
         </div>
 
-        {/* PDF Controls Bar */}
         {isPdf && previewState === 'ready' && (
           <div className="flex items-center justify-center gap-4 px-4 py-2 border-b border-stone-200 bg-stone-50">
-            {/* Page navigation */}
             <div className="flex items-center gap-2">
               <button
                 onClick={goToPrevPage}
@@ -188,7 +185,6 @@ export const DocumentPreviewModal = ({ isOpen, onClose, document }: DocumentPrev
 
             <div className="w-px h-5 bg-stone-300" />
 
-            {/* Zoom controls */}
             <div className="flex items-center gap-2">
               <button
                 onClick={zoomOut}

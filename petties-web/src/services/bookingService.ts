@@ -224,7 +224,23 @@ export const checkInBooking = async (bookingId: string): Promise<Booking> => {
 };
 
 /**
- * Checkout booking (Staff/Manager action – thanh toán)
+ * Complete booking (Checkout) with payment method selection
+ * - CASH: Creates payment as PAID → booking COMPLETED immediately
+ * - QR: Creates payment as PENDING → returns QR info for polling
+ * - undefined: Legacy behavior → booking COMPLETED without payment
+ * Transitions: IN_PROGRESS → COMPLETED (for CASH/undefined)
+ */
+export const completeBooking = async (
+    bookingId: string,
+    paymentMethod?: 'CASH' | 'QR'
+): Promise<Booking> => {
+    const body = paymentMethod ? { paymentMethod } : undefined;
+    const response = await axios.post(`${BOOKING_API}/${bookingId}/complete`, body);
+    return response.data;
+};
+
+/**
+ * Checkout booking (Staff action – thanh toán)
  * Chỉ gọi khi status IN_PROGRESS. Backend chuyển sang COMPLETED và xử lý thanh toán.
  * @param overriddenSosFee Optional: ghi đè phí SOS (cho booking SOS)
  */
@@ -335,6 +351,7 @@ export const bookingService = {
     getAvailableServicesForAddOn,
     getAvailableStaffForConfirm,
     checkInBooking,
+    completeBooking,
     checkoutBooking,
     removeServiceFromBooking,
     getClinicTodayBookings,

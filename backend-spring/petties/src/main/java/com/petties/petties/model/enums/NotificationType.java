@@ -33,13 +33,19 @@ public enum NotificationType {
     BOOKING_CONFIRMED,
     BOOKING_CANCELLED,
     BOOKING_CHECKIN, // Staff đã check-in và bắt đầu khám
-    BOOKING_COMPLETED, // Lịch hẹn đã hoàn thành
+    BOOKING_PAYMENT_REQUIRED, // Đã chốt thông tin thanh toán, chờ Pet Owner thanh toán
+    BOOKING_COMPLETED, // Lịch hẹn đã hoàn thành và thanh toán xong
     STAFF_ON_WAY, // Nhân viên đang trên đường đến (HOME_VISIT/SOS)
     STAFF_ARRIVED, // Nhân viên đã đến địa chỉ của bạn
     BOOKING_ASSIGNED, // Staff được gán vào booking
 
     // Additional Clinic notifications
     CLINIC_VERIFIED,
+
+    // Refund / Withdrawal Request notifications
+    REFUND_REQUESTED,
+    REFUND_APPROVED,
+    REFUND_REJECTED,
 
     // Re-examination
     RE_EXAMINATION_REMINDER,

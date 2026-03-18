@@ -1,7 +1,7 @@
 # PETTIES - Test Cases Document
 
 **Version:** 3.0
-**Last Updated:** 2025-12-20
+**Last Updated:** 2026-03-16
 
 ---
 
@@ -11,6 +11,7 @@
 |---------|-----------------|--------|
 | User Profile API | [features/USER_PROFILE_API_TEST.md](features/USER_PROFILE_API_TEST.md) | Complete |
 | Authentication API | [features/AUTH_API_TEST_REPORT.md](features/AUTH_API_TEST_REPORT.md) | Complete |
+| Mobile Payment | [features/MOBILE_PAYMENT_TEST_REPORT.md](features/MOBILE_PAYMENT_TEST_REPORT.md) | Draft for execution |
 
 ---
 

@@ -2,7 +2,19 @@ import { useState, useEffect, useCallback } from 'react';
 import { isAxiosError } from 'axios';
 import { useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../../../store/authStore';
-import { getBookingsByClinic, confirmBooking, getBookingById, checkStaffAvailability, confirmBookingWithOptions, addServiceToBooking, getAvailableStaffForConfirm, checkoutBooking, removeServiceFromBooking, cancelBooking, type StaffOption } from '../../../services/bookingService';
+import {
+    getBookingsByClinic,
+    confirmBooking,
+    getBookingById,
+    checkStaffAvailability,
+    confirmBookingWithOptions,
+    addServiceToBooking,
+    getAvailableStaffForConfirm,
+    checkoutBooking,
+    removeServiceFromBooking,
+    cancelBooking,
+    type StaffOption,
+} from '../../../services/bookingService';
 import type { Booking, BookingStatus, BookingServiceItem, StaffAvailabilityCheckResponse } from '../../../types/booking';
 import { BOOKING_STATUS_CONFIG, BOOKING_TYPE_CONFIG, BOOKING_TYPE_LABELS, SERVICE_CATEGORY_LABELS, PAYMENT_STATUS_LABELS, STAFF_SPECIALTY_LABELS } from '../../../types/booking';
 import { ReassignStaffModal } from '../../../components/booking/ReassignStaffModal';
@@ -12,17 +24,18 @@ import { ReportBookingModal } from '../../../components/booking/ReportBookingMod
 import { getMyReports } from '../../../services/reportService';
 import type { ReportResponse } from '../../../types/report';
 import { useToast } from '../../../components/Toast';
-import { TrashIcon, TruckIcon, ScaleIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, TruckIcon, ScaleIcon, FlagIcon } from '@heroicons/react/24/outline';
 import { useSseNotification } from '../../../hooks/useSseNotification';
 import '../../../styles/brutalist.css';
 
-type TabFilter = 'PENDING' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'HISTORY' | 'ALL';
+type TabFilter = 'PENDING' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'UNPAID' | 'HISTORY' | 'ALL';
 
 const TAB_OPTIONS: { key: TabFilter; label: string }[] = [
     { key: 'PENDING', label: 'Chờ xác nhận' },
     { key: 'CONFIRMED', label: 'Đã xác nhận' },
     { key: 'IN_PROGRESS', label: 'Đang tiến hành' },
     { key: 'COMPLETED', label: 'Đã hoàn thành' },
+    { key: 'UNPAID', label: 'Chưa thanh toán' },
     { key: 'HISTORY', label: 'Lịch sử' },
     { key: 'ALL', label: 'Tất cả' },
 ];
@@ -148,6 +161,12 @@ export const BookingDashboardPage = () => {
             } else if (activeTab === 'COMPLETED') {
                 // Show completed bookings only
                 filtered = filtered.filter(b => b.status === 'COMPLETED');
+            } else if (activeTab === 'UNPAID') {
+                // Show unpaid bookings (excluding cancelled/no-show)
+                filtered = filtered.filter(b => {
+                    const paymentStatus = (b.paymentStatus || '').toUpperCase();
+                    return paymentStatus !== 'PAID' && b.status !== 'CANCELLED' && b.status !== 'NO_SHOW';
+                });
             } else if (activeTab === 'HISTORY') {
                 // Show cancelled/no-show bookings
                 filtered = filtered.filter(b =>
@@ -328,10 +347,9 @@ export const BookingDashboardPage = () => {
             setSelectedBooking(null);
             setCancelModalOpen(false);
             setBookingIdToCancel(null);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to cancel booking:', error);
-            const err = error as { response?: { data?: { message?: string } }; message?: string }
-            const errorMessage = err.response?.data?.message || err.message || 'Không thể hủy lịch hẹn. Vui lòng thử lại.';
+            const errorMessage = error.response?.data?.message || error.message || 'Không thể hủy lịch hẹn. Vui lòng thử lại.';
             showToast('error', errorMessage);
         } finally {
             setCancelling(null);
@@ -851,10 +869,10 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
     const [loadingStaff, setLoadingStaff] = useState(false);
     const [openDropdownServiceId, setOpenDropdownServiceId] = useState<string | null>(null);
 
-    // Confirmation Modal for Removal
-    const [confirmRemoveModal, setConfirmRemoveModal] = useState<{ isOpen: boolean, serviceId: string | null }>({
+    // Confirmation Modal for Removal (integrationFeature)
+    const [confirmRemoveModal, setConfirmRemoveModal] = useState<{ isOpen: boolean; serviceId: string | null }>({
         isOpen: false,
-        serviceId: null
+        serviceId: null,
     });
 
     // Fetch available staff when modal opens with PENDING booking
@@ -1075,14 +1093,47 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
                         </div>
                     )}
 
+                    {/* QR Code Display (when QR checkout is active) */}
+                    {booking.paymentStatus === 'PENDING' && booking.qrImageUrl && (
+                        <div className="border-2 border-blue-500 bg-blue-50 p-4 mb-4">
+                            <h3 className="font-bold uppercase text-sm mb-3 text-blue-700 text-center">
+                                Quét mã QR để thanh toán
+                            </h3>
+                            <div className="flex justify-center mb-3">
+                                <img
+                                    src={booking.qrImageUrl}
+                                    alt={booking.bookingCode}
+                                    className="w-56 h-56 border-2 border-stone-900"
+                                />
+                            </div>
+                            <div className="text-center">
+                                <div className="text-lg font-bold text-stone-900">
+                                    {Number(booking.totalPrice).toLocaleString('vi-VN')} VNĐ
+                                </div>
+                                <div className="flex items-center justify-center gap-2 mt-2">
+                                    <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                                    <span className="text-sm text-blue-600 font-medium">
+                                        Đang chờ thanh toán...
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Assigned Staff (Top level - e.g. for SOS) */}
                     {booking.type === 'SOS' && booking.assignedStaffName && (
                         <div className="border-2 border-stone-900 p-4 bg-mint-50">
-                            <h3 className="font-bold uppercase text-[10px] mb-3 text-stone-500 tracking-wider">Bác sĩ cấp cứu</h3>
+                            <h3 className="font-bold uppercase text-[10px] mb-3 text-stone-500 tracking-wider">
+                                Bác sĩ cấp cứu
+                            </h3>
                             <div className="flex items-center gap-3">
                                 <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-stone-900 bg-white shadow-[2px_2px_0_#1c1917]">
                                     {booking.assignedStaffAvatarUrl ? (
-                                        <img src={booking.assignedStaffAvatarUrl} alt={booking.assignedStaffName} className="w-full h-full object-cover" />
+                                        <img
+                                            src={booking.assignedStaffAvatarUrl}
+                                            alt={booking.assignedStaffName}
+                                            className="w-full h-full object-cover"
+                                        />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-xl font-bold bg-mint-200 text-stone-600">
                                             {booking.assignedStaffName.charAt(0)}
@@ -1090,8 +1141,14 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
                                     )}
                                 </div>
                                 <div>
-                                    <div className="font-bold text-lg leading-tight">{booking.assignedStaffName}</div>
-                                    <div className="text-xs text-stone-600 font-medium">{STAFF_SPECIALTY_LABELS[booking.assignedStaffSpecialty || ''] || booking.assignedStaffSpecialty || 'Bác sĩ thú y'}</div>
+                                    <div className="font-bold text-lg leading-tight">
+                                        {booking.assignedStaffName}
+                                    </div>
+                                    <div className="text-xs text-stone-600 font-medium">
+                                        {STAFF_SPECIALTY_LABELS[booking.assignedStaffSpecialty || ''] ||
+                                            booking.assignedStaffSpecialty ||
+                                            'Bác sĩ thú y'}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1575,14 +1632,12 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
                 {/* Footer Actions */}
                 <div className="flex justify-between items-center p-4 border-t-4 border-stone-900 bg-stone-50 flex-shrink-0 font-bold">
                     <div>
-                        {booking.status !== 'CANCELLED' && booking.status !== 'NO_SHOW' && (
+                        {booking.status !== 'CANCELLED' && booking.status !== 'NO_SHOW' && onReport && (
                             <button
                                 onClick={onReport}
                                 className="px-4 py-2 font-bold uppercase bg-white text-red-600 border-2 border-red-600 hover:bg-red-50 transition-all flex items-center gap-2"
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                                    <path fillRule="evenodd" d="M3 2.25a.75.75 0 01.75.75v.54l1.838-.46a9.75 9.75 0 016.725.738l.108.054a8.25 8.25 0 005.135.625l.489-.122a.75.75 0 01.914.887l-.488 1.95a9.75 9.75 0 01-6.725-.737l-.108-.054a8.25 8.25 0 00-5.135-.625l-.489.122v10.372a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75z" clipRule="evenodd" />
-                                </svg>
+                                <FlagIcon className="w-5 h-5" />
                                 Báo cáo
                             </button>
                         )}
@@ -1603,7 +1658,7 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
                         {booking.status === 'IN_PROGRESS' && (
                             <>
                                 <button onClick={onAddService} className="px-6 py-2 font-bold uppercase bg-amber-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Thêm dịch vụ</button>
-                                <button onClick={async () => { await completeBooking(booking.bookingId); onClose(); window.location.reload(); }} className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Checkout</button>
+                                <button onClick={async () => { await checkoutBooking(booking.bookingId); onClose(); window.location.reload(); }} className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Thanh toán</button>
                             </>
                         )}
                     </div>
