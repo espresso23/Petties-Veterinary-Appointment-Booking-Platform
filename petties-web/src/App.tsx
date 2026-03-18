@@ -29,6 +29,7 @@ import { KnowledgePage } from './pages/admin/knowledge'
 import { PlaygroundPage } from './pages/admin/playground'
 import { AIInsightsPage } from './pages/admin/insights'
 import { ClinicApprovalPage } from './pages/admin/clinics'
+import { ReportsPage as AdminReportsPage } from './pages/admin/ReportsPage'
 
 // Role-specific Pages
 import { StaffDashboardPage, StaffSchedulePage, StaffBookingsPage, StaffPatientsPage, StaffAIChatPage } from './pages/staff'
@@ -110,6 +111,7 @@ function App() {
             <Route path="playground" element={<PlaygroundPage />} />
             <Route path="ai-insights" element={<AIInsightsPage />} />
             <Route path="clinics" element={<ClinicApprovalPage />} />
+            <Route path="reports" element={<AdminReportsPage />} />
             <Route path="notifications" element={<AdminNotificationsPage />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route >

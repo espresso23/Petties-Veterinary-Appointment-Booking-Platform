@@ -676,6 +676,90 @@ public class NotificationService {
                                 petOwner.getUserId());
         }
 
+        // ======================== REPORT NOTIFICATIONS ========================
+
+        @Transactional
+        public void sendReportCreatedNotificationToAdmin(com.petties.petties.model.Report report) {
+                List<User> admins = userRepository.findByRoleAndDeletedAtIsNull(Role.ADMIN);
+                if (admins.isEmpty()) {
+                        return;
+                }
+
+                String reporterName = report.getReporter().getFullName();
+                String message = String.format(
+                                "Người dùng %s vừa tạo một báo cáo về lịch hẹn #%s. Vui lòng kiểm tra và xử lý.",
+                                reporterName,
+                                report.getBooking().getBookingCode());
+
+                for (User admin : admins) {
+                        Notification notification = Notification.builder()
+                                        .user(admin)
+                                        .clinic(report.getBooking().getClinic())
+                                        .type(NotificationType.REPORT_CREATED)
+                                        .message(message)
+                                        .read(false)
+                                        .build();
+
+                        notification = notificationRepository.save(notification);
+                        pushNotificationToUser(admin.getUserId(), notification);
+                }
+        }
+
+        @Transactional
+        public void sendReportResolvedNotification(com.petties.petties.model.Report report) {
+                String bookingCode = report.getBooking().getBookingCode();
+                String resolutionContent = report.getStatus() == com.petties.petties.model.enums.ReportStatus.APPROVED 
+                        ? "đã được chấp thuận" : "đã bị từ chối";
+                        
+                // 1. Notify Reporter
+                String reporterMessage = String.format(
+                                "Báo cáo của bạn về lịch hẹn #%s %s. Lời nhắn từ Admin: %s",
+                                bookingCode,
+                                resolutionContent,
+                                report.getAdminNote());
+
+                Notification reporterNotif = Notification.builder()
+                                .user(report.getReporter())
+                                .clinic(report.getBooking().getClinic())
+                                .type(NotificationType.REPORT_RESOLVED)
+                                .message(reporterMessage)
+                                .read(false)
+                                .build();
+                reporterNotif = notificationRepository.save(reporterNotif);
+                pushNotificationToUser(report.getReporter().getUserId(), reporterNotif);
+
+                // 2. Notify Reported Party (if applicable)
+                User reportedUserToNotify = null;
+                boolean isClinicReported = false;
+
+                if (report.getReportedUser() != null) {
+                        reportedUserToNotify = report.getReportedUser();
+                } else if (report.getReportedClinic() != null && report.getReportedClinic().getOwner() != null) {
+                        reportedUserToNotify = report.getReportedClinic().getOwner();
+                        isClinicReported = true;
+                }
+
+                if (reportedUserToNotify != null) {
+                        String targetName = isClinicReported ? "phòng khám của bạn" : "bạn";
+                        String reportedMessage = String.format(
+                                        "Có quyết định xử lý liên quan đến báo cáo về %s trong lịch hẹn #%s. %s. Lời nhắn từ Admin: %s",
+                                        targetName,
+                                        bookingCode,
+                                        resolutionContent,
+                                        report.getAdminNote());
+
+                        Notification reportedNotif = Notification.builder()
+                                        .user(reportedUserToNotify)
+                                        .clinic(report.getBooking().getClinic())
+                                        .type(NotificationType.REPORT_RESOLVED)
+                                        .message(reportedMessage)
+                                        .read(false)
+                                        .build();
+                        reportedNotif = notificationRepository.save(reportedNotif);
+                        pushNotificationToUser(reportedUserToNotify.getUserId(), reportedNotif);
+                }
+        }
+
         // ======================== COMMON OPERATIONS ========================
 
         /**
@@ -730,6 +814,8 @@ public class NotificationService {
                         case STAFF_ARRIVED -> "Nhân viên đã đến nơi";
                         case CLINIC_VERIFIED, APPROVED -> "Phòng khám đã được xác minh";
                         case REJECTED -> "Phòng khám bị từ chối";
+                        case REPORT_CREATED -> "Có báo cáo mới";
+                        case REPORT_RESOLVED -> "Kết quả xử lý báo cáo";
                         default -> "Thông báo từ Petties";
                 };
         }

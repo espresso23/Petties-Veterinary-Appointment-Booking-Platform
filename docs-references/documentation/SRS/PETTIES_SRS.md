@@ -2805,6 +2805,61 @@ Figure 51. AI Booking Advisory for Vaccination with dose price and due-shot remi
 
 ---
 
+#### *3.8.18 Booking Report (UC-PO-16 / UC-CM-17 / UC-AD-05)*
+**User Story:**
+> As a Pet Owner or Clinic Staff/Manager, I want to report issues related to a booking (e.g., poor service, no-show, violation of rules) so that the platform admin can review and take necessary actions.
+
+**Function trigger**
+- **Navigation path (Pet Owner - Mobile):** My Bookings → Booking Detail → "Báo cáo" button.
+- **Navigation path (Clinic - Web):** Booking Dashboard → Booking Detail Modal → "Báo cáo" button.
+- **Timing frequency:** On demand, after or during the booking.
+
+**Function description**
+- **Actors/Roles:** Pet Owner, Staff, Clinic Manager, Admin.
+- **Purpose:** Submit and resolve reports related to specific bookings.
+- **Interface:**
+    - Report Modal:
+        - Reason – text area (mandatory, min 10 chars)
+        - "Gửi báo cáo" – action button
+    - Admin Report Management Screen:
+        - List of reports with filters (Status)
+        - Resolution Modal:
+            - Admin Note – text area
+            - "Duyệt" / "Từ chối" buttons
+
+**Data processing**
+1. **Submit Report:**
+    - User opens the Report Modal from a booking.
+    - User enters the reason for reporting.
+    - System validates:
+        - Only one pending report per booking per reporter.
+        - Reporter must be part of the booking.
+    - System creates a `REPORT` record in PostgreSQL with status `PENDING`.
+    - System sends a notification to Platform Admins.
+2. **Resolve Report (Admin):**
+    - Admin reviews the report content and booking details.
+    - Admin enters a resolution note and chooses "APPROVED" or "REJECTED".
+    - System updates the report status.
+    - System sends notifications to the reporter and the reported party (Owner or Clinic).
+
+**Screen layout**
+Figure 49. Screen Submit Report (Mobile/Web Modal)
+Figure 50. Screen Admin Report Management (Web)
+
+**Function details**
+- **Data:**
+    - Request (Submit): `POST /api/reports` + `{ bookingId, reason }`
+    - Request (Resolve): `PUT /api/admin/reports/{id}/resolve` + `{ status, adminNote }`
+- **Validation:**
+    - Reason must be at least 10 characters.
+    - Admin note must be at least 5 characters.
+- **Normal case:** User reports a clinic for cleanliness; Admin approves the report and warns the clinic.
+- **Abnormal cases:**
+    - A1. Duplicate report – Toast "Bạn đã gửi báo cáo cho lịch hẹn này rồi".
+    - A2. Missing reason – "Vui lòng nhập lý do báo cáo".
+
+---
+
 ### 3.9 Electronic Medical Records (EMR) Flow
 
 > This section covers all EMR-related functionalities including clinical examination, prescription management, vaccination records, and patient lookup. EMR data is stored in MongoDB for flexible document structure while maintaining references to PostgreSQL entities.

@@ -497,17 +497,28 @@ public class BookingService {
         }
 
         /**
-         * Create a new guest user for proxy booking.
-         * In proxy booking flow, we always create a new guest user without checking
-         * existing records.
+         * Get or create a user for proxy booking.
+         * Checks if a user with the given phone number already exists:
+         * - If it exists, reuse it (prioritizing existing users/guests).
+         * - If not, create a new guest user and save their phone number.
          */
         private User createRecipientUser(ProxyRecipientInfo recipientInfo) {
+                // Check if user already exists with this phone number
+                if (recipientInfo.getPhone() != null && !recipientInfo.getPhone().trim().isEmpty()) {
+                        Optional<User> existingUserOpt = userRepository.findByPhone(recipientInfo.getPhone().trim());
+                        if (existingUserOpt.isPresent()) {
+                                log.info("Found existing user {} for proxy booking by phone: {}", 
+                                                existingUserOpt.get().getUserId(), recipientInfo.getPhone());
+                                return existingUserOpt.get();
+                        }
+                }
+
                 // Generate a unique username using phone + timestamp to avoid conflicts
                 String uniqueUsername = "proxy_" + recipientInfo.getPhone() + "_" + System.currentTimeMillis();
 
                 User newUser = new User();
                 newUser.setFullName(recipientInfo.getFullName());
-                newUser.setPhone(null); // Don't set phone to avoid unique constraint issues
+                newUser.setPhone(recipientInfo.getPhone()); // Save phone number for future proxy bookings
                 newUser.setAddress(recipientInfo.getAddress());
                 newUser.setRole(Role.PET_OWNER);
                 newUser.setUsername(uniqueUsername);
