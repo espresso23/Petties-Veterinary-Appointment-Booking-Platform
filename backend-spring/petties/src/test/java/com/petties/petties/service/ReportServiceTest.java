@@ -51,6 +51,12 @@ class ReportServiceTest {
     @Mock
     private ReportMapper reportMapper;
 
+    @Mock
+    private ClinicStrikeService strikeService;
+
+    @Mock
+    private UserStrikeService userStrikeService;
+
     @InjectMocks
     private ReportService reportService;
 
