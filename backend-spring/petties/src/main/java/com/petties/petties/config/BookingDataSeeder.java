@@ -53,6 +53,7 @@ public class BookingDataSeeder implements CommandLineRunner {
         private final BookingSlotRepository bookingSlotRepository;
         private final VaccinationRecordRepository vaccinationRecordRepository;
         private final com.petties.petties.service.NotificationService notificationService;
+        private final com.petties.petties.repository.ReportRepository reportRepository;
 
         private long bookingSequenceCounter = 1;
 
@@ -69,7 +70,9 @@ public class BookingDataSeeder implements CommandLineRunner {
                 log.info("📦 Seeding booking mock data...");
 
                 log.info("   Cleaning up old data to ensure fresh seeding...");
-                // Order of deletion to avoid FK constraints
+                // Order of deletion to avoid FK constraints (reports -> bookings)
+                reportRepository.deleteAll();
+                reportRepository.flush();
                 bookingSlotRepository.deleteAll();
                 slotRepository.deleteAll();
                 vaccinationRecordRepository.deleteAll();

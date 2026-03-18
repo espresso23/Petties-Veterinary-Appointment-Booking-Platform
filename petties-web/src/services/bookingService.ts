@@ -224,16 +224,11 @@ export const checkInBooking = async (bookingId: string): Promise<Booking> => {
 };
 
 /**
-<<<<<<< HEAD
  * Complete booking (Checkout) with payment method selection
  * - CASH: Creates payment as PAID → booking COMPLETED immediately
  * - QR: Creates payment as PENDING → returns QR info for polling
  * - undefined: Legacy behavior → booking COMPLETED without payment
  * Transitions: IN_PROGRESS → COMPLETED (for CASH/undefined)
-=======
- * Complete booking
- * Transitions: IN_PROGRESS → COMPLETED
->>>>>>> 22a81d38772a380aec5f7855c90f58a0b7452dcc
  */
 export const completeBooking = async (
     bookingId: string,

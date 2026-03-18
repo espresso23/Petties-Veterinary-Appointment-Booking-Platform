@@ -255,6 +255,22 @@ public class ClinicController {
     }
 
     /**
+     * GET /api/clinics/admin/struck
+     * Danh sách phòng khám đang bị hạn chế (strike)
+     * ADMIN only
+     */
+    @GetMapping("/admin/struck")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Page<ClinicResponse>> getStruckClinics(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "strikeUntil") String sortBy,
+            @RequestParam(defaultValue = "ASC") Sort.Direction sortDir) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(sortDir, sortBy));
+        return ResponseEntity.ok(clinicService.getStruckClinics(pageable));
+    }
+
+    /**
      * POST /api/clinics/{id}/approve
      * Approve clinic
      * ADMIN only

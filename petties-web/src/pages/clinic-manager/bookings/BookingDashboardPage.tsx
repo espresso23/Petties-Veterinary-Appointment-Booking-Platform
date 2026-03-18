@@ -10,19 +10,21 @@ import {
     confirmBookingWithOptions,
     addServiceToBooking,
     getAvailableStaffForConfirm,
-    completeBooking,
+    checkoutBooking,
     removeServiceFromBooking,
     cancelBooking,
     type StaffOption,
 } from '../../../services/bookingService';
-import { checkQrPaymentStatus } from '../../../services/paymentService';
 import type { Booking, BookingStatus, BookingServiceItem, StaffAvailabilityCheckResponse } from '../../../types/booking';
 import { BOOKING_STATUS_CONFIG, BOOKING_TYPE_CONFIG, BOOKING_TYPE_LABELS, SERVICE_CATEGORY_LABELS, PAYMENT_STATUS_LABELS, STAFF_SPECIALTY_LABELS } from '../../../types/booking';
 import { ReassignStaffModal } from '../../../components/booking/ReassignStaffModal';
 import { StaffAvailabilityWarningModal, type ConfirmOption } from '../../../components/booking/StaffAvailabilityWarningModal';
 import { AddServiceModal } from '../../../components/booking/AddServiceModal';
+import { ReportBookingModal } from '../../../components/booking/ReportBookingModal';
+import { getMyReports } from '../../../services/reportService';
+import type { ReportResponse } from '../../../types/report';
 import { useToast } from '../../../components/Toast';
-import { TrashIcon, TruckIcon, ScaleIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, TruckIcon, ScaleIcon, FlagIcon } from '@heroicons/react/24/outline';
 import { useSseNotification } from '../../../hooks/useSseNotification';
 import '../../../styles/brutalist.css';
 
@@ -78,6 +80,16 @@ export const BookingDashboardPage = () => {
     // Add-on Service state
     const [addServiceModalOpen, setAddServiceModalOpen] = useState(false);
     const [addingService, setAddingService] = useState(false);
+
+    // Report state
+    const [reportModalOpen, setReportModalOpen] = useState(false);
+    const [bookingToReport, setBookingToReport] = useState<{ id: string; code: string } | null>(null);
+
+    // Main view: Lịch hẹn | Lịch sử báo cáo
+    const [viewMode, setViewMode] = useState<'bookings' | 'reports'>('bookings');
+    const [reports, setReports] = useState<ReportResponse[]>([]);
+    const [reportsLoading, setReportsLoading] = useState(false);
+    const [reportDetail, setReportDetail] = useState<ReportResponse | null>(null);
 
     // Handle bookingId from URL query params (e.g., from schedule page click)
     useEffect(() => {
@@ -175,6 +187,26 @@ export const BookingDashboardPage = () => {
     useEffect(() => {
         fetchBookings();
     }, [fetchBookings]);
+
+    // Fetch report history when on reports tab
+    const fetchReports = useCallback(async () => {
+        setReportsLoading(true);
+        try {
+            const data = await getMyReports(0, 50);
+            setReports(data.content || []);
+        } catch (error) {
+            console.error('Failed to fetch reports:', error);
+            showToast('error', 'Không thể tải lịch sử báo cáo');
+        } finally {
+            setReportsLoading(false);
+        }
+    }, [showToast]);
+
+    useEffect(() => {
+        if (viewMode === 'reports') {
+            fetchReports();
+        }
+    }, [viewMode, fetchReports]);
 
     // Handle real-time booking updates
     useSseNotification({
@@ -324,6 +356,11 @@ export const BookingDashboardPage = () => {
         }
     };
 
+    const handleOpenReportModal = (bookingId: string, bookingCode: string) => {
+        setBookingToReport({ id: bookingId, code: bookingCode });
+        setReportModalOpen(true);
+    };
+
     // Format date
     const formatDate = (dateStr: string) => {
         const date = new Date(dateStr);
@@ -358,9 +395,34 @@ export const BookingDashboardPage = () => {
                 </p>
             </header>
 
+            {/* Main view tabs: Lịch hẹn | Lịch sử báo cáo */}
+            <div className="flex gap-2 mb-6">
+                <button
+                    onClick={() => setViewMode('bookings')}
+                    className={`px-6 py-2 font-bold uppercase border-2 border-stone-900 transition-all ${viewMode === 'bookings'
+                        ? 'bg-amber-400 shadow-[4px_4px_0_#1c1917]'
+                        : 'bg-white hover:bg-stone-100'
+                        }`}
+                >
+                    Lịch hẹn
+                </button>
+                <button
+                    onClick={() => {
+                        setViewMode('reports');
+                        setSelectedBooking(null);
+                    }}
+                    className={`px-6 py-2 font-bold uppercase border-2 border-stone-900 transition-all ${viewMode === 'reports'
+                        ? 'bg-amber-400 shadow-[4px_4px_0_#1c1917]'
+                        : 'bg-white hover:bg-stone-100'
+                        }`}
+                >
+                    Lịch sử báo cáo
+                </button>
+            </div>
 
-
-            {/* Tabs */}
+            {viewMode === 'bookings' && (
+            <>
+            {/* Tabs (chỉ hiện khi xem Lịch hẹn) */}
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
                 <div className="flex gap-2">
                     {TAB_OPTIONS.map((tab) => (
@@ -598,7 +660,115 @@ export const BookingDashboardPage = () => {
                         )}
                     </tbody>
                 </table>
-            </div >
+            </div>
+            </>
+            )}
+
+            {/* Lịch sử báo cáo */}
+            {viewMode === 'reports' && (
+            <div className="bg-white border-4 border-stone-900 shadow-brutal overflow-hidden">
+                <table className="w-full">
+                    <thead className="border-b-4 border-stone-900 bg-stone-100">
+                        <tr className="text-left font-bold uppercase text-xs tracking-wider">
+                            <th className="p-4">Mã Booking</th>
+                            <th className="p-4">Khách hàng bị báo cáo</th>
+                            <th className="p-4">Lý do</th>
+                            <th className="p-4 text-center">Trạng thái</th>
+                            <th className="p-4 text-center">Ngày gửi</th>
+                            <th className="p-4 text-center">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {reportsLoading ? (
+                            <tr>
+                                <td colSpan={6} className="p-8 text-center text-stone-600">Đang tải...</td>
+                            </tr>
+                        ) : reports.length === 0 ? (
+                            <tr>
+                                <td colSpan={6} className="p-8 text-center text-stone-600">Chưa có báo cáo nào</td>
+                            </tr>
+                        ) : (
+                            reports.map((report) => (
+                                <tr key={report.id} className="border-b-2 border-stone-200 hover:bg-amber-50">
+                                    <td className="p-4 font-mono font-bold">{report.bookingCode}</td>
+                                    <td className="p-4">
+                                        <div className="font-bold">{report.reportedUserName || report.reportedClinicName || '—'}</div>
+                                        <div className="text-[10px] text-stone-500 uppercase">
+                                            {report.reportedUserName ? 'Khách hàng' : report.reportedClinicName ? 'Phòng khám' : ''}
+                                        </div>
+                                    </td>
+                                    <td className="p-4 max-w-xs">
+                                        <div className="text-sm line-clamp-2" title={report.reason}>{report.reason}</div>
+                                    </td>
+                                    <td className="p-4 text-center">
+                                        <span className={`px-3 py-1 text-xs font-bold uppercase border-2 border-stone-900 ${
+                                            report.status === 'PENDING' ? 'bg-yellow-400 text-stone-900' :
+                                            report.status === 'APPROVED' ? 'bg-mint-400 text-stone-900' :
+                                            'bg-red-500 text-white'
+                                        }`}>
+                                            {report.status === 'PENDING' ? 'Chờ xử lý' : report.status === 'APPROVED' ? 'Đã duyệt' : 'Từ chối'}
+                                        </span>
+                                    </td>
+                                    <td className="p-4 text-center text-sm text-stone-600">
+                                        {new Date(report.createdAt).toLocaleDateString('vi-VN')}
+                                    </td>
+                                    <td className="p-4 text-center">
+                                        <button
+                                            onClick={() => setReportDetail(report)}
+                                            className="px-3 py-1 text-xs font-bold uppercase bg-white border-2 border-stone-900 hover:shadow-[2px_2px_0_#1c1917]"
+                                        >
+                                            Chi tiết
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+            )}
+
+            {/* Report Detail Modal (read-only) */}
+            {reportDetail && (
+                <div className="fixed inset-0 bg-stone-900/80 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
+                    <div className="bg-white border-4 border-stone-900 shadow-[8px_8px_0_#1c1917] max-w-2xl w-full flex flex-col animate-in fade-in zoom-in duration-200">
+                        <div className="bg-amber-400 border-b-4 border-stone-900 p-4 flex justify-between items-center">
+                            <h2 className="text-xl font-bold uppercase">Chi tiết báo cáo</h2>
+                            <button onClick={() => setReportDetail(null)} className="w-8 h-8 flex items-center justify-center bg-white border-2 border-stone-900 hover:bg-stone-100">✕</button>
+                        </div>
+                        <div className="p-6 space-y-4 overflow-y-auto max-h-[70vh]">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="border-2 border-stone-900 p-3 bg-stone-50">
+                                    <p className="text-[10px] font-bold text-stone-500 uppercase">Mã booking</p>
+                                    <p className="font-mono font-bold">{reportDetail.bookingCode}</p>
+                                </div>
+                                <div className="border-2 border-stone-900 p-3 bg-stone-50">
+                                    <p className="text-[10px] font-bold text-stone-500 uppercase">Bị báo cáo</p>
+                                    <p className="font-bold">{reportDetail.reportedUserName || reportDetail.reportedClinicName || '—'}</p>
+                                </div>
+                            </div>
+                            <div className="border-2 border-stone-900 p-3 bg-white">
+                                <p className="text-[10px] font-bold text-stone-500 uppercase mb-1">Lý do báo cáo</p>
+                                <p className="text-sm font-medium">{reportDetail.reason}</p>
+                            </div>
+                            {reportDetail.status !== 'PENDING' && reportDetail.adminNote && (
+                                <div className={`border-2 border-stone-900 p-3 ${reportDetail.status === 'APPROVED' ? 'bg-mint-50' : 'bg-red-50'}`}>
+                                    <p className="text-[10px] font-bold text-stone-500 uppercase mb-1">Quyết định của Admin</p>
+                                    <p className="text-sm font-medium">{reportDetail.adminNote}</p>
+                                </div>
+                            )}
+                        </div>
+                        <div className="p-4 border-t-4 border-stone-900 bg-stone-100 flex justify-end">
+                            <button
+                                onClick={() => setReportDetail(null)}
+                                className="px-6 py-2 font-bold uppercase bg-white border-2 border-stone-900 shadow-[4px_4px_0_#1c1917]"
+                            >
+                                Đóng
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Booking Detail Modal */}
             {selectedBooking && (
@@ -609,6 +779,24 @@ export const BookingDashboardPage = () => {
                     onCancel={handleCancelBooking}
                     onBookingUpdated={fetchBookings}
                     onAddService={handleOpenAddServiceModal}
+                    onReport={() => handleOpenReportModal(selectedBooking.bookingId, selectedBooking.bookingCode)}
+                />
+            )}
+
+            {/* Report Modal */}
+            {bookingToReport && (
+                <ReportBookingModal
+                    isOpen={reportModalOpen}
+                    onClose={() => {
+                        setReportModalOpen(false);
+                        setBookingToReport(null);
+                    }}
+                    onSuccess={() => {
+                        if (viewMode === 'reports') fetchReports();
+                    }}
+                    bookingId={bookingToReport.id}
+                    bookingCode={bookingToReport.code}
+                    reporterContext="CLINIC_MANAGER"
                 />
             )}
 
@@ -661,9 +849,10 @@ interface BookingDetailModalProps {
     onCancel: (bookingId: string) => void;
     onBookingUpdated?: () => void;
     onAddService?: () => void;
+    onReport?: () => void;
 }
 
-const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCancel, onBookingUpdated, onAddService }: BookingDetailModalProps) => {
+const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCancel, onBookingUpdated, onAddService, onReport }: BookingDetailModalProps) => {
     const { showToast } = useToast();
     const [booking, setBooking] = useState<Booking>(initialBooking);
     const [reassignModalOpen, setReassignModalOpen] = useState(false);
@@ -679,36 +868,6 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
     const [selectedStaffByService, setSelectedStaffByService] = useState<Record<string, string>>({});
     const [loadingStaff, setLoadingStaff] = useState(false);
     const [openDropdownServiceId, setOpenDropdownServiceId] = useState<string | null>(null);
-
-    // ========== CHECKOUT STATE (QR Payment) ==========
-    const [checkoutStep, setCheckoutStep] = useState<'idle' | 'select' | 'qr'>('idle');
-    const [checkoutLoading, setCheckoutLoading] = useState(false);
-    const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
-    const [pollingQr, setPollingQr] = useState(false);
-
-    // QR polling effect
-    useEffect(() => {
-        if (checkoutStep !== 'qr' || !pollingQr) return;
-
-        const interval = setInterval(async () => {
-            try {
-                const result = await checkQrPaymentStatus(booking.bookingId);
-                if (result.status === 'PAID') {
-                    setPollingQr(false);
-                    clearInterval(interval);
-                    // Complete the booking now that payment is confirmed
-                    await completeBooking(booking.bookingId);
-                    showToast('success', 'Thanh toán QR thành công! Booking đã hoàn thành.');
-                    if (onBookingUpdated) onBookingUpdated();
-                    onClose();
-                }
-            } catch (err) {
-                console.error('QR polling error:', err);
-            }
-        }, 5000);
-
-        return () => clearInterval(interval);
-    }, [checkoutStep, pollingQr, booking.bookingId, onBookingUpdated, onClose, showToast]);
 
     // Confirmation Modal for Removal (integrationFeature)
     const [confirmRemoveModal, setConfirmRemoveModal] = useState<{ isOpen: boolean; serviceId: string | null }>({
@@ -935,15 +1094,15 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
                     )}
 
                     {/* QR Code Display (when QR checkout is active) */}
-                    {checkoutStep === 'qr' && qrImageUrl && (
+                    {booking.paymentStatus === 'PENDING' && booking.qrImageUrl && (
                         <div className="border-2 border-blue-500 bg-blue-50 p-4 mb-4">
                             <h3 className="font-bold uppercase text-sm mb-3 text-blue-700 text-center">
                                 Quét mã QR để thanh toán
                             </h3>
                             <div className="flex justify-center mb-3">
                                 <img
-                                    src={qrImageUrl}
-                                    alt="QR Payment"
+                                    src={booking.qrImageUrl}
+                                    alt={booking.bookingCode}
                                     className="w-56 h-56 border-2 border-stone-900"
                                 />
                             </div>
@@ -1471,135 +1630,38 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
                 </div>
 
                 {/* Footer Actions */}
-                <div className="flex justify-end gap-3 p-4 border-t-4 border-stone-900 bg-stone-50 flex-shrink-0">
-                    <button onClick={onClose} className="px-6 py-2 font-bold uppercase bg-white border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Đóng</button>
-                    {(booking.status === 'PENDING' || booking.status === 'CONFIRMED') && (
-                        <button
-                            onClick={() => onCancel(booking.bookingId)}
-                            className="px-6 py-2 font-bold uppercase bg-red-500 text-white border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all"
-                        >
-                            Hủy lịch
-                        </button>
-                    )}
-                    {booking.status === 'PENDING' && (
-                        <button
-                            onClick={() => {
-                                const firstSvc = getAllServices(booking)[0];
-                                const sid = firstSvc?.bookingServiceId || firstSvc?.serviceId;
-                                onConfirm(
-                                    booking.bookingId,
-                                    sid ? selectedStaffByService[sid] : undefined
-                                );
-                                onClose();
-                            }}
-                            className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all"
-                        >
-                            Xác nhận
-                        </button>
-                    )}
-                    {(booking.status === 'CONFIRMED' ||
-                        booking.status === 'IN_PROGRESS' ||
-                        (booking.status === 'COMPLETED' && booking.paymentStatus !== 'PAID')) && (
+                <div className="flex justify-between items-center p-4 border-t-4 border-stone-900 bg-stone-50 flex-shrink-0 font-bold">
+                    <div>
+                        {booking.status !== 'CANCELLED' && booking.status !== 'NO_SHOW' && onReport && (
+                            <button
+                                onClick={onReport}
+                                className="px-4 py-2 font-bold uppercase bg-white text-red-600 border-2 border-red-600 hover:bg-red-50 transition-all flex items-center gap-2"
+                            >
+                                <FlagIcon className="w-5 h-5" />
+                                Báo cáo
+                            </button>
+                        )}
+                    </div>
+                    <div className="flex gap-3">
+                        <button onClick={onClose} className="px-6 py-2 font-bold uppercase bg-white border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Đóng</button>
+                        {(booking.status === 'PENDING' || booking.status === 'CONFIRMED') && (
+                            <button
+                                onClick={() => onCancel(booking.bookingId)}
+                                className="px-6 py-2 font-bold uppercase bg-red-500 text-white border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all"
+                            >
+                                Hủy lịch
+                            </button>
+                        )}
+                        {booking.status === 'PENDING' && (
+                            <button onClick={() => { const firstSvc = getAllServices(booking)[0]; const sid = firstSvc?.bookingServiceId || firstSvc?.serviceId; onConfirm(booking.bookingId, sid ? selectedStaffByService[sid] : undefined); onClose(); }} className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Xác nhận</button>
+                        )}
+                        {booking.status === 'IN_PROGRESS' && (
                             <>
-                                <button
-                                    onClick={onAddService}
-                                    className="px-6 py-2 font-bold uppercase bg-amber-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all"
-                                >
-                                    Thêm dịch vụ
-                                </button>
-
-                                {/* ========== CHECKOUT FLOW ========== */}
-                                {checkoutStep === 'idle' && (
-                                    <button
-                                        onClick={() => setCheckoutStep('select')}
-                                        className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all"
-                                    >
-                                        Checkout
-                                    </button>
-                                )}
-
-                                {checkoutStep === 'select' && (
-                                    <div className="flex gap-2">
-                                        <button
-                                            disabled={checkoutLoading}
-                                            onClick={async () => {
-                                                setCheckoutLoading(true);
-                                                try {
-                                                    await completeBooking(booking.bookingId, 'CASH');
-                                                    showToast(
-                                                        'success',
-                                                        'Thanh toán tiền mặt thành công!'
-                                                    );
-                                                    if (onBookingUpdated) onBookingUpdated();
-                                                    onClose();
-                                                } catch (err) {
-                                                    console.error('Cash checkout failed:', err);
-                                                    showToast('error', 'Thanh toán thất bại');
-                                                } finally {
-                                                    setCheckoutLoading(false);
-                                                }
-                                            }}
-                                            className="px-5 py-2 font-bold uppercase bg-green-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all disabled:opacity-50 flex items-center gap-1.5"
-                                        >
-                                            💵 Tiền mặt
-                                        </button>
-                                        <button
-                                            disabled={checkoutLoading}
-                                            onClick={async () => {
-                                                setCheckoutLoading(true);
-                                                try {
-                                                    const result = await completeBooking(
-                                                        booking.bookingId,
-                                                        'QR'
-                                                    );
-                                                    if ((result as any).qrImageUrl) {
-                                                        // Backend không lưu QR nhưng có thể trả về URL tạm thời
-                                                        setQrImageUrl((result as any).qrImageUrl);
-                                                    }
-                                                    setCheckoutStep('qr');
-                                                    setPollingQr(true);
-                                                    setBooking(result);
-                                                } catch (err) {
-                                                    console.error('QR checkout failed:', err);
-                                                    showToast('error', 'Không thể tạo mã QR');
-                                                } finally {
-                                                    setCheckoutLoading(false);
-                                                }
-                                            }}
-                                            className="px-5 py-2 font-bold uppercase bg-blue-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all disabled:opacity-50 flex items-center gap-1.5"
-                                        >
-                                            📱 QR Code
-                                        </button>
-                                        <button
-                                            onClick={() => setCheckoutStep('idle')}
-                                            className="px-3 py-2 font-bold text-stone-500 hover:text-stone-800 transition-colors"
-                                            title="Hủy"
-                                        >
-                                            ✕
-                                        </button>
-                                    </div>
-                                )}
-
-                                {checkoutStep === 'qr' && (
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                                        <span className="text-sm font-bold text-blue-700">
-                                            Đang chờ thanh toán QR...
-                                        </span>
-                                        <button
-                                            onClick={() => {
-                                                setPollingQr(false);
-                                                setCheckoutStep('idle');
-                                                setQrImageUrl(null);
-                                            }}
-                                            className="px-3 py-1 text-xs font-bold text-stone-500 hover:text-stone-800 border border-stone-300 hover:border-stone-500 transition-colors"
-                                        >
-                                            Hủy
-                                        </button>
-                                    </div>
-                                )}
+                                <button onClick={onAddService} className="px-6 py-2 font-bold uppercase bg-amber-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Thêm dịch vụ</button>
+                                <button onClick={async () => { await checkoutBooking(booking.bookingId); onClose(); window.location.reload(); }} className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Thanh toán</button>
                             </>
                         )}
+                    </div>
                 </div>
             </div>
 

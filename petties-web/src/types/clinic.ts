@@ -114,6 +114,7 @@ export interface ClinicResponse {
   ratingAvg: number
   ratingCount: number
   approvedAt?: string
+  strikeUntil?: string | null // NULL = không bị strike; có giá trị = hạn chế đến thời điểm này
   createdAt: string
   updatedAt?: string
   images?: ClinicImage[] | string[]

@@ -87,6 +87,7 @@ class BookingServiceRetryLogicTest {
 
         clinic = new Clinic();
         clinic.setClinicId(UUID.randomUUID());
+        clinic.setStatus(ClinicStatus.APPROVED);
 
         service = new com.petties.petties.model.ClinicService();
         service.setServiceId(UUID.randomUUID());

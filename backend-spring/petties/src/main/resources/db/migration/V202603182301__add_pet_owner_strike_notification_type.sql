@@ -1,15 +1,8 @@
--- Migration: Add REFUND notification types to notifications_type_check
--- Date: 2026-03-06 01:30
--- Adds REFUND_REQUESTED, REFUND_APPROVED, REFUND_REJECTED types so that
--- withdrawal request notifications can be saved to the DB.
+-- Migration: Add PET_OWNER_STRIKE to notifications_type_check
+-- Date: 2026-03-18
 
-BEGIN;
-
--- Drop existing check constraint
 ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_type_check;
 
--- Re-create check constraint including REFUND types and all other NotificationType enum values
--- (Must include all types to avoid violation when out-of-order migrations have already inserted rows)
 ALTER TABLE notifications
 ADD CONSTRAINT notifications_type_check CHECK (
     type::text = ANY(ARRAY[
@@ -19,6 +12,7 @@ ADD CONSTRAINT notifications_type_check CHECK (
         'CLINIC_PENDING_APPROVAL',
         'CLINIC_VERIFIED',
         'CLINIC_STRIKE',
+        'PET_OWNER_STRIKE',
         'STAFF_SHIFT_ASSIGNED',
         'STAFF_SHIFT_UPDATED',
         'STAFF_SHIFT_DELETED',
@@ -43,5 +37,3 @@ ADD CONSTRAINT notifications_type_check CHECK (
         'REFUND_REJECTED'
     ])
 );
-
-COMMIT;
