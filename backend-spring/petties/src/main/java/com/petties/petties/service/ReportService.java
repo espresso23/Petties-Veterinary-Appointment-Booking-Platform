@@ -34,6 +34,8 @@ public class ReportService {
     private final UserRepository userRepository;
     private final NotificationService notificationService;
     private final ReportMapper reportMapper;
+    private final ClinicStrikeService strikeService;
+    private final UserStrikeService userStrikeService;
 
     @Transactional
     public ReportResponse createReport(ReportRequest request, UUID reporterId) {
@@ -126,8 +128,17 @@ public class ReportService {
 
         report.setStatus(request.getStatus());
         report.setAdminNote(request.getAdminNote());
-        
+
         report = reportRepository.save(report);
+
+        // Khi approve report về clinic → kiểm tra clinic strike
+        if (request.getStatus() == ReportStatus.APPROVED && report.getReportedClinic() != null) {
+            strikeService.checkAndApplyStrike(report);
+        }
+        // Khi approve report về pet owner → kiểm tra user strike
+        if (request.getStatus() == ReportStatus.APPROVED && report.getReportedUser() != null) {
+            userStrikeService.checkAndApplyStrike(report);
+        }
 
         // Send notifications to Reporter and Reported
         notificationService.sendReportResolvedNotification(report);

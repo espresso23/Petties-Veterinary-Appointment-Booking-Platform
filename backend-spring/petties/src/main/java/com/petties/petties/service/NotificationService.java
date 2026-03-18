@@ -81,6 +81,7 @@ public class NotificationService {
                                         "Phòng khám \"%s\" không được duyệt. Vui lòng xem lại thông tin và đăng ký lại.",
                                         clinic.getName());
                         case PENDING -> String.format("Phòng khám \"%s\" đang chờ duyệt.", clinic.getName());
+                        case CLINIC_STRIKE -> reason != null ? reason : "Phòng khám bị hạn chế do vi phạm.";
                         default -> "Thông báo từ phòng khám " + clinic.getName();
                 };
 
@@ -1044,6 +1045,16 @@ public class NotificationService {
                 }
         }
 
+        /**
+         * Lưu notification và push tới user (dùng cho PET_OWNER_STRIKE, v.v.)
+         */
+        @Transactional
+        public Notification saveAndPushNotification(Notification notification) {
+                notification = notificationRepository.save(notification);
+                pushNotificationToUser(notification.getUser().getUserId(), notification);
+                return notification;
+        }
+
         // ======================== COMMON OPERATIONS ========================
 
         /**
@@ -1114,6 +1125,8 @@ public class NotificationService {
                         case REFUND_REJECTED -> "Đơn rút tiền bị từ chối";
                         case REPORT_CREATED -> "Có báo cáo mới";
                         case REPORT_RESOLVED -> "Kết quả xử lý báo cáo";
+                        case CLINIC_STRIKE -> "Phòng khám bị hạn chế";
+                        case PET_OWNER_STRIKE -> "Tài khoản bị hạn chế đặt lịch";
                         default -> "Thông báo từ Petties";
                 };
         }

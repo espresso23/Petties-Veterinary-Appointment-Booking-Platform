@@ -147,6 +147,20 @@ export const clinicService = {
   },
 
   /**
+   * Get struck clinics (đang bị hạn chế) - ADMIN only
+   */
+  getStruckClinics: async (page = 0, size = 20, sortBy = 'strikeUntil', sortDir: 'ASC' | 'DESC' = 'ASC'): Promise<ClinicListResponse> => {
+    const params = new URLSearchParams({
+      page: String(page),
+      size: String(size),
+      sortBy,
+      sortDir,
+    })
+    const response = await apiClient.get<ClinicListResponse>(`/clinics/admin/struck?${params.toString()}`)
+    return response.data
+  },
+
+  /**
    * Approve clinic (ADMIN only)
    */
   approveClinic: async (clinicId: string, reason?: string): Promise<ClinicResponse> => {

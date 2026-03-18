@@ -121,6 +121,10 @@ public class Clinic {
     @Column(name = "approved_at")
     private LocalDateTime approvedAt;
 
+    /** Thời điểm hết hạn strike. NULL = không bị strike. Khi có giá trị: clinic không nhận booking mới, không xuất hiện trong tìm kiếm. */
+    @Column(name = "strike_until")
+    private LocalDateTime strikeUntil;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

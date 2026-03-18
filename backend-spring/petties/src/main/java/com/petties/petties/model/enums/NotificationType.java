@@ -41,6 +41,8 @@ public enum NotificationType {
 
     // Additional Clinic notifications
     CLINIC_VERIFIED,
+    CLINIC_STRIKE, // Clinic bị hạn chế do nhiều report được approve
+    PET_OWNER_STRIKE, // Pet owner bị hạn chế đặt lịch do nhiều report được approve
 
     // Refund / Withdrawal Request notifications
     REFUND_REQUESTED,

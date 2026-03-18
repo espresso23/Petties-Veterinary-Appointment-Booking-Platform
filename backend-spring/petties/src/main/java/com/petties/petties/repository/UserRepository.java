@@ -2,6 +2,8 @@ package com.petties.petties.repository;
 
 import com.petties.petties.model.User;
 import com.petties.petties.model.enums.Role;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -80,4 +82,16 @@ public interface UserRepository extends JpaRepository<User, UUID> {
      * Used to find clinic managers for chat push notifications.
      */
     List<User> findByWorkingClinicAndRole(com.petties.petties.model.Clinic workingClinic, Role role);
+
+    /**
+     * Pet owners đang bị strike (strikeUntil > now). Admin xem danh sách.
+     */
+    @Query("SELECT u FROM User u WHERE u.strikeUntil IS NOT NULL AND u.strikeUntil > CURRENT_TIMESTAMP AND u.role = 'PET_OWNER'")
+    Page<User> findPetOwnersWithActiveStrike(Pageable pageable);
+
+    /**
+     * Pet owners có strike_until đã hết hạn (scheduler clear).
+     */
+    @Query("SELECT u FROM User u WHERE u.strikeUntil IS NOT NULL AND u.strikeUntil < CURRENT_TIMESTAMP")
+    List<User> findUsersWithExpiredStrike();
 }

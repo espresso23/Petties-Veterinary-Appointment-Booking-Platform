@@ -104,6 +104,25 @@ public class BookingService {
          * Validate vaccine species compatibility between pet and service
          * Throws BadRequestException if vaccine is not compatible with pet species
          */
+        private void validateClinicNotStruck(Clinic clinic) {
+                if (clinic.getStatus() != com.petties.petties.model.enums.ClinicStatus.APPROVED) {
+                        throw new BadRequestException("Phòng khám chưa được duyệt hoặc không hoạt động");
+                }
+                if (clinic.getStrikeUntil() != null && clinic.getStrikeUntil().isAfter(java.time.LocalDateTime.now())) {
+                        throw new BadRequestException(
+                                        "Phòng khám đang tạm ngưng nhận đặt lịch do vi phạm. Vui lòng thử lại sau ngày "
+                                                        + clinic.getStrikeUntil().toLocalDate() + ".");
+                }
+        }
+
+        private void validatePetOwnerNotStruck(User petOwner) {
+                if (petOwner.getStrikeUntil() != null && petOwner.getStrikeUntil().isAfter(java.time.LocalDateTime.now())) {
+                        throw new BadRequestException(
+                                        "Tài khoản của bạn đang bị hạn chế đặt lịch do vi phạm. Vui lòng thử lại sau ngày "
+                                                        + petOwner.getStrikeUntil().toLocalDate() + ".");
+                }
+        }
+
         private void validateVaccineSpeciesCompatibility(Pet pet, ClinicService service) {
                 if (service.getVaccineTemplate() != null) {
                         var targetSpecies = service.getVaccineTemplate().getTargetSpecies();
@@ -318,6 +337,9 @@ public class BookingService {
                         Clinic clinic = clinicRepository.findById(request.getClinicId())
                                         .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
 
+                        validatePetOwnerNotStruck(petOwner);
+                        validateClinicNotStruck(clinic);
+
                         List<Pet> petsToUse = new ArrayList<>();
                         List<ClinicService> servicesToUse = new ArrayList<>();
                         UUID primaryPetId;
@@ -526,9 +548,12 @@ public class BookingService {
                         ProxyRecipientInfo recipientInfo = request.getRecipient();
                         User recipient = createRecipientUser(recipientInfo);
 
-                        // Step 2: Validate clinic
+                        // Step 2: Validate clinic and recipient (pet owner)
                         Clinic clinic = clinicRepository.findById(request.getClinicId())
                                         .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
+
+                        validatePetOwnerNotStruck(recipient);
+                        validateClinicNotStruck(clinic);
 
                         // Step 3: Collect (serviceId, pet) pairs - mỗi cặp ứng với 1 BookingServiceItem
                         // Dùng List thay vì Map vì cùng serviceId có thể dùng cho nhiều pet khác nhau
