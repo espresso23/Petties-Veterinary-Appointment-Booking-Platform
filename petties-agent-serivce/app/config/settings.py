@@ -235,6 +235,10 @@ class Settings(BaseSettings):
         default="http://localhost:8080/api", description="Spring Boot backend URL"
     )
     MCP_TIMEOUT: int = Field(default=30, description="MCP request timeout (seconds)")
+    AI_INTERNAL_SYNC_KEY: str = Field(
+        default="",
+        description="Shared internal API key used by Spring Boot to push confirmed EMR into case memory",
+    )
 
     # ==================== Authentication & Security ====================
     # CRITICAL: Must be set via environment variable (synced with Spring Boot)

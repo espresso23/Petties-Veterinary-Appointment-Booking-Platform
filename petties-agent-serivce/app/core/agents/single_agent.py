@@ -11,47 +11,54 @@ Flow:
 4. Observe -> Think (Loop) OR End (Final answer)
 
 Package: app.core.agents
-Purpose: Lean orchestrator — delegates domain logic to extracted modules
+Purpose: Lean orchestrator - delegates domain logic to extracted modules
 Version: v2.0.0 (Refactored from 1710-line god class)
 """
 
 from typing import Optional, List, Dict, Any, Literal
+from datetime import datetime
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 from loguru import logger
 import json
 import uuid
+import re
+from zoneinfo import ZoneInfo
 
 from app.core.agents.state import ReActState, ReActStep, create_initial_react_state
 
 # Extracted modules
-from app.core.agents.text_utils import extract_latest_user_message
+from app.core.agents.text_utils import (
+    build_recent_dialogue,
+    extract_latest_user_message,
+)
 from app.core.agents.thought_parser import parse_thought
 from app.core.agents.response_formatter import format_tool_observation
-from app.core.agents.tool_routing import (
-    apply_booking_tool_routing,
-)
+from app.core.agents.tool_routing import apply_booking_tool_routing
 from app.core.agents.enrichment_strategy import (
     build_web_search_fallback_call,
     build_final_answer_from_tool_result,
 )
 from app.core.agents.prompt_builder import build_context, create_think_prompt
 
+_FINALIZER_MAX_JSON_CHARS = 3500
+_BOOKING_RUNTIME_TZ = "Asia/Ho_Chi_Minh"
+
 
 # ===== DEFAULT SYSTEM PROMPT =====
 #
-# NGUYÊN TẮC PHÂN TÁCH PROMPT (Best Practice):
+# Nguyên tắc tách prompt:
 #
 # DEFAULT_SYSTEM_PROMPT (Admin-editable via Dashboard/DB):
-#   → Nhân cách, giọng điệu, nhiệm vụ, quy tắc nghiệp vụ
-#   → Admin CÓ THỂ chỉnh sửa mà KHÔNG ảnh hưởng kỹ thuật
+#   -> Nhân cách, giọng điệu, nhiệm vụ, quy tắc nghiệp vụ
+#   -> Admin có thể chỉnh sửa mà không ảnh hưởng kỹ thuật
 #
 # create_think_prompt() (Code-managed, hardcoded in prompt_builder.py):
-#   → ReAct format, công cụ có sẵn (auto từ tool_schemas)
-#   → Nguyên tắc trả lời, nhận diện lỗi chính tả
-#   → KHÔNG NÊN thay đổi qua Dashboard
+#   -> ReAct format, công cụ có sẵn (auto từ tool_schemas)
+#   -> Nguyên tắc trả lời, nhận diện lỗi chính tả
+#   -> Không nên thay đổi qua Dashboard
 #
-# Admin chỉ cần chỉnh: vai trò, giọng điệu, nhiệm vụ, quy tắc nghiệp vụ.
+# Admin chỉ nên chỉnh: vai trò, giọng điệu, nhiệm vụ, quy tắc nghiệp vụ.
 # Các quy tắc kỹ thuật (ReAct, tools, cách trả lời) do code quản lý.
 #
 
@@ -70,7 +77,7 @@ DEFAULT_SYSTEM_PROMPT = """Bạn là Petties AI Assistant - trợ lý AI chuyên
 
 ## QUY TẮC NGHIỆP VỤ
 - Không đưa ra chẩn đoán cuối cùng - luôn khuyến khích đưa thú cưng đi khám bác sĩ
-- Ưu tiên an toàn & sức khỏe của thú cưng
+- Ưu tiên an toàn và sức khỏe của thú cưng
 - Khi triệu chứng nguy hiểm (co giật, nôn ra máu, khó thở), nhấn mạnh cần đi khám NGAY
 - Chỉ tư vấn trong phạm vi chăm sóc thú cưng, từ chối lịch sự nếu hỏi ngoài phạm vi
 """
@@ -80,7 +87,7 @@ DEFAULT_SYSTEM_PROMPT = """Bạn là Petties AI Assistant - trợ lý AI chuyên
 
 class SingleAgent:
     """
-    Single Agent with ReAct Pattern — Lean Orchestrator.
+    Single Agent with ReAct Pattern - Lean Orchestrator.
 
     Delegates domain logic to extracted modules:
     - text_utils: message extraction, pet type inference
@@ -203,11 +210,9 @@ class SingleAgent:
         iteration = state.get("iteration", 0)
         react_steps = state.get("react_steps", [])
         messages = state.get("messages", [])
-
-        # Get images from context for multimodal input
-        context = state.get("context", {})
-        images = context.get("images", [])
-
+        # Runtime context from client/session (images, location, ...)
+        runtime_context = state.get("context", {}) or {}
+        images = runtime_context.get("images", [])
         logger.info(
             f"THINK Node: iteration={iteration}, max_iterations={self.max_iterations}, has_images={len(images) > 0}"
         )
@@ -226,10 +231,45 @@ class SingleAgent:
         if not isinstance(react_steps, list):
             logger.error(f"react_steps is not a list: {react_steps}")
             react_steps = []
+        def build_context_with_runtime(steps):
+            base = build_context(steps)
+            runtime_parts: List[str] = []
+
+            now_local = datetime.now(ZoneInfo(_BOOKING_RUNTIME_TZ))
+            runtime_parts.append(
+                "Runtime datetime: "
+                f"current_datetime={now_local.isoformat(timespec='minutes')}, "
+                f"current_date={now_local.date().isoformat()}, "
+                f"timezone={_BOOKING_RUNTIME_TZ}"
+            )
+            loc = runtime_context.get("location")
+            if loc:
+                extra = None
+                if isinstance(loc, dict):
+                    lat = loc.get("latitude", None)
+                    if lat is None:
+                        lat = loc.get("lat", None)
+                    lng = loc.get("longitude", None)
+                    if lng is None:
+                        lng = loc.get("lng", None)
+                    addr = loc.get("address") or loc.get("formatted_address")
+                    if lat is not None and lng is not None:
+                        extra = f"Runtime location: latitude={lat}, longitude={lng}"
+                        if isinstance(addr, str) and addr.strip():
+                            extra += f", address={addr.strip()}"
+                if extra is None:
+                    try:
+                        extra = f"Runtime location: {json.dumps(loc, ensure_ascii=False)}"
+                    except Exception:
+                        extra = f"Runtime location: {str(loc)}"
+                runtime_parts.append(extra)
+            runtime_context_block = "\n".join(runtime_parts)
+            if not base:
+                return runtime_context_block
+            return base + ("\n" if runtime_context_block else "") + runtime_context_block
 
         # Build context from previous steps (delegated to prompt_builder)
-        context = build_context(react_steps)
-
+        context = build_context_with_runtime(react_steps)
         last_tool_result = state.get("last_tool_result")
 
         # Find the last action step
@@ -302,15 +342,9 @@ class SingleAgent:
         if last_action and iteration > 0:
             remaining = self.max_iterations - iteration
             warning_suffix = (
-                f"\n\nBạn đã gọi '{last_action.get('tool_name')}' và nhận Observation ở trên (còn {remaining} lượt gọi tool)."
-                f"\nHãy tự đánh giá:"
-                f"\n- Nếu CẦN THÊM thông tin để trả lời đầy đủ → gọi tiếp tool phù hợp (Thought + Tool + Tool Input)"
-                f"\n- Nếu ĐÃ ĐỦ thông tin → viết Final Answer"
-                f"\n"
-                f"\nKhi viết Final Answer:"
-                f"\n1. Đọc lại CÂU HỎI — họ hỏi CỤ THỂ điều gì?"
-                f"\n2. KẾT HỢP dữ liệu từ tất cả Observations + kiến thức thú y của bạn"
-                f"\n3. Trả lời ĐÚNG TRỌNG TÂM, CỤ THỂ (hỏi 'ăn gì' → liệt kê thức ăn, hỏi 'phòng khám' → gợi ý phòng khám cụ thể)"
+                f"\n\nBạn vừa gọi '{last_action.get('tool_name')}'. "
+                f"Nếu còn thiếu thông tin thì gọi thêm tool phù hợp (còn {remaining} lượt), "
+                f"nếu đã đủ thì viết Final Answer."
             )
 
         # --- Call LLM ---
@@ -342,13 +376,13 @@ class SingleAgent:
             # Parse response (delegated to thought_parser)
             parsed = parse_thought(thought_content, self.enabled_tools)
 
-            # Post-parse routing overrides (delegated to tool_routing)
+            # Thin post-parse validation: sanitize params and fill shared context fields.
             parsed = apply_booking_tool_routing(
                 parsed,
                 messages,
                 react_steps,
                 self._enabled_tools_lower,
-                build_context,
+                build_context_with_runtime,
             )
 
             # Active loop prevention: intercept if LLM repeats same tool/params
@@ -372,12 +406,13 @@ class SingleAgent:
 
                 parsed["should_end"] = True
                 parsed["tool_name"] = None
-                parsed["thought"] = (
-                    f"Tôi đã tìm thấy thông tin cần thiết từ lần tra cứu trước: {obs_text[:200]}..."
-                )
-                if "KẾT QUẢ TRA CỨU:" in obs_text:
-                    parsed["thought"] = obs_text.split("\n\n")[0].replace(
-                        "KẾT QUẢ TRA CỨU: ", ""
+                cleaned_observation = str(obs_text or "").strip()
+                if cleaned_observation:
+                    parsed["thought"] = cleaned_observation
+                else:
+                    parsed["thought"] = (
+                        "Minh dang tranh lap lai cung mot buoc xu ly. "
+                        "Ban co the bo sung them thong tin neu muon minh tiep tuc."
                     )
 
             if not isinstance(parsed, dict):
@@ -390,16 +425,63 @@ class SingleAgent:
             tool_name = parsed.get("tool_name")
             tool_params = parsed.get("tool_params", {})
 
+            # If the LLM did not pick any tool (and is about to end) on the first iteration,
+            # run a strict JSON "router" prompt to recover the intended tool call.
+            # This avoids hardcoded keyword matching for intent detection.
+            if (
+                self.llm_client is not None
+                and iteration == 0
+                and should_end
+                and (not tool_name)
+            ):
+                recovered = await self._recover_tool_call(messages=messages, context=context)
+                if recovered and recovered.get("tool_name"):
+                    tool_name = recovered.get("tool_name")
+                    tool_params = recovered.get("tool_params") or {}
+                    parsed["tool_name"] = tool_name
+                    parsed["tool_params"] = tool_params
+                    parsed["should_end"] = False
+                    should_end = False
+
             if tool_name:
-                if not tool_params or len(tool_params) == 0:
+                normalized_tool = str(tool_name).strip().lower()
+                # Some tools rely on runtime context injection (e.g. get_user_pets injects user_id),
+                # so an empty Tool Input is valid and should not be skipped.
+                allow_empty_params_tools = {
+                    "get_user_pets",
+                }
+
+                if (not tool_params or len(tool_params) == 0) and (
+                    normalized_tool not in allow_empty_params_tools
+                ):
                     logger.warning(
                         f"Tool '{tool_name}' called with empty params - skipping to avoid error"
                     )
                     should_end = True
-                    parsed["thought"] = (
-                        f"Không thể gọi tool {tool_name} do thiếu tham số. Vui lòng đặt câu hỏi cụ thể hơn."
-                    )
+                    # Tool-specific clarification (prevents generic dead-ends).
+                    if normalized_tool == "get_clinic_services":
+                        parsed["thought"] = (
+                            "Bạn muốn mình lấy dịch vụ của phòng khám nào trước nhỉ? "
+                            "Nếu bạn chưa có phòng khám cụ thể, mình có thể tìm phòng khám gần bạn để bạn chọn nhanh."
+                        )
+                    elif normalized_tool == "search_clinics_nearby":
+                        parsed["thought"] = (
+                            "Mình cần vị trí hiện tại của bạn để tìm phòng khám gần nhất. "
+                            "Bạn bật quyền vị trí (GPS) hoặc gửi khu vực/quận giúp mình nhé."
+                        )
+                    elif normalized_tool == "check_available_slots":
+                        parsed["thought"] = (
+                            "Mình sắp kiểm tra slot rồi. Bạn cho mình thêm đúng phần còn thiếu như phòng khám, dịch vụ "
+                            "hoặc ngày khám mong muốn nhé."
+                        )
+                    else:
+                        parsed["thought"] = (
+                            f"Mình chưa thể gọi công cụ `{tool_name}` vì thiếu tham số cần thiết. "
+                            "Bạn nói rõ thêm giúp mình nhé."
+                        )
                 else:
+                    if tool_params is None or not isinstance(tool_params, dict):
+                        tool_params = {}
                     pending_tool_call = {
                         "name": tool_name,
                         "arguments": tool_params,
@@ -538,6 +620,20 @@ class SingleAgent:
         logger.debug("Entering OBSERVE node")
 
         tool_result = state.get("last_tool_result", {})
+        react_steps = state.get("react_steps", []) or []
+
+        # Preserve which tool produced this observation so the client can render
+        # tool-specific UI (e.g., clinic cards for search_clinics_nearby).
+        last_action = next(
+            (
+                s
+                for s in reversed(react_steps)
+                if isinstance(s, dict) and s.get("step_type") == "action"
+            ),
+            None,
+        )
+        observed_tool_name = last_action.get("tool_name") if isinstance(last_action, dict) else None
+        observed_tool_params = last_action.get("tool_params") if isinstance(last_action, dict) else None
 
         # Format observation (delegated to response_formatter)
         observation = ""
@@ -554,8 +650,8 @@ class SingleAgent:
         step = ReActStep(
             step_type="observation",
             content=observation,
-            tool_name=None,
-            tool_params=None,
+            tool_name=observed_tool_name,
+            tool_params=observed_tool_params,
             tool_result=tool_result,
         )
 
@@ -567,7 +663,7 @@ class SingleAgent:
         }
 
     def _should_continue(self, state: ReActState) -> Literal["act", "end"]:
-        """Router — decide whether to continue or end the ReAct loop."""
+        """Router â€” decide whether to continue or end the ReAct loop."""
         iteration = state.get("iteration", 0)
 
         # 1. Safety break
@@ -592,6 +688,191 @@ class SingleAgent:
         return "end"
 
     # ===== PUBLIC API =====
+
+    async def _finalize_if_missing(self, state: Dict[str, Any]) -> Optional[str]:
+        """Synthesize a user-facing final answer when the graph ends without final_answer.
+
+        This is a safety net for format drift / parser misses. It must NEVER output
+        Thought/Tool/JSON; only a natural Vietnamese reply (or a short clarification question).
+        """
+        if self.llm_client is None or not isinstance(state, dict):
+            return None
+
+        messages = state.get("messages", []) or []
+        last_tool_result = state.get("last_tool_result")
+        current_observation = state.get("current_observation")
+
+        # Prefer structured tool result data; cap size to keep prompt small.
+        tool_blob = ""
+        try:
+            if isinstance(last_tool_result, dict):
+                tool_blob = json.dumps(last_tool_result, ensure_ascii=False)
+            elif last_tool_result is not None:
+                tool_blob = str(last_tool_result)
+        except Exception:
+            tool_blob = str(last_tool_result)
+
+        if len(tool_blob) > _FINALIZER_MAX_JSON_CHARS:
+            tool_blob = tool_blob[:_FINALIZER_MAX_JSON_CHARS] + "..."
+
+        obs_blob = ""
+        if isinstance(current_observation, str) and current_observation.strip():
+            obs_blob = current_observation.strip()
+            if len(obs_blob) > 1200:
+                obs_blob = obs_blob[:1200] + "..."
+
+        user_msg = extract_latest_user_message(messages) or ""
+        recent_dialogue = build_recent_dialogue(messages, limit=10) or "(không có)"
+
+        prompt = (
+            "Bạn là trợ lý AI của Petties.\n"
+            "Nhiệm vụ: tạo một câu trả lời tự nhiên bằng tiếng Việt cho người dùng.\n"
+            "Không trả về JSON, không trả về Thought/Tool, không chào lại nếu hội thoại đang tiếp diễn.\n"
+            "Nếu dữ liệu hiện có chưa đủ, hãy hỏi lại đúng 1 câu ngắn gọn để lấy phần còn thiếu.\n\n"
+            "Hội thoại gần đây:\n"
+            + recent_dialogue
+            + "\n\n"
+            "Câu hỏi mới nhất của người dùng:\n"
+            + (user_msg or "(không có)")
+            + "\n\n"
+            "Observation gần nhất:\n"
+            + (obs_blob or "(không có)")
+            + "\n\n"
+            "Dữ liệu công cụ gần nhất:\n"
+            + (tool_blob or "(không có)")
+            + "\n\n"
+            "Hãy trả lời đúng trọng tâm yêu cầu hiện tại."
+        )
+
+        try:
+            resp = await self.llm_client.generate(
+                prompt=prompt,
+                system_prompt=self.system_prompt,
+                temperature=min(0.4, float(self.temperature or 0.2)),
+                max_tokens=min(700, int(self.max_tokens or 700)),
+                images=None,
+            )
+            text = (resp.content or "").strip()
+            return text or None
+        except Exception as e:
+            logger.error(f"Finalizer failed: {e}")
+            return None
+
+    async def _recover_tool_call(
+        self,
+        *,
+        messages: List[Any],
+        context: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Recover tool routing using a strict JSON-only prompt (LLM-based).
+
+        This is used only when the main ReAct output fails to select a tool.
+        """
+        if self.llm_client is None:
+            return None
+
+        user_msg = extract_latest_user_message(messages) or ""
+        if not user_msg:
+            return None
+
+        # Keep a short window of dialogue for routing.
+        history_lines: List[str] = []
+        for msg in messages[-8:]:
+            if isinstance(msg, dict):
+                role = str(msg.get("role") or "").strip()
+                content = str(msg.get("content") or "").strip()
+            else:
+                role = str(getattr(msg, "role", "") or "").strip()
+                content = str(getattr(msg, "content", "") or "").strip()
+            if not content:
+                continue
+            history_lines.append(f"- {role}: {content}")
+
+        tools_desc: List[str] = []
+        for tool in self.tool_schemas or []:
+            name = str(tool.get("name") or "").strip()
+            if not name:
+                continue
+            if name.lower() not in self._enabled_tools_lower:
+                continue
+            schema = tool.get("input_schema") or tool.get("parameters") or {}
+            required = []
+            properties = {}
+            if isinstance(schema, dict):
+                required = schema.get("required", []) or []
+                properties = schema.get("properties") or {}
+            req_txt = ", ".join(str(x) for x in required) if required else "none"
+            desc = str(tool.get("description") or "").strip() or "No description"
+            semantic_fields: List[str] = []
+            if isinstance(properties, dict):
+                for field_name, field_meta in properties.items():
+                    if not isinstance(field_meta, dict):
+                        semantic_fields.append(str(field_name))
+                        continue
+                    field_type = str(field_meta.get("type") or "any")
+                    semantic_fields.append(f"{field_name}:{field_type}")
+            schema_txt = ", ".join(semantic_fields) if semantic_fields else "no-properties"
+            tools_desc.append(
+                f"- {name}: {desc} | required=({req_txt}) | fields=({schema_txt})"
+            )
+
+        prompt = (
+            "You are the tool router for the Petties AI assistant.\n"
+            "Task: choose 0 or 1 best next tool call.\n"
+            "Return exactly 1 JSON object and nothing else.\n"
+            "Schema JSON:\n"
+            '{ "tool_name": string|null, "tool_params": object, "reason": string }\n'
+            "Rules:\n"
+            "- Choose the next tool based on semantic meaning, tool description, and input schema.\n"
+            "- Fill tool_params from the full conversation context, not only the last message.\n"
+            "- If the assistant needs the user's pets or pet ids, choose tool_name='get_user_pets' with tool_params={}.\n"
+            "- If the assistant needs nearby clinics and runtime context already includes latitude/longitude, choose tool_name='search_clinics_nearby'.\n"
+            "- If the user already named a clinic, prefer resolving that clinic instead of switching to a generic nearby-clinic flow.\n"
+            "- If a clinic is already known and the assistant needs clinic services or service ids, choose tool_name='get_clinic_services'.\n"
+            "- If clinic, service, and a natural date/time expression are available enough to search availability, choose tool_name='check_available_slots'.\n"
+            "- Prefer semantic fields such as date_expression, time_preference, latest_message, transcript when the tool schema supports them.\n"
+            "- Only choose tool_name='create_booking_for_user' when the user has already given a clear confirmation to place the booking.\n"
+            "- If no tool call is justified yet, choose tool_name=null.\n\n"
+            "Enabled tools:\n"
+            + ("\n".join(tools_desc) if tools_desc else "(empty)")
+            + "\n\n"
+            "Recent conversation:\n"
+            + ("\n".join(history_lines) if history_lines else "(empty)")
+            + "\n\n"
+            "Runtime context:\n"
+            + (context or "(empty)")
+            + "\n"
+        )
+
+        try:
+            resp = await self.llm_client.generate(
+                prompt=prompt,
+                system_prompt="Return valid JSON only, following the schema.",
+                temperature=0.0,
+                max_tokens=220,
+                images=None,
+            )
+            raw = (resp.content or "").strip()
+            if not raw:
+                return None
+            m = re.search(r"\{[\s\S]*\}", raw)
+            if not m:
+                return None
+            obj = json.loads(m.group(0))
+            if not isinstance(obj, dict):
+                return None
+            tool_name = obj.get("tool_name")
+            if tool_name is not None:
+                tool_name = str(tool_name).strip()
+            tool_params = obj.get("tool_params") or {}
+            if not isinstance(tool_params, dict):
+                tool_params = {}
+            if tool_name and tool_name.lower() not in self._enabled_tools_lower:
+                return None
+            return {"tool_name": tool_name, "tool_params": tool_params}
+        except Exception as e:
+            logger.warning(f"Router recovery failed: {e}")
+            return None
 
     async def invoke(
         self,
@@ -627,18 +908,9 @@ class SingleAgent:
             final_answer = final_state.get("final_answer", "")
 
             if not final_answer:
-                react_steps = final_state.get("react_steps", [])
-                if react_steps:
-                    last_thought = next(
-                        (
-                            s
-                            for s in reversed(react_steps)
-                            if s["step_type"] == "thought"
-                        ),
-                        None,
-                    )
-                    if last_thought:
-                        final_answer = last_thought["content"]
+                synthesized = await self._finalize_if_missing(final_state)
+                if synthesized:
+                    final_answer = synthesized
 
             if not final_answer:
                 final_answer = (
@@ -656,6 +928,7 @@ class SingleAgent:
         message: str,
         session_id: Optional[str] = None,
         images: Optional[List[str]] = None,
+        location: Optional[Dict[str, Any]] = None,
         chat_history: Optional[List[Dict[str, Any]]] = None,
         user_role: Optional[str] = None,
     ):
@@ -677,6 +950,7 @@ class SingleAgent:
             context={
                 "session_id": session_id or str(uuid.uuid4()),
                 "images": images or [],  # Pass images through context
+                "location": location or None,
             },
             chat_history=chat_history,
             user_role=user_role,
@@ -686,6 +960,9 @@ class SingleAgent:
             "configurable": {"thread_id": session_id or "default"},
             "recursion_limit": 100,  # Allow 10+ iterations (10 * 3 nodes = 30)
         }
+
+        final_answer_emitted = False
+        last_state_output: Optional[Dict[str, Any]] = None
 
         try:
             async for event in self.graph.astream_events(state, config, version="v2"):
@@ -711,31 +988,28 @@ class SingleAgent:
                             }
 
                         final_ans = state_update.get("final_answer")
-                        if final_ans:
+                        if final_ans and not final_answer_emitted:
+                            final_answer_emitted = True
                             yield {
                                 "type": "final_answer",
                                 "content": final_ans,
                             }
 
-                # 2. Handle Token streaming (from LLM)
-                elif event_type == "on_chat_model_stream":
-                    data = event.get("data", {})
-                    chunk = data.get("chunk", {})
-                    if hasattr(chunk, "content") and chunk.content:
-                        yield {
-                            "type": "token",
-                            "content": chunk.content,
-                        }
-
-                # 3. Handle Final result
+                # 2. Handle Final result
                 elif event_type == "on_chain_end":
                     data = event.get("data", {})
                     output = data.get("output", {})
-                    if isinstance(output, dict) and output.get("final_answer"):
-                        yield {
-                            "type": "final_answer",
-                            "content": output["final_answer"],
-                        }
+                    if isinstance(output, dict):
+                        last_state_output = output
+
+            if not final_answer_emitted and isinstance(last_state_output, dict):
+                final_text = (last_state_output.get("final_answer") or "").strip()
+                if not final_text:
+                    synthesized = await self._finalize_if_missing(last_state_output)
+                    final_text = (synthesized or "").strip()
+                if final_text:
+                    final_answer_emitted = True
+                    yield {"type": "final_answer", "content": final_text}
 
         except Exception as e:
             import traceback
@@ -746,3 +1020,4 @@ class SingleAgent:
                 "type": "error",
                 "content": str(e),
             }
+

@@ -1,4 +1,6 @@
-# AI Service Deep Dive
+﻿# AI Service Deep Dive
+
+> Lưu ý cập nhật ngày 2026-03-17: một số tham chiếu AI Diagnose trong slide này chỉ còn giá trị lịch sử. Luồng chẩn đoán hiện tại cho bác sĩ dùng knowledge base nội bộ + EMR xác nhận + Gemini Vision, không dùng `web_search`.
 ## Petties Veterinary Platform
 
 ### 1. AI Service as Separate Microservice
@@ -132,11 +134,13 @@ sequenceDiagram
 | Data Type | Storage Location | Purpose | Retention |
 |-----------|------------------|---------|-----------|
 | **Full Chat History** | MongoDB (`ai_chat_messages`) | User/AI turns + ReAct traces (thought/action/observation) | 30 days |
-| **User Feedback** | MongoDB (`chat_feedback`) | Thumbs up/down, reports, feedback text | 90 days |
+| **User Feedback** | MongoDB (`chat_feedback`) | Thumbs up/down, reports, feedback text (chỉ dùng cho UX analysis, không dùng làm nguồn học) | 90 days |
 | **Agent Config** | PostgreSQL (`agents`, `tools`, `prompt_versions`) | Runtime configuration, tool management, prompt versioning | Persistent |
 | **Encrypted API Keys** | PostgreSQL (`system_settings`) | Secure storage of OpenRouter, Cohere, Qdrant keys | Persistent (encrypted) |
 | **Knowledge Base** | PostgreSQL (`knowledge_documents`) + Qdrant (`petties_knowledge`) | Doc metadata + vector embeddings | Persistent |
-| **Case Memory** | Qdrant (`petties_case_memory_v2`) | Confirmed cases with **named vectors**:<br>- `text`: Cohere embed-multilingual-v3 (1024-dim)<br>- `image`: Jina CLIP v2 (1024-dim) | Persistent (with pruning) |
+| **Case Memory** | Qdrant (`petties_case_memory_v2`) | **EMR-confirmed cases** (thay thế feedback-driven):<br>- `text`: Cohere embed-multilingual-v3 (1024-dim)<br>- `image`: Jina CLIP v2 (1024-dim) | Persistent (with pruning) |
+
+> **⚠️ 2026-03-17 Update:** Case Memory nguồn từ EMR confirmed, không còn từ thumbs up/down feedback. Xem [AI_DIAGNOSIS_FEATURE_PLAN.md](../documentation/AI_DIAGNOSIS_FEATURE_PLAN.md).
 
 #### Verification Queries Possible
 ```sql

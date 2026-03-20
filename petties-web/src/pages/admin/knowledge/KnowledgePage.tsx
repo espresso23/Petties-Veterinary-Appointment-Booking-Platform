@@ -498,7 +498,7 @@ export const KnowledgePage = () => {
 
         {/* Statistics Cards */}
         {status && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="bg-white border-4 border-black shadow-[4px_4px_0_#1c1917] p-5">
               <div className="flex items-center gap-3 mb-2">
                 <DocumentTextIcon className="w-5 h-5 text-blue-600" />
@@ -518,12 +518,19 @@ export const KnowledgePage = () => {
                 <CircleStackIcon className="w-5 h-5 text-amber-600" />
                 <div className="text-2xl font-black text-amber-600">{status.total_vectors || 0}</div>
               </div>
-              <div className="text-xs font-bold text-stone-500 uppercase">Total Vectors</div>
+              <div className="text-xs font-bold text-stone-500 uppercase">Text Vectors</div>
             </div>
             <div className="bg-white border-4 border-black shadow-[4px_4px_0_#1c1917] p-5">
               <div className="flex items-center gap-3 mb-2">
-                <CircleStackIcon className="w-5 h-5 text-purple-600" />
-                <div className="text-2xl font-black text-purple-600">
+                <PhotoIcon className="w-5 h-5 text-purple-600" />
+                <div className="text-2xl font-black text-purple-600">{status.total_image_vectors || 0}</div>
+              </div>
+              <div className="text-xs font-bold text-stone-500 uppercase">Image Vectors</div>
+            </div>
+            <div className="bg-white border-4 border-black shadow-[4px_4px_0_#1c1917] p-5">
+              <div className="flex items-center gap-3 mb-2">
+                <ServerIcon className="w-5 h-5 text-stone-600" />
+                <div className="text-2xl font-black text-stone-600">
                   {status.storage_size_bytes ? formatBytes(status.storage_size_bytes) : '-'}
                 </div>
               </div>

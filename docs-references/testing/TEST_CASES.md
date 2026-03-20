@@ -1,4 +1,4 @@
-# PETTIES - Test Cases Document
+﻿# PETTIES - Test Cases Document
 
 **Version:** 3.0
 **Last Updated:** 2025-12-20
@@ -37,20 +37,20 @@
 
 | Test ID | Endpoint | Description | Expected Result | Status |
 |---------|----------|-------------|-----------------|--------|
-| TC-UNIT-AUTH-001 | POST /api/auth/login | Valid credentials | 200 OK, JWT tokens returned | ✅ Pass |
-| TC-UNIT-AUTH-002 | POST /api/auth/login | Blank email | 400 Bad Request, validation error | ✅ Pass |
-| TC-UNIT-AUTH-003 | POST /api/auth/login | Blank password | 400 Bad Request, validation error | ✅ Pass |
-| TC-UNIT-AUTH-004 | POST /api/auth/login | Invalid email format | 400 Bad Request, validation error | ✅ Pass |
-| TC-UNIT-AUTH-005 | POST /api/auth/login | Wrong password | 401 Unauthorized | ✅ Pass |
-| TC-UNIT-AUTH-006 | POST /api/auth/register/send-otp | Valid registration data | 200 OK, OTP sent | ✅ Pass |
-| TC-UNIT-AUTH-007 | POST /api/auth/register/send-otp | Duplicate email | 400 Bad Request | ✅ Pass |
-| TC-UNIT-AUTH-008 | POST /api/auth/register/verify-otp | Valid OTP | 201 Created, tokens returned | ✅ Pass |
-| TC-UNIT-AUTH-009 | POST /api/auth/register/verify-otp | Expired OTP | 400 Bad Request | ✅ Pass |
-| TC-UNIT-AUTH-010 | POST /api/auth/register/verify-otp | Invalid OTP | 400 Bad Request | ✅ Pass |
-| TC-UNIT-AUTH-011 | POST /api/auth/forgot-password | Valid email | 200 OK, OTP sent | ✅ Pass |
-| TC-UNIT-AUTH-012 | POST /api/auth/forgot-password | Non-existent email | 404 Not Found | ✅ Pass |
-| TC-UNIT-AUTH-013 | POST /api/auth/reset-password | Valid OTP and password | 200 OK, password reset | ✅ Pass |
-| TC-UNIT-AUTH-014 | POST /api/auth/reset-password | Password mismatch | 400 Bad Request | ✅ Pass |
+| TC-UNIT-AUTH-001 | POST /api/auth/login | Valid credentials | 200 OK, JWT tokens returned | âœ… Pass |
+| TC-UNIT-AUTH-002 | POST /api/auth/login | Blank email | 400 Bad Request, validation error | âœ… Pass |
+| TC-UNIT-AUTH-003 | POST /api/auth/login | Blank password | 400 Bad Request, validation error | âœ… Pass |
+| TC-UNIT-AUTH-004 | POST /api/auth/login | Invalid email format | 400 Bad Request, validation error | âœ… Pass |
+| TC-UNIT-AUTH-005 | POST /api/auth/login | Wrong password | 401 Unauthorized | âœ… Pass |
+| TC-UNIT-AUTH-006 | POST /api/auth/register/send-otp | Valid registration data | 200 OK, OTP sent | âœ… Pass |
+| TC-UNIT-AUTH-007 | POST /api/auth/register/send-otp | Duplicate email | 400 Bad Request | âœ… Pass |
+| TC-UNIT-AUTH-008 | POST /api/auth/register/verify-otp | Valid OTP | 201 Created, tokens returned | âœ… Pass |
+| TC-UNIT-AUTH-009 | POST /api/auth/register/verify-otp | Expired OTP | 400 Bad Request | âœ… Pass |
+| TC-UNIT-AUTH-010 | POST /api/auth/register/verify-otp | Invalid OTP | 400 Bad Request | âœ… Pass |
+| TC-UNIT-AUTH-011 | POST /api/auth/forgot-password | Valid email | 200 OK, OTP sent | âœ… Pass |
+| TC-UNIT-AUTH-012 | POST /api/auth/forgot-password | Non-existent email | 404 Not Found | âœ… Pass |
+| TC-UNIT-AUTH-013 | POST /api/auth/reset-password | Valid OTP and password | 200 OK, password reset | âœ… Pass |
+| TC-UNIT-AUTH-014 | POST /api/auth/reset-password | Password mismatch | 400 Bad Request | âœ… Pass |
 
 ---
 
@@ -58,26 +58,26 @@
 
 | Test ID | Endpoint | Description | Expected Result | Status |
 |---------|----------|-------------|-----------------|--------|
-| TC-UNIT-USER-001 | GET /api/users/profile | Valid token | 200 OK, user data returned | ✅ Pass |
-| TC-UNIT-USER-002 | GET /api/users/profile | No token | 401 Unauthorized | ✅ Pass |
-| TC-UNIT-USER-003 | GET /api/users/profile | Invalid token | 401 Unauthorized | ✅ Pass |
-| TC-UNIT-USER-004 | PUT /api/users/profile | Valid fullName and phone | 200 OK, updated data | ✅ Pass |
-| TC-UNIT-USER-005 | PUT /api/users/profile | Blank fullName | 400 Bad Request, validation error | ✅ Pass |
-| TC-UNIT-USER-006 | PUT /api/users/profile | Invalid phone format | 400 Bad Request, validation error | ✅ Pass |
-| TC-UNIT-USER-007 | PUT /api/users/profile | Phone too short | 400 Bad Request, validation error | ✅ Pass |
-| TC-UNIT-USER-008 | POST /api/users/profile/avatar | Valid image (JPEG) | 200 OK, avatar URL returned | ✅ Pass |
-| TC-UNIT-USER-009 | POST /api/users/profile/avatar | Valid image (PNG) | 200 OK, avatar URL returned | ✅ Pass |
-| TC-UNIT-USER-010 | POST /api/users/profile/avatar | Invalid format (PDF) | 400 Bad Request | ✅ Pass |
-| TC-UNIT-USER-011 | POST /api/users/profile/avatar | File too large (>10MB) | 400 Bad Request | ✅ Pass |
-| TC-UNIT-USER-012 | POST /api/users/profile/avatar | Empty file | 400 Bad Request | ✅ Pass |
-| TC-UNIT-USER-013 | DELETE /api/users/profile/avatar | User has avatar | 200 OK, avatar null | ✅ Pass |
-| TC-UNIT-USER-014 | DELETE /api/users/profile/avatar | User has no avatar | 400 Bad Request | ✅ Pass |
-| TC-UNIT-USER-015 | PUT /api/users/profile/password | Valid passwords | 200 OK, success message | ✅ Pass |
-| TC-UNIT-USER-016 | PUT /api/users/profile/password | Blank current password | 400 Bad Request, validation error | ✅ Pass |
-| TC-UNIT-USER-017 | PUT /api/users/profile/password | Blank new password | 400 Bad Request, validation error | ✅ Pass |
-| TC-UNIT-USER-018 | PUT /api/users/profile/password | Password too short (<8 chars) | 400 Bad Request, validation error | ✅ Pass |
-| TC-UNIT-USER-019 | PUT /api/users/profile/password | No uppercase letter | 400 Bad Request, validation error | ✅ Pass |
-| TC-UNIT-USER-020 | PUT /api/users/profile/password | No digit | 400 Bad Request, validation error | ✅ Pass |
+| TC-UNIT-USER-001 | GET /api/users/profile | Valid token | 200 OK, user data returned | âœ… Pass |
+| TC-UNIT-USER-002 | GET /api/users/profile | No token | 401 Unauthorized | âœ… Pass |
+| TC-UNIT-USER-003 | GET /api/users/profile | Invalid token | 401 Unauthorized | âœ… Pass |
+| TC-UNIT-USER-004 | PUT /api/users/profile | Valid fullName and phone | 200 OK, updated data | âœ… Pass |
+| TC-UNIT-USER-005 | PUT /api/users/profile | Blank fullName | 400 Bad Request, validation error | âœ… Pass |
+| TC-UNIT-USER-006 | PUT /api/users/profile | Invalid phone format | 400 Bad Request, validation error | âœ… Pass |
+| TC-UNIT-USER-007 | PUT /api/users/profile | Phone too short | 400 Bad Request, validation error | âœ… Pass |
+| TC-UNIT-USER-008 | POST /api/users/profile/avatar | Valid image (JPEG) | 200 OK, avatar URL returned | âœ… Pass |
+| TC-UNIT-USER-009 | POST /api/users/profile/avatar | Valid image (PNG) | 200 OK, avatar URL returned | âœ… Pass |
+| TC-UNIT-USER-010 | POST /api/users/profile/avatar | Invalid format (PDF) | 400 Bad Request | âœ… Pass |
+| TC-UNIT-USER-011 | POST /api/users/profile/avatar | File too large (>10MB) | 400 Bad Request | âœ… Pass |
+| TC-UNIT-USER-012 | POST /api/users/profile/avatar | Empty file | 400 Bad Request | âœ… Pass |
+| TC-UNIT-USER-013 | DELETE /api/users/profile/avatar | User has avatar | 200 OK, avatar null | âœ… Pass |
+| TC-UNIT-USER-014 | DELETE /api/users/profile/avatar | User has no avatar | 400 Bad Request | âœ… Pass |
+| TC-UNIT-USER-015 | PUT /api/users/profile/password | Valid passwords | 200 OK, success message | âœ… Pass |
+| TC-UNIT-USER-016 | PUT /api/users/profile/password | Blank current password | 400 Bad Request, validation error | âœ… Pass |
+| TC-UNIT-USER-017 | PUT /api/users/profile/password | Blank new password | 400 Bad Request, validation error | âœ… Pass |
+| TC-UNIT-USER-018 | PUT /api/users/profile/password | Password too short (<8 chars) | 400 Bad Request, validation error | âœ… Pass |
+| TC-UNIT-USER-019 | PUT /api/users/profile/password | No uppercase letter | 400 Bad Request, validation error | âœ… Pass |
+| TC-UNIT-USER-020 | PUT /api/users/profile/password | No digit | 400 Bad Request, validation error | âœ… Pass |
 
 ---
 
@@ -85,19 +85,19 @@
 
 | Test ID | Endpoint | Description | Expected Result | Status |
 |---------|----------|-------------|-----------------|--------|
-| TC-UNIT-PET-001 | POST /api/pets | Valid pet data | 201 Created, pet returned | ⏳ Pending |
-| TC-UNIT-PET-002 | POST /api/pets | Blank name | 400 Bad Request, validation error | ⏳ Pending |
-| TC-UNIT-PET-003 | POST /api/pets | Invalid species | 400 Bad Request, validation error | ⏳ Pending |
-| TC-UNIT-PET-004 | POST /api/pets | No authentication | 401 Unauthorized | ⏳ Pending |
-| TC-UNIT-PET-005 | GET /api/pets/my-pets | Valid token | 200 OK, pet list returned | ⏳ Pending |
-| TC-UNIT-PET-006 | GET /api/pets/my-pets | No pets | 200 OK, empty array | ⏳ Pending |
-| TC-UNIT-PET-007 | GET /api/pets/{petId} | Valid petId | 200 OK, pet data returned | ⏳ Pending |
-| TC-UNIT-PET-008 | GET /api/pets/{petId} | Non-existent petId | 404 Not Found | ⏳ Pending |
-| TC-UNIT-PET-009 | GET /api/pets/{petId} | Invalid UUID format | 400 Bad Request | ⏳ Pending |
-| TC-UNIT-PET-010 | PUT /api/pets/{petId} | Valid update data | 200 OK, updated pet | ⏳ Pending |
-| TC-UNIT-PET-011 | PUT /api/pets/{petId} | Not owner | 403 Forbidden | ⏳ Pending |
-| TC-UNIT-PET-012 | DELETE /api/pets/{petId} | Valid petId | 204 No Content | ⏳ Pending |
-| TC-UNIT-PET-013 | DELETE /api/pets/{petId} | Not owner | 403 Forbidden | ⏳ Pending |
+| TC-UNIT-PET-001 | POST /api/pets | Valid pet data | 201 Created, pet returned | â³ Pending |
+| TC-UNIT-PET-002 | POST /api/pets | Blank name | 400 Bad Request, validation error | â³ Pending |
+| TC-UNIT-PET-003 | POST /api/pets | Invalid species | 400 Bad Request, validation error | â³ Pending |
+| TC-UNIT-PET-004 | POST /api/pets | No authentication | 401 Unauthorized | â³ Pending |
+| TC-UNIT-PET-005 | GET /api/pets/my-pets | Valid token | 200 OK, pet list returned | â³ Pending |
+| TC-UNIT-PET-006 | GET /api/pets/my-pets | No pets | 200 OK, empty array | â³ Pending |
+| TC-UNIT-PET-007 | GET /api/pets/{petId} | Valid petId | 200 OK, pet data returned | â³ Pending |
+| TC-UNIT-PET-008 | GET /api/pets/{petId} | Non-existent petId | 404 Not Found | â³ Pending |
+| TC-UNIT-PET-009 | GET /api/pets/{petId} | Invalid UUID format | 400 Bad Request | â³ Pending |
+| TC-UNIT-PET-010 | PUT /api/pets/{petId} | Valid update data | 200 OK, updated pet | â³ Pending |
+| TC-UNIT-PET-011 | PUT /api/pets/{petId} | Not owner | 403 Forbidden | â³ Pending |
+| TC-UNIT-PET-012 | DELETE /api/pets/{petId} | Valid petId | 204 No Content | â³ Pending |
+| TC-UNIT-PET-013 | DELETE /api/pets/{petId} | Not owner | 403 Forbidden | â³ Pending |
 
 ---
 
@@ -105,17 +105,17 @@
 
 | Test ID | Endpoint | Description | Expected Result | Status |
 |---------|----------|-------------|-----------------|--------|
-| TC-UNIT-BOOK-001 | POST /api/bookings | Valid booking data | 201 Created, booking returned | ⏳ Pending |
-| TC-UNIT-BOOK-002 | POST /api/bookings | Blank petId | 400 Bad Request, validation error | ⏳ Pending |
-| TC-UNIT-BOOK-003 | POST /api/bookings | Blank clinicId | 400 Bad Request, validation error | ⏳ Pending |
-| TC-UNIT-BOOK-004 | POST /api/bookings | Invalid date (past) | 400 Bad Request | ⏳ Pending |
-| TC-UNIT-BOOK-005 | POST /api/bookings | Slot not available | 400 Bad Request | ⏳ Pending |
-| TC-UNIT-BOOK-006 | PUT /api/bookings/{id}/assign | Valid vetId | 200 OK, booking assigned | ⏳ Pending |
-| TC-UNIT-BOOK-007 | PUT /api/bookings/{id}/assign | Not clinic manager | 403 Forbidden | ⏳ Pending |
-| TC-UNIT-BOOK-008 | PUT /api/bookings/{id}/confirm | Staff confirms | 200 OK, status CONFIRMED | ⏳ Pending |
-| TC-UNIT-BOOK-009 | PUT /api/bookings/{id}/confirm | Not assigned vet | 403 Forbidden | ⏳ Pending |
-| TC-UNIT-BOOK-010 | PUT /api/bookings/{id}/cancel | Pet owner cancels | 200 OK, status CANCELLED | ⏳ Pending |
-| TC-UNIT-BOOK-011 | PUT /api/bookings/{id}/cancel | Already confirmed | 400 Bad Request | ⏳ Pending |
+| TC-UNIT-BOOK-001 | POST /api/bookings | Valid booking data | 201 Created, booking returned | â³ Pending |
+| TC-UNIT-BOOK-002 | POST /api/bookings | Blank petId | 400 Bad Request, validation error | â³ Pending |
+| TC-UNIT-BOOK-003 | POST /api/bookings | Blank clinicId | 400 Bad Request, validation error | â³ Pending |
+| TC-UNIT-BOOK-004 | POST /api/bookings | Invalid date (past) | 400 Bad Request | â³ Pending |
+| TC-UNIT-BOOK-005 | POST /api/bookings | Slot not available | 400 Bad Request | â³ Pending |
+| TC-UNIT-BOOK-006 | PUT /api/bookings/{id}/assign | Valid vetId | 200 OK, booking assigned | â³ Pending |
+| TC-UNIT-BOOK-007 | PUT /api/bookings/{id}/assign | Not clinic manager | 403 Forbidden | â³ Pending |
+| TC-UNIT-BOOK-008 | PUT /api/bookings/{id}/confirm | Staff confirms | 200 OK, status CONFIRMED | â³ Pending |
+| TC-UNIT-BOOK-009 | PUT /api/bookings/{id}/confirm | Not assigned vet | 403 Forbidden | â³ Pending |
+| TC-UNIT-BOOK-010 | PUT /api/bookings/{id}/cancel | Pet owner cancels | 200 OK, status CANCELLED | â³ Pending |
+| TC-UNIT-BOOK-011 | PUT /api/bookings/{id}/cancel | Already confirmed | 400 Bad Request | â³ Pending |
 
 ---
 
@@ -123,15 +123,15 @@
 
 | Test ID | Endpoint | Description | Expected Result | Status |
 |---------|----------|-------------|-----------------|--------|
-| TC-UNIT-CLINIC-001 | POST /api/clinics | Valid clinic data | 201 Created, clinic returned | ⏳ Pending |
-| TC-UNIT-CLINIC-002 | POST /api/clinics | Blank name | 400 Bad Request, validation error | ⏳ Pending |
-| TC-UNIT-CLINIC-003 | POST /api/clinics | Invalid phone | 400 Bad Request, validation error | ⏳ Pending |
-| TC-UNIT-CLINIC-004 | POST /api/clinics | Not clinic owner | 403 Forbidden | ⏳ Pending |
-| TC-UNIT-CLINIC-005 | PUT /api/clinics/{id}/approve | Admin approves | 200 OK, status APPROVED | ⏳ Pending |
-| TC-UNIT-CLINIC-006 | PUT /api/clinics/{id}/approve | Not admin | 403 Forbidden | ⏳ Pending |
-| TC-UNIT-CLINIC-007 | GET /api/clinics | List all clinics | 200 OK, clinic list | ⏳ Pending |
-| TC-UNIT-CLINIC-008 | GET /api/clinics/{id} | Valid clinicId | 200 OK, clinic data | ⏳ Pending |
-| TC-UNIT-CLINIC-009 | GET /api/clinics/{id} | Non-existent clinic | 404 Not Found | ⏳ Pending |
+| TC-UNIT-CLINIC-001 | POST /api/clinics | Valid clinic data | 201 Created, clinic returned | â³ Pending |
+| TC-UNIT-CLINIC-002 | POST /api/clinics | Blank name | 400 Bad Request, validation error | â³ Pending |
+| TC-UNIT-CLINIC-003 | POST /api/clinics | Invalid phone | 400 Bad Request, validation error | â³ Pending |
+| TC-UNIT-CLINIC-004 | POST /api/clinics | Not clinic owner | 403 Forbidden | â³ Pending |
+| TC-UNIT-CLINIC-005 | PUT /api/clinics/{id}/approve | Admin approves | 200 OK, status APPROVED | â³ Pending |
+| TC-UNIT-CLINIC-006 | PUT /api/clinics/{id}/approve | Not admin | 403 Forbidden | â³ Pending |
+| TC-UNIT-CLINIC-007 | GET /api/clinics | List all clinics | 200 OK, clinic list | â³ Pending |
+| TC-UNIT-CLINIC-008 | GET /api/clinics/{id} | Valid clinicId | 200 OK, clinic data | â³ Pending |
+| TC-UNIT-CLINIC-009 | GET /api/clinics/{id} | Non-existent clinic | 404 Not Found | â³ Pending |
 
 ---
 
@@ -189,17 +189,17 @@
 
 | Module | Unit Tests Implemented | Unit Tests Pending | Total Tests |
 |--------|----------------------|-------------------|-------------|
-| **Authentication** | 14 ✅ | 0 ⏳ | 14 |
-| **User Profile** | 20 ✅ | 0 ⏳ | 20 |
-| **Pet Management** | 0 ✅ | 13 ⏳ | 13 |
-| **Booking** | 0 ✅ | 11 ⏳ | 11 |
-| **Clinic** | 0 ✅ | 9 ⏳ | 9 |
-| **TOTAL** | **34 ✅** | **33 ⏳** | **67** |
+| **Authentication** | 14 âœ… | 0 â³ | 14 |
+| **User Profile** | 20 âœ… | 0 â³ | 20 |
+| **Pet Management** | 0 âœ… | 13 â³ | 13 |
+| **Booking** | 0 âœ… | 11 â³ | 11 |
+| **Clinic** | 0 âœ… | 9 â³ | 9 |
+| **TOTAL** | **34 âœ…** | **33 â³** | **67** |
 
 **Legend:**
-- ✅ Implemented and passing
-- ⏳ Pending implementation
-- ❌ Failed
+- âœ… Implemented and passing
+- â³ Pending implementation
+- âŒ Failed
 
 ### Next Steps
 

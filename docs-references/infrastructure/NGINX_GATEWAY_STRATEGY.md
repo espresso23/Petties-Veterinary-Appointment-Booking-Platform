@@ -1,4 +1,4 @@
-# Chiến lược API Gateway & Nginx (NGINX Gateway Strategy)
+﻿# Chiến lược API Gateway & Nginx (NGINX Gateway Strategy)
 
 Tài liệu này mô tả cách hệ thống **Petties** sử dụng Nginx làm API Gateway để quản lý lưu lượng, bảo mật và khả năng mở rộng trong tương lai.
 

@@ -10,12 +10,23 @@ import {
     XMarkIcon
 } from '@heroicons/react/24/outline'
 import { ConfirmModal } from '../../../components/ConfirmModal'
+import { AIDiagnosisPanel } from '../../../components/emr/AIDiagnosisPanel'
+import { AISuggestionInlineCard } from '../../../components/emr/AISuggestionInlineCard'
 import { emrService } from '../../../services/emrService'
 import { petService } from '../../../services/api/petService'
+import {
+    createEmptyEmrAiDraft,
+    loadEmrAiDraft,
+    matchesEmrContext,
+    saveEmrAiDraft,
+    type EmrAiDraft,
+} from '../../../utils/emrAiDraftBridge'
+import { useAIChatStore } from '../../../store/aiChatStore'
 import DatePicker, { registerLocale } from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { vi } from 'date-fns/locale';
 import Select from 'react-select';
+import type { StaffDiagnosisResponse } from '../../../services/agentService'
 
 registerLocale('vi', vi);
 import type { Prescription, EmrImage, CreateEmrRequest, EmrRecord } from '../../../services/emrService'
@@ -37,6 +48,7 @@ interface PetInfo {
 }
 
 interface FieldErrors {
+    general?: string
     subjective?: string
     objective?: string
     assessment?: string
@@ -44,6 +56,28 @@ interface FieldErrors {
     temperature?: string
     prescriptions?: string
     images?: string
+}
+
+interface UploadingImageItem {
+    name: string
+    status: 'waiting' | 'uploading' | 'done' | 'error'
+    error?: string
+}
+
+const buildAiImageDescription = (
+    result: StaffDiagnosisResponse,
+    imageDescriptionIndex: number
+): string => {
+    const imageSpecificDescription = result.image_descriptions?.[imageDescriptionIndex]?.trim()
+    if (imageSpecificDescription) {
+        return imageSpecificDescription
+    }
+
+    if (result.vision_findings.length > 0) {
+        return result.vision_findings.slice(0, 2).join('; ')
+    }
+
+    return 'AI chưa trích xuất được mô tả hình ảnh rõ ràng cho ảnh này.'
 }
 
 // ============= COMPONENT =============
@@ -54,6 +88,9 @@ export const CreateEmrPage = () => {
     const bookingId = searchParams.get('bookingId')
     const bookingCode = searchParams.get('bookingCode')
     const { showToast } = useToast()
+    const setAiSidebarOpen = useAIChatStore((state) => state.setIsOpen)
+    const setEmrDraft = useAIChatStore((state) => state.setEmrDraft)
+    const aiSidebarDraft = useAIChatStore((state) => state.emrDraft)
 
     // State for pet info (loaded from API)
     const [petInfo, setPetInfo] = useState<PetInfo | null>(null)
@@ -62,12 +99,16 @@ export const CreateEmrPage = () => {
 
     // Load pet info from API
     useEffect(() => {
+        let isMounted = true
+        
         if (petId) {
             setIsLoadingPet(true)
             Promise.all([
                 petService.getPetById(petId),
                 emrService.getEmrsByPetId(petId).catch(() => [])
             ]).then(([pet, emrs]) => {
+                if (!isMounted) return  // Prevent state update on unmounted component
+                
                 // Calculate age from dateOfBirth
                 let ageStr = 'N/A'
                 if (pet.dateOfBirth) {
@@ -100,8 +141,12 @@ export const CreateEmrPage = () => {
             }).catch(err => {
                 console.error('Error loading pet:', err)
             }).finally(() => {
-                setIsLoadingPet(false)
+                if (isMounted) setIsLoadingPet(false)
             })
+        }
+        
+        return () => {
+            isMounted = false
         }
     }, [petId])
 
@@ -118,6 +163,7 @@ export const CreateEmrPage = () => {
     const [allergies, setAllergies] = useState('')
 
     const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
+    const [aiDiagnosisResult, setAiDiagnosisResult] = useState<StaffDiagnosisResponse | null>(null)
     const [reExaminationDate, setReExaminationDate] = useState('')
     const [reExamAmount, setReExamAmount] = useState(1)
     const [reExamUnit, setReExamUnit] = useState('Tuần')
@@ -138,6 +184,9 @@ export const CreateEmrPage = () => {
     }, [reExamAmount, reExamUnit])
 
     const [images, setImages] = useState<EmrImage[]>([])
+    const [pendingImageFiles, setPendingImageFiles] = useState<File[]>([])
+    const [pendingImagePreviews, setPendingImagePreviews] = useState<string[]>([])
+    const [uploadingImages, setUploadingImages] = useState<UploadingImageItem[]>([])
     const [isLoading, setIsLoading] = useState(false)
     const [errors, setErrors] = useState<FieldErrors>({})
     const [previewImage, setPreviewImage] = useState<EmrImage | null>(null)
@@ -146,6 +195,10 @@ export const CreateEmrPage = () => {
     const [showPrescriptionModal, setShowPrescriptionModal] = useState(false)
     const [showResetConfirm, setShowResetConfirm] = useState(false)
     const [tempPrescriptions, setTempPrescriptions] = useState<Prescription[]>([])
+    const isUploadingImages = uploadingImages.some((item) => item.status === 'waiting' || item.status === 'uploading')
+    const hasImageUploadErrors = uploadingImages.some((item) => item.status === 'error')
+    const uploadedImagesCount = uploadingImages.filter((item) => item.status === 'done').length
+    const shouldShowImageUploadStatus = isUploadingImages || hasImageUploadErrors
 
     // Initialize fields when petInfo loads
     useEffect(() => {
@@ -182,16 +235,36 @@ export const CreateEmrPage = () => {
     }
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (!file) return
-        try {
-            setErrors(prev => ({ ...prev, general: undefined }))
-            const result = await emrService.uploadEmrImage(file)
-            setImages([...images, { url: result.url }])
-        } catch (err) {
-            console.error('Upload error:', err)
-            setErrors(prev => ({ ...prev, general: `Lỗi upload: ${err instanceof Error ? err.message : 'Lỗi upload ảnh'}` }))
+        const files = Array.from(e.target.files || [])
+        if (files.length === 0) return
+
+        setErrors(prev => ({ ...prev, general: undefined, images: undefined }))
+        
+        // Create preview URLs for new files
+        const newPreviews = files.map(file => URL.createObjectURL(file))
+        
+        setPendingImageFiles(prev => [...prev, ...files])
+        setPendingImagePreviews(prev => [...prev, ...newPreviews])
+        
+        showToast('info', `Đã chọn ${files.length} ảnh. Ảnh sẽ được tải lên khi lưu bệnh án.`)
+        e.target.value = ''
+    }
+
+    // Upload pending images to Cloudinary
+    const uploadPendingImages = async (): Promise<EmrImage[]> => {
+        const uploadedImages: EmrImage[] = []
+        
+        for (const file of pendingImageFiles) {
+            try {
+                const result = await emrService.uploadEmrImage(file)
+                uploadedImages.push({ url: result.url })
+            } catch (err) {
+                console.error('Upload error:', err)
+                throw err
+            }
         }
+        
+        return uploadedImages
     }
 
     const validateForm = (): boolean => {
@@ -223,6 +296,31 @@ export const CreateEmrPage = () => {
             const pad = (n: number) => n.toString().padStart(2, '0')
             const examinationDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
 
+            // Upload pending images first (if any)
+            let allImages = [...images]
+            if (pendingImageFiles.length > 0) {
+                setUploadingImages(pendingImageFiles.map((file) => ({
+                    name: file.name,
+                    status: 'uploading' as const,
+                })))
+                
+                try {
+                    const uploadedImages = await uploadPendingImages()
+                    allImages = [...allImages, ...uploadedImages]
+                    setUploadingImages(pendingImageFiles.map((file) => ({
+                        name: file.name,
+                        status: 'done' as const,
+                    })))
+                } catch (uploadErr) {
+                    setErrors(prev => ({
+                        ...prev,
+                        general: `Có lỗi khi tải ảnh: ${uploadErr instanceof Error ? uploadErr.message : 'Không thể tải ảnh lên'}`,
+                    }))
+                    setIsLoading(false)
+                    return
+                }
+            }
+
             const request: CreateEmrRequest = {
                 petId: petId!,
                 bookingId: bookingId || undefined,
@@ -236,7 +334,7 @@ export const CreateEmrPage = () => {
                 heartRate: heartRate ? parseInt(heartRate) : undefined,
                 bcs: bcs || undefined,
                 prescriptions,
-                images,
+                images: allImages,
 
 
                 reExaminationDate: hasReExam ? (reExaminationDate ? `${reExaminationDate}T00:00:00` : undefined) : undefined,
@@ -283,6 +381,158 @@ export const CreateEmrPage = () => {
         } finally {
             setIsLoading(false)
         }
+    }
+
+    const handleApplyAiDraft = (field: 'subjective' | 'objective' | 'assessment' | 'plan', value: string) => {
+        if (!value?.trim()) return
+        switch (field) {
+            case 'subjective':
+                setSubjective(value)
+                break
+            case 'objective':
+                setObjective(value)
+                break
+            case 'assessment':
+                setAssessment(value)
+                if (errors.assessment) setErrors(prev => ({ ...prev, assessment: undefined }))
+                break
+            case 'plan':
+                setPlan(value)
+                if (errors.plan) setErrors(prev => ({ ...prev, plan: undefined }))
+                break
+            default:
+                break
+        }
+        showToast('success', `Đã chèn gợi ý vào ${field.toUpperCase()}`)
+    }
+
+    const handleApplyAiPrescriptions = () => {
+        if (!aiDiagnosisResult?.prescription_suggestions?.length) return
+
+        const nextPrescriptions: Prescription[] = aiDiagnosisResult.prescription_suggestions.map((item) => ({
+            medicineName: item.medicine_name,
+            dosage: item.dosage || '',
+            frequency: item.frequency || '',
+            durationDays: item.duration_days || 0,
+            instructions: item.instructions || item.caution || '',
+        }))
+
+        setPrescriptions(nextPrescriptions)
+        showToast('success', 'Đã áp dụng đơn thuốc nháp từ AI.')
+    }
+
+    const handleAddSingleAiPrescription = (index: number) => {
+        const suggestion = aiDiagnosisResult?.prescription_suggestions?.[index]
+        if (!suggestion) return
+
+        setPrescriptions((prev) => [
+            ...prev,
+            {
+                medicineName: suggestion.medicine_name,
+                dosage: suggestion.dosage || '',
+                frequency: suggestion.frequency || '',
+                durationDays: suggestion.duration_days || 0,
+                instructions: suggestion.instructions || suggestion.caution || '',
+            },
+        ])
+        showToast('success', `Đã thêm ${suggestion.medicine_name} vào đơn thuốc.`)
+    }
+
+    const estimateAgeMonths = (): number | undefined => {
+        const years = Number.parseInt(petInfo?.age ?? '', 10)
+        return Number.isFinite(years) ? years * 12 : undefined
+    }
+
+    const getNormalizedWeightKg = (): number | undefined => {
+        const parsed = weight ? parseFloat(weight.replace(',', '.')) : petInfo?.weight
+        return typeof parsed === 'number' && Number.isFinite(parsed) ? parsed : undefined
+    }
+
+    const buildCurrentDraft = (): EmrAiDraft => ({
+        ...createEmptyEmrAiDraft(),
+        pet_id: petInfo?.id,
+        booking_id: bookingId || undefined,
+        species: petInfo?.species,
+        breed: petInfo?.breed,
+        age_months: estimateAgeMonths(),
+        weight_kg: getNormalizedWeightKg(),
+        allergies: allergies
+            .split(',')
+            .map((item) => item.trim())
+            .filter(Boolean),
+        subjective,
+        objective,
+        assessment,
+        plan,
+        image_urls: images.map((img) => img.url).filter(Boolean),
+    })
+
+    const syncDraftFromBridge = () => {
+        if (!petInfo?.id) return
+        const savedDraft = aiSidebarDraft && matchesEmrContext(aiSidebarDraft, petInfo.id, bookingId || undefined)
+            ? aiSidebarDraft
+            : loadEmrAiDraft()
+        if (!matchesEmrContext(savedDraft, petInfo.id, bookingId || undefined)) return
+        if (!savedDraft) return
+
+        if (savedDraft.subjective) setSubjective(savedDraft.subjective)
+        if (savedDraft.objective) setObjective(savedDraft.objective)
+        if (savedDraft.assessment) setAssessment(savedDraft.assessment)
+        if (savedDraft.plan) setPlan(savedDraft.plan)
+        showToast('success', 'Đã đồng bộ nội dung từ chat sidebar.')
+    }
+
+    useEffect(() => {
+        if (!petInfo?.id) return
+        const draft = buildCurrentDraft()
+        saveEmrAiDraft(draft)
+        setEmrDraft(draft)
+    }, [petInfo?.id, petInfo?.species, petInfo?.breed, petInfo?.weight, bookingId, weight, allergies, subjective, objective, assessment, plan, images, setEmrDraft])
+
+    useEffect(() => {
+        if (!petInfo?.id) return
+        const savedDraft = loadEmrAiDraft()
+        if (!matchesEmrContext(savedDraft, petInfo.id, bookingId || undefined)) return
+        if (!savedDraft) return
+        if (!subjective && !objective && !assessment && !plan) {
+            if (savedDraft.subjective) setSubjective(savedDraft.subjective)
+            if (savedDraft.objective) setObjective(savedDraft.objective)
+            if (savedDraft.assessment) setAssessment(savedDraft.assessment)
+            if (savedDraft.plan) setPlan(savedDraft.plan)
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [petInfo?.id, bookingId])
+
+    useEffect(() => {
+        return () => {
+            setEmrDraft(null)
+        }
+    }, [setEmrDraft])
+
+    useEffect(() => {
+        if (!aiDiagnosisResult) return
+
+        let filledCount = 0
+        setImages((prev) => prev.map((image, index) => {
+            if (image.description?.trim()) return image
+            filledCount += 1
+            return {
+                ...image,
+                description: buildAiImageDescription(aiDiagnosisResult, index),
+            }
+        }))
+
+        if (filledCount > 0) {
+            showToast('success', `AI đã tự điền mô tả cho ${filledCount} ảnh lâm sàng còn trống.`)
+        }
+    }, [aiDiagnosisResult, showToast])
+
+    const openAiChatSidepanel = () => {
+        if (!petInfo?.id) return
+        const draft = buildCurrentDraft()
+        saveEmrAiDraft(draft)
+        setEmrDraft(draft)
+        setAiSidebarOpen(true)
     }
 
     // ============= RENDER =============
@@ -430,6 +680,11 @@ export const CreateEmrPage = () => {
                                     className={`w-full border rounded-lg p-3 text-sm focus:outline-none ${errors.subjective ? 'border-red-400' : 'border-stone-300 focus:border-amber-500'}`}
                                 />
                                 {errors.subjective && <p className="text-red-500 text-xs mt-1">{errors.subjective}</p>}
+                                <AISuggestionInlineCard
+                                    title="Gợi ý AI cho Subjective"
+                                    value={aiDiagnosisResult?.soap_suggestions.subjective_draft}
+                                    onAccept={() => handleApplyAiDraft('subjective', aiDiagnosisResult?.soap_suggestions.subjective_draft || '')}
+                                />
                             </div>
 
                             {/* A - Assessment */}
@@ -451,6 +706,11 @@ export const CreateEmrPage = () => {
                                 {errors.assessment && (
                                     <p className="text-red-500 text-sm mt-1">{errors.assessment}</p>
                                 )}
+                                <AISuggestionInlineCard
+                                    title="Gợi ý AI cho Assessment"
+                                    value={aiDiagnosisResult?.soap_suggestions.assessment_draft}
+                                    onAccept={() => handleApplyAiDraft('assessment', aiDiagnosisResult?.soap_suggestions.assessment_draft || '')}
+                                />
                             </div>
                         </div>
 
@@ -472,6 +732,54 @@ export const CreateEmrPage = () => {
                                     {prescriptions.length > 0 ? 'CHỈNH SỬA ĐƠN' : 'KÊ ĐƠN NGAY'}
                                 </button>
                             </div>
+
+                            {aiDiagnosisResult?.prescription_suggestions?.length ? (
+                                <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50/80 p-4 shadow-sm">
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <div>
+                                            <p className="text-xs font-bold uppercase tracking-wide text-amber-800">Đơn thuốc nháp từ AI</p>
+                                            <p className="mt-1 text-xs text-stone-600">
+                                                Bác sĩ có thể nhận nhanh toàn bộ hoặc thêm từng thuốc vào EMR.
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={handleApplyAiPrescriptions}
+                                            className="rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-orange-700 transition-all hover:bg-orange-100 active:scale-95"
+                                        >
+                                            Nhận toàn bộ đơn
+                                        </button>
+                                    </div>
+
+                                    <div className="mt-3 space-y-2">
+                                        {aiDiagnosisResult.prescription_suggestions.map((item, index) => (
+                                            <div key={`${item.medicine_name}-${index}`} className="rounded-xl border border-stone-300 bg-white p-3">
+                                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                                    <div className="min-w-0">
+                                                        <p className="text-sm font-bold text-stone-900">{item.medicine_name}</p>
+                                                        <p className="mt-1 text-xs text-stone-600">
+                                                            {item.dosage || 'Theo toa'} | {item.frequency || 'Theo chỉ định'} | {item.duration_days ?? '-'} ngày
+                                                        </p>
+                                                        {item.instructions && (
+                                                            <p className="mt-2 text-xs text-stone-600">{item.instructions}</p>
+                                                        )}
+                                                        {item.caution && (
+                                                            <p className="mt-1 text-xs font-semibold text-red-600">{item.caution}</p>
+                                                        )}
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleAddSingleAiPrescription(index)}
+                                                        className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-stone-700 transition-all hover:bg-stone-100 active:scale-95"
+                                                    >
+                                                        Thêm thuốc này
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : null}
 
                             {prescriptions.length > 0 ? (
                                 <div className="space-y-4">
@@ -516,7 +824,7 @@ export const CreateEmrPage = () => {
                                     <p className="text-stone-400 text-xs font-semibold group-hover:text-stone-600 tracking-widest uppercase">Bấm để bắt đầu kê đơn</p>
                                 </div>
                             )}
-                        </div >
+                        </div>
 
                         {/* Prescription Modal */}
                         {
@@ -672,56 +980,196 @@ export const CreateEmrPage = () => {
                             }}
                             onCancel={() => setShowResetConfirm(false)}
                         />
-                        {/* Images & Documents - Moved here from sidebar */}
+                        {/* Images for clinical review */}
                         <div className="bg-white rounded-2xl p-6 shadow-sm">
-                            <h3 className="font-bold text-stone-700 mb-4">Hình ảnh & Tài liệu</h3>
+                            <p className="mb-3 text-xs text-stone-500">
+                                AI chẩn đoán sẽ đọc trực tiếp các ảnh đã tải lên trong mục này. Không dùng ảnh tài liệu hoặc PDF.
+                            </p>
+                            <p className="mb-4 text-xs text-stone-500">
+                                Sau khi bấm phân tích, AI sẽ tự điền mô tả cho các ảnh còn để trống.
+                            </p>
+                            <h3 className="font-bold text-stone-700 mb-4">Hình ảnh lâm sàng</h3>
 
-                            <label className="block border-2 border-dashed border-stone-300 rounded-lg p-6 text-center cursor-pointer hover:border-amber-400 transition-colors mb-4">
+                            {shouldShowImageUploadStatus && (
+                                <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                            <p className="text-xs font-bold uppercase tracking-wide text-amber-800">
+                                                {isUploadingImages ? 'Đang tải ảnh lên' : 'Có ảnh tải lên bị lỗi'}
+                                            </p>
+                                            <p className="mt-1 text-xs text-stone-600">
+                                                {uploadedImagesCount}/{uploadingImages.length} ảnh đã tải thành công.
+                                            </p>
+                                        </div>
+                                        {isUploadingImages && (
+                                            <div className="min-w-28 rounded-full border border-stone-200 bg-white p-1">
+                                                <div
+                                                    className="h-2 rounded-full bg-amber-500 transition-all"
+                                                    style={{ width: `${(uploadedImagesCount / uploadingImages.length) * 100}%` }}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="mt-3 space-y-2">
+                                        {uploadingImages.map((item, index) => (
+                                            <div key={`${item.name}-${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs">
+                                                <span className="truncate text-stone-700">{item.name}</span>
+                                                <span
+                                                    className={`shrink-0 font-bold uppercase ${
+                                                        item.status === 'done'
+                                                            ? 'text-green-700'
+                                                            : item.status === 'error'
+                                                                ? 'text-red-600'
+                                                                : 'text-amber-700'
+                                                    }`}
+                                                >
+                                                    {item.status === 'waiting' && 'Chờ tải'}
+                                                    {item.status === 'uploading' && 'Đang tải'}
+                                                    {item.status === 'done' && 'Hoàn tất'}
+                                                    {item.status === 'error' && 'Lỗi'}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <label className={`block border-2 border-dashed rounded-lg p-6 text-center transition-colors mb-4 ${isUploadingImages ? 'cursor-not-allowed border-stone-200 bg-stone-50 opacity-70' : 'cursor-pointer border-stone-300 hover:border-amber-400'}`}>
                                 <PhotoIcon className="w-8 h-8 mx-auto text-stone-400 mb-2" />
-                                <p className="text-sm text-stone-500">Kéo thả hoặc nhấp để tải lên hình ảnh, X-quang...</p>
-                                <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                                <p className="text-sm text-stone-500">
+                                    {isUploadingImages
+                                        ? 'Đang tải ảnh lên, vui lòng chờ hoàn tất đợt hiện tại...'
+                                        : 'Kéo thả hoặc nhấp để tải lên một hoặc nhiều ảnh lâm sàng, da liễu, tai, mắt, X-quang...'}
+                                </p>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    disabled={isUploadingImages}
+                                    className="hidden"
+                                    onChange={handleImageUpload}
+                                />
                             </label>
 
                             {images.length > 0 && (
                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                     {images.map((img, i) => (
-                                        <div key={i} className="border border-stone-200 rounded-lg p-2">
-                                            <div className="relative mb-2">
+                                        <div key={i} className="rounded-2xl border border-stone-200 bg-stone-50/70 p-3 shadow-sm transition-all hover:shadow-md">
+                                            <div className="relative mb-3">
                                                 <img
                                                     src={img.url}
                                                     alt=""
-                                                    className="h-32 w-full object-cover rounded-lg cursor-pointer hover:opacity-75 transition-opacity"
+                                                    className="h-36 w-full rounded-xl object-cover cursor-pointer transition-opacity hover:opacity-80"
                                                     onClick={() => setPreviewImage(img)}
                                                 />
                                                 <button
                                                     type="button"
                                                     onClick={() => setImages(images.filter((_, idx) => idx !== i))}
-                                                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                                                    className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-xs text-white shadow-sm transition-colors hover:bg-red-600"
                                                 >
                                                     ×
                                                 </button>
                                             </div>
-                                            <input
-                                                type="text"
-                                                value={img.description || ''}
-                                                onChange={(e) => {
-                                                    const newImages = [...images]
-                                                    newImages[i] = { ...newImages[i], description: e.target.value }
-                                                    setImages(newImages)
-                                                }}
-                                                placeholder="Mô tả hình ảnh..."
-                                                className="w-full text-xs border border-stone-300 rounded px-2 py-1.5 focus:outline-none focus:border-amber-500"
-                                            />
+                                            <div className="relative group">
+                                                <input
+                                                    type="text"
+                                                    value={img.description || ''}
+                                                    onChange={(e) => {
+                                                        const newImages = [...images]
+                                                        newImages[i] = { ...newImages[i], description: e.target.value }
+                                                        setImages(newImages)
+                                                    }}
+                                                    placeholder="Mô tả hình ảnh..."
+                                                    className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs text-stone-700 focus:border-amber-500 focus:outline-none"
+                                                />
+                                                {img.description?.trim() && (
+                                                    <div className="pointer-events-none absolute bottom-full left-0 right-0 z-10 mb-2 hidden rounded-xl border border-stone-200 bg-white p-3 text-xs text-stone-700 shadow-lg group-hover:block group-focus-within:block">
+                                                        {img.description}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
                             )}
-                        </div >
 
-                    </div >
+                            {/* Pending images preview (not yet uploaded) */}
+                            {pendingImagePreviews.length > 0 && (
+                                <div className="mt-4">
+                                    <p className="text-xs font-bold text-amber-600 mb-2">
+                                        Ảnh mới chọn (chờ tải lên):
+                                    </p>
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                        {pendingImagePreviews.map((previewUrl, i) => (
+                                            <div key={`pending-${i}`} className="rounded-2xl border border-amber-300 bg-amber-50/70 p-3 shadow-sm transition-all hover:shadow-md relative">
+                                                <div className="relative mb-3">
+                                                    <img
+                                                        src={previewUrl}
+                                                        alt={`Preview ${i + 1}`}
+                                                        className="h-36 w-full rounded-xl object-cover cursor-pointer transition-opacity hover:opacity-80"
+                                                        onClick={() => setPreviewImage({ url: previewUrl, description: '' })}
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            // Cleanup preview URL
+                                                            URL.revokeObjectURL(previewUrl)
+                                                            // Remove from arrays
+                                                            setPendingImagePreviews(prev => prev.filter((_, idx) => idx !== i))
+                                                            setPendingImageFiles(prev => prev.filter((_, idx) => idx !== i))
+                                                        }}
+                                                        className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-xs text-white shadow-sm transition-colors hover:bg-red-600"
+                                                    >
+                                                        ×
+                                                    </button>
+                                                </div>
+                                                <p className="text-xs text-amber-700 text-center">Chờ tải lên</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                    </div>
 
                     {/* ========== RIGHT SIDEBAR ========== */}
-                    < div className="col-span-4 space-y-4" >
+                    <div className="col-span-4 space-y-4">
+                        <div className="bg-white rounded-2xl p-4 shadow-sm border border-stone-200 space-y-2">
+                            <p className="text-xs font-bold text-stone-700 uppercase">{'Chat AI bệnh án'}</p>
+                            <button
+                                type="button"
+                                onClick={openAiChatSidepanel}
+                                className="w-full rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-bold uppercase tracking-wide text-orange-700 transition-all hover:bg-orange-100 active:scale-95"
+                            >
+                                {'Mở chat AI trong sidebar'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={syncDraftFromBridge}
+                                className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs font-bold uppercase tracking-wide text-stone-700 transition-all hover:bg-stone-100 active:scale-95"
+                            >
+                                {'Đồng bộ từ chat sidebar'}
+                            </button>
+                        </div>
+                        <AIDiagnosisPanel
+                            petId={petInfo.id}
+                            bookingId={bookingId || undefined}
+                            species={petInfo.species}
+                            breed={petInfo.breed}
+                            ageMonths={estimateAgeMonths()}
+                            weightKg={getNormalizedWeightKg()}
+                            allergies={allergies.split(',').map((item) => item.trim()).filter(Boolean)}
+                            subjective={subjective}
+                            objective={objective}
+                            assessment={assessment}
+                            plan={plan}
+                            imageUrls={images.map((img) => img.url).filter(Boolean)}
+                            pendingImageUrls={pendingImagePreviews}
+                            onDiagnosisResult={setAiDiagnosisResult}
+                        />
+
                         {/* O - Objective */}
                         <div className="bg-white rounded-2xl p-6 shadow-sm">
                             <div className="flex items-center gap-3 mb-2">
@@ -786,7 +1234,12 @@ export const CreateEmrPage = () => {
                                 rows={3}
                                 className="w-full border border-stone-300 rounded-lg p-3 text-sm"
                             />
-                        </div >
+                            <AISuggestionInlineCard
+                                title="Gợi ý AI cho Objective"
+                                value={aiDiagnosisResult?.soap_suggestions.objective_draft}
+                                onAccept={() => handleApplyAiDraft('objective', aiDiagnosisResult?.soap_suggestions.objective_draft || '')}
+                            />
+                        </div>
 
                         {/* P - Plan */}
                         <div className="bg-white rounded-2xl p-6 shadow-sm">
@@ -810,10 +1263,15 @@ export const CreateEmrPage = () => {
                                     <p className="text-red-500 text-sm mt-1">{errors.plan}</p>
                                 )
                             }
-                        </div >
+                            <AISuggestionInlineCard
+                                title="Gợi ý AI cho Plan"
+                                value={aiDiagnosisResult?.soap_suggestions.plan_draft}
+                                onAccept={() => handleApplyAiDraft('plan', aiDiagnosisResult?.soap_suggestions.plan_draft || '')}
+                            />
+                        </div>
 
                         {/* Notes */}
-                        < div className="bg-white rounded-2xl p-6 shadow-sm" >
+                        <div className="bg-white rounded-2xl p-6 shadow-sm" >
                             <h3 className="font-bold text-stone-700 mb-2">Ghi chú (Tùy chọn)</h3>
                             <textarea
                                 value={notes}
@@ -822,10 +1280,10 @@ export const CreateEmrPage = () => {
                                 rows={3}
                                 className="w-full border border-stone-300 rounded-lg p-3 text-sm focus:border-amber-500 focus:outline-none"
                             />
-                        </div >
+                        </div>
 
                         {/* Re-examination Date */}
-                        < div className="bg-white rounded-2xl p-6 shadow-sm" >
+                        <div className="bg-white rounded-2xl p-6 shadow-sm" >
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="font-bold text-stone-700 flex items-center gap-2">
                                     <CalendarDaysIcon className="w-5 h-5 text-amber-500" />
@@ -920,14 +1378,14 @@ export const CreateEmrPage = () => {
                                     </div>
                                 )
                             }
-                        </div >
+                        </div>
 
 
-                    </div >
-                </div >
+                    </div>
+                </div>
 
                 {/* Submit Button */}
-                < div className="flex justify-end mt-6" >
+                <div className="flex justify-end mt-6" >
                     <button
                         onClick={handleSubmit}
                         disabled={isLoading}
@@ -935,8 +1393,8 @@ export const CreateEmrPage = () => {
                     >
                         {isLoading ? 'ĐANG LƯU...' : 'LƯU VÀ TIẾP TỤC'}
                     </button>
-                </div >
-            </div >
+                </div>
+            </div>
 
             {/* Image Preview Modal */}
             {
@@ -966,7 +1424,7 @@ export const CreateEmrPage = () => {
                     </div>
                 )
             }
-        </div >
+        </div>
     )
 }
 

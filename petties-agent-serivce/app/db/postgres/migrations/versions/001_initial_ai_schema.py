@@ -25,7 +25,7 @@ def upgrade() -> None:
         sa.Column('temperature', sa.Float(), nullable=True, server_default='0.7'),
         sa.Column('max_tokens', sa.Integer(), nullable=True, server_default='2000'),
         sa.Column('top_p', sa.Float(), nullable=True, server_default='0.9'),
-        sa.Column('model', sa.String(length=100), nullable=True, server_default='google/gemini-2.0-flash-exp:free'),
+        sa.Column('model', sa.String(length=100), nullable=True, server_default='google/gemini-2.5-flash-lite'),
         sa.Column('system_prompt', sa.Text(), nullable=True),
         sa.Column('enabled', sa.Boolean(), nullable=True, server_default='true'),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),

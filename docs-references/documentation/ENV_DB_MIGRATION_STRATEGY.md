@@ -1,4 +1,4 @@
-# CHIẾN LƯỢC QUẢN LÝ DATABASE & MIGRATION TRÊN ĐA MÔI TRƯỜNG
+﻿# CHIẾN LƯỢC QUẢN LÝ DATABASE & MIGRATION TRÊN ĐA MÔI TRƯỜNG
 
 Tài liệu này hướng dẫn cách đồng bộ hóa cấu trúc dữ liệu giữa các môi trường Dev, Test, Staging và Prod cho dự án Petties, đảm bảo không xảy ra xung đột hoặc mất dữ liệu.
 

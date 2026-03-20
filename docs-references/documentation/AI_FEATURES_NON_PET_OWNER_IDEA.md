@@ -1,4 +1,4 @@
-# Petties AI Agent Features - Non-Pet Owner Roles
+﻿# Petties AI Agent Features - Non-Pet Owner Roles
 
 > **Created:** 2026-02-04
 > **Updated:** 2026-02-04 (Added Clinic Setup Agent - No RAG)

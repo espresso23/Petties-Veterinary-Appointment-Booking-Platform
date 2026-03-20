@@ -35,8 +35,13 @@ class AiClinic {
   final int? totalReviews;
   final List<AiClinicService> services;
   final bool hasSos;
+  final bool supportsHomeVisit;
   final String? operatingHours;
   final String? serviceError;
+  final String? imageUrl;
+  final String? logoUrl;
+  final double? estimatedPriceFrom;
+  final String? reasonMatched;
 
   const AiClinic({
     required this.id,
@@ -47,8 +52,13 @@ class AiClinic {
     this.totalReviews,
     this.services = const [],
     this.hasSos = false,
+    this.supportsHomeVisit = false,
     this.operatingHours,
     this.serviceError,
+    this.imageUrl,
+    this.logoUrl,
+    this.estimatedPriceFrom,
+    this.reasonMatched,
   });
 
   factory AiClinic.fromJson(Map<String, dynamic> json) {
@@ -64,8 +74,15 @@ class AiClinic {
           .map(AiClinicService.fromJson)
           .toList(),
       hasSos: json['has_sos'] == true,
+      supportsHomeVisit: json['supports_home_visit'] == true,
       operatingHours: json['operating_hours']?.toString(),
       serviceError: json['service_error']?.toString(),
+      imageUrl: json['image_url']?.toString(),
+      logoUrl: json['logo_url']?.toString(),
+      estimatedPriceFrom: json['estimated_price_from'] is num
+          ? (json['estimated_price_from'] as num).toDouble()
+          : null,
+      reasonMatched: json['reason_matched']?.toString(),
     );
   }
 }
@@ -123,6 +140,214 @@ class AiClinicSuggestion {
   }
 }
 
+class AiBookingServiceOption {
+  final String id;
+  final String name;
+  final String? category;
+  final double? basePrice;
+
+  const AiBookingServiceOption({
+    required this.id,
+    required this.name,
+    this.category,
+    this.basePrice,
+  });
+
+  factory AiBookingServiceOption.fromJson(Map<String, dynamic> json) {
+    return AiBookingServiceOption(
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      category: json['category']?.toString(),
+      basePrice: json['base_price'] is num ? (json['base_price'] as num).toDouble() : null,
+    );
+  }
+}
+
+class AiBookingSlotOption {
+  final String startTime;
+  final String? endTime;
+  final int? durationMinutes;
+  final int? staffAvailable;
+
+  const AiBookingSlotOption({
+    required this.startTime,
+    this.endTime,
+    this.durationMinutes,
+    this.staffAvailable,
+  });
+
+  factory AiBookingSlotOption.fromJson(Map<String, dynamic> json) {
+    return AiBookingSlotOption(
+      startTime: json['start_time']?.toString() ?? '',
+      endTime: json['end_time']?.toString(),
+      durationMinutes: json['duration_minutes'] is num
+          ? (json['duration_minutes'] as num).toInt()
+          : null,
+      staffAvailable: json['staff_available'] is num
+          ? (json['staff_available'] as num).toInt()
+          : null,
+    );
+  }
+}
+
+class AiSlotGridPayload {
+  final String? clinicId;
+  final String? bookingDate;
+  final List<String> serviceIds;
+  final List<String> serviceNames;
+  final List<AiBookingSlotOption> recommendedSlots;
+  final List<AiBookingSlotOption> alternativeSlots;
+  final int totalSlots;
+  final String? message;
+
+  const AiSlotGridPayload({
+    this.clinicId,
+    this.bookingDate,
+    this.serviceIds = const [],
+    this.serviceNames = const [],
+    this.recommendedSlots = const [],
+    this.alternativeSlots = const [],
+    this.totalSlots = 0,
+    this.message,
+  });
+
+  factory AiSlotGridPayload.fromJson(Map<String, dynamic> json) {
+    return AiSlotGridPayload(
+      clinicId: json['clinic_id']?.toString(),
+      bookingDate: json['booking_date']?.toString(),
+      serviceIds: (json['service_ids'] as List<dynamic>? ?? const [])
+          .map((item) => item.toString())
+          .toList(),
+      serviceNames: (json['service_names'] as List<dynamic>? ?? const [])
+          .map((item) => item.toString())
+          .toList(),
+      recommendedSlots: (json['recommended_slots'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(AiBookingSlotOption.fromJson)
+          .toList(),
+      alternativeSlots: (json['alternative_slots'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(AiBookingSlotOption.fromJson)
+          .toList(),
+      totalSlots: json['total_slots'] is num ? (json['total_slots'] as num).toInt() : 0,
+      message: json['message']?.toString(),
+    );
+  }
+}
+
+class AiBookingSummaryPayload {
+  final String? petId;
+  final String? petName;
+  final String? clinicId;
+  final String? clinicName;
+  final String? bookingDate;
+  final String? startTime;
+  final List<String> serviceIds;
+  final List<String> serviceNames;
+  final String? bookingType;
+  final String? notes;
+  final String? homeAddress;
+  final String? message;
+
+  const AiBookingSummaryPayload({
+    this.petId,
+    this.petName,
+    this.clinicId,
+    this.clinicName,
+    this.bookingDate,
+    this.startTime,
+    this.serviceIds = const [],
+    this.serviceNames = const [],
+    this.bookingType,
+    this.notes,
+    this.homeAddress,
+    this.message,
+  });
+
+  factory AiBookingSummaryPayload.fromJson(Map<String, dynamic> json) {
+    return AiBookingSummaryPayload(
+      petId: json['pet_id']?.toString(),
+      petName: json['pet_name']?.toString(),
+      clinicId: json['clinic_id']?.toString(),
+      clinicName: json['clinic_name']?.toString(),
+      bookingDate: json['booking_date']?.toString(),
+      startTime: json['start_time']?.toString(),
+      serviceIds: (json['service_ids'] as List<dynamic>? ?? const [])
+          .map((item) => item.toString())
+          .toList(),
+      serviceNames: (json['service_names'] as List<dynamic>? ?? const [])
+          .map((item) => item.toString())
+          .toList(),
+      bookingType: json['booking_type']?.toString(),
+      notes: json['notes']?.toString(),
+      homeAddress: json['home_address']?.toString(),
+      message: json['message']?.toString(),
+    );
+  }
+}
+
+class AiBookingCreatedPayload {
+  final String? bookingId;
+  final String? bookingCode;
+  final String? status;
+  final String? petName;
+  final String? clinicName;
+  final String? date;
+  final String? time;
+  final String? bookingType;
+  final List<String> services;
+  final double? estimatedTotal;
+  final String? homeAddress;
+  final double? distanceKm;
+  final bool managerWillConfirm;
+  final String? message;
+
+  const AiBookingCreatedPayload({
+    this.bookingId,
+    this.bookingCode,
+    this.status,
+    this.petName,
+    this.clinicName,
+    this.date,
+    this.time,
+    this.bookingType,
+    this.services = const [],
+    this.estimatedTotal,
+    this.homeAddress,
+    this.distanceKm,
+    this.managerWillConfirm = true,
+    this.message,
+  });
+
+  factory AiBookingCreatedPayload.fromJson(Map<String, dynamic> json) {
+    final booking = json['booking'] is Map<String, dynamic>
+        ? json['booking'] as Map<String, dynamic>
+        : (json['booking'] is Map ? Map<String, dynamic>.from(json['booking'] as Map) : json);
+    return AiBookingCreatedPayload(
+      bookingId: booking['id']?.toString(),
+      bookingCode: booking['booking_code']?.toString(),
+      status: booking['status']?.toString(),
+      petName: booking['pet_name']?.toString(),
+      clinicName: booking['clinic_name']?.toString(),
+      date: booking['date']?.toString(),
+      time: booking['time']?.toString(),
+      bookingType: booking['type']?.toString(),
+      services: (booking['services'] as List<dynamic>? ?? const [])
+          .map((item) => item.toString())
+          .toList(),
+      estimatedTotal: booking['estimated_total'] is num
+          ? (booking['estimated_total'] as num).toDouble()
+          : null,
+      homeAddress: booking['home_address']?.toString(),
+      distanceKm: booking['distance_km'] is num
+          ? (booking['distance_km'] as num).toDouble()
+          : null,
+      managerWillConfirm: booking['manager_will_confirm'] != false,
+      message: json['message']?.toString(),
+    );
+  }
+}
+
 class AiChatSession {
   final String sessionId;
   final String? title;
@@ -170,6 +395,16 @@ enum AiChatSocketEventType {
   complete,
   error,
   clinicSuggestion,
+  info,
+  suggestedPrompts,
+  petCards,
+  quickReplies,
+  clinicCarousel,
+  serviceChips,
+  dateChips,
+  slotGrid,
+  bookingSummary,
+  bookingCreated,
   unknown;
 
   static AiChatSocketEventType fromString(String? value) {
@@ -194,6 +429,26 @@ enum AiChatSocketEventType {
         return AiChatSocketEventType.error;
       case 'clinic_suggestion':
         return AiChatSocketEventType.clinicSuggestion;
+      case 'info':
+        return AiChatSocketEventType.info;
+      case 'suggested_prompts':
+        return AiChatSocketEventType.suggestedPrompts;
+      case 'pet_cards':
+        return AiChatSocketEventType.petCards;
+      case 'quick_replies':
+        return AiChatSocketEventType.quickReplies;
+      case 'clinic_carousel':
+        return AiChatSocketEventType.clinicCarousel;
+      case 'service_chips':
+        return AiChatSocketEventType.serviceChips;
+      case 'date_chips':
+        return AiChatSocketEventType.dateChips;
+      case 'slot_grid':
+        return AiChatSocketEventType.slotGrid;
+      case 'booking_summary':
+        return AiChatSocketEventType.bookingSummary;
+      case 'booking_created':
+        return AiChatSocketEventType.bookingCreated;
       default:
         return AiChatSocketEventType.unknown;
     }
@@ -214,6 +469,11 @@ class AiChatSocketEvent {
   final Map<String, dynamic>? toolParams;
   final dynamic result;
   final AiClinicSuggestion? clinicSuggestion;
+  final List<AiBookingServiceOption> serviceOptions;
+  final AiSlotGridPayload? slotGrid;
+  final AiBookingSummaryPayload? bookingSummary;
+  final AiBookingCreatedPayload? bookingCreated;
+  final Map<String, dynamic> raw;
 
   const AiChatSocketEvent({
     required this.type,
@@ -229,6 +489,11 @@ class AiChatSocketEvent {
     this.toolParams,
     this.result,
     this.clinicSuggestion,
+    this.serviceOptions = const [],
+    this.slotGrid,
+    this.bookingSummary,
+    this.bookingCreated,
+    this.raw = const {},
   });
 
   factory AiChatSocketEvent.fromJson(Map<String, dynamic> json) {
@@ -236,9 +501,28 @@ class AiChatSocketEvent {
     if (json['clinics'] != null || json['total_found'] != null) {
       clinicSuggestion = AiClinicSuggestion.fromJson(json);
     }
+    final type = AiChatSocketEventType.fromString(json['type']?.toString());
+    final serviceOptions = type == AiChatSocketEventType.serviceChips
+        ? (json['services'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(AiBookingServiceOption.fromJson)
+            .toList()
+        : const <AiBookingServiceOption>[];
+    final slotGrid = type == AiChatSocketEventType.slotGrid
+        ? AiSlotGridPayload.fromJson(json)
+        : null;
+    final bookingSummary =
+        type == AiChatSocketEventType.bookingSummary && json['summary'] is Map
+            ? AiBookingSummaryPayload.fromJson(
+                Map<String, dynamic>.from(json['summary'] as Map),
+              )
+            : null;
+    final bookingCreated = type == AiChatSocketEventType.bookingCreated
+        ? AiBookingCreatedPayload.fromJson(json)
+        : null;
 
     return AiChatSocketEvent(
-      type: AiChatSocketEventType.fromString(json['type']?.toString()),
+      type: type,
       message: json['message']?.toString(),
       content: json['content']?.toString(),
       fullResponse: json['full_response']?.toString(),
@@ -258,6 +542,13 @@ class AiChatSocketEvent {
           .map(AiChatMessage.fromJson)
           .toList(),
       clinicSuggestion: clinicSuggestion,
+      serviceOptions: serviceOptions,
+      slotGrid: slotGrid,
+      bookingSummary: bookingSummary,
+      bookingCreated: bookingCreated,
+      raw: json.map((key, value) => MapEntry(key.toString(), value)),
     );
   }
 }
+
+

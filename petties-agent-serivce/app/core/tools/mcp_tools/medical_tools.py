@@ -721,7 +721,175 @@ async def get_emr_history(
 
 
 @mcp_server.tool
-async def analyze_pet_image(
+async def get_pet_health_summary(
+    pet_id: str,
+    user_id: str,
+) -> Dict[str, Any]:
+    """
+    Tổng hợp thông tin sức khỏe của pet cho Pet Owner.
+
+    Tool này tự động tổng hợp:
+    - Thông tin pet cơ bản
+    - EMR gần nhất (chẩn đoán, điều trị)
+    - Cảnh báo mức độ nghiêm trọng (nếu có)
+    - Gợi ý hành động
+
+    Args:
+        pet_id: ID của thú cưng
+        user_id: ID của Pet Owner (để verify ownership)
+
+    Returns:
+        {
+            "pet_info": {...},
+            "latest_emr": {...},
+            "health_warnings": [...],
+            "medication_reminders": [...],
+            "suggested_actions": [...],
+            "disclaimer": "..."
+        }
+    """
+    from app.core.tool_runtime_context import get_tool_runtime_context
+    from app.services.backend_client import get_backend_client
+
+    try:
+        context = get_tool_runtime_context()
+        if not context:
+            return {
+                "error": "Không thể xác định thông tin người dùng. Vui lòng đăng nhập lại.",
+                "pet_info": None,
+                "latest_emr": None,
+            }
+
+        backend = get_backend_client()
+
+        pet_response = await backend.get(f"/pets/{pet_id}")
+        if pet_response.status_code != 200:
+            return {
+                "error": "Không tìm thấy thú cưng",
+                "pet_info": None,
+            }
+
+        pet_data = pet_response.json()
+
+        if context.user_id != user_id:
+            return {
+                "error": "Bạn không có quyền xem thông tin sức khỏe của thú cưng này.",
+                "pet_info": None,
+            }
+
+        emr_response = await backend.get(f"/emr/pet/{pet_id}?limit=1")
+        latest_emr = None
+        if emr_response.status_code == 200:
+            emr_list = emr_response.json()
+            if emr_list and len(emr_list) > 0:
+                latest_emr = emr_list[0]
+
+        warnings = []
+        suggested_actions = []
+        medication_reminders = []
+
+        if latest_emr:
+            assessment = latest_emr.get("assessment", "")
+            plan = latest_emr.get("plan", "")
+            exam_date = latest_emr.get("examDate", "")
+
+            if exam_date:
+                from datetime import datetime, timedelta, timezone
+
+                try:
+                    exam_dt = datetime.fromisoformat(exam_date.replace("Z", "+00:00"))
+                    days_ago = (datetime.now(timezone.utc) - exam_dt).days
+                    if days_ago > 30:
+                        warnings.append(
+                            {
+                                "type": "RECHECK_REQUIRED",
+                                "message": f"Đã {days_ago} ngày kể từ lần khám gần nhất. Cần tái khám.",
+                                "severity": "MEDIUM",
+                            }
+                        )
+                except:
+                    pass
+
+            if "dị ứng" in assessment.lower() or "allergy" in assessment.lower():
+                warnings.append(
+                    {
+                        "type": "ALLERGY_ALERT",
+                        "message": "Pet có tiền sử dị ứng. Cần thông báo cho bác sĩ trước khi điều trị.",
+                        "severity": "HIGH",
+                    }
+                )
+
+            if latest_emr.get("prescriptions"):
+                for rx in latest_emr["prescriptions"]:
+                    medication_reminders.append(
+                        {
+                            "medication": rx.get("medicineName", ""),
+                            "dosage": rx.get("dosage", ""),
+                            "frequency": rx.get("frequency", ""),
+                        }
+                    )
+
+            suggested_actions.append(
+                {
+                    "type": "BOOK_APPOINTMENT",
+                    "label": "Đặt lịch tái khám",
+                    "reason": "Kiểm tra tiến triển sau điều trị",
+                }
+            )
+
+        if not latest_emr:
+            suggested_actions.append(
+                {
+                    "type": "BOOK_FIRST_VISIT",
+                    "label": "Đặt lịch khám lần đầu",
+                    "reason": "Pet chưa có lịch sử khám",
+                }
+            )
+
+        pet_info = {
+            "pet_id": pet_data.get("id"),
+            "name": pet_data.get("name"),
+            "species": pet_data.get("species"),
+            "breed": pet_data.get("breed"),
+            "age_months": pet_data.get("ageMonths") or pet_data.get("age_months"),
+            "weight_kg": pet_data.get("weight"),
+        }
+
+        latest_emr_summary = None
+        if latest_emr:
+            latest_emr_summary = {
+                "exam_date": latest_emr.get("examDate", ""),
+                "clinic_name": latest_emr.get("clinicName", ""),
+                "diagnosis": latest_emr.get("assessment", ""),
+                "treatment": latest_emr.get("plan", ""),
+                "subjective": latest_emr.get("subjective", ""),
+                "objective": latest_emr.get("objective", ""),
+            }
+
+        return {
+            "pet_info": pet_info,
+            "latest_emr": latest_emr_summary,
+            "health_warnings": warnings,
+            "medication_reminders": medication_reminders,
+            "suggested_actions": suggested_actions,
+            "disclaimer": "Thông tin chỉ mang tính tham khảo. Vui lòng consult bác sĩ để được tư vấn chính xác.",
+        }
+
+    except Exception as e:
+        logger.error(f"Lỗi trong get_pet_health_summary: {e}")
+        return {
+            "error": f"Không thể lấy thông tin sức khỏe: {str(e)}",
+            "pet_info": None,
+            "latest_emr": None,
+            "health_warnings": [],
+            "medication_reminders": [],
+            "suggested_actions": [],
+        }
+
+
+# Hàm legacy đã bị vô hiệu hóa và giữ lại tạm thời để tránh lỗi import cũ.
+# @mcp_server.tool
+async def _legacy_disabled_image_analysis(
     image_url: str,
     context: str = "",
 ) -> Dict[str, Any]:
@@ -745,9 +913,12 @@ async def analyze_pet_image(
             "disclaimer": "Lưu ý pháp lý"
         }
     """
-    from app.services.llm_client import get_llm_client
-    from app.core.llms.openrouter import MultiModalLLMConfig
-    import base64
+    return {
+        "status": "disabled",
+        "error": "Tính năng AI chẩn đoán qua ảnh cũ hiện đang được tạm dừng để chuyển sang kiến trúc mới.",
+        "diagnosis": "",
+        "confidence": 0.0,
+    }
 
     try:
         # Validate image URL
@@ -843,7 +1014,7 @@ LƯU Ý:
             }
 
     except Exception as e:
-        logger.error(f"Lỗi trong analyze_pet_image: {e}")
+        logger.error(f"Lỗi trong _legacy_disabled_image_analysis: {e}")
         return {
             "error": f"Không thể xử lý yêu cầu phân tích hình ảnh: {str(e)}",
             "diagnosis": "",
@@ -861,9 +1032,8 @@ if __name__ == "__main__":
     print("  - get_staff_patients: Get staff's patients list for quick lookup")
     print("  - get_patient_summary: Get quick summary of pet's medical record")
     print("  - get_emr_history: Get full EMR history of a pet")
-    print("  - analyze_pet_image: Analyze pet medical images for preliminary diagnosis")
+    # Legacy image-analysis entry đã bị gỡ khỏi runtime.
     print("\nThese tools use:")
     print("  - Cohere embed-multilingual-v3.0 for Vietnamese support")
     print("  - Qdrant vector database for similarity search")
     print("  - LlamaIndex for document processing")
-    print("  - Multimodal LLM (Gemini/Claude) for image analysis")

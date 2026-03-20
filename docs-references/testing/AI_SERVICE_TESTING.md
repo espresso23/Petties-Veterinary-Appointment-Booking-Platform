@@ -1,4 +1,4 @@
-# AI Service Testing Strategy
+﻿# AI Service Testing Strategy
 
 Chiến lược kiểm thử AI Service dựa trên yêu cầu kỹ thuật từ [TECHNICAL SCOPE - AGENT MANAGEMENT](../documentation/TECHNICAL%20SCOPE%20PETTIES%20-%20AGENT%20MANAGEMENT.md).
 

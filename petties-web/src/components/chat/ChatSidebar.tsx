@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { 
-    SparklesIcon, 
+import {
+    SparklesIcon,
     ChevronRightIcon,
     PlusIcon,
     TrashIcon,
@@ -9,13 +9,14 @@ import {
     CalendarIcon,
     DocumentTextIcon,
     PencilIcon,
-    ArrowPathIcon
+    ArrowPathIcon,
 } from '@heroicons/react/24/outline'
 import { ChatbotUI, type ChatMessage } from './ChatbotUI'
-import { useChatSidebar } from '../../hooks/useChatSidebar'
 import { useAuthStore } from '../../store/authStore'
 import { useToast } from '../../hooks/useToast'
 import { useAIChatStore, type AISessionMessage } from '../../store/aiChatStore'
+import { AIDiagnosisPanel } from '../emr/AIDiagnosisPanel'
+import { saveEmrAiDraft } from '../../utils/emrAiDraftBridge'
 
 interface ChatSession {
     session_id: string
@@ -55,51 +56,61 @@ export const ChatSidebar = ({
     title = 'Trợ lý AI',
     placeholder = 'Nhập tin nhắn...'
 }: ChatSidebarProps) => {
-    const { isOpen, toggle, close } = useChatSidebar()
     const [sessions, setSessions] = useState<ChatSession[]>([])
     const [showSessionList, setShowSessionList] = useState(false)
     const [isLoadingSessions, setIsLoadingSessions] = useState(false)
     const [isCreatingSession, setIsCreatingSession] = useState(false)
     const wsRef = useRef<WebSocket | null>(null)
     const { showToast } = useToast()
-    
+
     const accessToken = useAuthStore((state) => state.accessToken)
-    
-    // Use shared store
-    const { 
-        sessionId, 
+
+    const {
+        sessionId,
         messages: storeMessages,
+        isOpen,
+        emrDraft,
         setSessionId,
         setMessages,
         addMessage,
         updateLastMessage,
-        setConnectionStatus
+        setConnectionStatus,
+        setIsOpen,
+        updateEmrDraftField,
     } = useAIChatStore()
 
-    // Convert store messages to ChatMessage format for UI
+    const toggle = useCallback(() => setIsOpen(!isOpen), [isOpen, setIsOpen])
+    const close = useCallback(() => setIsOpen(false), [setIsOpen])
+
     const messages: ChatMessage[] = storeMessages.map((msg: AISessionMessage) => ({
         id: msg.id,
         role: msg.role,
         content: msg.content,
         timestamp: msg.timestamp,
-        isLoading: msg.isLoading ?? false
+        isLoading: msg.isLoading ?? false,
+        images: msg.images,
     }))
 
-    // Load sessions list
+    useEffect(() => {
+        if (emrDraft) {
+            saveEmrAiDraft(emrDraft)
+        }
+    }, [emrDraft])
+
     const loadSessions = useCallback(async () => {
         if (!accessToken) return
-        
+
         setIsLoadingSessions(true)
         try {
             const response = await fetch(
                 `${import.meta.env.VITE_AGENT_API_BASE_URL || 'http://localhost:8000'}/api/v1/chat/sessions?limit=20`,
                 {
                     headers: {
-                        'Authorization': `Bearer ${accessToken}`
-                    }
+                        Authorization: `Bearer ${accessToken}`,
+                    },
                 }
             )
-            
+
             if (response.ok) {
                 const data = await response.json()
                 setSessions(data.sessions || [])
@@ -111,36 +122,34 @@ export const ChatSidebar = ({
         }
     }, [accessToken])
 
-    // Create new session
     const createNewSession = useCallback(async () => {
         if (!accessToken || isCreatingSession) return
-        
+
         setIsCreatingSession(true)
         try {
-            // Close existing WebSocket
             if (wsRef.current) {
                 wsRef.current.close()
                 wsRef.current = null
             }
-            
+
             const response = await fetch(
                 `${import.meta.env.VITE_AGENT_API_BASE_URL || 'http://localhost:8000'}/api/v1/chat/sessions`,
                 {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${accessToken}`
+                        Authorization: `Bearer ${accessToken}`,
                     },
                     body: JSON.stringify({
-                        context_type: 'BUSINESS_CHAT'
-                    })
+                        context_type: 'BUSINESS_CHAT',
+                    }),
                 }
             )
-            
+
             if (response.ok) {
                 const data = await response.json()
                 setSessionId(data.session_id)
-                setMessages([])  // Clear store messages
+                setMessages([])
                 setShowSessionList(false)
                 await loadSessions()
             }
@@ -150,27 +159,25 @@ export const ChatSidebar = ({
         } finally {
             setIsCreatingSession(false)
         }
-    }, [accessToken, isCreatingSession, loadSessions, showToast, setSessionId, setMessages])
+    }, [accessToken, isCreatingSession, loadSessions, setMessages, setSessionId, showToast])
 
-    // Delete session
     const deleteSession = useCallback(async (sessionIdToDelete: string) => {
         if (!accessToken) return
-        
+
         try {
             const response = await fetch(
                 `${import.meta.env.VITE_AGENT_API_BASE_URL || 'http://localhost:8000'}/api/v1/chat/sessions/${sessionIdToDelete}`,
                 {
                     method: 'DELETE',
                     headers: {
-                        'Authorization': `Bearer ${accessToken}`
-                    }
+                        Authorization: `Bearer ${accessToken}`,
+                    },
                 }
             )
-            
+
             if (response.ok) {
                 showToast('success', 'Đã xóa cuộc chat')
-                
-                // If deleting current session, create new one
+
                 if (sessionId === sessionIdToDelete) {
                     await createNewSession()
                 } else {
@@ -181,40 +188,37 @@ export const ChatSidebar = ({
             console.error('Failed to delete session:', error)
             showToast('error', 'Không thể xóa cuộc chat')
         }
-    }, [accessToken, sessionId, createNewSession, loadSessions, showToast])
+    }, [accessToken, createNewSession, loadSessions, sessionId, showToast])
 
-    // Select existing session
     const selectSession = useCallback(async (selectedSessionId: string) => {
         if (!accessToken) return
-        
-        // Close existing WebSocket
+
         if (wsRef.current) {
             wsRef.current.close()
             wsRef.current = null
         }
-        
+
         try {
             const response = await fetch(
                 `${import.meta.env.VITE_AGENT_API_BASE_URL || 'http://localhost:8000'}/api/v1/chat/sessions/${selectedSessionId}`,
                 {
                     headers: {
-                        'Authorization': `Bearer ${accessToken}`
-                    }
+                        Authorization: `Bearer ${accessToken}`,
+                    },
                 }
             )
-            
+
             if (response.ok) {
                 const data = await response.json()
                 setSessionId(data.session_id)
-                
-                // Convert messages to ChatMessage format
-                const convertedMessages: ChatMessage[] = (data.messages || []).map((msg: ChatSessionMessage) => ({
+
+                const convertedMessages: AISessionMessage[] = (data.messages || []).map((msg: ChatSessionMessage) => ({
                     id: msg.message_id || Date.now().toString(),
                     role: msg.role,
                     content: msg.content,
-                    timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date()
+                    timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
                 }))
-                
+
                 setMessages(convertedMessages)
                 setShowSessionList(false)
             }
@@ -222,27 +226,22 @@ export const ChatSidebar = ({
             console.error('Failed to load session:', error)
             showToast('error', 'Không thể tải cuộc chat')
         }
-    }, [accessToken, showToast, setSessionId, setMessages])
+    }, [accessToken, setMessages, setSessionId, showToast])
 
-    // Initial session creation and session list loading
     useEffect(() => {
         if (accessToken && isOpen) {
-            loadSessions()
-            
-            // Create initial session if none exists
+            void loadSessions()
             if (!sessionId) {
-                createNewSession()
+                void createNewSession()
             }
         }
-    }, [accessToken, isOpen, loadSessions, createNewSession, sessionId])
+    }, [accessToken, createNewSession, isOpen, loadSessions, sessionId])
 
-    // Connect to WebSocket when session is created - use shared store
     useEffect(() => {
         if (!sessionId || !accessToken) return
 
         const AGENT_WS_BASE_URL = import.meta.env.VITE_AGENT_WS_BASE_URL || 'ws://localhost:8000'
-        
-        // Close existing WebSocket
+
         if (wsRef.current) {
             wsRef.current.close()
         }
@@ -251,68 +250,37 @@ export const ChatSidebar = ({
         const ws = new WebSocket(wsUrl)
 
         ws.onopen = () => {
-            console.log('[ChatSidebar] WebSocket connected')
             setConnectionStatus('connected')
         }
 
         ws.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data)
-                console.log('[ChatSidebar] WebSocket message:', data)
 
                 if (data.type === 'session_established' || data.type === 'ack' || data.type === 'agent_info') {
                     return
                 }
 
-                if (data.type === 'react_step') {
-                    const step = data.step || {}
-                    const thought = step.thought || step.action || step.observation || ''
-                    if (thought) {
-                        addMessage({
-                            id: `step-${Date.now()}`,
-                            role: 'assistant',
-                            content: thought,
-                            timestamp: new Date()
-                        })
+                if (data.type === 'thinking') {
+                    const content = data.content || ''
+                    if (content) {
+                        updateLastMessage(content, true)
                     }
                     return
                 }
 
-                if (data.type === 'stream' || data.type === 'final' || data.type === 'complete') {
-                    // Handle different response formats
+                if (data.type === 'stream' || data.type === 'final') {
                     const content = data.content || data.full_response || ''
                     if (content) {
                         updateLastMessage(content, false)
                     }
-                    
-                    // Also handle thinking/reasoning content
-                    if (data.thinking || data.reasoning) {
-                        const thoughtContent = data.thinking || data.reasoning
-                        addMessage({
-                            id: `thinking-${Date.now()}`,
-                            role: 'assistant',
-                            content: thoughtContent,
-                            timestamp: new Date()
-                        })
-                    }
                     return
                 }
 
-                // Handle thinking type (for reasoning display)
-                if (data.type === 'thinking') {
-                    const content = data.content || ''
-                    
-                    if (content) {
-                        updateLastMessage(content, true) // true = still loading/thinking
-                    }
-                    return
-                }
-
-                // Handle complete/final response
                 if (data.type === 'complete') {
                     const content = data.full_response || data.content || ''
                     if (content) {
-                        updateLastMessage(content, false) // false = done loading
+                        updateLastMessage(content, false)
                     }
                     return
                 }
@@ -322,7 +290,7 @@ export const ChatSidebar = ({
                         id: `error-${Date.now()}`,
                         role: 'assistant',
                         content: `Lỗi: ${data.error}`,
-                        timestamp: new Date()
+                        timestamp: new Date(),
                     })
                 }
             } catch (err) {
@@ -330,13 +298,11 @@ export const ChatSidebar = ({
             }
         }
 
-        ws.onerror = (error) => {
-            console.error('[ChatSidebar] WebSocket error:', error)
+        ws.onerror = () => {
             setConnectionStatus('disconnected')
         }
 
         ws.onclose = () => {
-            console.log('[ChatSidebar] WebSocket closed')
             setConnectionStatus('disconnected')
         }
 
@@ -348,95 +314,46 @@ export const ChatSidebar = ({
                 wsRef.current = null
             }
         }
-    }, [sessionId, accessToken, addMessage, updateLastMessage, setConnectionStatus])
+    }, [accessToken, addMessage, sessionId, setConnectionStatus, updateLastMessage])
 
-    const handleSendMessage = useCallback(async (message: string, images?: string[]): Promise<{ processingStatus?: string }> => {
+    const handleSendMessage = useCallback(async (message: string, images?: string[]) => {
         if (!message.trim() && (!images || images.length === 0)) {
             return {}
         }
 
         const hasImages = images && images.length > 0
-        
-        // Check WebSocket connection
+
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-            // Fallback to REST API if WebSocket is not available
-            if (sessionId && accessToken) {
-                try {
-                    const response = await fetch(
-                        `${import.meta.env.VITE_AGENT_API_BASE_URL || 'http://localhost:8000'}/api/v1/chat/sessions/${sessionId}/messages`, 
-                        {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${accessToken}`
-                            },
-                            body: JSON.stringify({ message, images })
-                        }
-                    )
-                    
-                    if (response.ok) {
-                        // Add user message to store
-                        addMessage({
-                            id: Date.now().toString(),
-                            role: 'user',
-                            content: message,
-                            timestamp: new Date()
-                        })
-                        
-                        // Add assistant message
-                        addMessage({
-                            id: (Date.now() + 1).toString(),
-                            role: 'assistant',
-                            content: 'Đang xử lý...',
-                            timestamp: new Date()
-                        })
-                        
-                        return {}
-                    } else {
-                        showToast('error', 'Không thể gửi tin nhắn')
-                        return {}
-                    }
-                } catch {
-                    showToast('error', 'Đã xảy ra lỗi khi gửi tin nhắn')
-                    return {}
-                }
-            }
+            showToast('error', 'Kết nối chat chưa sẵn sàng')
             return {}
         }
 
-        // Show processing status if has images
         if (hasImages) {
             return { processingStatus: 'Đang phân tích ảnh...' }
         }
 
-        // Add user message to store (will show in both Spotlight and Sidebar)
         addMessage({
             id: Date.now().toString(),
             role: 'user',
             content: message,
-            timestamp: new Date()
+            timestamp: new Date(),
+            images,
         })
 
-        // Add loading message to store
         addMessage({
             id: `ai-${Date.now()}`,
             role: 'assistant',
             content: '',
             timestamp: new Date(),
-            isLoading: true
+            isLoading: true,
         })
 
-        // Send via WebSocket
-        wsRef.current.send(JSON.stringify({
-            message,
-            images
-        }))
-
+        wsRef.current.send(JSON.stringify({ message, images }))
         return {}
-    }, [sessionId, accessToken, showToast, addMessage])
+    }, [addMessage, showToast])
 
     const handleQuickAction = (prompt: string) => {
-        handleSendMessage(prompt)
+        void handleSendMessage(prompt)
     }
 
     const formatDate = (dateStr: string) => {
@@ -454,9 +371,65 @@ export const ChatSidebar = ({
         return date.toLocaleDateString('vi-VN')
     }
 
+    const emrContextPanel = emrDraft ? (
+        <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+            <div className="mb-3">
+                <h3 className="text-sm font-bold uppercase tracking-wide text-stone-900">Bệnh án đang soạn</h3>
+                <p className="text-[11px] text-stone-600">Tương tác trực tiếp với EMR ngay trong hội thoại AI.</p>
+            </div>
+
+            <div className="space-y-2">
+                <textarea
+                    value={emrDraft.subjective}
+                    onChange={(e) => updateEmrDraftField('subjective', e.target.value)}
+                    rows={2}
+                    placeholder="Subjective"
+                    className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs text-stone-700 focus:border-amber-500 focus:outline-none"
+                />
+                <textarea
+                    value={emrDraft.objective}
+                    onChange={(e) => updateEmrDraftField('objective', e.target.value)}
+                    rows={2}
+                    placeholder="Objective"
+                    className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs text-stone-700 focus:border-amber-500 focus:outline-none"
+                />
+                <textarea
+                    value={emrDraft.assessment}
+                    onChange={(e) => updateEmrDraftField('assessment', e.target.value)}
+                    rows={2}
+                    placeholder="Assessment"
+                    className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs text-stone-700 focus:border-amber-500 focus:outline-none"
+                />
+                <textarea
+                    value={emrDraft.plan}
+                    onChange={(e) => updateEmrDraftField('plan', e.target.value)}
+                    rows={2}
+                    placeholder="Plan"
+                    className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs text-stone-700 focus:border-amber-500 focus:outline-none"
+                />
+            </div>
+
+            <div className="mt-4">
+                <AIDiagnosisPanel
+                    petId={emrDraft.pet_id}
+                    bookingId={emrDraft.booking_id}
+                    species={emrDraft.species}
+                    breed={emrDraft.breed}
+                    ageMonths={emrDraft.age_months}
+                    weightKg={emrDraft.weight_kg}
+                    allergies={emrDraft.allergies}
+                    subjective={emrDraft.subjective}
+                    objective={emrDraft.objective}
+                    assessment={emrDraft.assessment}
+                    plan={emrDraft.plan}
+                    imageUrls={emrDraft.image_urls}
+                />
+            </div>
+        </div>
+    ) : null
+
     return (
         <>
-            {/* Toggle Button - Fixed on right edge */}
             <button
                 onClick={toggle}
                 className="fixed right-0 top-1/2 -translate-y-1/2 z-40 flex items-center justify-center w-10 h-16 bg-amber-500 border-y-2 border-l-2 border-stone-900 shadow-[-3px_3px_0_#1c1917] hover:bg-amber-600 transition-all duration-300 rounded-l-lg"
@@ -464,129 +437,107 @@ export const ChatSidebar = ({
                 {isOpen ? (
                     <ChevronRightIcon className="w-5 h-5 text-white" />
                 ) : (
-                    <div className="flex flex-col items-center gap-1">
-                        <SparklesIcon className="w-5 h-5 text-white" />
-                    </div>
+                    <SparklesIcon className="w-5 h-5 text-white" />
                 )}
             </button>
 
-            {/* Sidebar Container - slides from right */}
-            <div 
-                className={`fixed right-0 top-0 h-full w-[400px] z-30 transition-transform duration-300 ease-in-out ${
+            <div
+                className={`fixed right-0 top-0 z-30 h-full w-[420px] transition-transform duration-300 ease-in-out ${
                     isOpen ? 'translate-x-0' : 'translate-x-full'
                 }`}
             >
-                {/* Sidebar Content */}
-                <div className="h-full border-l-2 border-stone-900 shadow-[-4px_4px_0_#1c1917] bg-white flex flex-col">
-                    {/* Header */}
-                    <div className="flex items-center justify-between px-4 py-3 border-b-2 border-stone-900 bg-amber-500">
-                        <div className="flex items-center gap-2">
-                            <SparklesIcon className="w-5 h-5 text-white" />
-                            <h2 className="text-lg font-black text-white uppercase tracking-wide">
-                                {title}
-                            </h2>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => setShowSessionList(!showSessionList)}
-                                className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
-                                title="Danh sách chat"
-                            >
-                                <FolderIcon className="w-5 h-5 text-white" />
-                            </button>
-                            <button 
-                                onClick={close}
-                                className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
-                            >
-                                <ChevronRightIcon className="w-5 h-5 text-white" />
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Session List Panel */}
-                    {showSessionList && (
-                        <div className="border-b-2 border-stone-900 bg-stone-50">
-                            <div className="flex items-center justify-between px-4 py-2 border-b border-stone-200">
-                                <span className="text-sm font-bold text-stone-700">Danh sách cuộc chat</span>
+                <div className="flex h-full flex-col border-l-2 border-stone-900 bg-white shadow-[-4px_4px_0_#1c1917]">
+                    <div className="min-w-0 flex flex-1 flex-col">
+                        <div className="flex items-center justify-between px-4 py-3 border-b-2 border-stone-900 bg-amber-500">
+                            <div className="flex items-center gap-2">
+                                <SparklesIcon className="w-5 h-5 text-white" />
+                                <h2 className="text-lg font-black text-white uppercase tracking-wide">{title}</h2>
+                            </div>
+                            <div className="flex items-center gap-2">
                                 <button
-                                    onClick={createNewSession}
-                                    disabled={isCreatingSession}
-                                    className="flex items-center gap-1 px-2 py-1 bg-amber-500 text-white text-xs font-bold rounded border border-stone-900 shadow-[1px_1px_0_#1c1917] hover:bg-amber-600 disabled:opacity-50"
+                                    onClick={() => setShowSessionList(!showSessionList)}
+                                    className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
+                                    title="Danh sách chat"
                                 >
-                                    {isCreatingSession ? (
-                                        <ArrowPathIcon className="w-3 h-3 animate-spin" />
-                                    ) : (
-                                        <PlusIcon className="w-3 h-3" />
-                                    )}
-                                    Chat mới
+                                    <FolderIcon className="w-5 h-5 text-white" />
+                                </button>
+                                <button onClick={close} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors">
+                                    <ChevronRightIcon className="w-5 h-5 text-white" />
                                 </button>
                             </div>
-                            <div className="max-h-[200px] overflow-y-auto">
-                                {isLoadingSessions ? (
-                                    <div className="p-4 text-center text-stone-500 text-sm">
-                                        Đang tải...
-                                    </div>
-                                ) : sessions.length === 0 ? (
-                                    <div className="p-4 text-center text-stone-500 text-sm">
-                                        Chưa có cuộc chat nào
-                                    </div>
-                                ) : (
-                                    sessions.map((session) => (
-                                        <div 
-                                            key={session.session_id}
-                                            className={`flex items-center justify-between px-4 py-2 border-b border-stone-100 hover:bg-stone-100 cursor-pointer ${
-                                                session.session_id === sessionId ? 'bg-amber-50' : ''
-                                            }`}
-                                            onClick={() => selectSession(session.session_id)}
-                                        >
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium text-stone-800 truncate">
-                                                    {session.title || 'Cuộc chat mới'}
-                                                </p>
-                                                <p className="text-xs text-stone-500">
-                                                    {formatDate(session.created_at)}
-                                                </p>
-                                            </div>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    deleteSession(session.session_id)
-                                                }}
-                                                className="p-1 hover:bg-red-100 rounded"
-                                                title="Xóa"
-                                            >
-                                                <TrashIcon className="w-4 h-4 text-red-500" />
-                                            </button>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
                         </div>
-                    )}
 
-                    {/* Main Content - Chat or Welcome */}
-                    <div className="flex-1 overflow-hidden flex flex-col">
-                        <ChatbotUI 
-                            title={title}
-                            placeholder={placeholder}
-                            onSendMessage={handleSendMessage}
-                            initialMessages={messages}
-                            onClose={close}
-                            quickActions={QUICK_ACTIONS}
-                            suggestedPrompts={SUGGESTED_PROMPTS}
-                            onQuickAction={handleQuickAction}
-                            showHeader={false}
-                        />
+                        {showSessionList && (
+                            <div className="border-b-2 border-stone-900 bg-stone-50">
+                                <div className="flex items-center justify-between px-4 py-2 border-b border-stone-200">
+                                    <span className="text-sm font-bold text-stone-700">Danh sách cuộc chat</span>
+                                    <button
+                                        onClick={() => void createNewSession()}
+                                        disabled={isCreatingSession}
+                                        className="flex items-center gap-1 px-2 py-1 bg-amber-500 text-white text-xs font-bold rounded border border-stone-900 shadow-[1px_1px_0_#1c1917] hover:bg-amber-600 disabled:opacity-50"
+                                    >
+                                        {isCreatingSession ? <ArrowPathIcon className="w-3 h-3 animate-spin" /> : <PlusIcon className="w-3 h-3" />}
+                                        Chat mới
+                                    </button>
+                                </div>
+
+                                <div className="max-h-[200px] overflow-y-auto">
+                                    {isLoadingSessions ? (
+                                        <div className="p-4 text-center text-stone-500 text-sm">Đang tải...</div>
+                                    ) : sessions.length === 0 ? (
+                                        <div className="p-4 text-center text-stone-500 text-sm">Chưa có cuộc chat nào</div>
+                                    ) : (
+                                        sessions.map((session) => (
+                                            <div
+                                                key={session.session_id}
+                                                className={`flex items-center justify-between px-4 py-2 border-b border-stone-100 hover:bg-stone-100 cursor-pointer ${
+                                                    session.session_id === sessionId ? 'bg-amber-50' : ''
+                                                }`}
+                                                onClick={() => void selectSession(session.session_id)}
+                                            >
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium text-stone-800 truncate">
+                                                        {session.title || 'Cuộc chat mới'}
+                                                    </p>
+                                                    <p className="text-xs text-stone-500">{formatDate(session.created_at)}</p>
+                                                </div>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        void deleteSession(session.session_id)
+                                                    }}
+                                                    className="p-1 hover:bg-red-100 rounded"
+                                                    title="Xóa"
+                                                >
+                                                    <TrashIcon className="w-4 h-4 text-red-500" />
+                                                </button>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex-1 overflow-hidden flex flex-col">
+                            <ChatbotUI
+                                title={title}
+                                placeholder={placeholder}
+                                onSendMessage={handleSendMessage}
+                                initialMessages={messages}
+                                onClose={close}
+                                quickActions={QUICK_ACTIONS}
+                                suggestedPrompts={SUGGESTED_PROMPTS}
+                                onQuickAction={handleQuickAction}
+                                showHeader={false}
+                                contextPanel={emrContextPanel}
+                            />
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* Backdrop when sidebar is open */}
             {isOpen && (
-                <div 
-                    className="fixed inset-0 bg-black/20 z-20"
-                    onClick={close}
-                />
+                <div className="fixed inset-0 bg-black/20 z-20" onClick={close} />
             )}
         </>
     )

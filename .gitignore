@@ -21,3 +21,4 @@ module_screen
 .idea/
 .opencode
 .agents
+.m2repo

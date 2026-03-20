@@ -57,7 +57,7 @@ class AgentFactory:
         Args:
             db_session: Database session
             provider_override: Optional provider to use ("openrouter" | "deepseek")
-            model_override: Optional model to override default (e.g., "google/gemini-2.0-flash-exp:free")
+            model_override: Optional model to override default (e.g., "google/gemini-2.5-flash-lite")
 
         Returns:
             SingleAgent instance voi:
@@ -278,7 +278,7 @@ class AgentFactory:
                 "temperature": 0.7,
                 "max_tokens": 2000,
                 "top_p": 0.9,
-                "model": "google/gemini-2.0-flash-exp:free",
+                "model": "google/gemini-2.5-flash-lite",
                 "system_prompt": "...",
                 "enabled": True,
                 "enabled_tools": ["pet_knowledge_search", "web_search", ...]

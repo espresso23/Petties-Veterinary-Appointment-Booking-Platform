@@ -1,20 +1,13 @@
 """
-PETTIES AGENT SERVICE - Booking Domain Logic
+Booking guidance helpers for the ReAct agent.
 
-All booking-related detection, context snapshot building, and
-prompt guidance generation.
-
-Package: app.core.agents
-Version: v1.1.0 (Extracted from single_agent.py)
+This module intentionally stays thin:
+- expose the booking tool set
+- provide semantic guidance for the LLM
+- avoid keyword-based booking intent detection or rigid flow control
 """
 
-from typing import Dict, List, Any, Optional, Set
-import re
-
-from app.core.agents.text_utils import (
-    extract_latest_user_message,
-    extract_all_user_messages,
-)
+from typing import Any, List, Set
 
 
 BOOKING_TOOL_NAMES: Set[str] = {
@@ -25,122 +18,10 @@ BOOKING_TOOL_NAMES: Set[str] = {
     "create_booking_for_user",
 }
 
-BOOKING_KEYWORDS = [
-    "đặt lịch",
-    "đặt khám",
-    "booking",
-    "book lịch",
-    "lịch khám",
-    "khung giờ",
-    "slot",
-    "phòng khám",
-    "dịch vụ",
-    "bác sĩ đến nhà",
-    "khám tại nhà",
-    "home visit",
-    "in clinic",
-]
-
 
 def has_booking_tools_enabled(enabled_tools_lower: Set[str]) -> bool:
-    """Check if any booking-related tools are enabled."""
+    """Return True when at least one booking tool is available."""
     return bool(enabled_tools_lower.intersection(BOOKING_TOOL_NAMES))
-
-
-def is_booking_request(text: str) -> bool:
-    """Check if the text contains booking intent keywords."""
-    normalized = (text or "").lower()
-    return any(kw in normalized for kw in BOOKING_KEYWORDS)
-
-
-def detect_booking_type(*texts: str) -> Optional[str]:
-    """Detect booking type (home_visit or in_clinic) from texts."""
-    combined = "\n".join(t for t in texts if t).lower()
-    if any(
-        kw in combined
-        for kw in [
-            "tại nhà",
-            "ở nhà",
-            "home visit",
-            "khám tại nhà",
-            "bác sĩ đến nhà",
-            "đến nhà khám",
-        ]
-    ):
-        return "home_visit"
-    if any(
-        kw in combined
-        for kw in [
-            "tại phòng khám",
-            "ở phòng khám",
-            "in clinic",
-            "đến phòng khám",
-            "ra phòng khám",
-        ]
-    ):
-        return "in_clinic"
-    return None
-
-
-def build_booking_context_snapshot(
-    messages: List[Any],
-    context: str,
-) -> Dict[str, bool]:
-    """Analyse conversation to determine which booking fields are known."""
-    user_messages = extract_all_user_messages(messages)
-    combined_user = "\n".join(user_messages)
-    combined = "\n".join(part for part in [combined_user, context] if part)
-    latest = extract_latest_user_message(messages)
-
-    booking_type = detect_booking_type(combined)
-    _ci = re.IGNORECASE
-
-    return {
-        "has_booking_intent": is_booking_request(combined or latest),
-        "booking_type_known": booking_type is not None,
-        "is_home_visit": booking_type == "home_visit",
-        "is_in_clinic": booking_type == "in_clinic",
-        "clinic_known": bool(
-            re.search(
-                r"clinic[_ ]?id|clinicId|phòng khám\s+[^\n]+|clinic\s+[^\n]+",
-                combined,
-                _ci,
-            )
-        ),
-        "service_known": bool(
-            re.search(
-                r"service[_ ]?ids?|serviceId|dịch vụ|tiêm phòng|khám tổng quát|triệt sản|spa|xét nghiệm",
-                combined,
-                _ci,
-            )
-        ),
-        "pet_known": bool(
-            re.search(
-                r"pet[_ ]?id|petId|thú cưng tên|bé\s+[A-Za-zÀ-ỹ0-9_]+", combined, _ci
-            )
-        ),
-        "date_known": bool(
-            re.search(
-                r"booking_date|\b\d{4}-\d{2}-\d{2}\b|ngày mai|hôm nay|thứ\s*[2-8]",
-                combined,
-                _ci,
-            )
-        ),
-        "time_known": bool(
-            re.search(
-                r"start_time|\b\d{1,2}:\d{2}\b|buổi sáng|buổi chiều|buổi tối|slot",
-                combined,
-                _ci,
-            )
-        ),
-        "address_known": bool(
-            re.search(
-                r"địa chỉ|address|latitude|longitude|query_location|khu vực",
-                combined,
-                _ci,
-            )
-        ),
-    }
 
 
 def build_booking_prompt_guidance(
@@ -148,73 +29,31 @@ def build_booking_prompt_guidance(
     context: str,
     enabled_tools_lower: Set[str],
 ) -> str:
-    """Build booking-specific prompt guidance for the LLM.
-
-    Returns empty string if no booking tools are enabled.
-    """
+    """Return semantic booking guidance without forcing a hardcoded flow."""
     if not has_booking_tools_enabled(enabled_tools_lower):
         return ""
 
-    snapshot = build_booking_context_snapshot(messages, context)
-    if not snapshot["has_booking_intent"]:
-        return (
-            "=== QUY TRÌNH HỖ TRỢ ĐẶT LỊCH (Khi phù hợp) ===\n"
-            "- Khi người dùng bắt đầu muốn đặt lịch, chỉ hỏi NHỮNG THÔNG TIN CÒN THIẾU.\n"
-            "- Ưu tiên xác định rõ hình thức khám trước: tại phòng khám hay tại nhà.\n"
-            "- Nếu người dùng đã nêu sẵn phòng khám, dịch vụ, thú cưng hoặc thời gian thì KHÔNG hỏi lại.\n"
-            "- Nếu dịch vụ là tiêm chủng, vẫn xử lý như service bình thường trong flow booking; "
-            "có thể nêu giá theo mũi để người dùng tự chọn như flow thủ công, "
-            "nhưng KHÔNG tạo flow riêng hoặc hỏi quá chuyên sâu.\n"
-            "- Chỉ gọi `create_booking_for_user` sau khi đã tóm tắt đầy đủ và người dùng xác nhận rõ ràng.\n"
-        )
-
-    known: List[str] = []
-    missing: List[str] = []
-
-    if snapshot["is_home_visit"]:
-        known.append("hình thức khám: tại nhà")
-    elif snapshot["is_in_clinic"]:
-        known.append("hình thức khám: tại phòng khám")
-    else:
-        missing.append("hình thức khám (tại nhà hay tại phòng khám)")
-
-    field_mapping = [
-        ("clinic_known", "phòng khám"),
-        ("service_known", "dịch vụ"),
-        ("pet_known", "thú cưng cụ thể"),
-        ("date_known", "ngày khám"),
-        ("time_known", "giờ khám"),
-    ]
-    for key, label in field_mapping:
-        (known if snapshot[key] else missing).append(label)
-
-    if snapshot["is_home_visit"]:
-        target = known if snapshot["address_known"] else missing
-        target.append("địa chỉ/khu vực khám tại nhà")
-
-    known_text = ", ".join(known) if known else "chưa có thông tin chắc chắn"
-    missing_text = (
-        ", ".join(missing) if missing else "không còn thiếu thông tin quan trọng"
-    )
+    _ = messages
+    _ = context
 
     return (
-        f"=== QUY TRÌNH HỖ TRỢ ĐẶT LỊCH (Quan trọng) ===\n"
-        f"- Người dùng đang có ý định đặt lịch. Hãy dùng đúng ngữ cảnh hiện có và CHỈ hỏi phần còn thiếu.\n"
-        f"- Thứ tự ưu tiên:\n"
-        f"  1. Nếu CHƯA rõ hình thức khám, hỏi trước: tại nhà hay tại phòng khám.\n"
-        f"  2. Nếu đã rõ phòng khám/dịch vụ/thú cưng/thời gian thì không hỏi lại các mục đó.\n"
-        f"    2a. Nếu dịch vụ là tiêm chủng, vẫn coi là service bình thường; "
-        f"có thể cho người dùng biết giá theo mũi/dose nếu đã có dữ liệu, "
-        f"rồi để người dùng chọn tự nhiên như flow booking thủ công.\n"
-        f"  3. Nếu là khám tại nhà, cần xác nhận địa chỉ/khu vực trước khi chốt lịch.\n"
-        f"  4. Chỉ gọi `check_available_slots` khi đã có đủ phòng khám + dịch vụ + ngày và đã rõ hình thức khám.\n"
-        f"  5. Chỉ gọi `create_booking_for_user` sau khi tóm tắt lại booking và người dùng xác nhận rõ ràng.\n"
-        f"- Nếu người dùng chọn khám tại nhà nhưng flow/tool hiện tại chưa tạo booking tại nhà đầy đủ, "
-        f"hãy nói rõ và hướng dẫn sang bước xác nhận/handoff phù hợp thay vì tự tạo booking sai loại.\n"
-        f"- Với tiêm chủng, ưu tiên giữ trải nghiệm giống flow thủ công hiện tại: "
-        f"hiển thị/thông báo giá theo mũi nếu có, nhưng không bắt buộc phải mở thêm quy trình đặc biệt "
-        f"ngoài các thông tin booking cơ bản.\n\n"
-        f"Ngữ cảnh booking đã nhận ra:\n"
-        f"- Đã biết: {known_text}\n"
-        f"- Còn thiếu/ cần xác nhận: {missing_text}\n"
+        "=== NGUYEN TAC BOOKING VOI AI ===\n"
+        "- Chon booking tool dua tren y nghia cua hoi thoai va input schema, khong duoc route theo keyword cung.\n"
+        "- Duoc phep goi nhieu booking tool lien tiep neu moi tool mo ra them context cho tool sau.\n"
+        "- Chi fetch du lieu khi can. Khong preload pets, clinics, services neu cau hoi hien tai chua can.\n"
+        "- Neu user da neu ten thu cung, phong kham, dich vu, ngay hoac khung gio thi khong hoi lai thong tin do.\n"
+        "- Neu user da neu phong kham cu the thi uu tien phong kham do; chi dung GPS de tim gan day khi user yeu cau gan toi/gian day hoac chua co clinic target ro rang.\n"
+        "- Voi booking, neu schema con thieu du lieu bat buoc thi hoi lai dung phan con thieu. Khong reset hoi thoai, khong chao lai, khong quay ve flow mac dinh.\n"
+        "- Khi can chon pet tu nguyen canh hoi thoai, co the goi `get_user_pets` de lay pet_id, nhung chi khi ten pet chua du ro de goi tool tiep theo.\n"
+        "- Uu tien truyen tham so semantic cho tools nhu `clinic_hint`, `service_hint`, `date_expression`, `time_preference`, `transcript`, `latest_message` khi schema co ho tro.\n"
+        "- `create_booking_for_user` chi duoc goi khi user da the hien y muon tao yeu cau booking ro rang. Tool se tu bao missing fields neu thong tin chua du.\n"
+        "\n"
+        "=== MULTI-PET BOOKING ===\n"
+        "- Neu user muon dat lich cho nhieu thu cung (vi du: '2 bé mèo', 'bé mèo va bé chó'), su dung multi-pet mode.\n"
+        "- Multi-pet mode: truyen `items` param cho `create_booking_for_user` voi dinh dang:\n"
+        '  items = [{"pet_id": "...", "pet_hint": "bé mèo 1", "service_ids": ["..."]}, {"pet_id": "...", "pet_hint": "bé chó", "service_ids": ["..."]}]\n'
+        "- Moi thu cung se tao mot booking rieng tai cung phong kham, cung ngay, cung gio.\n"
+        "- Neu user chi noi 'tiêm phòng' ma khong chi ro thu cung nao, hoi xac nhan thu cung truoc.\n"
+        "- Neu user noi '2 bé mèo tiêm' -> items voi 2 pet cung service.\n"
+        "- Neu user noi 'bé mèo tiêm, bé chó khám' -> items voi pet khac nhau, service khac nhau.\n"
     )

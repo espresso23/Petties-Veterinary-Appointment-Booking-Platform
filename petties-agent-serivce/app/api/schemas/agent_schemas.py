@@ -28,7 +28,7 @@ class AgentResponse(BaseModel):
     temperature: float = 0.7
     max_tokens: int = 2000
     top_p: float = 0.9  # NEW: Top-P parameter
-    model: str = "google/gemini-2.0-flash-exp:free"  # OpenRouter model
+    model: str = "google/gemini-2.5-flash-lite"  # OpenRouter model
     system_prompt: Optional[str] = None
     enabled: bool = True
     created_at: Optional[datetime] = None

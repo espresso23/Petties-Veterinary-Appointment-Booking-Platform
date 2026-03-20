@@ -1,4 +1,4 @@
-# Authentication & Password Reset API - Unit Test Report
+﻿# Authentication & Password Reset API - Unit Test Report
 
 **Version:** 2.0
 **Last Updated:** 2025-12-20

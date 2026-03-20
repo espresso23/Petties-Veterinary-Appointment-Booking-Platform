@@ -1,4 +1,6 @@
-# **TECHNICAL SCOPE: PETTIES - AGENT MANAGEMENT**
+﻿# **TECHNICAL SCOPE: PETTIES - AGENT MANAGEMENT**
+
+> **Lưu ý cập nhật ngày 2026-03-17:** các đoạn trong tài liệu này có nhắc tới Visual Case Memory từ feedback ảnh, thumbs up/down và AI Diagnose cũ chỉ còn giá trị lịch sử. Kiến trúc hiện hành ưu tiên knowledge base nội bộ, EMR đã xác nhận và Gemini Vision; doctor/staff chẩn đoán không dùng `web_search`. Xem thêm [AI_SERVICE_TECHNICAL_SPECIFICATION.md](D:/SEP490/petties/docs-references/documentation/AI_SERVICE_TECHNICAL_SPECIFICATION.md) và [AI_DIAGNOSIS_FEATURE_PLAN.md](D:/SEP490/petties/docs-references/documentation/AI_DIAGNOSIS_FEATURE_PLAN.md).
 
 ## **1. Định hướng cốt lõi (Core Philosophy)**
 
@@ -384,18 +386,18 @@ Danh sách chi tiết các công nghệ được sử dụng để xây dựng h
     * Backend: SimpleGraphStore (MVP) → Neo4j (at scale)
     * Example: "Dry cough + runny nose" → KG infers "Upper respiratory infection" → "Antibiotics + keep warm"
 
-  * **Visual Case Memory (Qdrant `petties_case_memory` collection):**
+* **Case Memory từ EMR xác nhận:**
     * Vision LLM describes the image, then embeds the **textual description** (visual_description + diagnosis + symptoms) with Cohere and stores it together with metadata (species, disease, feedback, image_url, etc.)
     * On similar future images, retrieves confirmed cases to increase accuracy and provide explanations such as "based on a previous case confirmed by Staff/Vet"
     * Feedback-weighted retrieval: cases confirmed many times are boosted in ranking
-    * **Phase 2 (Planned):** Add a layer of **CLIP-style image embeddings** in a dedicated Qdrant collection for images, combined with text embeddings to better capture purely visual patterns. Not implemented in the current codebase.
+    * **Phase 2 (Done):** Add a layer of **CLIP-style image embeddings** in a dedicated Qdrant collection (`petties_kb_images`) for images extracted from PDFs, combined with text embeddings to better capture purely visual patterns. Implemented with Jina CLIP v2 (1024 dim) for image vectors and Cohere for text vectors. Supports hybrid search (text + image similarity).
 
   * **Query Expansion:**
     * LLM automatically expands short queries ("dog not eating" → synonyms, clinical terms, related symptoms)
     * Increases recall for RAG search
 
   * **Feedback Loop:**
-    * Thumbs up/down stored in MongoDB `chat_feedback` → confirmed cases embedded into Case Memory
+* Chat feedback chỉ dùng cho audit trải nghiệm; case memory cho doctor flow ưu tiên EMR đã xác nhận
     * Prompt optimization based on patterns found in feedback data
     * Periodic prune: remove low-value cases, prioritize verified ones
 
@@ -454,9 +456,10 @@ Các tính năng được phân nhóm theo chức năng và mức độ ưu tiê
 | **KB-02** | **Indexing Status** | Theo dõi trạng thái indexing: parsing → chunking → embedding → Qdrant. | **✅ Done** |
 | **KB-03** | **RAG Retrieval Test** | Admin nhập query test để xem RAG trả về chunks nào từ knowledge base. | **✅ Done** |
 | **KB-04** | **Query Expansion** | LLM tu dong mo rong query ngan gon truoc khi RAG search. Tang recall cho cau hoi ngan cua Staff. | **✅ Done** |
-| **KB-05** | **Knowledge Graph Index** | LlamaIndex KG extract triplets (trieu chung->benh->loai) tu tai lieu. Hybrid query RAG + KG. | **Planned (Phase 2)** |
-| **KB-06** | **Visual Case Memory** | Luu mo ta hinh anh + chan doan + feedback vao Qdrant. Tim case tuong tu cho lan sau. | **✅ Done** |
-| **KB-07** | **Feedback Loop & Case Embedding** | Thu thap feedback (thumbs up/down), embed confirmed cases vao Case Memory. | **✅ Done** |
+| **KB-05** | **Knowledge Graph Index** | LlamaIndex KG extract triplets (trieu chung->benh->loai) tu tai lieu. Hybrid query RAG + KG. Hash-based deduplication for consistent builds. | **✅ Done** |
+| **KB-06** | **Case Memory từ EMR xác nhận** | Tái sử dụng EMR đã xác nhận làm nguồn case memory nội bộ để truy xuất ca tương tự. | **🔄 Redesigned** |
+| **KB-07** | **KB Image Embeddings** | Extract images from PDF documents and index with Jina CLIP v2. Support hybrid search (text + image similarity) via `/query-hybrid` endpoint. | **✅ Done (2026-03-19)** |
+| **KB-08** | **Feedback & dữ liệu học** | Chat feedback chỉ dùng cho audit/chất lượng UX; nguồn học chính của chẩn đoán là EMR xác nhận. | **🔄 Redesigned** |
 
 ### **Agent Testing & Debugging**
 

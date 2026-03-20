@@ -1,4 +1,4 @@
-# API Thanh toán QR qua SePay
+﻿# API Thanh toán QR qua SePay
 
 **Cập nhật:** 2026-01-15
 

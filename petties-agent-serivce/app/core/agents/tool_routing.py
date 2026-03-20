@@ -1,169 +1,336 @@
 """
-PETTIES AGENT SERVICE - Post-Parse Tool Routing Rules
+Thin post-parse validator for booking-related tool calls.
 
-Rule engine that validates and enriches tool calls before execution
-(e.g. booking flow validation).
-
-Package: app.core.agents
-Version: v2.0.0 (Removed medical routing after tool merge)
+This module intentionally avoids keyword routing and flow rewrites.
+It only:
+- normalizes simple parameter shapes
+- enriches calls with full-conversation context fields
+- validates a minimal set of required inputs before execution
 """
 
-from typing import Dict, Any, List, Set
-from loguru import logger
+from __future__ import annotations
 
-from app.core.agents.booking_flow import (
-    BOOKING_TOOL_NAMES,
-    has_booking_tools_enabled,
-    build_booking_context_snapshot,
+from typing import Any, Callable, Dict, Iterable, List, Optional
+import re
+
+from app.core.agents.booking_context import resolve_booking_datetime_inputs
+from app.core.agents.booking_flow import BOOKING_TOOL_NAMES
+from app.core.agents.text_utils import (
+    extract_all_user_messages,
+    extract_latest_user_message,
 )
+
+
+BOOKING_TOOL_PARAM_ALLOWLIST: Dict[str, set[str]] = {
+    "get_user_pets": {"user_id"},
+    "get_clinic_services": {
+        "clinic_id",
+        "pet_species",
+        "is_home_visit",
+        "service_hint",
+        "booking_type",
+        "transcript",
+        "latest_message",
+    },
+    "search_clinics_nearby": {
+        "latitude",
+        "longitude",
+        "radius_km",
+        "top_k",
+        "address",
+        "clinic_hint",
+        "clinic_name_hint",
+        "service_hint",
+        "pet_id",
+        "pet_species",
+        "booking_type",
+        "transcript",
+        "latest_message",
+    },
+    "check_available_slots": {
+        "clinic_id",
+        "date",
+        "date_expression",
+        "service_ids",
+        "exact_time",
+        "time_preference",
+        "pet_id",
+        "pet_species",
+        "booking_type",
+        "service_hint",
+        "transcript",
+        "latest_message",
+    },
+    "create_booking_for_user": {
+        "pet_id",
+        "clinic_id",
+        "booking_date",
+        "start_time",
+        "service_ids",
+        "booking_type",
+        "notes",
+        "home_address",
+        "home_lat",
+        "home_long",
+        "distance_km",
+        "user_id",
+        "confirmed",
+        "date_expression",
+        "time_preference",
+        "transcript",
+        "latest_message",
+    },
+}
+
+
+def _coerce_float(value: Any) -> Optional[float]:
+    if value in (None, ""):
+        return None
+    try:
+        return float(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _coerce_int(value: Any, default: int) -> int:
+    if value in (None, ""):
+        return default
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return default
+
+
+def _coerce_bool(value: Any) -> Optional[bool]:
+    if isinstance(value, bool):
+        return value
+    if value in (None, ""):
+        return None
+    normalized = str(value).strip().lower()
+    if normalized in {"true", "1", "yes"}:
+        return True
+    if normalized in {"false", "0", "no"}:
+        return False
+    return None
+
+
+def _normalize_service_ids(value: Any) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return [str(value).strip()] if str(value).strip() else []
+
+
+def _normalize_booking_type(value: Any) -> Optional[str]:
+    normalized = str(value or "").strip().upper()
+    return normalized or None
+
+
+def _all_user_text(messages: List[Any]) -> str:
+    return "\n".join(extract_all_user_messages(messages))
+
+
+def _extract_runtime_location(context: str) -> Dict[str, Any]:
+    if not context:
+        return {}
+
+    location: Dict[str, Any] = {}
+
+    lat_match = re.search(r"latitude\s*=\s*([+-]?\d+(?:\.\d+)?)", context, re.IGNORECASE)
+    lng_match = re.search(r"longitude\s*=\s*([+-]?\d+(?:\.\d+)?)", context, re.IGNORECASE)
+    address_match = re.search(r"address\s*=\s*([^\n]+)", context, re.IGNORECASE)
+
+    if lat_match:
+        location["latitude"] = _coerce_float(lat_match.group(1))
+    if lng_match:
+        location["longitude"] = _coerce_float(lng_match.group(1))
+    if address_match:
+        address = str(address_match.group(1)).strip().rstrip(",")
+        if address:
+            location["address"] = address
+
+    return location
+
+
+def _build_missing_input_response(message: str) -> Dict[str, Any]:
+    return {
+        "tool_name": None,
+        "tool_params": {},
+        "should_end": True,
+        "thought": message,
+    }
+
+
+def _filter_allowed_params(tool_name: str, tool_params: Dict[str, Any]) -> Dict[str, Any]:
+    allowlist = BOOKING_TOOL_PARAM_ALLOWLIST.get(tool_name)
+    if not allowlist:
+        return tool_params
+    return {key: value for key, value in tool_params.items() if key in allowlist}
+
+
+def _enrich_context_fields(tool_name: str, tool_params: Dict[str, Any], messages: List[Any]) -> None:
+    if tool_name not in BOOKING_TOOL_NAMES:
+        return
+
+    latest_message = extract_latest_user_message(messages)
+    transcript = _all_user_text(messages)
+
+    if "latest_message" in BOOKING_TOOL_PARAM_ALLOWLIST.get(tool_name, set()) and not tool_params.get("latest_message"):
+        tool_params["latest_message"] = latest_message
+    if "transcript" in BOOKING_TOOL_PARAM_ALLOWLIST.get(tool_name, set()) and not tool_params.get("transcript"):
+        tool_params["transcript"] = transcript
+
+
+def _normalize_booking_tool_params(
+    tool_name: str,
+    tool_params: Dict[str, Any],
+    messages: List[Any],
+    build_context_fn: Callable[[List[Dict[str, Any]]], str],
+    react_steps: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    params = dict(tool_params or {})
+    params = _filter_allowed_params(tool_name, params)
+    _enrich_context_fields(tool_name, params, messages)
+
+    if tool_name in {"search_clinics_nearby", "create_booking_for_user", "check_available_slots", "get_clinic_services"}:
+        params["booking_type"] = _normalize_booking_type(params.get("booking_type"))
+
+    if tool_name == "get_clinic_services":
+        bool_value = _coerce_bool(params.get("is_home_visit"))
+        if bool_value is None and params.get("booking_type"):
+            params["is_home_visit"] = params["booking_type"] == "HOME_VISIT"
+        elif bool_value is not None:
+            params["is_home_visit"] = bool_value
+
+    if tool_name in {"check_available_slots", "create_booking_for_user"}:
+        params["service_ids"] = _normalize_service_ids(params.get("service_ids"))
+
+        resolved_datetime = resolve_booking_datetime_inputs(
+            date=params.get("date") if tool_name == "check_available_slots" else params.get("booking_date"),
+            date_expression=params.get("date_expression"),
+            exact_time=params.get("exact_time") if tool_name == "check_available_slots" else params.get("start_time"),
+            time_preference=params.get("time_preference"),
+            latest_message=params.get("latest_message"),
+            transcript=params.get("transcript"),
+        )
+        date_key = "date" if tool_name == "check_available_slots" else "booking_date"
+        time_key = "exact_time" if tool_name == "check_available_slots" else "start_time"
+
+        if not params.get(date_key) and resolved_datetime.get("date"):
+            params[date_key] = resolved_datetime["date"]
+        if not params.get(time_key) and resolved_datetime.get("exact_time"):
+            params[time_key] = resolved_datetime["exact_time"]
+        if not params.get("time_preference") and resolved_datetime.get("time_preference"):
+            params["time_preference"] = resolved_datetime["time_preference"]
+
+    if tool_name == "create_booking_for_user":
+        confirmed = _coerce_bool(params.get("confirmed"))
+        params["confirmed"] = bool(confirmed) if confirmed is not None else False
+
+    if tool_name == "search_clinics_nearby":
+        params["radius_km"] = _coerce_float(params.get("radius_km")) or 5.0
+        params["top_k"] = _coerce_int(params.get("top_k"), 5)
+
+        clinic_name_hint = str(params.get("clinic_name_hint") or "").strip()
+        if clinic_name_hint and not params.get("clinic_hint"):
+            params["clinic_hint"] = clinic_name_hint
+        params.pop("clinic_name_hint", None)
+
+        params["latitude"] = _coerce_float(params.get("latitude"))
+        params["longitude"] = _coerce_float(params.get("longitude"))
+
+        runtime_location = _extract_runtime_location(build_context_fn(react_steps))
+        if params.get("latitude") is None:
+            params["latitude"] = _coerce_float(runtime_location.get("latitude"))
+        if params.get("longitude") is None:
+            params["longitude"] = _coerce_float(runtime_location.get("longitude"))
+        if not params.get("address") and runtime_location.get("address"):
+            params["address"] = runtime_location["address"]
+
+    return params
 
 
 def apply_booking_tool_routing(
     parsed: Dict[str, Any],
     messages: List[Any],
     react_steps: List[Dict[str, Any]],
-    enabled_tools_lower: Set[str],
-    build_context_fn,
+    enabled_tools_lower: Iterable[str],
+    build_context_fn: Callable[[List[Dict[str, Any]]], str],
 ) -> Dict[str, Any]:
-    """Validate and enrich booking tool calls before execution.
-
-    Guards against premature create_booking / check_available_slots calls
-    by verifying required fields and user confirmation.
-
-    Args:
-        parsed: Output from thought_parser.parse_thought().
-        messages: Conversation messages.
-        react_steps: Previous ReAct steps.
-        enabled_tools_lower: Lowercase set of enabled tool names.
-        build_context_fn: Callable to build context string from react_steps.
-
-    Returns:
-        Possibly-modified parsed dict.
     """
-    tool_name = str(parsed.get("tool_name") or "").strip().lower()
-    if tool_name not in BOOKING_TOOL_NAMES:
+    Thin validator for booking tools.
+
+    It never changes the selected tool into another tool and never builds a rigid flow.
+    """
+    if not isinstance(parsed, dict):
         return parsed
 
-    context = build_context_fn(react_steps)
-    snapshot = build_booking_context_snapshot(messages, context)
-    if not snapshot["has_booking_intent"]:
+    tool_name = str(parsed.get("tool_name") or "").strip()
+    if not tool_name:
         return parsed
 
-    tool_params = dict(parsed.get("tool_params") or {})
+    normalized_tool = tool_name.lower()
+    if normalized_tool not in set(enabled_tools_lower):
+        return parsed
 
-    # Block check_available_slots / create_booking if booking type unknown
-    if (
-        tool_name in {"check_available_slots", "create_booking_for_user"}
-        and not snapshot["booking_type_known"]
-    ):
-        return {
-            **parsed,
-            "tool_name": None,
-            "tool_params": {},
-            "should_end": True,
-            "thought": (
-                "Để mình hỗ trợ đặt lịch đúng flow, bạn muốn khám tại phòng khám hay bác sĩ đến nhà ạ? "
-                "Mình sẽ dựa theo lựa chọn này để chỉ hỏi tiếp những thông tin còn thiếu."
-            ),
-        }
+    if normalized_tool not in BOOKING_TOOL_NAMES:
+        return parsed
 
-    if tool_name == "create_booking_for_user":
-        return _validate_create_booking(parsed, tool_params, snapshot)
+    tool_params = _normalize_booking_tool_params(
+        normalized_tool,
+        parsed.get("tool_params") or {},
+        messages,
+        build_context_fn,
+        react_steps,
+    )
 
-    return parsed
-
-
-def _validate_create_booking(
-    parsed: Dict[str, Any],
-    tool_params: Dict[str, Any],
-    snapshot: Dict[str, bool],
-) -> Dict[str, Any]:
-    """Validate required fields and confirmation for create_booking_for_user."""
-    # Auto-fill booking_type from context
-    if not tool_params.get("booking_type"):
-        if snapshot["is_home_visit"]:
-            tool_params["booking_type"] = "HOME_VISIT"
-        elif snapshot["is_in_clinic"]:
-            tool_params["booking_type"] = "IN_CLINIC"
-
-    normalized_type = str(tool_params.get("booking_type") or "").upper()
-
-    # Check required fields
-    required = {
-        "pet_id": "thú cưng",
-        "clinic_id": "phòng khám",
-        "booking_date": "ngày khám",
-        "start_time": "giờ khám",
-        "service_ids": "dịch vụ",
-    }
-    missing = [label for key, label in required.items() if not tool_params.get(key)]
-    if missing:
-        return {
-            **parsed,
-            "tool_name": None,
-            "tool_params": {},
-            "should_end": True,
-            "thought": (
-                "Trước khi tạo booking, mình còn thiếu: "
-                f"{', '.join(missing)}. Bạn giúp mình bổ sung các thông tin này nhé."
-            ),
-        }
-
-    # Check home visit specific fields
-    if normalized_type == "HOME_VISIT":
-        home_required = {
-            "home_address": "địa chỉ khám tại nhà",
-            "home_lat": "tọa độ vĩ độ",
-            "home_long": "tọa độ kinh độ",
-            "distance_km": "khoảng cách di chuyển",
-        }
-        home_missing = [
-            label
-            for key, label in home_required.items()
-            if tool_params.get(key) in (None, "")
-        ]
-        if home_missing:
+    if normalized_tool == "search_clinics_nearby":
+        has_explicit_target = bool(
+            str(tool_params.get("clinic_hint") or "").strip()
+            or str(tool_params.get("clinic_name_hint") or "").strip()
+            or str(tool_params.get("address") or "").strip()
+        )
+        if (tool_params.get("latitude") is None or tool_params.get("longitude") is None) and not has_explicit_target:
             return {
                 **parsed,
-                "tool_name": None,
-                "tool_params": {},
-                "should_end": True,
-                "thought": (
-                    "Để tạo booking khám tại nhà, mình còn thiếu: "
-                    f"{', '.join(home_missing)}. Bạn giúp mình bổ sung nhé."
+                **_build_missing_input_response(
+                    "Minh can vi tri hien tai cua ban de tim phong kham gan nhat. Ban bat GPS hoac gui khu vuc/quan giup minh nhe."
                 ),
             }
 
-    # Check user confirmation
-    if tool_params.get("confirmed") is not True:
-        services = tool_params.get("service_ids") or []
-        service_text = (
-            ", ".join(str(s) for s in services)
-            if isinstance(services, list) and services
-            else "dịch vụ đã chọn"
-        )
-        type_text = (
-            "khám tại nhà" if normalized_type == "HOME_VISIT" else "khám tại phòng khám"
-        )
-        extra = ""
-        if normalized_type == "HOME_VISIT":
-            extra = (
-                f", địa chỉ `{tool_params.get('home_address')}`, "
-                f"khoảng cách `{tool_params.get('distance_km')}` km"
-            )
+    if normalized_tool == "get_clinic_services" and not str(tool_params.get("clinic_id") or "").strip():
         return {
             **parsed,
-            "tool_name": None,
-            "tool_params": {},
-            "should_end": True,
-            "thought": (
-                f"Mình đã có đủ thông tin sơ bộ cho lịch {type_text}. "
-                f"Bạn vui lòng xác nhận giúp mình: pet `{tool_params.get('pet_id')}`, "
-                f"phòng khám `{tool_params.get('clinic_id')}`, "
-                f"ngày `{tool_params.get('booking_date')}`, giờ `{tool_params.get('start_time')}`, "
-                f"dịch vụ `{service_text}`{extra}. "
-                "Nếu đúng hết, mình sẽ tạo booking ở bước tiếp theo."
+            **_build_missing_input_response(
+                "Minh chua xac dinh duoc phong kham can xem dich vu. Ban cho minh biet phong kham cu the nhe."
             ),
         }
 
-    return {**parsed, "tool_params": tool_params}
+    if normalized_tool == "check_available_slots" and not str(tool_params.get("clinic_id") or "").strip():
+        return {
+            **parsed,
+            **_build_missing_input_response(
+                "Minh chua xac dinh duoc phong kham can kiem tra slot. Ban cho minh biet phong kham cu the nhe."
+            ),
+        }
+
+    if normalized_tool == "create_booking_for_user":
+        missing_fields: List[str] = []
+        if not str(tool_params.get("pet_id") or "").strip():
+            missing_fields.append("thu cung")
+        if not str(tool_params.get("clinic_id") or "").strip():
+            missing_fields.append("phong kham")
+        if missing_fields:
+            return {
+                **parsed,
+                **_build_missing_input_response(
+                    "Minh chua xac dinh duoc " + ", ".join(missing_fields) + " de tao yeu cau booking."
+                ),
+            }
+
+    return {
+        **parsed,
+        "tool_name": normalized_tool,
+        "tool_params": tool_params,
+    }

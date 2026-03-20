@@ -1,20 +1,22 @@
 """
 PETTIES AI SERVICE - Case Memory Service
 
-Tích lũy case đã xác nhận (medical, booking, clinic_ops, general)
-vào Qdrant collection `petties_case_memory_v2` với named vectors:
-    - text vector (Cohere)
-    - image vector (Jina CLIP, optional)
+Tích lũy case đã xác nhận từ EMR vào Qdrant collection `petties_case_memory_v2`:
+    - Nguồn: EMR confirmed (final_diagnosis từ bác sĩ)
+    - Text vector (Cohere)
+    - Image vector (Jina CLIP, optional)
 
 Package: app.core.rag
-Purpose: Visual Case Memory & lưu trữ case đã xác nhận đa danh mục
-Version: v1.0.0
+Purpose: Lưu trữ case đã xác nhận để hỗ trợ chẩn đoán phân biệt
+Version: v2.0.0 (2026-03-17 - EMR-driven)
 
 Flow:
-    1. User/Vet xác nhận AI trả lời đúng (feedback positive)
-    2. FeedbackService extract case -> gọi CaseMemoryService.upsert_case()
+    1. EMR được tạo/sửa với final_diagnosis
+    2. EmrCaseMemorySyncService extract case -> gọi CaseMemoryService.upsert_case()
     3. Text description luôn được embed; ảnh (nếu có URL hợp lệ) sẽ embed thêm
-    4. Lần sau query tương tự -> hybrid search (text + image) -> re-rank theo feedback
+    4. Staff diagnosis flow query case tương tự -> hybrid search
+
+Lưu ý: Nguồn cũ từ thumbs up feedback đã bị loại bỏ theo AI_DIAGNOSIS_FEATURE_PLAN.md.
 
 Công thức tính điểm:
     final_score = cosine_similarity
@@ -307,30 +309,32 @@ class CaseMemoryService:
             return ""
 
         # Dedup trực tiếp trên text_vector để tránh embed + search 2 lần
-        try:
-            dedup_resp = self._qdrant_client.query_points(
-                collection_name=self._collection_name,
-                query=text_vector,
-                using="text",
-                limit=1,
-                score_threshold=DEDUP_THRESHOLD,
-                with_payload=True,
-            )
-            dedup_hits = dedup_resp.points if dedup_resp else []
-        except Exception as e:
-            logger.error(f"CaseMemory dedup query failed: {e}")
-            dedup_hits = []
+        dedup_hits = []
+        if not case_id:
+            try:
+                dedup_resp = self._qdrant_client.query_points(
+                    collection_name=self._collection_name,
+                    query=text_vector,
+                    using="text",
+                    limit=1,
+                    score_threshold=DEDUP_THRESHOLD,
+                    with_payload=True,
+                )
+                dedup_hits = dedup_resp.points if dedup_resp else []
+            except Exception as e:
+                logger.error(f"CaseMemory dedup query failed: {e}")
+                dedup_hits = []
 
-        if dedup_hits:
-            hit = dedup_hits[0]
-            payload = hit.payload or {}
-            existing_id = payload.get("case_id", str(hit.id))
-            logger.info(
-                f"Near-duplicate found via vector check (score={hit.score:.3f}), "
-                f"incrementing feedback_count for case {existing_id}"
-            )
-            await self.update_feedback_count(existing_id)
-            return existing_id
+            if dedup_hits:
+                hit = dedup_hits[0]
+                payload = hit.payload or {}
+                existing_id = payload.get("case_id", str(hit.id))
+                logger.info(
+                    f"Near-duplicate found via vector check (score={hit.score:.3f}), "
+                    f"incrementing feedback_count for case {existing_id}"
+                )
+                await self.update_feedback_count(existing_id)
+                return existing_id
 
         image_vector: Optional[List[float]] = None
         image_urls_clean: List[str] = []
@@ -375,6 +379,7 @@ class CaseMemoryService:
         # Prepare payload
         now = datetime.now(timezone.utc).isoformat()
         case_id = case_id or str(uuid.uuid4())
+        point_id = self._to_point_id(case_id)
 
         full_payload = {
             "case_id": case_id,
@@ -402,7 +407,7 @@ class CaseMemoryService:
             collection_name=self._collection_name,
             points=[
                 PointStruct(
-                    id=case_id,
+                    id=point_id,
                     vector=vectors,
                     payload=full_payload,
                 )
@@ -571,7 +576,7 @@ class CaseMemoryService:
             try:
                 points = self._qdrant_client.retrieve(
                     collection_name=self._collection_name,
-                    ids=[case_id],
+                    ids=[self._to_point_id(case_id)],
                     with_payload=True,
                     with_vectors=False,
                 )
@@ -640,7 +645,7 @@ class CaseMemoryService:
             try:
                 points = self._qdrant_client.retrieve(
                     collection_name=self._collection_name,
-                    ids=[case_id],
+                    ids=[self._to_point_id(case_id)],
                     with_payload=False,
                     with_vectors=False,
                 )
@@ -787,6 +792,21 @@ class CaseMemoryService:
                 "image_enabled": self._image_enabled,
                 "error": str(e),
             }
+
+    def _to_point_id(self, case_id: str) -> str:
+        """Map logical case_id to a deterministic UUID accepted by Qdrant."""
+        normalized_case_id = (case_id or "").strip()
+        if not normalized_case_id:
+            normalized_case_id = str(uuid.uuid4())
+        try:
+            return str(uuid.UUID(normalized_case_id))
+        except ValueError:
+            return str(
+                uuid.uuid5(
+                    uuid.NAMESPACE_URL,
+                    f"petties-case-memory:{normalized_case_id}",
+                )
+            )
 
 
 # ============================================================

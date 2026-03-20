@@ -1,4 +1,4 @@
-# PETTIES - Testing Strategy Document
+﻿# PETTIES - Testing Strategy Document
 
 **Version:** 4.3  
 **Last Updated:** 2025-12-27  

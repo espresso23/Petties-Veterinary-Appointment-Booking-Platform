@@ -1,11 +1,11 @@
 """
 PETTIES AGENT SERVICE - Context Policy Service
-Role/context-based tool governance cho business chat va admin playground.
+Role/context-based tool governance cho business chat và admin playground.
 
 Package: app.core
 Purpose:
-    - Xac dinh tool whitelist theo user_role va context_type
-    - Bo sung prompt guardrails theo context de agent khong dung sai tool
+    - Xác định tool whitelist theo user_role và context_type
+    - Bổ sung prompt guardrails theo context để agent không dùng sai tool
 """
 
 from typing import Iterable, List, Optional, Sequence
@@ -47,29 +47,27 @@ ROLE_RESPONSE_STYLES = {
 
 
 class ContextPolicyService:
-    """Service xay dung tool whitelist va prompt guardrails theo role/context."""
+    """Service xây dựng tool whitelist và prompt guardrails theo role/context."""
 
     ROLE_BUSINESS_TOOLS = {
         "PET_OWNER": {
             "pet_knowledge_search",
             "web_search",
             "get_user_pets",
+            "get_pet_health_summary",
             "search_clinics_nearby",
             "check_available_slots",
             "create_booking_for_user",
             "get_clinic_services",
             "check_vaccination_status",
-            "analyze_pet_image",
         },
         "STAFF": {
             "pet_knowledge_search",
-            "web_search",
             "get_user_pets",
             "search_clinics_nearby",
             "check_available_slots",
             "create_booking_for_user",
             "get_clinic_services",
-            "analyze_pet_image",
             "get_patient_summary",
             "get_emr_history",
             "check_vaccination_status",
@@ -82,7 +80,6 @@ class ContextPolicyService:
             "check_available_slots",
             "create_booking_for_user",
             "get_clinic_services",
-            "analyze_pet_image",
             "get_patient_summary",
             "get_emr_history",
             "check_vaccination_status",
@@ -98,7 +95,6 @@ class ContextPolicyService:
             "check_available_slots",
             "create_booking_for_user",
             "get_clinic_services",
-            "analyze_pet_image",
             "get_patient_summary",
             "get_emr_history",
             "check_vaccination_status",
@@ -117,7 +113,7 @@ class ContextPolicyService:
         context_type: Optional[str],
         available_tools: Optional[Sequence[str]] = None,
     ) -> List[str]:
-        """Tra ve tool whitelist da filter theo role/context va tool availability."""
+        """Trả về tool whitelist đã filter theo role/context và tool availability."""
         normalized_context = normalize_context_type(context_type, BUSINESS_CHAT)
         normalized_role = cls.normalize_role(user_role)
         normalized_available = cls._normalize_tool_names(available_tools)
@@ -155,7 +151,7 @@ class ContextPolicyService:
         context_type: Optional[str],
         allowed_tools: Optional[Iterable[str]] = None,
     ) -> str:
-        """Append prompt guardrails de agent nhin thay dung context va whitelist hien tai."""
+        """Append prompt guardrails để agent nhìn thấy đúng context và whitelist hiện tại."""
         prompt = (base_prompt or "").rstrip()
 
         if not user_role and not context_type:
@@ -164,7 +160,7 @@ class ContextPolicyService:
         normalized_role = cls.normalize_role(user_role)
         normalized_context = normalize_context_type(context_type, BUSINESS_CHAT)
         tool_list = list(dict.fromkeys(allowed_tools or []))
-        tool_text = ", ".join(tool_list) if tool_list else "khong co tool nao"
+        tool_text = ", ".join(tool_list) if tool_list else "không có tool nào"
         role_style = ROLE_RESPONSE_STYLES.get(
             normalized_role,
             ROLE_RESPONSE_STYLES["PET_OWNER"],
@@ -187,12 +183,21 @@ class ContextPolicyService:
                 f"{role_style}"
             )
 
+        if normalized_role == "STAFF":
+            guardrail = (
+                f"{guardrail} Với các câu hỏi chẩn đoán bệnh cho bác sĩ hoặc staff, không được dùng web_search "
+                "hoặc nguồn web bên ngoài. Chỉ được dựa trên knowledge base nội bộ, dữ liệu EMR đã xác nhận "
+                "và các nguồn nội bộ đáng tin cậy trong hệ thống. Nếu không tìm thấy thông tin phù hợp trong "
+                "nguồn nội bộ, hãy trả lời rõ: 'Hiện chưa có thông tin về bệnh này trong hệ thống tri thức nội bộ.'"
+            )
+
         if "create_booking_for_user" in tool_list:
             guardrail = (
                 f"{guardrail} Không được gọi create_booking_for_user nếu người dùng chưa xác nhận rõ ràng đầy đủ thông tin booking. "
                 "Trước khi tạo booking, phải tóm tắt loại khám, pet, clinic, ngày, giờ và dịch vụ để người dùng xác nhận. "
                 "Nếu là HOME_VISIT thì còn phải có địa chỉ, tọa độ và khoảng cách di chuyển. "
-                "Nếu dịch vụ là tiêm chủng, hãy giữ cách tư vấn giống flow thủ công: có thể nêu giá theo mũi/dose cho người dùng biết và chọn, nhưng không tự tạo flow riêng hoặc yêu cầu thông tin chuyên sâu không cần thiết."
+                "Nếu dịch vụ là tiêm chủng, hãy giữ cách tư vấn giống flow thủ công: có thể nêu giá theo mũi/dose cho người dùng biết và chọn, "
+                "nhưng không tự tạo flow riêng hoặc yêu cầu thông tin chuyên sâu không cần thiết."
             )
 
         if not prompt:

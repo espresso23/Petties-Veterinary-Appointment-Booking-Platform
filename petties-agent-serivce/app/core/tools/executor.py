@@ -14,6 +14,7 @@ from loguru import logger
 from app.db.postgres.models import Tool
 from app.db.postgres.session import AsyncSessionLocal
 from app.core.tool_runtime_context import get_tool_runtime_context
+from app.core.tools.contracts import normalize_tool_input, normalize_tool_output
 
 
 class ToolExecutor:
@@ -73,6 +74,10 @@ class ToolExecutor:
         if parameters and isinstance(parameters, dict):
             parameters = {k.strip(): v for k, v in parameters.items()}
 
+        # Normalize aliases/coercions BEFORE schema filtering so we do not drop
+        # clinicId/serviceIds/lat keys that the LLM may output.
+        parameters = normalize_tool_input(tool_name, parameters)
+
         # Filter out parameters không có trong schema để tránh lỗi
         # "Unexpected keyword argument" từ Pydantic/FastMCP (ví dụ key "type" dư)
         if tool.input_schema and isinstance(tool.input_schema, dict):
@@ -97,6 +102,7 @@ class ToolExecutor:
         logger.info(f"Executing tool: {tool_name} with params: {parameters}")
 
         parameters = self._inject_contextual_parameters(tool_name, parameters)
+        parameters = normalize_tool_input(tool_name, parameters)
 
         # Step 2: Validate parameters
         self._validate_parameters(tool, parameters)
@@ -104,7 +110,12 @@ class ToolExecutor:
         # Step 3: Execute via FastMCP (with normalized params)
         result = await self._execute_mcp_tool(tool_name, parameters)
 
-        logger.info(f"Tool executed successfully: {tool_name}")
+        if result.get("success"):
+            logger.info(f"Tool executed successfully: {tool_name}")
+        else:
+            logger.warning(
+                f"Tool execution returned error payload: {tool_name} -> {result.get('error')}"
+            )
 
         return result
 
@@ -188,6 +199,7 @@ class ToolExecutor:
             from app.core.tools.mcp_server import call_mcp_tool
 
             result = await call_mcp_tool(tool_name, parameters)
+            result = normalize_tool_output(tool_name, result)
 
             return {"success": True, "data": result, "tool_name": tool_name}
 

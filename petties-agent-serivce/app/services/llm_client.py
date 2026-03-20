@@ -11,9 +11,9 @@ Supported Providers:
 - DeepSeek: Cloud API fallback
 
 OpenRouter Models:
-- google/gemini-2.0-flash-exp:free (1M context, FREE)
+- google/gemini-2.5-flash-lite (1M context, FREE)
 - meta-llama/llama-3.3-70b-instruct (Vietnamese good)
-- anthropic/claude-3.5-sonnet (Best quality)
+- anthropic/claude-3.7-sonnet (Best quality)
 """
 
 from typing import Optional, Dict, Any, List, AsyncIterator
@@ -36,7 +36,7 @@ class LLMConfig(BaseModel):
     """Configuration cho LLM client"""
 
     provider: str = "openrouter"  # openrouter | deepseek | openai
-    model: str = "google/gemini-2.0-flash-exp:free"  # Default: Free Gemini
+    model: str = "google/gemini-2.5-flash-lite"  # Default: Free Gemini
     fallback_model: str = "meta-llama/llama-3.3-70b-instruct"  # Fallback model
     temperature: float = 0.7
     max_tokens: int = 2000
@@ -109,7 +109,7 @@ class OpenRouterClient(BaseLLMClient):
         ```python
         client = OpenRouterClient(LLMConfig(
             api_key="sk-or-...",
-            model="google/gemini-2.0-flash-exp:free"
+            model="google/gemini-2.5-flash-lite"
         ))
         response = await client.generate("Hello, how are you?")
         ```
@@ -118,6 +118,13 @@ class OpenRouterClient(BaseLLMClient):
     """
 
     BASE_URL = "https://openrouter.ai/api/v1"
+    LEGACY_MODEL_ALIASES = {
+        "google/gemini-2.0-flash-exp:free": "google/gemini-2.5-flash-lite",
+        "google/gemini-2.0-flash-lite-preview-02-05:free": "google/gemini-2.5-flash-lite",
+        "google/gemini-2.0-flash-001": "google/gemini-2.5-flash-lite",
+        "google/gemini-2.5-flash-preview": "google/gemini-2.5-flash",
+        "anthropic/claude-3.5-sonnet": "anthropic/claude-3.7-sonnet",
+    }
 
     def __init__(self, config: LLMConfig):
         super().__init__(config)
@@ -142,6 +149,18 @@ class OpenRouterClient(BaseLLMClient):
 
         logger.info(f"OpenRouterClient initialized: {config.model}")
 
+    def _normalize_model_name(self, model_name: Optional[str]) -> str:
+        """Map stale OpenRouter model IDs to current stable IDs."""
+        requested = model_name or self.model
+        normalized = self.LEGACY_MODEL_ALIASES.get(requested, requested)
+        if normalized != requested:
+            logger.warning(
+                "Remapping legacy OpenRouter model '{}' to '{}'",
+                requested,
+                normalized,
+            )
+        return normalized
+
     async def generate(
         self,
         prompt: str,
@@ -161,7 +180,7 @@ class OpenRouterClient(BaseLLMClient):
         Returns:
             LLMResponse voi content va metadata
         """
-        model_to_use = kwargs.get("model", self.model)
+        model_to_use = self._normalize_model_name(kwargs.get("model", self.model))
         logger.debug(f"Generating with {model_to_use}: {prompt[:50]}...")
 
         messages = []
@@ -200,7 +219,7 @@ class OpenRouterClient(BaseLLMClient):
             messages.append({"role": "user", "content": prompt})
 
         payload = {
-            "model": kwargs.get("model", self.model),
+            "model": model_to_use,
             "messages": messages,
             "temperature": kwargs.get("temperature", self.config.temperature),
             "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
@@ -231,10 +250,14 @@ class OpenRouterClient(BaseLLMClient):
                 f"OpenRouter HTTP error: {e.response.status_code} - {e.response.text}"
             )
             # Try fallback model
-            if kwargs.get("model") != self.fallback_model:
+            if model_to_use != self.fallback_model:
                 logger.info(f"Trying fallback model: {self.fallback_model}")
                 return await self.generate(
-                    prompt, system_prompt, images=images, model=self.fallback_model, **kwargs
+                    prompt,
+                    system_prompt,
+                    images=images,
+                    model=self.fallback_model,
+                    **kwargs,
                 )
             raise
 
@@ -255,12 +278,13 @@ class OpenRouterClient(BaseLLMClient):
         Yields:
             Token strings
         """
-        logger.debug(f"Streaming with {self.model}: {prompt[:50]}...")
+        model_to_use = self._normalize_model_name(kwargs.get("model", self.model))
+        logger.debug(f"Streaming with {model_to_use}: {prompt[:50]}...")
 
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
-        
+
         # Multimodal content support for streaming
         images = kwargs.get("images")
         if images:
@@ -270,17 +294,26 @@ class OpenRouterClient(BaseLLMClient):
                     continue
                 img_data = img_data.strip()
                 if img_data.startswith("data:"):
-                    user_content.append({"type": "image_url", "image_url": {"url": img_data}})
+                    user_content.append(
+                        {"type": "image_url", "image_url": {"url": img_data}}
+                    )
                 elif img_data.startswith("http://") or img_data.startswith("https://"):
-                    user_content.append({"type": "image_url", "image_url": {"url": img_data}})
+                    user_content.append(
+                        {"type": "image_url", "image_url": {"url": img_data}}
+                    )
                 else:
-                    user_content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_data}"}})
+                    user_content.append(
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{img_data}"},
+                        }
+                    )
             messages.append({"role": "user", "content": user_content})
         else:
             messages.append({"role": "user", "content": prompt})
 
         payload = {
-            "model": kwargs.get("model", self.model),
+            "model": model_to_use,
             "messages": messages,
             "temperature": kwargs.get("temperature", self.config.temperature),
             "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
@@ -327,6 +360,7 @@ class OpenRouterClient(BaseLLMClient):
         Returns:
             LLMResponse
         """
+        model_to_use = self._normalize_model_name(kwargs.get("model", self.model))
         formatted_messages = []
 
         if system_prompt:
@@ -338,7 +372,7 @@ class OpenRouterClient(BaseLLMClient):
             )
 
         payload = {
-            "model": kwargs.get("model", self.model),
+            "model": model_to_use,
             "messages": formatted_messages,
             "temperature": kwargs.get("temperature", self.config.temperature),
             "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
@@ -620,9 +654,7 @@ def create_llm_client(config: Optional[LLMConfig] = None) -> BaseLLMClient:
         # Default to OpenRouter
         config = LLMConfig(
             provider="openrouter",
-            model=getattr(
-                settings, "OPENROUTER_MODEL", "google/gemini-2.0-flash-exp:free"
-            ),
+            model=getattr(settings, "OPENROUTER_MODEL", "google/gemini-2.5-flash-lite"),
             api_key=getattr(settings, "OPENROUTER_API_KEY", ""),
             temperature=0.7,
             max_tokens=2000,
@@ -696,7 +728,7 @@ async def create_llm_client_from_db(
             model = (
                 model_override
                 or await get_setting("OPENROUTER_DEFAULT_MODEL", db_session)
-                or "google/gemini-2.0-flash-exp:free"
+                or "google/gemini-2.5-flash-lite"
             )
             fallback_model = (
                 await get_setting("OPENROUTER_FALLBACK_MODEL", db_session)
@@ -726,6 +758,37 @@ async def create_llm_client_from_db(
 # ============================================================
 
 _llm_client: Optional[BaseLLMClient] = None
+_llm_client_from_db: Optional[BaseLLMClient] = None
+_llm_client_db_key: Optional[str] = None
+
+
+async def get_llm_client_from_db(db) -> BaseLLMClient:
+    """Get LLM client from DB settings with caching."""
+    global _llm_client_from_db, _llm_client_db_key
+
+    from app.api.routes.settings import get_setting
+
+    api_key = await get_setting("OPENROUTER_API_KEY", db)
+    model = await get_setting("OPENROUTER_DEFAULT_MODEL", db)
+    fallback = await get_setting("OPENROUTER_FALLBACK_MODEL", db)
+
+    cache_key = f"{api_key}:{model}:{fallback}"
+
+    if _llm_client_from_db is None or _llm_client_db_key != cache_key:
+        _llm_client_from_db = create_llm_client(
+            LLMConfig(
+                provider="openrouter",
+                model=model or "google/gemini-2.5-flash-lite",
+                fallback_model=fallback or "meta-llama/llama-3.3-70b-instruct",
+                api_key=api_key or "",
+                temperature=0.7,
+                max_tokens=2000,
+            )
+        )
+        _llm_client_db_key = cache_key
+        logger.info(f"LLM client (DB) cached: model={model}")
+
+    return _llm_client_from_db
 
 
 def get_llm_client() -> BaseLLMClient:
@@ -762,9 +825,11 @@ __all__ = [
     "create_llm_client",
     "create_llm_client_from_db",
     "get_llm_client",
+    "get_llm_client_from_db",
     "reset_llm_client",
     "close_llm_client",
 ]
+
 
 async def close_llm_client():
     """Cleanup LLM client resources during shutdown"""

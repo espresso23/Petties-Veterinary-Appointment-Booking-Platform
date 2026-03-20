@@ -1,4 +1,4 @@
-# 🔔 Sentry Error Monitoring Setup Guide
+﻿# 🔔 Sentry Error Monitoring Setup Guide
 
 **Mục đích:** Tự động báo lỗi production về Discord để team fix ngay  
 **Thời gian setup:** ~30 phút  

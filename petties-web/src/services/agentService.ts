@@ -79,6 +79,7 @@ export interface KnowledgeStatusResult {
     total_documents: number
     processed_documents: number
     total_vectors: number
+    total_image_vectors: number
     storage_size_bytes?: number
 }
 
@@ -97,6 +98,7 @@ export interface Document {
     file_size?: number
     processed: boolean
     vector_count: number
+    image_count?: number
     uploaded_at?: string
 }
 
@@ -269,6 +271,63 @@ export interface ChatSessionSummary {
 export interface SessionListResponse {
     total: number
     sessions: ChatSessionSummary[]
+}
+
+export interface StaffDiagnosisRequest {
+    request_id?: string
+    pet_id?: string
+    booking_id?: string
+    species: 'dog' | 'cat' | 'other'
+    breed?: string
+    age_months?: number
+    weight_kg?: number
+    sex?: 'male' | 'female' | 'unknown'
+    allergies?: string[]
+    doctor_description: string
+    body_part?: string
+    symptoms?: string[]
+    image_urls?: string[]
+    soap_draft?: {
+        subjective?: string
+        objective?: string
+        assessment?: string
+        plan?: string
+    }
+}
+
+export interface StaffDiagnosisSuggestion {
+    canonical_code?: string | null
+    display_name_vi: string
+    confidence_note: string
+    supporting_reasons: string[]
+}
+
+export interface StaffDiagnosisPrescriptionSuggestion {
+    medicine_name: string
+    dosage: string
+    frequency: string
+    duration_days?: number | null
+    instructions: string
+    caution?: string | null
+}
+
+export interface StaffDiagnosisResponse {
+    request_id: string
+    top_differentials: StaffDiagnosisSuggestion[]
+    supporting_evidence_from_kb: string[]
+    similar_confirmed_cases: string[]
+    vision_findings: string[]
+    image_descriptions: string[]
+    image_analysis: Array<{ url: string; description: string; order: number }>
+    suggested_questions: string[]
+    soap_suggestions: {
+        subjective_draft: string
+        objective_draft: string
+        assessment_draft: string
+        plan_draft: string
+    }
+    prescription_suggestions: StaffDiagnosisPrescriptionSuggestion[]
+    disclaimer: string
 }
 
 // ===== AGENT APIs =====
@@ -524,6 +583,24 @@ export const chatApi = {
     }
 }
 
+// ===== STAFF DIAGNOSIS API =====
+
+export const diagnosisApi = {
+    async analyzeCase(payload: StaffDiagnosisRequest): Promise<StaffDiagnosisResponse> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/staff-diagnosis/analyze`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => null)
+            throw new Error(err?.detail || 'Không thể phân tích ca bệnh')
+        }
+        return response.json()
+    }
+}
+
 // ===== FEEDBACK API =====
 
 export const feedbackApi = {
@@ -698,5 +775,5 @@ export const createChatWebSocket = (sessionId: string, contextType?: string): We
     return new WebSocket(fullWsUrl)
 }
 
-export default { agentApi, toolApi, knowledgeApi, chatApi, feedbackApi, kgApi, caseMemoryApi, createChatWebSocket }
+export default { agentApi, toolApi, knowledgeApi, chatApi, diagnosisApi, feedbackApi, kgApi, caseMemoryApi, createChatWebSocket }
 

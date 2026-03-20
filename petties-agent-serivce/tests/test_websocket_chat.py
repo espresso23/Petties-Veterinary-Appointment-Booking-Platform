@@ -34,11 +34,94 @@ class FakeAgent:
     agent_type = "single_agent"
     enabled_tools = ["pet_knowledge_search", "web_search"]
 
-    async def stream(self, user_message, session_id):
+    async def stream(self, user_message, session_id, **kwargs):
         yield {"type": "final_answer", "content": "phan hoi test"}
 
 
 class WebSocketChatTests(unittest.IsolatedAsyncioTestCase):
+    async def test_extract_latest_location_from_history_uses_previous_metadata(self):
+        history = [
+            {
+                "role": "user",
+                "content": "Tim phong kham gan toi",
+                "metadata": {
+                    "location": {
+                        "lat": 15.9575,
+                        "lng": 108.2575,
+                        "address": "Ngu Hanh Son, Da Nang",
+                    }
+                },
+            },
+            {
+                "role": "user",
+                "content": "Toi muon chon kham tong quat",
+                "metadata": {},
+            },
+        ]
+
+        location = websocket_chat._extract_latest_location_from_history(history)
+
+        self.assertEqual(location["lat"], 15.9575)
+        self.assertEqual(location["lng"], 108.2575)
+        self.assertEqual(location["address"], "Ngu Hanh Son, Da Nang")
+
+    async def test_augment_content_with_metadata_embeds_compact_ui_action_json(self):
+        content = "Toi chon phong kham Benh Vien Thu Y PetCare."
+        metadata = {
+            "ui_action": {
+                "type": "select_clinic",
+                "clinic_id": "clinic-1",
+                "clinic_name": "Benh Vien Thu Y PetCare",
+                "clinic_address": "FPT Complex Da Nang",
+            }
+        }
+
+        enriched = websocket_chat._augment_content_with_metadata(content, metadata)
+
+        self.assertIn(content, enriched)
+        self.assertIn('"ui_action"', enriched)
+        self.assertIn('"type":"select_clinic"', enriched)
+        self.assertIn('"clinic_id":"clinic-1"', enriched)
+
+    async def test_augment_content_with_metadata_embeds_structured_booking_update(self):
+        metadata = {
+            "ui_action": {
+                "type": "change_time",
+                "clinic_id": "clinic-1",
+                "booking_date": "2026-03-21",
+                "start_time": "09:00",
+                "service_ids": ["svc-1"],
+            }
+        }
+
+        enriched = websocket_chat._augment_content_with_metadata("", metadata)
+
+        self.assertIn('"ui_action"', enriched)
+        self.assertIn('"type":"change_time"', enriched)
+        self.assertIn('"booking_date":"2026-03-21"', enriched)
+        self.assertIn('"service_ids":["svc-1"]', enriched)
+
+    async def test_extract_clinic_suggestion_skips_auto_selected_explicit_match(self):
+        payload = {
+            "clinics": [
+                {
+                    "id": "clinic-1",
+                    "name": "PetCare",
+                }
+            ],
+            "total_found": 1,
+            "match_mode": "explicit_name",
+            "auto_select_clinic": True,
+            "resolved_clinic": {
+                "id": "clinic-1",
+                "name": "PetCare",
+            },
+        }
+
+        suggestion = websocket_chat.extract_clinic_suggestion(payload)
+
+        self.assertIsNone(suggestion)
+
     async def test_handle_chat_message_passes_role_and_context_to_factory(self):
         captured = {}
 
@@ -94,7 +177,7 @@ class WebSocketChatTests(unittest.IsolatedAsyncioTestCase):
         payload = websocket_chat.map_react_step_to_message(
             {
                 "step_type": "thought",
-                "content": "Tôi sẽ tìm phòng khám gần bạn",
+                "content": "Toi se tim phong kham gan ban",
                 "tool_name": "search_clinics_nearby",
                 "tool_params": {"radius_km": 5},
             },

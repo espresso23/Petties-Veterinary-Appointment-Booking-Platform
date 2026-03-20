@@ -1,4 +1,6 @@
-# AI Service Architecture Presentation
+﻿# AI Service Architecture Presentation
+
+> Lưu ý cập nhật ngày 2026-03-17: slide này có thể còn chứa tham chiếu lịch sử tới AI Diagnose cũ, thumbs feedback và visual case memory. Kiến trúc hiện hành là knowledge base + EMR xác nhận + Gemini Vision.
 ## Petties - Veterinary Appointment Booking Platform
 
 ---
@@ -165,9 +167,9 @@ sequenceDiagram
 | **Encrypted API Keys** | PostgreSQL (`system_settings`) | Secure storage of OpenRouter, Cohere, Qdrant keys | Persistent (encrypted) |
 | **Chat Sessions** | MongoDB (`ai_chat_sessions`) | Session metadata, user_id, timestamps | 30 days (configurable) |
 | **Chat Messages** | MongoDB (`ai_chat_messages`) | Full conversation history with ReAct traces (thought/action/observation) | 30 days (configurable) |
-| **User Feedback** | MongoDB (`chat_feedback`) | Thumbs up/down, reports, feedback text | 90 days (for analysis) |
+| **User Feedback** | MongoDB (`chat_feedback`) | Thumbs up/down, reports, feedback text (chỉ dùng cho UX analysis, không dùng làm nguồn học) | 90 days (for analysis) |
 | **Knowledge Base** | PostgreSQL (`knowledge_documents`) + Qdrant (`petties_knowledge`) | Document metadata + vector embeddings | Persistent |
-| **Case Memory** | Qdrant (`petties_case_memory_v2`) | Confirmed cases with text + image vectors (named vectors) | Persistent (with pruning) |
+| **Case Memory** | Qdrant (`petties_case_memory_v2`) | **EMR-confirmed cases** (thay thế feedback-driven): text + image vectors | Persistent (with pruning) |
 | **Tool Usage Logs** | MongoDB (implicit in chat_messages) | Audit trail of tool calls with parameters/results | 30 days |
 
 ### 4.2 AI-Related Tables in PostgreSQL

@@ -15,7 +15,10 @@ import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.exception.ResourceNotFoundException;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -31,6 +34,7 @@ public class EmrService {
         private final PetRepository petRepository;
         private final UserRepository userRepository;
         private final BookingRepository bookingRepository;
+        private final AiCaseMemorySyncService aiCaseMemorySyncService;
 
         /**
          * Create a new EMR record
@@ -126,6 +130,7 @@ public class EmrService {
                                                 : LocalDateTime.now())
                                 .reExaminationDate(request.getReExaminationDate())
                                 .createdAt(LocalDateTime.now())
+                                .updatedAt(LocalDateTime.now())
                                 .build();
 
                 EmrRecord saved = emrRecordRepository.save(emr);
@@ -137,6 +142,8 @@ public class EmrService {
                         petRepository.save(pet);
                         log.info("Updated pet {} weight to {} kg", pet.getName(), request.getWeightKg());
                 }
+
+                syncConfirmedCase(saved);
 
                 return mapToResponse(saved, pet);
         }
@@ -171,6 +178,7 @@ public class EmrService {
                 emr.setHeartRate(request.getHeartRate());
                 emr.setBcs(request.getBcs());
                 emr.setReExaminationDate(request.getReExaminationDate());
+                emr.setUpdatedAt(LocalDateTime.now());
 
                 // Update prescriptions if provided
                 if (request.getPrescriptions() != null) {
@@ -206,6 +214,8 @@ public class EmrService {
                         petRepository.save(pet);
                         log.info("Updated pet {} weight to {} kg", pet.getName(), request.getWeightKg());
                 }
+
+                syncConfirmedCase(saved);
 
                 return mapToResponse(saved, pet);
         }
@@ -317,5 +327,77 @@ public class EmrService {
                                 .isLocked(emr.getCreatedAt() != null &&
                                                 emr.getCreatedAt().plusHours(24).isBefore(LocalDateTime.now()))
                                 .build();
+        }
+
+        private InternalConfirmedEmrItemDto mapToInternalConfirmedItem(EmrRecord emr) {
+                Pet pet = petRepository.findById(emr.getPetId()).orElse(null);
+
+                List<String> imageUrls = emr.getImages() != null
+                                ? emr.getImages().stream()
+                                                .map(EmrImage::getUrl)
+                                                .filter(url -> url != null && !url.isBlank())
+                                                .collect(Collectors.toList())
+                                : List.of();
+
+                Map<String, Object> attachments = new LinkedHashMap<>();
+                attachments.put("image_urls", imageUrls);
+
+                return InternalConfirmedEmrItemDto.builder()
+                                .emrId(emr.getId())
+                                .petId(emr.getPetId())
+                                .clinicId(emr.getClinicId())
+                                .bookingId(emr.getBookingId())
+                                .doctorId(emr.getStaffId())
+                                .species(resolvePetSpecies(pet))
+                                .breed(pet != null ? pet.getBreed() : null)
+                                .chiefComplaint(firstNonBlank(emr.getSubjective(), emr.getNotes()))
+                                .symptoms(toSignalList(emr.getSubjective()))
+                                .physicalExam(toSignalList(emr.getObjective()))
+                                .clinicalNotes(firstNonBlank(emr.getNotes(), emr.getPlan(), emr.getObjective()))
+                                .finalDiagnosisText(emr.getAssessment())
+                                .verified(true)
+                                .examAt(emr.getExaminationDate())
+                                .updatedAt(emr.getUpdatedAt() != null ? emr.getUpdatedAt() : emr.getCreatedAt())
+                                .attachments(attachments)
+                                .build();
+        }
+
+        private void syncConfirmedCase(EmrRecord emr) {
+                if (emr == null || emr.getAssessment() == null || emr.getAssessment().isBlank()) {
+                        return;
+                }
+
+                try {
+                        aiCaseMemorySyncService.syncConfirmedEmr(mapToInternalConfirmedItem(emr));
+                } catch (Exception ex) {
+                        log.warn("Failed to trigger AI case memory sync for EMR {}: {}", emr.getId(), ex.getMessage());
+                }
+        }
+
+        private String resolvePetSpecies(Pet pet) {
+                if (pet == null || pet.getSpecies() == null) {
+                        return null;
+                }
+                return pet.getSpecies().name().toLowerCase();
+        }
+
+        private List<String> toSignalList(String value) {
+                if (value == null || value.isBlank()) {
+                        return List.of();
+                }
+                return Arrays.stream(value.split("[\\r\\n,;]+"))
+                                .map(String::trim)
+                                .filter(part -> !part.isBlank())
+                                .limit(8)
+                                .collect(Collectors.toList());
+        }
+
+        private String firstNonBlank(String... values) {
+                for (String value : values) {
+                        if (value != null && !value.isBlank()) {
+                                return value;
+                        }
+                }
+                return null;
         }
 }

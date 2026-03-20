@@ -1,4 +1,6 @@
-# PETTIES V0.0.1 - FEATURES & HAPPY FLOWS
+﻿# PETTIES V0.0.1 - FEATURES & HAPPY FLOWS
+
+> Lưu ý cập nhật ngày 2026-03-17: các mục cũ liên quan Visual Case Memory từ feedback ảnh, `analyze_pet_image` hoặc AI Diagnose admin flow chỉ còn giá trị lịch sử. Nguồn mô tả AI hiện hành là [AI_SERVICE_TECHNICAL_SPECIFICATION.md](D:/SEP490/petties/docs-references/documentation/AI_SERVICE_TECHNICAL_SPECIFICATION.md), [AI_DIAGNOSIS_FEATURE_PLAN.md](D:/SEP490/petties/docs-references/documentation/AI_DIAGNOSIS_FEATURE_PLAN.md) và [AI_DIAGNOSIS_PROGRESS.md](D:/SEP490/petties/docs-references/documentation/AI_DIAGNOSIS_PROGRESS.md).
 
 ---
 
@@ -21,7 +23,7 @@
 14. Đánh giá & review nhân viên
 15. Chat với AI Chatbot (Pet Care Assistant) ✅
 16. SOS - Cấp cứu khẩn cấp
-17. **AI Vision: Phân tích hình ảnh sức khỏe thú cưng** ✅
+17. **AI Vision: Phân tích hình ảnh sức khỏe thú cưng với khả năng học liên tục** ✅
 18. **Hủy yêu cầu thay đổi Email** ✅
 20. Xem đơn thuốc trong hồ sơ bệnh án (EMR) ✅
 21. Nhận thông báo & nhắc nhở (Push/Email/SMS) ✅
@@ -116,9 +118,11 @@
 
 9. **Knowledge Base Management (RAG)**
     - Upload tài liệu (PDF, DOCX, TXT, MD)
-    - Theo dõi trạng thái indexing (chunking & vectorization)
+    - Tự động extract ảnh từ PDF và tạo image embeddings (Jina CLIP v2)
+    - Theo dõi trạng thái indexing (chunking & vectorization + image count)
     - Test RAG retrieval với query examples
-    - Xem vector count và storage usage
+    - Hybrid search (text + image similarity) qua `/query-hybrid`
+    - Xem vector count và image count
 
 10. **Agent Testing & Debugging**
     - Interactive Chat Simulator để test agent
@@ -184,10 +188,11 @@
 │                                                                     │
 │  📚 Hybrid RAG Engine                                               │
 │  ├── RAG Engine: LlamaIndex + Qdrant Cloud + Cohere Embeddings     │
+│  ├── KB Images: Extract images from PDF + Jina CLIP embeddings      │
 │  ├── Query Expander: LLM-based short query expansion               │
 │  ├── Knowledge Graph: LlamaIndex KGIndex + SimpleGraphStore        │
-│  ├── Case Memory: Confirmed cases + feedback-weighted re-ranking   │
-│  └── Parallel Search: RAG + KG + Case Memory merged results       │
+│  ├── Case Memory: Confirmed cases + feedback-weighted re-ranking    │
+│  └── Parallel Search: RAG + KG + KB Images + Case Memory         │
 │                                                                     │
 │  💬 Feedback Loop                                                    │
 │  ├── User Feedback Collection (1-5 rating per message)             │
@@ -255,7 +260,7 @@
 - 🧠 Cung cấp ngữ cảnh quan hệ bổ sung cho RAG retrieval
 - 🧠 File: `app/core/rag/knowledge_graph.py`
 
-#### Visual Case Memory (Bộ nhớ ca bệnh) ✅
+#### Case Memory từ EMR xác nhận (thay cho hướng cũ)
 - 📋 **Confirmed Case Storage** - Lưu các ca bệnh đã xác nhận từ feedback tích cực vào Qdrant
 - 📋 **Feedback-weighted Re-ranking** - Score = cosine_similarity + min(feedback_count/100, 0.3) + (0.1 if staff_verified)
 - 📋 **Role-based Weights** - STAFF=1.0, CLINIC_MANAGER/OWNER=0.7, PET_OWNER=0.6

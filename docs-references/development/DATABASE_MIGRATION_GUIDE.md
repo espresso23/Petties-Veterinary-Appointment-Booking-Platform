@@ -1,4 +1,4 @@
-# 🗄️ Database Migration Guide (Backend & AI)
+﻿# 🗄️ Database Migration Guide (Backend & AI)
 
 Tài liệu này hướng dẫn cách quản lý và cập nhật cấu trúc Database (Schema) cho dự án Petties, đảm bảo tính đồng bộ và an toàn giữa hai hệ thống: **Spring Boot (Flyway)** và **FastAPI (Alembic)**.
 
@@ -95,7 +95,7 @@ Quy trình này được thiết kế để triển khai an toàn lên các môi
 
 ---
 
-## �🔧 Troubleshooting
+## ??? Troubleshooting
 
 | Vấn đề | Nguyên nhân | Giải pháp |
 | :--- | :--- | :--- |

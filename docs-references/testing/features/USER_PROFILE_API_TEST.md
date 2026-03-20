@@ -1,4 +1,4 @@
-# User Profile API - Unit Test Report
+﻿# User Profile API - Unit Test Report
 
 **Version:** 2.1
 **Last Updated:** 2025-12-20

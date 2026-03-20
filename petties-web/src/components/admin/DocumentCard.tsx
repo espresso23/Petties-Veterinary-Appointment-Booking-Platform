@@ -120,9 +120,16 @@ export const DocumentCard = ({ document, onDelete, onProcess }: DocumentCardProp
               )}
 
               {document.processed && (
-                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                  {document.vector_count} vectors
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                    {document.vector_count} text
+                  </span>
+                  {(document.image_count ?? 0) > 0 && (
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                      {document.image_count} images
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           </div>

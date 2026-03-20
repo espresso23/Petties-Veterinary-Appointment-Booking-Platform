@@ -96,13 +96,57 @@ class KnowledgeGraphService:
         self._kg_index = None
         self._graph_store = None
         self._persist_dir = persist_dir
-        self._llm_model = "google/gemini-2.0-flash-001"
+        self._llm_model = "google/gemini-2.5-flash-lite"
         self._initialized = False
+
+        # Deduplication tracking
+        self._triplet_hashes: set = set()  # Track existing triplet hashes
+        self._processed_doc_ids: set = set()  # Track processed document IDs
 
         import asyncio
 
         self._init_lock = asyncio.Lock()
         logger.debug("KnowledgeGraphService instance created")
+
+    # ----------------------------------------------------------
+    # Helper methods
+    # ----------------------------------------------------------
+
+    def _get_triplet_hash(self, subj: str, pred: str, obj: str) -> str:
+        """Generate deterministic hash for triplet to detect duplicates."""
+        import hashlib
+
+        key = f"{subj.lower()}|{pred.lower()}|{obj.lower()}"
+        return hashlib.md5(key.encode("utf-8")).hexdigest()
+
+    def _load_tracking_state(self) -> None:
+        """Load tracking state from persisted graph store."""
+        try:
+            if self._graph_store:
+                # Get all existing triplets from graph store
+                triplets_data = self._graph_store.get("triplets")
+                if triplets_data and isinstance(triplets_data, list):
+                    for item in triplets_data:
+                        if isinstance(item, dict):
+                            subj = item.get("subj", "")
+                            pred = item.get("rel", "")
+                            obj = item.get("obj", "")
+                            if subj and pred and obj:
+                                self._triplet_hashes.add(
+                                    self._get_triplet_hash(subj, pred, obj)
+                                )
+
+                # Get processed document IDs
+                doc_ids_data = self._graph_store.get("processed_doc_ids")
+                if doc_ids_data and isinstance(doc_ids_data, list):
+                    self._processed_doc_ids = set(doc_ids_data)
+
+                logger.info(
+                    f"Loaded tracking state: {len(self._triplet_hashes)} triplets, "
+                    f"{len(self._processed_doc_ids)} documents"
+                )
+        except Exception as e:
+            logger.warning(f"Could not load tracking state: {e}")
 
     # ----------------------------------------------------------
     # Initialization
@@ -145,7 +189,7 @@ class KnowledgeGraphService:
                 openrouter_api_key = await get_setting("OPENROUTER_API_KEY", db)
                 llm_model = (
                     await get_setting("KG_LLM_MODEL", db)
-                    or "google/gemini-2.0-flash-001"
+                    or "google/gemini-2.5-flash-lite"
                 )
                 self._llm_model = llm_model
 
@@ -183,9 +227,14 @@ class KnowledgeGraphService:
                 self._graph_store = SimpleGraphStore.from_persist_path(
                     str(graph_store_file)
                 )
+                # Load tracking state from existing graph
+                self._load_tracking_state()
             else:
                 logger.info("Creating new SimpleGraphStore")
                 self._graph_store = SimpleGraphStore()
+                # Initialize empty tracking
+                self._triplet_hashes = set()
+                self._processed_doc_ids = set()
 
             self._initialized = True
             logger.info("KnowledgeGraphService initialized successfully")
@@ -281,16 +330,34 @@ class KnowledgeGraphService:
                     )
                     continue
 
+                # Deduplication: skip if triplet already exists
+                triplet_hash = self._get_triplet_hash(subj_clean, pred_clean, obj_clean)
+                if triplet_hash in self._triplet_hashes:
+                    logger.debug(
+                        f"Skipping duplicate triplet: {subj_clean} -> {pred_clean} -> {obj_clean}"
+                    )
+                    continue
+
+                # Add to tracking set
+                self._triplet_hashes.add(triplet_hash)
+
                 self._graph_store.upsert_triplet(
                     subj=subj_clean, rel=pred_clean, obj=obj_clean
                 )
                 saved_count += 1
 
-            # Persist to disk
+            # Track processed document IDs
+            for doc in documents:
+                doc_id = doc.metadata.get("document_id") if doc.metadata else None
+                if doc_id:
+                    self._processed_doc_ids.add(str(doc_id))
+
+            # Persist to disk (including tracking state)
             self._persist()
 
             logger.info(
-                f"Saved {saved_count}/{len(triplets)} triplets from {len(documents)} documents"
+                f"Saved {saved_count}/{len(triplets)} triplets from {len(documents)} documents "
+                f"(total unique: {len(self._triplet_hashes)})"
             )
             return saved_count
 
@@ -353,7 +420,9 @@ Ví dụ output:
   ["Rận tai", "thường_gặp_ở", "Mèo"]
 ]"""
 
-        for chunk in chunks[:3]:  # Giới hạn 3 chunks
+        for chunk in chunks[
+            :15
+        ]:  # Tăng từ 3 lên 15 chunks để cover đầy đủ cho tài liệu lớn
             # Bỏ qua chunk quá ngắn
             if len(chunk.strip()) < 50:
                 continue
@@ -377,7 +446,7 @@ Ví dụ output:
                                     "content": f"Trích xuất triplets từ văn bản thú y sau:\n\n{chunk[:3000]}",
                                 },
                             ],
-                            "max_tokens": 1200,
+                            "max_tokens": 2000,  # Tăng từ 1200 để đủ cho nhiều triplets hơn với 15 chunks
                             "temperature": 0.1,
                         },
                     )
@@ -724,6 +793,42 @@ Ví dụ output:
             "persist_dir": self._persist_dir,
         }
 
+    async def reset_knowledge_graph(self) -> Dict[str, Any]:
+        """
+        Xóa toàn bộ Knowledge Graph và bắt đầu lại từ đầu.
+
+        Dùng khi muốn rebuild KG hoàn toàn mới (xóa triplets cũ, reset tracking).
+
+        Returns:
+            Dict với thông báo thành công
+        """
+        await self.initialize()
+
+        if self._graph_store is None:
+            return {"success": False, "error": "Graph store not initialized"}
+
+        try:
+            # Create new empty graph store
+            from llama_index.core.graph_stores import SimpleGraphStore
+
+            self._graph_store = SimpleGraphStore()
+
+            # Reset tracking state
+            self._triplet_hashes = set()
+            self._processed_doc_ids = set()
+
+            # Persist empty graph
+            self._persist()
+
+            logger.info("Knowledge Graph has been reset")
+            return {
+                "success": True,
+                "message": "Đã xóa toàn bộ KG và bắt đầu lại từ đầu",
+            }
+        except Exception as e:
+            logger.error(f"Failed to reset KG: {e}")
+            return {"success": False, "error": str(e)}
+
     # ----------------------------------------------------------
     # Internal helpers
     # ----------------------------------------------------------
@@ -802,6 +907,12 @@ Ví dụ output:
         try:
             persist_path = Path(self._persist_dir)
             persist_path.mkdir(parents=True, exist_ok=True)
+
+            # Store processed document IDs for incremental builds
+            if self._processed_doc_ids:
+                self._graph_store.set(
+                    "processed_doc_ids", list(self._processed_doc_ids)
+                )
 
             graph_store_file = str(persist_path / "graph_store.json")
             self._graph_store.persist(persist_path=graph_store_file)

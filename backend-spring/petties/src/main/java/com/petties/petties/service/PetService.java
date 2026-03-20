@@ -22,11 +22,13 @@ import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
@@ -51,6 +53,10 @@ public class PetService {
     private final CloudinaryService cloudinaryService;
     private final EmrRecordRepository emrRecordRepository;
     private final BookingRepository bookingRepository;
+    private final RestTemplate restTemplate;
+
+    @Value("${app.ai-service-url:http://localhost:8000}")
+    private String aiServiceUrl;
 
     @Transactional
     public PetResponse createPet(PetRequest request, MultipartFile image) {
@@ -524,6 +530,274 @@ public class PetService {
                 .allergies(pet.getAllergies())
                 .ownerName(pet.getUser() != null ? pet.getUser().getFullName() : "Unknown")
                 .ownerPhone(pet.getUser() != null ? pet.getUser().getPhone() : "Unknown")
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public com.petties.petties.dto.pet.PetHealthSummaryResponse getHealthSummary(UUID petId) {
+        User currentUser = authService.getCurrentUser();
+        Pet pet = petRepository.findById(petId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thú cưng"));
+
+        if (!pet.getUser().getUserId().equals(currentUser.getUserId())) {
+            throw new ForbiddenException("Bạn không có quyền xem thông tin sức khỏe của thú cưng này");
+        }
+
+        int ageMonths = 0;
+        if (pet.getDateOfBirth() != null) {
+            Period period = Period.between(pet.getDateOfBirth(), LocalDate.now());
+            ageMonths = period.getYears() * 12 + period.getMonths();
+        }
+
+        com.petties.petties.dto.pet.PetHealthSummaryResponse.PetInfoDto petInfo = 
+                com.petties.petties.dto.pet.PetHealthSummaryResponse.PetInfoDto.builder()
+                .petId(pet.getId().toString())
+                .name(pet.getName())
+                .species(pet.getSpecies() != null ? pet.getSpecies().name() : null)
+                .breed(pet.getBreed())
+                .ageMonths(ageMonths)
+                .weightKg(pet.getWeight())
+                .build();
+
+        List<EmrRecord> emrRecords = emrRecordRepository.findByPetIdOrderByCreatedAtDesc(petId);
+        EmrRecord latestEmr = emrRecords.isEmpty() ? null : emrRecords.get(0);
+
+        com.petties.petties.dto.pet.PetHealthSummaryResponse.LatestEmrDto latestEmrDto = null;
+        if (latestEmr != null) {
+            latestEmrDto = com.petties.petties.dto.pet.PetHealthSummaryResponse.LatestEmrDto.builder()
+                    .examDate(latestEmr.getExaminationDate() != null ? latestEmr.getExaminationDate().toLocalDate() : null)
+                    .clinicName(latestEmr.getClinicName())
+                    .diagnosis(latestEmr.getAssessment())
+                    .treatment(latestEmr.getPlan())
+                    .subjective(latestEmr.getSubjective())
+                    .objective(latestEmr.getObjective())
+                    .build();
+        }
+
+        List<com.petties.petties.dto.pet.PetHealthSummaryResponse.HealthWarningDto> warnings = new ArrayList<>();
+        List<com.petties.petties.dto.pet.PetHealthSummaryResponse.MedicationReminderDto> medicationReminders = new ArrayList<>();
+        List<com.petties.petties.dto.pet.PetHealthSummaryResponse.SuggestedActionDto> suggestedActions = new ArrayList<>();
+
+        if (latestEmr != null && latestEmr.getExaminationDate() != null) {
+            long daysAgo = java.time.temporal.ChronoUnit.DAYS.between(latestEmr.getExaminationDate().toLocalDate(), LocalDate.now());
+            if (daysAgo > 30) {
+                warnings.add(com.petties.petties.dto.pet.PetHealthSummaryResponse.HealthWarningDto.builder()
+                        .type("RECHECK_REQUIRED")
+                        .message("Đã " + daysAgo + " ngày kể từ lần khám gần nhất. Cần tái khám.")
+                        .severity("MEDIUM")
+                        .build());
+            }
+
+            if (latestEmr.getAssessment() != null && 
+                    (latestEmr.getAssessment().toLowerCase().contains("dị ứng") || 
+                     latestEmr.getAssessment().toLowerCase().contains("allergy"))) {
+                warnings.add(com.petties.petties.dto.pet.PetHealthSummaryResponse.HealthWarningDto.builder()
+                        .type("ALLERGY_ALERT")
+                        .message("Pet có tiền sử dị ứng. Cần thông báo cho bác sĩ trước khi điều trị.")
+                        .severity("HIGH")
+                        .build());
+            }
+
+            if (latestEmr.getPrescriptions() != null && !latestEmr.getPrescriptions().isEmpty()) {
+                for (var rx : latestEmr.getPrescriptions()) {
+                    medicationReminders.add(com.petties.petties.dto.pet.PetHealthSummaryResponse.MedicationReminderDto.builder()
+                            .medication(rx.getMedicineName())
+                            .dosage(rx.getDosage())
+                            .frequency(rx.getFrequency())
+                            .build());
+                }
+            }
+
+            suggestedActions.add(com.petties.petties.dto.pet.PetHealthSummaryResponse.SuggestedActionDto.builder()
+                    .type("BOOK_APPOINTMENT")
+                    .label("Đặt lịch tái khám")
+                    .reason("Kiểm tra tiến triển sau điều trị")
+                    .build());
+        } else {
+            suggestedActions.add(com.petties.petties.dto.pet.PetHealthSummaryResponse.SuggestedActionDto.builder()
+                    .type("BOOK_FIRST_VISIT")
+                    .label("Đặt lịch khám lần đầu")
+                    .reason("Pet chưa có lịch sử khám")
+                    .build());
+        }
+
+        return callAIServiceForHealthSummary(petInfo, emrRecords);
+    }
+
+    private com.petties.petties.dto.pet.PetHealthSummaryResponse callAIServiceForHealthSummary(
+            com.petties.petties.dto.pet.PetHealthSummaryResponse.PetInfoDto petInfo,
+            List<EmrRecord> emrRecords) {
+
+        try {
+            Map<String, Object> requestBody = new HashMap<>();
+            
+            Map<String, Object> petInfoMap = new HashMap<>();
+            petInfoMap.put("pet_id", petInfo.getPetId());
+            petInfoMap.put("name", petInfo.getName());
+            petInfoMap.put("species", petInfo.getSpecies());
+            petInfoMap.put("breed", petInfo.getBreed());
+            petInfoMap.put("age_months", petInfo.getAgeMonths());
+            petInfoMap.put("weight_kg", petInfo.getWeightKg());
+            requestBody.put("pet_info", petInfoMap);
+
+            List<Map<String, Object>> emrList = new ArrayList<>();
+            for (EmrRecord emr : emrRecords) {
+                Map<String, Object> emrMap = new HashMap<>();
+                emrMap.put("exam_date", emr.getExaminationDate() != null ? emr.getExaminationDate().toString() : null);
+                emrMap.put("clinic_name", emr.getClinicName());
+                emrMap.put("assessment", emr.getAssessment());
+                emrMap.put("plan", emr.getPlan());
+                emrMap.put("subjective", emr.getSubjective());
+                emrMap.put("objective", emr.getObjective());
+                
+                List<Map<String, String>> prescriptions = new ArrayList<>();
+                if (emr.getPrescriptions() != null) {
+                    for (var rx : emr.getPrescriptions()) {
+                        Map<String, String> rxMap = new HashMap<>();
+                        rxMap.put("medicine_name", rx.getMedicineName());
+                        rxMap.put("dosage", rx.getDosage());
+                        rxMap.put("frequency", rx.getFrequency());
+                        prescriptions.add(rxMap);
+                    }
+                }
+                emrMap.put("prescriptions", prescriptions);
+                emrList.add(emrMap);
+            }
+            requestBody.put("emr_records", emrList);
+
+            String url = aiServiceUrl + "/api/v1/pet-health-summary/synthesize";
+            
+            Map<String, Object> response = restTemplate.postForObject(url, requestBody, Map.class);
+            
+            if (response != null) {
+                return convertToPetHealthSummaryResponse(response, petInfo, emrRecords);
+            }
+        } catch (Exception e) {
+            log.error("Failed to call AI service for health summary: {}", e.getMessage());
+        }
+
+        return buildFallbackResponse(petInfo, emrRecords);
+    }
+
+    private com.petties.petties.dto.pet.PetHealthSummaryResponse convertToPetHealthSummaryResponse(
+            Map<String, Object> aiResponse,
+            com.petties.petties.dto.pet.PetHealthSummaryResponse.PetInfoDto petInfo,
+            List<EmrRecord> emrRecords) {
+
+        List<com.petties.petties.dto.pet.PetHealthSummaryResponse.HealthWarningDto> warnings = new ArrayList<>();
+        if (aiResponse.get("health_warnings") instanceof List) {
+            for (Object w : (List<?>) aiResponse.get("health_warnings")) {
+                if (w instanceof Map) {
+                    Map<String, Object> warningMap = (Map<String, Object>) w;
+                    warnings.add(com.petties.petties.dto.pet.PetHealthSummaryResponse.HealthWarningDto.builder()
+                            .type((String) warningMap.get("type"))
+                            .message((String) warningMap.get("message"))
+                            .severity((String) warningMap.get("severity"))
+                            .build());
+                }
+            }
+        }
+
+        List<com.petties.petties.dto.pet.PetHealthSummaryResponse.MedicationReminderDto> medicationReminders = new ArrayList<>();
+        if (aiResponse.get("medication_reminders") instanceof List) {
+            for (Object m : (List<?>) aiResponse.get("medication_reminders")) {
+                if (m instanceof Map) {
+                    Map<String, Object> medMap = (Map<String, Object>) m;
+                    medicationReminders.add(com.petties.petties.dto.pet.PetHealthSummaryResponse.MedicationReminderDto.builder()
+                            .medication((String) medMap.get("medication"))
+                            .dosage((String) medMap.get("dosage"))
+                            .frequency((String) medMap.get("frequency"))
+                            .build());
+                }
+            }
+        }
+
+        List<com.petties.petties.dto.pet.PetHealthSummaryResponse.SuggestedActionDto> suggestedActions = new ArrayList<>();
+        if (aiResponse.get("suggested_actions") instanceof List) {
+            for (Object a : (List<?>) aiResponse.get("suggested_actions")) {
+                if (a instanceof Map) {
+                    Map<String, Object> actionMap = (Map<String, Object>) a;
+                    suggestedActions.add(com.petties.petties.dto.pet.PetHealthSummaryResponse.SuggestedActionDto.builder()
+                            .type((String) actionMap.get("type"))
+                            .label((String) actionMap.get("label"))
+                            .reason((String) actionMap.get("reason"))
+                            .build());
+                }
+            }
+        }
+
+        com.petties.petties.dto.pet.PetHealthSummaryResponse.LatestEmrDto latestEmrDto = null;
+        Map<String, Object> latestEmrSummary = (Map<String, Object>) aiResponse.get("latest_emr_summary");
+        if (latestEmrSummary != null) {
+            latestEmrDto = com.petties.petties.dto.pet.PetHealthSummaryResponse.LatestEmrDto.builder()
+                    .examDate(latestEmrSummary.get("exam_date") != null ? 
+                            LocalDate.parse((String) latestEmrSummary.get("exam_date")) : null)
+                    .clinicName((String) latestEmrSummary.get("clinic_name"))
+                    .diagnosis((String) latestEmrSummary.get("diagnosis"))
+                    .treatment((String) latestEmrSummary.get("treatment"))
+                    .build();
+        }
+
+        return com.petties.petties.dto.pet.PetHealthSummaryResponse.builder()
+                .petInfo(petInfo)
+                .latestEmr(latestEmrDto)
+                .healthWarnings(warnings)
+                .medicationReminders(medicationReminders)
+                .suggestedActions(suggestedActions)
+                .disclaimer((String) aiResponse.getOrDefault("disclaimer", 
+                        "Thông tin chỉ mang tính tham khảo. Vui lòng consult bác sĩ để được tư vấn chính xác."))
+                .build();
+    }
+
+    private com.petties.petties.dto.pet.PetHealthSummaryResponse buildFallbackResponse(
+            com.petties.petties.dto.pet.PetHealthSummaryResponse.PetInfoDto petInfo,
+            List<EmrRecord> emrRecords) {
+
+        List<com.petties.petties.dto.pet.PetHealthSummaryResponse.HealthWarningDto> warnings = new ArrayList<>();
+        List<com.petties.petties.dto.pet.PetHealthSummaryResponse.MedicationReminderDto> medicationReminders = new ArrayList<>();
+        List<com.petties.petties.dto.pet.PetHealthSummaryResponse.SuggestedActionDto> suggestedActions = new ArrayList<>();
+        com.petties.petties.dto.pet.PetHealthSummaryResponse.LatestEmrDto latestEmrDto = null;
+
+        if (!emrRecords.isEmpty()) {
+            EmrRecord latestEmr = emrRecords.get(0);
+            latestEmrDto = com.petties.petties.dto.pet.PetHealthSummaryResponse.LatestEmrDto.builder()
+                    .examDate(latestEmr.getExaminationDate() != null ? latestEmr.getExaminationDate().toLocalDate() : null)
+                    .clinicName(latestEmr.getClinicName())
+                    .diagnosis(latestEmr.getAssessment())
+                    .treatment(latestEmr.getPlan())
+                    .build();
+
+            if (latestEmr.getExaminationDate() != null) {
+                long daysAgo = java.time.temporal.ChronoUnit.DAYS.between(latestEmr.getExaminationDate().toLocalDate(), LocalDate.now());
+                if (daysAgo > 30) {
+                    warnings.add(com.petties.petties.dto.pet.PetHealthSummaryResponse.HealthWarningDto.builder()
+                            .type("RECHECK_REQUIRED")
+                            .message("Đã " + daysAgo + " ngày kể từ lần khám gần nhất. Cần tái khám.")
+                            .severity("MEDIUM")
+                            .build());
+                }
+            }
+
+            suggestedActions.add(com.petties.petties.dto.pet.PetHealthSummaryResponse.SuggestedActionDto.builder()
+                    .type("BOOK_APPOINTMENT")
+                    .label("Đặt lịch tái khám")
+                    .reason("Kiểm tra tiến triển sau điều trị")
+                    .build());
+        } else {
+            suggestedActions.add(com.petties.petties.dto.pet.PetHealthSummaryResponse.SuggestedActionDto.builder()
+                    .type("BOOK_FIRST_VISIT")
+                    .label("Đặt lịch khám lần đầu")
+                    .reason("Pet chưa có lịch sử khám")
+                    .build());
+        }
+
+        return com.petties.petties.dto.pet.PetHealthSummaryResponse.builder()
+                .petInfo(petInfo)
+                .latestEmr(latestEmrDto)
+                .healthWarnings(warnings)
+                .medicationReminders(medicationReminders)
+                .suggestedActions(suggestedActions)
+                .disclaimer("Thông tin chỉ mang tính tham khảo. Vui lòng consult bác sĩ để được tư vấn chính xác.")
                 .build();
     }
 }

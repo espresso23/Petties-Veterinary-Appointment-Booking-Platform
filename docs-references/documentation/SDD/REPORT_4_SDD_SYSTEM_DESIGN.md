@@ -1,8 +1,10 @@
 # II. Software Design Document
 
+> Update note dated 2026-03-17: older sections describing `analyze_pet_image`, Visual Case Memory from image feedback, Label Studio, or the previous feedback loop are no longer the deployed architecture. The current AI diagnosis technical reference is defined in [AI_SERVICE_TECHNICAL_SPECIFICATION.md](D:/SEP490/petties/docs-references/documentation/AI_SERVICE_TECHNICAL_SPECIFICATION.md) and [AI_DIAGNOSIS_FEATURE_PLAN.md](D:/SEP490/petties/docs-references/documentation/AI_DIAGNOSIS_FEATURE_PLAN.md).
+
 **Project:** Petties - Veterinary Appointment Booking Platform
-**Version:** 3.3.0 (Added Section 4.19 AI Data Improvement Mechanisms: Query Expansion, Knowledge Graph, Visual Case Memory, Feedback Loop)
-**Last Updated:** 2026-03-11
+**Version:** 3.3.6 (Standardized AI booking documentation language and completion flow)
+**Last Updated:** 2026-03-20
 **Document Status:** In Progress
 
 ## TABLE OF CONTENTS
@@ -20,6 +22,8 @@
 - [4. Detailed Design](#4-detailed-design)
     - [4.1 Authentication](#41-authentication)
     - [4.2 User Profile Management](#42-user-profile-management)
+    - [4.20 AI Tool Booking Orchestration APIs](#420-ai-tool-booking-orchestration-apis)
+    - [4.21 Staff AI Diagnosis in EMR Workspace](#421-staff-ai-diagnosis-in-emr-workspace)
 ### 4.3 Staff and Scheduling Management
 
 This module covers clinic roster management and staff shift scheduling. The current design is centered around two controllers and two services: one pair manages clinic staff assignment by email and roster removal, while the other pair manages shift creation, schedule viewing, shift detail lookup, and shift deletion.
@@ -1948,7 +1952,8 @@ Alternative persisted paths: CANCELLED, NO_SHOW
 | file_type | VARCHAR(10) | | File extension (pdf, docx, txt, md). Determines parsing strategy |
 | file_size | INT | | File size in bytes. For storage management and upload limits |
 | processed | BOOLEAN | DEFAULT false | Whether document has been chunked and embedded. False until processing completes |
-| vector_count | INT | DEFAULT 0 | Number of vector embeddings created. Indicates document coverage in knowledge base |
+| vector_count | INT | DEFAULT 0 | Number of text vector embeddings created. Indicates document coverage in knowledge base |
+| image_count | INT | DEFAULT 0 | Number of image vectors extracted from PDF and indexed. Tracks image embeddings (0 for non-PDF files) |
 | uploaded_by | VARCHAR(100) | | Admin username who uploaded. For audit trail |
 | notes | TEXT | | Optional notes about document content or source |
 | uploaded_at | TIMESTAMPTZ | DEFAULT now() | Upload timestamp |
@@ -2498,6 +2503,34 @@ Sử dụng điểm ảnh và văn bản tách biệt để tối ưu tìm kiế
 | image_embedding_provider | String | Lưu thông tin model nhúng (vd: "jina-clip-v2") nếu có ảnh tham gia index |
 
 **Reranking / Routing:** Các biến số `feedback_count` và `vet_verified` trong collection này được sử dụng trong thuật toán truy vấn Custom Re-ranking ở AI Service nhằm tăng độ ưu tiên cho các case uy tín khi truy xuất.
+
+### 2.3.3 Collection: petties_kb_images
+
+**Description:** Lưu trữ vector embeddings của ảnh trích xuất từ PDF documents trong Knowledge Base. Hỗ trợ **Hybrid Search (text + image similarity)** khi user gửi ảnh bệnh để tra cứu.
+
+**Vector Configuration:**
+- `text`: Size 1024, Distance COSINE (Cohere embed-multilingual-v3.0) - mô tả document
+- `image`: Size 1024, Distance COSINE (Jina CLIP v2) - ảnh bệnh từ PDF
+
+**Payload Structure (Metadata):**
+| Field | Type | Description |
+|-------|------|-------------|
+| document_id | String | UUID tham chiếu tới bảng `knowledge_documents` trong PostgreSQL |
+| filename | String | Tên file PDF gốc |
+| image_id | String | ID duy nhất của ảnh (format: `p{page}_img{index}_{hash}`) |
+| image_index | Integer | Thứ tự ảnh trong document |
+| extracted_at | String | ISO-8601 Timestamp khi extract |
+| metadata | Object | Metadata bổ sung (notes, file_type,...) |
+
+**Usage:**
+- Khi upload PDF có ảnh bệnh → tự động extract ảnh + tạo image embeddings
+- Query `/knowledge/query-hybrid` để tìm ảnh tương tự
+- Integration với AI Diagnose: khi Staff gửi ảnh bệnh, tìm cases có ảnh tương tự trong KB
+
+**Files Modified:**
+- `app/core/rag/rag_engine.py` - Image extraction + indexing
+- `app/api/routes/knowledge.py` - Endpoint `/query-hybrid`
+- `app/db/postgres/models.py` - Thêm field `image_count`
 
 ---
 
@@ -5348,7 +5381,7 @@ sequenceDiagram
 
 This section documents the standard booking management module implemented in `BookingController` and `BookingService`. SOS-specific matching and emergency flows are documented separately in Section 4.11.
 
-**Last Updated:** 2026-03-09
+**Last Updated:** 2026-03-16
 
 #### 4.12.0 API Specification Table
 
@@ -7327,11 +7360,106 @@ sequenceDiagram
 | Severity | Description | AI Action |
 |----------|-------------|-----------|
 | `MILD` | Không phát hiện vấn đề nghiêm trọng | Chỉ đưa lời khuyên, không đề xuất booking |
-| `MODERATE` | Vấn đề cần theo dõi | Đề xuất booking trong 24-48h |
-| `SEVERE` | Vấn đề nghiêm trọng | Đề xuất booking trong ngày |
-| `URGENT` | Cấp cứu | Cảnh báo mạnh + đề xuất SOS hoặc booking ngay |
+| `MODERATE` | Phát hiện vấn đề cần theo dõi | Đề xuất booking trong 24-48h |
+| `SEVERE` | Vấn đề nghiêm trọng | Khuyến cáo đến phòng khám sớm |
+| `URGENT` | Cần can thiệp ngay | Cảnh báo khẩn cấp + đề xuất SOS |
 
----
+#### 4.18.7a AI Vision ML Architecture (v2 - Implemented 2026)
+
+> **Note:** Section này mô tả kiến trúc ML-based mới, khác với Vision LLM (Gemini) ở section 4.18.3-4.18.7.
+
+**Architecture Overview:**
+
+```mermaid
+flowchart TD
+    A[Image Upload] --> B[Jina CLIP Embedding]
+    B --> C[Qdrant Case Memory]
+    B --> D[ONNX Classifier]
+    D --> E[Uncertainty Estimation]
+    D --> F[GradCAM Heatmap]
+    C --> G[Similar Cases]
+    E --> H{Uncertainty > Threshold?}
+    F --> H
+    G --> H
+    H -->|Yes| I[Low Confidence Response]
+    H -->|No| J[Full Prediction Result]
+    I --> K[Add Disclaimer]
+    J --> L[Return to Agent]
+```
+
+**Key Components:**
+
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| Image Embedding | Jina CLIP v2 | Extract 1024-dim vector from image |
+| Classifier | ONNX + LoRA | Disease classification |
+| Case Memory | Qdrant (named vectors) | Retrieve similar confirmed cases |
+| Uncertainty | Monte Carlo Dropout | Estimate prediction confidence |
+| Heatmap | GradCAM | Visualize AI attention area |
+| Training | MONAI + LoRA | Efficient fine-tuning |
+
+**Database Schema - vision_disease_classes:**
+
+```sql
+CREATE TABLE vision_disease_classes (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(50) UNIQUE NOT NULL,    -- "viem_da"
+    name_vi VARCHAR(100) NOT NULL,        -- "Viêm da"
+    description TEXT,
+    species VARCHAR(50) DEFAULT 'all',   -- 'dog', 'cat', 'all'
+    is_active BOOLEAN DEFAULT TRUE,
+    requires_retrain BOOLEAN DEFAULT FALSE,
+    label_count INTEGER DEFAULT 0,
+    min_label_required INTEGER DEFAULT 50,
+    model_version VARCHAR(50),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**API Endpoints:**
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/vision/predict` | POST | Predict disease from image |
+| `/api/v1/vision/diseases` | GET | List active diseases |
+| `/api/v1/vision/drift-check` | GET | Check model drift |
+| `/api/v1/vision/trigger-retrain` | POST | Manual retrain trigger |
+| `/api/v1/vision-diseases` | GET/POST/PATCH/DELETE | CRUD for diseases |
+
+**MLOps Pipeline:**
+
+```mermaid
+flowchart TD
+    A[Trigger: 200+ cases OR Drift] --> B[Extract from MongoDB]
+    B --> C[Prepare Dataset]
+    C --> D[MONAI Augmentation]
+    D --> E[Train LoRA]
+    E --> F[Evaluate]
+    F --> G{F1 > threshold?}
+    G -->|Yes| H[Export ONNX]
+    G -->|No| I[Skip Deploy]
+    H --> J[Deploy to Production]
+    J --> K[Update Model Version]
+```
+
+**Prediction Response Schema:**
+
+```json
+{
+  "predictions": [
+    {"disease": "viem_da", "confidence": 0.85, "name_vi": "Viêm da"},
+    {"disease": "nam_da", "confidence": 0.12, "name_vi": "Nấm da"}
+  ],
+  "uncertainty": 0.15,
+  "heatmap_url": "https://cloudinary.com/heatmap/...",
+  "case_memory_matches": [
+    {"case_id": "...", "diagnosis": "viem_da", "similarity": 0.92}
+  ]
+}
+```
+
+**Status:** Infrastructure implemented, waiting for trained model.
 
 
 #### 4.18.8 Overview
@@ -7915,7 +8043,114 @@ sequenceDiagram
 | 4.18.17 Business AI Chat Session Flow | 3.11.1, 3.11.5, 3.11.6 | Business chat ownership, history loading, Mongo persistence |
 | 4.18.18 Admin Playground Test Flow | 3.11.4, 3.11.5 | Admin-only isolated test environment |
 | 4.18.19 MongoDB Document Model | 3.11.1, 3.11.4, 3.11.5 | Session/message fields and indexes for context isolation |
+| 4.18.21 Booking With ChatBot - Guided Booking (Interactive Components) | 3.11.1 | Booking flow in business chat: booking type clarification, interactive components selection, Booking Summary Card confirm, create PENDING booking, clinic manager confirmation |
 
+#### 4.18.21 Sequence Diagram: Booking With ChatBot - Guided Booking (Interactive Components)
+
+Tham chiếu hợp đồng WebSocket: docs-references/documentation/technical/AI_CHAT_WEBSOCKET_CONTRACT.md.
+
+
+```mermaid
+sequenceDiagram
+    actor PO as Pet Owner
+    participant UI as Chat UI (Mobile)
+    participant WS as Business Chat WebSocket (FastAPI)
+    participant IB as InteractiveBookingFlow
+    participant BT as Booking Tools (FastMCP)
+    participant API as Spring Boot API
+    participant CM as Clinic Manager (Web)
+
+    Note over UI: Khi mở chat, UI hiển thị Suggested Prompts (chips)
+    UI-->>PO: Suggested Prompts: "Tôi muốn đặt lịch khám", "Sổ tiêm chủng sắp tới", "Tìm phòng khám theo triệu chứng"
+
+    PO->>UI: Tap "Tôi muốn đặt lịch khám"
+    UI->>WS: WebSocket {ui_action: {type: "start_booking"}, location?}
+    WS->>IB: handle(ui_action)
+
+    IB->>BT: get_user_pets()
+    BT-->>IB: pets
+    IB-->>UI: Render Pet Cards
+
+    PO->>UI: Tap Pet Card
+    UI->>WS: {ui_action: {type: "select_pet", pet_id}}
+    WS->>IB: handle(ui_action)
+    IB-->>UI: Quick Replies: "Khám tại phòng khám" / "Khám tại nhà"
+
+    PO->>UI: Tap booking type
+    UI->>WS: {ui_action: {type: "select_booking_type", booking_type}}
+    WS->>IB: handle(ui_action)
+    IB-->>UI: Quick Replies: "Khám bệnh" / "Tiêm phòng" / "Tỉa lông" (+ nhập tự do triệu chứng)
+
+    PO->>UI: Tap service category
+    UI->>WS: {ui_action: {type: "select_service_category", category}}
+    WS->>IB: handle(ui_action)
+
+    IB->>BT: search_clinics_nearby(lat, lng)
+    BT->>API: GET /clinics/nearby
+    API-->>BT: clinics
+    BT-->>IB: clinics
+    IB-->>UI: Render Clinic Cards (carousel)
+
+    PO->>UI: Tap Clinic Card
+    UI->>WS: {ui_action: {type: "select_clinic", clinic_id}}
+    WS->>IB: handle(ui_action)
+
+    IB->>BT: get_clinic_services(clinic_id)
+    BT->>API: GET /clinics/{id}/services
+    API-->>BT: services
+    BT-->>IB: services
+    IB-->>UI: Render Service Chips (multi-select)
+
+    PO->>UI: Select services
+    UI->>WS: {ui_action: {type: "select_services", service_ids}}
+    WS->>IB: handle(ui_action)
+    IB-->>UI: Render Date Chips
+
+    PO->>UI: Tap date
+    UI->>WS: {ui_action: {type: "select_date", booking_date}}
+    WS->>IB: handle(ui_action)
+
+    IB->>BT: check_available_slots(clinic_id, date, service_ids)
+    BT->>API: GET /slots/available
+    API-->>BT: availableSlots
+    BT-->>IB: availableSlots
+    IB-->>UI: Render Time Slot Chips (grid)
+
+    PO->>UI: Tap time slot
+    UI->>WS: {ui_action: {type: "select_slot", booking_date, start_time}}
+    WS->>IB: handle(ui_action)
+
+    IB-->>UI: Render Booking Summary Card + quick actions
+    Note over UI: User co the doi nhanh thu cung, phong kham, dich vu, ngay, gio ngay tren summary card truoc khi xac nhan
+    Note over UI: Chỉ khi bấm "XÁC NHẬN ĐẶT LỊCH" mới tạo booking
+
+    PO->>UI: Tap "XÁC NHẬN ĐẶT LỊCH"
+    UI->>WS: {ui_action: {type: "confirm_booking"}}
+    WS->>IB: handle(ui_action)
+
+    IB->>BT: create_booking_for_user(..., confirmed=true)
+    BT->>API: POST /bookings (status=PENDING)
+    API-->>BT: booking created
+    BT-->>IB: booking
+    IB-->>UI: Render booking result
+
+    Note over CM,API: Clinic manager xác nhận thời gian cuối hoặc đề xuất đổi slot
+    CM->>API: Confirm booking OR propose new time
+    API-->>PO: Notify via app (push/in-app)
+```
+
+**Mobile booking summary interaction notes (updated 2026-03-20)**
+- The Booking Summary Card is not only the final confirmation screen. It also acts as a `hybrid correction layer` that reduces free-form typing and prevents the user from being pushed back into a manual booking wizard.
+- Quick actions on the card must send an explicit adjustment intent such as changing pet, clinic, service, date, or time while preserving all still-valid booking context.
+- After each quick action, the AI service must apply `latest explicit fact wins` and render only the next necessary step, such as clinic cards, service chips, slot grid, or an updated summary.
+- The mobile composer must provide `autocomplete prompt suggestions` based on the current input, quick prompts, and booking tracker state so the user can complete booking in 1-2 prompts whenever possible.
+- The WebSocket layer must accept structured `ui_action` payloads without requiring an accompanying natural-language sentence. `ui_action` is the source of truth for structured booking interactions.
+- Mobile must maintain a lightweight `booking tracker snapshot` at runtime so the user can clearly follow resolved fields without reopening a full summary card at every turn.
+- Mobile AI booking components must be grouped under `petties_mobile/lib/ui/chat/ai_chat/` and `petties_mobile/lib/ui/chat/ai_chat/utils/` so they remain clearly separated from regular chat and easier to maintain.
+- The WebSocket adapter and mobile renderer must enforce `one visible assistant response per turn`: events such as `thinking`, `tool_call`, `tool_result`, `stream`, `service_chips`, `slot_grid`, `booking_summary`, and `booking_created` must be merged into the same assistant turn instead of creating multiple scattered bubbles.
+- AI booking tools must include a `clinic hint -> canonical clinic id` resolution layer before calling services, slot, or creation APIs so the system does not surface `clinicId invalid format` errors when only a clinic name or hint is available.
+- When backend clinic options return exactly one clinic matching an explicit hint, the mobile UI must not render a clinic picker card. That clinic is considered auto-resolved and the booking flow must continue directly.
+- The `booking_created` card must let the user continue immediately to `View my bookings`: mobile should fetch booking detail using `bookingId` or `bookingCode` and open `AppointmentDetailScreen`; if that fetch fails or no valid identifier exists yet, the system must fall back to `PetOwnerHomeScreen(tab=2)`.
 ---
 
 ### 4.19 AI Data Improvement Mechanisms
@@ -8163,36 +8398,40 @@ classDiagram
 
 **3. CaseMemoryService**
 
-| Responsibility | Quan ly case memory trong Qdrant: luu, tim, cap nhat, prune cases da xac nhan |
+| Responsibility | Quan ly case memory trong Qdrant: luu, tim, cap nhat, prune cases tu EMR confirmed |
 |---------------|-------------------------------------------------------------------------------|
 | Location | `petties-agent-serivce/app/core/rag/case_memory.py` |
 
 | Method | Description |
 |--------|-------------|
-| `upsert_case(case)` | Embed text description + metadata vao Qdrant `petties_case_memory`. Tra ve case_id. |
+| `upsert_case(case)` | Embed text description + metadata vao Qdrant `petties_case_memory`. Tra ve case_id. Nguon: EMR confirmed (thay vi feedback). |
 | `search_similar(query, threshold)` | Tim cases tuong tu, re-rank theo feedback_count + staff_verified. |
-| `update_feedback_count(case_id)` | Tang feedback_count +1 khi co feedback moi cho case da ton tai. |
+| `update_feedback_count(case_id)` | ~~Tang feedback_count +1 khi co feedback moi cho case da ton tai.~~ Deprecated - chi con dung de backward compatibility. |
 | `prune_low_score_cases(min_score)` | Xoa cases co score thap va feedback_count = 0. Tra ve so cases da xoa. |
 | `get_stats()` | Thong ke: total cases, phan loai theo category, avg feedback, vet verified count. |
 
-**4. FeedbackService**
+**4. FeedbackService** *(Deprecated - se duoc remove)*
 
-| Responsibility | Thu thap, phan loai, xu ly feedback tu tat ca roles. Auto-embed confirmed cases. |
+> **⚠️ 2026-03-17 Update:** FeedbackService se duoc remove khoi codebase. Feedback chi con luu tru de phan tich UX, khong con duoc dung lam nguon học cho AI.
+> 
+> Case memory nguon tu EMR confirmed (xem `EmrCaseMemorySyncService`).
+
+| Responsibility | ~~Thu thap, phan loai, xu ly feedback tu tat ca roles. Auto-embed confirmed cases.~~ Chi con: Luu tru feedback de phan tich UX |
 |---------------|-----------------------------------------------------------------------------------|
 | Location | `petties-agent-serivce/app/core/services/feedback_service.py` |
 
 | Method | Description |
 |--------|-------------|
-| `save_feedback(feedback)` | Luu feedback vao MongoDB. Tu dong goi `_auto_classify` va `process_positive_feedback` neu la positive. |
-| `process_positive_feedback(message_id, feedback, image_urls)` | Trích xuất case theo category. Nếu Assistant message thiếu ảnh, gọi `_get_latest_user_images` để lấy ảnh từ User message trước đó. Trả về trạng thái thành công. |
+| `save_feedback(feedback)` | ~~Luu feedback vao MongoDB. Tu dong goi `_auto_classify` va `process_positive_feedback` neu la positive.~~ Chi luu vao MongoDB. |
+| `process_positive_feedback(message_id, feedback, image_urls)` | ~~Trích xuất case theo category...~~ Deprecated |
 | `list_feedback(filters, page, limit)` | Lấy danh sách feedback kèm phân trang và lọc theo role, category, type cho Admin. |
-| `update_feedback(feedback_id, update_data)` | Cập nhật nội dung feedback và đồng bộ trạng thái Case Memory (Embed/Delete) nếu loại feedback thay đổi. |
-| `delete_feedback(feedback_id)` | Xóa feedback và tự động xóa Case liên quan trong Qdrant nếu feedback đó từng được học. |
-| `classify_interaction(message)` | Phân loại tương tác dựa trên tool call history trong trace. |
-| `_auto_classify(message, tool_used)` | Logic tự động gán category: MEDICAL_TOOLS, BOOKING_TOOLS, CLINIC_OPS_TOOLS. |
-| `_get_latest_user_images(session_id)` | Truy vấn MongoDB tìm User Message gần nhất trong session để lấy ảnh lâm sàng. |
+| `update_feedback(feedback_id, update_data)` | ~~Cập nhật nội dung feedback và đồng bộ trạng thái Case Memory (Embed/Delete) nếu loại feedback thay đổi.~~ Deprecated |
+| `delete_feedback(feedback_id)` | ~~Xóa feedback và tự động xóa Case liên quan trong Qdrant nếu feedback đó từng được học.~~ Deprecated |
+| `classify_interaction(message)` | ~~Phân loại tương tác dựa trên tool call history trong trace.~~ Deprecated |
+| `_auto_classify(message, tool_used)` | ~~Logic tự động gán category: MEDICAL_TOOLS, BOOKING_TOOLS, CLINIC_OPS_TOOLS.~~ Deprecated |
+| `_get_latest_user_images(session_id)` | ~~Truy vấn MongoDB tìm User Message gần nhất trong session để lấy ảnh lâm sàng.~~ Deprecated |
 | `get_feedback_stats(role, period)` | Thống kê hiệu suất AI và tỷ lệ hài lòng theo vai trò. |
-| `_calculate_feedback_weight(user_role)` | STAFF=1.0, CLINIC_MANAGER/OWNER=0.7, PET_OWNER=0.6, ADMIN=0.0 |
+| `_calculate_feedback_weight(user_role)` | ~~STAFF=1.0, CLINIC_MANAGER/OWNER=0.7, PET_OWNER=0.6, ADMIN=0.0~~ Deprecated |
 
 **5. HybridRAGEngine**
 
@@ -8704,8 +8943,8 @@ flowchart LR
 ---
 
 **Prepared by:** Petties Development Team
-**Document Version:** 3.3.0 (Added Section 4.19 AI Data Improvement Mechanisms)
-**Last Updated:** 2026-03-11
+**Document Version:** 3.3.2 (Added Section 4.20 AI Tool Booking Orchestration APIs)
+**Last Updated:** 2026-03-16
 
 ---
 
@@ -8885,4 +9124,835 @@ sequenceDiagram
 | NFR-FILE-02 | Auto image optimization | Cloudinary transformation `quality:"auto:good"` |
 
 ---
+
+
+### 4.20 AI Tool Booking Orchestration APIs
+
+This section defines a dedicated Spring Boot API group for AI booking tool calls. The goal is to support chat-first booking, reuse the full conversation context, reduce fragile chaining across UI-oriented endpoints, and allow the AI service to prepare a booking draft in a single conversational turn whenever the user already provides enough information.
+
+**Architecture update 2026-03-19**
+- AI agent orchestration for booking follows `Semantic ReAct + Thin Validator`.
+- Tool selection is driven by prompt meaning, tool description, and JSON schema instead of keyword matching.
+- The post-parse validator in the AI service does not rewrite `create -> check_slots` or inject a rigid booking ladder; it only sanitizes parameters and blocks obviously missing required inputs.
+- Full conversation context (`transcript`, `latest_message`) is passed into booking tools so domain APIs can resolve pet, clinic, service, date, and time hints without hardcoded agent routing.
+- When the conversation already contains a clinic target, clinic resolution must prioritize that clinic and must not silently fall back to the nearest clinic only because GPS is available.
+- AI service phai bo sung `deterministic booking context snapshot` truoc khi goi booking tools; snapshot duoc tao tu `latest_message`, `transcript`, runtime datetime, runtime location, va cac gia tri da resolve o turn gan nhat.
+- Quy tac `latest explicit fact wins` la bat buoc cho pet, clinic, service, date, time preference, va booking type; gia tri user noi ro o turn moi nhat phai override context cu.
+- Runtime current datetime theo mui gio user phai duoc dua vao prompt/context va duoc dung de resolve cac cum thoi gian tu nhien nhu `hom nay`, `ngay mai`, `thu bay nay`, `cuoi tuan nay`.
+- Truong hop user da neu clinic cu the hoac dia chi text ro rang phai duoc uu tien resolve truoc; GPS la uu tien cao nhat khi co, nhung khong duoc la dieu kien bat buoc de bat dau moi flow clinic lookup.
+
+#### 4.20.1 API Specification Table
+
+| # | Method | Endpoint | Access | Description | Status |
+|---|--------|----------|--------|-------------|--------|
+| 1 | POST | /api/ai-tools/booking/context | Internal (AI Service) | Resolve pet, booking type, location, service hints, and missing fields from chat context | Planned |
+| 2 | POST | /api/ai-tools/booking/clinic-options | Internal (AI Service) | Return clinics matched by distance, service compatibility, and booking type | Planned |
+| 3 | POST | /api/ai-tools/booking/slot-options | Internal (AI Service) | Return exact or recommended slots for a clinic/service/date preference | Planned |
+| 4 | POST | /api/ai-tools/booking/draft | Internal (AI Service) | Build booking summary and confirmation payload for chat UI | Planned |
+| 5 | POST | /api/ai-tools/booking/create | Internal (AI Service) | Create a pending booking request after user confirmation | Planned |
+
+#### 4.20.2 Class Diagram
+
+`mermaid
+classDiagram
+    class AiToolBookingController {
+        +resolveContext(AiBookingContextRequest) ResponseEntity
+        +getClinicOptions(AiClinicOptionsRequest) ResponseEntity
+        +getSlotOptions(AiSlotOptionsRequest) ResponseEntity
+        +buildDraft(AiBookingDraftRequest) ResponseEntity
+        +createBooking(AiCreateBookingRequest) ResponseEntity
+    }
+
+    class AiToolBookingService {
+        +resolveContext(AiBookingContextRequest) AiBookingContextResponse
+        +getClinicOptions(AiClinicOptionsRequest) AiClinicOptionsResponse
+        +getSlotOptions(AiSlotOptionsRequest) AiSlotOptionsResponse
+        +buildDraft(AiBookingDraftRequest) AiBookingDraftResponse
+        +createBooking(AiCreateBookingRequest) AiCreateBookingResponse
+    }
+
+    class AiBookingContextResolver {
+        +resolvePet(userId, transcript, petHint) ResolvedPet
+        +resolveLocation(gps, transcript) ResolvedLocation
+        +resolveBookingIntent(transcript, bookingTypeHint, serviceHint, dateHint, timeHint) BookingIntentSnapshot
+    }
+
+    class AiBookingDraftAssembler {
+        +buildSummary(AiBookingDraftRequest) BookingSummaryCard
+        +buildConfirmationPayload(AiBookingDraftRequest) Map
+    }
+
+    class BookingService {
+        +createBooking(BookingRequest, UUID) BookingResponse
+        +getAvailableSlots(UUID, LocalDate, List~UUID~) AvailableSlotsResponse
+        +calculateEstimatedCompletion(UUID, EstimatedCompletionRequest) EstimatedCompletionResponse
+    }
+
+    class ClinicServiceService {
+        +getPublicServicesByClinicId(UUID) List~ClinicServiceResponse~
+        +getCompatibleServices(UUID, PetSpecies, Boolean) List~ClinicServiceResponse~
+    }
+
+    class PetRepository {
+        <<interface>>
+    }
+
+    class ClinicRepository {
+        <<interface>>
+    }
+
+    class BookingRepository {
+        <<interface>>
+    }
+
+    class BookingSlotRepository {
+        <<interface>>
+    }
+
+    AiToolBookingController --> AiToolBookingService
+    AiToolBookingService --> AiBookingContextResolver
+    AiToolBookingService --> AiBookingDraftAssembler
+    AiToolBookingService --> BookingService
+    AiToolBookingService --> ClinicServiceService
+    AiToolBookingService --> PetRepository
+    AiToolBookingService --> ClinicRepository
+    AiToolBookingService --> BookingRepository
+    AiToolBookingService --> BookingSlotRepository
+`
+
+#### 4.20.3 Class Specifications
+
+**1. AiToolBookingController**
+- **Responsibility:** Expose internal Swagger-documented REST endpoints under /api/ai-tools/booking/* for AI service orchestration only.
+- **Key Methods:**
+  - esolveContext(...): Return resolved booking context and missing fields.
+  - getClinicOptions(...): Return candidate clinics already filtered for AI booking.
+  - getSlotOptions(...): Return exact or recommended slot candidates.
+  - uildDraft(...): Return booking summary payload for in-chat confirmation card.
+  - createBooking(...): Create a PENDING booking request after explicit user confirmation.
+
+**2. AiToolBookingService**
+- **Responsibility:** Coordinate booking context resolution, clinic/service matching, slot selection, and booking request creation for the AI assistant.
+- **Key Methods:**
+  - esolveContext(...): Merge transcript hints with persisted user, pet, and clinic data.
+  - getClinicOptions(...): Build a ranked list of clinics for the current booking intent.
+  - getSlotOptions(...): Respect exact date/time when provided, otherwise compute up to three recommended slots.
+  - uildDraft(...): Build a natural-language booking summary plus structured confirmation payload.
+  - createBooking(...): Convert the AI draft into the existing booking domain request.
+
+**3. AiBookingContextResolver**
+- **Responsibility:** Interpret the full recent conversation and normalize booking hints before downstream matching starts.
+- **Key Methods:**
+  - esolvePet(...): Match pet name from transcript against the user's pets.
+  - esolveLocation(...): Prefer GPS from session context and fall back to transcript-derived address.
+  - esolveBookingIntent(...): Resolve booking type, service intent, date preference, and time preference.
+
+**4. AiBookingDraftAssembler**
+- **Responsibility:** Produce a UI-ready booking summary card and preserve the structured payload used by the final create call.
+- **Key Methods:**
+  - uildSummary(...): Generate the card content shown in mobile chat.
+  - uildConfirmationPayload(...): Persist the normalized booking request fields for final confirmation.
+
+#### 4.20.4 Sequence Diagram: One-Prompt Chat Booking Resolution
+
+`mermaid
+sequenceDiagram
+    actor PO as Pet Owner
+    participant UI as Mobile AI Chat
+    participant AG as AI Agent Service
+    participant AC as AiToolBookingController
+    participant AS as AiToolBookingService
+    participant CR as AiBookingContextResolver
+    participant CSS as ClinicServiceService
+    participant BS as BookingService
+    participant DB as Database
+
+    PO->>UI: 1. Send "Dat lich cho Hadine o Ngu Hanh Son sang thu bay nay"
+    UI->>AG: 2. WebSocket message with transcript + GPS
+    AG->>AC: 3. POST /api/ai-tools/booking/context
+    AC->>AS: 4. resolveContext(request)
+    AS->>CR: 5. resolvePet + resolveLocation + resolveBookingIntent
+    CR->>DB: 6. Load pets and user context
+    CR-->>AS: 7. Resolved context + missing fields
+    AS-->>AC: 8. AiBookingContextResponse
+    AC-->>AG: 9. Context response
+
+    AG->>AC: 10. POST /api/ai-tools/booking/clinic-options
+    AC->>AS: 11. getClinicOptions(request)
+    AS->>CSS: 12. getCompatibleServices(clinicId, species, isHomeVisit)
+    AS->>DB: 13. Load nearby clinics and pricing
+    AS-->>AC: 14. Ranked clinic options
+    AC-->>AG: 15. Clinic options
+
+    AG->>AC: 16. POST /api/ai-tools/booking/slot-options
+    AC->>AS: 17. getSlotOptions(request)
+    AS->>BS: 18. getAvailableSlots(clinicId, date, serviceIds)
+    BS->>DB: 19. Query open slots
+    BS-->>AS: 20. Exact slot or recommended slots
+    AS-->>AC: 21. Slot options
+    AC-->>AG: 22. Slot options
+
+    AG->>AC: 23. POST /api/ai-tools/booking/draft
+    AC->>AS: 24. buildDraft(request)
+    AS-->>AC: 25. Booking summary + confirmation payload
+    AC-->>AG: 26. Draft response
+    AG-->>UI: 27. Render clinic card, slot suggestions, and booking summary card
+    UI-->>PO: 28. Show chat-first booking result in one turn
+`
+
+#### 4.20.5 Sequence Diagram: Confirm Draft and Create Pending Booking
+
+`mermaid
+sequenceDiagram
+    actor PO as Pet Owner
+    participant UI as Mobile AI Chat
+    participant AG as AI Agent Service
+    participant AC as AiToolBookingController
+    participant AS as AiToolBookingService
+    participant BS as BookingService
+    participant DB as Database
+    actor CM as Clinic Manager
+
+    PO->>UI: 1. Tap "Xac nhan dat lich"
+    UI->>AG: 2. Send confirmation action with draft payload
+    AG->>AC: 3. POST /api/ai-tools/booking/create
+    AC->>AS: 4. createBooking(request)
+    AS->>BS: 5. createBooking(bookingRequest, petOwnerId)
+    BS->>DB: 6. Save booking with status PENDING
+    BS-->>AS: 7. BookingResponse
+    AS-->>AC: 8. AiCreateBookingResponse
+    AC-->>AG: 9. bookingId + bookingCode + managerWillConfirm=true
+    AG-->>UI: 10. Stream natural-language confirmation
+    UI-->>PO: 11. Show pending confirmation state
+    DB-->>CM: 12. Booking appears in manager queue for final confirmation
+`
+
+#### 4.20.6 Cross-Reference to SRS
+
+| Requirement | Description | Implementation Direction |
+|------------|-------------|--------------------------|
+| 3.11.1 | Chat-first AI booking in mobile assistant | AI service keeps the conversation in chat and uses internal booking APIs |
+| 3.11.10 | Dedicated AI Tool Booking APIs | Spring Boot exposes /api/ai-tools/booking/* with Swagger documentation |
+| 3.8.1 | Booking creation lifecycle | Final create step reuses BookingService.createBooking(...) and stores PENDING |
+| 3.8.5 | Clinic manager confirms bookings | Final appointment confirmation remains in clinic manager workflow |
+| BR-42 / BR-43 | AI assistance rules and booking support rules | Full transcript context, minimal follow-up questions, confirmation before create |
+
+---
+---
+
+### 4.21 Staff AI Diagnosis in EMR Workspace
+
+Module này bổ sung lớp hỗ trợ AI trực tiếp trong không gian làm việc EMR của `STAFF`, thay vì tách thành một màn hình quản trị AI riêng. Bác sĩ có thể dùng AI ngay trong màn hình tạo bệnh án hoặc mở AI Chat theo kiểu side panel; cả hai cách đều phải tương tác trực tiếp được với EMR đang mở.
+
+#### 4.21.1 UX Direction
+
+- **Primary entry:** Màn hình tạo EMR có panel AI ở cột phải.
+- **Secondary entry:** AI Chat của staff mở dưới dạng side panel, dock bên phải khi đang xem booking, patient hoặc EMR.
+- **Shared state:** Side panel đọc và cập nhật trực tiếp `soapDraft` của EMR hiện tại.
+- **Apply actions:** Có các nút `Chèn vào Subjective`, `Chèn vào Objective`, `Chèn vào Assessment`, `Chèn vào Plan`.
+- **Evidence-first:** Mỗi gợi ý phải chỉ ra nguồn `Từ ảnh`, `Từ EMR tương tự`, `Từ kho tri thức`.
+
+#### 4.21.2 Class Diagram
+
+```mermaid
+classDiagram
+    class CreateEmrPage {
+        +renderEmrForm()
+        +handleAnalyzeCase()
+        +handleApplySuggestion(field, text)
+    }
+
+    class StaffAIChatPage {
+        +openDiagnosisSidePanel()
+        +bindCurrentEmrDraft()
+    }
+
+    class AIDiagnosisPanel {
+        +collectDoctorInput()
+        +submitDiagnosisRequest()
+        +renderDiagnosisState()
+    }
+
+    class AIDiagnosisSidePanel {
+        +openFromChatContext()
+        +applyToEmrField(field, text)
+        +syncSoapDraft()
+    }
+
+    class DiagnosisService {
+        +analyzeStaffCase(request)
+    }
+
+    class StaffDiagnosisController {
+        +analyzeCase(StaffDiagnosisRequest)
+    }
+
+    class StaffDiagnosisService {
+        +analyzeCase(request)
+        +buildGroundedResponse()
+    }
+
+    class GeminiVisionAdapter {
+        +analyze(request)
+    }
+
+    class DiseaseMappingService {
+        +mapRawLabel(text)
+    }
+
+    class EmrCaseMemorySyncService {
+        +fetchConfirmedEmrs()
+        +syncBatch()
+    }
+
+    class KnowledgeSearchService {
+        +searchClinicalKnowledge(query)
+    }
+
+    class CaseMemoryService {
+        +searchSimilarCases(query)
+        +upsertCase(caseRecord)
+    }
+
+    CreateEmrPage --> AIDiagnosisPanel
+    StaffAIChatPage --> AIDiagnosisSidePanel
+    AIDiagnosisPanel --> DiagnosisService
+    AIDiagnosisSidePanel --> DiagnosisService
+    DiagnosisService --> StaffDiagnosisController
+    StaffDiagnosisController --> StaffDiagnosisService
+    StaffDiagnosisService --> GeminiVisionAdapter
+    StaffDiagnosisService --> DiseaseMappingService
+    StaffDiagnosisService --> KnowledgeSearchService
+    StaffDiagnosisService --> CaseMemoryService
+    EmrCaseMemorySyncService --> CaseMemoryService
+    EmrCaseMemorySyncService --> DiseaseMappingService
+```
+
+#### 4.21.3 Class Specifications
+
+> **⚠️ 2026-03-17 Update:** AI Diagnosis flow đã được cập nhật:
+> - Nguồn dữ liệu: EMR confirmed (thay thế thumbs up/down feedback)
+> - Case Memory: EMR-driven, không còn từ FeedbackService
+> - Xem [AI_DIAGNOSIS_FEATURE_PLAN.md](./AI_DIAGNOSIS_FEATURE_PLAN.md)
+
+**1. CreateEmrPage**
+- **Responsibility:** Trang staff nhập SOAP notes, ảnh lâm sàng và hiển thị panel AI chẩn đoán ngay cạnh form bệnh án.
+- **Key Methods:**
+  - `handleAnalyzeCase()`: gom dữ liệu đang có trên form EMR và gọi panel AI.
+  - `handleApplySuggestion(field, text)`: chèn bản nháp AI vào field tương ứng của SOAP.
+
+**2. StaffAIChatPage**
+- **Responsibility:** Không gian chat tự do với AI cho staff; có thể mở side panel chẩn đoán gắn với ca khám hiện tại.
+- **Key Methods:**
+  - `openDiagnosisSidePanel()`: mở panel chẩn đoán mà không rời màn chat.
+  - `bindCurrentEmrDraft()`: đồng bộ draft bệnh án hiện có vào side panel.
+
+**3. AIDiagnosisPanel / AIDiagnosisSidePanel**
+- **Responsibility:** Thành phần giao diện hiển thị trạng thái AI diagnosis, input của bác sĩ và các card kết quả.
+- **Key Methods:**
+  - `collectDoctorInput()`: gom `doctorDescription`, `bodyPart`, `imageUrls`, `soapDraft`.
+  - `submitDiagnosisRequest()`: gửi request sang AI service.
+  - `applyToEmrField(field, text)`: cập nhật trực tiếp Subjective, Objective, Assessment hoặc Plan.
+  - `renderDiagnosisState()`: hiển thị `idle`, `loading`, `success`, `insufficient_data`, `error`.
+
+**4. DiagnosisService**
+- **Responsibility:** API client ở web để gọi endpoint AI diagnosis mới.
+- **Key Methods:**
+  - `analyzeStaffCase(request)`: POST payload chuẩn hóa sang AI service.
+
+**5. StaffDiagnosisController**
+- **Responsibility:** Expose endpoint nội bộ cho luồng chẩn đoán của `STAFF`.
+- **Key Methods:**
+  - `analyzeCase(request)`: nhận request đã xác thực và chuyển cho service orchestration.
+
+**6. StaffDiagnosisService**
+- **Responsibility:** Điều phối toàn bộ pipeline chẩn đoán mới.
+- **Key Methods:**
+  - `analyzeCase(request)`: chuẩn hóa input, gọi vision nếu có ảnh, query KB và case memory.
+  - `buildGroundedResponse()`: tổng hợp kết quả cuối cùng kèm nguồn bằng chứng và disclaimer.
+
+**7. GeminiVisionAdapter**
+- **Responsibility:** Gọi Gemini Vision qua provider hiện tại và parse structured output.
+- **Key Methods:**
+  - `analyze(request)`: trả về `visual_findings` và `top_conditions`.
+
+**8. DiseaseMappingService**
+- **Responsibility:** Map chẩn đoán text từ EMR hoặc vision về `canonical_code`.
+- **Key Methods:**
+  - `mapRawLabel(text)`: chuẩn hóa alias và map sang disease catalog.
+
+**9. EmrCaseMemorySyncService**
+- **Responsibility:** Đồng bộ EMR đã xác nhận từ Spring Boot sang case memory để phục vụ truy xuất ca tương tự.
+- **Key Methods:**
+  - `fetchConfirmedEmrs()`: lấy batch EMR đã xác nhận.
+  - `syncBatch()`: chuẩn hóa, embed và upsert vào vector store.
+
+**10. Disease Catalog Persistence**
+- **Responsibility:** Lưu canonical disease, alias theo nguồn và hàng đợi review cho nhãn chưa map được.
+- **Key Methods:**
+  - `refresh_from_db()`: load snapshot mapping từ PostgreSQL.
+  - `map_label()`: map nhãn EMR/vision/KB về `canonical_code`.
+  - `record_unmapped_label()`: ghi nhãn chưa map được vào review queue.
+
+#### 4.21.4 Sequence Diagram: Staff phân tích ca bệnh từ EMR hoặc side panel chat
+
+```mermaid
+sequenceDiagram
+    actor Staff
+    participant EMR as CreateEmrPage
+    participant Chat as StaffAIChatPage
+    participant Panel as AIDiagnosisPanel
+    participant Side as AIDiagnosisSidePanel
+    participant AIAPI as StaffDiagnosisController
+    participant Orchestrator as StaffDiagnosisService
+    participant Vision as GeminiVisionAdapter
+    participant KB as KnowledgeSearchService
+    participant CM as CaseMemoryService
+    participant Map as DiseaseMappingService
+    participant DB as Database
+
+    alt Staff đang ở màn hình EMR
+        Staff->>EMR: Nhập SOAP notes, mô tả lâm sàng, tải ảnh
+        Staff->>Panel: Bấm "Phân tích ca bệnh"
+        Panel->>AIAPI: POST StaffDiagnosisRequest
+    else Staff đang ở màn hình chat
+        Staff->>Chat: Mở side panel chẩn đoán
+        Chat->>Side: Bind SOAP draft hiện tại
+        Staff->>Side: Nhập thêm mô tả hoặc chọn ảnh
+        Side->>AIAPI: POST StaffDiagnosisRequest
+    end
+    AIAPI->>Orchestrator: analyzeCase(request)
+    alt Có ảnh lâm sàng
+        Orchestrator->>Vision: analyze(imageUrls, doctorDescription, species, bodyPart)
+        Vision-->>Orchestrator: visualFindings, topConditions
+    end
+    Orchestrator->>KB: searchClinicalKnowledge(query)
+    KB->>DB: Query knowledge chunks and graph facts
+    DB-->>KB: Retrieved knowledge evidence
+    KB-->>Orchestrator: knowledgeSummary
+    Orchestrator->>CM: searchSimilarCases(query)
+    CM->>DB: Search similar confirmed EMR vectors
+    DB-->>CM: matched case payloads
+    CM-->>Orchestrator: matchedCases
+    Orchestrator->>Map: mapRawLabel(...)
+    Map-->>Orchestrator: canonicalCodes
+    Orchestrator-->>AIAPI: grounded diagnosis response
+    AIAPI-->>Panel: topDifferentials, evidence, soapSuggestions
+    AIAPI-->>Side: topDifferentials, evidence, soapSuggestions
+    Staff->>Panel: Chọn "Chèn vào Assessment"
+    Staff->>Side: Hoặc chọn "Chèn vào Plan"
+    Panel->>EMR: Cập nhật form bệnh án
+    Side->>EMR: Cập nhật form bệnh án qua shared state
+```
+
+#### 4.21.5 Sequence Diagram: EMR confirmed đồng bộ sang case memory
+
+```mermaid
+sequenceDiagram
+    participant Spring as InternalAiEmrController
+    participant Sync as EmrCaseMemorySyncService
+    participant Map as DiseaseMappingService
+    participant CaseMemory as CaseMemoryService
+    participant DB as Database
+
+    Sync->>Spring: GET /internal/ai/emrs/confirmed
+    Spring->>DB: Query confirmed EMR batch
+    DB-->>Spring: Confirmed EMR documents
+    Spring-->>Sync: Confirmed EMR DTO batch
+    loop Với mỗi EMR đủ điều kiện
+        Sync->>Map: mapRawLabel(finalDiagnosisText)
+        Map-->>Sync: canonicalCode
+        Sync->>CaseMemory: upsertCase(normalizedCase)
+        CaseMemory->>DB: Upsert payload + text/image vectors
+        DB-->>CaseMemory: success
+        CaseMemory-->>Sync: success
+    end
+```
+
+#### 4.21.6 Sequence Diagram: Full flow từ AI diagnosis đến lưu case memory
+
+```mermaid
+sequenceDiagram
+    actor Staff
+    participant UI as EMR Workspace
+    participant AIAPI as StaffDiagnosisController
+    participant Service as StaffDiagnosisService
+    participant Vision as GeminiVisionAdapter
+    participant KB as HybridRAGEngine
+    participant CM as CaseMemoryService
+    participant Map as DiseaseMappingService
+    participant Spring as EmrController
+    participant Sync as EmrCaseMemorySyncService
+    participant DB as Database
+
+    Staff->>UI: Nhập SOAP, mô tả lâm sàng, cân nặng, dị ứng và ảnh
+    Staff->>UI: Bấm phân tích AI
+    UI->>AIAPI: POST /api/v1/staff-diagnosis/analyze
+    AIAPI->>Service: analyzeCase(request)
+    alt Có ảnh lâm sàng
+        Service->>Vision: analyze(imageUrls, doctorDescription, species)
+        Vision-->>Service: visualFindings, topConditions, imageDescriptions
+    end
+    Service->>KB: query(query, RAG + KG)
+    KB->>DB: Query knowledge chunks và graph facts
+    DB-->>KB: Knowledge evidence
+    KB-->>Service: HybridResult
+    Service->>CM: searchSimilarCases(query, imageUrls)
+    CM->>DB: Search similar confirmed EMR vectors
+    DB-->>CM: matched case payloads
+    CM-->>Service: matchedCases
+    Service->>Map: map labels về canonical_code
+    Map-->>Service: canonical disease mapping
+    Service-->>AIAPI: grounded diagnosis response
+    AIAPI-->>UI: topDifferentials, evidence, SOAP, prescription protocol
+    Staff->>UI: Chấp nhận hoặc chỉnh tay SOAP và đơn thuốc
+    Staff->>UI: Lưu EMR
+    UI->>Spring: POST/PUT EMR
+    Spring->>DB: Save EMR record
+    DB-->>Spring: Saved EMR
+    Spring-->>UI: EMR saved
+    Sync->>Spring: GET /internal/ai/emrs/confirmed
+    Spring->>DB: Query confirmed EMR batch
+    DB-->>Spring: Confirmed EMR DTO batch
+    Spring-->>Sync: Confirmed EMR DTO batch
+    loop Với mỗi EMR đủ điều kiện
+        Sync->>Map: mapRawLabel(finalDiagnosisText)
+        Map-->>Sync: canonicalCode
+        Sync->>CM: upsertCase(normalizedCase)
+        CM->>DB: Upsert payload + text/image vectors
+        DB-->>CM: success
+        CM-->>Sync: success
+    end
+```
+
+#### 4.21.7 Swimlane Diagram: Full workflow
+
+```mermaid
+flowchart LR
+    subgraph Lane1["STAFF"]
+        S1["Nhập SOAP, mô tả lâm sàng, cân nặng, dị ứng, ảnh"]
+        S2["Xem gợi ý AI"]
+        S3["Chấp nhận hoặc chỉnh tay SOAP và đơn thuốc"]
+        S4["Lưu EMR"]
+    end
+
+    subgraph Lane2["Web EMR/UI"]
+        U1["Gửi StaffDiagnosisRequest"]
+        U2["Hiển thị differential, evidence, SOAP, đơn thuốc"]
+        U3["Gửi yêu cầu lưu EMR"]
+    end
+
+    subgraph Lane3["AI Service"]
+        A1["StaffDiagnosisService nhận request"]
+        A2["Gọi Gemini Vision nếu có ảnh"]
+        A3["Query HybridRAGEngine (RAG + KG)"]
+        A4["Query CaseMemoryService"]
+        A5["Map canonical disease + áp protocol"]
+        A6["Trả diagnosis response"]
+        A7["EmrCaseMemorySyncService nhận batch EMR confirmed"]
+        A8["Map final diagnosis + upsert case memory"]
+    end
+
+    subgraph Lane4["Spring Boot"]
+        B1["Lưu EMR đã được bác sĩ xác nhận"]
+        B2["Expose internal batch EMR confirmed"]
+    end
+
+    subgraph Lane5["Database"]
+        D1["Knowledge Base / KG / Case Memory retrieval"]
+        D2["Lưu EMR record"]
+        D3["Lưu vector case memory mới"]
+    end
+
+    S1 --> U1
+    U1 --> A1
+    A1 --> A2
+    A2 --> A3
+    A3 --> D1
+    D1 --> A3
+    A3 --> A4
+    A4 --> D1
+    D1 --> A4
+    A4 --> A5
+    A5 --> A6
+    A6 --> U2
+    U2 --> S2
+    S2 --> S3
+    S3 --> S4
+    S4 --> U3
+    U3 --> B1
+    B1 --> D2
+    D2 --> B1
+    B1 --> B2
+    B2 --> A7
+    A7 --> A8
+    A8 --> D3
+```
+
+#### 4.21.7.1 Swimlane Diagram: Full workflow (UTF-8 clean)
+
+```mermaid
+flowchart LR
+    subgraph Lane1["STAFF"]
+        S1["Nhập SOAP, mô tả lâm sàng, cân nặng, dị ứng, ảnh"]
+        S2["Xem gợi ý AI"]
+        S3["Chấp nhận hoặc chỉnh tay SOAP và đơn thuốc"]
+        S4["Lưu EMR"]
+    end
+
+    subgraph Lane2["Web EMR/UI"]
+        U1["Gửi StaffDiagnosisRequest"]
+        U2["Hiển thị differential, evidence, SOAP, đơn thuốc"]
+        U3["Gửi yêu cầu lưu EMR"]
+    end
+
+    subgraph Lane3["AI Service"]
+        A1["StaffDiagnosisService nhận request"]
+        A2["Gọi Gemini Vision nếu có ảnh"]
+        A3["Query HybridRAGEngine (RAG + KG)"]
+        A4["Query CaseMemoryService"]
+        A5["Map canonical disease + áp protocol"]
+        A6["Trả diagnosis response"]
+        A7["EmrCaseMemorySyncService nhận batch EMR confirmed"]
+        A8["Map final diagnosis + upsert case memory"]
+    end
+
+    subgraph Lane4["Spring Boot"]
+        B1["Lưu EMR đã được bác sĩ xác nhận"]
+        B2["Expose internal batch EMR confirmed"]
+    end
+
+    subgraph Lane5["Database"]
+        D1["Knowledge Base / KG / Case Memory retrieval"]
+        D2["Lưu EMR record"]
+        D3["Lưu vector case memory mới"]
+    end
+
+    S1 --> U1
+    U1 --> A1
+    A1 --> A2
+    A2 --> A3
+    A3 --> D1
+    D1 --> A3
+    A3 --> A4
+    A4 --> D1
+    D1 --> A4
+    A4 --> A5
+    A5 --> A6
+    A6 --> U2
+    U2 --> S2
+    S2 --> S3
+    S3 --> S4
+    S4 --> U3
+    U3 --> B1
+    B1 --> D2
+    D2 --> B1
+    B1 --> B2
+    B2 --> A7
+    A7 --> A8
+    A8 --> D3
+```
+
+#### 4.21.7.2 Auto-sync semantics
+
+- `case_id` trong Case Memory dùng quy ước `emr:{emr_id}`.
+- AI service có background worker tự polling EMR confirmed thay đổi theo `updated_from` / `updated_to`.
+- Spring Boot expose feed `GET /api/internal/ai/emrs/confirmed` để AI service lấy batch EMR đã lưu bởi bác sĩ.
+- Auth service-to-service ưu tiên `X-Internal-AI-Key`; nếu chưa có thì AI service mới fallback sang Bearer token/service account.
+- Khi EMR confirmed đã từng sync và được cập nhật, sync lần sau sẽ overwrite cùng `case_id`.
+- Nếu diagnosis map được `disease_catalog`, payload lưu `mapping_status = mapped`.
+- Nếu diagnosis chưa map được catalog, payload vẫn được ingest với:
+  - `mapping_status = provisional`
+  - `provisional_label = final_diagnosis_text`
+- Nhãn chưa map được đồng thời được ghi vào `disease_mapping_review_items` để mở rộng catalog sau đó.
+
+#### 4.21.8 Cross-Reference to SRS
+
+- SRS section: `3.11.11 Hỗ trợ AI chẩn đoán trong không gian làm việc EMR (UC-STAFF-11)`
+- Related modules:
+  - `petties-web/src/pages/staff/emr/CreateEmrPage.tsx`
+  - `petties-web/src/pages/staff/StaffAIChatPage.tsx`
+  - `petties-web/src/components/emr/InlineSuggestion.tsx`
+  - `petties-agent-serivce/app/api/schemas/diagnosis_contracts.py`
+  - `petties-agent-serivce/app/core/services/emr_case_memory_sync_service.py`
+  - `petties-agent-serivce/app/core/vision/gemini_vision_adapter.py`
+
+---
+
+### 4.22 AI Health Summary for Pet Owner
+
+#### 4.22.1 Overview
+
+Feature này cho phép Pet Owner xem nhanh thông tin sức khỏe của thú cưng ngay trên Pet Detail page mà không cần hỏi chatbot. AI sẽ tự động tổng hợp:
+- Thông tin pet cơ bản
+- EMR gần nhất (chẩn đoán, điều trị)
+- Cảnh báo mức độ nghiêm trọng
+- Gợi ý hành động
+
+#### 4.22.2 Class Diagram
+
+```mermaid
+classDiagram
+    class PetDetailScreen {
+        +petId: string
+        +loadHealthSummary()
+        +renderHealthSummaryCard()
+    }
+
+    class HealthSummaryCard {
+        +petInfo: PetInfo
+        +latestEmr: EmrSummary
+        +warnings: HealthWarning[]
+        +suggestedActions: Action[]
+        +onAskAI()
+        +onViewDetail()
+        +onBookAppointment()
+    }
+
+    class PetHealthSummaryService {
+        +getPetHealthSummary(petId, userId)
+    }
+
+    class GetPetHealthSummaryTool {
+        +name: "get_pet_health_summary"
+        +execute(petId, userId)
+    }
+
+    class EMRService {
+        +getLatestEmr(petId)
+    }
+
+    PetDetailScreen --> HealthSummaryCard
+    HealthSummaryCard --> PetHealthSummaryService
+    PetHealthSummaryService --> GetPetHealthSummaryTool
+    PetHealthSummaryService --> EMRService
+```
+
+#### 4.22.3 API Contracts
+
+**Request:**
+```
+GET /api/v1/pets/{petId}/health-summary
+Authorization: Bearer {PET_OWNER_JWT}
+```
+
+**Response:**
+```json
+{
+  "pet_info": {
+    "pet_id": "pet-123",
+    "name": "Max",
+    "species": "DOG",
+    "breed": "Golden Retriever",
+    "age_months": 36,
+    "weight_kg": 25.0
+  },
+  "latest_emr": {
+    "exam_date": "2026-03-15",
+    "clinic_name": "Phòng khám ABC",
+    "diagnosis": "Viêm da dị ứng",
+    "treatment": "Thuốc kháng histamine + kem dưỡng ẩm",
+    "next_revisit": "2026-04-14"
+  },
+  "health_warnings": [
+    {
+      "type": "RECHECK_REQUIRED",
+      "message": "Cần tái khám sau 30 ngày",
+      "severity": "MEDIUM"
+    }
+  ],
+  "medication_reminders": [
+    {
+      "medication": "Thuốc kháng histamine",
+      "dosage": "1 viên/ngày",
+      "end_date": "2026-03-30"
+    }
+  ],
+  "suggested_actions": [
+    {
+      "type": "BOOK_APPOINTMENT",
+      "label": "Đặt lịch tái khám",
+      "reason": "Đã 30 ngày kể từ lần khám gần nhất"
+    }
+  ],
+  "disclaimer": "Thông tin chỉ mang tính tham khảo. Vui lòng consult bác sĩ để được tư vấn chính xác."
+}
+```
+
+#### 4.22.4 Sequence Diagram: Pet Owner xem Health Summary
+
+```mermaid
+sequenceDiagram
+    participant PO as Pet Owner
+    participant Mobile as PetDetailScreen
+    participant API as Backend API
+    participant AI as AI Service
+    participant EMR as EMR Service
+
+    PO->>Mobile: Mở Pet Detail
+    Mobile->>API: GET /pets/{petId}/health-summary
+    API->>EMR: getLatestEmr(petId)
+    EMR-->>API: latestEmr
+    
+    API->>AI: synthesizeHealthSummary(petId, latestEmr)
+    AI-->>API: healthSummary with warnings
+    
+    API-->>Mobile: healthSummary JSON
+    Mobile->>Mobile: render HealthSummaryCard
+    
+    alt User clicks "Hỏi AI"
+        Mobile->>Mobile: openChatWithPetContext
+    end
+    
+    alt User clicks "Đặt lịch"
+        Mobile->>Mobile: navigateToBooking(petId)
+    end
+```
+
+#### 4.22.5 Implementation Notes
+
+| Component | File | Notes |
+|-----------|------|-------|
+| AI Tool | `medical_tools.py` | New tool `get_pet_health_summary` |
+| Backend | `PetController.java` | New endpoint `/pets/{id}/health-summary` |
+| Mobile UI | `pet_detail_screen.dart` | Add HealthSummaryCard |
+| Web UI | Optional | For future web access |
+
+#### 4.22.6 Cross-Reference to SRS
+
+- SRS section: `3.11.12 AI Health Summary cho Pet Owner (UC-PO-EMR-01)`
+- Related modules:
+  - `petties_mobile/lib/ui/pet/pet_detail_screen.dart`
+  - `petties-agent-serivce/app/core/tools/mcp_tools/medical_tools.py`
+  - `backend-spring/petties/src/main/java/com/petties/petties/controller/PetController.java`
+
+### 4.23 Simplified EMR Case Memory Sync
+
+Từ ngày 2026-03-19, nhánh đồng bộ `EMR confirmed -> Case Memory` được rút gọn sang cơ chế push trực tiếp từ Spring Boot sang AI service.
+
+#### 4.23.1 Sequence Diagram
+```mermaid
+sequenceDiagram
+    participant Staff as Bác sĩ
+    participant Spring as Spring Boot
+    participant AI as AI Service
+    participant DB as Database
+
+    Staff->>Spring: Tạo hoặc cập nhật EMR
+    Spring->>DB: Lưu EMR
+    alt EMR có chẩn đoán cuối
+        Spring->>AI: POST /api/v1/internal/case-memory/emr-sync
+        Note over Spring,AI: Header X-Internal-AI-Key
+        AI->>DB: Map disease và upsert case memory
+        AI-->>Spring: success hoặc lỗi
+    end
+    Spring-->>Staff: Trả kết quả lưu EMR
+```
+
+#### 4.23.2 Design Notes
+
+- Không còn polling worker.
+- Không còn feed nội bộ batch/cursor.
+- Nếu AI service lỗi, Spring chỉ log cảnh báo và không rollback EMR.
+- `case_id` luôn là `emr:{emr_id}`.
 

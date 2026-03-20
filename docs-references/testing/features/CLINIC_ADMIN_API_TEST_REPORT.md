@@ -1,4 +1,4 @@
-# Clinic Admin API - Unit Test Report
+﻿# Clinic Admin API - Unit Test Report
 
 **Version:** 1.0
 **Last Updated:** 2025-01-27

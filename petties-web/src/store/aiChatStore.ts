@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import type { EmrAiDraft, EmrAiSoapField } from '../utils/emrAiDraftBridge'
 
 export interface AISessionMessage {
     id: string
@@ -15,6 +16,7 @@ interface AIChatState {
     messages: AISessionMessage[]
     connectionStatus: 'disconnected' | 'connecting' | 'connected'
     isOpen: boolean
+    emrDraft: EmrAiDraft | null
     
     setSessionId: (sessionId: string | null) => void
     setMessages: (messages: AISessionMessage[]) => void
@@ -22,6 +24,8 @@ interface AIChatState {
     updateLastMessage: (content: string, isLoading?: boolean) => void
     setConnectionStatus: (status: 'disconnected' | 'connecting' | 'connected') => void
     setIsOpen: (isOpen: boolean) => void
+    setEmrDraft: (draft: EmrAiDraft | null) => void
+    updateEmrDraftField: (field: EmrAiSoapField, value: string) => void
     clearMessages: () => void
 }
 
@@ -32,6 +36,7 @@ export const useAIChatStore = create<AIChatState>()(
             messages: [],
             connectionStatus: 'disconnected',
             isOpen: false,
+            emrDraft: null,
 
             setSessionId: (sessionId) => set({ sessionId }),
             
@@ -69,6 +74,19 @@ export const useAIChatStore = create<AIChatState>()(
             setConnectionStatus: (connectionStatus) => set({ connectionStatus }),
             
             setIsOpen: (isOpen) => set({ isOpen }),
+
+            setEmrDraft: (emrDraft) => set({ emrDraft }),
+
+            updateEmrDraftField: (field, value) => set((state) => {
+                if (!state.emrDraft) return state
+                return {
+                    emrDraft: {
+                        ...state.emrDraft,
+                        [field]: value,
+                        updated_at: new Date().toISOString(),
+                    }
+                }
+            }),
             
             clearMessages: () => set({ messages: [] }),
         }),

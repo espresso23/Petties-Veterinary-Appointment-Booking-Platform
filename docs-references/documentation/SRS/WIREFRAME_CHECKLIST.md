@@ -1,4 +1,4 @@
-# Wireframe Generation Checklist
+﻿# Wireframe Generation Checklist
 
 This document tracks the generation of black & white wireframes for the Petties SRS documentation, aligned with implemented features.
 **Style Constraint:** Strictly monochrome (Black/White/Gray).
@@ -410,6 +410,11 @@ This document tracks the generation of black & white wireframes for the Petties 
   - Code: `petties-web/src/pages/staff/emr/EditEmrPage.tsx`
   - Stitch ID: `7d85f629b38440efa97e8751233b3629`
   - *UI Description: Form chỉnh sửa EMR existing. Pre-filled data, rich text editor, attachment upload. Audit trail hiển thị lịch sử sửa.*
+- [x] **AI Diagnosis Panel** (UC-STAFF-11)
+  - Code: `petties-web/src/components/emr/AIDiagnosisPanel.tsx`
+  - Stitch ID: *(Chưa generate - wireframe monochrome)*
+  - *UI Description: Panel trong Create/Edit EMR page. Input: ô nhập mô tả lâm sàng, vùng tổn thương, triệu chứng, danh sách ảnh. Output: Card Chẩn đoán phân biệt (top 3), Dấu hiệu từ ảnh, nút Chèn vào SOAP fields. Disclaimer: "Đây là gợi ý hỗ trợ tham khảo".*
+  - > **⚠️ 2026-03-17 Update:** Component đã implement. Nguồn: Gemini Vision + KB nội bộ + EMR confirmed (thay thế thumbs feedback).*
 - [x] **Vaccination Management** (UC-VT-08)
   - Code: `petties-web/src/pages/staff/emr/components/VaccinationTab.tsx`
   - Stitch ID: `f82869af13634ec19a747ac1f9fa7c6a`

@@ -225,7 +225,7 @@ async def update_agent(
             "temperature": 0.7,
             "max_tokens": 2000,
             "top_p": 0.9,
-            "model": "google/gemini-2.0-flash-exp:free"
+            "model": "google/gemini-2.5-flash-lite"
         }
     """
     try:

@@ -1,4 +1,4 @@
-# AI Service - Full Use Cases by Role
+﻿# AI Service - Full Use Cases by Role
 **Petties Veterinary Platform**
 
 Dưới đây là danh sách toàn bộ các ca sử dụng (Use Cases) của AI Service được phân chia chính xác theo vai trò người dùng (Dựa trên tài liệu Đặc tả Yêu cầu `AI_ASSISTANT_ROLE_REQUIREMENTS.md`).

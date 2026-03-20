@@ -1,4 +1,4 @@
-# 📁 Chuẩn Cấu Trúc Frontend (React + Vite & Flutter)
+﻿# 📁 Chuẩn Cấu Trúc Frontend (React + Vite & Flutter)
 
 Tài liệu này mô tả **cấu trúc thư mục chuẩn** cho web (React + Vite) và mobile (Flutter) trong dự án Petties. Mỗi thư mục có mô tả rõ ràng về mục đích và cách sử dụng, giúp team dễ dàng làm việc và maintain code.
 

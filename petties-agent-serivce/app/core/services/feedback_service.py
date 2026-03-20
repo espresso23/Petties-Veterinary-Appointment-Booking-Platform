@@ -5,25 +5,24 @@ Xử lý feedback từ TẤT CẢ roles (PET_OWNER, STAFF, CLINIC_MANAGER,
 CLINIC_OWNER, ADMIN) trên TẤT CẢ loại tương tác AI.
 
 Package: app.core.services
-Purpose: Save feedback, auto-classify, process positive -> embed case memory
-Version: v1.0.0
+Purpose: Save feedback to MongoDB for UX analysis
+Version: v2.0.0 (2026-03-17 - Case memory removed)
+
+> ⚠️ 2026-03-17 Update: Case memory embedding đã bị disable theo
+> AI_DIAGNOSIS_FEATURE_PLAN.md. Feedback chỉ còn lưu vào MongoDB
+> để phân tích UX, không còn được dùng làm nguồn học cho AI.
 
 Flow:
     1. User gửi feedback (thumbs_up/down/report) qua POST /chat/feedback
     2. FeedbackService.save_feedback() -> lưu vào MongoDB
-    3. Nếu positive -> process_positive_feedback():
-       a. Lấy message gốc từ MongoDB
-       b. Auto-classify category (medical/booking/clinic_ops/general)
-       c. Extract case info theo category
-       d. Tính weight theo role
-       e. Embed vào Case Memory (Qdrant) nếu weight > 0
+    3. (DEPRECATED) process_positive_feedback - không còn embed vào case memory
 
-Trọng số feedback theo role:
-    VET/STAFF confirmed     = 1.0 (chuyên gia xác nhận)
+Trọng số feedback theo role (đã deprecated - chỉ còn để tham khảo):
+    VET/STAFF confirmed     = 1.0
     CLINIC_MANAGER positive = 0.7
     CLINIC_OWNER positive   = 0.7
     PET_OWNER thumbs_up     = 0.6
-    ADMIN playground        = 0.0 (chỉ debug, không embed)
+    ADMIN playground        = 0.0
 """
 
 from __future__ import annotations
@@ -39,6 +38,10 @@ from loguru import logger
 # CONSTANTS
 # ============================================================
 
+# Case memory embedding đã disabled theo AI_DIAGNOSIS_FEATURE_PLAN.md
+# Feedback chỉ còn lưu vào MongoDB để phân tích UX
+CASE_MEMORY_ENABLED = False
+
 # Trọng số feedback theo role
 ROLE_FEEDBACK_WEIGHTS: Dict[str, float] = {
     "VET": 1.0,
@@ -52,7 +55,6 @@ ROLE_FEEDBACK_WEIGHTS: Dict[str, float] = {
 # Ánh xạ tool -> category cho auto-classification
 MEDICAL_TOOLS: Set[str] = {
     "pet_knowledge_search",
-    "analyze_pet_image",
     "check_vaccination_status",
 }
 
@@ -89,11 +91,14 @@ class FeedbackService:
     Điều phối xử lý feedback cho tất cả roles và loại tương tác.
 
     Trách nhiệm:
-        - Lưu feedback vào MongoDB
-        - Tự động phân loại interaction category từ react_trace
-        - Xử lý positive feedback -> embed vào Case Memory
-        - Tính trọng số feedback theo role
-        - Cung cấp thống kê feedback
+        - Lưu feedback vào MongoDB (để phân tích UX)
+        - ⚠️ DEPRECATED: Tự động phân loại interaction category - chỉ còn lưu trữ
+        - ⚠️ DEPRECATED: Xử lý positive feedback -> embed vào Case Memory
+        - ⚠️ DEPRECATED: Tính trọng số feedback theo role
+        - Cung cấp thống kê feedback (để UX analysis)
+
+    > 2026-03-17: Case memory embedding đã disable theo AI_DIAGNOSIS_FEATURE_PLAN.md.
+    > Nguồn học mới cho AI diagnosis là EMR confirmed.
 
     Cách dùng:
         service = FeedbackService()
@@ -249,7 +254,18 @@ class FeedbackService:
         case_data["session_id"] = feedback.get("session_id", "")
         case_data["message_id"] = message_id
 
-        # Embed vào Case Memory
+        # ⚠️ DEPRECATED (2026-03-17): Case memory embedding đã bị disable
+        # theo AI_DIAGNOSIS_FEATURE_PLAN.md
+        # Feedback chỉ còn lưu vào MongoDB để phân tích UX
+        if not CASE_MEMORY_ENABLED:
+            logger.info(
+                f"Case memory embedding is DISABLED. "
+                f"Feedback saved to MongoDB but not embedded. "
+                f"(category={category}, role={user_role})"
+            )
+            return False
+
+        # === EMBED TO CASE MEMORY (DEPRECATED) ===
         try:
             from app.core.rag.case_memory import get_case_memory_service
 
@@ -560,15 +576,24 @@ class FeedbackService:
             return {"status": "error", "error": str(e)}
 
     async def _delete_case_from_qdrant(self, case_id: str) -> bool:
-        """Xóa case khỏi Qdrant."""
-        try:
-            from app.core.rag.case_memory import get_case_memory_service
-
-            cm = get_case_memory_service()
-            return await cm.delete_case(case_id)
-        except Exception as e:
-            logger.error(f"Failed to delete case {case_id}: {e}")
-            return False
+        """
+        ⚠️ DEPRECATED (2026-03-17): Case memory embedding đã bị disable.
+        Method này không còn hoạt động.
+        """
+        logger.warning(
+            f"_delete_case_from_qdrant called but case memory is DISABLED. "
+            f"case_id={case_id}"
+        )
+        return False
+        # === ORIGINAL CODE (DEPRECATED) ===
+        # try:
+        #     from app.core.rag.case_memory import get_case_memory_service
+        #
+        #     cm = get_case_memory_service()
+        #     return await cm.delete_case(case_id)
+        # except Exception as e:
+        #     logger.error(f"Failed to delete case {case_id}: {e}")
+        #     return False
 
     # ----------------------------------------------------------
     # Nội bộ: Helper functions

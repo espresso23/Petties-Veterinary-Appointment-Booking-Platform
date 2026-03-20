@@ -1,4 +1,4 @@
-"""HTTP client gọi Spring Boot backend cho booking AI tools."""
+"""HTTP client goi Spring Boot backend cho booking AI tools."""
 
 from __future__ import annotations
 
@@ -79,7 +79,12 @@ class SpringBackendClient:
                     delay_seconds *= 2
                     continue
 
-                raise BackendClientError(detail or "Backend request failed") from exc
+                safe_detail = str(detail or "").strip()
+                if not safe_detail:
+                    safe_detail = f"Backend request failed (HTTP {status_code})"
+                elif safe_detail == "Backend request failed":
+                    safe_detail = f"{safe_detail} (HTTP {status_code})"
+                raise BackendClientError(safe_detail) from exc
             except httpx.HTTPError as exc:
                 last_error = str(exc)
                 logger.warning(f"Spring backend transport error: {url} {exc}")
@@ -87,12 +92,21 @@ class SpringBackendClient:
                     await asyncio.sleep(delay_seconds)
                     delay_seconds *= 2
                     continue
-                raise BackendClientError(f"Không thể kết nối backend booking: {exc}") from exc
+                raise BackendClientError(f"Khong the ket noi backend booking: {exc}") from exc
 
-        raise BackendClientError(last_error or "Không thể gọi Spring backend")
+        raise BackendClientError(last_error or "Khong the goi Spring backend")
 
     async def get_my_pets(self, token: str) -> Any:
         return await self._request("GET", "/pets/me", token=token)
+
+    async def get_user_pets(self, token: str, user_id: Optional[str] = None) -> Any:
+        """
+        Compatibility wrapper for booking tools.
+
+        `GET /pets/me` always resolves from JWT, so `user_id` is kept only to
+        preserve the tool-facing signature and session consistency checks.
+        """
+        return await self.get_my_pets(token)
 
     async def get_vaccinations_by_pet(self, token: str, pet_id: str) -> List[Dict[str, Any]]:
         return await self._request("GET", f"/vaccinations/pet/{pet_id}", token=token)
@@ -127,15 +141,25 @@ class SpringBackendClient:
         is_home_visit: Optional[bool] = None,
     ) -> Any:
         use_compatible_endpoint = pet_species is not None or is_home_visit is not None
-        path = f"/services/by-clinic/{clinic_id}/compatible" if use_compatible_endpoint else f"/services/by-clinic/{clinic_id}"
-        params = None
-        if use_compatible_endpoint:
-            params = {}
-            if pet_species is not None:
-                params["petSpecies"] = pet_species
-            if is_home_visit is not None:
-                params["isHomeVisit"] = is_home_visit
-        return await self._request("GET", path, params=params)
+        base_path = f"/services/by-clinic/{clinic_id}"
+        if not use_compatible_endpoint:
+            return await self._request("GET", base_path, params=None)
+
+        params: Dict[str, Any] = {}
+        if pet_species is not None:
+            params["petSpecies"] = pet_species
+        if is_home_visit is not None:
+            params["isHomeVisit"] = is_home_visit
+
+        compatible_path = f"{base_path}/compatible"
+        try:
+            return await self._request("GET", compatible_path, params=params)
+        except BackendClientError as exc:
+            # Fallback to the public/base endpoint when compatible filtering is unstable.
+            logger.warning(
+                f"Compatible clinic-services endpoint failed for clinic={clinic_id}, fallback to base endpoint: {exc}"
+            )
+            return await self._request("GET", base_path, params=None)
 
     async def get_available_slots(
         self,
@@ -149,6 +173,21 @@ class SpringBackendClient:
         ]
         params.extend(("serviceIds", service_id) for service_id in service_ids)
         return await self._request("GET", "/bookings/public/available-slots", params=params)
+
+    async def resolve_booking_context(self, token: str, payload: Dict[str, Any]) -> Any:
+        return await self._request("POST", "/ai-tools/booking/context", token=token, json_body=payload)
+
+    async def get_booking_clinic_options(self, token: str, payload: Dict[str, Any]) -> Any:
+        return await self._request("POST", "/ai-tools/booking/clinic-options", token=token, json_body=payload)
+
+    async def get_booking_slot_options(self, token: str, payload: Dict[str, Any]) -> Any:
+        return await self._request("POST", "/ai-tools/booking/slot-options", token=token, json_body=payload)
+
+    async def build_booking_draft(self, token: str, payload: Dict[str, Any]) -> Any:
+        return await self._request("POST", "/ai-tools/booking/draft", token=token, json_body=payload)
+
+    async def create_ai_booking(self, token: str, payload: Dict[str, Any]) -> Any:
+        return await self._request("POST", "/ai-tools/booking/create", token=token, json_body=payload)
 
     async def create_booking(self, token: str, payload: Dict[str, Any]) -> Any:
         return await self._request("POST", "/bookings", token=token, json_body=payload)

@@ -1,4 +1,4 @@
-# AI Service - One Slide Overview
+﻿# AI Service - One Slide Overview
 **Petties Veterinary Platform**
 
 ```mermaid

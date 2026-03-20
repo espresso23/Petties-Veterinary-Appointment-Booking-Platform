@@ -1,4 +1,4 @@
-# PETTIES - BPMN 2.0 Detailed Process Specifications
+﻿# PETTIES - BPMN 2.0 Detailed Process Specifications
 
 **Tài liệu mô tả chi tiết luồng nghiệp vụ theo chuẩn BPMN 2.0 để vẽ bằng Draw.io**
 

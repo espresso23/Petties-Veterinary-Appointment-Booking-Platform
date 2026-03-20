@@ -1,4 +1,4 @@
-# 🚀 PETTIES - Setup Guide
+﻿# 🚀 PETTIES - Setup Guide
 
 Hướng dẫn setup chi tiết cho Development và Production environments.
 

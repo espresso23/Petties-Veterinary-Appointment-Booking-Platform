@@ -1,4 +1,4 @@
-# Petties AI Service - Sprint 13 Audit & Improvement Checklist
+﻿# Petties AI Service - Sprint 13 Audit & Improvement Checklist
 
 **Version:** 3.1
 **Last Updated:** 2026-03-11

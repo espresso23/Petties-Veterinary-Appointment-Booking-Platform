@@ -1,4 +1,6 @@
-# AI Service Architecture - Simple Diagram with Data Improvement
+﻿# AI Service Architecture - Simple Diagram with Data Improvement
+
+> Lưu ý cập nhật ngày 2026-03-17: sơ đồ này chứa hướng cải thiện dữ liệu cũ dựa trên thumbs up/down và visual case memory. Kiến trúc hiện hành chuyển sang EMR xác nhận + knowledge base + Gemini Vision.
 **Petties Veterinary Platform**
 
 ```mermaid

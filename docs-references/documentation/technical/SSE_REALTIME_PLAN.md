@@ -1,4 +1,4 @@
-# 🚀 Lộ Trình Triển Khai Hệ Thống Real-time (SSE) - Petties Platform
+﻿# 🚀 Lộ Trình Triển Khai Hệ Thống Real-time (SSE) - Petties Platform
 
 ## 1. Tổng quan (Overview)
 Hiện tại, dự án Petties đã có sẵn nền tảng `SseEmitterService` để đẩy thông báo (Notifications). Tài liệu này định hướng cách mở rộng nền tảng này để biến Petties thành một ứng dụng Real-time hoàn chỉnh, nâng cao trải nghiệm người dùng (UI/UX Pro Max).

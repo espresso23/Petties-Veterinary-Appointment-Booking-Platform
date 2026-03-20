@@ -1,4 +1,6 @@
-# PETTIES MVP - Happy Flows
+﻿# PETTIES MVP - Happy Flows
+
+> Lưu ý cập nhật ngày 2026-03-17: các happy flow cũ liên quan `analyze_pet_image` hoặc AI Diagnose admin flow không còn là luồng runtime hiện hành. Chỉ dùng tài liệu này như tư liệu lịch sử; luồng AI hiện tại được mô tả trong [AI_SERVICE_TECHNICAL_SPECIFICATION.md](D:/SEP490/petties/docs-references/documentation/AI_SERVICE_TECHNICAL_SPECIFICATION.md) và [AI_DIAGNOSIS_FEATURE_PLAN.md](D:/SEP490/petties/docs-references/documentation/AI_DIAGNOSIS_FEATURE_PLAN.md).
 
 **Version:** 1.4.0
 **Last Updated:** 2026-01-22  
@@ -1107,7 +1109,7 @@ CREATE TABLE chat_messages (
 5. Agent reasoning:
    ┌─────────────────────────────────────────────┐
    │ THOUGHT: Nhận được hình ảnh từ user         │
-   │ ACTION: analyze_pet_image(image_url)        │
+│ ACTION: Gemini Vision + KB/EMR synthesis    │
    │ OBSERVATION: Phát hiện "viêm da dị ứng",    │
    │              mức độ: Moderate               │
    │ THOUGHT: Cần tìm clinic gần nhất để gợi ý   │
@@ -1507,3 +1509,66 @@ WHERE clinic_id = 'clinic_abc';
 **Document Status:** MVP Ready  
 **Last Updated:** 2026-01-11
 
+
+---
+
+### 16.7A Kich ban: AI Diagnose cho bac si - Benh da lieu co anh
+
+**Actor:** STAFF
+
+```text
+1. Bac si mo AI ho tro chan doan trong man hinh kham benh.
+2. Nhap prompt: "Cho toi goi y chan doan phan biet cho cho bi rung long, do da, ngua 1 tuan. Anh da gui kem."
+3. AI nhan dien day la doctor diagnostic flow -> khong dung web_search.
+4. AI goi KB noi bo + tim ca EMR confirmed tuong tu + Gemini Vision.
+5. AI tra ve:
+   - top chan doan phan biet
+   - dau hieu ho tro tu anh
+   - thong tin con thieu can hoi them
+   - disclaimer
+6. Bac si tiep tuc hoi benh, kham truc tiep, chot chan doan.
+7. Sau khi EMR duoc xac nhan, case nay tro thanh nguon du lieu cho case memory.
+```
+
+### 16.7B Kich ban: AI Diagnose cho bac si - Benh tiet nieu khong co anh
+
+**Actor:** STAFF
+
+```text
+1. Bac si nhap prompt: "Cho cai 4 thang tuoi tieu mau, tieu rat, da co tien su viem bang quang. Goi y chan doan phan biet."
+2. AI khong goi vision vi khong co anh.
+3. AI tra KB noi bo va EMR confirmed co trieu chung tuong tu.
+4. AI dua ra top chan doan phan biet va de xuat thong tin can hoi them:
+   - tan suat tieu
+   - ket qua sieu am
+   - sot hay khong
+5. Bac si ket hop xet nghiem va kham lam sang de ket luan.
+6. EMR final diagnosis duoc luu -> bo sung case memory.
+```
+
+### 16.7C Kich ban: AI Diagnose cho bac si - Khong du du lieu noi bo
+
+**Actor:** STAFF
+
+```text
+1. Bac si nhap mot ca hiem gap, mo ta ngan va chua co anh.
+2. AI tra KB noi bo va case memory nhung khong tim thay thong tin dang tin cay.
+3. Vi day la doctor flow, AI khong dung web_search.
+4. AI tra loi ro:
+   "Hien chua co thong tin ve benh nay trong he thong tri thuc noi bo."
+5. AI goi y thong tin can bo sung de bac si tu danh gia them:
+   - trieu chung chi tiet hon
+   - can lam sang/xet nghiem
+   - anh ton thuong neu co
+```
+
+### 16.7D Kich ban: AI Diagnose sau tham kham
+
+**Actor:** STAFF
+
+```text
+1. Bac si da duoc AI ho tro trong luc kham.
+2. Sau khi kham xong, bac si nhap EMR final diagnosis.
+3. He thong sync EMR confirmed vao case memory.
+4. Lan sau neu gap case tuong tu, AI co them du lieu noi bo de grounding.
+```

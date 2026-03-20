@@ -1,16 +1,18 @@
 """
 Jina Image Embeddings Client
 
-Embed ảnh (URL hoặc base64) sang vector dùng Jina Embeddings API (jina-clip-v2).
+Embed áº£nh (URL hoáº·c base64) sang vector dÃ¹ng Jina Embeddings API (jina-clip-v2).
 
 Package: app.core.embeddings
-Purpose: Cung cấp hàm tiện ích embed ảnh để dùng trong Case Memory.
+Purpose: Cung cáº¥p hÃ m tiá»‡n Ã­ch embed áº£nh Ä‘á»ƒ dÃ¹ng trong Case Memory.
 Version: v1.1.0 (Optimized with Retry & Cache)
 """
 
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import time
 from typing import List, Optional
 from urllib.parse import urlparse
@@ -27,15 +29,16 @@ from app.core.config_helper import get_setting
 
 JINA_EMBEDDINGS_ENDPOINT = "https://api.jina.ai/v1/embeddings"
 DEFAULT_JINA_IMAGE_MODEL = "jina-clip-v2"
-"""Jina CLIP v2 trả về 1024 dim. Phải khớp với Qdrant collection."""
+"""Jina CLIP v2 tráº£ vá» 1024 dim. Pháº£i khá»›p vá»›i Qdrant collection."""
 
 EXPECTED_IMAGE_DIMENSION = 1024
 
-"""Jina batch size - an toàn hơn ở mức 50 để tránh timeout/413 với ảnh thực tế."""
+"""Jina batch size - an toÃ n hÆ¡n á»Ÿ má»©c 50 Ä‘á»ƒ trÃ¡nh timeout/413 vá»›i áº£nh thá»±c táº¿."""
 JINA_BATCH_SIZE = 50
 
 """TTL cho config cache (seconds)."""
 CONFIG_CACHE_TTL = 300
+JINA_BASE64_BATCH_SIZE = 10
 
 # ============================================================
 # STATE (CACHE)
@@ -51,10 +54,10 @@ _config_cache_time: float = 0.0
 
 
 async def _get_jina_config() -> Optional[dict]:
-    """Lấy API key và model từ system_settings với cơ chế caching."""
+    """Láº¥y API key vÃ  model tá»« system_settings vá»›i cÆ¡ cháº¿ caching."""
     global _config_cache, _config_cache_time
 
-    # Trả về cache nếu chưa hết hạn
+    # Tráº£ vá» cache náº¿u chÆ°a háº¿t háº¡n
     if _config_cache and (time.monotonic() - _config_cache_time) < CONFIG_CACHE_TTL:
         return _config_cache
 
@@ -73,7 +76,7 @@ async def _get_jina_config() -> Optional[dict]:
             )
             return None
 
-        # Cập nhật cache
+        # Cáº­p nháº­t cache
         _config_cache = {"api_key": api_key, "model": model}
         _config_cache_time = time.monotonic()
         return _config_cache
@@ -84,7 +87,7 @@ async def _get_jina_config() -> Optional[dict]:
 
 
 def _validate_embedding(emb: list, index: int) -> Optional[List[float]]:
-    """Validate embedding dimension (1024). Trả về None nếu sai dim."""
+    """Validate embedding dimension (1024). Tráº£ vá» None náº¿u sai dim."""
     if not isinstance(emb, list):
         return None
     if len(emb) != EXPECTED_IMAGE_DIMENSION:
@@ -98,6 +101,37 @@ def _validate_embedding(emb: list, index: int) -> Optional[List[float]]:
     return emb
 
 
+def _normalize_base64_input(value: str) -> Optional[str]:
+    """Normalize base64 input to data URL format and validate payload."""
+    if not isinstance(value, str):
+        return None
+
+    raw = value.strip()
+    if not raw:
+        return None
+
+    if raw.startswith("data:"):
+        if "," not in raw:
+            return None
+        header, payload = raw.split(",", 1)
+        header = header.strip()
+        payload = "".join(payload.split())
+        if ";base64" not in header.lower():
+            return None
+        try:
+            base64.b64decode(payload, validate=True)
+        except (binascii.Error, ValueError):
+            return None
+        return f"{header},{payload}"
+
+    payload = "".join(raw.split())
+    try:
+        base64.b64decode(payload, validate=True)
+    except (binascii.Error, ValueError):
+        return None
+    return f"data:image/jpeg;base64,{payload}"
+
+
 # ============================================================
 # PUBLIC API
 # ============================================================
@@ -105,8 +139,8 @@ def _validate_embedding(emb: list, index: int) -> Optional[List[float]]:
 
 async def embed_image_urls(urls: List[str]) -> List[List[float]]:
     """
-    Embed danh sách URL ảnh sang vector bằng Jina API.
-    Hỗ trợ retry 429/503 và caching config.
+    Embed danh sÃ¡ch URL áº£nh sang vector báº±ng Jina API.
+    Há»— trá»£ retry 429/503 vÃ  caching config.
     """
     if not urls:
         return []
@@ -115,8 +149,8 @@ async def embed_image_urls(urls: List[str]) -> List[List[float]]:
     if not config:
         return []
 
-    # Filter và validate URLs (hỗ trợ cả http và https cho dev)
-    inputs: List[dict] = []
+    # Filter vÃ  validate URLs (há»— trá»£ cáº£ http vÃ  https cho dev)
+    inputs: List[str] = []
     for url in urls:
         if not isinstance(url, str):
             continue
@@ -124,13 +158,14 @@ async def embed_image_urls(urls: List[str]) -> List[List[float]]:
         if not url:
             continue
         parsed = urlparse(url)
-        if parsed.scheme.lower() not in ("https", "http"):
+        if parsed.scheme.lower() not in ("https", "http", "data"):
             continue
-        inputs.append({"url": url})
+        inputs.append(url)
 
     if not inputs:
         logger.debug(
-            "[jina_image_embeddings] No valid URLs after filtering (%s input)", len(urls)
+            "[jina_image_embeddings] No valid URLs after filtering (%s input)",
+            len(urls),
         )
         return []
 
@@ -147,11 +182,9 @@ async def embed_image_urls(urls: List[str]) -> List[List[float]]:
                 payload = {
                     "model": config["model"],
                     "input": batch,
-                    "normalized": True,
-                    "embedding_type": "float",
                 }
 
-                # Retry với exponential backoff cho 429/503
+                # Retry vá»›i exponential backoff cho 429/503
                 last_resp = None
                 for attempt in range(3):
                     try:
@@ -216,19 +249,20 @@ async def embed_image_base64(base64_strings: List[str]) -> List[List[float]]:
     if not config:
         return []
 
-    # Chuẩn hóa input thành data URL format
-    inputs: List[dict] = []
+    inputs: List[str] = []
+    invalid_count = 0
     for bs in base64_strings:
-        if not isinstance(bs, str):
+        normalized = _normalize_base64_input(bs)
+        if normalized is None:
+            invalid_count += 1
             continue
-        bs = bs.strip()
-        if not bs:
-            continue
+        inputs.append(normalized)
 
-        if bs.startswith("data:"):
-            inputs.append({"url": bs})
-        else:
-            inputs.append({"url": f"data:image/jpeg;base64,{bs}"})
+    if invalid_count > 0:
+        logger.warning(
+            "[jina_image_embeddings] Dropped %s invalid base64 inputs before API call",
+            invalid_count,
+        )
 
     if not inputs:
         return []
@@ -241,16 +275,13 @@ async def embed_image_base64(base64_strings: List[str]) -> List[List[float]]:
 
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
-            for batch_start in range(0, len(inputs), JINA_BATCH_SIZE):
-                batch = inputs[batch_start : batch_start + JINA_BATCH_SIZE]
+            for batch_start in range(0, len(inputs), JINA_BASE64_BATCH_SIZE):
+                batch = inputs[batch_start : batch_start + JINA_BASE64_BATCH_SIZE]
                 payload = {
                     "model": config["model"],
                     "input": batch,
-                    "normalized": True,
-                    "embedding_type": "float",
                 }
 
-                # Retry logic
                 last_resp = None
                 for attempt in range(3):
                     try:
@@ -261,6 +292,49 @@ async def embed_image_base64(base64_strings: List[str]) -> List[List[float]]:
                         last_resp = resp
                         break
                     except httpx.HTTPStatusError as e:
+                        logger.error(
+                            "[jina_image_embeddings] HTTP error: %s - %s",
+                            e.response.status_code,
+                            (e.response.text or "")[:500],
+                        )
+
+                        if e.response.status_code == 400:
+                            logger.warning(
+                                "[jina_image_embeddings] Batch 400 at [%s..%s], fallback to single-item mode",
+                                batch_start,
+                                batch_start + len(batch) - 1,
+                            )
+                            for offset, single_input in enumerate(batch):
+                                single_payload = {
+                                    "model": config["model"],
+                                    "input": [single_input],
+                                }
+                                try:
+                                    single_resp = await client.post(
+                                        JINA_EMBEDDINGS_ENDPOINT,
+                                        json=single_payload,
+                                        headers=headers,
+                                    )
+                                    single_resp.raise_for_status()
+                                    single_data = single_resp.json()
+                                    data_items = single_data.get("data", [])
+                                    if not data_items:
+                                        continue
+                                    validated = _validate_embedding(
+                                        data_items[0].get("embedding"),
+                                        batch_start + offset,
+                                    )
+                                    if validated is not None:
+                                        all_embeddings.append(validated)
+                                except Exception as single_error:
+                                    logger.warning(
+                                        "[jina_image_embeddings] Skip invalid base64 item index=%s: %s",
+                                        batch_start + offset,
+                                        single_error,
+                                    )
+                            last_resp = None
+                            break
+
                         if e.response.status_code in (429, 503) and attempt < 2:
                             wait = 2**attempt
                             await asyncio.sleep(wait)
@@ -279,12 +353,22 @@ async def embed_image_base64(base64_strings: List[str]) -> List[List[float]]:
                         all_embeddings.append(validated)
 
         logger.info(
-            "[jina_image_embeddings] Created %s base64 embeddings", len(all_embeddings)
+            "[jina_image_embeddings] Created %s base64 embeddings from %s valid inputs",
+            len(all_embeddings),
+            len(inputs),
         )
         return all_embeddings
 
     except Exception as e:
         logger.error(f"[jina_image_embeddings] Base64 failure: {e}")
+        try:
+            resp = getattr(e, "response", None)
+            if resp:
+                logger.error(
+                    f"[jina_image_embeddings] Response: {resp.status_code} - {resp.text[:500]}"
+                )
+        except Exception:
+            pass
         return []
 
 
@@ -295,4 +379,6 @@ __all__ = [
     "DEFAULT_JINA_IMAGE_MODEL",
     "EXPECTED_IMAGE_DIMENSION",
     "JINA_BATCH_SIZE",
+    "JINA_BASE64_BATCH_SIZE",
 ]
+

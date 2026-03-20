@@ -1,4 +1,4 @@
-# Ngrok Local Development Setup Guide
+﻿# Ngrok Local Development Setup Guide
 
 Hướng dẫn cấu hình ngrok để kết nối Mobile App với Backend (8080) và AI Service (8000) qua internet mà không cần USB debugging.
 

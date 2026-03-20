@@ -11,4 +11,4 @@ app_id: ca6c9d37-9d59-4388-a9b7-c48d85f09f42
 # If auto_update: false, you will need to use package:shorebird_code_push to trigger updates.
 # https://pub.dev/packages/shorebird_code_push
 # Uncomment the following line to disable automatic updates.
-# auto_update: false
+auto_update: true

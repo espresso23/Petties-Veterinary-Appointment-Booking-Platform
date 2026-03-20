@@ -1,4 +1,4 @@
-# System Test Guide
+﻿# System Test Guide
 
 ## 1. Introduction
 This document provides guidelines and templates for conducting System Testing for the Petties project - a Veterinary Appointment Booking Platform.

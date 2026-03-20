@@ -87,10 +87,11 @@ const PROVIDERS: Array<{ id: LLMProvider; name: string; description: string }> =
 // Models per provider
 const MODELS_BY_PROVIDER: Record<LLMProvider, Array<{ id: string; name: string; vision?: boolean }>> = {
   openrouter: [
-    { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Flash (Free)', vision: true },
-    { id: 'google/gemini-2.5-flash-preview', name: 'Gemini 2.5 Flash Preview', vision: true },
+    { id: 'google/gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', vision: true },
+    { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash', vision: true },
+    { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)', vision: false },
     { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B', vision: false },
-    { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', vision: true },
+    { id: 'anthropic/claude-3.7-sonnet', name: 'Claude 3.7 Sonnet', vision: true },
     { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B', vision: false },
   ],
   deepseek: [
@@ -119,7 +120,7 @@ export const PlaygroundPage = () => {
 
   // LLM Provider & Model selection
   const [selectedProvider, setSelectedProvider] = useState<LLMProvider>('openrouter')
-  const [selectedModel, setSelectedModel] = useState<string>('google/gemini-2.0-flash-exp:free')
+  const [selectedModel, setSelectedModel] = useState<string>('google/gemini-2.5-flash-lite')
 
   // Settings Panel State
   const [showSettings, setShowSettings] = useState(false)

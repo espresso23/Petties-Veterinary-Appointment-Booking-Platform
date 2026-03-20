@@ -2,8 +2,8 @@ class AiBookingConfirmationDraft {
   final String? petName;
   final String? clinicId;
   final String? clinicName;
-  final String? bookingDate;
-  final String? startTime;
+  final String? bookingDate; // yyyy-MM-dd
+  final String? startTime; // HH:mm
   final List<String> services;
   final List<String> serviceIds;
 
@@ -25,30 +25,17 @@ AiBookingConfirmationDraft? extractBookingConfirmationDraft({
   required String content,
   List<dynamic>? reactTrace,
 }) {
-  final normalizedContent = content.toLowerCase();
-  final asksForConfirmation = normalizedContent.contains('xác nhận đặt lịch') ||
-      normalizedContent.contains('bạn có muốn tôi đặt lịch') ||
-      normalizedContent.contains('hãy xác nhận') ||
-      normalizedContent.contains('nếu đồng ý') ||
-      normalizedContent.contains('nếu bạn xác nhận');
-
-  if (!asksForConfirmation) {
-    return null;
-  }
-
   String? clinicId;
   String? clinicName;
   String? bookingDate;
   String? startTime;
-  List<String> services = const [];
-  List<String> serviceIds = const [];
+  var services = <String>[];
+  var serviceIds = <String>[];
 
   final clinicNamesById = <String, String>{};
 
   for (final step in reactTrace ?? const <dynamic>[]) {
-    if (step is! Map) {
-      continue;
-    }
+    if (step is! Map) continue;
 
     final toolName = step['tool_name']?.toString();
     final toolParams = step['tool_params'];
@@ -72,16 +59,30 @@ AiBookingConfirmationDraft? extractBookingConfirmationDraft({
     if (toolName == 'check_available_slots') {
       if (toolParams is Map) {
         clinicId ??= toolParams['clinic_id']?.toString();
-        bookingDate ??= toolParams['date']?.toString();
+        clinicName ??= toolParams['clinic_name_hint']?.toString();
+        bookingDate ??=
+            toolParams['date']?.toString() ??
+            toolParams['date_expression']?.toString();
+        startTime ??=
+            toolParams['start_time']?.toString() ??
+            toolParams['time_preference']?.toString();
         serviceIds = (toolParams['service_ids'] as List<dynamic>? ?? const [])
             .map((item) => item.toString())
             .toList();
+        final serviceHint = toolParams['service_hint']?.toString().trim();
+        if (services.isEmpty && serviceHint != null && serviceHint.isNotEmpty) {
+          services = <String>[serviceHint];
+        }
       }
 
       if (toolResult is Map) {
-        services = (toolResult['services'] as List<dynamic>? ?? const [])
+        final resultServices = (toolResult['services'] as List<dynamic>? ?? const [])
             .map((item) => item.toString())
+            .where((item) => item.trim().isNotEmpty)
             .toList();
+        if (resultServices.isNotEmpty) {
+          services = resultServices;
+        }
       }
     }
   }
@@ -91,7 +92,6 @@ AiBookingConfirmationDraft? extractBookingConfirmationDraft({
   bookingDate ??= _extractDate(content);
   startTime ??= _extractTime(content);
   clinicName ??= _extractClinicName(content);
-
   final petName = _extractPetName(content);
 
   final draft = AiBookingConfirmationDraft(
@@ -127,15 +127,23 @@ String? _extractTime(String content) {
 }
 
 String? _extractClinicName(String content) {
-  final match = RegExp(r'tại\s+([^,\n\.]+)', caseSensitive: false)
+  final byName = RegExp(r'phòng khám\s+([^,\n\.]+)', caseSensitive: false)
       .firstMatch(content)
       ?.group(1)
       ?.trim();
-  return (match == null || match.isEmpty) ? null : match;
+  if (byName != null && byName.isNotEmpty) {
+    return byName;
+  }
+
+  final byAt = RegExp(r'tại\s+([^,\n\.]+)', caseSensitive: false)
+      .firstMatch(content)
+      ?.group(1)
+      ?.trim();
+  return (byAt == null || byAt.isEmpty) ? null : byAt;
 }
 
 String? _extractPetName(String content) {
-  final match = RegExp(r'cho\s+([A-ZÀ-Ỹ][^,\n\.]*)')
+  final match = RegExp(r'cho\s+(?:bé\s+)?([^,\n\.]+)', caseSensitive: false)
       .firstMatch(content)
       ?.group(1)
       ?.trim();

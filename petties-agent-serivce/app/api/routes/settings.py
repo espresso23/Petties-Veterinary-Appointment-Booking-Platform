@@ -313,7 +313,7 @@ async def seed_database(
                 temperature=0.7,
                 max_tokens=2000,
                 top_p=0.9,
-                model="google/gemini-2.0-flash-exp:free",  # OpenRouter model
+                model="google/gemini-2.5-flash-lite",  # OpenRouter model
                 system_prompt=single_agent_prompt,
                 enabled=True,
             )
@@ -691,7 +691,7 @@ async def test_openrouter_connection(
 
     # Get configured model or fallback default
     model = (
-        await get_setting("OPENROUTER_MODEL", db) or "google/gemini-2.0-flash-exp:free"
+        await get_setting("OPENROUTER_MODEL", db) or "google/gemini-2.5-flash-lite"
     )
 
     try:

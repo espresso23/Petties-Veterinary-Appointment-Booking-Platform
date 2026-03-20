@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
 import { PaperAirplaneIcon, XMarkIcon, SparklesIcon, PhotoIcon, BoltIcon, PaperClipIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
 import { useToast } from '../../components/Toast'
 
@@ -36,6 +36,7 @@ interface ChatbotUIProps {
     suggestedPrompts?: string[]
     onQuickAction?: (prompt: string) => void
     showHeader?: boolean
+    contextPanel?: ReactNode
 }
 
 const MAX_IMAGES = 3
@@ -49,7 +50,8 @@ export const ChatbotUI = ({
     quickActions = [],
     suggestedPrompts = [],
     onQuickAction,
-    showHeader = true
+    showHeader = true,
+    contextPanel,
 }: ChatbotUIProps) => {
     const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
     const [inputValue, setInputValue] = useState('')
@@ -294,6 +296,8 @@ export const ChatbotUI = ({
 
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-stone-50">
+                {contextPanel}
+
                 {messages.length === 0 && (quickActions.length > 0 || suggestedPrompts.length > 0) ? (
                     <div className="flex flex-col h-full">
                         {/* Welcome Message */}
@@ -316,7 +320,7 @@ export const ChatbotUI = ({
                                         <button
                                             key={idx}
                                             onClick={() => handleQuickActionClick(action.prompt)}
-                                            className="flex items-center gap-2 px-3 py-2 bg-white border-2 border-stone-900 rounded-lg shadow-[2px_2px_0_#1c1917] hover:shadow-[3px_3px_0_#1c1917] hover:-translate-y-0.5 transition-all text-left"
+                                            className="flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-left shadow-sm transition-all hover:bg-orange-50 hover:border-orange-200 hover:shadow-md"
                                         >
                                             <action.icon className="w-4 h-4 text-amber-600" />
                                             <span className="text-xs font-bold text-stone-700">{action.label}</span>
@@ -335,7 +339,7 @@ export const ChatbotUI = ({
                                         <button
                                             key={idx}
                                             onClick={() => handleQuickActionClick(prompt)}
-                                            className="flex items-center gap-2 px-3 py-2 bg-stone-50 border border-stone-300 rounded-lg hover:bg-amber-50 hover:border-amber-300 transition-all text-left"
+                                            className="flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-left shadow-sm transition-all hover:bg-orange-50 hover:border-orange-200 hover:shadow-md"
                                         >
                                             <BoltIcon className="w-4 h-4 text-amber-500" />
                                             <span className="text-sm text-stone-600">{prompt}</span>
@@ -472,7 +476,7 @@ export const ChatbotUI = ({
                     <button
                         onClick={() => fileInputRef.current?.click()}
                         disabled={isLoading || selectedImages.length >= MAX_IMAGES}
-                        className="flex items-center gap-1.5 px-3 py-2.5 bg-amber-500 text-white font-bold rounded-lg border-2 border-stone-900 shadow-[2px_2px_0_#1c1917] hover:bg-amber-600 hover:shadow-[3px_3px_0_#1c1917] hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center gap-1.5 rounded-xl bg-orange-600 px-3 py-2.5 text-sm font-bold text-white shadow-lg shadow-orange-100 transition-all hover:bg-orange-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                         title={`Gửi ảnh (tối đa ${MAX_IMAGES} ảnh)`}
                     >
                         <PhotoIcon className="w-5 h-5" />
@@ -491,7 +495,7 @@ export const ChatbotUI = ({
                     <button
                         onClick={() => attachInputRef.current?.click()}
                         disabled={isLoading}
-                        className="p-2.5 border-2 border-stone-900 rounded-lg shadow-[2px_2px_0_#1c1917] hover:bg-stone-100 hover:shadow-[3px_3px_0_#1c1917] hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="rounded-xl border border-stone-200 bg-stone-50 p-2.5 shadow-sm transition-all hover:bg-stone-100 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
                         title="Đính kèm file"
                     >
                         <PaperClipIcon className="w-5 h-5 text-stone-700" />
@@ -505,14 +509,14 @@ export const ChatbotUI = ({
                         onKeyPress={handleKeyPress}
                         placeholder={placeholder}
                         disabled={isLoading}
-                        className="flex-1 px-4 py-2.5 border-2 border-stone-900 rounded-lg shadow-[2px_2px_0_#1c1917] focus:outline-none focus:shadow-[3px_3px_0_#1c1917] focus:-translate-y-0.5 transition-all text-sm disabled:bg-stone-100 disabled:cursor-not-allowed"
+                        className="flex-1 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm text-stone-700 shadow-sm transition-all focus:border-amber-500 focus:outline-none focus:ring-4 focus:ring-amber-500/10 disabled:cursor-not-allowed disabled:bg-stone-100"
                     />
                     
                     {/* Send Button */}
                     <button
                         onClick={handleSend}
                         disabled={(!inputValue.trim() && selectedImages.length === 0) || isLoading || !isAllUploadsComplete}
-                        className="px-4 py-2.5 bg-green-500 text-white font-bold rounded-lg border-2 border-stone-900 shadow-[2px_2px_0_#1c1917] hover:bg-green-600 hover:shadow-[3px_3px_0_#1c1917] hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-[2px_2px_0_#1c1917]"
+                        className="rounded-xl bg-emerald-500 px-4 py-2.5 font-bold text-white shadow-lg shadow-emerald-100 transition-all hover:bg-emerald-600 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         <PaperAirplaneIcon className="w-5 h-5" />
                     </button>

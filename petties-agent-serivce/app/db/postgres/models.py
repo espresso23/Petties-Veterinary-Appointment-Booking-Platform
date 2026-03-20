@@ -23,6 +23,7 @@ from sqlalchemy import (
     JSON,
     ForeignKey,
     Enum,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy.sql import func
@@ -73,7 +74,7 @@ class Agent(Base):
     max_tokens = Column(Integer, default=2000)
     top_p = Column(Float, default=0.9)  # NEW: Top-P parameter
     model = Column(
-        String(100), default="google/gemini-2.0-flash-exp:free"
+        String(100), default="google/gemini-2.5-flash-lite"
     )  # OpenRouter model
 
     # Prompts
@@ -206,7 +207,8 @@ class KnowledgeDocument(Base):
 
     # Processing status
     processed = Column(Boolean, default=False)
-    vector_count = Column(Integer, default=0)
+    vector_count = Column(Integer, default=0)  # Text vectors
+    image_count = Column(Integer, default=0)  # Image vectors from PDF
 
     # Metadata
     uploaded_by = Column(String(100))
@@ -219,6 +221,128 @@ class KnowledgeDocument(Base):
     def __repr__(self):
         return (
             f"<KnowledgeDocument(filename={self.filename}, processed={self.processed})>"
+        )
+
+
+class DiseaseCatalog(Base):
+    """
+    Disease catalog for canonical diagnosis identities.
+
+    Purpose:
+    - Keep one canonical disease code shared by KB, KG, EMR and vision outputs
+    - Attach protocol metadata for doctor diagnosis flow
+    """
+
+    __tablename__ = "disease_catalog"
+
+    id = Column(Integer, primary_key=True, index=True)
+    canonical_code = Column(String(100), unique=True, nullable=False, index=True)
+    display_name_vi = Column(String(255), nullable=False)
+    species = Column(String(50), default="all", nullable=False)
+    body_system = Column(String(100))
+    protocol_key = Column(String(100))
+    is_active = Column(Boolean, default=True, nullable=False)
+    notes = Column(Text)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    aliases = relationship(
+        "DiseaseAlias",
+        back_populates="disease",
+        cascade="all, delete-orphan",
+    )
+
+    def __repr__(self):
+        return f"<DiseaseCatalog(code={self.canonical_code}, active={self.is_active})>"
+
+
+class DiseaseAlias(Base):
+    """
+    Alias table for disease mapping.
+
+    Purpose:
+    - Store per-source aliases that map back to one canonical disease code
+    - Support DB-backed review and expansion without code deploy
+    """
+
+    __tablename__ = "disease_aliases"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_type",
+            "normalized_alias",
+            "species",
+            name="uq_disease_alias_source_normalized_species",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    canonical_code = Column(
+        String(100),
+        ForeignKey("disease_catalog.canonical_code", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    source_type = Column(String(50), nullable=False, index=True)
+    alias_text = Column(String(255), nullable=False)
+    normalized_alias = Column(String(255), nullable=False, index=True)
+    species = Column(String(50), default="all", nullable=False)
+    review_status = Column(String(50), default="approved", nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    disease = relationship("DiseaseCatalog", back_populates="aliases")
+
+    def __repr__(self):
+        return (
+            f"<DiseaseAlias(source={self.source_type}, alias={self.alias_text}, "
+            f"canonical_code={self.canonical_code})>"
+        )
+
+
+class DiseaseMappingReviewItem(Base):
+    """
+    Queue for unmapped diagnosis labels that need review.
+
+    Purpose:
+    - Persist labels from EMR/vision that cannot be mapped yet
+    - Avoid silent skips during EMR -> case memory sync
+    """
+
+    __tablename__ = "disease_mapping_review_items"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_type",
+            "normalized_label",
+            "species",
+            name="uq_disease_mapping_review_source_normalized_species",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    raw_label = Column(String(255), nullable=False)
+    normalized_label = Column(String(255), nullable=False, index=True)
+    source_type = Column(String(50), nullable=False, index=True)
+    species = Column(String(50), default="all", nullable=False)
+    status = Column(String(50), default="pending", nullable=False)
+    hit_count = Column(Integer, default=1, nullable=False)
+    sample_payload = Column(JSON)
+
+    first_seen_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_seen_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    def __repr__(self):
+        return (
+            f"<DiseaseMappingReviewItem(raw_label={self.raw_label}, "
+            f"source={self.source_type}, species={self.species})>"
         )
 
 
@@ -282,10 +406,10 @@ DEFAULT_SETTINGS = [
     },
     {
         "key": "OPENROUTER_DEFAULT_MODEL",
-        "value": "google/gemini-2.0-flash-exp:free",
+        "value": "google/gemini-2.5-flash-lite",
         "category": "llm",
         "is_sensitive": False,
-        "description": "Default LLM model (free tier: gemini-2.0-flash-exp:free)",
+        "description": "Default LLM model (default stable model: google/gemini-2.5-flash-lite)",
     },
     {
         "key": "OPENROUTER_FALLBACK_MODEL",
@@ -375,6 +499,106 @@ DEFAULT_SETTINGS = [
         "category": "general",
         "is_sensitive": True,
         "description": "JWT Secret Key for token verification (Must match Spring Boot)",
+    },
+]
+
+
+# ===== LEGACY DEPRECATED DISEASE CLASS DATA =====
+class LegacyDeprecatedVisionDiseaseClass(Base):
+    """
+    Vision Disease Classes Table
+
+    Purpose: Dynamic disease classification for AI vision diagnosis.
+    Replaces hardcoded DISEASE_CLASSES in config.py.
+
+    Columns:
+        - id: Primary key
+        - code: Unique code (e.g., "viem_da", "nam_da")
+        - name_vi: Vietnamese name (e.g., "Viêm da", "Nấm da")
+        - description: Disease description
+        - species: Target species ('dog', 'cat', 'all')
+        - is_active: Whether disease is available for prediction
+        - requires_retrain: True when newly added, needs labeling before retrain
+        - label_count: Number of labeled images for this disease
+        - min_label_required: Minimum images needed before retrain
+        - model_version: Model version that includes this disease
+    """
+
+    __tablename__ = "vision_disease_classes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(50), unique=True, nullable=False, index=True)
+    name_vi = Column(String(100), nullable=False)
+    description = Column(Text)
+    species = Column(String(50), default="all")  # 'dog', 'cat', 'all'
+    is_active = Column(Boolean, default=True)
+    requires_retrain = Column(Boolean, default=False)
+    label_count = Column(Integer, default=0)
+    min_label_required = Column(Integer, default=50)
+    model_version = Column(String(50))
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    def __repr__(self):
+        return f"<LegacyDeprecatedVisionDiseaseClass(code={self.code}, name_vi={self.name_vi})>"
+
+
+# ===== LEGACY DEFAULT DISEASES =====
+# Initial seed data - will be loaded on first migration
+LEGACY_DEPRECATED_VISION_DISEASES = [
+    {
+        "code": "viem_da",
+        "name_vi": "Viêm da",
+        "description": "Tình trạng viêm da thường gặp ở chó và mèo",
+        "species": "all",
+        "is_active": True,
+        "requires_retrain": False,
+        "label_count": 0,
+        "min_label_required": 50,
+    },
+    {
+        "code": "nam_da",
+        "name_vi": "Nấm da",
+        "description": "Nhiễm nấm da (dermatophytosis)",
+        "species": "all",
+        "is_active": True,
+        "requires_retrain": False,
+        "label_count": 0,
+        "min_label_required": 50,
+    },
+    {
+        "code": "viem_tai",
+        "name_vi": "Viêm tai",
+        "description": "Viêm tai ngoài (otitis externa)",
+        "species": "all",
+        "is_active": True,
+        "requires_retrain": False,
+        "label_count": 0,
+        "min_label_required": 50,
+    },
+    {
+        "code": "benh_mat",
+        "name_vi": "Bệnh mắt",
+        "description": "Các bệnh về mắt ở thú cưng",
+        "species": "all",
+        "is_active": True,
+        "requires_retrain": False,
+        "label_count": 0,
+        "min_label_required": 50,
+    },
+    {
+        "code": "hong_long",
+        "name_vi": "Hô hấp",
+        "description": "Các bệnh về đường hô hấp",
+        "species": "all",
+        "is_active": True,
+        "requires_retrain": False,
+        "label_count": 0,
+        "min_label_required": 50,
     },
 ]
 

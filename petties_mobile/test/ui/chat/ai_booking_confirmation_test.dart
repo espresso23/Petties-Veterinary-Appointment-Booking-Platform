@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:petties_mobile/ui/chat/utils/ai_booking_confirmation.dart';
+import 'package:petties_mobile/ui/chat/ai_chat/utils/ai_booking_confirmation.dart';
 
 void main() {
   group('extractBookingConfirmationDraft', () {
