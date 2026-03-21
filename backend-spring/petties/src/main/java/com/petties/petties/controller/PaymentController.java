@@ -78,6 +78,26 @@ public class PaymentController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * Check QR payment status for a subscription
+     */
+    @GetMapping("/subscription/{subscriptionId}/status")
+    @PreAuthorize("hasAnyRole('CLINIC_OWNER','ADMIN')")
+    public ResponseEntity<Map<String, Object>> checkSubscriptionPaymentStatus(@PathVariable UUID subscriptionId) {
+        log.info("Check payment status for subscriptionId: {}", subscriptionId);
+
+        QrPaymentService.QrStatusResult result = qrPaymentService.checkSubscriptionQrStatus(subscriptionId);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("subscriptionId", subscriptionId);
+        response.put("status", result.status());
+        response.put("message", result.message());
+        response.put("matchedTransactionId", result.matchedTransactionId());
+
+        return ResponseEntity.ok(response);
+    }
+
     // ==================== PAYMENT METHOD ====================
 
     /**

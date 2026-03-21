@@ -23,7 +23,9 @@ from app.api.websocket.chat_constants import (
     WS_REASON_INVALID_AUTH,
     WS_REASON_PLAYGROUND_FORBIDDEN,
     WS_REASON_SESSION_FORBIDDEN,
+    WS_REASON_SUBSCRIPTION_REQUIRED,
 )
+from app.api.middleware.subscription_guard import verify_subscription_logic
 from app.core.agents.factory import AgentFactory
 from app.core.chat_context import (
     BUSINESS_CHAT,
@@ -514,6 +516,15 @@ async def websocket_chat_endpoint(websocket: WebSocket, session_id: str = "defau
             reason = WS_REASON_AUTH_REQUIRED if not token else WS_REASON_INVALID_AUTH
             await websocket.close(code=1008, reason=reason)
             return
+
+        # 2.5 Subscription Check
+        # Only check for actual business chats or playground
+        async with AsyncSessionLocal() as db:
+            try:
+                await verify_subscription_logic(user, db)
+            except HTTPException:
+                await websocket.close(code=1008, reason=WS_REASON_SUBSCRIPTION_REQUIRED)
+                return
 
         # 3. Session Isolation & Context
         session = await get_chat_session(session_id)

@@ -51,5 +51,9 @@ public enum NotificationType {
     RE_EXAMINATION_REMINDER,
 
     // Vaccination
-    VACCINATION_REMINDER
+    VACCINATION_REMINDER,
+
+    // Subscriptions
+    SUBSCRIPTION_EXPIRING_SOON,
+    SUBSCRIPTION_ACTIVATED
 }

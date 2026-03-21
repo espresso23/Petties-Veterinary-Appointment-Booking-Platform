@@ -26,6 +26,7 @@ import shutil
 import tempfile
 from datetime import datetime
 from app.api.middleware.auth import get_admin_user
+from app.api.middleware.subscription_guard import check_active_subscription
 from app.config.settings import settings
 
 from app.api.schemas.knowledge_schemas import (
@@ -123,6 +124,7 @@ async def upload_document(
     notes: Optional[str] = Form(None),
     uploaded_by: Optional[str] = Form("admin"),
     db: AsyncSession = Depends(get_db),
+    _Subscription: bool = Depends(check_active_subscription)
 ):
     """
     Upload document to knowledge base
@@ -218,7 +220,11 @@ async def upload_document(
     After processing, the document can be queried via RAG.
     """,
 )
-async def process_document(document_id: int, db: AsyncSession = Depends(get_db)):
+async def process_document(
+    document_id: int, 
+    db: AsyncSession = Depends(get_db),
+    _Subscription: bool = Depends(check_active_subscription)
+):
     """
     Process document and index to Qdrant
 
@@ -616,7 +622,9 @@ async def delete_document(document_id: int, db: AsyncSession = Depends(get_db)):
     """,
 )
 async def query_knowledge(
-    request: QueryKnowledgeRequest, db: AsyncSession = Depends(get_db)
+    request: QueryKnowledgeRequest, 
+    db: AsyncSession = Depends(get_db),
+    _Subscription: bool = Depends(check_active_subscription)
 ):
     """
     Test RAG retrieval with Qdrant + Cohere

@@ -1025,6 +1025,8 @@ public class NotificationService {
                         case REFUND_REQUESTED -> "Yêu cầu rút tiền được gửi tới";
                         case REFUND_APPROVED -> "Đơn rút tiền đã được duyệt";
                         case REFUND_REJECTED -> "Đơn rút tiền bị từ chối";
+                        case SUBSCRIPTION_ACTIVATED -> "Gói hội viên đã được kích hoạt";
+                        case SUBSCRIPTION_EXPIRING_SOON -> "Gói hội viên sắp hết hạn";
                         default -> "Thông báo từ Petties";
                 };
         }
@@ -1062,6 +1064,32 @@ public class NotificationService {
 
                 notificationRepository.markAsRead(notificationId);
                 log.info("Notification marked as read: {} by user: {}", notificationId, userId);
+        }
+
+        @Transactional
+        public void sendSubscriptionSuccessNotification(com.petties.petties.model.UserSubscription subscription) {
+                User owner = subscription.getUser();
+                if (owner == null)
+                        return;
+
+                String message = String.format(
+                                "Chúc mừng! Gói hội viên \"%s\" của phòng khám \"%s\" đã được kích hoạt thành công. Bạn đã có quyền truy cập vào các tính năng AI.",
+                                subscription.getPlan().getName(),
+                                subscription.getClinic().getName());
+
+                Notification notification = Notification.builder()
+                                .user(owner)
+                                .clinic(subscription.getClinic())
+                                .type(NotificationType.SUBSCRIPTION_ACTIVATED)
+                                .message(message)
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                log.info("Subscription success notification created: {} for user: {}",
+                                notification.getNotificationId(), owner.getUserId());
+
+                pushNotificationToUser(owner.getUserId(), notification);
         }
 
         /**
