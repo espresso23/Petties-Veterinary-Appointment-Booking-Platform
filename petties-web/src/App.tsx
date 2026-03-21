@@ -31,13 +31,14 @@ import { AIInsightsPage } from './pages/admin/insights'
 import { ClinicApprovalPage } from './pages/admin/clinics'
 import { ReportsPage as AdminReportsPage } from './pages/admin/ReportsPage'
 import { AdminRefundApplicationsPage } from './pages/admin/refunds/AdminRefundApplicationsPage'
+import { SubscriptionListPage as AdminSubscriptionListPage, UserSubscriptionHistoryPage as AdminSubscriptionHistoryPage } from './pages/admin/subscriptions'
 
 // Role-specific Pages
 import { StaffDashboardPage, StaffSchedulePage, StaffBookingsPage, StaffPatientsPage, StaffAIChatPage } from './pages/staff'
 import { NotificationsPage as StaffNotificationsPage } from './pages/staff/NotificationsPage'
 import { CreateEmrPage, EmrDetailPage, EditEmrPage } from './pages/staff'
 import VaccinationPage from './pages/staff/vaccine/VaccinationPage'
-import { ClinicOwnerDashboardPage, ServicesPage, NotificationsPage, MasterServicesPage, ClinicOwnerRevenuePage } from './pages/clinic-owner'
+import { ClinicOwnerDashboardPage, ServicesPage, NotificationsPage, MasterServicesPage, ClinicOwnerRevenuePage, MySubscriptionPage } from './pages/clinic-owner'
 import {
   ClinicManagerDashboardPage,
   ChatPage as ClinicManagerChatPage,
@@ -116,6 +117,8 @@ function App() {
             <Route path="clinics" element={<ClinicApprovalPage />} />
             <Route path="reports" element={<AdminReportsPage />} />
             <Route path="refunds" element={<AdminRefundApplicationsPage />} />
+            <Route path="subscriptions" element={<AdminSubscriptionListPage />} />
+            <Route path="subscriptions/history" element={<AdminSubscriptionHistoryPage />} />
             <Route path="notifications" element={<AdminNotificationsPage />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route >
@@ -156,6 +159,7 @@ function App() {
             <Route path="notifications" element={<NotificationsPage />} />
             <Route path="master-services" element={<MasterServicesPage />} />
             <Route path="revenue" element={<ClinicOwnerRevenuePage />} />
+            <Route path="subscriptions" element={<MySubscriptionPage />} />
           </Route >
           {/* Clinic Manager Routes */}
           < Route path="/clinic-manager" element={

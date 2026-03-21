@@ -41,6 +41,8 @@ export const ClinicManagerLayout = () => {
     const incrementChatUnreadCount = useChatStore((state) => state.incrementUnreadCount)
     const { state, toggleSidebar, isMobile } = useSidebar()
 
+
+
     // Initialize SSE with booking update handler
     useSseNotification({
         onBookingUpdate: (data) => {
@@ -186,6 +188,8 @@ export const ClinicManagerLayout = () => {
                 toggleSidebar={toggleSidebar}
                 onLogout={handleLogout}
                 isMobile={isMobile}
+                isVIP={false}
+                planName="MANAGEMENT"
             />
 
             {/* Main Content */}

@@ -8,12 +8,14 @@ import com.petties.petties.integration.sepay.dto.SePayTransactionDto;
 import com.petties.petties.integration.sepay.dto.SePayTransactionsListResponseDto;
 import com.petties.petties.model.Booking;
 import com.petties.petties.model.Payment;
+import com.petties.petties.model.UserSubscription;
 import com.petties.petties.model.enums.PaymentMethod;
 import com.petties.petties.model.enums.PaymentStatus;
 import com.petties.petties.model.enums.Role;
+import com.petties.petties.model.enums.UserSubscriptionStatus;
 import com.petties.petties.repository.BookingRepository;
 import com.petties.petties.repository.PaymentRepository;
-import com.petties.petties.service.AuthService;
+import com.petties.petties.repository.UserSubscriptionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,6 +27,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -33,13 +36,14 @@ import java.util.regex.Pattern;
 @Slf4j
 public class QrPaymentService {
 
-    private static final DateTimeFormatter SEPAY_TIME_FORMATTER =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT);
+    private static final DateTimeFormatter SEPAY_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss",
+            Locale.ROOT);
     private static final Pattern WHITESPACE_PATTERN = Pattern.compile("\\s+");
     private static final Pattern NON_ALNUM_PATTERN = Pattern.compile("[^a-zA-Z0-9]");
 
     private final PaymentRepository paymentRepository;
     private final BookingRepository bookingRepository;
+    private final UserSubscriptionRepository userSubscriptionRepository;
     private final AuthService authService;
     private final TransactionService transactionService;
     private final SePayClient sePayClient;
@@ -96,14 +100,14 @@ public class QrPaymentService {
             transactionDateMin = paymentCreatedAt.format(SEPAY_TIME_FORMATTER);
         }
 
-        String accountNumber = (sepayAccountNumber != null && !sepayAccountNumber.isBlank()) ? sepayAccountNumber : null;
+        String accountNumber = (sepayAccountNumber != null && !sepayAccountNumber.isBlank()) ? sepayAccountNumber
+                : null;
         SePayTransactionsListResponseDto sepayResponse = sePayClient.listTransactions(
                 200,
                 accountNumber,
                 transactionDateMin,
                 null,
-                null
-        );
+                null);
 
         List<SePayTransactionDto> transactions = sepayResponse.getTransactions();
         if (transactions == null || transactions.isEmpty()) {
@@ -174,7 +178,128 @@ public class QrPaymentService {
         return QrStatusResult.paid("Đã xác nhận thanh toán QR thành công", matched.getId());
     }
 
+    @Transactional
+    public QrStatusResult checkSubscriptionQrStatus(UUID subscriptionId) {
+        UserSubscription subscription = userSubscriptionRepository.findById(subscriptionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin đăng ký gói"));
+
+        var currentUser = authService.getCurrentUser();
+        // Permission check: only clinic owner or admin
+        if (currentUser.getRole() != Role.ADMIN) {
+            if (subscription.getClinic() == null || subscription.getClinic().getOwner() == null
+                    || !subscription.getClinic().getOwner().getUserId().equals(currentUser.getUserId())) {
+                throw new ForbiddenException("Bạn không có quyền kiểm tra thanh toán của đăng ký này");
+            }
+        }
+
+        Payment payment = paymentRepository.findFirstBySubscriptionSubscriptionIdOrderByCreatedAtDesc(subscriptionId)
+                .orElseThrow(
+                        () -> new ResourceNotFoundException("Không tìm thấy thông tin thanh toán cho đăng ký này"));
+
+        if (payment.getMethod() != PaymentMethod.QR) {
+            throw new BadRequestException("Đăng ký này không sử dụng phương thức thanh toán QR");
+        }
+
+        if (payment.getStatus() == PaymentStatus.PAID) {
+            return QrStatusResult.paid("Thanh toán đã được xác nhận trước đó", null);
+        }
+
+        String paymentDescription = payment.getPaymentDescription();
+        if (paymentDescription == null || paymentDescription.isBlank()) {
+            throw new BadRequestException("Không tìm thấy nội dung thanh toán");
+        }
+
+        LocalDateTime paymentCreatedAt = payment.getCreatedAt();
+        String transactionDateMin = null;
+        if (paymentCreatedAt != null) {
+            transactionDateMin = paymentCreatedAt.format(SEPAY_TIME_FORMATTER);
+        }
+
+        String accountNumber = (sepayAccountNumber != null && !sepayAccountNumber.isBlank()) ? sepayAccountNumber
+                : null;
+        SePayTransactionsListResponseDto sepayResponse = sePayClient.listTransactions(
+                200,
+                accountNumber,
+                transactionDateMin,
+                null,
+                null);
+
+        List<SePayTransactionDto> transactions = sepayResponse.getTransactions();
+        if (transactions == null || transactions.isEmpty()) {
+            return QrStatusResult.pending("Chưa tìm thấy giao dịch phù hợp", null);
+        }
+
+        BigDecimal expectedAmount = payment.getAmount();
+        SePayTransactionDto matched = null;
+        String normalizedPaymentDescription = normalizeForMatching(paymentDescription);
+
+        for (SePayTransactionDto tx : transactions) {
+            if (tx == null)
+                continue;
+
+            String content = tx.getTransactionContent();
+            String normalizedContent = normalizeForMatching(content);
+            if (normalizedContent == null || normalizedPaymentDescription == null
+                    || !normalizedContent.contains(normalizedPaymentDescription)) {
+                continue;
+            }
+
+            if (expectedAmount != null) {
+                BigDecimal amountIn;
+                try {
+                    amountIn = parseAmount(tx.getAmountIn());
+                } catch (Exception e) {
+                    continue;
+                }
+
+                if (amountIn.compareTo(expectedAmount) != 0) {
+                    continue;
+                }
+            }
+
+            matched = tx;
+            break;
+        }
+
+        if (matched == null) {
+            return QrStatusResult.pending("Chưa tìm thấy giao dịch phù hợp", null);
+        }
+
+        // Mark payment as paid
+        payment.markAsPaid();
+        paymentRepository.save(payment);
+
+        // Activate the subscription
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime newStartDate = now;
+
+        // Check for existing active subscription to extend
+        Optional<UserSubscription> existingActive = userSubscriptionRepository
+                .findActiveSubscriptionByClinicId(subscription.getClinic().getClinicId());
+        if (existingActive.isPresent() && existingActive.get().getEndDate() != null
+                && existingActive.get().getEndDate().isAfter(now)
+                && existingActive.get().getPlan().getPlanId().equals(subscription.getPlan().getPlanId())) {
+            newStartDate = existingActive.get().getEndDate();
+            // Optional: Mark the old one as EXPIRED/OVERWRITTEN if you prefer a single
+            // active record,
+            // but usually it's better to keep one record and update it, OR have consecutive
+            // ones.
+            // For now, we allow consecutive ACTIVE ones where the later one starts when
+            // earlier one ends.
+        }
+
+        subscription.setStatus(UserSubscriptionStatus.ACTIVE);
+        subscription.setStartDate(newStartDate);
+        subscription.setEndDate(newStartDate.plusDays(subscription.getPlan().getDurationDays()));
+        userSubscriptionRepository.save(subscription);
+
+        log.info("QR subscription payment matched for sub {} - tx {}", subscriptionId, matched.getId());
+
+        return QrStatusResult.paid("Đã xác nhận thanh toán gói hội viên thành công", matched.getId());
+    }
+
     private String normalizeForMatching(String raw) {
+
         if (raw == null) {
             return null;
         }

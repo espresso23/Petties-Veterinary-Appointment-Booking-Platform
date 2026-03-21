@@ -8,6 +8,7 @@ export const apiClient = axios.create({
   timeout: 60_000, // Increased for image uploads
   headers: {
     'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
   },
 })
 
@@ -91,7 +92,7 @@ apiClient.interceptors.response.use(
 
     // Parse error và attach userMessage vào error object
     const userMessage = parseApiError(error)
-    ;(error as AxiosError & { userMessage?: string }).userMessage = userMessage
+      ; (error as AxiosError & { userMessage?: string }).userMessage = userMessage
 
     // Log error trong dev mode
     if (import.meta.env.DEV) {

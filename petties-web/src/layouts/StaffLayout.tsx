@@ -9,6 +9,7 @@ import { ChatSidebar } from '../components/chat/ChatSidebar'
 import { useSidebar } from '../hooks/useSidebar'
 import { useSseNotification } from '../hooks/useSseNotification'
 import { useSyncProfile } from '../hooks/useSyncProfile'
+import { useMembershipStore } from '../store/membershipStore'
 import {
     Squares2X2Icon,
     CalendarIcon,
@@ -28,6 +29,12 @@ export const StaffLayout = () => {
     const assignedBookingCount = useBookingStore((state) => state.assignedBookingCount)
     const refreshAssignedBookingCount = useBookingStore((state) => state.refreshAssignedBookingCount)
     const { state, toggleSidebar, isMobile } = useSidebar()
+
+    // Membership state
+    const fetchMembership = useMembershipStore(state => state.fetchMembershipStatus)
+    const isVIP = useMembershipStore(state => state.isVIP())
+    const planName = useMembershipStore(state => state.getPlanName())
+    const remainingDays = useMembershipStore(state => state.getRemainingDays())
 
     // Initialize SSE with booking update handler
     useSseNotification({
@@ -60,10 +67,11 @@ export const StaffLayout = () => {
 
     useEffect(() => {
         refreshUnreadCount()
+        fetchMembership()
         if (user?.userId) {
             refreshAssignedBookingCount(user.userId)
         }
-    }, [refreshUnreadCount, refreshAssignedBookingCount, user?.userId])
+    }, [refreshUnreadCount, refreshAssignedBookingCount, user?.userId, fetchMembership])
 
     const navGroups: NavGroup[] = [
         {
@@ -104,6 +112,9 @@ export const StaffLayout = () => {
                 toggleSidebar={toggleSidebar}
                 onLogout={handleLogout}
                 isMobile={isMobile}
+                isVIP={isVIP}
+                planName={planName}
+                remainingDays={remainingDays}
             />
 
             {/* Main Content */}
@@ -114,9 +125,10 @@ export const StaffLayout = () => {
             </main>
 
             {/* AI Chat Sidebar - Toggleable slide-in panel */}
-            <ChatSidebar 
+            <ChatSidebar
                 title="Trợ lý AI"
                 placeholder="Hỏi tôi về thú cưng, dịch vụ, lịch hẹn..."
+                isVIP={isVIP}
             />
         </div>
     )
