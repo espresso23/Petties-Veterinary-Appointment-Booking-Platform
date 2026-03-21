@@ -81,6 +81,7 @@ public class NotificationService {
                                         "Phòng khám \"%s\" không được duyệt. Vui lòng xem lại thông tin và đăng ký lại.",
                                         clinic.getName());
                         case PENDING -> String.format("Phòng khám \"%s\" đang chờ duyệt.", clinic.getName());
+                        case CLINIC_STRIKE -> reason != null ? reason : "Phòng khám bị hạn chế do vi phạm.";
                         default -> "Thông báo từ phòng khám " + clinic.getName();
                 };
 
@@ -960,6 +961,101 @@ public class NotificationService {
                 pushNotificationToUser(petOwner.getUserId(), notification);
         }
 
+        // ======================== REPORT NOTIFICATIONS ========================
+
+        @Transactional
+        public void sendReportCreatedNotificationToAdmin(com.petties.petties.model.Report report) {
+                List<User> admins = userRepository.findByRoleAndDeletedAtIsNull(Role.ADMIN);
+                if (admins.isEmpty()) {
+                        return;
+                }
+
+                String reporterName = report.getReporter().getFullName();
+                String message = String.format(
+                                "Người dùng %s vừa tạo một báo cáo về lịch hẹn #%s. Vui lòng kiểm tra và xử lý.",
+                                reporterName,
+                                report.getBooking().getBookingCode());
+
+                for (User admin : admins) {
+                        Notification notification = Notification.builder()
+                                        .user(admin)
+                                        .clinic(report.getBooking().getClinic())
+                                        .type(NotificationType.REPORT_CREATED)
+                                        .message(message)
+                                        .read(false)
+                                        .build();
+
+                        notification = notificationRepository.save(notification);
+                        pushNotificationToUser(admin.getUserId(), notification);
+                }
+        }
+
+        @Transactional
+        public void sendReportResolvedNotification(com.petties.petties.model.Report report) {
+                String bookingCode = report.getBooking().getBookingCode();
+                String resolutionContent = report.getStatus() == com.petties.petties.model.enums.ReportStatus.APPROVED
+                                ? "đã được chấp thuận"
+                                : "đã bị từ chối";
+
+                // 1. Notify Reporter
+                String reporterMessage = String.format(
+                                "Báo cáo của bạn về lịch hẹn #%s %s. Lời nhắn từ Admin: %s",
+                                bookingCode,
+                                resolutionContent,
+                                report.getAdminNote());
+
+                Notification reporterNotif = Notification.builder()
+                                .user(report.getReporter())
+                                .clinic(report.getBooking().getClinic())
+                                .type(NotificationType.REPORT_RESOLVED)
+                                .message(reporterMessage)
+                                .read(false)
+                                .build();
+                reporterNotif = notificationRepository.save(reporterNotif);
+                pushNotificationToUser(report.getReporter().getUserId(), reporterNotif);
+
+                // 2. Notify Reported Party (if applicable)
+                User reportedUserToNotify = null;
+                boolean isClinicReported = false;
+
+                if (report.getReportedUser() != null) {
+                        reportedUserToNotify = report.getReportedUser();
+                } else if (report.getReportedClinic() != null && report.getReportedClinic().getOwner() != null) {
+                        reportedUserToNotify = report.getReportedClinic().getOwner();
+                        isClinicReported = true;
+                }
+
+                if (reportedUserToNotify != null) {
+                        String targetName = isClinicReported ? "phòng khám của bạn" : "bạn";
+                        String reportedMessage = String.format(
+                                        "Có quyết định xử lý liên quan đến báo cáo về %s trong lịch hẹn #%s. %s. Lời nhắn từ Admin: %s",
+                                        targetName,
+                                        bookingCode,
+                                        resolutionContent,
+                                        report.getAdminNote());
+
+                        Notification reportedNotif = Notification.builder()
+                                        .user(reportedUserToNotify)
+                                        .clinic(report.getBooking().getClinic())
+                                        .type(NotificationType.REPORT_RESOLVED)
+                                        .message(reportedMessage)
+                                        .read(false)
+                                        .build();
+                        reportedNotif = notificationRepository.save(reportedNotif);
+                        pushNotificationToUser(reportedUserToNotify.getUserId(), reportedNotif);
+                }
+        }
+
+        /**
+         * Lưu notification và push tới user (dùng cho PET_OWNER_STRIKE, v.v.)
+         */
+        @Transactional
+        public Notification saveAndPushNotification(Notification notification) {
+                notification = notificationRepository.save(notification);
+                pushNotificationToUser(notification.getUser().getUserId(), notification);
+                return notification;
+        }
+
         // ======================== COMMON OPERATIONS ========================
 
         /**
@@ -1018,6 +1114,9 @@ public class NotificationService {
                         case BOOKING_CREATED -> "Lịch hẹn mới";
                         case BOOKING_CONFIRMED -> "Lịch hẹn đã xác nhận";
                         case BOOKING_CANCELLED -> "Lịch hẹn đã bị hủy";
+                        case BOOKING_CHECKIN -> "Nhân viên đã bắt đầu khám";
+                        case BOOKING_PAYMENT_REQUIRED -> "Yêu cầu thanh toán";
+                        case BOOKING_COMPLETED -> "Lịch hẹn đã hoàn thành";
                         case STAFF_ON_WAY -> "Nhân viên đang đến";
                         case STAFF_ARRIVED -> "Nhân viên đã đến nơi";
                         case CLINIC_VERIFIED, APPROVED -> "Phòng khám đã được xác minh";
@@ -1027,6 +1126,10 @@ public class NotificationService {
                         case REFUND_REJECTED -> "Đơn rút tiền bị từ chối";
                         case SUBSCRIPTION_ACTIVATED -> "Gói hội viên đã được kích hoạt";
                         case SUBSCRIPTION_EXPIRING_SOON -> "Gói hội viên sắp hết hạn";
+                        case REPORT_CREATED -> "Có báo cáo mới";
+                        case REPORT_RESOLVED -> "Kết quả xử lý báo cáo";
+                        case CLINIC_STRIKE -> "Phòng khám bị hạn chế";
+                        case PET_OWNER_STRIKE -> "Tài khoản bị hạn chế đặt lịch";
                         default -> "Thông báo từ Petties";
                 };
         }

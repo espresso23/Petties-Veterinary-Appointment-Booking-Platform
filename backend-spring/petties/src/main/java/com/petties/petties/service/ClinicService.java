@@ -396,6 +396,12 @@ public class ClinicService {
                 return clinicRepository.countByStatusAndDeletedAtIsNull(ClinicStatus.PENDING);
         }
 
+        @Transactional(readOnly = true)
+        public Page<ClinicResponse> getStruckClinics(Pageable pageable) {
+                Page<Clinic> clinics = clinicRepository.findClinicsWithActiveStrike(pageable);
+                return mapToResponsePage(clinics);
+        }
+
         @Transactional
         public ClinicResponse approveClinic(UUID clinicId, String reason) {
                 Clinic clinic = clinicRepository.findByIdAndNotDeleted(clinicId)
@@ -706,6 +712,7 @@ public class ClinicService {
                                 .ratingAvg(clinic.getRatingAvg())
                                 .ratingCount(clinic.getRatingCount())
                                 .approvedAt(clinic.getApprovedAt())
+                                .strikeUntil(clinic.getStrikeUntil())
                                 .images(imageUrls)
                                 .imageDetails(imageDetails)
                                 .createdAt(clinic.getCreatedAt())

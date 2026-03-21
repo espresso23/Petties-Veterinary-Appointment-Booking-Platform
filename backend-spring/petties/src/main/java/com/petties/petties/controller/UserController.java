@@ -2,6 +2,11 @@ package com.petties.petties.controller;
 
 import com.petties.petties.dto.auth.UserResponse;
 import com.petties.petties.dto.user.ChangePasswordRequest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.petties.petties.dto.user.EmailChangeRequest;
 import com.petties.petties.dto.user.EmailChangeVerifyRequest;
 import com.petties.petties.dto.user.UpdateProfileRequest;
@@ -31,6 +36,21 @@ public class UserController {
     private final UserService userService;
     private final AuthService authService;
     private final EmailChangeService emailChangeService;
+
+    /**
+     * GET /api/users/admin/struck
+     * Danh sách pet owner đang bị hạn chế (strike). ADMIN only.
+     */
+    @GetMapping("/admin/struck")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Page<UserResponse>> getStruckPetOwners(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "strikeUntil") String sortBy,
+            @RequestParam(defaultValue = "ASC") Sort.Direction sortDir) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(sortDir, sortBy));
+        return ResponseEntity.ok(userService.getStruckPetOwners(pageable));
+    }
 
     /**
      * Lấy profile của user hiện tại

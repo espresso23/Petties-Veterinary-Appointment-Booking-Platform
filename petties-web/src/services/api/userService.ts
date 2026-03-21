@@ -11,6 +11,17 @@ export interface UserProfile {
   role: string
   createdAt: string
   updatedAt: string
+  strikeUntil?: string | null
+}
+
+export interface StruckUsersResponse {
+  content: UserProfile[]
+  totalElements: number
+  totalPages: number
+  number: number
+  size: number
+  first: boolean
+  last: boolean
 }
 
 export interface UpdateProfileRequest {
@@ -40,6 +51,25 @@ export interface AvatarResponse {
 }
 
 // API Functions
+
+/**
+ * Get struck pet owners (ADMIN only)
+ */
+export const getStruckPetOwners = async (
+  page = 0,
+  size = 50,
+  sortBy = 'strikeUntil',
+  sortDir: 'ASC' | 'DESC' = 'ASC'
+): Promise<StruckUsersResponse> => {
+  const params = new URLSearchParams({
+    page: String(page),
+    size: String(size),
+    sortBy,
+    sortDir,
+  })
+  const response = await apiClient.get<StruckUsersResponse>(`/users/admin/struck?${params.toString()}`)
+  return response.data
+}
 
 /**
  * Get current user profile

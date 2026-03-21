@@ -1,15 +1,14 @@
--- Migration: Add REFUND notification types to notifications_type_check
--- Date: 2026-03-06 01:30
--- Adds REFUND_REQUESTED, REFUND_APPROVED, REFUND_REJECTED types so that
--- withdrawal request notifications can be saved to the DB.
+-- Migration: Add REPORT_CREATED, REPORT_RESOLVED to notifications_type_check
+-- Date: 2026-03-12 22:10
+-- Rule: V<Timestamp>__<description>.sql
+-- Fix: DataIntegrityViolationException when creating report (REPORT_CREATED not in constraint)
 
 BEGIN;
 
--- Drop existing check constraint
+-- Drop existing check constraint if exists
 ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_type_check;
 
--- Re-create check constraint including REFUND types and all other NotificationType enum values
--- (Must include all types to avoid violation when out-of-order migrations have already inserted rows)
+-- Re-create check constraint including REPORT_CREATED, REPORT_RESOLVED
 ALTER TABLE notifications
 ADD CONSTRAINT notifications_type_check CHECK (
     type::text = ANY(ARRAY[
@@ -18,7 +17,6 @@ ADD CONSTRAINT notifications_type_check CHECK (
         'PENDING',
         'CLINIC_PENDING_APPROVAL',
         'CLINIC_VERIFIED',
-        'CLINIC_STRIKE',
         'STAFF_SHIFT_ASSIGNED',
         'STAFF_SHIFT_UPDATED',
         'STAFF_SHIFT_DELETED',
@@ -29,7 +27,6 @@ ADD CONSTRAINT notifications_type_check CHECK (
         'BOOKING_ASSIGNED',
         'BOOKING_CANCELLED',
         'BOOKING_CHECKIN',
-        'BOOKING_PAYMENT_REQUIRED',
         'BOOKING_COMPLETED',
         'BOOKING_REMINDER',
         'RE_EXAMINATION_REMINDER',
@@ -37,10 +34,7 @@ ADD CONSTRAINT notifications_type_check CHECK (
         'REPORT_CREATED',
         'REPORT_RESOLVED',
         'SYSTEM',
-        'PROMOTION',
-        'REFUND_REQUESTED',
-        'REFUND_APPROVED',
-        'REFUND_REJECTED'
+        'PROMOTION'
     ])
 );
 

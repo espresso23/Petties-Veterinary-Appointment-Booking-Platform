@@ -9,6 +9,8 @@ import com.petties.petties.exception.ResourceNotFoundException;
 import com.petties.petties.model.User;
 import com.petties.petties.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +46,11 @@ public class UserService {
                                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
                 return mapToResponse(user);
+        }
+
+        @Transactional(readOnly = true)
+        public Page<UserResponse> getStruckPetOwners(Pageable pageable) {
+                return userRepository.findPetOwnersWithActiveStrike(pageable).map(this::mapToResponse);
         }
 
         @Transactional
@@ -178,6 +185,7 @@ public class UserService {
                                 .ratingCount(user.getRatingCount())
                                 .createdAt(user.getCreatedAt())
                                 .updatedAt(user.getUpdatedAt())
+                                .strikeUntil(user.getStrikeUntil())
                                 .build();
         }
 }

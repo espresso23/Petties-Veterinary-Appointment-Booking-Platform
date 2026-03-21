@@ -49,6 +49,7 @@ public class ClinicResponse {
     private BigDecimal ratingAvg;
     private Integer ratingCount;
     private LocalDateTime approvedAt;
+    private LocalDateTime strikeUntil; // NULL = không bị strike; có giá trị = hạn chế đến thời điểm này
     private List<String> images;
     private List<ImageInfo> imageDetails;
     private LocalDateTime createdAt;
