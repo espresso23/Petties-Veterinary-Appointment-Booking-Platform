@@ -415,10 +415,15 @@ public class SosMatchingService {
 
     /**
      * Check for timed-out SOS bookings
-     * Called by scheduled job every 5 seconds
+     * Called by scheduled job every 15 seconds
      */
     @Transactional
     public void checkTimeouts() {
+        if (!sessionManager.hasActiveSessions()) {
+            log.debug("No active SOS sessions in Redis, skipping timeout check");
+            return;
+        }
+
         List<Booking> pendingBookings = bookingRepository
                 .findByStatusAndBookingType(BookingStatus.PENDING_CLINIC_CONFIRM, BookingType.SOS);
 

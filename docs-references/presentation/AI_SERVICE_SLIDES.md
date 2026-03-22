@@ -230,7 +230,7 @@ classDiagram
 | **HybridRAGEngine** | Combines RAG + Knowledge Graph + Case Memory with re-ranking | `app/core/rag/hybrid_engine.py` |
 | **EmbeddingService** | Handles text (Cohere) and image (Jina CLIP v2) embeddings | `app/core/embeddings/` |
 | **ConfigService** | Loads dynamic configuration from PostgreSQL (hot-reload capable) | `app/core/config_helper.py` |
-| **FeedbackService** | Processes user feedback and updates case memory | `app/core/services/feedback_service.py` |
+| **FeedbackService** | Processes user feedback for analytics, audit, and monitoring | `app/core/services/feedback_service.py` |
 
 **Critical Architecture Points:**
 - ✅ **Separation of Concerns**: Each layer has single responsibility

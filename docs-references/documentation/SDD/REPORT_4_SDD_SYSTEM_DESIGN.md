@@ -2433,7 +2433,7 @@ flowchart LR
 
 ##### Collection: chat_feedback
 
-**Description:** Lưu trữ phản hồi của người dùng đối với các câu trả lời của AI (Thumbs up, Thumbs down, Report). Dùng để tái huấn luyện hệ thống và update Case Memory.
+**Description:** Store user feedback for AI responses (thumbs up, thumbs down, report, confirmed) for analytics, audit, and operational monitoring. Feedback does not update Case Memory.
 
 **Sample Document:**
 ```json
@@ -2442,18 +2442,19 @@ flowchart LR
     "message_id": ObjectId("507f1f77bcf86cd799439016"),
     "session_id": ObjectId("507f1f77bcf86cd799439015"),
     "user_id": "550e8400-e29b-41d4-a716-446655440000",
-    "rating": 1,
     "feedback_type": "THUMBS_UP",
-    "comment": "Tư vấn rất chính xác, bé nhà mình đúng là bị viêm da do nấm.",
-    "is_case_memory": true,
+    "feedback_category": "medical",
+    "feedback_text": "The answer was useful and clinically clear.",
+    "weight": 0.6,
+    "used_for_enrichment": false,
     "created_at": ISODate("2026-03-04T09:15:00Z")
 }
 ```
 
 **Indexes:**
 - `{ message_id: 1 }` (unique) - 1 feedback / 1 message
-- `{ session_id: 1 }` - Phân tích feedback theo phiên
-- `{ user_id: 1 }` - Phân tích độ hài lòng của user
+- `{ session_id: 1 }` - Analyze feedback by session
+- `{ user_id: 1 }` - Analyze satisfaction by user
 
 ---
 
@@ -2481,28 +2482,34 @@ Toàn bộ collection sử dụng metric **Cosine Similarity** và vector dimens
 
 ### 2.3.2 Collection: petties_case_memory_v2
 
-**Description:** Cấu trúc **Visual Case Memory** tiên tiến hỗ trợ tính năng RAG cải tiến. Lưu trữ các ca bệnh đã được xác nhận thực tế (thông qua Feedback) để AI tham khảo khi có case tương tự. Hỗ trợ **Multi-vector (Named Vectors)** cho phép tìm kiếm linh hoạt trên cả hình ảnh và văn bản (Hybrid Search).
+**Description:** EMR-driven Case Memory for confirmed veterinary records. Stores text and image evidence from confirmed EMR so AI can retrieve similar real cases during diagnosis support.
 
 **Vector Configuration:**
-Sử dụng điểm ảnh và văn bản tách biệt để tối ưu tìm kiếm:
+Use separate vectors for text and image retrieval:
 - `text`: Size 1024, Distance COSINE (Cohere embed-multilingual-v3.0)
 - `image`: Size 1024, Distance COSINE (Jina CLIP v2)
 
 **Payload Structure (Metadata):**
 | Field | Type | Description |
 |-------|------|-------------|
-| case_id | String | UUID định danh case |
-| text_content | String | Nội dung triệu chứng văn bản / chẩn đoán / mô tả bằng ngôn ngữ tự nhiên |
-| feedback_count | Integer | Trọng số: số lượng feedback positive (dùng để re-rank kết quả + hybrid score) |
-| vet_verified | Boolean | Boost weight: Bác sĩ uy tín đã xác nhận (cộng thêm % độ chính xác) |
-| feedback_type | String | Loại đánh giá của user/vet (confirmed/corrected/etc.) |
-| feedback_category | String | Nhóm của case để route agent (medical/booking/clinic_ops/general) |
-| created_at | String | Thời gian tạo case ban đầu (ISO-8601) |
-| last_confirmed_at | String | Thời gian có update / feedback mới nhất cập nhật vào case |
-| image_urls | Array | Danh sách URL (mảng string) nếu case có đính kèm ảnh chụp bệnh |
-| image_embedding_provider | String | Lưu thông tin model nhúng (vd: "jina-clip-v2") nếu có ảnh tham gia index |
-
-**Reranking / Routing:** Các biến số `feedback_count` và `vet_verified` trong collection này được sử dụng trong thuật toán truy vấn Custom Re-ranking ở AI Service nhằm tăng độ ưu tiên cho các case uy tín khi truy xuất.
+| case_id | String | Stable identifier in the form `emr:{emr_id}` |
+| source_type | String | Data source marker such as `confirmed_emr` |
+| clinic_id | String | Clinic UUID associated with the EMR |
+| pet_id | String | Pet UUID associated with the EMR |
+| booking_id | String | Booking UUID if the EMR originated from a booking |
+| doctor_id | String | Doctor/staff UUID who confirmed the EMR |
+| species | String | Pet species |
+| breed | String | Pet breed |
+| chief_complaint | String | Chief complaint captured in the EMR |
+| symptoms | Array | Structured symptom list |
+| physical_exam | Array | Structured physical examination findings |
+| clinical_notes | String | Additional clinical notes |
+| final_diagnosis_text | String | Final diagnosis text from confirmed EMR |
+| canonical_code | String | Normalized disease code when mapping is available; otherwise null/provisional |
+| exam_at | String | Examination timestamp |
+| emr_updated_at | String | Last EMR update timestamp used for case-memory upsert |
+| image_urls | Array | Clinical image URLs attached to the EMR |
+| image_embedding_provider | String | Image embedding provider metadata, for example `jina-clip-v2` |
 
 ### 2.3.3 Collection: petties_kb_images
 
@@ -2667,7 +2674,7 @@ Sử dụng điểm ảnh và văn bản tách biệt để tối ưu tìm kiế
 |--------|----------|-------------|--------|
 | POST | `/ai/knowledge/build-kg` | Build Knowledge Graph from indexed documents | Admin |
 | GET | `/ai/knowledge/kg-stats` | Get Knowledge Graph statistics (entities, relations) | Admin |
-| POST | `/ai/knowledge/embed-confirmed-cases` | Batch embed confirmed feedback cases into Case Memory | Admin |
+| POST | `/ai/knowledge/embed-confirmed-cases` | Legacy endpoint note; active Case Memory sync is EMR-driven | Admin |
 | GET | `/ai/knowledge/case-memory/stats` | Get Case Memory statistics (total cases, categories) | Admin |
 
 ### 3.3 Implemented Modules (Backend) - Previously Planned
@@ -8425,8 +8432,8 @@ classDiagram
 | `save_feedback(feedback)` | ~~Luu feedback vao MongoDB. Tu dong goi `_auto_classify` va `process_positive_feedback` neu la positive.~~ Chi luu vao MongoDB. |
 | `process_positive_feedback(message_id, feedback, image_urls)` | ~~Trích xuất case theo category...~~ Deprecated |
 | `list_feedback(filters, page, limit)` | Lấy danh sách feedback kèm phân trang và lọc theo role, category, type cho Admin. |
-| `update_feedback(feedback_id, update_data)` | ~~Cập nhật nội dung feedback và đồng bộ trạng thái Case Memory (Embed/Delete) nếu loại feedback thay đổi.~~ Deprecated |
-| `delete_feedback(feedback_id)` | ~~Xóa feedback và tự động xóa Case liên quan trong Qdrant nếu feedback đó từng được học.~~ Deprecated |
+| `update_feedback(feedback_id, update_data)` | Update feedback metadata for analytics and monitoring only. |
+| `delete_feedback(feedback_id)` | Append-only policy: deleting feedback is not supported. |
 | `classify_interaction(message)` | ~~Phân loại tương tác dựa trên tool call history trong trace.~~ Deprecated |
 | `_auto_classify(message, tool_used)` | ~~Logic tự động gán category: MEDICAL_TOOLS, BOOKING_TOOLS, CLINIC_OPS_TOOLS.~~ Deprecated |
 | `_get_latest_user_images(session_id)` | ~~Truy vấn MongoDB tìm User Message gần nhất trong session để lấy ảnh lâm sàng.~~ Deprecated |
@@ -8767,11 +8774,11 @@ flowchart TB
 | Chat feedback | User gui RIENG | MongoDB `chat_feedback` | User bam thumbs up/down |
 | RAG Knowledge Base | CHUNG toan he thong | Qdrant `petties_knowledge` | Admin upload tai lieu |
 | Knowledge Graph | CHUNG toan he thong | LlamaIndex KG Index (SimpleGraphStore) | Extract triplets tu tai lieu + confirmed cases |
-| Case Memory | CHUNG toan he thong | Qdrant `petties_case_memory` | Auto-embed khi feedback confirmed |
+| Case Memory | CHUNG toan he thong | Qdrant `petties_case_memory_v2` | Upsert from confirmed EMR records |
 | System Prompt | CHUNG toan he thong | PostgreSQL `prompt_versions` | Admin tinh chinh |
 | Du lieu nghiep vu | Realtime query | PostgreSQL (Spring Boot) | Business operations |
 
-**Nguyen tac:** User RIENG hoi -> He thong tra loi dua tren tri thuc CHUNG -> Feedback RIENG nuoi tri thuc CHUNG -> Tat ca user duoc huong loi.
+**Nguyen tac:** User RIENG hoi -> He thong tra loi dua tren tri thuc CHUNG -> Feedback RIENG duoc giu lai de audit/monitoring -> Tat ca user huong loi tu tri thuc CHUNG duoc cap nhat qua KB va EMR confirmed.
 
 #### 4.19.9 Qdrant Collection Schema - Case Memory
 
@@ -9225,7 +9232,8 @@ classDiagram
 **1. AiToolBookingController**
 - **Responsibility:** Expose internal Swagger-documented REST endpoints under /api/ai-tools/booking/* for AI service orchestration only.
 - **Key Methods:**
-  - esolveContext(...): Return resolved booking context and missing fields.
+  - 
+esolveContext(...): Return resolved booking context and missing fields.
   - getClinicOptions(...): Return candidate clinics already filtered for AI booking.
   - getSlotOptions(...): Return exact or recommended slot candidates.
   - uildDraft(...): Return booking summary payload for in-chat confirmation card.
@@ -9234,7 +9242,8 @@ classDiagram
 **2. AiToolBookingService**
 - **Responsibility:** Coordinate booking context resolution, clinic/service matching, slot selection, and booking request creation for the AI assistant.
 - **Key Methods:**
-  - esolveContext(...): Merge transcript hints with persisted user, pet, and clinic data.
+  - 
+esolveContext(...): Merge transcript hints with persisted user, pet, and clinic data.
   - getClinicOptions(...): Build a ranked list of clinics for the current booking intent.
   - getSlotOptions(...): Respect exact date/time when provided, otherwise compute up to three recommended slots.
   - uildDraft(...): Build a natural-language booking summary plus structured confirmation payload.
@@ -9243,9 +9252,12 @@ classDiagram
 **3. AiBookingContextResolver**
 - **Responsibility:** Interpret the full recent conversation and normalize booking hints before downstream matching starts.
 - **Key Methods:**
-  - esolvePet(...): Match pet name from transcript against the user's pets.
-  - esolveLocation(...): Prefer GPS from session context and fall back to transcript-derived address.
-  - esolveBookingIntent(...): Resolve booking type, service intent, date preference, and time preference.
+  - 
+esolvePet(...): Match pet name from transcript against the user's pets.
+  - 
+esolveLocation(...): Prefer GPS from session context and fall back to transcript-derived address.
+  - 
+esolveBookingIntent(...): Resolve booking type, service intent, date preference, and time preference.
 
 **4. AiBookingDraftAssembler**
 - **Responsibility:** Produce a UI-ready booking summary card and preserve the structured payload used by the final create call.

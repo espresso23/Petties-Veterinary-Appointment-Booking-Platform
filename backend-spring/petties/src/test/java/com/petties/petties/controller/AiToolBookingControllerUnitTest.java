@@ -118,14 +118,18 @@ class AiToolBookingControllerUnitTest {
     void createBooking_confirmedRequest_returns200() throws Exception {
         when(aiToolBookingService.createBooking(any())).thenReturn(
                 AiCreateBookingResponse.builder()
-                        .bookingId(UUID.randomUUID().toString())
-                        .bookingCode("BK-AI-001")
-                        .status("PENDING")
-                        .petName("Hadine")
-                        .clinicName("Benh Vien Thu Y PetCare")
-                        .bookingDate("2026-03-21")
-                        .bookingTime("09:00")
-                        .managerWillConfirm(true)
+                        .success(true)
+                        .message("Tạo lịch hẹn thành công")
+                        .booking(AiCreateBookingResponse.BookingResult.builder()
+                                .bookingId(UUID.randomUUID().toString())
+                                .bookingCode("BK-AI-001")
+                                .status("PENDING")
+                                .petName("Hadine")
+                                .clinicName("Benh Vien Thu Y PetCare")
+                                .bookingDate("2026-03-21")
+                                .bookingTime("09:00")
+                                .managerWillConfirm(true)
+                                .build())
                         .build());
 
         AiCreateBookingRequest request = new AiCreateBookingRequest();
@@ -141,8 +145,8 @@ class AiToolBookingControllerUnitTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.bookingCode").value("BK-AI-001"))
-                .andExpect(jsonPath("$.managerWillConfirm").value(true));
+                .andExpect(jsonPath("$.booking.bookingCode").value("BK-AI-001"))
+                .andExpect(jsonPath("$.booking.managerWillConfirm").value(true));
     }
 
     @Test

@@ -70,7 +70,7 @@
 3. Chạy vòng lặp ReAct: LLM suy nghĩ → gọi công cụ → xử lý kết quả → lặp lại nếu cần
 4. Tạo phản hồi, stream token-by-token về qua WebSocket
 5. Lưu cuộc trò chuyện vào MongoDB
-6. Nếu có positive feedback: trích xuất trường hợp → nhúng vào Case Memory (Qdrant)"
+6. Nếu có feedback: lưu vào MongoDB để analytics/audit; Case Memory được đồng bộ riêng từ EMR confirmed"
 
 **[1:15-1:30] Lợi ích kiến trúc**
 "Kiến trúc này zapewnia: 1) Cô lập lỗi, 2) Khả năng mở rộng độc lập, 3) Dữ liệu đầy đủ để phân tích sau này, 4) Mở rộng dễ dàng qua @mcp.tool mới."

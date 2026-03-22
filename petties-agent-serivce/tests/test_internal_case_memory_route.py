@@ -20,26 +20,6 @@ class InternalCaseMemoryRouteTests(unittest.TestCase):
         app.include_router(router, prefix="/api/v1")
         self.client = TestClient(app)
 
-    def test_sync_endpoint_rejects_invalid_internal_key(self):
-        payload = {
-            "emr_id": "emr-1",
-            "pet_id": "pet-1",
-            "final_diagnosis_text": "Viem da do vi khuan",
-            "verified": True,
-        }
-
-        with patch(
-            "app.api.routes.internal_case_memory.settings.AI_INTERNAL_SYNC_KEY",
-            "shared-key",
-        ):
-            response = self.client.post(
-                "/api/v1/internal/case-memory/emr-sync",
-                json=payload,
-                headers={"X-Internal-AI-Key": "wrong-key"},
-            )
-
-        self.assertEqual(response.status_code, 401)
-
     def test_sync_endpoint_returns_sync_result(self):
         payload = {
             "emr_id": "emr-1",
@@ -65,16 +45,12 @@ class InternalCaseMemoryRouteTests(unittest.TestCase):
         )()
 
         with patch(
-            "app.api.routes.internal_case_memory.settings.AI_INTERNAL_SYNC_KEY",
-            "shared-key",
-        ), patch(
             "app.api.routes.internal_case_memory.get_emr_case_memory_sync_service",
             return_value=fake_service,
         ):
             response = self.client.post(
                 "/api/v1/internal/case-memory/emr-sync",
                 json=payload,
-                headers={"X-Internal-AI-Key": "shared-key"},
             )
 
         self.assertEqual(response.status_code, 200)

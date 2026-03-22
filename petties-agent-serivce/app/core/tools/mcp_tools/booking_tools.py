@@ -686,6 +686,10 @@ async def get_user_pets(user_id: Optional[str] = None) -> Dict[str, Any]:
         "user_id": resolved_user_id,
         "pets": formatted_pets,
         "total_pets": len(formatted_pets),
+        "ui_card": {
+            "type": "pet_list",
+            "pets": formatted_pets,
+        },
     }
 
 
@@ -826,6 +830,14 @@ async def get_clinic_services(
         "message": None
         if formatted_services
         else "Phong kham hien chua co du lieu dich vu kha dung.",
+        "ui_card": {
+            "type": "service_chips",
+            "clinic_id": resolved_clinic_id or clinic_id,
+            "services": matched_services[:6]
+            if matched_services
+            else formatted_services[:6],
+            "message": "Mình đã lấy được danh sách dịch vụ phù hợp. Bạn chọn dịch vụ cần đặt lịch nhé.",
+        },
     }
 
 
@@ -880,6 +892,13 @@ async def check_vaccination_status(
         "total_history": len(filtered_history),
         "total_upcoming": len(filtered_upcoming),
         "message": None,
+        "ui_card": {
+            "type": "vaccination_card",
+            "pet_id": pet_id,
+            "history": filtered_history,
+            "upcoming": filtered_upcoming,
+            "message": None,
+        },
     }
 
 
@@ -934,22 +953,13 @@ async def search_clinics_nearby(
     effective_clinic_hint = effective_clinic_hint or resolved_clinic_hint
     service_hint = service_hint or resolved_service_hint
 
-    if optional_token and any(
-        value
-        for value in (
-            effective_clinic_hint,
-            service_hint,
-            pet_id,
-            pet_species,
-            booking_type,
-            transcript,
-            latest_message,
-        )
-    ):
+    if effective_clinic_hint and optional_token:
+        effective_radius = None
+
         payload = {
             "latitude": latitude,
             "longitude": longitude,
-            "radiusKm": radius_km,
+            "radiusKm": effective_radius,
             "limit": top_k,
             "address": address,
             "clinicHint": effective_clinic_hint,
@@ -963,9 +973,22 @@ async def search_clinics_nearby(
         try:
             response = await client.get_booking_clinic_options(optional_token, payload)
         except BackendClientError as exc:
-            logger.warning(
-                f"search_clinics_nearby clinic-options failed, fallback to public nearby search: {exc}"
-            )
+            logger.warning(f"search_clinics_nearby clinic-options failed: {exc}")
+            return {
+                "query_location": {
+                    "lat": latitude,
+                    "lng": longitude,
+                    "address": address,
+                },
+                "radius_km": radius_km,
+                "clinic_hint": effective_clinic_hint,
+                "service_hint": service_hint,
+                "clinics": [],
+                "matched_clinic": None,
+                "total_found": 0,
+                "needs_clarification": True,
+                "message": "Mình chưa thể tìm phòng khám lúc này. Bạn thử lại sau nhé.",
+            }
         else:
             if isinstance(response, dict):
                 raw_clinics = response.get("clinics") or response.get("content") or []
@@ -1007,7 +1030,7 @@ async def search_clinics_nearby(
                         "match_mode": "explicit_name",
                         "auto_select_clinic": False,
                         "needs_clarification": True,
-                        "message": "Minh chua tim thay phong kham khop voi ten ban vua neu trong khu vuc nay.",
+                        "message": "Mình chưa tìm thấy phòng khám khớp với tên bạn vừa nêu. Có thể tên phòng khám hơi khác, bạn kiểm tra lại giúp mình nhé.",
                     }
                 return {
                     "query_location": {
@@ -1031,10 +1054,20 @@ async def search_clinics_nearby(
                         and not auto_select_clinic
                     ),
                     "message": (
-                        "Minh da xac dinh duoc phong kham ban vua neu va se tiep tuc booking."
+                        "Mình đã xác định được phòng khám bạn vừa nêu và sẽ tiếp tục booking."
                         if auto_select_clinic
                         else None
                     ),
+                    "ui_card": {
+                        "type": "clinic_suggestion",
+                        "clinics": clinics[:5],
+                        "total_found": int(response.get("totalFound") or len(clinics)),
+                        "location": {
+                            "lat": latitude,
+                            "lng": longitude,
+                            "address": address,
+                        },
+                    },
                 }
 
     if latitude is None or longitude is None:
@@ -1047,7 +1080,7 @@ async def search_clinics_nearby(
             "matched_clinic": None,
             "total_found": 0,
             "needs_clarification": True,
-            "message": "Minh can vi tri hien tai hoac dia chi cu the de tim phong kham gan ban.",
+            "message": "Mình cần vị trí hiện tại hoặc địa chỉ cụ thể để tìm phòng khám gần bạn.",
         }
 
     try:
@@ -1110,6 +1143,12 @@ async def search_clinics_nearby(
         "resolved_clinic": None,
         "auto_select_clinic": False,
         "needs_clarification": False,
+        "ui_card": {
+            "type": "clinic_suggestion",
+            "clinics": clinics[:5],
+            "total_found": len(clinics),
+            "location": {"lat": latitude, "lng": longitude, "address": address},
+        },
     }
 
 
@@ -1299,6 +1338,20 @@ async def check_available_slots(
                     "next_best_action": "choose_another_time"
                     if no_slots
                     else "select_slot",
+                    "ui_card": {
+                        "type": "slot_grid",
+                        "clinic_id": resolved_clinic_id or clinic_id,
+                        "booking_date": resolved_date,
+                        "service_ids": resolved_service_ids_from_backend,
+                        "service_names": resolved_service_names,
+                        "recommended_slots": recommended_slots[:6],
+                        "alternative_slots": alternative_slots[:6],
+                        "total_slots": int(
+                            slot_response.get("totalAvailable") or len(available_slots)
+                        ),
+                        "message": slot_response.get("message")
+                        or "Mình đã tìm được các khung giờ phù hợp. Bạn chọn một khung giờ để tiếp tục nhé.",
+                    },
                 }
 
     if not normalized_service_ids:
@@ -1418,6 +1471,19 @@ async def check_available_slots(
         "next_best_action": "choose_another_time"
         if not formatted_slots
         else "select_slot",
+        "ui_card": {
+            "type": "slot_grid",
+            "clinic_id": resolved_clinic_id or clinic_id,
+            "booking_date": resolved_date,
+            "service_ids": normalized_service_ids,
+            "service_names": service_names,
+            "recommended_slots": formatted_slots[:6],
+            "alternative_slots": [],
+            "total_slots": len(formatted_slots),
+            "message": "Mình đã tìm được các khung giờ phù hợp. Bạn chọn một khung giờ để tiếp tục nhé."
+            if formatted_slots
+            else None,
+        },
     }
 
 
@@ -1592,6 +1658,19 @@ async def create_booking_for_user(
                 "notes": notes,
                 "home_address": home_address,
             },
+            "ui_card": {
+                "type": "booking_summary",
+                "pet_id": pet_id,
+                "clinic_id": resolved_clinic_id or clinic_id,
+                "clinic_name": (clinic_resolution.get("clinic") or {}).get("name"),
+                "booking_date": resolved_booking_date,
+                "start_time": resolved_start_time,
+                "service_ids": normalized_service_ids,
+                "booking_type": normalized_booking_type,
+                "notes": notes,
+                "home_address": home_address,
+                "message": "Mình đã tổng hợp đủ thông tin cơ bản. Bạn xác nhận để mình tạo yêu cầu đặt lịch nhé.",
+            },
         }
 
     if is_multi_pet:
@@ -1724,6 +1803,13 @@ async def create_booking_for_user(
             },
             "message": booking.get("message")
             or f"Da tao {len(bookings_list)} yeu cau booking. Clinic manager se xac nhan sau.",
+            "ui_card": {
+                "type": "booking_created",
+                "bookings": bookings_list,
+                "summary": summary,
+                "message": booking.get("message")
+                or f"Da tao {len(bookings_list)} yeu cau booking. Clinic manager se xac nhan sau.",
+            },
         }
 
     # Handle single-pet response (legacy)
@@ -1791,4 +1877,44 @@ async def create_booking_for_user(
             f"Da tao yeu cau booking cho {booking.get('petName') or 'thu cung cua ban'} tai "
             f"{booking.get('clinicName') or 'phong kham da chon'}. Clinic manager se xac nhan sau."
         ),
+        "ui_card": {
+            "type": "booking_created",
+            "booking": {
+                "id": booking.get("bookingId")
+                or booking.get("booking", {}).get("bookingId")
+                if isinstance(booking.get("booking"), dict)
+                else None,
+                "booking_code": booking.get("bookingCode")
+                or (
+                    booking.get("booking", {}).get("bookingCode")
+                    if isinstance(booking.get("booking"), dict)
+                    else None
+                ),
+                "status": booking.get("status")
+                or (
+                    booking.get("booking", {}).get("status")
+                    if isinstance(booking.get("booking"), dict)
+                    else None
+                ),
+                "pet_name": booking.get("petName")
+                or (
+                    booking.get("booking", {}).get("petName")
+                    if isinstance(booking.get("booking"), dict)
+                    else None
+                ),
+                "clinic_name": booking.get("clinicName")
+                or (
+                    booking.get("booking", {}).get("clinicName")
+                    if isinstance(booking.get("booking"), dict)
+                    else None
+                ),
+                "date": booking.get("bookingDate") or resolved_booking_date,
+                "time": str(booking.get("bookingTime", "") or resolved_start_time)[:5]
+                if resolved_start_time
+                else None,
+                "type": booking.get("type") or normalized_booking_type,
+                "services": services,
+            },
+            "message": f"Da tao yeu cau booking cho {booking.get('petName') or 'thu cung cua ban'} tai {booking.get('clinicName') or 'phong kham da chon'}. Clinic manager se xac nhan sau.",
+        },
     }

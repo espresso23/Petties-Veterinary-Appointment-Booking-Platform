@@ -108,13 +108,15 @@ public class AiToolBookingService {
                     .distanceKm(clinicResponse.getDistance())
                     .rating(clinicResponse.getRatingAvg())
                     .totalReviews(clinicResponse.getRatingCount())
-                    .supportsHomeVisit(candidateServices.stream().anyMatch(service -> Boolean.TRUE.equals(service.getIsHomeVisit())))
+                    .supportsHomeVisit(candidateServices.stream()
+                            .anyMatch(service -> Boolean.TRUE.equals(service.getIsHomeVisit())))
                     .estimatedPriceFrom(estimatedPriceFrom)
                     .hasSos(clinicResponse.getSosFee() != null)
                     .logoUrl(clinicResponse.getLogo())
                     .primaryImageUrl(resolvePrimaryImageUrl(clinicResponse))
                     .operatingHours(clinicResponse.getOperatingHours())
-                    .matchMode(request.getClinicHint() != null && !request.getClinicHint().isBlank() ? "explicit_name" : "nearby")
+                    .matchMode(request.getClinicHint() != null && !request.getClinicHint().isBlank() ? "explicit_name"
+                            : "nearby")
                     .matchedServices((matchedServices.isEmpty() ? candidateServices : matchedServices).stream()
                             .limit(3)
                             .map(this::toMatchedService)
@@ -145,10 +147,10 @@ public class AiToolBookingService {
     @Transactional(readOnly = true)
     public AiSlotOptionsResponse getSlotOptions(AiSlotOptionsRequest request) {
         if (request.getClinicId() == null) {
-            throw new BadRequestException("Thieu phong kham de kiem tra slot");
+            throw new BadRequestException("Thiếu phòng khám để kiểm tra slot");
         }
         if (request.getBookingDate() == null) {
-            throw new BadRequestException("Thieu ngay dat lich");
+            throw new BadRequestException("Thiếu ngày đặt lịch");
         }
 
         UUID currentUserId = authService.getCurrentUser().getUserId();
@@ -171,9 +173,10 @@ public class AiToolBookingService {
                 request.getClinicId(),
                 petSpecies,
                 bookingType);
-        List<ClinicServiceResponse> selectedServices = resolveSelectedServices(candidateServices, request.getServiceIds(), request.getServiceHint());
+        List<ClinicServiceResponse> selectedServices = resolveSelectedServices(candidateServices,
+                request.getServiceIds(), request.getServiceHint());
         if (selectedServices.isEmpty()) {
-            throw new BadRequestException("Khong xac dinh duoc dich vu phu hop de kiem tra slot");
+            throw new BadRequestException("Không xác định được dịch vụ phù hợp để kiểm tra slot");
         }
 
         AvailableSlotsResponse slotResponse = bookingService.getAvailableSlots(
@@ -185,7 +188,7 @@ public class AiToolBookingService {
         List<LocalTime> rawSlots = (slotResponse == null || slotResponse.getAvailableSlots() == null)
                 ? List.of()
                 : slotResponse.getAvailableSlots();
-        
+
         int durationMinutes = Math.max(
                 selectedServices.stream()
                         .map(ClinicServiceResponse::getDurationTime)
@@ -198,18 +201,21 @@ public class AiToolBookingService {
                 .map(time -> toSlotOption(time, durationMinutes, request.getExactTime()))
                 .toList();
 
-        boolean exactMatch = request.getExactTime() != null && rawSlots.stream().anyMatch(request.getExactTime()::equals);
-        List<AiSlotOptionsResponse.SlotOption> recommendedSlots = pickRecommendedSlots(allSlots, request.getTimePreference(), request.getLimit(), exactMatch);
+        boolean exactMatch = request.getExactTime() != null
+                && rawSlots.stream().anyMatch(request.getExactTime()::equals);
+        List<AiSlotOptionsResponse.SlotOption> recommendedSlots = pickRecommendedSlots(allSlots,
+                request.getTimePreference(), request.getLimit(), exactMatch);
         List<AiSlotOptionsResponse.SlotOption> alternatives = allSlots.stream()
-                .filter(slot -> recommendedSlots.stream().noneMatch(rec -> rec.getStartTime().equals(slot.getStartTime())))
+                .filter(slot -> recommendedSlots.stream()
+                        .noneMatch(rec -> rec.getStartTime().equals(slot.getStartTime())))
                 .limit(request.getLimit() != null && request.getLimit() > 0 ? request.getLimit() : 3)
                 .toList();
 
         String message = null;
         if (allSlots.isEmpty()) {
-            message = "Khong co slot trong trong ngay nay. Ban co the chon ngay khac hoac de clinic manager xac nhan thoi gian gan nhat.";
+            message = "Không có slot trong trong ngày này. Bạn có thể chọn ngày khác hoặc để clinic manager xác nhận thời gian gần nhất.";
         } else if (recommendedSlots.isEmpty() && !allSlots.isEmpty()) {
-            message = "Khong tim thay slot phu hop voi lua chon cua ban. Hay thu ngay khac.";
+            message = "Không tìm thấy slot phù hợp với lựa chọn của bạn. Hãy thử ngày khác.";
         }
 
         return AiSlotOptionsResponse.builder()
@@ -234,7 +240,8 @@ public class AiToolBookingService {
         Clinic clinic = clinicRepository.findById(request.getClinicId())
                 .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay phong kham"));
 
-        BookingType effectiveBookingType = request.getBookingType() != null ? request.getBookingType() : BookingType.IN_CLINIC;
+        BookingType effectiveBookingType = request.getBookingType() != null ? request.getBookingType()
+                : BookingType.IN_CLINIC;
         List<ClinicServiceResponse> services = resolveServicesByIds(
                 clinic.getClinicId(),
                 request.getServiceIds(),
@@ -314,7 +321,8 @@ public class AiToolBookingService {
                         .petName(booking.getPetName())
                         .clinicName(booking.getClinicName())
                         .bookingDate(booking.getBookingDate() != null ? booking.getBookingDate().toString() : null)
-                        .bookingTime(booking.getBookingTime() != null ? booking.getBookingTime().format(TIME_FORMATTER) : null)
+                        .bookingTime(booking.getBookingTime() != null ? booking.getBookingTime().format(TIME_FORMATTER)
+                                : null)
                         .managerWillConfirm(true)
                         .build())
                 .build();
@@ -338,7 +346,8 @@ public class AiToolBookingService {
         Clinic clinic = clinicRepository.findById(request.getClinicId())
                 .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay phong kham"));
 
-        BookingType effectiveBookingType = request.getBookingType() != null ? request.getBookingType() : BookingType.IN_CLINIC;
+        BookingType effectiveBookingType = request.getBookingType() != null ? request.getBookingType()
+                : BookingType.IN_CLINIC;
 
         List<AiBookingDraftResponse.BookingSummary> summaries = new ArrayList<>();
         BigDecimal totalEstimated = BigDecimal.ZERO;
@@ -357,7 +366,8 @@ public class AiToolBookingService {
             }
 
             if (pet == null) {
-                throw new ResourceNotFoundException("Khong tim thay thu cung: " + (item.getPetHint() != null ? item.getPetHint() : item.getPetId()));
+                throw new ResourceNotFoundException("Khong tim thay thu cung: "
+                        + (item.getPetHint() != null ? item.getPetHint() : item.getPetId()));
             }
 
             // Build service IDs list (item services + common services)
@@ -391,7 +401,8 @@ public class AiToolBookingService {
             BigDecimal estimatedTotal = serviceTotal.add(distanceFee).add(sosFee);
 
             int totalDuration = Math.max(
-                    services.stream().map(ClinicServiceResponse::getDurationTime).filter(Objects::nonNull).mapToInt(Integer::intValue).sum(),
+                    services.stream().map(ClinicServiceResponse::getDurationTime).filter(Objects::nonNull)
+                            .mapToInt(Integer::intValue).sum(),
                     30);
 
             summaries.add(AiBookingDraftResponse.BookingSummary.builder()
@@ -403,7 +414,9 @@ public class AiToolBookingService {
                     .serviceIds(services.stream().map(s -> s.getServiceId().toString()).toList())
                     .bookingDate(request.getBookingDate() != null ? request.getBookingDate().toString() : null)
                     .startTime(request.getStartTime() != null ? request.getStartTime().format(TIME_FORMATTER) : null)
-                    .endTime(request.getStartTime() != null ? request.getStartTime().plusMinutes(totalDuration).format(TIME_FORMATTER) : null)
+                    .endTime(request.getStartTime() != null
+                            ? request.getStartTime().plusMinutes(totalDuration).format(TIME_FORMATTER)
+                            : null)
                     .bookingType(effectiveBookingType)
                     .estimatedTotal(estimatedTotal)
                     .serviceTotal(serviceTotal)
@@ -430,7 +443,8 @@ public class AiToolBookingService {
                 .bookingType(effectiveBookingType)
                 .estimatedTotal(totalEstimated)
                 .serviceTotal(totalEstimated.subtract(
-                        pricingService.calculateBookingDistanceFee(clinic.getClinicId(), request.getDistanceKm(), effectiveBookingType)))
+                        pricingService.calculateBookingDistanceFee(clinic.getClinicId(), request.getDistanceKm(),
+                                effectiveBookingType)))
                 .homeAddress(request.getHomeAddress())
                 .managerWillConfirm(true)
                 .build();
@@ -449,20 +463,21 @@ public class AiToolBookingService {
     @Transactional
     public AiCreateBookingResponse createMultiPetBookings(AiCreateBookingRequest request) {
         if (!Boolean.TRUE.equals(request.getConfirmed())) {
-            throw new BadRequestException("Can xac nhan ro rang truoc khi tao booking");
+            throw new BadRequestException("Cần xác nhận rõ ràng trước khi tạo booking");
         }
 
         UUID currentUserId = authService.getCurrentUser().getUserId();
         List<AiPetItemRequest> items = request.getItems();
 
         if (items == null || items.isEmpty()) {
-            throw new BadRequestException("Danh sach thu cung trong khong duoc de trong");
+            throw new BadRequestException("Danh sách thú cưng không được để trống");
         }
 
         Clinic clinic = clinicRepository.findById(request.getClinicId())
-                .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay phong kham"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
 
-        BookingType effectiveBookingType = request.getBookingType() != null ? request.getBookingType() : BookingType.IN_CLINIC;
+        BookingType effectiveBookingType = request.getBookingType() != null ? request.getBookingType()
+                : BookingType.IN_CLINIC;
 
         List<AiCreateBookingResponse.BookingResult> results = new ArrayList<>();
         int successCount = 0;
@@ -501,13 +516,14 @@ public class AiToolBookingService {
                         .petName(booking.getPetName())
                         .clinicName(booking.getClinicName())
                         .bookingDate(booking.getBookingDate() != null ? booking.getBookingDate().toString() : null)
-                        .bookingTime(booking.getBookingTime() != null ? booking.getBookingTime().format(TIME_FORMATTER) : null)
+                        .bookingTime(booking.getBookingTime() != null ? booking.getBookingTime().format(TIME_FORMATTER)
+                                : null)
                         .managerWillConfirm(true)
-                        .services(booking.getPets() != null ?
-                                booking.getPets().stream()
-                                        .flatMap(p -> p.getServices() != null ? p.getServices().stream() : java.util.stream.Stream.empty())
-                                        .map(s -> s.getServiceName())
-                                        .toList() : List.of())
+                        .services(booking.getPets() != null ? booking.getPets().stream()
+                                .flatMap(p -> p.getServices() != null ? p.getServices().stream()
+                                        : java.util.stream.Stream.empty())
+                                .map(s -> s.getServiceName())
+                                .toList() : List.of())
                         .build());
 
                 successCount++;
@@ -517,7 +533,8 @@ public class AiToolBookingService {
             } catch (Exception e) {
                 failureCount++;
                 results.add(AiCreateBookingResponse.BookingResult.builder()
-                        .petName(item.getPetHint() != null ? item.getPetHint() : (item.getPetId() != null ? item.getPetId().toString() : "Unknown"))
+                        .petName(item.getPetHint() != null ? item.getPetHint()
+                                : (item.getPetId() != null ? item.getPetId().toString() : "Unknown"))
                         .status("FAILED")
                         .build());
             }
@@ -539,7 +556,8 @@ public class AiToolBookingService {
                 .bookings(results)
                 .multiPetSummary(multiSummary)
                 .success(failureCount == 0)
-                .message(String.format("Da tao %d/%d yeu cau booking. Clinic manager se xac nhan sau.", successCount, items.size()))
+                .message(String.format("Đã tạo %d/%d yêu cầu booking. Clinic manager sẽ xác nhận sau.", successCount,
+                        items.size()))
                 .build();
     }
 
@@ -552,7 +570,7 @@ public class AiToolBookingService {
     @Transactional
     public AiCreateBookingResponse createSingleBooking(AiCreateBookingRequest request) {
         if (!Boolean.TRUE.equals(request.getConfirmed())) {
-            throw new BadRequestException("Can xac nhan ro rang truoc khi tao booking");
+            throw new BadRequestException("Cần xác nhận rõ ràng trước khi tạo booking");
         }
 
         UUID currentUserId = authService.getCurrentUser().getUserId();
@@ -580,11 +598,13 @@ public class AiToolBookingService {
                         .petName(booking.getPetName())
                         .clinicName(booking.getClinicName())
                         .bookingDate(booking.getBookingDate() != null ? booking.getBookingDate().toString() : null)
-                        .bookingTime(booking.getBookingTime() != null ? booking.getBookingTime().format(TIME_FORMATTER) : null)
+                        .bookingTime(booking.getBookingTime() != null ? booking.getBookingTime().format(TIME_FORMATTER)
+                                : null)
                         .managerWillConfirm(true)
                         .build())
                 .success(true)
-                .message(String.format("Da tao yeu cau booking cho %s. Clinic manager se xac nhan sau.", booking.getPetName()))
+                .message(String.format("Đã tạo yêu cầu booking cho %s. Clinic manager sẽ xác nhận sau.",
+                        booking.getPetName()))
                 .build();
     }
 
@@ -613,7 +633,7 @@ public class AiToolBookingService {
         }
 
         if (request.getLatitude() == null || request.getLongitude() == null) {
-            throw new BadRequestException("Thieu vi tri de tim phong kham gan ban");
+            throw new BadRequestException("Thiếu vị trí để tìm phòng khám gần bạn");
         }
 
         return clinicService.findNearbyClinics(
@@ -624,7 +644,8 @@ public class AiToolBookingService {
                 .getContent();
     }
 
-    private List<ClinicServiceResponse> loadCandidateServices(UUID clinicId, PetSpecies petSpecies, BookingType bookingType) {
+    private List<ClinicServiceResponse> loadCandidateServices(UUID clinicId, PetSpecies petSpecies,
+            BookingType bookingType) {
         Boolean isHomeVisit = bookingType == BookingType.HOME_VISIT ? Boolean.TRUE : null;
         if (petSpecies != null || isHomeVisit != null) {
             return clinicServiceService.getCompatibleServices(clinicId, petSpecies, isHomeVisit);
@@ -653,14 +674,14 @@ public class AiToolBookingService {
             PetSpecies petSpecies,
             BookingType bookingType) {
         if (serviceIds == null || serviceIds.isEmpty()) {
-            throw new BadRequestException("Thieu danh sach dich vu de tao booking");
+            throw new BadRequestException("Thiếu danh sách dịch vụ để tạo booking");
         }
         List<ClinicServiceResponse> candidateServices = loadCandidateServices(clinicId, petSpecies, bookingType);
         List<ClinicServiceResponse> selected = candidateServices.stream()
                 .filter(service -> serviceIds.contains(service.getServiceId()))
                 .toList();
         if (selected.size() != serviceIds.size()) {
-            throw new BadRequestException("Mot so dich vu khong thuoc phong kham da chon");
+            throw new BadRequestException("Một số dịch vụ không thuộc phòng khám đã chọn");
         }
         return selected;
     }
@@ -716,18 +737,19 @@ public class AiToolBookingService {
 
     private String buildClinicReason(String serviceHint, BookingType bookingType, ClinicResponse clinic) {
         if (serviceHint != null && !serviceHint.isBlank()) {
-            return "Phu hop voi nhu cau dich vu ban dang hoi";
+            return "Phù hợp với nhu cầu dịch vụ bạn đang hỏi";
         }
         if (bookingType == BookingType.HOME_VISIT) {
-            return "Phong kham co dich vu kham tai nha gan ban";
+            return "Phòng khám có dịch vụ khám tại nhà";
         }
         if (clinic.getDistance() != null) {
-            return "Phong kham gan vi tri hien tai cua ban";
+            return "Phòng khám gần vị trí của bạn";
         }
-        return "Phong kham phu hop voi yeu cau hien tai";
+        return "Phòng khám phù hợp với yêu cầu hiện tại";
     }
 
-    private AiSlotOptionsResponse.SlotOption toSlotOption(LocalTime startTime, int durationMinutes, LocalTime exactTime) {
+    private AiSlotOptionsResponse.SlotOption toSlotOption(LocalTime startTime, int durationMinutes,
+            LocalTime exactTime) {
         return AiSlotOptionsResponse.SlotOption.builder()
                 .startTime(startTime.format(TIME_FORMATTER))
                 .endTime(startTime.plusMinutes(durationMinutes).format(TIME_FORMATTER))
@@ -755,7 +777,8 @@ public class AiToolBookingService {
         }
 
         String normalized = normalizeForMatch(timePreference);
-        Comparator<AiSlotOptionsResponse.SlotOption> comparator = Comparator.comparing(AiSlotOptionsResponse.SlotOption::getStartTime);
+        Comparator<AiSlotOptionsResponse.SlotOption> comparator = Comparator
+                .comparing(AiSlotOptionsResponse.SlotOption::getStartTime);
         if (normalized.contains("sang") || normalized.contains("morning")) {
             comparator = Comparator.comparingInt(slot -> hourDistance(slot.getStartTime(), 9));
         } else if (normalized.contains("chieu") || normalized.contains("afternoon")) {
@@ -775,7 +798,8 @@ public class AiToolBookingService {
         return Math.abs(parsed.getHour() - preferredHour);
     }
 
-    private com.petties.petties.model.ClinicService toClinicServiceEntity(ClinicServiceResponse response, Clinic clinic) {
+    private com.petties.petties.model.ClinicService toClinicServiceEntity(ClinicServiceResponse response,
+            Clinic clinic) {
         com.petties.petties.model.ClinicService entity = new com.petties.petties.model.ClinicService();
         entity.setServiceId(response.getServiceId());
         entity.setClinic(clinic);
@@ -791,7 +815,8 @@ public class AiToolBookingService {
         return entity;
     }
 
-    private List<ServiceWeightPrice> mapWeightPrices(List<WeightPriceDto> weightPrices, com.petties.petties.model.ClinicService service) {
+    private List<ServiceWeightPrice> mapWeightPrices(List<WeightPriceDto> weightPrices,
+            com.petties.petties.model.ClinicService service) {
         if (weightPrices == null || weightPrices.isEmpty()) {
             return List.of();
         }
@@ -827,5 +852,3 @@ public class AiToolBookingService {
         return value == null ? "" : value;
     }
 }
-
-

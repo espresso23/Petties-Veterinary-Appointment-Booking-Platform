@@ -111,15 +111,16 @@ class FeedbackRequest(BaseModel):
 
 
 class FeedbackResponse(BaseModel):
-    """Response cho POST /chat/feedback."""
+    """Response cho POST/PUT feedback, chỉ phục vụ analytics và monitoring."""
 
-    status: str = Field(description="saved | error")
+    success: bool = Field(description="True nếu thao tác thành công")
+    status: str = Field(description="saved | updated | error")
     feedback_id: Optional[str] = Field(
         default=None, description="UUID của feedback vừa lưu"
     )
-    case_embedded: bool = Field(
-        default=False,
-        description="True nếu feedback positive đã được embed vào Case Memory",
+    used_for_analytics: bool = Field(
+        default=True,
+        description="True nếu feedback được dùng cho thống kê và phân tích hành vi",
     )
     category: str = Field(
         default="general",
@@ -129,6 +130,15 @@ class FeedbackResponse(BaseModel):
         default=0.0,
         description="Trọng số feedback dựa trên role của người dùng",
     )
+    used_for_monitoring: bool = Field(
+        default=True,
+        description="True nếu feedback được dùng cho giám sát vận hành và audit",
+    )
+    used_for_enrichment: bool = Field(
+        default=False,
+        description="Luôn false. Feedback không dùng để enrich Case Memory",
+    )
+    message: Optional[str] = Field(default=None, description="Thông báo kết quả")
     error: Optional[str] = Field(default=None, description="Thông báo lỗi nếu có")
 
 
@@ -167,15 +177,11 @@ class UpdateFeedbackRequest(BaseModel):
 
 
 class DeleteFeedbackResponse(BaseModel):
-    """Response cho DELETE /chat/feedback/{feedback_id}."""
+    """Legacy response model kept only for backward compatibility."""
 
-    success: bool = Field(description="True nếu xóa thành công")
-    feedback_id: str = Field(description="UUID của feedback đã xóa")
-    case_deleted: bool = Field(
-        default=False,
-        description="True nếu case tương ứng đã được xóa khỏi Qdrant",
-    )
-    message: str = Field(default="", description="Thông báo kết quả")
+    success: bool = Field(description="Legacy field")
+    feedback_id: str = Field(description="Legacy field")
+    message: str = Field(default="", description="Legacy field")
 
 
 class FeedbackStatsResponse(BaseModel):

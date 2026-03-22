@@ -125,6 +125,7 @@ services:
       - 8.8.4.4
     volumes:
       - ./backend-spring/petties/src:/app/src:ro
+      - ./logs/backend:/app/logs
     ports:
       - "8081:8080" # Đổi từ 8080 thành 8081 để nhường 8080 cho Nginx (Ngrok entry point)
     depends_on:
@@ -180,6 +181,8 @@ services:
       - ai_storage_dev_data:/app/storage
       # Persist uploaded knowledge documents
       - ai_uploads_dev_data:/app/uploads
+      # Persist logs across container rebuilds
+      - ./logs/ai-service:/app/logs
     ports:
       - "8000:8000"
     depends_on:

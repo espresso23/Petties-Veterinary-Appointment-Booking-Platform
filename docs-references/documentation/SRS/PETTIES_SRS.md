@@ -3715,8 +3715,8 @@ Figure 47. Pet Selection Dialog (Mobile)
 **Feedback & Learning from Confirmed Vision Cases (Case Memory)**
 
 - **Overview:**  
-  - When AI vision answers are later confirmed as helpful/accurate by Pet Owners, Staff, or Vets (via the `/chat/feedback` endpoint), the system can learn from these real-world cases through the **Case Memory** mechanism.
-  - Confirmed cases are embedded into a vector store (Qdrant `petties_case_memory`) so that similar future queries (including new images) can be answered with higher confidence, based on prior verified cases.
+  - Historical note: this feedback-driven Case Memory approach is no longer active in runtime and is kept here only for design history.
+  - The active implementation uses confirmed EMR records as the source for Case Memory retrieval.
 
 - **Current scope (Phase 1 - Updated 2026-03-17):**
   > **⚠️ Lưu ý quan trọng:** Nguồn cũ từ thumbs up/down feedback đã bị loại bỏ. Case memory hiện tại được cập nhật theo hướng EMR-driven (xem [AI_DIAGNOSIS_FEATURE_PLAN.md](./AI_DIAGNOSIS_FEATURE_PLAN.md)).
@@ -3907,29 +3907,27 @@ Figure 47. Pet Selection Dialog (Mobile)
     - A3. Staff không có quyền truy cập hồ sơ -> từ chối truy cập và trả lỗi phân quyền.
     - E1. Tool tra cứu lỗi -> trả thông báo an toàn và khuyến nghị xem xét lâm sàng trực tiếp.
 
- #### *3.11.7 AI Feedback Audit & Visual Case Memory (UC-AD-11)*
+ #### *3.11.7 AI Feedback Audit (UC-AD-11)*
 **User Story:**
-> *As a Platform Admin, I want to audit AI feedback and manage case memory so that I can ensure the AI learns from high-quality data and remove incorrect information.*
+> *As a Platform Admin, I want to audit AI feedback for analytics and operational monitoring so that I can track answer quality without mutating historical feedback records.*
 
 **Function trigger**
-- **Navigation path:** Admin Dashboard → AI Insights → Feedback Audit.
-- **Timing frequency:** Thường xuyên để kiểm soát chất lượng AI.
+- **Navigation path:** Admin Dashboard -> AI Insights -> Feedback Audit.
+- **Timing frequency:** Frequently to monitor AI quality and user satisfaction trends.
 
 **Function description**
 - **Actors/Roles:** Admin.
-- **Purpose:** Quản lý danh sách phản hồi từ người dùng (Thumbs up/down) để phân tích UX. **Lưu ý:** Feedback không còn được dùng làm nguồn học cho AI - case memory hiện được cập nhật từ EMR confirmed.
+- **Purpose:** Review feedback records from users for analytics, audit, and monitoring. Feedback is append-only and is not used to enrich AI diagnosis data. Case memory is updated from confirmed EMR.
 - **Interface:**
-    - **Feedback List:** Bảng danh sách feedback kèm message content, tool đã dùng, và phân loại tự động (Medical/Booking/Ops).
-    - **Delete Feedback:** Cho phép xóa feedback không chính xác.
-    - ~~**Cascade Case Removal:** Khi xóa feedback tích cực đã được embed, hệ thống tự động xóa case tương ứng trong Qdrant Case Memory.~~
-    - **Visual Extraction:** Tự động lấy ảnh từ User Message gần nhất trong session nếu Assistant Message được feedback không chứa ảnh.
+    - **Feedback List:** Table of feedback records with message content, tool used, role, timestamp, and auto-classified category.
+    - **Filters and Metrics:** Filter by type, category, role, and date range; review aggregate statistics for monitoring.
+    - **Audit Status:** Feedback records are retained for traceability and cannot be deleted from the admin UI.
 
 **Data processing**
-1. Admin truy cập trang AI Insights.
-2. Hệ thống tải danh sách feedback từ MongoDB.
-3. Khi Admin xóa một feedback:
-    - ~~Nếu feedback là THUMBS_UP và đã được embed -> Gọi CaseMemoryService để xóa vector trong Qdrant.~~
-    - Chỉ xóa record feedback trong MongoDB.
+1. Admin opens AI Insights.
+2. System loads feedback statistics and paginated feedback records from MongoDB.
+3. Admin filters and reviews the dataset for quality monitoring and audit purposes.
+4. Historical feedback remains immutable; deleting feedback is not supported.
 
  #### *3.11.8 Knowledge Graph Visualizer & Query Testing (UC-AD-12 / UC-AD-13)*
 **User Story:**

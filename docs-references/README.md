@@ -67,6 +67,12 @@ Design guides và style guidelines:
 - `design-style-guide.md` - Design system và style guide (Soft Neobrutalism); có **Reference Implementation: Sidebar** (UI/UX, typography, icon)
 - `GOOGLE_MAPS_STYLING.md` - Hướng dẫn custom styling cho Google Maps
 
+### 📡 Operations (`/operations`)
+Cấu hình vận hành hệ thống:
+- `SENTRY_SETUP_GUIDE.md` - Hướng dẫn setup Sentry error monitoring → Discord alerts
+- `BUG_MONITORING_GUIDE.md` - Hướng dẫn monitor và debug bugs
+- `LOGGING_GUIDE.md` - Hướng dẫn logging system (Backend + AI Service, Correlation ID, troubleshooting)
+
 ---
 
 ## � Cách sử dụng
@@ -99,6 +105,11 @@ Design guides và style guidelines:
 
 ### Khi cần hướng dẫn về design
 → Xem folder `/design`
+
+### Khi cần debug hoặc check logs
+→ Xem folder `/operations`
+  - **Logging System**: `LOGGING_GUIDE.md`
+  - **Error Monitoring**: `SENTRY_SETUP_GUIDE.md`
 
 ---
 

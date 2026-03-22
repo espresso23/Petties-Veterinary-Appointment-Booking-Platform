@@ -164,11 +164,15 @@ export interface SubmitFeedbackRequest {
 }
 
 export interface SubmitFeedbackResponse {
+    success: boolean
     status: string
     feedback_id?: string
-    case_embedded: boolean
     category: string
     weight: number
+    used_for_analytics: boolean
+    used_for_monitoring: boolean
+    used_for_enrichment: boolean
+    message?: string
     error?: string
 }
 
@@ -634,17 +638,16 @@ export const feedbackApi = {
         if (!response.ok) throw new Error('Không thể gửi feedback')
         return response.json()
     },
-
-    async deleteFeedback(feedbackId: string): Promise<{ success: boolean; feedback_id: string; case_deleted: boolean; message: string }> {
+    async deleteFeedback(feedbackId: string): Promise<{ success: boolean; feedback_id: string; case_deleted?: boolean; message: string }> {
         const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/chat/feedback/${feedbackId}`, {
             method: 'DELETE'
         })
         if (!response.ok) {
             const err = await response.json().catch(() => null)
-            throw new Error(err?.detail || 'Không thể xóa feedback')
+            throw new Error(err?.detail || 'Khong the xoa feedback')
         }
         return response.json()
-    }
+    },
 }
 
 // ===== KNOWLEDGE GRAPH API =====

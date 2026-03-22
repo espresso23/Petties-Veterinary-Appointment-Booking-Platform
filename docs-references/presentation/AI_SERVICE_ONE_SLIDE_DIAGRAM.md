@@ -81,10 +81,9 @@ flowchart TB
             subgraph FEED[FeedbackService]
                 direction LR
                 Feedback_Save[Save Feedback<br/>(MongoDB chat_feedback)]
-                Feedback_Process[Process Positive Feedback]
-                Feedback_Extract[Extract Case<br/>(Medical/Booking/Clinic_Ops)]
-                Feedback_Embed[Embed Case<br/>(→ Case Memory Service)]
-                Feedback_Save --> Feedback_Process --> Feedback_Extract --> Feedback_Embed
+                Feedback_Classify[Classify Feedback<br/>(Medical/Booking/Clinic_Ops)]
+                Feedback_Audit[Audit & Monitoring<br/>(Analytics only)]
+                Feedback_Save --> Feedback_Classify --> Feedback_Audit
             end
         end
         
@@ -100,8 +99,6 @@ flowchart TB
         RAG --> CONFIG
         RAG --> EMB
         EMB --> CONFIG
-        FEED --> RAG
-        FEED --> EMB
     end
 
     %% === DATA STORES ===
@@ -141,7 +138,6 @@ flowchart TB
     AI -->|Image Embedding| JINA
     AI -->|Web Search| WEB
     AI -->|Feedback Save| MG
-    AI -->|Case Embedding| QD
     
     %% Internal → User
     AI -->|WS Stream Tokens| GW
@@ -178,7 +174,7 @@ flowchart TB
      * HybridRAGEngine: Kết hợp RAG + Knowledge Graph + Case Memory để tìm kiếm bối cảnh
      * EmbeddingService: Xử lý vector văn bản (Cohere) và hình ảnh (Jina CLIP v2)
      * ConfigService: Tải cấu hình động từ PostgreSQL (hot-reload)
-     * FeedbackService: Xử lý phản hồi người dùng và cập nhật bộ nhớ trường hợp
+     * FeedbackService: Xử lý phản hồi người dùng cho analytics, audit và monitoring
 3. **Kho lưu trữ dữ liệu**: AI Service có truy cập trực tiếp đến:
    - PostgreSQL: Lưu cấu hình, API keys được mã hóa
    - MongoDB: Lưu lịch sử chat đầy đủ kèm dấu vết ReAct (thought/action/observation)
@@ -195,7 +191,7 @@ flowchart TB
 5. Chạy vòng lặp ReAct: LLM suy nghĩ → gọi công cụ → xử lý kết quả → lặp lại nếu cần
 6. Tạo phản hồi cuối cùng, stream token-by-token về qua WebSocket
 7. Lưu cuộc trò chuyện vào MongoDB
-8. Nếu có phản hồi positive, trích xuất trường hợp và nhúng vào Case Memory trong Qdrant
+8. Nếu có phản hồi, hệ thống lưu feedback vào MongoDB để phân tích; Case Memory được đồng bộ riêng từ EMR confirmed
 
 **[Kết thúc - 15 giây]**
 "Kiến trúc này đảm bảo: 1) Cô lập lỗi, 2) Khả năng mở rộng độc lập, 3) Dữ liệu đầy đủ để phân tích sau này, 4) Mở rộng dễ dàng qua @mcp.tool mới."

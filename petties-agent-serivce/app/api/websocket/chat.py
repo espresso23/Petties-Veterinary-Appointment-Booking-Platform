@@ -3,8 +3,13 @@ PETTIES AGENT SERVICE - WebSocket Chat Handler
 Real-time chat with streaming responses
 
 Package: app.api.websocket
-Purpose: WebSocket endpoint for Playground chat with real SingleAgent integration
-Version: v1.1.0 (Fixes for images, logging, and stability)
+Purpose: WebSocket endpoint with generic tool response dispatching
+Version: v2.0.0 (Tool self-contained UI cards - no hardcoded extractors)
+
+Design:
+- Tools define their own ui_card in return value
+- chat.py uses generic dispatcher to extract and send ui_card
+- No hardcoded tool names or extraction logic
 """
 
 import asyncio
@@ -82,6 +87,7 @@ def summarize_thought(text: Any) -> str:
     s = strip_redundant_greeting(s)
     return _truncate(s, 160) if s else "Dang phan tich yeu cau..."
 
+
 class ConnectionManager:
     """
     WebSocket connection manager
@@ -137,7 +143,6 @@ class ConnectionManager:
 
 # Global connection manager
 manager = ConnectionManager()
-
 
 
 def normalize_react_step(step: Dict[str, Any]) -> Dict[str, Any]:
@@ -241,7 +246,9 @@ def strip_redundant_greeting(text: str) -> str:
     def _normalize_intro_text(value: str) -> str:
         normalized = (value or "").strip().lower().replace("\u0111", "d")
         normalized = unicodedata.normalize("NFD", normalized)
-        normalized = "".join(ch for ch in normalized if unicodedata.category(ch) != "Mn")
+        normalized = "".join(
+            ch for ch in normalized if unicodedata.category(ch) != "Mn"
+        )
         normalized = re.sub(r"\s+", " ", normalized).strip()
         return normalized
 
@@ -314,231 +321,34 @@ def sanitize_assistant_response(
 
     return normalized
 
-def extract_clinic_suggestion(tool_result: Any) -> Optional[Dict[str, Any]]:
-    """Extract clinic suggestion payload from ToolExecutor-wrapped results."""
-    payload = tool_result
+
+def extract_ui_card(step: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Generic UI card extractor - reads ui_card from tool's return value.
+
+    Design: Tools define their own ui_card in return value.
+    chat.py is agnostic to tool names and data structures.
+    """
+    tool_result = step.get("tool_result") or {}
+
     if isinstance(tool_result, dict) and isinstance(tool_result.get("data"), dict):
-        payload = tool_result.get("data") or {}
-    if not isinstance(payload, dict):
+        tool_result = tool_result.get("data") or {}
+
+    ui_card = tool_result.get("ui_card")
+    if not ui_card or not isinstance(ui_card, dict):
         return None
 
-    clinics = payload.get("clinics") or []
-    if not isinstance(clinics, list) or not clinics:
+    ui_type = ui_card.get("type")
+    if not ui_type:
         return None
 
-    location = payload.get("query_location") or {}
-    if not isinstance(location, dict):
-        location = {}
-
-    total_found = payload.get("total_found")
-    try:
-        total_found = int(total_found) if total_found is not None else len(clinics)
-    except Exception:
-        total_found = len(clinics)
-
-    if payload.get("auto_select_clinic") or (
-        payload.get("resolved_clinic") and total_found == 1 and payload.get("match_mode") == "explicit_name"
-    ):
-        return None
-
-    return {
-        "clinics": clinics[:5],
-        "total_found": total_found,
-        "location": location,
-    }
-
-
-def _unwrap_tool_payload(tool_result: Any) -> Optional[Dict[str, Any]]:
-    payload = tool_result
-    if isinstance(tool_result, dict) and isinstance(tool_result.get("data"), dict):
-        payload = tool_result.get("data") or {}
-    return payload if isinstance(payload, dict) else None
-
-
-def _collect_booking_lookup_maps(react_trace: List[Dict[str, Any]]) -> Dict[str, Dict[str, str]]:
-    pet_names: Dict[str, str] = {}
-    clinic_names: Dict[str, str] = {}
-    service_names: Dict[str, str] = {}
-
-    for step in react_trace:
-        if not isinstance(step, dict):
+    result = {"type": ui_type}
+    for key, value in ui_card.items():
+        if key == "type":
             continue
-        payload = _unwrap_tool_payload(step.get("tool_result"))
-        if not payload:
-            continue
+        result[key] = value
 
-        tool_name = str(step.get("tool_name") or "").strip().lower()
-        if tool_name == "get_user_pets":
-            for pet in payload.get("pets") or []:
-                if not isinstance(pet, dict):
-                    continue
-                pet_id = str(pet.get("id") or "").strip()
-                pet_name = str(pet.get("name") or "").strip()
-                if pet_id and pet_name:
-                    pet_names[pet_id] = pet_name
-        elif tool_name == "search_clinics_nearby":
-            for clinic in payload.get("clinics") or []:
-                if not isinstance(clinic, dict):
-                    continue
-                clinic_id = str(clinic.get("id") or clinic.get("clinic_id") or "").strip()
-                clinic_name = str(clinic.get("name") or "").strip()
-                if clinic_id and clinic_name:
-                    clinic_names[clinic_id] = clinic_name
-        elif tool_name == "get_clinic_services":
-            for service in payload.get("services") or []:
-                if not isinstance(service, dict):
-                    continue
-                service_id = str(service.get("id") or "").strip()
-                service_name = str(service.get("name") or "").strip()
-                if service_id and service_name:
-                    service_names[service_id] = service_name
-        elif tool_name == "check_available_slots":
-            resolved_ids = payload.get("resolved_service_ids") or []
-            resolved_names = payload.get("resolved_service_names") or []
-            if isinstance(resolved_ids, list) and isinstance(resolved_names, list):
-                for index, service_id in enumerate(resolved_ids):
-                    service_id = str(service_id or "").strip()
-                    if not service_id:
-                        continue
-                    if index < len(resolved_names):
-                        service_name = str(resolved_names[index] or "").strip()
-                        if service_name:
-                            service_names[service_id] = service_name
-
-    return {
-        "pet_names": pet_names,
-        "clinic_names": clinic_names,
-        "service_names": service_names,
-    }
-
-
-def extract_service_chips(tool_result: Any) -> Optional[Dict[str, Any]]:
-    payload = _unwrap_tool_payload(tool_result)
-    if not payload:
-        return None
-
-    raw_services = (
-        payload.get("matched_services")
-        or payload.get("suggested_service_options")
-        or payload.get("services")
-        or []
-    )
-    if not isinstance(raw_services, list):
-        return None
-
-    services = []
-    for service in raw_services:
-        if not isinstance(service, dict):
-            continue
-        service_id = str(service.get("id") or "").strip()
-        service_name = str(service.get("name") or "").strip()
-        if not service_name:
-            continue
-        services.append(
-            {
-                "id": service_id,
-                "name": service_name,
-                "base_price": service.get("base_price"),
-                "category": service.get("category"),
-            }
-        )
-
-    if not services:
-        return None
-
-    return {
-        "clinic_id": payload.get("clinic_id"),
-        "services": services[:6],
-        "message": payload.get("message")
-        or "Mình đã lấy được danh sách dịch vụ phù hợp. Bạn chọn dịch vụ cần đặt lịch nhé.",
-    }
-
-
-def extract_slot_grid(tool_result: Any) -> Optional[Dict[str, Any]]:
-    payload = _unwrap_tool_payload(tool_result)
-    if not payload:
-        return None
-
-    recommended_slots = payload.get("recommended_slots") or []
-    alternative_slots = payload.get("alternative_slots") or []
-    if not isinstance(recommended_slots, list):
-        recommended_slots = []
-    if not isinstance(alternative_slots, list):
-        alternative_slots = []
-
-    all_slots = [*recommended_slots, *alternative_slots]
-    if not all_slots:
-        return None
-
-    return {
-        "clinic_id": payload.get("clinic_id"),
-        "booking_date": payload.get("date"),
-        "service_ids": payload.get("resolved_service_ids") or [],
-        "service_names": payload.get("resolved_service_names") or payload.get("services") or [],
-        "recommended_slots": recommended_slots[:6],
-        "alternative_slots": alternative_slots[:6],
-        "total_slots": payload.get("total_slots") or len(all_slots),
-        "message": payload.get("message")
-        or "Mình đã tìm được các khung giờ phù hợp. Bạn chọn một khung giờ để tiếp tục nhé.",
-    }
-
-
-def extract_booking_summary(
-    tool_result: Any,
-    react_trace: List[Dict[str, Any]],
-) -> Optional[Dict[str, Any]]:
-    payload = _unwrap_tool_payload(tool_result)
-    if not payload:
-        return None
-
-    preview = payload.get("booking_preview")
-    if not isinstance(preview, dict):
-        return None
-
-    lookup = _collect_booking_lookup_maps(react_trace)
-    pet_id = str(preview.get("pet_id") or "").strip()
-    clinic_id = str(preview.get("clinic_id") or "").strip()
-    service_ids = [
-        str(service_id).strip()
-        for service_id in (preview.get("service_ids") or [])
-        if str(service_id).strip()
-    ]
-    service_names = [
-        lookup["service_names"].get(service_id, service_id)
-        for service_id in service_ids
-    ]
-
-    return {
-        "pet_id": pet_id,
-        "pet_name": lookup["pet_names"].get(pet_id),
-        "clinic_id": clinic_id,
-        "clinic_name": lookup["clinic_names"].get(clinic_id),
-        "booking_date": preview.get("booking_date"),
-        "start_time": preview.get("start_time"),
-        "service_ids": service_ids,
-        "service_names": service_names,
-        "booking_type": preview.get("booking_type"),
-        "notes": preview.get("notes"),
-        "home_address": preview.get("home_address"),
-        "message": payload.get("message")
-        or "Mình đã tổng hợp đủ thông tin cơ bản. Bạn xác nhận để mình tạo yêu cầu đặt lịch nhé.",
-    }
-
-
-def extract_booking_created(tool_result: Any) -> Optional[Dict[str, Any]]:
-    payload = _unwrap_tool_payload(tool_result)
-    if not payload or payload.get("success") is not True:
-        return None
-
-    booking = payload.get("booking")
-    if not isinstance(booking, dict):
-        return None
-
-    return {
-        "booking": booking,
-        "message": payload.get("message")
-        or "Mình đã tạo yêu cầu đặt lịch thành công. Clinic manager sẽ xác nhận sau.",
-    }
+    return result
 
 
 def _normalize_location_payload(raw_location: Any) -> Optional[Dict[str, Any]]:
@@ -566,7 +376,9 @@ def _normalize_location_payload(raw_location: Any) -> Optional[Dict[str, Any]]:
     return payload
 
 
-def _extract_latest_location_from_history(chat_history_raw: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+def _extract_latest_location_from_history(
+    chat_history_raw: List[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
     for msg in reversed(chat_history_raw or []):
         if not isinstance(msg, dict):
             continue
@@ -658,11 +470,7 @@ async def handle_chat_message(
     full_response = ""
     step_index = 0
     streamed_final_answer = False
-    sent_clinic_suggestion = False
-    sent_service_chips = False
-    sent_slot_grid = False
-    sent_booking_summary = False
-    sent_booking_created = False
+    sent_ui_types: Dict[str, bool] = {}
     location_payload: Optional[Dict[str, Any]] = None
     ui_action_payload: Optional[Dict[str, Any]] = None
     try:
@@ -683,9 +491,19 @@ async def handle_chat_message(
             lng = data.get("longitude")
             address = None
             if isinstance(raw_location, dict):
-                lat = lat if lat is not None else raw_location.get("lat") or raw_location.get("latitude")
-                lng = lng if lng is not None else raw_location.get("lng") or raw_location.get("longitude")
-                address = raw_location.get("address") or raw_location.get("formatted_address")
+                lat = (
+                    lat
+                    if lat is not None
+                    else raw_location.get("lat") or raw_location.get("latitude")
+                )
+                lng = (
+                    lng
+                    if lng is not None
+                    else raw_location.get("lng") or raw_location.get("longitude")
+                )
+                address = raw_location.get("address") or raw_location.get(
+                    "formatted_address"
+                )
             if lat is not None and lng is not None:
                 location_payload = _normalize_location_payload(
                     {"lat": lat, "lng": lng, "address": address}
@@ -738,7 +556,12 @@ async def handle_chat_message(
             current_turn_metadata,
         )
 
-        if str(user_message or "").strip() != "" or image_urls or ui_action_payload or location_payload:
+        if (
+            str(user_message or "").strip() != ""
+            or image_urls
+            or ui_action_payload
+            or location_payload
+        ):
             await save_chat_message(
                 {
                     "message_id": str(uuid.uuid4()),
@@ -822,10 +645,16 @@ async def handle_chat_message(
             )
 
             # 5. Get chat history for context (include images from history)
-            context_history_limit = max(1, min(int(getattr(settings, 'CHAT_HISTORY_CONTEXT_LIMIT', 20)), 200))
-            chat_history_raw = await get_chat_history(session_id, limit=context_history_limit)
+            context_history_limit = max(
+                1, min(int(getattr(settings, "CHAT_HISTORY_CONTEXT_LIMIT", 20)), 200)
+            )
+            chat_history_raw = await get_chat_history(
+                session_id, limit=context_history_limit
+            )
             if location_payload is None:
-                location_payload = _extract_latest_location_from_history(chat_history_raw)
+                location_payload = _extract_latest_location_from_history(
+                    chat_history_raw
+                )
 
             chat_history = []
             has_prior_assistant_message = False
@@ -884,9 +713,13 @@ async def handle_chat_message(
                     if remaining_total <= 0:
                         raise asyncio.TimeoutError()
 
-                    timeout_s = min(float(stream_idle_timeout_s), float(remaining_total))
+                    timeout_s = min(
+                        float(stream_idle_timeout_s), float(remaining_total)
+                    )
                     try:
-                        event = await asyncio.wait_for(aiter.__anext__(), timeout=timeout_s)
+                        event = await asyncio.wait_for(
+                            aiter.__anext__(), timeout=timeout_s
+                        )
                     except StopAsyncIteration:
                         break
 
@@ -904,98 +737,28 @@ async def handle_chat_message(
                         react_trace.append({"step_index": step_index, **safe_step})
                         await manager.send_message(session_id, ws_message)
 
-                        # Send clinic cards ASAP when the tool result arrives.
+                        # Generic UI card dispatch - no hardcoded tool names
                         if (
                             str(safe_step.get("step_type") or "").strip().lower()
                             == "observation"
                         ):
-                            tool_name = str(safe_step.get("tool_name") or "").strip().lower()
-                            if not sent_clinic_suggestion and tool_name == "search_clinics_nearby":
-                                suggestion = extract_clinic_suggestion(
-                                    safe_step.get("tool_result")
-                                )
-                                if suggestion and suggestion.get("clinics"):
-                                    sent_clinic_suggestion = True
+                            ui_payload = extract_ui_card(safe_step)
+                            if ui_payload:
+                                ui_type = ui_payload.get("type")
+                                if not sent_ui_types.get(ui_type):
+                                    sent_ui_types[ui_type] = True
                                     await manager.send_message(
                                         session_id,
                                         {
-                                            "type": "clinic_suggestion",
-                                            "clinics": suggestion["clinics"],
-                                            "total_found": suggestion["total_found"],
-                                            "location": suggestion["location"],
-                                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                                            **ui_payload,
+                                            "timestamp": datetime.now(
+                                                timezone.utc
+                                            ).isoformat(),
                                         },
                                     )
-
-                            if not sent_service_chips and tool_name == "get_clinic_services":
-                                service_chips = extract_service_chips(
-                                    safe_step.get("tool_result")
-                                )
-                                if service_chips and service_chips.get("services"):
-                                    sent_service_chips = True
-                                    await manager.send_message(
-                                        session_id,
-                                        {
-                                            "type": "service_chips",
-                                            **service_chips,
-                                            "timestamp": datetime.now(timezone.utc).isoformat(),
-                                        },
-                                    )
-
-                            if not sent_slot_grid and tool_name == "check_available_slots":
-                                slot_grid = extract_slot_grid(
-                                    safe_step.get("tool_result")
-                                )
-                                if slot_grid and (
-                                    slot_grid.get("recommended_slots")
-                                    or slot_grid.get("alternative_slots")
-                                ):
-                                    sent_slot_grid = True
-                                    await manager.send_message(
-                                        session_id,
-                                        {
-                                            "type": "slot_grid",
-                                            **slot_grid,
-                                            "timestamp": datetime.now(timezone.utc).isoformat(),
-                                        },
-                                    )
-
-                            if tool_name == "create_booking_for_user":
-                                if not sent_booking_summary:
-                                    booking_summary = extract_booking_summary(
-                                        safe_step.get("tool_result"),
-                                        react_trace,
-                                    )
-                                    if booking_summary:
-                                        sent_booking_summary = True
-                                        await manager.send_message(
-                                            session_id,
-                                            {
-                                                "type": "booking_summary",
-                                                "summary": booking_summary,
-                                                "message": booking_summary.get("message"),
-                                                "timestamp": datetime.now(timezone.utc).isoformat(),
-                                            },
-                                        )
-                                if not sent_booking_created:
-                                    booking_created = extract_booking_created(
-                                        safe_step.get("tool_result")
-                                    )
-                                    if booking_created:
-                                        sent_booking_created = True
-                                        await manager.send_message(
-                                            session_id,
-                                            {
-                                                "type": "booking_created",
-                                                **booking_created,
-                                                "timestamp": datetime.now(timezone.utc).isoformat(),
-                                            },
-                                        )
                         step_index += 1
 
                     elif event_type == "token":
-                        # Không forward token streaming thô để tránh lộ ReAct/tool JSON.
-                        # Client streaming được xử lý ở event final_answer (pseudo-stream).
                         continue
 
                     elif event_type == "final_answer":
@@ -1005,17 +768,19 @@ async def handle_chat_message(
                             user_message=user_message,
                             has_prior_assistant_message=has_prior_assistant_message,
                         )
-                        # Pseudo-stream ONLY the final answer (client UX wants streaming),
-                        # but we must not stream intermediate ReAct tokens.
                         if not streamed_final_answer and full_response.strip():
                             streamed_final_answer = True
-                            for chunk in iter_stream_chunks(full_response, max_chars=72):
+                            for chunk in iter_stream_chunks(
+                                full_response, max_chars=72
+                            ):
                                 await manager.send_message(
                                     session_id,
                                     {
                                         "type": "stream",
                                         "content": chunk,
-                                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                                        "timestamp": datetime.now(
+                                            timezone.utc
+                                        ).isoformat(),
                                     },
                                 )
 
@@ -1048,7 +813,6 @@ async def handle_chat_message(
 
         # 6. Finalization & Persistence
 
-        # Safety fallback (should be rare now that the agent finalizes missing answers)
         if not full_response.strip():
             full_response = (
                 "Xin lỗi, mình chưa thể tổng hợp câu trả lời lúc này. "
@@ -1061,26 +825,18 @@ async def handle_chat_message(
             has_prior_assistant_message=has_prior_assistant_message,
         )
 
+        # Fallback: generate response if tool results provide context
         if not full_response.strip():
-            has_clinic_suggestion = any(
-                str(step.get("tool_name") or "").strip().lower()
-                == "search_clinics_nearby"
-                for step in react_trace
-            )
-            has_pet_list = any(
-                str(step.get("tool_name") or "").strip().lower() == "get_user_pets"
-                for step in react_trace
-            )
-            if has_clinic_suggestion:
-                full_response = (
-                    "M\u00ecnh \u0111\u00e3 g\u1ee3i \u00fd m\u1ed9t s\u1ed1 ph\u00f2ng kh\u00e1m g\u1ea7n b\u1ea1n \u1edf b\u00ean d\u01b0\u1edbi. "
-                    "B\u1ea1n ch\u1ecdn 1 ph\u00f2ng kh\u00e1m r\u1ed3i m\u00ecnh ti\u1ebfp t\u1ee5c \u0111\u1eb7t l\u1ecbch trong chat nh\u00e9."
-                )
-            elif has_pet_list:
-                full_response = (
-                    "M\u00ecnh \u0111\u00e3 l\u1ea5y \u0111\u01b0\u1ee3c danh s\u00e1ch th\u00fa c\u01b0ng c\u1ee7a b\u1ea1n. "
-                    "B\u1ea1n cho m\u00ecnh bi\u1ebft b\u00e9 n\u00e0o c\u1ea7n \u0111\u1eb7t l\u1ecbch nh\u00e9."
-                )
+            for step in react_trace:
+                ui_payload = extract_ui_card(step)
+                if ui_payload:
+                    ui_type = ui_payload.get("type")
+                    if ui_type == "clinic_suggestion":
+                        full_response = "Mình đã gợi ý một số phòng khám gần bạn ở bên dưới. Bạn chọn 1 phòng khám rồi mình tiếp tục đặt lịch trong chat nhé."
+                        break
+                    elif ui_type == "pet_list":
+                        full_response = "Mình đã lấy được danh sách thú cưng của bạn. Bạn cho mình biết bé nào cần đặt lịch nhé."
+                        break
 
         assistant_tool_calls = [
             {
@@ -1107,27 +863,6 @@ async def handle_chat_message(
         )
 
         await touch_chat_session(session_id, {"agent_id": agent_id})
-
-        # Fallback: send clinic suggestion at the end if not already sent.
-        if not sent_clinic_suggestion:
-            clinic_data = None
-            for step in react_trace:
-                if step.get("tool_name") == "search_clinics_nearby":
-                    clinic_data = extract_clinic_suggestion(step.get("tool_result"))
-                    if clinic_data:
-                        break
-
-            if clinic_data and clinic_data.get("clinics"):
-                await manager.send_message(
-                    session_id,
-                    {
-                        "type": "clinic_suggestion",
-                        "clinics": clinic_data["clinics"],
-                        "total_found": clinic_data["total_found"],
-                        "location": clinic_data["location"],
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                    },
-                )
 
         await manager.send_message(
             session_id,
@@ -1282,9 +1017,3 @@ async def websocket_chat_endpoint(websocket: WebSocket, session_id: str = "defau
             await websocket.close(code=1011)
         except Exception:
             pass
-
-
-
-
-
-

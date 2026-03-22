@@ -1,6 +1,10 @@
 ﻿# **TECHNICAL SCOPE: PETTIES - AGENT MANAGEMENT**
 
-> **Lưu ý cập nhật ngày 2026-03-17:** các đoạn trong tài liệu này có nhắc tới Visual Case Memory từ feedback ảnh, thumbs up/down và AI Diagnose cũ chỉ còn giá trị lịch sử. Kiến trúc hiện hành ưu tiên knowledge base nội bộ, EMR đã xác nhận và Gemini Vision; doctor/staff chẩn đoán không dùng `web_search`. Xem thêm [AI_SERVICE_TECHNICAL_SPECIFICATION.md](D:/SEP490/petties/docs-references/documentation/AI_SERVICE_TECHNICAL_SPECIFICATION.md) và [AI_DIAGNOSIS_FEATURE_PLAN.md](D:/SEP490/petties/docs-references/documentation/AI_DIAGNOSIS_FEATURE_PLAN.md).
+> **Lưu ý cập nhật ngày 2026-03-22:** 
+> - **Tool Self-Contained UI Cards (v2.0):** Tools định nghĩa `ui_card` trong return value, chat.py dùng generic dispatcher. Không còn hardcoded extraction logic.
+> - Các đoạn về Visual Case Memory, thumbs up/down và AI Diagnose cũ chỉ còn giá trị lịch sử.
+> - Kiến trúc hiện hành ưu tiên knowledge base nội bộ, EMR đã xác nhận và Gemini Vision.
+> - Xem thêm [AI_SERVICE_TECHNICAL_SPECIFICATION.md](D:/SEP490/petties/docs-references/documentation/AI_SERVICE_TECHNICAL_SPECIFICATION.md).
 
 ## **1. Định hướng cốt lõi (Core Philosophy)**
 
@@ -85,6 +89,131 @@ graph.add_edge("observe", "think")
 3. **Observation**: Nhận và xử lý kết quả từ tool
 4. **Loop**: Lặp lại nếu cần thêm thông tin
 5. **Answer**: Tổng hợp và trả lời user
+
+### **B2. Tool Self-Contained UI Cards (v2.0)**
+
+> **Design Principle:** Tool tự định nghĩa UI card trong return value. chat.py dùng generic dispatcher. Không hardcoded extraction logic.
+
+**Mục đích:** Trước đây, `chat.py` chứa logic extraction cứng cho từng tool (if/elif blocks). Nay tools tự define `ui_card` để:
+- chat.py generic, không cần biết tool names
+- Thêm tool mới không cần sửa chat.py
+- UI logic gần data hơn, dễ maintain
+
+**Architecture:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Tool (MCP)                                │
+│  @mcp_server.tool                                            │
+│  - name: "search_clinics_nearby"                             │
+│  - returns: {clinics: [...], ui_card: {type, data...}}      │
+└─────────────────────────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Generic Dispatcher (chat.py)                    │
+│                                                              │
+│  def extract_ui_card(step):                                 │
+│      return step.tool_result.get("ui_card")                  │
+│                                                              │
+│  # KHÔNG if/elif tool names                                 │
+└─────────────────────────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│              WebSocket → Client                               │
+│  {"type": "clinic_suggestion", "clinics": [...]}           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Tool Implementation Example:**
+
+```python
+@mcp_server.tool
+async def search_clinics_nearby(...) -> Dict[str, Any]:
+    result = await _do_search(...)
+    
+    return {
+        "success": True,
+        "clinics": [...],
+        "total_found": len(clinics),
+        "location": {"lat": lat, "lng": lng},
+        
+        # Tool self-contains UI spec
+        "ui_card": {
+            "type": "clinic_suggestion",
+            "clinics": clinics[:5],
+            "total_found": len(clinics),
+            "location": {"lat": lat, "lng": lng, "address": address},
+        }
+    }
+```
+
+**chat.py Generic Dispatcher:**
+
+```python
+def extract_ui_card(step: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Generic UI card extractor - reads ui_card from tool's return value."""
+    tool_result = step.get("tool_result") or {}
+    
+    if isinstance(tool_result, dict) and isinstance(tool_result.get("data"), dict):
+        tool_result = tool_result.get("data") or {}
+    
+    ui_card = tool_result.get("ui_card")
+    if not ui_card or not isinstance(ui_card, dict):
+        return None
+    
+    ui_type = ui_card.get("type")
+    if not ui_type:
+        return None
+    
+    # Return clean payload with type
+    return {"type": ui_type, **{k: v for k, v in ui_card.items() if k != "type"}}
+
+
+# In streaming loop - NO hardcoded tool names:
+if step_type == "observation":
+    ui_payload = extract_ui_card(safe_step)
+    if ui_payload:
+        ui_type = ui_payload.get("type")
+        if not sent_ui_types.get(ui_type):
+            sent_ui_types[ui_type] = True
+            await manager.send_message(session_id, {
+                **ui_payload,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            })
+```
+
+**Current UI Card Types:**
+
+| UI Card Type | Tool | Purpose |
+|--------------|------|---------|
+| `clinic_suggestion` | `search_clinics_nearby` | Clinic carousel UI |
+| `service_chips` | `get_clinic_services` | Service selection chips |
+| `slot_grid` | `check_available_slots` | Time slot picker |
+| `booking_summary` | `create_booking_for_user` | Booking preview |
+| `booking_created` | `create_booking_for_user` | Success confirmation |
+| `pet_list` | `get_user_pets` | Pet list for selection |
+| `vaccination_card` | `check_vaccination_status` | Vaccination history |
+
+**Adding a New Tool with UI Card:**
+
+```python
+@mcp_server.tool
+async def my_new_tool(...) -> Dict[str, Any]:
+    result = await do_something(...)
+    
+    return {
+        "data": result,
+        "ui_card": {
+            "type": "my_new_card",
+            "field1": result.value1,
+            "field2": result.value2,
+        }
+    }
+```
+
+No changes needed to `chat.py` - UI card is automatically dispatched.
 
 ### **C. Khác biệt với kiến trúc legacy (Tham khảo)**
 

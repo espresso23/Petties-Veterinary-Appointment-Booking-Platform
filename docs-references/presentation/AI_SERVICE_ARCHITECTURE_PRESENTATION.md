@@ -270,7 +270,7 @@ classDiagram
 | **HybridRAGEngine** | Combines RAG + Knowledge Graph + Case Memory with re-ranking | `app/core/rag/hybrid_engine.py` |
 | **EmbeddingService** | Handles text (Cohere) and image (Jina CLIP v2) embeddings | `app/core/embeddings/` |
 | **ConfigService** | Loads dynamic configuration from PostgreSQL (hot-reload capable) | `app/core/config_helper.py` |
-| **FeedbackService** | Processes user feedback and updates case memory | `app/core/services/feedback_service.py` |
+| **FeedbackService** | Processes user feedback for analytics, audit, and monitoring | `app/core/services/feedback_service.py` |
 
 ---
 
@@ -297,13 +297,12 @@ flowchart TD
     
     N --> O[Stream Response Tokens]
     O --> P[Save to MongoDB with Trace]
-    P --> Q[Check for Positive Feedback]
-    Q -->|Thumbs Up| R[Extract Case → Embed in Case Memory]
-    Q -->|Thumbs Down| S[Log for Review]
-    Q -->|Report| T[Flag for Moderation]
+    P --> Q[Collect Feedback for Audit]
+    Q -->|Thumbs Up/Down| R[Save Feedback to MongoDB]
+    Q -->|Report| S[Flag for Moderation]
     
-    R --> U[Update Case Feedback Count]
-    U --> V[Re-rank Similar Cases]
+    P --> T[Confirmed EMR Sync]
+    T --> U[Upsert Case Memory from EMR]
     
     style E fill:#ffe4b5,stroke:#f39c12,stroke-width:2px
     style H fill:#e8f8f5,stroke:#00b894,stroke-width:2px
@@ -461,7 +460,7 @@ LIMIT 10;
 
 ### 🔧 Implementation Status:
 - **Completed**: Core AI service with ReAct pattern, tool system, RAG pipeline
-- **Completed**: Dynamic configuration, feedback loop, case memory with hybrid vectors
+- **Completed**: Dynamic configuration, feedback analytics, EMR-driven case memory with hybrid vectors
 - **Completed**: Monitoring, error handling, and fallback mechanisms
 - **In Progress**: Advanced analytics dashboard for AI performance metrics
 - **Planned**: Knowledge Graph enhancement (Phase 2)

@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ConfirmModal } from '../../../components/ConfirmModal'
 import { feedbackApi, kgApi, caseMemoryApi } from '../../../services/agentService'
 import type {
   FeedbackStatsResponse,
@@ -78,11 +77,6 @@ export const AIInsightsPage = () => {
   })
   const [showFilters, setShowFilters] = useState(false)
   const [showDetailSection, setShowDetailSection] = useState(false)
-
-  const [deletingFeedbackId, setDeletingFeedbackId] = useState<string | null>(null)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [, setDeleteLoading] = useState(false)
-
   // Knowledge Graph Query
   const [kgSearchQuery, setKgSearchQuery] = useState('')
   const [kgSearchResults, setKgSearchResults] = useState<KGQueryResultItem[]>([])
@@ -226,36 +220,6 @@ export const AIInsightsPage = () => {
     } finally {
       setCasePruning(false)
     }
-  }
-
-  // --- Delete Feedback Handler ---
-  const handleDeleteFeedback = async () => {
-    if (!deletingFeedbackId) return
-    try {
-      setDeleteLoading(true)
-      const result = await feedbackApi.deleteFeedback(deletingFeedbackId)
-      showToast('success', result.case_deleted
-        ? 'Đã xóa feedback và case tương ứng khỏi Case Memory'
-        : 'Đã xóa feedback thành công'
-      )
-      // Reload both stats and list
-      await Promise.all([
-        loadFeedbackStats(),
-        showDetailSection ? loadFeedbackList(feedbackListPage) : Promise.resolve(),
-      ])
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Lỗi không xác định'
-      showToast('error', `Xóa feedback thất bại: ${message}`)
-    } finally {
-      setDeleteLoading(false)
-      setShowDeleteConfirm(false)
-      setDeletingFeedbackId(null)
-    }
-  }
-
-  const confirmDeleteFeedback = (feedbackId: string) => {
-    setDeletingFeedbackId(feedbackId)
-    setShowDeleteConfirm(true)
   }
 
   // --- Helpers ---
@@ -545,12 +509,12 @@ export const AIInsightsPage = () => {
                             <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Tool</th>
                             <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Nội dung</th>
                             <th className="text-right px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Trọng số</th>
-                            <th className="text-center px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Thao tác</th>
+                            <th className="text-center px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Trạng thái</th>
                           </tr>
                         </thead>
                         <tbody>
                           {feedbackList.items.map((item) => (
-                            <FeedbackRow key={item.feedback_id} item={item} onDelete={confirmDeleteFeedback} />
+                            <FeedbackRow key={item.feedback_id} item={item} />
                           ))}
                         </tbody>
                       </table>
@@ -885,27 +849,13 @@ export const AIInsightsPage = () => {
           )}
         </section>
       </div>
-      {/* Delete Feedback ConfirmModal */}
-      <ConfirmModal
-        isOpen={showDeleteConfirm}
-        title="Xác nhận xóa phản hồi"
-        message="Bạn có chắc muốn xóa phản hồi này? Nếu phản hồi đã embed case vào Case Memory, case đó cũng sẽ bị xóa."
-        confirmLabel="XÓA"
-        cancelLabel="HỦY"
-        onConfirm={handleDeleteFeedback}
-        onCancel={() => {
-          setShowDeleteConfirm(false)
-          setDeletingFeedbackId(null)
-        }}
-        isDanger
-      />
     </div>
   )
 }
 
 // ===== SUB-COMPONENTS =====
 
-function FeedbackRow({ item, onDelete }: { item: FeedbackItem; onDelete: (feedbackId: string) => void }) {
+function FeedbackRow({ item }: { item: FeedbackItem }) {
   const [expanded, setExpanded] = useState(false)
   const hasDetail = !!(item.feedback_text || item.feedback_reason || item.message_content)
 
@@ -941,16 +891,9 @@ function FeedbackRow({ item, onDelete }: { item: FeedbackItem; onDelete: (feedba
           </span>
         </td>
         <td className="px-3 py-2.5 text-center">
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onDelete(item.feedback_id)
-            }}
-            className="p-1.5 text-red-500 hover:bg-red-50 border-2 border-transparent hover:border-red-300 rounded-lg transition-all cursor-pointer"
-            title="Xóa feedback"
-          >
-            <TrashIcon className="w-4 h-4" />
-          </button>
+          <span className="inline-block px-2 py-0.5 text-[10px] font-black uppercase border-2 border-stone-900 rounded-lg bg-stone-100 text-stone-700">
+            Lưu audit
+          </span>
         </td>
       </tr>
       {expanded && hasDetail && (

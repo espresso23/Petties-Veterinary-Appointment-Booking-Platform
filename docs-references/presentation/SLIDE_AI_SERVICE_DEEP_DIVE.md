@@ -199,12 +199,12 @@ LIMIT 10;
 2. **Configuration Load**: Fetch agent settings from PostgreSQL (hot-reload capable)
 3. **Query Expansion**: Expand short queries using LLM if < 5 words
 4. **Hybrid Search**: Parallel search in RAG (Qdrant), Knowledge Graph, Case Memory
-5. **Result Fusion**: Merge & re-rank results using feedback counts & staff verification
+5. **Result Fusion**: Merge & re-rank results using retrieval scores, EMR confirmation status, and diagnosis metadata
 6. **ReAct Loop**: Thought → Action (tool calls) → Observation → Repeat if needed
 7. **Response Synthesis**: LLM generates final answer from gathered evidence
 8. **Streaming Output**: Tokens sent via WebSocket as generated
 9. **Persistence**: Save conversation + ReAct trace to MongoDB
-10. **Feedback Processing**: If thumbs-up, extract case & embed in Case Memory
+10. **Feedback Processing**: Save feedback to MongoDB for analytics, audit, and monitoring
 
 ### 5. Modular AI Processing Components
 **Class Diagram: Separation of Concerns**
@@ -274,7 +274,7 @@ classDiagram
 | **HybridRAGEngine** | Combines RAG + Knowledge Graph + Case Memory with re-ranking | `app/core/rag/hybrid_engine.py` |
 | **EmbeddingService** | Handles text (Cohere) and image (Jina CLIP v2) embeddings | `app/core/embeddings/` |
 | **ConfigService** | Loads dynamic configuration from PostgreSQL (hot-reload capable) | `app/core/config_helper.py` |
-| **FeedbackService** | Processes user feedback and updates case memory | `app/core/services/feedback_service.py` |
+| **FeedbackService** | Processes user feedback for analytics, audit, and monitoring | `app/core/services/feedback_service.py` |
 
 **Critical Architecture Points:**
 - ✅ **Separation of Concerns**: Each layer has single responsibility

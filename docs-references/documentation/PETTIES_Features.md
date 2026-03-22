@@ -1,6 +1,8 @@
 ﻿# PETTIES V0.0.1 - FEATURES & HAPPY FLOWS
 
-> Lưu ý cập nhật ngày 2026-03-17: các mục cũ liên quan Visual Case Memory từ feedback ảnh, `analyze_pet_image` hoặc AI Diagnose admin flow chỉ còn giá trị lịch sử. Nguồn mô tả AI hiện hành là [AI_SERVICE_TECHNICAL_SPECIFICATION.md](D:/SEP490/petties/docs-references/documentation/AI_SERVICE_TECHNICAL_SPECIFICATION.md), [AI_DIAGNOSIS_FEATURE_PLAN.md](D:/SEP490/petties/docs-references/documentation/AI_DIAGNOSIS_FEATURE_PLAN.md) và [AI_DIAGNOSIS_PROGRESS.md](D:/SEP490/petties/docs-references/documentation/AI_DIAGNOSIS_PROGRESS.md).
+> Lưu ý cập nhật ngày 2026-03-22:
+> - **Tool Self-Contained UI Cards (v2.0):** Tools định nghĩa `ui_card` trong return value, chat.py dùng generic dispatcher. Không còn hardcoded extraction logic. Xem [AI_SERVICE_TECHNICAL_SPECIFICATION.md](D:/SEP490/petties/docs-references/documentation/AI_SERVICE_TECHNICAL_SPECIFICATION.md).
+> - Các mục cũ liên quan Visual Case Memory từ feedback ảnh, `analyze_pet_image` hoặc AI Diagnose admin flow chỉ còn giá trị lịch sử.
 
 ---
 

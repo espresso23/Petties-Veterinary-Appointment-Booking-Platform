@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 
 from app.config.logging_config import get_logger, setup_logging
 from app.config.settings import settings
+from app.middleware.logging_middleware import LoggingMiddleware
 
 
 setup_logging(
@@ -61,6 +62,17 @@ async def lifespan(app: FastAPI):
         async with AsyncSessionLocal() as db:
             await seed_data(db)
             logger.info("Database auto-seeding check complete")
+
+        try:
+            from app.core.tools.scanner import tool_scanner
+
+            scan_result = await tool_scanner.scan_and_sync_tools()
+            logger.info(
+                f"Tool auto-scan complete: {scan_result['total_tools']} tools, "
+                f"{scan_result['new_tools']} new, {scan_result['updated_tools']} updated"
+            )
+        except Exception as scan_err:
+            logger.warning(f"Tool auto-scan skipped: {scan_err}")
 
     except Exception as exc:
         logger.warning(f"PostgreSQL/Qdrant init skipped: {exc}")
@@ -123,6 +135,7 @@ app = FastAPI(
     redoc_url="/redoc" if settings.APP_DEBUG else None,
 )
 
+app.add_middleware(LoggingMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
@@ -163,13 +176,22 @@ async def root():
     return {
         "message": f"Welcome to {settings.APP_NAME}",
         "version": settings.APP_VERSION,
-        "docs": "/docs" if settings.APP_DEBUG else "Documentation disabled in production",
+        "docs": "/docs"
+        if settings.APP_DEBUG
+        else "Documentation disabled in production",
         "health": "/health",
         "websocket": "/ws/chat/{session_id}",
     }
 
 
-from app.api.routes import agents, chat, internal_case_memory, knowledge, staff_diagnosis, tools
+from app.api.routes import (
+    agents,
+    chat,
+    internal_case_memory,
+    knowledge,
+    staff_diagnosis,
+    tools,
+)
 from app.api.routes import pet_health_summary
 from app.api.routes import settings as settings_routes
 from app.api.websocket import websocket_chat_endpoint

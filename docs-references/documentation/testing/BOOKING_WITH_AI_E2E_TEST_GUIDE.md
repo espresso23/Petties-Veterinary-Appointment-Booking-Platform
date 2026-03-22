@@ -1,13 +1,15 @@
 # E2E Test Guide - Booking With AI (PET_OWNER Mobile)
 
-**Version:** 1.4  
-**Last Updated:** 2026-03-20  
+**Version:** 1.5  
+**Last Updated:** 2026-03-22  
 **Test Type:** Manual end-to-end  
 **Scope:** Mobile app + AI service + Spring Boot booking APIs
 
+> **Architecture Note (v2.0):** UI Cards được define trực tiếp trong tool return values (`ui_card` field). chat.py dùng generic dispatcher thay vì hardcoded extraction. Xem [AI_CHAT_WEBSOCKET_CONTRACT v2.0](../technical/AI_CHAT_WEBSOCKET_CONTRACT.md).
+
 **Reference Documents:**
 - [BOOKING_AI_TOOLS_REQUIREMENTS](../BOOKING_AI_TOOLS_REQUIREMENTS.md)
-- [AI_CHAT_WEBSOCKET_CONTRACT](../technical/AI_CHAT_WEBSOCKET_CONTRACT.md)
+- [AI_CHAT_WEBSOCKET_CONTRACT v2.0](../technical/AI_CHAT_WEBSOCKET_CONTRACT.md)
 - [PETTIES_SRS](../SRS/PETTIES_SRS.md)
 
 ---

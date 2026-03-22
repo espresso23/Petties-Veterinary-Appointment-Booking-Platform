@@ -1,4 +1,4 @@
-﻿# Wireframe Generation Checklist
+# Wireframe Generation Checklist
 
 This document tracks the generation of black & white wireframes for the Petties SRS documentation, aligned with implemented features.
 **Style Constraint:** Strictly monochrome (Black/White/Gray).
@@ -248,6 +248,10 @@ This document tracks the generation of black & white wireframes for the Petties 
 - [x] **Staff EMR Detail** (UC-VT-06)
   - Code: `lib/ui/staff/emr_detail_screen.dart`
   - Stitch ID: `948ceaa48762498c87ace145227ba51e`
+- [x] **Staff AI Diagnosis (Mobile)** (UC-STAFF-11)
+  - Code: `lib/ui/staff/emr/ai_diagnosis_screen.dart`
+  - Stitch ID: `243a2c9646f3407ab610c82b528234b6`
+  - *UI Description: Bottom sheet hoặc màn hình fullscreen trong Create/Edit EMR mobile flow. Gồm khu vực nhập mô tả/triệu chứng, cuộn ngang ảnh đính kèm, Top 3 chẩn đoán, và dấu hiệu từ ảnh.*
 - [x] **Staff Vaccination Record** (UC-VT-08)
   - Code: `lib/ui/staff/vaccination_record_screen.dart`
   - Stitch ID: `0d6c6e995b1744c4b22734e130fba67c`

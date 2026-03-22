@@ -168,7 +168,7 @@ Diễn giải hiện tại:
 
 ## 6. Rủi ro và khoảng trống
 
-1. `feedback_service.py` vẫn phản ánh tư duy thumbs-feedback cũ và chưa được thiết kế lại.
+1. Feedback hiện đã được chốt vai trò analytics/monitoring, nhưng vẫn còn một số wording legacy trong code và tài liệu cũ.
 2. Disease catalog mới chỉ seed nhóm mắt, tai, da; chưa phủ đủ toàn bộ bệnh thú y.
 3. Chưa có admin UI hoặc workflow duyệt `disease_mapping_review_items`.
 4. Chưa có benchmark chính thức cho Gemini Vision + retrieval + protocol trên tập EMR xác nhận.
@@ -182,7 +182,7 @@ Diễn giải hiện tại:
 2. Tạo admin UI hoặc API review cho `disease_mapping_review_items`.
 3. Thêm scheduler hoặc event-driven sync cho EMR confirmed -> case memory.
 4. Benchmark Gemini Vision + retrieval + protocol trên tập EMR xác nhận.
-5. Thiết kế lại `feedback_service.py` theo hướng học từ EMR thay vì thumbs feedback.
+5. Tiếp tục dọn các tài liệu/slides cũ còn mô tả feedback như nguồn enrich dữ liệu.
 
 ---
 
@@ -194,6 +194,7 @@ Từ ngày 2026-03-17, team nên xem hướng `vision_model` custom cũ là paus
 - không dùng web search cho doctor diagnosis
 - case memory dựa trên EMR confirmed
 - Gemini Vision cho image understanding
+- feedback chỉ phục vụ analytics và monitoring, không enrich Case Memory
 - học tiếp từ EMR confirmed thay vì thumbs feedback
 
 ---
