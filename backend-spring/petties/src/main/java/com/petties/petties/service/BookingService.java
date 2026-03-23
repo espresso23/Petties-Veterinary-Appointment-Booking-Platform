@@ -1406,18 +1406,27 @@ public class BookingService {
                 booking.setFinalPrice(finalTotal);
 
                 // Checkout sẽ hoàn tất booking ngay sau khi chốt thông tin thanh toán.
-                String paymentMethod = request != null ? request.getPaymentMethod() : null;
-                PaymentMethod method = paymentMethod != null && !paymentMethod.isBlank()
-                                ? PaymentMethod.valueOf(paymentMethod.trim().toUpperCase())
-                                : PaymentMethod.CASH;
+                String reqMethodStr = request != null ? request.getPaymentMethod() : null;
+                PaymentMethod method;
+                Payment payment = paymentRepository.findByBookingBookingId(bookingId).orElse(null);
+                
+                if (reqMethodStr != null && !reqMethodStr.isBlank()) {
+                        method = PaymentMethod.valueOf(reqMethodStr.trim().toUpperCase());
+                } else {
+                        // Lấy phương thức thanh toán gốc của booking thay vì mặc định ép CASH
+                        if (payment != null && payment.getMethod() != null) {
+                                method = payment.getMethod();
+                        } else {
+                                PaymentMethod pref = resolvePreferredPaymentMethodFromBooking(booking);
+                                method = pref != null ? pref : PaymentMethod.CASH;
+                        }
+                }
 
                 if (booking.getVoucher() != null && Boolean.TRUE.equals(booking.getVoucher().getRequireOnlinePayment())) {
                         if (method == PaymentMethod.CASH) {
                                 throw new BadRequestException("Voucher đang sử dụng chỉ áp dụng cho hình thức Thanh toán trực tuyến (Mã QR/Online). Vui lòng quét QR hoặc gỡ voucher để thu tiền mặt.");
                         }
                 }
-
-                Payment payment = paymentRepository.findByBookingBookingId(bookingId).orElse(null);
 
                 // Nếu đã thanh toán rồi thì chỉ cần hoàn tất booking, không tạo payment mới
                 if (payment != null && payment.getStatus() == PaymentStatus.PAID) {

@@ -186,14 +186,21 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: color,
-                    letterSpacing: 0.5,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: color,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    if (booking.paymentStatus != null)
+                      _buildPaymentBadge(booking.paymentStatus!),
+                  ],
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -1408,5 +1415,32 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
       return timeStr.substring(0, 5);
     }
     return timeStr;
+  }
+
+  Widget _buildPaymentBadge(String paymentStatus) {
+    final normalized = paymentStatus.toUpperCase();
+    final isPaid = normalized == 'PAID';
+    final background = isPaid ? Colors.green.shade100 : Colors.orange.shade100;
+    final border = isPaid ? Colors.green.shade400 : Colors.orange.shade400;
+    final textColor = isPaid ? Colors.green.shade800 : Colors.orange.shade800;
+    final label = isPaid ? 'ĐÃ THANH TOÁN' : 'CHƯA THANH TOÁN';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: border, width: 1),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: textColor,
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0.4,
+        ),
+      ),
+    );
   }
 }
