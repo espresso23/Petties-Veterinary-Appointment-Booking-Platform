@@ -1698,8 +1698,8 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
                 isOpen={!!confirmCheckoutModal}
                 title={`Thu Tiền Mặt: ${confirmCheckoutModal?.bookingCode}`}
                 message={`Xác nhận đã thu ${confirmCheckoutModal?.totalPrice.toLocaleString('vi-VN')} đ cho lịch khám này?`}
-                confirmText="Xác nhận & Hoàn thành"
-                cancelText="Hủy"
+                confirmLabel="Xác nhận & Hoàn thành"
+                cancelLabel="Hủy"
                 onConfirm={handleCheckout}
                 onCancel={() => setConfirmCheckoutModal(null)}
             />
