@@ -40,7 +40,7 @@ export const useSyncProfile = () => {
         }
 
         prevUserIdRef.current = currentUserId
-    }, [user, profile, fetchProfile, clearProfile])
+    }, [user?.userId, profile?.userId, fetchProfile, clearProfile])
 
     // Sync profile data to authStore when profile is loaded
     // Use refs to prevent infinite loops
@@ -69,6 +69,6 @@ export const useSyncProfile = () => {
                 })
             }
         }
-    }, [user, profile])
+    }, [user?.userId, user?.avatar, user?.fullName, profile?.userId, profile?.avatar, profile?.fullName])
 }
 
