@@ -602,7 +602,8 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
                       ),
                     ),
                   Text(
-                    FormatUtils.formatCurrency(hasDiscount ? finalPrice : provider.totalPrice),
+                    FormatUtils.formatCurrency(
+                        hasDiscount ? finalPrice : provider.totalPrice),
                     style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
@@ -634,7 +635,9 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
       ),
     );
   }
-  Widget _buildVoucherRow(BuildContext context, BookingWizardProvider provider) {
+
+  Widget _buildVoucherRow(
+      BuildContext context, BookingWizardProvider provider) {
     final hasVoucher = provider.selectedVoucherId != null;
     final clinicId = provider.clinic?.clinicId;
     if (clinicId == null) return const SizedBox.shrink();
@@ -644,7 +647,8 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
     for (final pet in provider.selectedPets) {
       final services = provider.getSelectedServicesForPet(pet.id);
       for (final svc in services) {
-        if (svc.serviceCategory != null && !serviceCategories.contains(svc.serviceCategory)) {
+        if (svc.serviceCategory != null &&
+            !serviceCategories.contains(svc.serviceCategory)) {
           serviceCategories.add(svc.serviceCategory!);
         }
       }
@@ -660,13 +664,14 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
           paymentMethod: provider.paymentMethod,
           serviceCategories: serviceCategories,
         );
-        
+
         if (picked != null) {
           if (picked == false) {
             provider.setVoucher(null);
           } else if (picked is VoucherModel) {
             if (picked.voucherId != provider.selectedVoucherId) {
-              provider.setVoucher(picked.voucherId, discount: picked.discountAmount ?? 0);
+              provider.setVoucher(picked.voucherId,
+                  discount: picked.discountAmount ?? 0);
             }
           }
         }
@@ -674,9 +679,7 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: hasVoucher
-              ? AppColors.primaryBackground
-              : AppColors.stone50,
+          color: hasVoucher ? AppColors.primaryBackground : AppColors.stone50,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: hasVoucher ? AppColors.primary : AppColors.stone300,
@@ -692,9 +695,7 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                hasVoucher
-                    ? 'Voucher đã áp dụng'
-                    : 'Chọn voucher giảm giá',
+                hasVoucher ? 'Voucher đã áp dụng' : 'Chọn voucher giảm giá',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -878,50 +879,50 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
                   context.go('/booking/success');
                 },
                 child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                decoration: BoxDecoration(
-                  color: provider.isCreatingBooking
-                      ? AppColors.stone300
-                      : AppColors.teal600,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.stone900, width: 2),
-                  boxShadow: provider.isCreatingBooking
-                      ? null
-                      : const [
-                          BoxShadow(
-                              color: AppColors.stone900, offset: Offset(4, 4))
-                        ],
-                ),
-                child: Center(
-                  child: provider.isCreatingBooking
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.white,
-                          ),
-                        )
-                      : const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.check_circle,
-                                color: AppColors.white, size: 20),
-                            SizedBox(width: 8),
-                            Text(
-                              'XÁC NHẬN ĐẶT LỊCH',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.white,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  decoration: BoxDecoration(
+                    color: provider.isCreatingBooking
+                        ? AppColors.stone300
+                        : AppColors.teal600,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.stone900, width: 2),
+                    boxShadow: provider.isCreatingBooking
+                        ? null
+                        : const [
+                            BoxShadow(
+                                color: AppColors.stone900, offset: Offset(4, 4))
                           ],
-                        ),
+                  ),
+                  child: Center(
+                    child: provider.isCreatingBooking
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.white,
+                            ),
+                          )
+                        : const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.check_circle,
+                                  color: AppColors.white, size: 20),
+                              SizedBox(width: 8),
+                              Text(
+                                'XÁC NHẬN ĐẶT LỊCH',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.white,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
                 ),
               ),
-            ),
             ),
           ],
         ),
