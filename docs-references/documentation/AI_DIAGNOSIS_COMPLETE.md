@@ -1,8 +1,8 @@
 # AI Diagnosis Module - Complete Technical Documentation
 
-> Last Updated: 2026-03-20
-> Status: Complete - In Production
-> Version: 1.0.0
+> Last Updated: 2026-03-23
+> Status: Complete - Web + Mobile Production
+> Version: 1.1.0 (Mobile Added)
 
 ---
 
@@ -181,7 +181,7 @@ Manages Qdrant collection `petties_case_memory_v2`:
 ```
 final_score = base_similarity
             + min(feedback_count / 100, 0.3)
-            + (0.1 if vet_verified)
+```
 ```
 
 #### 2.1.6 DiseaseMappingService
@@ -256,29 +256,46 @@ Uses `react-image-crop` library:
 
 #### 2.2.3 AIInsightsPage
 
-**File:** `petties-web/src/pages/admin/insights/AIInsightsPage.tsx`
+### 2.3 Mobile (petties_mobile)
 
-Admin dashboard section for AI system management.
+#### 2.3.1 Diagnosis Models (`diagnosis.dart`)
 
-**Case Memory Management section** (added 2026-03-20):
+| Model | Description |
+|-------|-------------|
+| `DiagnosisSpecies` | Enum: `dog`, `cat`, `other` |
+| `DiagnosisSex` | Enum: `male`, `female`, `unknown` |
+| `StaffDiagnosisRequest` | Request payload with pet info, clinical narrative, images |
+| `StaffDiagnosisResponse` | AI response with differentials, vision findings, prescriptions |
+| `SoapSuggestions` | SOAP draft suggestions from AI |
+| `StaffDiagnosisPrescriptionSuggestion` | Prescription draft with medicine, dosage, frequency |
 
-```typescript
-// Toggle button: "Quan ly Cases"
-// Filters: search, species, diagnosis, vet_verified
-// Table: case_id, loai, chuan doan, lan xac nhan, BS xac nhan, hanh dong
-// Detail panel: view/edit diagnosis, symptoms, vet_verified
-// Actions: update, delete (with confirm), export JSON
-// Note: score/final_score removed - not relevant for management view
-```
+#### 2.3.2 Diagnosis Service (`diagnosis_service.dart`)
 
-**API methods used:**
-```typescript
-caseMemoryApi.listCases(params)     // GET /case-memory
-caseMemoryApi.getCase(caseId)       // GET /case-memory/{case_id}
-caseMemoryApi.updateCase(caseId, data) // PATCH /case-memory/{case_id}
-caseMemoryApi.deleteCase(caseId)     // DELETE /case-memory/{case_id}
-caseMemoryApi.exportCases(params)   // POST /case-memory/export
-```
+| Method | Description |
+|--------|-------------|
+| `analyzeCase()` | Calls `POST /api/v1/staff-diagnosis/analyze` |
+
+#### 2.3.3 AI Diagnosis Panel (`ai_diagnosis_panel.dart`)
+
+| Feature | Description |
+|---------|-------------|
+| Clinical narrative input | Multi-line TextField for doctor description |
+| Image picker | Add clinical images (max 1024px, base64) |
+| Analyze button | Triggers AI analysis |
+| Results display | Shows differentials, vision findings, prescriptions |
+| Apply to EMR | Button to apply SOAP suggestions to EMR form |
+
+#### 2.3.4 AI Diagnosis Sheet (`ai_diagnosis_sheet.dart`)
+
+Bottom sheet wrapper for `AiDiagnosisPanel` - used for mobile UX.
+
+#### 2.3.5 Integration Points
+
+| Screen | Integration |
+|--------|-------------|
+| `CreateEmrScreen` | AppBar icon → opens `AiDiagnosisSheet` |
+| `EditEmrScreen` | AppBar icon → opens `AiDiagnosisSheet` |
+| `StaffAiChatScreen` | Chat with AI, can trigger diagnosis |
 
 ---
 
@@ -390,7 +407,7 @@ List cases with pagination and filters.
 | `query` | string | Search in case content |
 | `species` | string | Filter by species (dog, cat) |
 | `diagnosis` | string | Filter by diagnosis keyword |
-| `vet_verified` | boolean | Filter by verification status |
+
 | `page` | int | Page number (default: 1) |
 | `page_size` | int | Items per page (default: 20, max: 100) |
 
@@ -408,7 +425,7 @@ Update case metadata.
   "diagnosis": "string (optional)",
   "symptoms": ["string"] (optional),
   "feedback_count": 0 (optional),
-  "vet_verified": true (optional)
+
 }
 ```
 
@@ -438,10 +455,10 @@ Point payload schema:
 {
   "case_id": "uuid",
   "text_content": "Concatenated: chief_complaint + symptoms + diagnosis + clinical_notes",
-  "feedback_count": 1,
-  "vet_verified": false,
-  "feedback_type": "confirmed",
-  "feedback_category": "general",
+  "confirmation_count": 1,
+
+
+
   "created_at": "2026-03-20T10:00:00Z",
   "last_confirmed_at": "2026-03-20T10:00:00Z",
   "image_urls": ["https://..."],
@@ -569,9 +586,9 @@ sequenceDiagram
 flowchart LR
     A[Admin opens AIInsightsPage] --> B[Click "Quan ly Cases"]
     B --> C[Load case list with pagination]
-    C --> D[Filter by: search, species, diagnosis, verified]
+    C --> D[Filter by: search, species, diagnosis]
     D --> E[Click row to view detail]
-    E --> F[View/Edit: diagnosis, symptoms, vet_verified]
+    E --> F[View/Edit: diagnosis, symptoms]
     F --> G[Delete with confirm modal]
     G --> H[Export filtered cases as JSON]
 ```
@@ -749,6 +766,41 @@ backend-spring/petties/src/main/java/com/petties/petties/
     └── EmrService.java                  # Triggers sync on EMR save
 ```
 
+### Mobile (petties_mobile)
+
+```
+petties_mobile/lib/
+├── data/
+│   ├── models/
+│   │   └── diagnosis.dart               # DiagnosisSpecies, DiagnosisSex, Request, Response models
+│   └── services/
+│       └── diagnosis_service.dart       # POST /v1/staff-diagnosis/analyze
+└── ui/
+    └── staff/
+        ├── widgets/
+        │   ├── ai_diagnosis_panel.dart   # Main diagnosis panel widget
+        │   └── ai_diagnosis_sheet.dart   # Bottom sheet wrapper
+        ├── emr/
+        │   ├── create_emr_screen.dart   # Integration: AppBar AI button
+        │   └── edit_emr_screen.dart      # Integration: AppBar AI button
+        └── ai_chat/
+            └── staff_ai_chat_screen.dart # Staff AI Chat (reuses AiChatScreen)
+```
+
+### Mobile Tests
+
+```
+petties_mobile/test/
+├── data/
+│   ├── models/
+│   │   └── diagnosis_model_test.dart    # 16 unit tests
+│   └── services/
+│       └── diagnosis_service_test.dart # 11 unit tests
+└── ui/
+    └── staff/
+        └── ai_diagnosis_panel_test.dart # 10 widget tests
+```
+
 ---
 
 ## 11. Known Limitations
@@ -756,8 +808,7 @@ backend-spring/petties/src/main/java/com/petties/petties/
 1. **Disease catalog coverage**: Only eye, ear, skin diseases are seeded. More body systems needed.
 2. **Image limit**: Maximum 10 images per request (enforced by schema).
 3. **Case Memory export limit**: Maximum 1000 cases per export (Qdrant scroll limitation).
-4. **No mobile AI panel**: Mobile app does not have AI diagnosis capability yet.
-5. **Protocol learning cold start**: Requires confirmed EMR cases to learn patterns. If DB mapping is missing or incomplete, cases stay `provisional` until catalog/aliases are updated.
+4. **Protocol learning cold start**: Requires confirmed EMR cases to learn patterns. If DB mapping is missing or incomplete, cases stay `provisional` until catalog/aliases are updated.
 
 ---
 
@@ -776,3 +827,4 @@ backend-spring/petties/src/main/java/com/petties/petties/
 | 2026-03-20 | Case Memory UI Management (full CRUD + export) |
 | 2026-03-22 | Feedback flow locked to analytics/monitoring only; delete feedback disabled for all roles |
 | 2026-03-20 | Case Memory UI cleanup: remove score columns, rename feedback_count → "Lan xac nhan" |
+| 2026-03-23 | **Mobile AI Diagnosis complete**: models, service, panel, sheet, EMR integration, tests |

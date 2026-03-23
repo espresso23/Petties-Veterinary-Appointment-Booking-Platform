@@ -151,6 +151,10 @@ class Settings(BaseSettings):
         default="chat_feedback",
         description="Collection name cho user feedback (thumbs up/down)",
     )
+    MONGODB_KG_TRIPLETS_COLLECTION: str = Field(
+        default="knowledge_graph_triplets",
+        description="Collection name cho Knowledge Graph triplets (MongoDB)",
+    )
 
     # ==================== AI/LLM Configuration ====================
     LLM_PROVIDER: str = Field(
@@ -223,11 +227,14 @@ class Settings(BaseSettings):
     )
 
     # ==================== Web Search Configuration ====================
-    DUCKDUCKGO_MAX_RESULTS: int = Field(
-        default=5, description="Max DuckDuckGo search results"
-    )
+    TAVILY_API_KEY: str = Field(default="", description="Tavily Search API key")
+    TAVILY_MAX_RESULTS: int = Field(default=5, description="Max Tavily search results")
     YOUTUBE_API_KEY: str = Field(
         default="", description="YouTube Data API key (optional)"
+    )
+    DUCKDUCKGO_MAX_RESULTS: int = Field(
+        default=5,
+        description="Max DuckDuckGo search results (deprecated, use TAVILY_MAX_RESULTS)",
     )
 
     # ==================== MCP Integration ====================

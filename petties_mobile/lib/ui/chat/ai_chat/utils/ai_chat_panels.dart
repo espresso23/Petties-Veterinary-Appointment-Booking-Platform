@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:convert';
+import 'dart:io';
 
 import '../../../../config/constants/app_colors.dart';
 import '../../../../data/models/ai_chat.dart';
@@ -394,6 +397,8 @@ class AiChatComposer extends StatelessWidget {
   final VoidCallback onSend;
   final bool isSending;
   final bool isReconnecting;
+  final ValueChanged<List<String>>? onImagesSelected;
+  final List<String>? selectedImages;
 
   const AiChatComposer({
     super.key,
@@ -406,11 +411,36 @@ class AiChatComposer extends StatelessWidget {
     required this.onSend,
     required this.isSending,
     required this.isReconnecting,
+    this.onImagesSelected,
+    this.selectedImages,
   });
+
+  Future<void> _pickImages(BuildContext context) async {
+    if (onImagesSelected == null) return;
+    
+    final picker = ImagePicker();
+    final pickedFiles = await picker.pickMultiImage(
+      maxWidth: 1024,
+      maxHeight: 1024,
+      imageQuality: 85,
+    );
+    
+    if (pickedFiles.isEmpty) return;
+    
+    final imagePaths = <String>[];
+    for (final file in pickedFiles) {
+      final bytes = await File(file.path).readAsBytes();
+      final base64 = base64Encode(bytes);
+      imagePaths.add('data:image/jpeg;base64,$base64');
+    }
+    
+    onImagesSelected!(imagePaths);
+  }
 
   @override
   Widget build(BuildContext context) {
     final isBusy = isSending || isReconnecting;
+    final hasImages = selectedImages != null && selectedImages!.isNotEmpty;
 
     return Container(
       padding: EdgeInsets.fromLTRB(horizontalPadding, 8, horizontalPadding, 8),
@@ -466,9 +496,85 @@ class AiChatComposer extends StatelessWidget {
                 ),
               ),
             ],
+            if (hasImages) ...[
+              SizedBox(
+                height: 80,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: selectedImages!.length,
+                  itemBuilder: (context, index) {
+                    final imageData = selectedImages![index];
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.memory(
+                              Uri.parse(imageData).data!.contentAsBytes(),
+                              width: 60,
+                              height: 60,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          Positioned(
+                            top: 0,
+                            right: 0,
+                            child: GestureDetector(
+                              onTap: () {
+                                final newList = List<String>.from(selectedImages!)..removeAt(index);
+                                onImagesSelected!(newList);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: const BoxDecoration(
+                                  color: AppColors.error,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.close,
+                                  size: 14,
+                                  color: AppColors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
+                if (onImagesSelected != null)
+                  GestureDetector(
+                    onTap: isBusy ? null : () => _pickImages(context),
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: AppColors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.stone900, width: 2),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: AppColors.stone900,
+                            offset: Offset(2, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.add_photo_alternate_outlined,
+                        color: AppColors.stone900,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                if (onImagesSelected != null) const SizedBox(width: 8),
                 Expanded(
                   child: Container(
                     constraints: const BoxConstraints(maxHeight: 100),

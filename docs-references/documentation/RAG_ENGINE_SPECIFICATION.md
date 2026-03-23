@@ -199,11 +199,11 @@ Case Memory lưu trữ các ca bệnh đã được xác nhận từ EMR, sử d
   "symptoms": ["string"],
   "diagnosis": "string",
   "treatment": "string",
-  "vet_verified": "boolean",
+
   "emr_id": "string",
   "clinic_id": "string",
   "created_at": "datetime",
-  "feedback_count": "number"
+  "confirmation_count": "number"
 }
 ```
 
@@ -216,8 +216,8 @@ Case Memory lưu trữ các ca bệnh đã được xác nhận từ EMR, sử d
 
 ```
 final_score = cosine_similarity
-            + min(feedback_count / 100, 0.3)
-            + (0.1 nếu vet_verified)
+            + min(confirmation_count / 100, 0.3)
+
 ```
 
 ---

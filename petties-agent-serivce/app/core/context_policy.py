@@ -68,9 +68,8 @@ class ContextPolicyService:
             "check_available_slots",
             "create_booking_for_user",
             "get_clinic_services",
-            "get_patient_summary",
-            "get_emr_history",
             "check_vaccination_status",
+            # NOTE: get_patient_summary, get_emr_history — disabled until MCP implementation ready
         },
         "CLINIC_MANAGER": {
             "pet_knowledge_search",
@@ -80,12 +79,9 @@ class ContextPolicyService:
             "check_available_slots",
             "create_booking_for_user",
             "get_clinic_services",
-            "get_patient_summary",
-            "get_emr_history",
             "check_vaccination_status",
-            "analyze_revenue_trends",
-            "suggest_staff_assignments",
-            "create_staff_shifts",
+            # NOTE: get_patient_summary, get_emr_history, analyze_revenue_trends,
+            # suggest_staff_assignments, create_staff_shifts — disabled until MCP implementation ready
         },
         "CLINIC_OWNER": {
             "pet_knowledge_search",
@@ -95,16 +91,14 @@ class ContextPolicyService:
             "check_available_slots",
             "create_booking_for_user",
             "get_clinic_services",
-            "get_patient_summary",
-            "get_emr_history",
             "check_vaccination_status",
-            "analyze_revenue_trends",
-            "suggest_staff_assignments",
-            "create_staff_shifts",
-            "generate_clinic_services",
+            # NOTE: get_patient_summary, get_emr_history, analyze_revenue_trends,
+            # suggest_staff_assignments, create_staff_shifts, generate_clinic_services
+            # — disabled until MCP implementation ready
         },
         "ADMIN": set(PUBLIC_BUSINESS_TOOLS),
     }
+
 
     @classmethod
     def get_allowed_tools(

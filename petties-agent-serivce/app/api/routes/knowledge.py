@@ -443,7 +443,7 @@ async def get_document(document_id: int, db: AsyncSession = Depends(get_db)):
                 status_code=404, detail=f"Document {document_id} not found"
             )
 
-        # TODO: Get chunks from Qdrant when implemented
+        # Pending: Get chunks from Qdrant when implemented
         chunks_preview = []
 
         return DocumentDetailResponse(

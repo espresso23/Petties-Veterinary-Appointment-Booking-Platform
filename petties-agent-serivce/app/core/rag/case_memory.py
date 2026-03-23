@@ -8,7 +8,7 @@ Tích lũy case đã xác nhận từ EMR vào Qdrant collection `petties_case_m
 
 Package: app.core.rag
 Purpose: Lưu trữ case đã xác nhận để hỗ trợ chẩn đoán phân biệt
-Version: v2.0.0 (2026-03-17 - EMR-driven)
+Version: v2.1.0 (2026-03-23 - EMR-driven, no feedback)
 
 Flow:
     1. EMR được tạo/sửa với final_diagnosis
@@ -16,12 +16,13 @@ Flow:
     3. Text description luôn được embed; ảnh (nếu có URL hợp lệ) sẽ embed thêm
     4. Staff diagnosis flow query case tương tự -> hybrid search
 
-Lưu ý: Nguồn cũ từ thumbs up feedback đã bị loại bỏ theo AI_DIAGNOSIS_FEATURE_PLAN.md.
+Lưu ý: Nguồn dữ liệu duy nhất là EMR confirmed. Thumbs-up feedback đã bị loại bỏ.
+confirmation_count tăng mỗi khi một case trùng lặp (similarity >= DEDUP_THRESHOLD)
+được upsert lại từ EMR - phản ánh số lần case được bác sĩ xác nhận.
 
 Công thức tính điểm:
     final_score = cosine_similarity
-                  + min(feedback_count / 100, 0.3)
-                  + (0.1 nếu vet_verified)
+                  + min(confirmation_count / 100, 0.3)
 """
 
 from __future__ import annotations
@@ -53,15 +54,12 @@ CASE_MEMORY_IMAGE_DIMENSION = 1024
 DEFAULT_SEARCH_LIMIT = 5
 DEFAULT_MIN_SCORE = 0.7
 
-# Feedback-weighted re-ranking constants
-FEEDBACK_COUNT_DIVISOR = 100
-"""feedback_boost = min(feedback_count / FEEDBACK_COUNT_DIVISOR, MAX_FEEDBACK_BOOST)"""
+# Confirmation-weighted re-ranking constants
+CONFIRMATION_COUNT_DIVISOR = 100
+"""confirmation_boost = min(confirmation_count / CONFIRMATION_COUNT_DIVISOR, MAX_CONFIRMATION_BOOST)"""
 
-MAX_FEEDBACK_BOOST = 0.3
-"""Điểm cộng tối đa từ số lượng feedback."""
-
-VET_VERIFIED_BOOST = 0.1
-"""Điểm cộng thêm khi case được bác sĩ thú y xác nhận."""
+MAX_CONFIRMATION_BOOST = 0.3
+"""Điểm cộng tối đa từ số lần case được EMR xác nhận."""
 
 DEDUP_THRESHOLD = 0.95
 """Ngưỡng cosine similarity để coi hai case là trùng lặp."""
@@ -95,9 +93,9 @@ class CaseMemoryService:
     Trách nhiệm:
         - Khởi tạo Qdrant collection (tạo nếu chưa tồn tại)
         - Upsert case đã xác nhận với embeddings
-        - Tìm kiếm case tương tự với re-ranking theo feedback
-        - Cập nhật feedback count cho case hiện có
-        - Dọn dẹp case điểm thấp
+        - Tìm kiếm case tương tự với re-ranking theo confirmation_count
+        - Cập nhật confirmation_count cho case hiện có
+        - Dọn dẹp case ít được xác nhận
         - Cung cấp thống kê
 
     Cách dùng:
@@ -284,7 +282,7 @@ class CaseMemoryService:
 
         Args:
             text_to_embed: Nội dung text để embed (visual_desc + chẩn đoán + triệ).
-            payload:u chứng Metadata của case (species, body_part, feedback_type, v.v.).
+            payload: Metadata của case (species, body_part, v.v.).
             case_id: UUID tùy chọn. Tự tạo nếu không cung cấp.
             image_urls: Danh sách URL ảnh (https).
             image_base64: Danh sách ảnh dạng base64 (raw hoặc data URL).
@@ -331,9 +329,9 @@ class CaseMemoryService:
                 existing_id = payload.get("case_id", str(hit.id))
                 logger.info(
                     f"Near-duplicate found via vector check (score={hit.score:.3f}), "
-                    f"incrementing feedback_count for case {existing_id}"
+                    f"incrementing confirmation_count for case {existing_id}"
                 )
-                await self.update_feedback_count(existing_id)
+                await self.update_confirmation_count(existing_id)
                 return existing_id
 
         image_vector: Optional[List[float]] = None
@@ -384,10 +382,7 @@ class CaseMemoryService:
         full_payload = {
             "case_id": case_id,
             "text_content": text_to_embed,
-            "feedback_count": payload.get("feedback_count", 1),
-            "vet_verified": payload.get("vet_verified", False),
-            "feedback_type": payload.get("feedback_type", "confirmed"),
-            "feedback_category": payload.get("feedback_category", "general"),
+            "confirmation_count": payload.get("confirmation_count", 1),
             "created_at": now,
             "last_confirmed_at": now,
             "image_urls": image_urls_clean,
@@ -416,7 +411,6 @@ class CaseMemoryService:
 
         logger.info(
             f"Upserted case {case_id} "
-            f"(category={full_payload.get('feedback_category')}, "
             f"text_len={len(text_to_embed)})"
         )
         return case_id
@@ -429,12 +423,11 @@ class CaseMemoryService:
         image_urls: Optional[List[str]] = None,
     ) -> List[CaseResult]:
         """
-        Tìm kiếm case tương tự với re-ranking theo feedback.
+        Tìm kiếm case tương tự với re-ranking theo confirmation_count.
 
         Công thức tính điểm:
             final_score = cosine_similarity
-                          + min(feedback_count / 100, 0.3)
-                          + (0.1 nếu vet_verified)
+                          + min(confirmation_count / 100, 0.3)
 
         Args:
             query: Câu truy vấn tìm kiếm.
@@ -526,12 +519,11 @@ class CaseMemoryService:
                 payload = row["payload"]
                 base_score = w_text * row["text_score"] + w_image * row["image_score"]
 
-                feedback_count = payload.get("feedback_count", 0)
-                feedback_boost = min(
-                    feedback_count / FEEDBACK_COUNT_DIVISOR, MAX_FEEDBACK_BOOST
+                confirmation_count = payload.get("confirmation_count", 0)
+                confirmation_boost = min(
+                    confirmation_count / CONFIRMATION_COUNT_DIVISOR, MAX_CONFIRMATION_BOOST
                 )
-                vet_boost = VET_VERIFIED_BOOST if payload.get("vet_verified") else 0
-                final_score = base_score + feedback_boost + vet_boost
+                final_score = base_score + confirmation_boost
 
                 case_results.append(
                     CaseResult(
@@ -556,9 +548,12 @@ class CaseMemoryService:
             logger.error(f"CaseMemory search failed: {e}")
             return []
 
-    async def update_feedback_count(self, case_id: str) -> bool:
+    async def update_confirmation_count(self, case_id: str) -> bool:
         """
-        Tăng feedback_count và cập nhật last_confirmed_at cho một case.
+        Tăng confirmation_count và cập nhật last_confirmed_at cho một case.
+
+        Gọi khi EMR upsert phát hiện case gần trùng lặp (similarity >= DEDUP_THRESHOLD),
+        phản ánh số lần case được bác sĩ xác nhận qua EMR.
 
         Args:
             case_id: UUID của case cần cập nhật.
@@ -599,35 +594,35 @@ class CaseMemoryService:
                 points = scroll_results[0] if scroll_results else []
 
             if not points:
-                logger.warning(f"Case {case_id} not found for feedback update")
+                logger.warning(f"Case {case_id} not found for confirmation update")
                 return False
 
             point = points[0]
             payload = point.payload or {}
-            new_count = payload.get("feedback_count", 0) + 1
+            new_count = payload.get("confirmation_count", 0) + 1
 
             self._qdrant_client.set_payload(
                 collection_name=self._collection_name,
                 payload={
-                    "feedback_count": new_count,
+                    "confirmation_count": new_count,
                     "last_confirmed_at": datetime.now(timezone.utc).isoformat(),
                 },
                 points=[point.id],
             )
 
-            logger.info(f"Updated case {case_id} feedback_count -> {new_count}")
+            logger.info(f"Updated case {case_id} confirmation_count -> {new_count}")
             return True
 
         except Exception as e:
-            logger.error(f"Failed to update feedback count for {case_id}: {e}")
+            logger.error(f"Failed to update confirmation count for {case_id}: {e}")
             return False
 
     async def delete_case(self, case_id: str) -> bool:
         """
         Xóa một case khỏi Qdrant collection.
 
-        Dùng khi feedback bị xóa hoặc sửa từ positive → negative,
-        cần gỡ bỏ case đã embed sai khỏi vector database.
+        Dùng khi EMR bị hủy, chẩn đoán bị sửa đổi về trạng thái không hợp lệ,
+        hoặc cần gỡ bỏ case đã embed sai khỏi vector database.
 
         Args:
             case_id: UUID của case cần xóa.
@@ -687,11 +682,11 @@ class CaseMemoryService:
 
     async def prune_low_score_cases(
         self,
-        max_feedback_below: int = 0,
+        max_confirmations_below: int = 0,
         older_than_days: int = 90,
     ) -> int:
         """
-        Xóa các case không có feedback và đã cũ hơn ngưỡng thời gian.
+        Xóa các case có ít lần xác nhận và đã cũ hơn ngưỡng thời gian.
 
         Dùng cho bảo trì định kỳ, giữ collection sạch.
 
@@ -724,8 +719,8 @@ class CaseMemoryService:
                     scroll_filter=Filter(
                         must=[
                             FieldCondition(
-                                key="feedback_count",
-                                range=Range(lte=max_feedback_below),
+                                key="confirmation_count",
+                                range=Range(lte=max_confirmations_below),
                             ),
                         ]
                     ),

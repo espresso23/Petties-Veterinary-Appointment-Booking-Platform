@@ -8216,7 +8216,7 @@ classDiagram
         -collection_name: str = "petties_case_memory"
         +upsert_case(case: ConfirmedCase) str
         +search_similar(query: str, threshold: float) List~CaseResult~
-        +update_feedback_count(case_id: str) void
+        +update_confirmation_count(case_id: str) void
         +prune_low_score_cases(min_score: float) int
         +get_stats() CaseMemoryStats
     }
@@ -8242,10 +8242,9 @@ classDiagram
         +treatment: str
         +tool_used: str
         +image_urls: List~str~
-        +feedback_type: str = "confirmed"
-        +feedback_count: int
+        +confirmation_count: int
         +confidence_score: float
-        +staff_verified: bool
+
         +created_at: datetime
     }
 
@@ -8260,8 +8259,8 @@ classDiagram
         +medical_cases: int
         +booking_cases: int
         +clinic_ops_cases: int
-        +avg_feedback_count: float
-        +staff_verified_count: int
+        +avg_confirmation_count: float
+
     }
 
     %% === FEEDBACK LOOP ===
@@ -8412,9 +8411,9 @@ classDiagram
 | Method | Description |
 |--------|-------------|
 | `upsert_case(case)` | Embed text description + metadata vao Qdrant `petties_case_memory`. Tra ve case_id. Nguon: EMR confirmed (thay vi feedback). |
-| `search_similar(query, threshold)` | Tim cases tuong tu, re-rank theo feedback_count + staff_verified. |
-| `update_feedback_count(case_id)` | ~~Tang feedback_count +1 khi co feedback moi cho case da ton tai.~~ Deprecated - chi con dung de backward compatibility. |
-| `prune_low_score_cases(min_score)` | Xoa cases co score thap va feedback_count = 0. Tra ve so cases da xoa. |
+| `search_similar(query, threshold)` | Tim cases tuong tu, re-rank theo confirmation_count. |
+| `update_confirmation_count(case_id)` | Tang confirmation_count +1 khi co EMR confirmed cho case da ton tai. |
+| `prune_low_score_cases(min_score)` | Xoa cases co score thap va confirmation_count = 0. Tra ve so cases da xoa. |
 | `get_stats()` | Thong ke: total cases, phan loai theo category, avg feedback, vet verified count. |
 
 **4. FeedbackService** *(Deprecated - se duoc remove)*
@@ -8449,7 +8448,7 @@ classDiagram
 | Method | Description |
 |--------|-------------|
 | `query(user_query, pet_type)` | Pipeline: expand query -> search RAG + KG + Case Memory song song -> merge & re-rank -> tra ve HybridResult |
-| `_merge_and_rerank(rag, kg, cases)` | Ket hop ket qua tu 3 nguon, tinh final_score dua tren relevance + feedback_count + staff_verified |
+| `_merge_and_rerank(rag, kg, cases)` | Ket hop ket qua tu 3 nguon, tinh final_score dua tren relevance + confirmation_count |
 
 #### 4.19.3 Sequence Diagram: Query Expansion Flow
 
@@ -8583,7 +8582,7 @@ sequenceDiagram
 
     MongoDB->>CaseMem: 11. process_positive_feedback()
     activate CaseMem
-    Note right of CaseMem: Extract case:<br/>visual: "can nau den dang ba ca phe"<br/>diagnosis: "Ran tai (Otodectes)"<br/>species: "meo", body_part: "tai"<br/>staff_verified: true, weight: 1.0
+    Note right of CaseMem: Extract case:<br/>visual: "can nau den dang ba ca phe"<br/>diagnosis: "Ran tai (Otodectes)"<br/>species: "meo", body_part: "tai"<br/>weight: 1.0
     CaseMem->>CaseMem: 12. Embed text -> Qdrant petties_case_memory
     deactivate CaseMem
     deactivate MongoDB
@@ -8598,7 +8597,7 @@ sequenceDiagram
 
     Agent->>CaseMem: 16. search_similar("tai meo chat nau den viem")
     activate CaseMem
-    CaseMem-->>Agent: 17. Case #1: Ran tai, score 0.92,<br/>staff_verified, feedback_count=1
+    CaseMem-->>Agent: 17. Case #1: Ran tai, score 0.92,<br/>confirmation_count=1
     deactivate CaseMem
 
     Agent->>RAG: 18. Bo sung thong tin tu KB
@@ -8654,7 +8653,7 @@ sequenceDiagram
             Qdrant-->>CaseMem: 14. OK
             CaseMem->>CaseMem: 15. Check existing similar (threshold 0.95)
             alt Case tuong tu da ton tai
-                CaseMem->>Qdrant: 16. update_feedback_count(existing_id)
+                CaseMem->>Qdrant: 16. update_confirmation_count(existing_id)
             end
             CaseMem-->>FBS: 17. case_id
             deactivate CaseMem
@@ -8707,12 +8706,12 @@ sequenceDiagram
     and
         Hybrid->>CaseMem: 5c. search_similar(expanded_query)
         activate CaseMem
-        CaseMem-->>Hybrid: 6c. Similar cases:<br/>Case #12: Meo ho + chay mui -> Viem duong ho hap<br/>(feedback_count=23, staff_verified=true)
+        CaseMem-->>Hybrid: 6c. Similar cases:<br/>Case #12: Meo ho + chay mui -> Viem duong ho hap<br/>(confirmation_count=23)
         deactivate CaseMem
     end
 
     Hybrid->>Hybrid: 7. _merge_and_rerank(rag, kg, cases)
-    Note right of Hybrid: Final score = relevance_score<br/>+ feedback_boost (min(count/100, 0.3))<br/>+ staff_boost (0.1 if verified)
+    Note right of Hybrid: Final score = relevance_score<br/>+ confirmation_boost (min(count/100, 0.3))
 
     Hybrid-->>Agent: 8. HybridResult {answer, sources, reasoning, cases, confidence: 0.89}
     deactivate Hybrid
@@ -8793,7 +8792,6 @@ flowchart TB
     "case_id": "keyword",
     "session_id": "keyword",
     "message_id": "keyword",
-    "feedback_category": "keyword (medical | booking | clinic_ops | knowledge | general)",
     "user_role": "keyword",
     "visual_description": "text",
     "diagnosis": "text",
@@ -8802,10 +8800,8 @@ flowchart TB
     "symptoms": "keyword[] (array)",
     "treatment": "text",
     "tool_used": "keyword",
-    "feedback_type": "keyword (confirmed | rejected)",
-    "feedback_count": "integer",
+    "confirmation_count": "integer",
     "confidence_score": "float",
-    "staff_verified": "bool",
     "created_at": "datetime",
     "last_confirmed_at": "datetime"
   }
@@ -8816,8 +8812,8 @@ flowchart TB
 
 ```
 final_score = cosine_similarity
-            + min(feedback_count / 100, 0.3)    -- feedback boost (cap 0.3)
-            + (0.1 if staff_verified else 0)     -- staff verification boost
+            + min(confirmation_count / 100, 0.3)    -- confirmation boost (cap 0.3)
+
 ```
 
 #### 4.19.10 Accuracy Improvement Over Time
@@ -8870,7 +8866,7 @@ flowchart LR
 | Hang ngay | Auto-classify implicit feedback (booking success, EMR lookup success) | Thu thap feedback tu dong | Auto (Scheduler) |
 | Hang tuan | Review cases bi thumbs_down - phan loai theo category va role | Phat hien van de cu the tung tool/role | Admin review |
 | Hang tuan | Phan tich `wrong_tool` feedback -> dieu chinh tool routing | Tool routing chinh xac hon | Admin + Auto |
-| Hang thang | Prune cases co score thap + feedback_count = 0 | Tranh nhieu vector store | Auto (Scheduler) |
+| Hang thang | Prune cases co score thap + confirmation_count = 0 | Tranh nhieu vector store | Auto (Scheduler) |
 | Hang thang | Thong ke feedback theo role -> dieu chinh role-specific prompts | Prompt tot hon cho tung role | Admin review |
 | Hang quy | Re-rank toan bo case memory | Dam bao case tot nhat duoc uu tien | Admin + Auto |
 

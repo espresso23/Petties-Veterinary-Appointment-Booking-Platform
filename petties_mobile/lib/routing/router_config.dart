@@ -17,6 +17,7 @@ import '../ui/staff/patient/vaccination_form_screen.dart';
 import '../ui/staff/emr/create_emr_screen.dart';
 import '../ui/staff/emr/emr_detail_screen.dart';
 import '../ui/staff/emr/edit_emr_screen.dart';
+import '../ui/staff/ai_chat/staff_ai_chat_screen.dart';
 import '../ui/screens/profile/profile_screen.dart';
 import '../ui/screens/profile/edit_profile_screen.dart';
 import '../ui/screens/profile/change_password_screen.dart';
@@ -301,6 +302,13 @@ class AppRouterConfig {
             final emrId = state.pathParameters['emrId']!;
             return EditEmrScreen(emrId: emrId);
           },
+        ),
+        GoRoute(
+          path: AppRoutes.staffAiChat,
+          pageBuilder: (context, state) => const MaterialPage<void>(
+            fullscreenDialog: true,
+            child: StaffAiChatScreen(),
+          ),
         ),
 
         // Clinic routes (from intergrationFeature)

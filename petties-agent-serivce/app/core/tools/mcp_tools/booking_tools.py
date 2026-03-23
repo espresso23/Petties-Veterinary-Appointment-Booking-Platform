@@ -849,7 +849,7 @@ async def check_vaccination_status(
     """Kiem tra lich su va lich tiem sap toi cua thu cung."""
     client = get_backend_client()
     try:
-        token = _get_auth_token()
+        token = _require_auth_token()
         history = await client.get_vaccinations_by_pet(token, pet_id)
         upcoming = await client.get_upcoming_vaccinations(token, pet_id)
     except BackendClientError as exc:
@@ -1299,9 +1299,18 @@ async def check_available_slots(
                 optional_token, payload
             )
         except BackendClientError as exc:
-            logger.warning(
-                f"check_available_slots internal orchestration failed, fallback to public endpoint: {exc}"
-            )
+            logger.error(f"check_available_slots failed: {exc}")
+            return {
+                "clinic_id": clinic_id,
+                "resolved_clinic_id": resolved_clinic_id or clinic_id,
+                "date": resolved_date,
+                "services": normalized_service_ids,
+                "available_slots": [],
+                "total_slots": 0,
+                "message": f"Khong the kiem tra slot luc nay: {exc}",
+                "needs_clarification": False,
+                "next_best_action": "retry",
+            }
         else:
             if isinstance(slot_response, dict):
                 recommended_slots = _format_slots(
@@ -1723,46 +1732,14 @@ async def create_booking_for_user(
     try:
         booking = await client.create_ai_booking(token, create_payload)
     except BackendClientError as exc:
-        logger.warning(f"create_ai_booking failed, fallback to /bookings: {exc}")
-        # Fallback only for single-pet mode
-        if is_multi_pet:
-            logger.error(f"Multi-pet booking not supported in legacy endpoint")
-            return {
-                "success": False,
-                "ready_to_create": False,
-                "needs_clarification": False,
-                "next_best_action": "retry",
-                "message": f"Khong the tao yeu cau booking multi-pet luc nay: {exc}",
-            }
-        legacy_payload = {
-            "petId": pet_id,
-            "clinicId": resolved_clinic_id or clinic_id,
-            "bookingDate": resolved_booking_date,
-            "bookingTime": resolved_start_time,
-            "type": normalized_booking_type,
-            "serviceIds": normalized_service_ids,
-            "notes": notes,
+        logger.error(f"create_booking_for_user failed: {exc}")
+        return {
+            "success": False,
+            "ready_to_create": False,
+            "needs_clarification": False,
+            "next_best_action": "retry",
+            "message": f"Khong the tao yeu cau booking luc nay: {exc}",
         }
-        if normalized_booking_type == "HOME_VISIT":
-            legacy_payload.update(
-                {
-                    "homeAddress": home_address,
-                    "homeLat": home_lat,
-                    "homeLong": home_long,
-                    "distanceKm": distance_km,
-                }
-            )
-        try:
-            booking = await client.create_booking(token, legacy_payload)
-        except BackendClientError as legacy_exc:
-            logger.error(f"create_booking_for_user failed: {legacy_exc}")
-            return {
-                "success": False,
-                "ready_to_create": False,
-                "needs_clarification": False,
-                "next_best_action": "retry",
-                "message": f"Khong the tao yeu cau booking luc nay: {legacy_exc}",
-            }
 
     # Handle multi-pet response
     if is_multi_pet and booking.get("bookings"):

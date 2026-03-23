@@ -806,6 +806,31 @@ def get_llm_client() -> BaseLLMClient:
     return _llm_client
 
 
+async def close_llm_client():
+    """Cleanup LLM client resources during shutdown."""
+    global _llm_client, _llm_client_from_db, _llm_client_db_key
+
+    clients_to_close = []
+    if _llm_client is not None:
+        clients_to_close.append(("default", _llm_client))
+    if _llm_client_from_db is not None and _llm_client_from_db is not _llm_client:
+        clients_to_close.append(("db", _llm_client_from_db))
+
+    for client_name, client in clients_to_close:
+        close_method = getattr(client, "close", None)
+        if close_method is None:
+            continue
+        try:
+            logger.info(f"Cleaning up {client_name} LLM client resources...")
+            await close_method()
+        except Exception as e:
+            logger.error(f"Error during {client_name} LLM client cleanup: {e}")
+
+    _llm_client = None
+    _llm_client_from_db = None
+    _llm_client_db_key = None
+
+
 def reset_llm_client():
     """Reset singleton LLM client (for testing/reconfiguration)"""
     global _llm_client
@@ -829,16 +854,3 @@ __all__ = [
     "reset_llm_client",
     "close_llm_client",
 ]
-
-
-async def close_llm_client():
-    """Cleanup LLM client resources during shutdown"""
-    global _client_instance
-    if _client_instance:
-        logger.info("Cleaning up LLM client resources...")
-        try:
-            await _client_instance.close()
-            _client_instance = None
-            logger.info("LLM client resources cleaned up")
-        except Exception as e:
-            logger.error(f"Error during LLM client cleanup: {e}")

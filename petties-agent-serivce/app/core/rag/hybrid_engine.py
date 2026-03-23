@@ -313,9 +313,7 @@ class HybridRAGEngine:
                     source="case_memory",
                     metadata={
                         "case_id": r.case_id,
-                        "feedback_count": r.payload.get("feedback_count", 0),
-                        "vet_verified": r.payload.get("vet_verified", False),
-                        "feedback_category": r.payload.get("feedback_category", ""),
+                        "confirmation_count": r.payload.get("confirmation_count", 0),
                         "species": r.payload.get("species", ""),
                     },
                 )

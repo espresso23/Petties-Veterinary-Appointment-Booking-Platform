@@ -591,79 +591,27 @@ class StaffDiagnosisService:
     def _fallback_differentials(
         self, request: StaffDiagnosisRequest
     ) -> List[DiagnosisSuggestion]:
-        description = request.doctor_description.lower()
-        mapper = get_disease_mapping_service()
+        """
+        Generic fallback when KB, Vision, and Case Memory all return empty.
 
-        if any(keyword in description for keyword in ["tai", "gãi tai", "hôi tai"]):
-            mapped = mapper.map_label(
-                raw_label="Viêm tai ngoài hoặc bệnh tai ký sinh trùng",
-                source_type="kb",
-                species=request.species.value,
-            )
-            return [
-                DiagnosisSuggestion(
-                    canonical_code=mapped.canonical_code,
-                    display_name_vi=mapped.display_name_vi
-                    or "Viêm tai ngoài hoặc bệnh tai ký sinh trùng",
-                    confidence_note="Mức gợi ý: trung bình",
-                    supporting_reasons=[
-                        "Mô tả lâm sàng gợi ý bệnh lý vùng tai.",
-                        "Cần soi tai và kiểm tra dịch tiết để phân biệt nguyên nhân.",
-                    ],
-                )
-            ]
-
-        if any(keyword in description for keyword in ["mắt", "ghèn", "đỏ mắt"]):
-            mapped = mapper.map_label(
-                raw_label="Viêm kết mạc hoặc nhiễm trùng mắt",
-                source_type="kb",
-                species=request.species.value,
-            )
-            return [
-                DiagnosisSuggestion(
-                    canonical_code=mapped.canonical_code,
-                    display_name_vi=mapped.display_name_vi
-                    or "Viêm kết mạc hoặc nhiễm trùng mắt",
-                    confidence_note="Mức gợi ý: trung bình",
-                    supporting_reasons=[
-                        "Mô tả lâm sàng gợi ý bệnh lý mắt.",
-                        "Cần nhuộm fluorescein hoặc khám mắt nếu nghi loét giác mạc.",
-                    ],
-                )
-            ]
-
-        if any(
-            keyword in description for keyword in ["da", "rụng lông", "ngứa", "ghẻ"]
-        ):
-            mapped = mapper.map_label(
-                raw_label="Viêm da hoặc bệnh da ký sinh trùng",
-                source_type="kb",
-                species=request.species.value,
-            )
-            return [
-                DiagnosisSuggestion(
-                    canonical_code=mapped.canonical_code,
-                    display_name_vi=mapped.display_name_vi
-                    or "Viêm da hoặc bệnh da ký sinh trùng",
-                    confidence_note="Mức gợi ý: trung bình",
-                    supporting_reasons=[
-                        "Mô tả lâm sàng gợi ý bệnh lý da.",
-                        "Cần soi da, cạo da hoặc xét nghiệm bổ sung để phân biệt nguyên nhân.",
-                    ],
-                )
-            ]
-
+        Policy (per PLAN.md data-driven rule):
+        - NO keyword heuristic matching on doctor_description.
+        - NO hardcoded body-system guessing from symptom text.
+        - Return a single "insufficient evidence" suggestion so the doctor
+          knows to gather more clinical data before the system can assist.
+        """
         return [
             DiagnosisSuggestion(
                 canonical_code=None,
                 display_name_vi="Cần phân biệt thêm trước khi kết luận cho thú cưng",
                 confidence_note="Mức gợi ý: thấp",
                 supporting_reasons=[
-                    "Chưa có đủ tín hiệu nội bộ đáng tin cậy để chốt hướng bệnh rõ ràng cho thú cưng.",
-                    "Ưu tiên thăm khám trực tiếp cho bé và khai thác thêm tiền sử bệnh.",
+                    "Chưa có đủ tín hiệu từ Knowledge Base, Vision hoặc Case Memory để chốt hướng bệnh.",
+                    "Ưu tiên thăm khám trực tiếp và khai thác thêm tiền sử bệnh trước khi kê đơn.",
                 ],
             )
         ]
+
 
     def _build_soap_suggestions(
         self,

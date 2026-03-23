@@ -20,7 +20,7 @@ import unicodedata
 import uuid
 from datetime import datetime, timezone
 from contextlib import suppress
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, NamedTuple, Optional
 
 from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.websockets import WebSocketState
@@ -451,6 +451,425 @@ def _augment_content_with_metadata(content: str, metadata: Dict[str, Any]) -> st
     return enriched
 
 
+class ParsedMessage(NamedTuple):
+    user_message: str
+    agent_id: Optional[int]
+    provider_override: Optional[str]
+    model_override: Optional[str]
+    image_urls: List[str]
+    location: Optional[Dict[str, Any]]
+    ui_action: Optional[Dict[str, Any]]
+    raw_message: str
+
+
+def _parse_raw_message(
+    message: str,
+    agent_id: Optional[int],
+    provider_override: Optional[str],
+    model_override: Optional[str],
+    images: Optional[List[str]],
+) -> ParsedMessage:
+    try:
+        data = json.loads(message)
+        user_message = data.get("message", message)
+        agent_id = data.get("agent_id", agent_id)
+        provider_override = data.get("provider", provider_override)
+        model_override = data.get("model", model_override)
+        images = data.get("images", [])
+
+        raw_ui_action = data.get("ui_action")
+        ui_action = raw_ui_action if isinstance(raw_ui_action, dict) else None
+
+        raw_location = data.get("location")
+        lat = data.get("latitude")
+        lng = data.get("longitude")
+        address = None
+        if isinstance(raw_location, dict):
+            lat = (
+                lat
+                if lat is not None
+                else raw_location.get("lat") or raw_location.get("latitude")
+            )
+            lng = (
+                lng
+                if lng is not None
+                else raw_location.get("lng") or raw_location.get("longitude")
+            )
+            address = raw_location.get("address") or raw_location.get(
+                "formatted_address"
+            )
+        location = (
+            {"lat": lat, "lng": lng, "address": address}
+            if lat is not None and lng is not None
+            else None
+        )
+        if location:
+            location = _normalize_location_payload(location)
+
+    except json.JSONDecodeError:
+        user_message = message
+        images = []
+
+    if not isinstance(images, list):
+        images = []
+
+    image_urls = []
+    for img in images:
+        if not isinstance(img, str):
+            continue
+        img = img.strip()
+        if not img:
+            continue
+        if (
+            img.startswith("http://")
+            or img.startswith("https://")
+            or img.startswith("data:")
+            or len(img) > 100
+        ):
+            image_urls.append(img)
+
+    return ParsedMessage(
+        user_message=user_message,
+        agent_id=agent_id,
+        provider_override=provider_override,
+        model_override=model_override,
+        image_urls=image_urls,
+        location=location,
+        ui_action=ui_action,
+        raw_message=message,
+    )
+
+
+async def _send_ack(
+    session_id: str,
+    agent_id: Optional[int],
+    provider_override: Optional[str],
+    model_override: Optional[str],
+) -> None:
+    await manager.send_message(
+        session_id,
+        {
+            "type": "ack",
+            "message": "Đã nhận yêu cầu.",
+            "agent_id": agent_id,
+            "provider": provider_override,
+            "model": model_override,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
+
+async def _save_user_message(
+    session_id: str,
+    user_id: int,
+    user_message: str,
+    session_context: str,
+    images: List[str],
+    location: Optional[Dict[str, Any]],
+    ui_action: Optional[Dict[str, Any]],
+) -> None:
+    metadata = {
+        "images": images,
+        "location": location,
+        "ui_action": ui_action,
+    }
+    await save_chat_message(
+        {
+            "message_id": str(uuid.uuid4()),
+            "session_id": session_id,
+            "user_id": user_id,
+            "role": "user",
+            "content": user_message,
+            "context_type": session_context,
+            "metadata": metadata,
+            "timestamp": datetime.now(timezone.utc),
+        }
+    )
+
+
+async def _setup_agent(
+    session_id: str,
+    db_session: Any,
+    user: CurrentUser,
+    agent_id: Optional[int],
+    provider_override: Optional[str],
+    model_override: Optional[str],
+    session_context: str,
+) -> tuple:
+    if agent_id:
+        agent = await AgentFactory.get_agent_by_id(
+            agent_id=agent_id,
+            db_session=db_session,
+            provider_override=provider_override,
+            model_override=model_override,
+            user_role=user.role,
+            context_type=session_context,
+        )
+    else:
+        agent = await AgentFactory.get_agent(
+            db_session=db_session,
+            provider_override=provider_override,
+            model_override=model_override,
+            user_role=user.role,
+            context_type=session_context,
+        )
+
+    if not agent:
+        await manager.send_message(
+            session_id,
+            {
+                "type": "error",
+                "error": "Không tìm thấy cấu hình trợ lý AI phù hợp.",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+        raise ValueError("Agent not found")
+
+    await manager.send_message(
+        session_id,
+        {
+            "type": "agent_info",
+            "agent_name": agent.name,
+            "agent_type": agent.agent_type,
+            "provider": provider_override or "openrouter",
+            "model": model_override or "default",
+            "allowed_tools": agent.enabled_tools,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
+    runtime_token = set_tool_runtime_context(
+        ToolRuntimeContext(
+            user_id=user.user_id,
+            role=user.role,
+            auth_token=None,
+            clinic_id=user.clinic_id,
+            session_id=session_id,
+            context_type=session_context,
+        )
+    )
+    return agent, runtime_token
+
+
+def _build_chat_context(
+    chat_history_raw: List[Dict[str, Any]],
+    location: Optional[Dict[str, Any]],
+) -> tuple:
+    if location is None:
+        location = _extract_latest_location_from_history(chat_history_raw)
+
+    chat_history = []
+    has_prior_assistant_message = False
+    for msg in chat_history_raw:
+        role = msg.get("role")
+        content = msg.get("content", "")
+        metadata = msg.get("metadata", {})
+        augmented = _augment_content_with_metadata(content, metadata)
+        if role in ["user", "assistant"] and augmented:
+            if role == "assistant":
+                has_prior_assistant_message = True
+            history_images = []
+            for img in metadata.get("images", []):
+                if isinstance(img, str) and img.strip():
+                    if (
+                        img.startswith("http://")
+                        or img.startswith("https://")
+                        or img.startswith("data:")
+                        or len(img) > 100
+                    ):
+                        history_images.append(img)
+            entry = {"role": role, "content": augmented}
+            if history_images:
+                entry["images"] = history_images[:2]
+            chat_history.append(entry)
+
+    return chat_history, has_prior_assistant_message, location
+
+
+async def _stream_and_collect(
+    agent: Any,
+    enriched_message: str,
+    session_id: str,
+    images: Optional[List[str]],
+    location: Optional[Dict[str, Any]],
+    chat_history: Optional[List[Dict[str, Any]]],
+    user_role: str,
+) -> tuple:
+    react_trace: List[Dict[str, Any]] = []
+    step_index = 0
+    full_response = ""
+    sent_ui_types: Dict[str, bool] = {}
+    streamed_final_answer = False
+
+    loop = asyncio.get_running_loop()
+    total_timeout = max(
+        1, int(getattr(settings, "AGENT_STREAM_TOTAL_TIMEOUT_SECONDS", 120))
+    )
+    idle_timeout = max(
+        1, int(getattr(settings, "AGENT_STREAM_IDLE_TIMEOUT_SECONDS", 30))
+    )
+    deadline = loop.time() + float(total_timeout)
+
+    aiter = agent.stream(
+        enriched_message,
+        session_id,
+        images=images,
+        location=location,
+        chat_history=chat_history,
+        user_role=user_role,
+    ).__aiter__()
+
+    try:
+        while True:
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                raise asyncio.TimeoutError()
+            timeout_s = min(float(idle_timeout), float(remaining))
+
+            try:
+                event = await asyncio.wait_for(aiter.__anext__(), timeout=timeout_s)
+            except StopAsyncIteration:
+                break
+
+            if not isinstance(event, dict):
+                continue
+
+            event_type = event.get("type", "")
+
+            if event_type == "react_step":
+                step = event.get("step", {})
+                ws_message = map_react_step_to_message(step, step_index)
+                safe_step = dict(step) if isinstance(step, dict) else {}
+                if safe_step.get("step_type") == "thought":
+                    safe_step["content"] = ""
+                react_trace.append({"step_index": step_index, **safe_step})
+                await manager.send_message(session_id, ws_message)
+
+                if (
+                    str(safe_step.get("step_type") or "").strip().lower()
+                    == "observation"
+                ):
+                    ui_payload = extract_ui_card(safe_step)
+                    if ui_payload:
+                        ui_type = ui_payload.get("type")
+                        if not sent_ui_types.get(ui_type):
+                            sent_ui_types[ui_type] = True
+                            await manager.send_message(
+                                session_id,
+                                {
+                                    **ui_payload,
+                                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                                },
+                            )
+                step_index += 1
+
+            elif event_type == "token":
+                continue
+
+            elif event_type == "final_answer":
+                full_response = event.get("content", full_response) or ""
+                if not streamed_final_answer and full_response.strip():
+                    streamed_final_answer = True
+                    for chunk in iter_stream_chunks(full_response, max_chars=72):
+                        await manager.send_message(
+                            session_id,
+                            {
+                                "type": "stream",
+                                "content": chunk,
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                            },
+                        )
+
+            elif event_type == "error":
+                await manager.send_message(
+                    session_id,
+                    {
+                        "type": "error",
+                        "error": str(event.get("content", "Không rõ lỗi")),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    },
+                )
+                raise asyncio.CancelledError()
+
+    except asyncio.TimeoutError:
+        with suppress(Exception):
+            await aiter.aclose()
+        await manager.send_message(
+            session_id,
+            {
+                "type": "error",
+                "error": "Quá thời gian phản hồi của trợ lý. Vui lòng thử lại.",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+        raise
+
+    return full_response, react_trace, step_index
+
+
+async def _finalize_and_persist(
+    session_id: str,
+    user: CurrentUser,
+    session_context: str,
+    agent_id: Optional[int],
+    full_response: str,
+    react_trace: List[Dict[str, Any]],
+    user_message: str,
+    has_prior_assistant_message: bool,
+) -> None:
+    if not full_response.strip():
+        full_response = (
+            "Xin lỗi, mình chưa thể tổng hợp câu trả lời lúc này. "
+            "Bạn thử gửi lại câu hỏi (hoặc nói rõ dịch vụ/ngày giờ mong muốn) giúp mình nhé."
+        )
+
+    full_response = sanitize_assistant_response(
+        full_response,
+        user_message=user_message,
+        has_prior_assistant_message=has_prior_assistant_message,
+    )
+
+    assistant_tool_calls = [
+        {
+            "tool_name": step.get("tool_name"),
+            "tool_params": step.get("tool_params"),
+            "tool_result": step.get("tool_result"),
+        }
+        for step in react_trace
+        if step.get("tool_name")
+    ]
+
+    await save_chat_message(
+        {
+            "message_id": str(uuid.uuid4()),
+            "session_id": session_id,
+            "user_id": user.user_id,
+            "role": "assistant",
+            "content": full_response,
+            "context_type": session_context,
+            "react_trace": react_trace,
+            "tool_calls": assistant_tool_calls,
+            "timestamp": datetime.now(timezone.utc),
+        }
+    )
+
+    await touch_chat_session(session_id, {"agent_id": agent_id})
+
+    await manager.send_message(
+        session_id,
+        {
+            "type": "complete",
+            "full_response": full_response,
+            "react_trace": react_trace,
+            "agent_id": agent_id,
+            "total_steps": len(react_trace),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
+    logger.info(f"Chat stream completed: {session_id} ({len(react_trace)} steps)")
+
+
 async def handle_chat_message(
     websocket: WebSocket,
     session_id: str,
@@ -464,419 +883,116 @@ async def handle_chat_message(
     images: Optional[List[str]] = None,
 ):
     """
-    Handle incoming chat message with real SingleAgent integration
+    Orchestrates the full chat lifecycle: parse → agent setup → stream → finalize.
+    Each step is delegated to a focused helper function.
     """
     react_trace: List[Dict[str, Any]] = []
     full_response = ""
-    step_index = 0
-    streamed_final_answer = False
-    sent_ui_types: Dict[str, bool] = {}
-    location_payload: Optional[Dict[str, Any]] = None
-    ui_action_payload: Optional[Dict[str, Any]] = None
+
     try:
-        # 1. Parse message metadata
-        try:
-            data = json.loads(message)
-            user_message = data.get("message", message)
-            agent_id = data.get("agent_id", agent_id)
-            provider_override = data.get("provider", provider_override)
-            model_override = data.get("model", model_override)
-            images = data.get("images", [])
-            raw_ui_action = data.get("ui_action")
-            if isinstance(raw_ui_action, dict):
-                ui_action_payload = raw_ui_action
-            # Optional location from mobile client to reduce manual input
-            raw_location = data.get("location")
-            lat = data.get("latitude")
-            lng = data.get("longitude")
-            address = None
-            if isinstance(raw_location, dict):
-                lat = (
-                    lat
-                    if lat is not None
-                    else raw_location.get("lat") or raw_location.get("latitude")
-                )
-                lng = (
-                    lng
-                    if lng is not None
-                    else raw_location.get("lng") or raw_location.get("longitude")
-                )
-                address = raw_location.get("address") or raw_location.get(
-                    "formatted_address"
-                )
-            if lat is not None and lng is not None:
-                location_payload = _normalize_location_payload(
-                    {"lat": lat, "lng": lng, "address": address}
-                )
-        except json.JSONDecodeError:
-            user_message = message
-            images = []
-
-        if not isinstance(images, list):
-            images = []
-
-        # 2. Filter valid image URLs/base64
-        image_urls = []
-        for img in images:
-            if not isinstance(img, str):
-                continue
-            img = img.strip()
-            if not img:
-                continue
-            if img.startswith("http://") or img.startswith("https://"):
-                image_urls.append(img)
-            elif img.startswith("data:") or len(img) > 100:
-                image_urls.append(img)
-
-        if session_context != PLAYGROUND_TEST:
-            provider_override = None
-            model_override = None
-
-        now_iso = datetime.now(timezone.utc).isoformat()
-        await manager.send_message(
-            session_id,
-            {
-                "type": "ack",
-                # ACK là trạng thái hệ thống, không echo lại câu user trong UI "thinking".
-                "message": "Đã nhận yêu cầu.",
-                "agent_id": agent_id,
-                "provider": provider_override,
-                "model": model_override,
-                "timestamp": now_iso,
-            },
+        # 1. Parse message
+        parsed = _parse_raw_message(
+            message=message,
+            agent_id=agent_id,
+            provider_override=provider_override,
+            model_override=model_override,
+            images=images,
         )
 
-        current_turn_metadata = {
-            "images": image_urls,
-            "location": location_payload,
-            "ui_action": ui_action_payload,
-        }
-        enriched_user_message = _augment_content_with_metadata(
-            user_message,
-            current_turn_metadata,
+        if session_context != PLAYGROUND_TEST:
+            parsed = ParsedMessage(
+                user_message=parsed.user_message,
+                agent_id=parsed.agent_id,
+                provider_override=None,
+                model_override=None,
+                image_urls=parsed.image_urls,
+                location=parsed.location,
+                ui_action=parsed.ui_action,
+                raw_message=parsed.raw_message,
+            )
+
+        await _send_ack(
+            session_id,
+            parsed.agent_id,
+            parsed.provider_override,
+            parsed.model_override,
         )
 
         if (
-            str(user_message or "").strip() != ""
-            or image_urls
-            or ui_action_payload
-            or location_payload
+            str(parsed.user_message or "").strip()
+            or parsed.image_urls
+            or parsed.ui_action
+            or parsed.location
         ):
-            await save_chat_message(
-                {
-                    "message_id": str(uuid.uuid4()),
-                    "session_id": session_id,
-                    "user_id": user.user_id,
-                    "role": "user",
-                    "content": user_message,
-                    "context_type": session_context,
-                    "metadata": current_turn_metadata,
-                    "timestamp": datetime.now(timezone.utc),
-                }
+            await _save_user_message(
+                session_id,
+                user.user_id,
+                parsed.user_message,
+                session_context,
+                parsed.image_urls,
+                parsed.location,
+                parsed.ui_action,
             )
 
         await touch_chat_session(session_id)
 
-        # 4. Agent Execution Context
+        # 2. Setup agent
         async with AsyncSessionLocal() as db:
             try:
-                if agent_id:
-                    agent = await AgentFactory.get_agent_by_id(
-                        agent_id=agent_id,
-                        db_session=db,
-                        provider_override=provider_override,
-                        model_override=model_override,
-                        user_role=user.role,
-                        context_type=session_context,
-                    )
-                else:
-                    agent = await AgentFactory.get_agent(
-                        db_session=db,
-                        provider_override=provider_override,
-                        model_override=model_override,
-                        user_role=user.role,
-                        context_type=session_context,
-                    )
-            except ValueError as e:
-                await manager.send_message(
+                agent, runtime_token = await _setup_agent(
                     session_id,
-                    {
-                        "type": "error",
-                        "error": str(e),
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                    },
+                    db,
+                    user,
+                    parsed.agent_id,
+                    parsed.provider_override,
+                    parsed.model_override,
+                    session_context,
                 )
+            except ValueError:
                 return
 
-            if not agent:
-                await manager.send_message(
-                    session_id,
-                    {
-                        "type": "error",
-                        "error": "Không tìm thấy cấu hình trợ lý AI phù hợp.",
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                    },
-                )
-                return
-
-            # Agent info broadcast
-            await manager.send_message(
-                session_id,
+            # 3. Build context
+            chat_history_limit = max(
+                1, min(int(getattr(settings, "CHAT_HISTORY_CONTEXT_LIMIT", 20)), 200)
+            )
+            history_raw = await get_chat_history(session_id, limit=chat_history_limit)
+            chat_history, has_prior, location = _build_chat_context(
+                history_raw, parsed.location
+            )
+            enriched_message = _augment_content_with_metadata(
+                parsed.user_message,
                 {
-                    "type": "agent_info",
-                    "agent_name": agent.name,
-                    "agent_type": agent.agent_type,
-                    "provider": provider_override or "openrouter",
-                    "model": model_override or "default",
-                    "allowed_tools": agent.enabled_tools,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "images": parsed.image_urls,
+                    "location": location,
+                    "ui_action": parsed.ui_action,
                 },
             )
 
-            runtime_token = set_tool_runtime_context(
-                ToolRuntimeContext(
-                    user_id=user.user_id,
-                    role=user.role,
-                    auth_token=auth_token,
-                    clinic_id=user.clinic_id,
-                    session_id=session_id,
-                    context_type=session_context,
-                )
-            )
-
-            # 5. Get chat history for context (include images from history)
-            context_history_limit = max(
-                1, min(int(getattr(settings, "CHAT_HISTORY_CONTEXT_LIMIT", 20)), 200)
-            )
-            chat_history_raw = await get_chat_history(
-                session_id, limit=context_history_limit
-            )
-            if location_payload is None:
-                location_payload = _extract_latest_location_from_history(
-                    chat_history_raw
-                )
-
-            chat_history = []
-            has_prior_assistant_message = False
-            for msg in chat_history_raw:
-                role = msg.get("role")
-                content = msg.get("content", "")
-                metadata = msg.get("metadata", {})
-                augmented_content = _augment_content_with_metadata(content, metadata)
-                if role in ["user", "assistant"] and augmented_content:
-                    if role == "assistant":
-                        has_prior_assistant_message = True
-                    raw_images = metadata.get("images", [])
-
-                    history_images = []
-                    if raw_images:
-                        for img in raw_images:
-                            if isinstance(img, str) and img.strip():
-                                if img.startswith("http://") or img.startswith(
-                                    "https://"
-                                ):
-                                    history_images.append(img)
-                                elif img.startswith("data:") or len(img) > 100:
-                                    history_images.append(img)
-
-                    msg_data = {
-                        "role": role,
-                        "content": augmented_content,
-                    }
-                    if history_images:
-                        msg_data["images"] = history_images[:2]
-
-                    chat_history.append(msg_data)
-            # 6. Streaming loop (timeout protected)
-            stream_total_timeout_s = max(
-                1, int(getattr(settings, "AGENT_STREAM_TOTAL_TIMEOUT_SECONDS", 120))
-            )
-            stream_idle_timeout_s = max(
-                1, int(getattr(settings, "AGENT_STREAM_IDLE_TIMEOUT_SECONDS", 30))
-            )
-
-            loop = asyncio.get_running_loop()
-            deadline = loop.time() + float(stream_total_timeout_s)
-
-            aiter = agent.stream(
-                enriched_user_message,
-                session_id,
-                images=image_urls if image_urls else None,
-                location=location_payload,
-                chat_history=chat_history if chat_history else None,
-                user_role=user.role,
-            ).__aiter__()
-
+            # 4. Stream
             try:
-                while True:
-                    remaining_total = deadline - loop.time()
-                    if remaining_total <= 0:
-                        raise asyncio.TimeoutError()
-
-                    timeout_s = min(
-                        float(stream_idle_timeout_s), float(remaining_total)
-                    )
-                    try:
-                        event = await asyncio.wait_for(
-                            aiter.__anext__(), timeout=timeout_s
-                        )
-                    except StopAsyncIteration:
-                        break
-
-                    if not isinstance(event, dict):
-                        continue
-
-                    event_type = event.get("type", "")
-
-                    if event_type == "react_step":
-                        step = event.get("step", {})
-                        ws_message = map_react_step_to_message(step, step_index)
-                        safe_step = dict(step) if isinstance(step, dict) else {}
-                        if safe_step.get("step_type") == "thought":
-                            safe_step["content"] = ""
-                        react_trace.append({"step_index": step_index, **safe_step})
-                        await manager.send_message(session_id, ws_message)
-
-                        # Generic UI card dispatch - no hardcoded tool names
-                        if (
-                            str(safe_step.get("step_type") or "").strip().lower()
-                            == "observation"
-                        ):
-                            ui_payload = extract_ui_card(safe_step)
-                            if ui_payload:
-                                ui_type = ui_payload.get("type")
-                                if not sent_ui_types.get(ui_type):
-                                    sent_ui_types[ui_type] = True
-                                    await manager.send_message(
-                                        session_id,
-                                        {
-                                            **ui_payload,
-                                            "timestamp": datetime.now(
-                                                timezone.utc
-                                            ).isoformat(),
-                                        },
-                                    )
-                        step_index += 1
-
-                    elif event_type == "token":
-                        continue
-
-                    elif event_type == "final_answer":
-                        full_response = event.get("content", full_response) or ""
-                        full_response = sanitize_assistant_response(
-                            full_response,
-                            user_message=user_message,
-                            has_prior_assistant_message=has_prior_assistant_message,
-                        )
-                        if not streamed_final_answer and full_response.strip():
-                            streamed_final_answer = True
-                            for chunk in iter_stream_chunks(
-                                full_response, max_chars=72
-                            ):
-                                await manager.send_message(
-                                    session_id,
-                                    {
-                                        "type": "stream",
-                                        "content": chunk,
-                                        "timestamp": datetime.now(
-                                            timezone.utc
-                                        ).isoformat(),
-                                    },
-                                )
-
-                    elif event_type == "error":
-                        error_content = event.get("content", "Không rõ lỗi")
-                        await manager.send_message(
-                            session_id,
-                            {
-                                "type": "error",
-                                "error": str(error_content),
-                                "timestamp": datetime.now(timezone.utc).isoformat(),
-                            },
-                        )
-                        return
-
-            except asyncio.TimeoutError:
-                with suppress(Exception):
-                    await aiter.aclose()
-                await manager.send_message(
+                full_response, react_trace, _ = await _stream_and_collect(
+                    agent,
+                    enriched_message,
                     session_id,
-                    {
-                        "type": "error",
-                        "error": "Quá thời gian phản hồi của trợ lý. Vui lòng thử lại.",
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                    },
+                    parsed.image_urls if parsed.image_urls else None,
+                    location,
+                    chat_history if chat_history else None,
+                    user.role,
                 )
-                return
             finally:
                 reset_tool_runtime_context(runtime_token)
 
-        # 6. Finalization & Persistence
-
-        if not full_response.strip():
-            full_response = (
-                "Xin lỗi, mình chưa thể tổng hợp câu trả lời lúc này. "
-                "Bạn thử gửi lại câu hỏi (hoặc nói rõ dịch vụ/ngày giờ mong muốn) giúp mình nhé."
-            )
-
-        full_response = sanitize_assistant_response(
-            full_response,
-            user_message=user_message,
-            has_prior_assistant_message=has_prior_assistant_message,
-        )
-
-        # Fallback: generate response if tool results provide context
-        if not full_response.strip():
-            for step in react_trace:
-                ui_payload = extract_ui_card(step)
-                if ui_payload:
-                    ui_type = ui_payload.get("type")
-                    if ui_type == "clinic_suggestion":
-                        full_response = "Mình đã gợi ý một số phòng khám gần bạn ở bên dưới. Bạn chọn 1 phòng khám rồi mình tiếp tục đặt lịch trong chat nhé."
-                        break
-                    elif ui_type == "pet_list":
-                        full_response = "Mình đã lấy được danh sách thú cưng của bạn. Bạn cho mình biết bé nào cần đặt lịch nhé."
-                        break
-
-        assistant_tool_calls = [
-            {
-                "tool_name": step.get("tool_name"),
-                "tool_params": step.get("tool_params"),
-                "tool_result": step.get("tool_result"),
-            }
-            for step in react_trace
-            if step.get("tool_name")
-        ]
-
-        await save_chat_message(
-            {
-                "message_id": str(uuid.uuid4()),
-                "session_id": session_id,
-                "user_id": user.user_id,
-                "role": "assistant",
-                "content": full_response,
-                "context_type": session_context,
-                "react_trace": react_trace,
-                "tool_calls": assistant_tool_calls,
-                "timestamp": datetime.now(timezone.utc),
-            }
-        )
-
-        await touch_chat_session(session_id, {"agent_id": agent_id})
-
-        await manager.send_message(
+        # 5. Finalize (outside DB session — no agent/runtime context needed)
+        await _finalize_and_persist(
             session_id,
-            {
-                "type": "complete",
-                "full_response": full_response,
-                "react_trace": react_trace,
-                "agent_id": agent_id,
-                "total_steps": step_index,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            },
+            user,
+            session_context,
+            parsed.agent_id,
+            full_response,
+            react_trace,
+            parsed.user_message,
+            has_prior,
         )
-
-        logger.info(f"Chat stream completed: {session_id} ({step_index} steps)")
 
     except Exception as e:
         logger.error(f"Error handling current chat-message: {e}", exc_info=True)

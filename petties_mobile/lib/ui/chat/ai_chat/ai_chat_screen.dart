@@ -19,7 +19,12 @@ import 'utils/ai_booking_quick_actions.dart';
 import 'utils/ai_chat_widgets.dart';
 
 class AiChatScreen extends StatefulWidget {
-  const AiChatScreen({super.key});
+  final bool isStaffContext;
+
+  const AiChatScreen({
+    super.key,
+    this.isStaffContext = false,
+  });
 
   @override
   State<AiChatScreen> createState() => _AiChatScreenState();
@@ -66,6 +71,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   final List<Map<String, dynamic>> _liveReactTrace = <Map<String, dynamic>>[];
   List<dynamic>? _lastCompletedReactTrace;
   bool _thinkingDetailsExpanded = false;
+  List<String> _selectedChatImages = [];
 
   @override
   void initState() {
@@ -1110,6 +1116,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
     });
 
     _messageController.clear();
+    final sentImages = List<String>.from(_selectedChatImages);
+    _selectedChatImages.clear();
     _scrollToBottom();
 
     try {
@@ -1123,6 +1131,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
           message: safeMessage,
           uiAction: uiAction,
           location: location,
+          images: sentImages.isNotEmpty ? sentImages : null,
         ),
       );
     } catch (_) {
@@ -1416,6 +1425,12 @@ class _AiChatScreenState extends State<AiChatScreen> {
               },
               isSending: _isSending,
               isReconnecting: _isReconnecting,
+              onImagesSelected: (images) {
+                setState(() {
+                  _selectedChatImages = images;
+                });
+              },
+              selectedImages: _selectedChatImages,
             ),
           ],
         ),

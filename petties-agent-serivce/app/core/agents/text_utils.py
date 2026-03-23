@@ -50,7 +50,7 @@ def build_recent_dialogue(messages: List[Any], limit: int = 10) -> str:
         return ""
 
     lines: List[str] = []
-    for msg in messages[-max(1, limit):]:
+    for msg in messages[-max(1, limit) :]:
         if isinstance(msg, dict):
             role = str(msg.get("role") or "").strip().lower()
             content = str(msg.get("content") or "").strip()
@@ -72,14 +72,6 @@ def build_recent_dialogue(messages: List[Any], limit: int = 10) -> str:
         lines.append(f"- {label}: {compact}")
 
     return "\n".join(lines)
-
-
-def infer_pet_type(user_message: str) -> str:
-    """Infer pet type from user message; defaults to 'dog'."""
-    normalized = (user_message or "").lower()
-    if any(kw in normalized for kw in ["mèo", "meo", "cat", "kitten"]):
-        return "cat"
-    return "dog"
 
 
 def get_latest_successful_tool_data(

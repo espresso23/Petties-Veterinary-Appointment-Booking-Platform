@@ -36,7 +36,6 @@ from app.core.agents.thought_parser import parse_thought
 from app.core.agents.response_formatter import format_tool_observation
 from app.core.agents.tool_routing import apply_booking_tool_routing
 from app.core.agents.enrichment_strategy import (
-    build_web_search_fallback_call,
     build_final_answer_from_tool_result,
 )
 from app.core.agents.prompt_builder import build_context, create_think_prompt
@@ -83,6 +82,9 @@ DEFAULT_SYSTEM_PROMPT = """Bạn là Petties AI Assistant - trợ lý AI chuyên
 """
 # NOTE cho Admin: Prompt này chỉ nên chứa nhân cách, giọng điệu, nhiệm vụ, quy tắc nghiệp vụ.
 # KHÔNG thêm: ReAct pattern, danh sách tools, quy tắc format kỹ thuật (code đã quản lý).
+
+
+from app.core.config_loader import AgentConfigLoader
 
 
 class SingleAgent:
@@ -151,7 +153,75 @@ class SingleAgent:
         self.graph = self._build_graph()
 
         logger.info(
-            f"SingleAgent initialized with {len(self.enabled_tools)} enabled tools"
+            f"SingleAgent initialized with {len(self.enabled_tools)} enabled tools, "
+            f"temperature={self.temperature}, max_tokens={self.max_tokens}"
+        )
+
+    @classmethod
+    async def create(
+        cls,
+        llm_client,
+        name: str = "petties_agent",
+        agent_type: str = "single_agent",
+        system_prompt: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        top_p: Optional[float] = None,
+        enabled_tools: Optional[List[str]] = None,
+        tool_schemas: Optional[List[Dict[str, Any]]] = None,
+        max_iterations: int = 5,
+    ) -> "SingleAgent":
+        """
+        Factory method to create SingleAgent with config loaded from database.
+
+        If system_prompt, temperature, max_tokens, top_p are not provided,
+        they will be loaded from DB via AgentConfigLoader.
+
+        Args:
+            llm_client: LLM client instance
+            name: Agent name (default: petties_agent)
+            agent_type: Agent type
+            system_prompt: Override system prompt (optional)
+            temperature: Override temperature (optional)
+            max_tokens: Override max_tokens (optional)
+            top_p: Override top_p (optional)
+            enabled_tools: List of enabled tool names
+            tool_schemas: List of tool schema dicts
+            max_iterations: Max iterations before force stop
+
+        Returns:
+            SingleAgent instance with config from DB
+        """
+        # Load config from DB for any parameter not explicitly provided
+        config = await AgentConfigLoader.get_config(name)
+
+        # Use provided values, fallback to DB config, then to defaults
+        final_system_prompt = (
+            system_prompt if system_prompt is not None else config.system_prompt
+        )
+        final_temperature = (
+            temperature if temperature is not None else config.temperature
+        )
+        final_max_tokens = max_tokens if max_tokens is not None else config.max_tokens
+        final_top_p = top_p if top_p is not None else config.top_p
+
+        logger.info(
+            f"Creating SingleAgent with DB config: "
+            f"system_prompt={'provided' if system_prompt else ('DB' if config.system_prompt else 'default')}, "
+            f"temperature={final_temperature}, max_tokens={final_max_tokens}, top_p={final_top_p}"
+        )
+
+        return cls(
+            llm_client=llm_client,
+            name=name,
+            agent_type=agent_type,
+            system_prompt=final_system_prompt,
+            temperature=final_temperature,
+            max_tokens=final_max_tokens,
+            top_p=final_top_p,
+            enabled_tools=enabled_tools,
+            tool_schemas=tool_schemas,
+            max_iterations=max_iterations,
         )
 
     def _build_graph(self) -> StateGraph:
@@ -194,6 +264,44 @@ class SingleAgent:
         memory = MemorySaver()
         return workflow.compile(checkpointer=memory)
 
+    # ===== HELPERS =====
+
+    def _build_schema_clarification(self, tool_name: str) -> str:
+        """
+        Build clarification message from tool schema required fields.
+
+        Policy: LLM-first. No hardcoded per-tool messages.
+        Reads required fields from tool_schemas and generates a generic ask.
+
+        Returns:
+            A natural Vietnamese clarification string.
+        """
+        schema = next(
+            (
+                t
+                for t in self.tool_schemas
+                if str(t.get("name") or "").strip() == tool_name
+            ),
+            None,
+        )
+        if schema:
+            input_schema = schema.get("input_schema") or schema.get("parameters") or {}
+            required_fields = (
+                input_schema.get("required", [])
+                if isinstance(input_schema, dict)
+                else []
+            )
+            if required_fields:
+                fields_text = ", ".join(str(f) for f in required_fields)
+                return (
+                    f"Mình chưa thể gọi công cụ `{tool_name}` vì còn thiếu: **{fields_text}**. "
+                    "Bạn nói rõ thêm giúp mình nhé."
+                )
+        return (
+            f"Mình chưa thể gọi công cụ `{tool_name}` vì thiếu tham số cần thiết. "
+            "Bạn nói rõ thêm giúp mình nhé."
+        )
+
     # ===== GRAPH NODES =====
 
     async def _think_node(self, state: ReActState) -> Dict[str, Any]:
@@ -231,6 +339,7 @@ class SingleAgent:
         if not isinstance(react_steps, list):
             logger.error(f"react_steps is not a list: {react_steps}")
             react_steps = []
+
         def build_context_with_runtime(steps):
             base = build_context(steps)
             runtime_parts: List[str] = []
@@ -259,14 +368,18 @@ class SingleAgent:
                             extra += f", address={addr.strip()}"
                 if extra is None:
                     try:
-                        extra = f"Runtime location: {json.dumps(loc, ensure_ascii=False)}"
+                        extra = (
+                            f"Runtime location: {json.dumps(loc, ensure_ascii=False)}"
+                        )
                     except Exception:
                         extra = f"Runtime location: {str(loc)}"
                 runtime_parts.append(extra)
             runtime_context_block = "\n".join(runtime_parts)
             if not base:
                 return runtime_context_block
-            return base + ("\n" if runtime_context_block else "") + runtime_context_block
+            return (
+                base + ("\n" if runtime_context_block else "") + runtime_context_block
+            )
 
         # Build context from previous steps (delegated to prompt_builder)
         context = build_context_with_runtime(react_steps)
@@ -278,36 +391,11 @@ class SingleAgent:
             None,
         )
 
-        # --- Pre-LLM enrichment checks (delegated to enrichment_strategy) ---
+        # --- Pre-LLM auto-finalize check (fail-closed on tool error or test/no-LLM mode) ---
+        # NOTE: auto web_search fallback is intentionally REMOVED.
+        # Per fail-closed policy: the LLM decides whether to call web_search.
+        # Only surface tool errors immediately, or produce deterministic output in no-LLM mode.
 
-        # 1. Auto-chain web_search when KB returns insufficient results
-        web_fallback_call = build_web_search_fallback_call(
-            last_action=last_action,
-            tool_result=last_tool_result,
-            react_steps=react_steps,
-            messages=messages,
-            enabled_tools_lower=self._enabled_tools_lower,
-        )
-        if web_fallback_call:
-            fallback_thought = "Knowledge base chưa đủ thông tin, tôi sẽ tìm thêm trên web từ các nguồn liên quan thú cưng/thú y."
-            logger.info("Auto fallback to web_search after insufficient KB result")
-            step = ReActStep(
-                step_type="thought",
-                content=fallback_thought,
-                tool_name="web_search",
-                tool_params=web_fallback_call["arguments"],
-                tool_result=None,
-            )
-            return {
-                "react_steps": [step],
-                "current_thought": fallback_thought,
-                "pending_tool_call": web_fallback_call,
-                "should_end": False,
-                "final_answer": None,
-                "iteration": iteration + 1,
-            }
-
-        # 3. Auto-finalize from tool result (error or no-LLM mode)
         auto_final_answer = build_final_answer_from_tool_result(
             tool_name=last_action.get("tool_name") if last_action else None,
             tool_result=last_tool_result,
@@ -434,7 +522,9 @@ class SingleAgent:
                 and should_end
                 and (not tool_name)
             ):
-                recovered = await self._recover_tool_call(messages=messages, context=context)
+                recovered = await self._recover_tool_call(
+                    messages=messages, context=context
+                )
                 if recovered and recovered.get("tool_name"):
                     tool_name = recovered.get("tool_name")
                     tool_params = recovered.get("tool_params") or {}
@@ -457,28 +547,8 @@ class SingleAgent:
                     logger.warning(
                         f"Tool '{tool_name}' called with empty params - skipping to avoid error"
                     )
-                    should_end = True
-                    # Tool-specific clarification (prevents generic dead-ends).
-                    if normalized_tool == "get_clinic_services":
-                        parsed["thought"] = (
-                            "Bạn muốn mình lấy dịch vụ của phòng khám nào trước nhỉ? "
-                            "Nếu bạn chưa có phòng khám cụ thể, mình có thể tìm phòng khám gần bạn để bạn chọn nhanh."
-                        )
-                    elif normalized_tool == "search_clinics_nearby":
-                        parsed["thought"] = (
-                            "Mình cần vị trí hiện tại của bạn để tìm phòng khám gần nhất. "
-                            "Bạn bật quyền vị trí (GPS) hoặc gửi khu vực/quận giúp mình nhé."
-                        )
-                    elif normalized_tool == "check_available_slots":
-                        parsed["thought"] = (
-                            "Mình sắp kiểm tra slot rồi. Bạn cho mình thêm đúng phần còn thiếu như phòng khám, dịch vụ "
-                            "hoặc ngày khám mong muốn nhé."
-                        )
-                    else:
-                        parsed["thought"] = (
-                            f"Mình chưa thể gọi công cụ `{tool_name}` vì thiếu tham số cần thiết. "
-                            "Bạn nói rõ thêm giúp mình nhé."
-                        )
+                    clarification = self._build_schema_clarification(normalized_tool)
+                    parsed["thought"] = clarification
                 else:
                     if tool_params is None or not isinstance(tool_params, dict):
                         tool_params = {}
@@ -632,8 +702,12 @@ class SingleAgent:
             ),
             None,
         )
-        observed_tool_name = last_action.get("tool_name") if isinstance(last_action, dict) else None
-        observed_tool_params = last_action.get("tool_params") if isinstance(last_action, dict) else None
+        observed_tool_name = (
+            last_action.get("tool_name") if isinstance(last_action, dict) else None
+        )
+        observed_tool_params = (
+            last_action.get("tool_params") if isinstance(last_action, dict) else None
+        )
 
         # Format observation (delegated to response_formatter)
         observation = ""
@@ -729,18 +803,10 @@ class SingleAgent:
             "Nhiệm vụ: tạo một câu trả lời tự nhiên bằng tiếng Việt cho người dùng.\n"
             "Không trả về JSON, không trả về Thought/Tool, không chào lại nếu hội thoại đang tiếp diễn.\n"
             "Nếu dữ liệu hiện có chưa đủ, hãy hỏi lại đúng 1 câu ngắn gọn để lấy phần còn thiếu.\n\n"
-            "Hội thoại gần đây:\n"
-            + recent_dialogue
-            + "\n\n"
-            "Câu hỏi mới nhất của người dùng:\n"
-            + (user_msg or "(không có)")
-            + "\n\n"
-            "Observation gần nhất:\n"
-            + (obs_blob or "(không có)")
-            + "\n\n"
-            "Dữ liệu công cụ gần nhất:\n"
-            + (tool_blob or "(không có)")
-            + "\n\n"
+            "Hội thoại gần đây:\n" + recent_dialogue + "\n\n"
+            "Câu hỏi mới nhất của người dùng:\n" + (user_msg or "(không có)") + "\n\n"
+            "Observation gần nhất:\n" + (obs_blob or "(không có)") + "\n\n"
+            "Dữ liệu công cụ gần nhất:\n" + (tool_blob or "(không có)") + "\n\n"
             "Hãy trả lời đúng trọng tâm yêu cầu hiện tại."
         )
 
@@ -811,7 +877,9 @@ class SingleAgent:
                         continue
                     field_type = str(field_meta.get("type") or "any")
                     semantic_fields.append(f"{field_name}:{field_type}")
-            schema_txt = ", ".join(semantic_fields) if semantic_fields else "no-properties"
+            schema_txt = (
+                ", ".join(semantic_fields) if semantic_fields else "no-properties"
+            )
             tools_desc.append(
                 f"- {name}: {desc} | required=({req_txt}) | fields=({schema_txt})"
             )
@@ -839,9 +907,7 @@ class SingleAgent:
             "Recent conversation:\n"
             + ("\n".join(history_lines) if history_lines else "(empty)")
             + "\n\n"
-            "Runtime context:\n"
-            + (context or "(empty)")
-            + "\n"
+            "Runtime context:\n" + (context or "(empty)") + "\n"
         )
 
         try:
@@ -1020,4 +1086,3 @@ class SingleAgent:
                 "type": "error",
                 "content": str(e),
             }
-

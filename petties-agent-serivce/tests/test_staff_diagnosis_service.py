@@ -327,6 +327,94 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.image_analysis, [])
         self.assertEqual(response.vision_findings, [])
 
+    async def test_fallback_no_keyword_heuristic_for_ear(self):
+        """_fallback_differentials must NOT return ear-specific diagnosis based on keyword 'tai'."""
+        service = StaffDiagnosisService()
+        request = StaffDiagnosisRequest(
+            species=Species.DOG,
+            doctor_description="Bé gãi tai liên tục, tai có mùi hôi.",  # contains "tai" keyword
+        )
+
+        mock_hybrid_engine = Mock()
+        mock_hybrid_engine.query = AsyncMock(
+            return_value=HybridResult(
+                chunks=[],
+                expanded_query="dog",
+                original_query="dog",
+                sources_used={},
+            )
+        )
+        mock_case_memory = Mock()
+        mock_case_memory.search_similar = AsyncMock(return_value=[])
+
+        with (
+            patch(
+                "app.core.services.staff_diagnosis_service.get_hybrid_rag_engine",
+                return_value=mock_hybrid_engine,
+            ),
+            patch(
+                "app.core.services.staff_diagnosis_service.get_case_memory_service",
+                return_value=mock_case_memory,
+            ),
+            patch(
+                "app.core.services.disease_mapping_service.DiseaseMappingService.refresh_from_db",
+                new=AsyncMock(return_value=True),
+            ),
+        ):
+            response = await service.analyze_case(request)
+
+        # Fallback must be generic only — no ear-specific disease name
+        self.assertEqual(len(response.top_differentials), 1)
+        diff = response.top_differentials[0]
+        self.assertIsNone(diff.canonical_code)
+        self.assertNotIn("tai", diff.display_name_vi.lower())
+        self.assertEqual(diff.confidence_note, "Mức gợi ý: thấp")
+
+    async def test_fallback_no_keyword_heuristic_for_eye(self):
+        """_fallback_differentials must NOT return eye-specific diagnosis based on keyword 'mắt'."""
+        service = StaffDiagnosisService()
+        request = StaffDiagnosisRequest(
+            species=Species.CAT,
+            doctor_description="Bé chảy ghèn mắt, đỏ mắt hôm qua.",  # contains "mắt", "ghèn"
+        )
+
+        mock_hybrid_engine = Mock()
+        mock_hybrid_engine.query = AsyncMock(
+            return_value=HybridResult(
+                chunks=[],
+                expanded_query="cat",
+                original_query="cat",
+                sources_used={},
+            )
+        )
+        mock_case_memory = Mock()
+        mock_case_memory.search_similar = AsyncMock(return_value=[])
+
+        with (
+            patch(
+                "app.core.services.staff_diagnosis_service.get_hybrid_rag_engine",
+                return_value=mock_hybrid_engine,
+            ),
+            patch(
+                "app.core.services.staff_diagnosis_service.get_case_memory_service",
+                return_value=mock_case_memory,
+            ),
+            patch(
+                "app.core.services.disease_mapping_service.DiseaseMappingService.refresh_from_db",
+                new=AsyncMock(return_value=True),
+            ),
+        ):
+            response = await service.analyze_case(request)
+
+        # Must be generic fallback — NO "mắt" or "kết mạc" in differential name
+        self.assertEqual(len(response.top_differentials), 1)
+        diff = response.top_differentials[0]
+        self.assertIsNone(diff.canonical_code)
+        self.assertNotIn("mắt", diff.display_name_vi.lower())
+        self.assertNotIn("kết mạc", diff.display_name_vi.lower())
+        self.assertEqual(diff.confidence_note, "Mức gợi ý: thấp")
+
 
 if __name__ == "__main__":
     unittest.main()
+

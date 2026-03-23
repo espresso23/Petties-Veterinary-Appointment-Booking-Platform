@@ -114,6 +114,31 @@ class SpringBackendClient:
     async def get_upcoming_vaccinations(self, token: str, pet_id: str) -> List[Dict[str, Any]]:
         return await self._request("GET", f"/vaccinations/pet/{pet_id}/upcoming", token=token)
 
+    async def get_pet(self, token: str, pet_id: str) -> Any:
+        return await self._request("GET", f"/pets/{pet_id}", token=token)
+
+    async def get_staff_patients(
+        self,
+        *,
+        token: str,
+        clinic_id: str,
+        staff_id: str,
+    ) -> Any:
+        return await self._request(
+            "GET",
+            "/pets/staff",
+            token=token,
+            params={"clinicId": clinic_id, "staffId": staff_id},
+        )
+
+    async def get_pet_emr_history(
+        self,
+        *,
+        token: str,
+        pet_id: str,
+    ) -> Any:
+        return await self._request("GET", f"/emr/pet/{pet_id}", token=token)
+
     async def find_nearby_clinics(
         self,
         latitude: float,
@@ -152,14 +177,7 @@ class SpringBackendClient:
             params["isHomeVisit"] = is_home_visit
 
         compatible_path = f"{base_path}/compatible"
-        try:
-            return await self._request("GET", compatible_path, params=params)
-        except BackendClientError as exc:
-            # Fallback to the public/base endpoint when compatible filtering is unstable.
-            logger.warning(
-                f"Compatible clinic-services endpoint failed for clinic={clinic_id}, fallback to base endpoint: {exc}"
-            )
-            return await self._request("GET", base_path, params=None)
+        return await self._request("GET", compatible_path, params=params)
 
     async def get_available_slots(
         self,

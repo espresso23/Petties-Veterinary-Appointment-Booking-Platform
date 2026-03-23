@@ -21,7 +21,8 @@ from app.api.schemas.diagnosis_contracts import (
     VisionTopCondition,
 )
 from app.core.services.disease_mapping_service import get_disease_mapping_service
-from app.services.llm_client import get_llm_client
+from app.db.postgres.session import AsyncSessionLocal
+from app.services.llm_client import get_llm_client_from_db
 
 
 class GeminiVisionAdapter:
@@ -45,8 +46,6 @@ class GeminiVisionAdapter:
 
         try:
             prompt = self._build_prompt(request)
-            from app.db.postgres.session import AsyncSessionLocal
-
             async with AsyncSessionLocal() as db:
                 llm_client = await get_llm_client_from_db(db)
             llm_response = await llm_client.generate(

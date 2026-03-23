@@ -42,6 +42,7 @@ interface Message {
   id: string
   role: 'user' | 'assistant'
   content: string
+  images?: string[]
   timestamp: Date
   thinkingProcess?: string[]
   toolCalls?: Array<{ tool: string; input: unknown; output?: unknown }>
@@ -422,10 +423,13 @@ export const PlaygroundPage = () => {
       }
     }
 
+    const images = message.metadata?.images as string[] | undefined
+
     return {
       id: message.message_id || crypto.randomUUID(),
       role: message.role === 'assistant' ? 'assistant' : 'user',
       content: message.content,
+      images: images?.length ? images : undefined,
       timestamp: message.timestamp ? new Date(message.timestamp) : new Date(),
       thinkingProcess: thinkingProcess.length > 0 ? thinkingProcess : undefined,
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
@@ -754,6 +758,7 @@ export const PlaygroundPage = () => {
       id: Date.now().toString(),
       role: 'user',
       content: input.trim(),
+      images: selectedImages.length > 0 ? selectedImages.map(img => img.base64) : undefined,
       timestamp: new Date()
     }
 
@@ -1198,6 +1203,7 @@ export const PlaygroundPage = () => {
                     key={msg.id}
                     role={msg.role}
                     content={msg.content}
+                    images={msg.images}
                     timestamp={msg.timestamp}
                     thinkingProcess={msg.thinkingProcess}
                     toolCalls={msg.toolCalls?.map(t => ({ ...t, input: (t.input ?? {}) as Record<string, unknown> }))}

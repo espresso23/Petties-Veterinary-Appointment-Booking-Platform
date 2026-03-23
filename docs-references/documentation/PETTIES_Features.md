@@ -1,4 +1,4 @@
-﻿# PETTIES V0.0.1 - FEATURES & HAPPY FLOWS
+# PETTIES V0.0.1 - FEATURES & HAPPY FLOWS
 
 > Lưu ý cập nhật ngày 2026-03-22:
 > - **Tool Self-Contained UI Cards (v2.0):** Tools định nghĩa `ui_card` trong return value, chat.py dùng generic dispatcher. Không còn hardcoded extraction logic. Xem [AI_SERVICE_TECHNICAL_SPECIFICATION.md](D:/SEP490/petties/docs-references/documentation/AI_SERVICE_TECHNICAL_SPECIFICATION.md).
@@ -264,7 +264,7 @@
 
 #### Case Memory từ EMR xác nhận (thay cho hướng cũ)
 - 📋 **Confirmed Case Storage** - Lưu các ca bệnh đã xác nhận từ feedback tích cực vào Qdrant
-- 📋 **Feedback-weighted Re-ranking** - Score = cosine_similarity + min(feedback_count/100, 0.3) + (0.1 if staff_verified)
+- 📋 **Confirmation-weighted Re-ranking** - Score = cosine_similarity + min(confirmation_count/100, 0.3)
 - 📋 **Role-based Weights** - STAFF=1.0, CLINIC_MANAGER/OWNER=0.7, PET_OWNER=0.6
 - 📋 Auto-embed khi nhận feedback tích cực (rating >= 4)
 - 📋 Admin prune endpoint (`POST /knowledge/case-memory/prune`)

@@ -1,4 +1,4 @@
-﻿# AI Agent - Data Management & Continuous Improvement Strategy
+# AI Agent - Data Management & Continuous Improvement Strategy
 
 > Lưu ý cập nhật ngày 2026-03-17: tài liệu này chứa nhiều nội dung lịch sử của hướng AI Diagnose cũ như Visual Case Memory từ feedback ảnh, thumbs up/down và Label Studio. Kiến trúc hiện hành đã chuyển sang knowledge base + EMR xác nhận + Gemini Vision theo [AI_DIAGNOSIS_FEATURE_PLAN.md](D:/SEP490/petties/docs-references/documentation/AI_DIAGNOSIS_FEATURE_PLAN.md) và [AI_DIAGNOSIS_PROGRESS.md](D:/SEP490/petties/docs-references/documentation/AI_DIAGNOSIS_PROGRESS.md). Không dùng tài liệu này làm nguồn triển khai chính cho doctor diagnostic flow mới.
 
@@ -758,10 +758,9 @@ sequenceDiagram
     "body_part": "ear",
     "symptoms": ["itching", "brown debris", "head shaking"],
     "treatment": "Ear drops + ear cleaning + in-clinic examination",
-    "feedback_type": "confirmed",
-    "feedback_count": 47,
+    "confirmation_count": 47,
     "confidence_score": 0.85,
-    "staff_verified": true,
+
     "created_at": "2026-03-11T10:00:00Z",
     "last_confirmed_at": "2026-03-11T10:00:00Z"
   }
@@ -796,11 +795,9 @@ results = case_memory_collection.search(
 # Re-rank based on feedback
 for result in results:
     base_score = result.score  # Cosine similarity
-    feedback_boost = min(result.payload["feedback_count"] / 100, 0.3)
-    staff_boost = 0.1 if result.payload["staff_verified"] else 0
-    
-    result.final_score = base_score + feedback_boost + staff_boost
-    # Example: case confirmed 50 times by Staff => +0.3 + 0.1 = +0.4 boost
+    confirmation_boost = min(result.payload["confirmation_count"] / 100, 0.3)
+    result.final_score = base_score + confirmation_boost
+    # Example: case confirmed 50 times => +0.3 boost
 
 results.sort(key=lambda r: r.final_score, reverse=True)
 ```
@@ -962,10 +959,10 @@ async def process_positive_feedback(message_id: str, feedback: dict):
     # 4. Embed vao Qdrant case memory
     await case_memory.upsert(case_id, embed(text_to_embed), case, collection=collection)
     
-    # 5. Update feedback count neu case tuong tu da ton tai
+    # 5. Update confirmation count neu case tuong tu da ton tai
     existing = await case_memory.search_similar(text_to_embed, threshold=0.95)
     if existing:
-        await case_memory.update_feedback_count(existing[0].id)
+        await case_memory.update_confirmation_count(existing[0].id)
 ```
 
 **Auto-classify interaction type** (khi frontend khong gui `feedback_category`):
@@ -1018,7 +1015,7 @@ ADMIN playground         = weight 0.0 (chi dung de debug, khong embed)
 | Hang ngay | Auto-classify implicit feedback (booking thanh cong, EMR lookup success) | Thu thap feedback tu dong |
 | Hang tuan | Review cases bi thumbs_down - phan loai theo category va role | Phat hien van de cu the tung tool/role |
 | Hang tuan | Phan tich `wrong_tool` feedback -> dieu chinh tool routing | Tool routing chinh xac hon |
-| Hang thang | Prune cases co score thap + feedback_count = 0 | Tranh nhieu vector store |
+| Hang thang | Prune cases co score thap + confirmation_count = 0 | Tranh nhieu vector store |
 | Hang thang | Thong ke feedback theo role -> dieu chinh role-specific prompts | Prompt tot hon cho tung role |
 | Hang quy | Re-rank toan bo case memory | Dam bao case tot nhat duoc uu tien |
 

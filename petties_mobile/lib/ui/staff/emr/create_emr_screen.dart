@@ -7,6 +7,7 @@ import '../../../data/models/pet.dart';
 import '../../../data/services/emr_service.dart';
 import '../../../data/services/pet_service.dart';
 import '../../common/staff_bottom_nav.dart';
+import '../widgets/ai_diagnosis_sheet.dart';
 
 /// Create EMR Screen - Mobile version of web CreateEmrPage
 class CreateEmrScreen extends StatefulWidget {
@@ -120,6 +121,52 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
       default:
         return gender;
     }
+  }
+
+  void _openAiDiagnosis() {
+    String? speciesStr;
+    if (_petInfo?.species != null) {
+      speciesStr = _petInfo!.species.value;
+    }
+    
+    AiDiagnosisSheet.show(
+      context,
+      petId: widget.petId,
+      bookingId: widget.bookingId,
+      species: speciesStr,
+      breed: _petInfo?.breed,
+      ageMonths: _petInfo?.dateOfBirth != null
+          ? DateTime.now().difference(_petInfo!.dateOfBirth!).inDays ~/ 30
+          : null,
+      weightKg: _petInfo?.weight,
+      allergies: _petInfo?.allergies?.split(',').map((e) => e.trim()).toList(),
+      initialSubjective: _subjectiveController.text.isNotEmpty ? _subjectiveController.text : null,
+      initialObjective: _objectiveController.text.isNotEmpty ? _objectiveController.text : null,
+      initialAssessment: _assessmentController.text.isNotEmpty ? _assessmentController.text : null,
+      initialPlan: _planController.text.isNotEmpty ? _planController.text : null,
+      onApplyDraft: (draft) {
+        setState(() {
+          if (draft.subjectiveDraft.isNotEmpty) {
+            _subjectiveController.text = draft.subjectiveDraft;
+          }
+          if (draft.objectiveDraft.isNotEmpty) {
+            _objectiveController.text = draft.objectiveDraft;
+          }
+          if (draft.assessmentDraft.isNotEmpty) {
+            _assessmentController.text = draft.assessmentDraft;
+          }
+          if (draft.planDraft.isNotEmpty) {
+            _planController.text = draft.planDraft;
+          }
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã áp dụng gợi ý từ AI vào form'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _handleSubmit() async {
@@ -340,6 +387,11 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
           overflow: TextOverflow.ellipsis,
         ),
         actions: [
+          IconButton(
+            onPressed: _openAiDiagnosis,
+            tooltip: 'AI Hỗ trợ chẩn đoán',
+            icon: const Icon(Icons.auto_awesome),
+          ),
           TextButton(
             onPressed: _isSubmitting ? null : _handleSubmit,
             child: _isSubmitting

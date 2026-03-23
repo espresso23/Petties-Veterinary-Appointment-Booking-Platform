@@ -413,6 +413,7 @@ class AiChatService {
     String? message,
     Map<String, dynamic>? uiAction,
     Map<String, dynamic>? location,
+    List<String>? images,
   }) {
     final payload = <String, dynamic>{};
     if (message != null) {
@@ -423,6 +424,9 @@ class AiChatService {
     }
     if (location != null) {
       payload['location'] = location;
+    }
+    if (images != null && images.isNotEmpty) {
+      payload['images'] = images;
     }
     return jsonEncode(payload);
   }

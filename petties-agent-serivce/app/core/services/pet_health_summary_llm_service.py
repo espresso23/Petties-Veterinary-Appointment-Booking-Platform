@@ -1,15 +1,14 @@
-"""
-Pet Health Summary LLM Synthesis Service.
+"""Pet Health Summary synthesis service."""
 
-Package: app.core.services
-Purpose: Tổng hợp thông tin sức khỏe pet bằng LLM (Gemini)
-"""
+from __future__ import annotations
 
-from typing import Dict, Any, Optional
-from loguru import logger
 import json
+from typing import Dict, Any, Optional
 
-from app.services.llm_client import create_llm_client, LLMConfig
+from loguru import logger
+
+from app.db.postgres.session import AsyncSessionLocal
+from app.services.llm_client import BaseLLMClient, get_llm_client_from_db
 
 
 class PetHealthSummaryLLMService:
@@ -27,14 +26,15 @@ class PetHealthSummaryLLMService:
         if self._initialized:
             return
         self._initialized = True
-        self._llm_client = create_llm_client(
-            LLMConfig(
-                provider="openrouter",
-                model="google/gemini-2.0-flash-001",
-                temperature=0.3,
-                max_tokens=1500,
-            )
-        )
+        self._llm_client: Optional[BaseLLMClient] = None
+
+    async def _get_llm_client(self) -> BaseLLMClient:
+        if self._llm_client is not None:
+            return self._llm_client
+
+        async with AsyncSessionLocal() as db:
+            self._llm_client = await get_llm_client_from_db(db)
+        return self._llm_client
 
     async def synthesize_summary(
         self,
@@ -62,18 +62,12 @@ class PetHealthSummaryLLMService:
         prompt = self._build_prompt(pet_info, latest_emr, recent_emrs, user_name)
 
         try:
-            response = await self._llm_client.generate(prompt)
+            llm_client = await self._get_llm_client()
+            response = await llm_client.generate(prompt, temperature=0.3, max_tokens=1500)
             return self._parse_llm_response(response.content, latest_emr)
         except Exception as e:
             logger.error(f"LLM synthesis failed: {e}")
-            return {
-                "error": f"Không thể tổng hợp thông tin: {str(e)}",
-                "latest_emr_summary": None,
-                "health_warnings": [],
-                "medication_reminders": [],
-                "suggested_actions": [],
-                "ai_insights": None,
-            }
+            return self._fallback_parse(latest_emr)
 
     async def _synthesize_no_history(
         self, pet_info: Dict[str, Any], user_name: str
@@ -105,7 +99,8 @@ Trả về JSON format:
 """
 
         try:
-            response = await self._llm_client.generate(prompt)
+            llm_client = await self._get_llm_client()
+            response = await llm_client.generate(prompt, temperature=0.3, max_tokens=1500)
             parsed = json.loads(response.content)
             return {
                 "latest_emr_summary": None,
