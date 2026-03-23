@@ -1,4 +1,4 @@
-package com.petties.petties.service;
+﻿package com.petties.petties.service;
 
 import com.petties.petties.dto.booking.AvailableStaffResponse;
 import com.petties.petties.dto.booking.AvailableSlotsResponse;
@@ -87,8 +87,6 @@ public class BookingService {
         private final TransactionService transactionService;
         private final SosSessionManager sosSessionManager;
         private final TrackingService trackingService;
-        private final VoucherService voucherService;
-        private final com.petties.petties.repository.VoucherRepository voucherRepository;
 
         @Value("${sepay.qr.acc:}")
         private String sepayQrAcc;
@@ -98,7 +96,7 @@ public class BookingService {
 
         private static final int MAX_RETRY_COUNT = 3;
 
-        private static final String PREFERRED_PAYMENT_PREFIX = "Phương thức thanh toán mong muốn:";
+        private static final String PREFERRED_PAYMENT_PREFIX = "PhÆ°Æ¡ng thá»©c thanh toĂ¡n mong muá»‘n:";
 
         // ========== HELPER METHODS ==========
 
@@ -106,32 +104,13 @@ public class BookingService {
          * Validate vaccine species compatibility between pet and service
          * Throws BadRequestException if vaccine is not compatible with pet species
          */
-        private void validateClinicNotStruck(Clinic clinic) {
-                if (clinic.getStatus() != com.petties.petties.model.enums.ClinicStatus.APPROVED) {
-                        throw new BadRequestException("Phòng khám chưa được duyệt hoặc không hoạt động");
-                }
-                if (clinic.getStrikeUntil() != null && clinic.getStrikeUntil().isAfter(java.time.LocalDateTime.now())) {
-                        throw new BadRequestException(
-                                        "Phòng khám đang tạm ngưng nhận đặt lịch do vi phạm. Vui lòng thử lại sau ngày "
-                                                        + clinic.getStrikeUntil().toLocalDate() + ".");
-                }
-        }
-
-        private void validatePetOwnerNotStruck(User petOwner) {
-                if (petOwner.getStrikeUntil() != null && petOwner.getStrikeUntil().isAfter(java.time.LocalDateTime.now())) {
-                        throw new BadRequestException(
-                                        "Tài khoản của bạn đang bị hạn chế đặt lịch do vi phạm. Vui lòng thử lại sau ngày "
-                                                        + petOwner.getStrikeUntil().toLocalDate() + ".");
-                }
-        }
-
         private void validateVaccineSpeciesCompatibility(Pet pet, ClinicService service) {
                 if (service.getVaccineTemplate() != null) {
                         var targetSpecies = service.getVaccineTemplate().getTargetSpecies();
                         if (!SpeciesUtils.isVaccineCompatible(targetSpecies, pet.getSpecies())) {
                                 String vaccineSpecies = SpeciesUtils.getVietnameseName(targetSpecies);
                                 throw new BadRequestException(
-                                        String.format("Vắc-xin '%s' chỉ dành cho %s, không phù hợp với thú cưng '%s' của bạn",
+                                        String.format("Váº¯c-xin '%s' chá»‰ dĂ nh cho %s, khĂ´ng phĂ¹ há»£p vá»›i thĂº cÆ°ng '%s' cá»§a báº¡n",
                                                 service.getName(), vaccineSpecies, pet.getName())
                                 );
                         }
@@ -162,7 +141,7 @@ public class BookingService {
                         return notes;
                 }
 
-                String label = "QR".equals(normalized) ? "Chuyển khoản QR" : "Tiền mặt";
+                String label = "QR".equals(normalized) ? "Chuyá»ƒn khoáº£n QR" : "Tiá»n máº·t";
                 String preferenceLine = PREFERRED_PAYMENT_PREFIX + " " + label;
 
                 if (notes == null || notes.isBlank()) {
@@ -182,16 +161,16 @@ public class BookingService {
                 }
 
                 String notes = booking.getNotes() != null ? booking.getNotes().toLowerCase() : "";
-                if (notes.contains("phương thức thanh toán mong muốn: chuyển khoản qr")
+                if (notes.contains("phÆ°Æ¡ng thá»©c thanh toĂ¡n mong muá»‘n: chuyá»ƒn khoáº£n qr")
                                 || notes.contains("phuong thuc thanh toan mong muon: chuyen khoan qr")
-                                || notes.contains("chuyển khoản qr")
+                                || notes.contains("chuyá»ƒn khoáº£n qr")
                                 || notes.contains("chuyen khoan qr")) {
                         return PaymentMethod.QR;
                 }
 
-                if (notes.contains("phương thức thanh toán mong muốn: tiền mặt")
+                if (notes.contains("phÆ°Æ¡ng thá»©c thanh toĂ¡n mong muá»‘n: tiá»n máº·t")
                                 || notes.contains("phuong thuc thanh toan mong muon: tien mat")
-                                || notes.contains("tiền mặt")
+                                || notes.contains("tiá»n máº·t")
                                 || notes.contains("tien mat")) {
                         return PaymentMethod.CASH;
                 }
@@ -281,7 +260,7 @@ public class BookingService {
                                 "https://qr.sepay.vn/img?acc=%s&bank=%s&amount=%s&des=%s",
                                 sepayQrAcc,
                                 sepayQrBank,
-                                (booking.getFinalPrice() != null ? booking.getFinalPrice() : booking.getTotalPrice()).toBigInteger().toString(),
+                                booking.getTotalPrice().toBigInteger().toString(),
                                 paymentDescription);
 
                 BookingResponse response = bookingMapper.mapToResponse(booking);
@@ -299,7 +278,7 @@ public class BookingService {
         @Transactional(readOnly = true)
         public User getCurrentUserById(UUID userId) {
                 return userRepository.findById(userId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
+                                .orElseThrow(() -> new ResourceNotFoundException("KhĂ´ng tĂ¬m tháº¥y ngÆ°á»i dĂ¹ng"));
         }
 
         // ========== CREATE BOOKING ==========
@@ -323,24 +302,21 @@ public class BookingService {
                                                 it -> it.getPetId() == null || it.getServiceIds() == null
                                                                 || it.getServiceIds().isEmpty())) {
                                         throw new BadRequestException(
-                                                        "Mỗi mục phải có mã thú cưng và ít nhất một dịch vụ");
+                                                        "Má»—i má»¥c pháº£i cĂ³ mĂ£ thĂº cÆ°ng vĂ  Ă­t nháº¥t má»™t dá»‹ch vá»¥");
                                 }
                         } else {
                                 if (request.getPetId() == null || request.getServiceIds() == null
                                                 || request.getServiceIds().isEmpty()) {
                                         throw new BadRequestException(
-                                                        "Vui lòng gửi mã thú cưng và danh sách dịch vụ, hoặc dùng items cho đặt nhiều thú cưng");
+                                                        "Vui lĂ²ng gá»­i mĂ£ thĂº cÆ°ng vĂ  danh sĂ¡ch dá»‹ch vá»¥, hoáº·c dĂ¹ng items cho Ä‘áº·t nhiá»u thĂº cÆ°ng");
                                 }
                         }
 
                         User petOwner = userRepository.findById(petOwnerId)
                                         .orElseThrow(() -> new ResourceNotFoundException(
-                                                        "Không tìm thấy chủ thú cưng"));
+                                                        "KhĂ´ng tĂ¬m tháº¥y chá»§ thĂº cÆ°ng"));
                         Clinic clinic = clinicRepository.findById(request.getClinicId())
-                                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
-
-                        validatePetOwnerNotStruck(petOwner);
-                        validateClinicNotStruck(clinic);
+                                        .orElseThrow(() -> new ResourceNotFoundException("KhĂ´ng tĂ¬m tháº¥y phĂ²ng khĂ¡m"));
 
                         List<Pet> petsToUse = new ArrayList<>();
                         List<ClinicService> servicesToUse = new ArrayList<>();
@@ -352,10 +328,10 @@ public class BookingService {
                                 for (PetServiceItemRequest it : items) {
                                         Pet p = petRepository.findById(it.getPetId())
                                                         .orElseThrow(() -> new ResourceNotFoundException(
-                                                                        "Không tìm thấy thú cưng: " + it.getPetId()));
+                                                                        "KhĂ´ng tĂ¬m tháº¥y thĂº cÆ°ng: " + it.getPetId()));
                                         if (!p.getUser().getUserId().equals(petOwnerId)) {
                                                 throw new ForbiddenException(
-                                                                "Thú cưng không thuộc quyền sở hữu của bạn");
+                                                                "ThĂº cÆ°ng khĂ´ng thuá»™c quyá»n sá»Ÿ há»¯u cá»§a báº¡n");
                                         }
                                         allServiceIds.addAll(it.getServiceIds());
                                 }
@@ -368,11 +344,11 @@ public class BookingService {
                                                 ClinicService svc = serviceMap.get(sid);
                                                 if (svc == null) {
                                                         throw new ResourceNotFoundException(
-                                                                        "Dịch vụ không tồn tại: " + sid);
+                                                                        "Dá»‹ch vá»¥ khĂ´ng tá»“n táº¡i: " + sid);
                                                 }
                                                 if (!svc.getClinic().getClinicId().equals(clinic.getClinicId())) {
                                                         throw new BadRequestException(
-                                                                        "Dịch vụ không thuộc phòng khám đã chọn");
+                                                                        "Dá»‹ch vá»¥ khĂ´ng thuá»™c phĂ²ng khĂ¡m Ä‘Ă£ chá»n");
                                                 }
                                                 // Validate vaccine species compatibility
                                                 validateVaccineSpeciesCompatibility(p, svc);
@@ -383,22 +359,22 @@ public class BookingService {
                         } else {
                                 Pet pet = petRepository.findById(request.getPetId())
                                                 .orElseThrow(() -> new ResourceNotFoundException(
-                                                                "Không tìm thấy thú cưng"));
+                                                                "KhĂ´ng tĂ¬m tháº¥y thĂº cÆ°ng"));
                                 if (!pet.getUser().getUserId().equals(petOwnerId)) {
-                                        throw new ForbiddenException("Thú cưng không thuộc quyền sở hữu của bạn");
+                                        throw new ForbiddenException("ThĂº cÆ°ng khĂ´ng thuá»™c quyá»n sá»Ÿ há»¯u cá»§a báº¡n");
                                 }
                                 primaryPetId = pet.getId();
                         List<ClinicService> services = clinicServiceRepository
                                         .findAllById(request.getServiceIds());
                         if (services.isEmpty()) {
-                                throw new BadRequestException("Vui lòng chọn ít nhất một dịch vụ hợp lệ");
+                                throw new BadRequestException("Vui lĂ²ng chá»n Ă­t nháº¥t má»™t dá»‹ch vá»¥ há»£p lá»‡");
                         }
                         if (services.size() != request.getServiceIds().size()) {
-                                throw new ResourceNotFoundException("Một số dịch vụ không tồn tại");
+                                throw new ResourceNotFoundException("Má»™t sá»‘ dá»‹ch vá»¥ khĂ´ng tá»“n táº¡i");
                         }
                                 for (ClinicService s : services) {
                                         if (!s.getClinic().getClinicId().equals(clinic.getClinicId())) {
-                                                throw new BadRequestException("Dịch vụ không thuộc phòng khám đã chọn");
+                                                throw new BadRequestException("Dá»‹ch vá»¥ khĂ´ng thuá»™c phĂ²ng khĂ¡m Ä‘Ă£ chá»n");
                                         }
                                         // Validate vaccine species compatibility
                                         validateVaccineSpeciesCompatibility(pet, s);
@@ -416,7 +392,7 @@ public class BookingService {
                                                 .map(ClinicService::getName)
                                                 .collect(Collectors.toList());
                                 if (!ineligibleServices.isEmpty()) {
-                                        throw new BadRequestException("Các dịch vụ sau không hỗ trợ khám tại nhà: "
+                                        throw new BadRequestException("CĂ¡c dá»‹ch vá»¥ sau khĂ´ng há»— trá»£ khĂ¡m táº¡i nhĂ : "
                                                         + String.join(", ", ineligibleServices));
                                 }
                         }
@@ -519,11 +495,11 @@ public class BookingService {
                         throw e;
                 } catch (Exception e) {
                         log.error("Error creating booking: ", e);
-                        throw new RuntimeException("Lỗi tạo booking: " + e.getMessage());
+                        throw new RuntimeException("Lá»—i táº¡o booking: " + e.getMessage());
                 }
         }
 
-        // ========== PROXY BOOKING (ĐẶT HỘ) ==========
+        // ========== PROXY BOOKING (Äáº¶T Há»˜) ==========
 
         /**
          * Create a proxy booking on behalf of someone else.
@@ -544,21 +520,18 @@ public class BookingService {
                 try {
                         // Get the proxy booker (the person making the booking on behalf of someone)
                         User proxyBooker = userRepository.findById(proxyBookerId)
-                                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
+                                        .orElseThrow(() -> new ResourceNotFoundException("KhĂ´ng tĂ¬m tháº¥y ngÆ°á»i dĂ¹ng"));
 
                         // Step 1: Create a new guest user for the recipient
                         ProxyRecipientInfo recipientInfo = request.getRecipient();
                         User recipient = createRecipientUser(recipientInfo);
 
-                        // Step 2: Validate clinic and recipient (pet owner)
+                        // Step 2: Validate clinic
                         Clinic clinic = clinicRepository.findById(request.getClinicId())
-                                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
+                                        .orElseThrow(() -> new ResourceNotFoundException("KhĂ´ng tĂ¬m tháº¥y phĂ²ng khĂ¡m"));
 
-                        validatePetOwnerNotStruck(recipient);
-                        validateClinicNotStruck(clinic);
-
-                        // Step 3: Collect (serviceId, pet) pairs - mỗi cặp ứng với 1 BookingServiceItem
-                        // Dùng List thay vì Map vì cùng serviceId có thể dùng cho nhiều pet khác nhau
+                        // Step 3: Collect (serviceId, pet) pairs - má»—i cáº·p á»©ng vá»›i 1 BookingServiceItem
+                        // DĂ¹ng List thay vĂ¬ Map vĂ¬ cĂ¹ng serviceId cĂ³ thá»ƒ dĂ¹ng cho nhiá»u pet khĂ¡c nhau
                         List<Pet> createdPets = new ArrayList<>();
                         List<AbstractMap.SimpleEntry<UUID, Pet>> servicePetPairs = new ArrayList<>();
                         java.util.Set<UUID> uniqueServiceIds = new java.util.HashSet<>();
@@ -569,7 +542,7 @@ public class BookingService {
                                 createdPets.add(pet);
                                 log.info("Created new pet {} for recipient", pet.getName());
 
-                                // Mỗi (serviceId, pet) là 1 item riêng - cùng service có thể cho nhiều pet
+                                // Má»—i (serviceId, pet) lĂ  1 item riĂªng - cĂ¹ng service cĂ³ thá»ƒ cho nhiá»u pet
                                 for (UUID serviceId : item.getServiceIds()) {
                                         servicePetPairs.add(new AbstractMap.SimpleEntry<>(serviceId, pet));
                                         uniqueServiceIds.add(serviceId);
@@ -583,7 +556,7 @@ public class BookingService {
                                         .collect(Collectors.toList());
 
                         if (services.isEmpty()) {
-                                throw new BadRequestException("Không tìm thấy dịch vụ hợp lệ");
+                                throw new BadRequestException("KhĂ´ng tĂ¬m tháº¥y dá»‹ch vá»¥ há»£p lá»‡");
                         }
 
                         Map<UUID, ClinicService> serviceById = services.stream()
@@ -596,7 +569,7 @@ public class BookingService {
                                                 .map(ClinicService::getName)
                                                 .collect(Collectors.toList());
                                 if (!ineligibleServices.isEmpty()) {
-                                        throw new BadRequestException("Các dịch vụ sau không hỗ trợ khám tại nhà: "
+                                        throw new BadRequestException("CĂ¡c dá»‹ch vá»¥ sau khĂ´ng há»— trá»£ khĂ¡m táº¡i nhĂ : "
                                                         + String.join(", ", ineligibleServices));
                                 }
                         }
@@ -693,33 +666,22 @@ public class BookingService {
                         throw e;
                 } catch (Exception e) {
                         log.error("Error creating proxy booking: ", e);
-                        throw new RuntimeException("Lỗi tạo proxy booking: " + e.getMessage());
+                        throw new RuntimeException("Lá»—i táº¡o proxy booking: " + e.getMessage());
                 }
         }
 
         /**
-         * Get or create a user for proxy booking.
-         * Checks if a user with the given phone number already exists:
-         * - If it exists, reuse it (prioritizing existing users/guests).
-         * - If not, create a new guest user and save their phone number.
+         * Create a new guest user for proxy booking.
+         * In proxy booking flow, we always create a new guest user without checking
+         * existing records.
          */
         private User createRecipientUser(ProxyRecipientInfo recipientInfo) {
-                // Check if user already exists with this phone number
-                if (recipientInfo.getPhone() != null && !recipientInfo.getPhone().trim().isEmpty()) {
-                        Optional<User> existingUserOpt = userRepository.findByPhone(recipientInfo.getPhone().trim());
-                        if (existingUserOpt.isPresent()) {
-                                log.info("Found existing user {} for proxy booking by phone: {}", 
-                                                existingUserOpt.get().getUserId(), recipientInfo.getPhone());
-                                return existingUserOpt.get();
-                        }
-                }
-
                 // Generate a unique username using phone + timestamp to avoid conflicts
                 String uniqueUsername = "proxy_" + recipientInfo.getPhone() + "_" + System.currentTimeMillis();
 
                 User newUser = new User();
                 newUser.setFullName(recipientInfo.getFullName());
-                newUser.setPhone(recipientInfo.getPhone()); // Save phone number for future proxy bookings
+                newUser.setPhone(null); // Don't set phone to avoid unique constraint issues
                 newUser.setAddress(recipientInfo.getAddress());
                 newUser.setRole(Role.PET_OWNER);
                 newUser.setUsername(uniqueUsername);
@@ -769,7 +731,7 @@ public class BookingService {
                 log.info("Confirming booking {}", bookingId);
 
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+                                .orElseThrow(() -> new ResourceNotFoundException("KhĂ´ng tĂ¬m tháº¥y lá»‹ch háº¹n"));
 
                 if (booking.getStatus() != BookingStatus.PENDING) {
                         throw new IllegalStateException("Booking is not in PENDING status");
@@ -781,7 +743,7 @@ public class BookingService {
 
                 if (booking.getBookingDate().isBefore(today)) {
                         throw new IllegalStateException(
-                                        "Không thể xác nhận booking đã qua ngày. Vui lòng hủy và đặt lại.");
+                                        "KhĂ´ng thá»ƒ xĂ¡c nháº­n booking Ä‘Ă£ qua ngĂ y. Vui lĂ²ng há»§y vĂ  Ä‘áº·t láº¡i.");
                 }
 
                 // Allow a 30-minute grace period for confirming today's bookings
@@ -789,7 +751,7 @@ public class BookingService {
                         LocalTime graceTime = booking.getBookingTime().plusMinutes(30);
                         if (now.isAfter(graceTime)) {
                                 throw new IllegalStateException(
-                                                "Không thể xác nhận booking đã quá 30 phút so với giờ hẹn. Vui lòng gán bác sĩ thủ công hoặc đặt lại.");
+                                                "KhĂ´ng thá»ƒ xĂ¡c nháº­n booking Ä‘Ă£ quĂ¡ 30 phĂºt so vá»›i giá» háº¹n. Vui lĂ²ng gĂ¡n bĂ¡c sÄ© thá»§ cĂ´ng hoáº·c Ä‘áº·t láº¡i.");
                         }
                 }
 
@@ -844,7 +806,7 @@ public class BookingService {
 
                 // Check if any services remain
                 if (booking.getBookingServices().isEmpty()) {
-                        throw new IllegalStateException("Không còn dịch vụ nào sau khi loại bỏ. Vui lòng hủy booking.");
+                        throw new IllegalStateException("KhĂ´ng cĂ²n dá»‹ch vá»¥ nĂ o sau khi loáº¡i bá». Vui lĂ²ng há»§y booking.");
                 }
 
                 // Update status to CONFIRMED
@@ -866,7 +828,7 @@ public class BookingService {
                                 final UUID finalManualStaffId = manualStaffId;
                                 User manualStaff = userRepository.findById(finalManualStaffId)
                                                 .orElseThrow(() -> new ResourceNotFoundException(
-                                                                "Không tìm thấy nhân viên"));
+                                                                "KhĂ´ng tĂ¬m tháº¥y nhĂ¢n viĂªn"));
                                 log.info("Manual staff assignment: {}", manualStaff.getFullName());
 
                                 booking.setAssignedStaff(manualStaff);
@@ -906,7 +868,7 @@ public class BookingService {
                                         log.warn("Auto-assignment failed or incomplete: only {}/{} assigned",
                                                         assignments.size(), booking.getBookingServices().size());
                                         throw new IllegalStateException(
-                                                        "Hệ thống không tìm thấy đủ nhân viên còn trống lịch để gán tự động. Vui lòng gán thủ công.");
+                                                        "Há»‡ thá»‘ng khĂ´ng tĂ¬m tháº¥y Ä‘á»§ nhĂ¢n viĂªn cĂ²n trá»‘ng lá»‹ch Ä‘á»ƒ gĂ¡n tá»± Ä‘á»™ng. Vui lĂ²ng gĂ¡n thá»§ cĂ´ng.");
                                 }
 
                                 log.info("Auto-assigned {} staff to services", assignments.size());
@@ -918,7 +880,7 @@ public class BookingService {
                         if (e instanceof IllegalStateException || e instanceof ResourceNotFoundException) {
                                 throw e;
                         }
-                        throw new IllegalStateException("Lỗi khi gán lịch: " + e.getMessage());
+                        throw new IllegalStateException("Lá»—i khi gĂ¡n lá»‹ch: " + e.getMessage());
                 }
 
                 Booking updatedBooking = bookingRepository.save(booking);
@@ -975,7 +937,7 @@ public class BookingService {
         @Transactional(readOnly = true)
         public BookingResponse getBookingById(UUID bookingId) {
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+                                .orElseThrow(() -> new ResourceNotFoundException("KhĂ´ng tĂ¬m tháº¥y lá»‹ch háº¹n"));
                 return bookingMapper.mapToResponse(booking);
         }
 
@@ -985,7 +947,7 @@ public class BookingService {
         @Transactional(readOnly = true)
         public BookingResponse getBookingByCode(String bookingCode) {
                 Booking booking = bookingRepository.findByBookingCode(bookingCode)
-                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+                                .orElseThrow(() -> new ResourceNotFoundException("KhĂ´ng tĂ¬m tháº¥y lá»‹ch háº¹n"));
                 return bookingMapper.mapToResponse(booking);
         }
 
@@ -1002,7 +964,7 @@ public class BookingService {
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> {
                                         log.error("Booking not found for ID: {}", bookingId);
-                                        return new ResourceNotFoundException("Không tìm thấy lịch hẹn");
+                                        return new ResourceNotFoundException("KhĂ´ng tĂ¬m tháº¥y lá»‹ch háº¹n");
                                 });
 
                 log.info("Found booking {}. Current status: {}, Type: {}", booking.getBookingCode(),
@@ -1072,7 +1034,7 @@ public class BookingService {
                                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found: " + bookingId));
 
                 if (booking.getStatus() != BookingStatus.PENDING) {
-                        throw new IllegalStateException("Chỉ có thể kiểm tra availability cho booking PENDING");
+                        throw new IllegalStateException("Chá»‰ cĂ³ thá»ƒ kiá»ƒm tra availability cho booking PENDING");
                 }
 
                 return staffAssignmentService.checkStaffAvailabilityForBooking(booking);
@@ -1096,7 +1058,7 @@ public class BookingService {
                                                 (booking.getStatus() != BookingStatus.PENDING_CLINIC_CONFIRM
                                                                 && booking.getStatus() != BookingStatus.SEARCHING))) {
                         throw new IllegalStateException(
-                                        "Chỉ có thể lấy danh sách nhân viên cho booking đang chờ xác nhận");
+                                        "Chá»‰ cĂ³ thá»ƒ láº¥y danh sĂ¡ch nhĂ¢n viĂªn cho booking Ä‘ang chá» xĂ¡c nháº­n");
                 }
 
                 return staffAssignmentService.getAvailableStaffForBookingConfirm(booking);
@@ -1225,7 +1187,7 @@ public class BookingService {
                 log.info("Adding service {} to booking {} by user {}", serviceId, bookingId, currentUser.getUserId());
 
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+                                .orElseThrow(() -> new ResourceNotFoundException("KhĂ´ng tĂ¬m tháº¥y lá»‹ch háº¹n"));
 
                 if (currentUser.getRole() == Role.STAFF || currentUser.getRole() == Role.CLINIC_MANAGER) {
                         UUID userClinicId = currentUser.getWorkingClinic() != null
@@ -1233,37 +1195,37 @@ public class BookingService {
                                         : null;
                         UUID bookingClinicId = booking.getClinic() != null ? booking.getClinic().getClinicId() : null;
                         if (userClinicId == null || bookingClinicId == null || !bookingClinicId.equals(userClinicId)) {
-                                throw new ForbiddenException("Bạn không có quyền thao tác booking của phòng khám khác");
+                                throw new ForbiddenException("Báº¡n khĂ´ng cĂ³ quyá»n thao tĂ¡c booking cá»§a phĂ²ng khĂ¡m khĂ¡c");
                         }
                 }
 
                 // Validate status - only allow for active bookings
                 if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
                         throw new IllegalStateException(
-                                        "Chỉ có thể thêm dịch vụ khi booking đang ở trạng thái IN_PROGRESS");
+                                        "Chá»‰ cĂ³ thá»ƒ thĂªm dá»‹ch vá»¥ khi booking Ä‘ang á»Ÿ tráº¡ng thĂ¡i IN_PROGRESS");
                 }
 
                 // Fetch service
                 ClinicService service = clinicServiceRepository.findById(serviceId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dịch vụ"));
+                                .orElseThrow(() -> new ResourceNotFoundException("KhĂ´ng tĂ¬m tháº¥y dá»‹ch vá»¥"));
 
                 // Validate service belongs to the same clinic
                 if (!service.getClinic().getClinicId().equals(booking.getClinic().getClinicId())) {
-                        throw new ForbiddenException("Bạn không thể thêm dịch vụ của phòng khám khác");
+                        throw new ForbiddenException("Báº¡n khĂ´ng thá»ƒ thĂªm dá»‹ch vá»¥ cá»§a phĂ²ng khĂ¡m khĂ¡c");
                 }
 
                 // Check if service already exists in booking
                 boolean alreadyExists = booking.getBookingServices().stream()
                                 .anyMatch(item -> item.getService().getServiceId().equals(serviceId));
                 if (alreadyExists) {
-                        throw new IllegalArgumentException("Dịch vụ này đã có trong đơn hàng");
+                        throw new IllegalArgumentException("Dá»‹ch vá»¥ nĂ y Ä‘Ă£ cĂ³ trong Ä‘Æ¡n hĂ ng");
                 }
 
-                // HOME_VISIT: chỉ cho thêm dịch vụ có thể thực hiện tại nhà (phòng API gọi trực tiếp)
+                // HOME_VISIT: chá»‰ cho thĂªm dá»‹ch vá»¥ cĂ³ thá»ƒ thá»±c hiá»‡n táº¡i nhĂ  (phĂ²ng API gá»i trá»±c tiáº¿p)
                 if (booking.getType() == BookingType.HOME_VISIT
                                 && !Boolean.TRUE.equals(service.getIsHomeVisit())) {
                         throw new IllegalArgumentException(
-                                        "Booking khám tại nhà chỉ có thể thêm dịch vụ thực hiện tại nhà");
+                                        "Booking khĂ¡m táº¡i nhĂ  chá»‰ cĂ³ thá»ƒ thĂªm dá»‹ch vá»¥ thá»±c hiá»‡n táº¡i nhĂ ");
                 }
 
                 // ============ SPECIALTY VALIDATION FOR HOME_VISIT STAFF ============
@@ -1286,9 +1248,9 @@ public class BookingService {
                                                 currentUser.getUserId(), staffSpecialty, service.getName(),
                                                 requiredSpecialty);
                                 throw new IllegalArgumentException(
-                                                String.format("Bạn không thể thêm dịch vụ này vì nằm ngoài chuyên môn của bạn. "
+                                                String.format("Báº¡n khĂ´ng thá»ƒ thĂªm dá»‹ch vá»¥ nĂ y vĂ¬ náº±m ngoĂ i chuyĂªn mĂ´n cá»§a báº¡n. "
                                                                 +
-                                                                "Chuyên môn của bạn: %s, Dịch vụ yêu cầu: %s",
+                                                                "ChuyĂªn mĂ´n cá»§a báº¡n: %s, Dá»‹ch vá»¥ yĂªu cáº§u: %s",
                                                                 staffSpecialty, requiredSpecialty));
                         }
                 } else if (booking.getType() == BookingType.SOS) {
@@ -1301,8 +1263,8 @@ public class BookingService {
                 BigDecimal basePrice = service.getBasePrice();
                 BigDecimal weightPrice = pricingService.calculateServicePrice(service, pet);
 
-                // Create new service item (dịch vụ phát sinh không gán staff - ai thực hiện
-                // không cần xác định)
+                // Create new service item (dá»‹ch vá»¥ phĂ¡t sinh khĂ´ng gĂ¡n staff - ai thá»±c hiá»‡n
+                // khĂ´ng cáº§n xĂ¡c Ä‘á»‹nh)
                 BookingServiceItem newItem = BookingServiceItem.builder()
                                 .booking(booking)
                                 .pet(pet)
@@ -1352,12 +1314,12 @@ public class BookingService {
                 log.info("Processing checkout for booking {} by user {}", bookingId, currentUser.getUserId());
 
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+                                .orElseThrow(() -> new ResourceNotFoundException("KhĂ´ng tĂ¬m tháº¥y lá»‹ch háº¹n"));
 
                 // Validate status
                 if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
                         throw new IllegalStateException(
-                                        "Chỉ có thể checkout khi lịch hẹn đang thực hiện");
+                                        "Chá»‰ cĂ³ thá»ƒ checkout khi lá»‹ch háº¹n Ä‘ang thá»±c hiá»‡n");
                 }
 
                 // Handle SOS fee override or automated calculation
@@ -1382,86 +1344,26 @@ public class BookingService {
                         booking.setTotalPrice(servicesTotal.add(sosFee));
                 }
 
-
-                // Apply voucher discount if any
-                BigDecimal originalTotal = booking.getTotalPrice() != null ? booking.getTotalPrice() : BigDecimal.ZERO;
-                BigDecimal discount = BigDecimal.ZERO;
-
-                if (booking.getVoucher() != null) {
-                        try {
-                                // Double check if conditions still match
-                                discount = voucherService.calculateVoucherDiscount(booking.getVoucher().getVoucherId(), booking.getClinic().getClinicId(), originalTotal);
-                                booking.setDiscountAmount(discount);
-                        } catch (Exception e) {
-                                // Voucher may be invalid now (e.g. amount too small after removing services)
-                                log.warn("Voucher {} became invalid for booking {}: {}", booking.getVoucher().getVoucherId(), bookingId, e.getMessage());
-                                booking.setVoucher(null);
-                                booking.setDiscountAmount(BigDecimal.ZERO);
-                        }
-                } else {
-                        booking.setDiscountAmount(BigDecimal.ZERO);
-                }
-
-                BigDecimal finalTotal = originalTotal.subtract(discount).max(BigDecimal.ZERO);
-                booking.setFinalPrice(finalTotal);
-
-                // Checkout sẽ hoàn tất booking ngay sau khi chốt thông tin thanh toán.
+                // Checkout sáº½ hoĂ n táº¥t booking ngay sau khi chá»‘t thĂ´ng tin thanh toĂ¡n.
                 String paymentMethod = request != null ? request.getPaymentMethod() : null;
                 PaymentMethod method = paymentMethod != null && !paymentMethod.isBlank()
                                 ? PaymentMethod.valueOf(paymentMethod.trim().toUpperCase())
                                 : PaymentMethod.CASH;
 
-                if (booking.getVoucher() != null && Boolean.TRUE.equals(booking.getVoucher().getRequireOnlinePayment())) {
-                        if (method == PaymentMethod.CASH) {
-                                throw new BadRequestException("Voucher đang sử dụng chỉ áp dụng cho hình thức Thanh toán trực tuyến (Mã QR/Online). Vui lòng quét QR hoặc gỡ voucher để thu tiền mặt.");
-                        }
-                }
-
                 Payment payment = paymentRepository.findByBookingBookingId(bookingId).orElse(null);
-
-                // Nếu đã thanh toán rồi thì chỉ cần hoàn tất booking, không tạo payment mới
-                if (payment != null && payment.getStatus() == PaymentStatus.PAID) {
-                        booking.setPayment(payment);
-                        booking.syncPaymentStatus(payment);
-                        booking.setStatus(BookingStatus.COMPLETED);
-                        Booking savedBooking = bookingRepository.save(booking);
-
-                        try {
-                                trackingService.clearTracking(bookingId);
-                        } catch (Exception e) {
-                                log.warn("Failed to clear tracking data: {}", e.getMessage());
-                        }
-
-                        bookingNotificationService.pushBookingUpdateToUsers(savedBooking, "COMPLETED");
-                        try {
-                                notificationService.sendCompletedNotification(savedBooking);
-                        } catch (Exception e) {
-                                log.warn("Failed to send completed notification after checkout: {}", e.getMessage());
-                        }
-
-                        log.info("Booking {} checked out and completed (Already PAID previously)", booking.getBookingCode());
-                        return bookingMapper.mapToResponse(savedBooking);
-                }
-
-                // Với QR, bắt buộc phải xác nhận PAID trước khi complete.
-                if (method == PaymentMethod.QR) {
-                        throw new BadRequestException(
-                                        "Booking QR chưa thanh toán thành công. Vui lòng chờ xác nhận thanh toán trước khi hoàn tất.");
-                }
-
-                // Dùng lại hoặc tạo mới payment CASH
                 if (payment == null) {
                         payment = Payment.builder()
                                         .booking(booking)
-                                        .amount(finalTotal)
+                                        .amount(booking.getTotalPrice())
                                         .method(method)
                                         .status(PaymentStatus.PENDING)
                                         .build();
                 }
 
-                payment.setMethod(method);
-                payment.setAmount(finalTotal);
-                payment.markAsPaid();
+                if (payment.getStatus() != PaymentStatus.PAID) {
+                        payment.setMethod(method);
+                        payment.markAsPaid();
+                }
 
                 paymentRepository.save(payment);
                 booking.setPayment(payment);
@@ -1490,72 +1392,6 @@ public class BookingService {
                 return bookingMapper.mapToResponse(booking);
         }
 
-        // ========== VOUCHER APPLICATION ==========
-
-        @Transactional
-        public BookingResponse applyVoucherToBooking(UUID bookingId, com.petties.petties.dto.booking.ApplyVoucherRequest request, User currentUser) {
-                Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
-
-                // Pet Owner must own the booking, or staff/manager handles it
-                if (currentUser.getRole() == com.petties.petties.model.enums.Role.PET_OWNER && 
-                    !booking.getPetOwner().getUserId().equals(currentUser.getUserId())) {
-                        throw new ForbiddenException("Bạn không có quyền thao tác trên lịch hẹn này");
-                }
-
-                if (booking.getStatus() == BookingStatus.COMPLETED || booking.getStatus() == BookingStatus.CANCELLED) {
-                        throw new BadRequestException("Không thể áp dụng/gỡ voucher cho lịch hẹn đã hoàn thành hoặc đã hủy");
-                }
-
-                if (request != null && request.getVoucherId() != null) {
-                        // Apply voucher
-                        UUID vId = request.getVoucherId();
-                        BigDecimal discount = voucherService.calculateVoucherDiscount(vId, booking.getClinic().getClinicId(), booking.getTotalPrice());
-                        com.petties.petties.model.Voucher voucher = voucherRepository.findById(vId).orElseThrow();
-                        
-                        booking.setVoucher(voucher);
-                        booking.setDiscountAmount(discount);
-                        BigDecimal finalP = booking.getTotalPrice().subtract(discount).max(BigDecimal.ZERO);
-                        booking.setFinalPrice(finalP);
-
-                        // If payment exists and not paid, update amount
-                        Payment payment = booking.getPayment();
-                        if (payment != null && payment.getStatus() != PaymentStatus.PAID) {
-                                payment.setAmount(finalP);
-                                // Refresh QR if already generated
-                                if (payment.getMethod() == PaymentMethod.QR) {
-                                       String paymentDesc = transactionService.generatePaymentDescription(booking.getBookingId());
-                                       payment.setPaymentDescription(paymentDesc);
-                                }
-                                paymentRepository.save(payment);
-                        }
-
-                        booking = bookingRepository.save(booking); // Explicitly save to ensure DB is updated
-                        log.info("User {} applied voucher {} to booking {}", currentUser.getUserId(), vId, bookingId);
-                } else {
-                        // Remove voucher
-                        booking.setVoucher(null);
-                        booking.setDiscountAmount(BigDecimal.ZERO);
-                        booking.setFinalPrice(booking.getTotalPrice());
-
-                        Payment payment = booking.getPayment();
-                        if (payment != null && payment.getStatus() != PaymentStatus.PAID) {
-                                payment.setAmount(booking.getTotalPrice());
-                                if (payment.getMethod() == PaymentMethod.QR) {
-                                       String paymentDesc = transactionService.generatePaymentDescription(booking.getBookingId());
-                                       payment.setPaymentDescription(paymentDesc);
-                                }
-                                paymentRepository.save(payment);
-                        }
-
-                        log.info("User {} removed voucher from booking {}", currentUser.getUserId(), bookingId);
-                }
-
-                Booking saved = bookingRepository.save(booking);
-                bookingNotificationService.pushBookingUpdateToUsers(saved, "VOUCHER_UPDATED");
-                return bookingMapper.mapToResponse(saved);
-        }
-
         /**
          * Remove a service from booking
          * ONLY allowed for add-on services (isAddOn = true)
@@ -1565,10 +1401,10 @@ public class BookingService {
                 log.info("Removing service {} from booking {}", bookingServiceId, bookingId);
 
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+                                .orElseThrow(() -> new ResourceNotFoundException("KhĂ´ng tĂ¬m tháº¥y lá»‹ch háº¹n"));
 
                 if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
-                        throw new IllegalStateException("Chỉ có thể xóa dịch vụ phát sinh khi booking đang thực hiện");
+                        throw new IllegalStateException("Chá»‰ cĂ³ thá»ƒ xĂ³a dá»‹ch vá»¥ phĂ¡t sinh khi booking Ä‘ang thá»±c hiá»‡n");
                 }
 
                 BookingServiceItem itemToRemove = booking.getBookingServices().stream()
@@ -1579,7 +1415,7 @@ public class BookingService {
                 // Validate: Only allow removing add-on services
                 if (!Boolean.TRUE.equals(itemToRemove.getIsAddOn())) {
                         throw new IllegalStateException(
-                                        "Không thể xóa dịch vụ gốc của booking. Chỉ có thể xóa dịch vụ phát sinh.");
+                                        "KhĂ´ng thá»ƒ xĂ³a dá»‹ch vá»¥ gá»‘c cá»§a booking. Chá»‰ cĂ³ thá»ƒ xĂ³a dá»‹ch vá»¥ phĂ¡t sinh.");
                 }
 
                 // Update total price
@@ -1614,7 +1450,7 @@ public class BookingService {
         public List<ClinicServiceResponse> getAvailableServicesForAddOn(
                         UUID bookingId, User currentUser) {
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+                                .orElseThrow(() -> new ResourceNotFoundException("KhĂ´ng tĂ¬m tháº¥y lá»‹ch háº¹n"));
 
                 if (currentUser.getRole() == Role.STAFF || currentUser.getRole() == Role.CLINIC_MANAGER) {
                         UUID userClinicId = currentUser.getWorkingClinic() != null
@@ -1622,7 +1458,7 @@ public class BookingService {
                                         : null;
                         UUID bookingClinicId = booking.getClinic() != null ? booking.getClinic().getClinicId() : null;
                         if (userClinicId == null || bookingClinicId == null || !bookingClinicId.equals(userClinicId)) {
-                                throw new ForbiddenException("Bạn không có quyền xem dịch vụ của phòng khám khác");
+                                throw new ForbiddenException("Báº¡n khĂ´ng cĂ³ quyá»n xem dá»‹ch vá»¥ cá»§a phĂ²ng khĂ¡m khĂ¡c");
                         }
                 }
 
@@ -1640,14 +1476,14 @@ public class BookingService {
                         return allActiveServices.stream()
                                         .filter(service -> !existingServiceIds.contains(service.getServiceId()))
                                         .filter(service -> {
-                                                // 1. IN_CLINIC: Chỉ hiển thị dịch vụ tại phòng khám (isHomeVisit = false)
+                                                // 1. IN_CLINIC: Chá»‰ hiá»ƒn thá»‹ dá»‹ch vá»¥ táº¡i phĂ²ng khĂ¡m (isHomeVisit = false)
                                                 if (booking.getType() == BookingType.IN_CLINIC) {
                                                         if (Boolean.TRUE.equals(service.getIsHomeVisit())) {
                                                                 return false;
                                                         }
                                                 }
 
-                                                // 2. HOME_VISIT: Chỉ hiển thị dịch vụ có thể thực hiện tại nhà (isHomeVisit = true)
+                                                // 2. HOME_VISIT: Chá»‰ hiá»ƒn thá»‹ dá»‹ch vá»¥ cĂ³ thá»ƒ thá»±c hiá»‡n táº¡i nhĂ  (isHomeVisit = true)
                                                 if (booking.getType() == BookingType.HOME_VISIT) {
                                                         if (!Boolean.TRUE.equals(service.getIsHomeVisit())) {
                                                                 return false;
@@ -1707,7 +1543,7 @@ public class BookingService {
 
         /**
          * Check-in booking (Staff action)
-         * Transitions: CONFIRMED → IN_PROGRESS
+         * Transitions: CONFIRMED â†’ IN_PROGRESS
          *
          * @param bookingId Booking ID
          * @return Updated booking response
@@ -1717,12 +1553,12 @@ public class BookingService {
                 log.info("Check-in booking {}", bookingId);
 
                 Booking booking = bookingRepository.findByIdWithDetails(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+                                .orElseThrow(() -> new ResourceNotFoundException("KhĂ´ng tĂ¬m tháº¥y lá»‹ch háº¹n"));
 
-// Validate status - chỉ cho phép check-in khi CONFIRMED (check-in chuyển sang IN_PROGRESS)
+// Validate status - chá»‰ cho phĂ©p check-in khi CONFIRMED (check-in chuyá»ƒn sang IN_PROGRESS)
                 if (booking.getStatus() != BookingStatus.CONFIRMED) {
                         throw new IllegalStateException(
-                                        "Chỉ có thể check-in khi booking ở trạng thái CONFIRMED. Trạng thái hiện tại: "
+                                        "Chá»‰ cĂ³ thá»ƒ check-in khi booking á»Ÿ tráº¡ng thĂ¡i CONFIRMED. Tráº¡ng thĂ¡i hiá»‡n táº¡i: "
                                                         + booking.getStatus());
                 }
 
@@ -1753,7 +1589,7 @@ public class BookingService {
                         }
                 }
 
-                // Auto-create draft vaccination records chỉ khi booking có dịch vụ tiêm phòng
+                // Auto-create draft vaccination records chá»‰ khi booking cĂ³ dá»‹ch vá»¥ tiĂªm phĂ²ng
                 try {
                         List<BookingServiceItem> services = booking.getBookingServices();
                         if (services != null) {
@@ -1773,7 +1609,7 @@ public class BookingService {
 
         /**
          * Start moving to customer location (Staff action)
-         * Transitions: CONFIRMED → IN_PROGRESS
+         * Transitions: CONFIRMED â†’ IN_PROGRESS
          * Only for SOS/HOME_VISIT bookings
          */
         @Transactional
@@ -1781,18 +1617,18 @@ public class BookingService {
                 log.info("Staff starting movement for booking {}", bookingId);
 
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+                                .orElseThrow(() -> new ResourceNotFoundException("KhĂ´ng tĂ¬m tháº¥y lá»‹ch háº¹n"));
 
                 // Validate type
                 if (booking.getType() != com.petties.petties.model.enums.BookingType.SOS
                                 && booking.getType() != com.petties.petties.model.enums.BookingType.HOME_VISIT) {
-                        throw new IllegalStateException("Chỉ áp dụng cho đặt lịch SOS hoặc khám tại nhà");
+                        throw new IllegalStateException("Chá»‰ Ă¡p dá»¥ng cho Ä‘áº·t lá»‹ch SOS hoáº·c khĂ¡m táº¡i nhĂ ");
                 }
 
                 // Validate status
                 if (booking.getStatus() != BookingStatus.CONFIRMED) {
                         throw new IllegalStateException(
-                                        "Chỉ có thể bắt đầu di chuyển khi booking ở trạng thái CONFIRMED. Trạng thái hiện tại: "
+                                        "Chá»‰ cĂ³ thá»ƒ báº¯t Ä‘áº§u di chuyá»ƒn khi booking á»Ÿ tráº¡ng thĂ¡i CONFIRMED. Tráº¡ng thĂ¡i hiá»‡n táº¡i: "
                                                         + booking.getStatus());
                 }
 
@@ -1830,12 +1666,12 @@ public class BookingService {
                 log.info("Staff arrived for booking {}", bookingId);
 
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+                                .orElseThrow(() -> new ResourceNotFoundException("KhĂ´ng tĂ¬m tháº¥y lá»‹ch háº¹n"));
 
                 // Validate status - must be IN_PROGRESS (movement phase)
                 if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
                         throw new IllegalStateException(
-                                        "Chỉ có thể báo đã đến khi booking ở trạng thái IN_PROGRESS. Trạng thái hiện tại: "
+                                        "Chá»‰ cĂ³ thá»ƒ bĂ¡o Ä‘Ă£ Ä‘áº¿n khi booking á»Ÿ tráº¡ng thĂ¡i IN_PROGRESS. Tráº¡ng thĂ¡i hiá»‡n táº¡i: "
                                                         + booking.getStatus());
                 }
 
@@ -1848,7 +1684,7 @@ public class BookingService {
                 // Push SSE event for real-time sync
                 bookingNotificationService.pushBookingUpdateToUsers(savedBooking, "ARRIVED");
 
-                // Broadcast ARRIVED event qua WebSocket tracking để Pet Owner nhận real-time
+                // Broadcast ARRIVED event qua WebSocket tracking Ä‘á»ƒ Pet Owner nháº­n real-time
                 try {
                         trackingService.publishArrival(savedBooking);
                 } catch (Exception e) {
@@ -1866,9 +1702,9 @@ public class BookingService {
 
         /**
          * Complete booking with payment method selection (Manager action)
-         * - CASH: Creates Payment (PAID) → Booking COMPLETED immediately
-         * - QR: Creates Payment (PENDING) → Returns QR info → Booking stays IN_PROGRESS
-         * - null request: Legacy behavior → Booking COMPLETED without payment
+         * - CASH: Creates Payment (PAID) â†’ Booking COMPLETED immediately
+         * - QR: Creates Payment (PENDING) â†’ Returns QR info â†’ Booking stays IN_PROGRESS
+         * - null request: Legacy behavior â†’ Booking COMPLETED without payment
          *
          * @param bookingId Booking ID
          * @param request   CheckoutRequest with paymentMethod (CASH or QR), nullable
@@ -1880,20 +1716,20 @@ public class BookingService {
                                 bookingId, request != null ? request.getPaymentMethod() : "NONE");
 
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+                                .orElseThrow(() -> new ResourceNotFoundException("KhĂ´ng tĂ¬m tháº¥y lá»‹ch háº¹n"));
 
                 // Validate status
                 if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
                         throw new IllegalStateException(
-                                        "Chỉ có thể hoàn thành/thanh toán khi booking ở trạng thái IN_PROGRESS. Trạng thái hiện tại: "
+                                        "Chá»‰ cĂ³ thá»ƒ hoĂ n thĂ nh/thanh toĂ¡n khi booking á»Ÿ tráº¡ng thĂ¡i IN_PROGRESS. Tráº¡ng thĂ¡i hiá»‡n táº¡i: "
                                                         + booking.getStatus());
                 }
 
-                // Nếu không truyền phương thức thanh toán:
-                // - QR: cho phép hoàn tất trước, giữ payment ở trạng thái PENDING
-                // - CASH/khác: giữ hành vi cũ (đánh dấu đã thanh toán)
+                // Náº¿u khĂ´ng truyá»n phÆ°Æ¡ng thá»©c thanh toĂ¡n:
+                // - QR: cho phĂ©p hoĂ n táº¥t trÆ°á»›c, giá»¯ payment á»Ÿ tráº¡ng thĂ¡i PENDING
+                // - CASH/khĂ¡c: giá»¯ hĂ nh vi cÅ© (Ä‘Ă¡nh dáº¥u Ä‘Ă£ thanh toĂ¡n)
                 if (request == null || request.getPaymentMethod() == null) {
-                        // Tìm payment hiện tại (nếu có)
+                        // TĂ¬m payment hiá»‡n táº¡i (náº¿u cĂ³)
                         Payment payment = paymentRepository.findByBookingBookingId(bookingId).orElse(null);
 
                         if (payment == null) {
@@ -1905,7 +1741,7 @@ public class BookingService {
                                                 ? PaymentStatus.PENDING
                                                 : PaymentStatus.PAID;
 
-                                // Chưa có payment → tạo mới theo method đã chọn từ trước trên booking
+                                // ChÆ°a cĂ³ payment â†’ táº¡o má»›i theo method Ä‘Ă£ chá»n tá»« trÆ°á»›c trĂªn booking
                                 payment = Payment.builder()
                                                 .booking(booking)
                                                 .amount(booking.getTotalPrice())
@@ -1920,19 +1756,19 @@ public class BookingService {
                                         }
                                 }
                         } else if (payment.getStatus() != PaymentStatus.PAID) {
-                                // Đã có payment nhưng chưa PAID
+                                // ÄĂ£ cĂ³ payment nhÆ°ng chÆ°a PAID
                                 payment.setMethod(
                                                 payment.getMethod() != null ? payment.getMethod() : PaymentMethod.CASH);
 
                                 if (payment.getMethod() == PaymentMethod.QR) {
-                                        // QR cho phép hoàn tất trước, giữ unpaid để Pet Owner thanh toán sau
+                                        // QR cho phĂ©p hoĂ n táº¥t trÆ°á»›c, giá»¯ unpaid Ä‘á»ƒ Pet Owner thanh toĂ¡n sau
                                         payment.setStatus(PaymentStatus.PENDING);
                                         payment.setPaidAt(null);
                                         if (payment.getPaymentDescription() == null || payment.getPaymentDescription().isBlank()) {
                                                 payment.setPaymentDescription(transactionService.generatePaymentDescription(bookingId));
                                         }
                                 } else {
-                                        // CASH/khác: đánh dấu đã thanh toán như luồng cũ
+                                        // CASH/khĂ¡c: Ä‘Ă¡nh dáº¥u Ä‘Ă£ thanh toĂ¡n nhÆ° luá»“ng cÅ©
                                         payment.markAsPaid();
                                 }
                         }
@@ -1971,7 +1807,7 @@ public class BookingService {
                 // Check if payment already exists for this booking (1-1 relationship)
                 Payment existingPayment = paymentRepository.findByBookingBookingId(bookingId).orElse(null);
 
-                // Nếu đã thanh toán rồi thì chỉ cần hoàn tất booking, không tạo payment mới
+                // Náº¿u Ä‘Ă£ thanh toĂ¡n rá»“i thĂ¬ chá»‰ cáº§n hoĂ n táº¥t booking, khĂ´ng táº¡o payment má»›i
                 if (existingPayment != null && existingPayment.getStatus() == PaymentStatus.PAID) {
                         booking.syncPaymentStatus(existingPayment);
                         booking.setStatus(BookingStatus.COMPLETED);
@@ -1979,13 +1815,13 @@ public class BookingService {
                         return bookingMapper.mapToResponse(booking);
                 }
 
-                // Với QR, bắt buộc phải xác nhận PAID trước khi complete.
+                // Vá»›i QR, báº¯t buá»™c pháº£i xĂ¡c nháº­n PAID trÆ°á»›c khi complete.
                 if (method == PaymentMethod.QR) {
                         throw new BadRequestException(
-                                        "Booking QR chưa thanh toán thành công. Vui lòng chờ xác nhận thanh toán trước khi hoàn tất.");
+                                        "Booking QR chÆ°a thanh toĂ¡n thĂ nh cĂ´ng. Vui lĂ²ng chá» xĂ¡c nháº­n thanh toĂ¡n trÆ°á»›c khi hoĂ n táº¥t.");
                 }
 
-                // Dùng lại bản ghi payment hiện tại (PENDING/FAILED/REFUNDED) thay vì tạo bản ghi mới
+                // DĂ¹ng láº¡i báº£n ghi payment hiá»‡n táº¡i (PENDING/FAILED/REFUNDED) thay vĂ¬ táº¡o báº£n ghi má»›i
                 Payment payment;
                 if (existingPayment != null) {
                         log.info("Reusing existing payment {} for booking {} with new method {} and resetting state",
@@ -1997,7 +1833,7 @@ public class BookingService {
                         existingPayment.setPaymentDescription(null);
                         payment = existingPayment;
                 } else {
-                        // Chưa có payment nào cho booking này → tạo mới
+                        // ChÆ°a cĂ³ payment nĂ o cho booking nĂ y â†’ táº¡o má»›i
                         payment = Payment.builder()
                                 .booking(booking)
                                 .amount(booking.getTotalPrice())
@@ -2027,7 +1863,7 @@ public class BookingService {
 
                         return bookingMapper.mapToResponse(booking);
                 } else {
-                        throw new IllegalArgumentException("Phương thức thanh toán không được hỗ trợ: " + method);
+                        throw new IllegalArgumentException("PhÆ°Æ¡ng thá»©c thanh toĂ¡n khĂ´ng Ä‘Æ°á»£c há»— trá»£: " + method);
                 }
         }
 
@@ -2043,19 +1879,19 @@ public class BookingService {
                 log.info("Sending 'staff on the way' notification for booking {}", bookingId);
 
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+                                .orElseThrow(() -> new ResourceNotFoundException("KhĂ´ng tĂ¬m tháº¥y lá»‹ch háº¹n"));
 
                 // Validate status - should be CONFIRMED (staff assigned but not yet started)
                 if (booking.getStatus() != BookingStatus.CONFIRMED) {
                         throw new IllegalStateException(
-                                        "Chỉ có thể gửi thông báo khi booking ở trạng thái CONFIRMED. Trạng thái hiện tại: "
+                                        "Chá»‰ cĂ³ thá»ƒ gá»­i thĂ´ng bĂ¡o khi booking á»Ÿ tráº¡ng thĂ¡i CONFIRMED. Tráº¡ng thĂ¡i hiá»‡n táº¡i: "
                                                         + booking.getStatus());
                 }
 
                 // Validate booking type - only for HOME_VISIT or SOS
                 if (booking.getType() != BookingType.HOME_VISIT
                                 && booking.getType() != BookingType.SOS) {
-                        throw new IllegalStateException("Chỉ áp dụng cho lịch hẹn tại nhà hoặc SOS");
+                        throw new IllegalStateException("Chá»‰ Ă¡p dá»¥ng cho lá»‹ch háº¹n táº¡i nhĂ  hoáº·c SOS");
                 }
 
                 // Send notification
@@ -2064,7 +1900,7 @@ public class BookingService {
                         log.info("Sent 'staff on the way' notification for booking {}", booking.getBookingCode());
                 } catch (Exception e) {
                         log.error("Failed to send 'staff on the way' notification: {}", e.getMessage());
-                        throw new RuntimeException("Không thể gửi thông báo: " + e.getMessage());
+                        throw new RuntimeException("KhĂ´ng thá»ƒ gá»­i thĂ´ng bĂ¡o: " + e.getMessage());
                 }
 
                 return bookingMapper.mapToResponse(booking);
@@ -2186,7 +2022,7 @@ public class BookingService {
                 if (currentStaff.getWorkingClinic() == null ||
                                 !currentStaff.getWorkingClinic().getClinicId().equals(clinicId)) {
                         throw new ForbiddenException(
-                                        "Bạn không có quyền xem lịch hẹn của phòng khám này");
+                                        "Báº¡n khĂ´ng cĂ³ quyá»n xem lá»‹ch háº¹n cá»§a phĂ²ng khĂ¡m nĂ y");
                 }
 
                 LocalDate today = LocalDate.now();
@@ -2217,7 +2053,7 @@ public class BookingService {
                                 clinicId, request.getPets().size(), request.getType(), request.getStartDateTime());
 
                 Clinic clinic = clinicRepository.findById(clinicId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
+                                .orElseThrow(() -> new ResourceNotFoundException("KhĂ´ng tĂ¬m tháº¥y phĂ²ng khĂ¡m"));
 
                 // Get operating hours for the specific day
                 String dayOfWeek = request.getStartDateTime().getDayOfWeek().name();
@@ -2226,7 +2062,7 @@ public class BookingService {
 
                 if (oh != null && Boolean.TRUE.equals(oh.getIsClosed())) {
                         throw new com.petties.petties.exception.BadRequestException(
-                                        "Phòng khám đóng cửa vào ngày này (" + dayOfWeek + ")");
+                                        "PhĂ²ng khĂ¡m Ä‘Ă³ng cá»­a vĂ o ngĂ y nĂ y (" + dayOfWeek + ")");
                 }
 
                 LocalDateTime currentStartDateTime = request.getStartDateTime();
@@ -2240,14 +2076,14 @@ public class BookingService {
 
                         if (services.isEmpty()) {
                                 throw new ResourceNotFoundException(
-                                                "Không tìm thấy dịch vụ nào cho pet: " + petEst.getPetId());
+                                                "KhĂ´ng tĂ¬m tháº¥y dá»‹ch vá»¥ nĂ o cho pet: " + petEst.getPetId());
                         }
 
                         // Validate all services belong to the same clinic
                         boolean allBelongToClinic = services.stream()
                                         .allMatch(s -> s.getClinic().getClinicId().equals(clinicId));
                         if (!allBelongToClinic) {
-                                throw new BadRequestException("Một số dịch vụ không thuộc phòng khám này");
+                                throw new BadRequestException("Má»™t sá»‘ dá»‹ch vá»¥ khĂ´ng thuá»™c phĂ²ng khĂ¡m nĂ y");
                         }
 
                         // Calculate durations for this pet's services

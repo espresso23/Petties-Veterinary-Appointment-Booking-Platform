@@ -10,9 +10,9 @@ import {
     confirmBookingWithOptions,
     addServiceToBooking,
     getAvailableStaffForConfirm,
-    checkoutBooking,
     removeServiceFromBooking,
     cancelBooking,
+    checkoutBooking,
     type StaffOption,
 } from '../../../services/bookingService';
 import type { Booking, BookingStatus, BookingServiceItem, StaffAvailabilityCheckResponse } from '../../../types/booking';
@@ -21,6 +21,7 @@ import { ReassignStaffModal } from '../../../components/booking/ReassignStaffMod
 import { StaffAvailabilityWarningModal, type ConfirmOption } from '../../../components/booking/StaffAvailabilityWarningModal';
 import { AddServiceModal } from '../../../components/booking/AddServiceModal';
 import { ReportBookingModal } from '../../../components/booking/ReportBookingModal';
+import { ConfirmModal } from '../../../components/ConfirmModal';
 import { getMyReports } from '../../../services/reportService';
 import type { ReportResponse } from '../../../types/report';
 import { useToast } from '../../../components/Toast';
@@ -874,6 +875,22 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
         isOpen: false,
         serviceId: null,
     });
+    const [confirmCheckoutModal, setConfirmCheckoutModal] = useState<Booking | null>(null);
+
+    const handleCheckout = async () => {
+        if (!confirmCheckoutModal) return;
+        try {
+            await checkoutBooking(confirmCheckoutModal.bookingId);
+            showToast('success', 'Thu tiền mặt và hoàn thành lịch hẹn thành công');
+            setConfirmCheckoutModal(null);
+            if (onBookingUpdated) onBookingUpdated();
+            onClose();
+        } catch (error: any) {
+            console.error('Failed to checkout:', error);
+            const errorMessage = error.response?.data?.message || 'Không thể thu tiền. Vui lòng thử lại.';
+            showToast('error', errorMessage);
+        }
+    };
 
     // Fetch available staff when modal opens with PENDING booking
     useEffect(() => {
@@ -1108,7 +1125,7 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
                             </div>
                             <div className="text-center">
                                 <div className="text-lg font-bold text-stone-900">
-                                    {Number(booking.totalPrice).toLocaleString('vi-VN')} VNĐ
+                                    {Number(booking.finalPrice ?? booking.totalPrice).toLocaleString('vi-VN')} VNĐ
                                 </div>
                                 <div className="flex items-center justify-center gap-2 mt-2">
                                     <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
@@ -1530,9 +1547,20 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
                                     <span className="text-red-600">+{formatCurrency(booking.sosFee || 0)}</span>
                                 </div>
                             )}
+                            {booking.discountAmount && booking.discountAmount > 0 ? (
+                                <div className="flex justify-between text-stone-500">
+                                    <span>- Giảm voucher</span>
+                                    <span className="text-green-600">-{formatCurrency(booking.discountAmount)}</span>
+                                </div>
+                            ) : null}
                             <div className="flex justify-between font-bold border-t border-stone-300 pt-1 mt-1 text-stone-900">
                                 <span>Tổng cộng</span>
-                                <span className="text-sm">{formatCurrency(booking.totalPrice)}</span>
+                                <span className="text-sm">
+                                    {booking.discountAmount && booking.discountAmount > 0 ? (
+                                        <span className="text-stone-400 line-through mr-2 font-normal">{formatCurrency(booking.totalPrice)}</span>
+                                    ) : null}
+                                    {formatCurrency(booking.finalPrice ?? booking.totalPrice)}
+                                </span>
                             </div>
                         </div>
 
@@ -1658,7 +1686,7 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
                         {booking.status === 'IN_PROGRESS' && (
                             <>
                                 <button onClick={onAddService} className="px-6 py-2 font-bold uppercase bg-amber-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Thêm dịch vụ</button>
-                                <button onClick={async () => { await checkoutBooking(booking.bookingId); onClose(); window.location.reload(); }} className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Thanh toán</button>
+                                <button onClick={() => setConfirmCheckoutModal(booking)} className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Thu Tiền Mặt</button>
                             </>
                         )}
                     </div>
@@ -1666,6 +1694,15 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
             </div>
 
             {/* Sub-Modals */}
+            <ConfirmModal
+                isOpen={!!confirmCheckoutModal}
+                title={`Thu Tiền Mặt: ${confirmCheckoutModal?.bookingCode}`}
+                message={`Xác nhận đã thu ${confirmCheckoutModal?.totalPrice.toLocaleString('vi-VN')} đ cho lịch khám này?`}
+                confirmLabel="Xác nhận & Hoàn thành"
+                cancelLabel="Hủy"
+                onConfirm={handleCheckout}
+                onCancel={() => setConfirmCheckoutModal(null)}
+            />
             {confirmRemoveModal.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/80 flex items-center justify-center z-[70] p-4 backdrop-blur-sm">
                     <div className="bg-white border-4 border-stone-900 shadow-[8px_8px_0_#1c1917] max-w-sm w-full p-6">

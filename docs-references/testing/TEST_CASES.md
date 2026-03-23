@@ -136,12 +136,47 @@
 
 ---
 
-## 6. Test Execution Log
+## 6. Voucher API Test Cases
+
+| Test ID | Endpoint / Role | Description | Expected Result | Status |
+|---------|----------|-------------|-----------------|--------|
+| TC-UNIT-VOUCHER-001 | Admin | Lấy danh sách toàn bộ voucher | 200 OK, danh sách voucher | ✅ Pass |
+| TC-UNIT-VOUCHER-002 | Admin | Tạo voucher mới hợp lệ | 201 Created, voucher data | ✅ Pass |
+| TC-UNIT-VOUCHER-003 | Admin | Tạo voucher (trùng code) | 400 Bad Request | ✅ Pass |
+| TC-UNIT-VOUCHER-004 | Admin | Tạo voucher (sai ngày) | 400 Bad Request | ✅ Pass |
+| TC-UNIT-VOUCHER-005 | Admin | Bật/tắt trạng thái voucher | 200 OK, updated status | ✅ Pass |
+| TC-UNIT-VOUCHER-006 | Admin | Cập nhật thông tin voucher | 200 OK, updated data | ✅ Pass |
+| TC-UNIT-VOUCHER-007 | Admin | Xóa voucher chưa có lượt dùng | 204 No Content | ✅ Pass |
+| TC-UNIT-VOUCHER-008 | Admin | Xóa voucher đã có lượt dùng | 400 Bad Request | ✅ Pass |
+| TC-UNIT-VOUCHER-009 | Clinic Manager | Lấy danh sách voucher của clinic | 200 OK, danh sách | ✅ Pass |
+| TC-UNIT-VOUCHER-010 | Clinic Manager | Apply voucher vào clinic | 200 OK, success | ✅ Pass |
+| TC-UNIT-VOUCHER-011 | Clinic Manager | Gỡ voucher khỏi clinic | 204 No Content | ✅ Pass |
+| TC-UNIT-VOUCHER-012 | Pet Owner | Get danh sách voucher (filter CASH) | 200 OK, filtered list | ✅ Pass |
+| TC-UNIT-VOUCHER-013 | Pet Owner | Calculate voucher discount (hợp lệ) | 200 OK, discount amount | ✅ Pass |
+| TC-UNIT-VOUCHER-014 | Pet Owner | Calculate discount (dưới min order) | 400 Bad Request | ✅ Pass |
+
+---
+
+## 7. Test Execution Log
 
 ### Unit Tests (Implemented)
 
 | Test ID | Date | Result | Notes |
 |---------|------|--------|-------|
+| TC-UNIT-VOUCHER-001 | 2026-03-23 | PASSED | Voucher Service |
+| TC-UNIT-VOUCHER-002 | 2026-03-23 | PASSED | Voucher Service |
+| TC-UNIT-VOUCHER-003 | 2026-03-23 | PASSED | Voucher Service |
+| TC-UNIT-VOUCHER-004 | 2026-03-23 | PASSED | Voucher Service |
+| TC-UNIT-VOUCHER-005 | 2026-03-23 | PASSED | Voucher Service |
+| TC-UNIT-VOUCHER-006 | 2026-03-23 | PASSED | Voucher Service |
+| TC-UNIT-VOUCHER-007 | 2026-03-23 | PASSED | Voucher Service |
+| TC-UNIT-VOUCHER-008 | 2026-03-23 | PASSED | Voucher Service |
+| TC-UNIT-VOUCHER-009 | 2026-03-23 | PASSED | Voucher Service |
+| TC-UNIT-VOUCHER-010 | 2026-03-23 | PASSED | Voucher Service |
+| TC-UNIT-VOUCHER-011 | 2026-03-23 | PASSED | Voucher Service |
+| TC-UNIT-VOUCHER-012 | 2026-03-23 | PASSED | Voucher Service |
+| TC-UNIT-VOUCHER-013 | 2026-03-23 | PASSED | Voucher Service |
+| TC-UNIT-VOUCHER-014 | 2026-03-23 | PASSED | Voucher Service |
 | TC-UNIT-AUTH-001 | 2025-12-19 | PASSED | Login endpoint test |
 | TC-UNIT-AUTH-002 | 2025-12-20 | PASSED | Blank Username |
 | TC-UNIT-AUTH-003 | 2025-12-20 | PASSED | Blank Password |
@@ -195,7 +230,8 @@
 | **Pet Management** | 0 ✅ | 13 ⏳ | 13 |
 | **Booking** | 0 ✅ | 11 ⏳ | 11 |
 | **Clinic** | 0 ✅ | 9 ⏳ | 9 |
-| **TOTAL** | **34 ✅** | **33 ⏳** | **67** |
+| **Voucher** | 14 ✅ | 0 ⏳ | 14 |
+| **TOTAL** | **48 ✅** | **33 ⏳** | **81** |
 
 **Legend:**
 - ✅ Implemented and passing

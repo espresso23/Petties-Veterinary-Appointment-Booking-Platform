@@ -79,6 +79,11 @@ public class BookingResponse {
     private BigDecimal totalPrice;
     private String notes;
 
+    // ========== VOUCHER & DISCOUNT ==========
+    private UUID voucherId;
+    private BigDecimal discountAmount;
+    private BigDecimal finalPrice;
+
     /**
      * Danh sách thú cưng trong booking (multi-pet), mỗi pet kèm danh sách dịch vụ của pet đó.
      * Thuận tiện cho màn "Lịch của tôi" khi hiển thị nhiều pet với nhiều dịch vụ khác nhau.
