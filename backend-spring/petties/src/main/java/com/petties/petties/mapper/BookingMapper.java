@@ -203,6 +203,10 @@ public class BookingMapper {
                             : null)
                     .qrImageUrl(buildQrImageUrl(booking.getPayment()))
                     .canShowQrPaymentButton(shouldShowQrPaymentButton(booking))
+                    // Voucher & Discount
+                    .voucherId(booking.getVoucher() != null ? booking.getVoucher().getVoucherId() : null)
+                    .discountAmount(booking.getDiscountAmount())
+                    .finalPrice(booking.getFinalPrice())
                     // Booking
                     .bookingDate(booking.getBookingDate())
                     .bookingTime(booking.getBookingTime())

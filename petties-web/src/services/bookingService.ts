@@ -242,14 +242,13 @@ export const completeBooking = async (
 /**
  * Checkout booking (Staff action – thanh toán)
  * Chỉ gọi khi status IN_PROGRESS. Backend chuyển sang COMPLETED và xử lý thanh toán.
- * @param overriddenSosFee Optional: ghi đè phí SOS (cho booking SOS)
+ * @param options Ghi đè phí SOS hoặc truyền voucherId
  */
 export const checkoutBooking = async (
     bookingId: string,
-    overriddenSosFee?: number | null
+    options?: { overriddenSosFee?: number | null; voucherId?: string; removeVoucher?: boolean }
 ): Promise<Booking> => {
-    const body = overriddenSosFee != null ? { overriddenSosFee } : {};
-    const response = await axios.post(`${BOOKING_API}/${bookingId}/checkout`, body);
+    const response = await axios.post(`${BOOKING_API}/${bookingId}/checkout`, options || {});
     return response.data;
 };
 

@@ -69,6 +69,11 @@ class BookingResponse {
   final String? reviewComment;
   final String? arrivedAt;
 
+  // Voucher
+  final String? voucherId;
+  final double? discountAmount;
+  final double? finalPrice;
+
   BookingResponse({
     this.bookingId,
     this.bookingCode,
@@ -120,6 +125,9 @@ class BookingResponse {
     this.rating,
     this.reviewComment,
     this.arrivedAt,
+    this.voucherId,
+    this.discountAmount,
+    this.finalPrice,
   });
 
   factory BookingResponse.fromJson(Map<String, dynamic> json) {
@@ -196,8 +204,12 @@ class BookingResponse {
       rating: json['rating'],
       reviewComment: json['reviewComment'],
       arrivedAt: json['arrivedAt'],
+      voucherId: json['voucherId'],
+      discountAmount: (json['discountAmount'] as num?)?.toDouble() ?? 0.0,
+      finalPrice: (json['finalPrice'] as num?)?.toDouble() ?? (json['totalPrice'] as num?)?.toDouble(),
     );
   }
+
 }
 
 class BookingPet {

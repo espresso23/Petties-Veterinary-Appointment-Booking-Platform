@@ -247,6 +247,23 @@ public class BookingController {
     // ========== UPDATES & STATUS ==========
 
     /**
+     * Pet Owner applies a voucher
+     */
+    @PreAuthorize("hasAnyRole('PET_OWNER', 'CLINIC_MANAGER', 'STAFF', 'ADMIN')")
+    @PostMapping("/{bookingId}/apply-voucher")
+    public ResponseEntity<BookingResponse> applyVoucher(
+            @PathVariable UUID bookingId,
+            @Valid @RequestBody com.petties.petties.dto.booking.ApplyVoucherRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
+        com.petties.petties.model.User currentUser = bookingService.getCurrentUserById(userPrincipal.getUserId());
+
+        BookingResponse response = bookingService.applyVoucherToBooking(bookingId, request, currentUser);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * Confirm booking (Clinic Manager action)
      * Auto-assigns or manual-assigns staff and reserves slots
      */

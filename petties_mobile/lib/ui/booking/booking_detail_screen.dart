@@ -4,16 +4,40 @@ import '../../config/constants/app_colors.dart';
 import '../../data/models/booking.dart';
 import '../../data/services/qr_payment_service.dart';
 import '../../data/services/booking_service.dart';
+import '../../data/services/voucher_service.dart';
 import '../../utils/format_utils.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../routing/app_routes.dart';
+import 'components/voucher_picker_bottom_sheet.dart';
 
-class AppointmentDetailScreen extends StatelessWidget {
+class AppointmentDetailScreen extends StatefulWidget {
   final BookingResponse booking;
+
+  const AppointmentDetailScreen({super.key, required this.booking});
+
+  @override
+  State<AppointmentDetailScreen> createState() => _AppointmentDetailScreenState();
+}
+
+class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
   final QrPaymentService _qrPaymentService = QrPaymentService();
   final BookingService _bookingService = BookingService();
 
-  AppointmentDetailScreen({super.key, required this.booking});
+  // Voucher state
+  VoucherModel? _selectedVoucher;
+
+  // Getter cũ thay thế bằng state property
+  late BookingResponse _booking;
+  bool _isLoadingVoucher = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _booking = widget.booking;
+  }
+
+  // Getter để các method khác không phải sửa lại chữ booking
+  BookingResponse get booking => _booking;
 
   Future<void> _makePhoneCall(String phoneNumber) async {
     final Uri launchUri = Uri(
@@ -693,6 +717,19 @@ class AppointmentDetailScreen extends StatelessWidget {
   Widget _buildTotalCard() {
     final bool hasSosFee = (booking.sosFee ?? 0) > 0;
     final bool hasDistanceFee = (booking.distanceFee ?? 0) > 0;
+    final double originalTotal = booking.totalPrice ?? 0;
+    
+    // Use selected voucher discount if available, otherwise use booking's discount
+    final double discountAmount = _selectedVoucher?.discountAmount ?? booking.discountAmount ?? 0;
+    final double finalTotal = _selectedVoucher != null 
+        ? (originalTotal - discountAmount).clamp(0, double.infinity) 
+        : (booking.finalPrice ?? originalTotal);
+        
+    final bool canUseVoucher =
+        booking.clinicId != null &&
+        originalTotal > 0 &&
+        ['PENDING', 'CONFIRMED', 'IN_PROGRESS'].contains(booking.status) &&
+        booking.paymentStatus != 'PAID';
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -722,6 +759,21 @@ class AppointmentDetailScreen extends StatelessWidget {
             ],
             const Divider(height: 24),
           ],
+          // Voucher section
+          if (canUseVoucher) ...[
+            _buildVoucherRow(context, originalTotal),
+            if (discountAmount > 0) ...[
+              const SizedBox(height: 8),
+              _buildFeeRow('Giảm voucher', -discountAmount),
+            ],
+            const Divider(height: 24),
+          ],
+          
+          // Show voucher row even if canUseVoucher is false but booking has a voucher applied
+          if (!canUseVoucher && discountAmount > 0) ...[
+            _buildFeeRow('Giảm voucher', -discountAmount),
+            const Divider(height: 24),
+          ],
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -733,17 +785,154 @@ class AppointmentDetailScreen extends StatelessWidget {
                   color: AppColors.stone700,
                 ),
               ),
-              Text(
-                FormatUtils.formatCurrency(booking.totalPrice ?? 0),
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.primary,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (discountAmount > 0) ...[  
+                    Text(
+                      FormatUtils.formatCurrency(originalTotal),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.stone400,
+                        decoration: TextDecoration.lineThrough,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                  ],
+                  Text(
+                    FormatUtils.formatCurrency(finalTotal),
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildVoucherRow(BuildContext context, double orderAmount) {
+    if (_isLoadingVoucher) {
+        return const Center(
+          child: Padding(
+            padding: EdgeInsets.all(8.0),
+            child: SizedBox(
+               width: 20, height: 20,
+               child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          )
+        );
+    }
+    return GestureDetector(
+      onTap: () async {
+        if (booking.clinicId == null) return;
+        // Lấy payment method + service categories để filter voucher phù hợp
+        final paymentMethod = _resolvePaymentMethod(booking);
+        final serviceCategories = booking.services
+            .where((s) => s.serviceCategory != null)
+            .map((s) => s.serviceCategory!)
+            .toSet()
+            .toList();
+        final dynamic picked = await VoucherPickerBottomSheet.show(
+          context: context,
+          clinicId: booking.clinicId!,
+          orderAmount: orderAmount,
+          selectedVoucherId: _selectedVoucher?.voucherId ?? booking.voucherId,
+          paymentMethod: paymentMethod,
+          serviceCategories: serviceCategories,
+        );
+        
+        if (!mounted || picked == null) return;
+
+        bool shouldApply = false;
+        String? targetVoucherId;
+
+        if (picked == false) {
+          // Explicit clear
+          if (_selectedVoucher != null || booking.voucherId != null) {
+            shouldApply = true;
+            targetVoucherId = null;
+          }
+        } else if (picked is VoucherModel) {
+          if (picked.voucherId != (_selectedVoucher?.voucherId ?? booking.voucherId)) {
+            shouldApply = true;
+            targetVoucherId = picked.voucherId;
+          }
+        }
+
+        if (shouldApply) {
+          setState(() {
+            _isLoadingVoucher = true;
+          });
+          try {
+             final updatedBooking = await _bookingService.applyVoucher(booking.bookingId!, targetVoucherId);
+             if (mounted) {
+               setState(() {
+                 _selectedVoucher = picked is VoucherModel ? picked : null;
+                 _booking = updatedBooking;
+               });
+             }
+          } catch(e) {
+             if (mounted) {
+               ScaffoldMessenger.of(context).showSnackBar(
+                 SnackBar(content: Text('Lỗi áp dụng voucher: ${e.toString()}')),
+               );
+             }
+          } finally {
+             if (mounted) {
+               setState(() {
+                 _isLoadingVoucher = false;
+               });
+             }
+          }
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: (_selectedVoucher != null || booking.voucherId != null)
+              ? AppColors.primaryBackground
+              : AppColors.stone50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: (_selectedVoucher != null || booking.voucherId != null)
+                ? AppColors.primary
+                : AppColors.stone300,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.local_offer_rounded,
+              size: 18,
+              color: (_selectedVoucher != null || booking.voucherId != null)
+                  ? AppColors.primary
+                  : AppColors.stone400,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _selectedVoucher != null
+                    ? '${_selectedVoucher!.code} - ${_selectedVoucher!.discountLabel}'
+                    : (booking.voucherId != null ? 'Voucher đã áp dụng' : 'Chọn voucher giảm giá'),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _selectedVoucher != null
+                      ? AppColors.primary
+                      : AppColors.stone500,
+                ),
+              ),
+            ),
+            const Icon(Icons.chevron_right,
+                size: 18, color: AppColors.stone400),
+          ],
+        ),
       ),
     );
   }
@@ -964,14 +1153,22 @@ class AppointmentDetailScreen extends StatelessWidget {
   }
 
   /// Kiểm tra xem có nên hiển thị nút QR hay không
-  /// Hiển thị khi payment chưa PAID (trừ khi booking đã hủy)
+  /// Ẩn khi: đã paid, đã hủy, hoặc payment method là CASH
   bool _shouldShowQrButton() {
     final status = booking.status?.trim().toUpperCase() ?? '';
     final paymentStatus = booking.paymentStatus?.trim().toUpperCase();
     if (paymentStatus == 'PAID') {
       return false;
     }
-    return status != 'CANCELLED';
+    if (status == 'CANCELLED') {
+      return false;
+    }
+    // Ẩn nút QR nếu booking chọn thanh toán tiền mặt
+    final paymentMethod = _resolvePaymentMethod(booking);
+    if (paymentMethod == 'CASH') {
+      return false;
+    }
+    return true;
   }
 
   /// Kiểm tra xem booking này có phải QR payment booking hay không
@@ -1113,7 +1310,7 @@ class AppointmentDetailScreen extends StatelessWidget {
               ),
             const SizedBox(height: 16),
             Text(
-              FormatUtils.formatCurrency(qrBooking.totalPrice ?? 0),
+              FormatUtils.formatCurrency(qrBooking.finalPrice ?? qrBooking.totalPrice ?? 0),
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,

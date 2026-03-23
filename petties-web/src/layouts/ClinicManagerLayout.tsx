@@ -23,7 +23,8 @@ import {
     UserCircleIcon,
     ClipboardDocumentCheckIcon,
     HomeModernIcon,
-    ChartBarIcon
+    ChartBarIcon,
+    TicketIcon
 } from '@heroicons/react/24/outline'
 import '../styles/brutalist.css'
 
@@ -153,6 +154,7 @@ export const ClinicManagerLayout = () => {
                 { path: '/clinic-manager/bookings', label: 'BOOKING', icon: ClipboardDocumentListIcon, unreadCount: pendingBookingCount },
                 { path: '/clinic-manager/services', label: 'DỊCH VỤ', icon: ClipboardDocumentCheckIcon },
                 { path: '/clinic-manager/clinic', label: 'PHÒNG KHÁM', icon: HomeModernIcon },
+                { path: '/clinic-manager/vouchers', label: 'VOUCHER', icon: TicketIcon },
             ]
         },
         {

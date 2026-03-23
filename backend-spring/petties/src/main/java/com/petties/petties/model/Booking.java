@@ -127,6 +127,17 @@ public class Booking {
     @Column(name = "total_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal totalPrice;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "voucher_id")
+    private Voucher voucher;
+
+    @Column(name = "discount_amount", precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal discountAmount = BigDecimal.ZERO;
+
+    @Column(name = "final_price", precision = 12, scale = 2)
+    private BigDecimal finalPrice;
+
     // ========== STATUS ==========
 
     @Enumerated(EnumType.STRING)

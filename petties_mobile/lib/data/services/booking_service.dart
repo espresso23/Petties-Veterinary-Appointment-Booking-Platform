@@ -175,6 +175,16 @@ class BookingService {
     return BookingResponse.fromJson(response.data);
   }
 
+  /// Apply/Remove Voucher for Booking (Pet Owner action)
+  Future<BookingResponse> applyVoucher(
+      String bookingId, String? voucherId) async {
+    final response = await _apiClient.post(
+      '/bookings/$bookingId/apply-voucher',
+      data: {'voucherId': voucherId},
+    );
+    return BookingResponse.fromJson(response.data);
+  }
+
   // ========== SHARED VISIBILITY ==========
 
   /// Get available services for add-on in a booking

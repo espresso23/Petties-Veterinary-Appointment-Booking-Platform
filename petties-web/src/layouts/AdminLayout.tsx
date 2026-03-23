@@ -19,7 +19,8 @@ import {
   ChartBarSquareIcon,
   BellIcon,
   UserCircleIcon,
-  BanknotesIcon
+  BanknotesIcon,
+  TicketIcon
 } from '@heroicons/react/24/outline'
 import '../styles/brutalist.css'
 
@@ -57,6 +58,7 @@ export const AdminLayout = () => {
         { path: '/admin/users', label: 'USERS', icon: UsersIcon },
         { path: '/admin/reports', label: 'REPORTS', icon: FlagIcon },
         { path: '/admin/refunds', label: 'RÚT TIỀN', icon: BanknotesIcon },
+        { path: '/admin/vouchers', label: 'VOUCHER', icon: TicketIcon },
       ]
     },
     {

@@ -21,7 +21,6 @@ import { RegisterPage } from './pages/auth/RegisterPage'
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage'
 import { ResetPasswordPage } from './pages/auth/ResetPasswordPage'
 
-// Admin Pages
 import { AdminDashboardPage } from './pages/admin/DashboardPage'
 import { NotificationsPage as AdminNotificationsPage } from './pages/admin/NotificationsPage'
 import { ToolsPage } from './pages/admin/tools'
@@ -31,6 +30,7 @@ import { AIInsightsPage } from './pages/admin/insights'
 import { ClinicApprovalPage } from './pages/admin/clinics'
 import { ReportsPage as AdminReportsPage } from './pages/admin/ReportsPage'
 import { AdminRefundApplicationsPage } from './pages/admin/refunds/AdminRefundApplicationsPage'
+import { AdminVoucherPage } from './pages/admin/vouchers/AdminVoucherPage'
 
 // Role-specific Pages
 import { StaffDashboardPage, StaffSchedulePage, StaffBookingsPage, StaffPatientsPage, StaffAIChatPage } from './pages/staff'
@@ -58,6 +58,7 @@ import { StaffShiftPage } from './pages/clinic-manager/shifts/StaffShiftPage'
 import { BookingDashboardPage } from './pages/clinic-manager/bookings/BookingDashboardPage'
 import { ServicesViewPage } from './pages/clinic-manager/services/ServicesViewPage'
 import { RefundsPage } from './pages/clinic-manager/RefundsPage'
+import { ClinicManagerVoucherPage } from './pages/clinic-manager/vouchers/ClinicManagerVoucherPage'
 
 // Shared Pages
 import { ProfilePage } from './pages/shared'
@@ -116,6 +117,7 @@ function App() {
             <Route path="clinics" element={<ClinicApprovalPage />} />
             <Route path="reports" element={<AdminReportsPage />} />
             <Route path="refunds" element={<AdminRefundApplicationsPage />} />
+            <Route path="vouchers" element={<AdminVoucherPage />} />
             <Route path="notifications" element={<AdminNotificationsPage />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route >
@@ -175,6 +177,7 @@ function App() {
             <Route path="notifications" element={<ClinicManagerNotificationsPage />} />
             <Route path="clinic" element={<ManagerClinicInfoPage />} />
             <Route path="clinic/edit" element={<ManagerClinicEditPage />} />
+            <Route path="vouchers" element={<ClinicManagerVoucherPage />} />
           </Route >
         </Routes >
         <SpotlightProvider />

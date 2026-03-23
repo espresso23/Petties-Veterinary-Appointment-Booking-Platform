@@ -6,6 +6,7 @@ import '../data/models/clinic.dart';
 import '../data/models/clinic_service.dart';
 import '../data/models/pet.dart';
 import '../data/services/booking_wizard_service.dart';
+import '../data/services/booking_service.dart';
 
 /// Booking type enum
 enum BookingType { atClinic, homeVisit }
@@ -59,6 +60,10 @@ class BookingWizardProvider extends ChangeNotifier {
   String _notes = '';
   String _paymentMethod = 'QR';
 
+  // Voucher (chọn trên confirm screen, apply sau createBooking)
+  String? _selectedVoucherId;
+  double _voucherDiscount = 0;
+
   // Track which pet is currently being selected for services
   String? _currentPetIdForServiceSelection;
 
@@ -106,6 +111,9 @@ class BookingWizardProvider extends ChangeNotifier {
   Map<String, List<ClinicServiceModel>> get petServices => _petServices;
   String get notes => _notes;
   String get paymentMethod => _paymentMethod;
+
+  String? get selectedVoucherId => _selectedVoucherId;
+  double get voucherDiscount => _voucherDiscount;
 
   String? get currentPetIdForServiceSelection =>
       _currentPetIdForServiceSelection;
@@ -517,6 +525,16 @@ class BookingWizardProvider extends ChangeNotifier {
     final normalized = method.trim().toUpperCase();
     if (normalized != 'QR' && normalized != 'CASH') return;
     _paymentMethod = normalized;
+    // Khi đổi payment method, clear voucher vì có thể không còn khả dụng
+    _selectedVoucherId = null;
+    _voucherDiscount = 0;
+    notifyListeners();
+  }
+
+  /// Set voucher đã chọn trên confirm screen
+  void setVoucher(String? voucherId, {double discount = 0}) {
+    _selectedVoucherId = voucherId;
+    _voucherDiscount = discount;
     notifyListeners();
   }
 
@@ -874,6 +892,27 @@ class BookingWizardProvider extends ChangeNotifier {
       final paymentDescription = responseData['paymentDescription']?.toString();
       final totalPrice = (responseData['totalPrice'] as num?)?.toDouble() ?? this.totalPrice;
 
+      // Auto-apply voucher nếu user đã chọn trước trên confirm screen
+      if (_selectedVoucherId != null && bookingId != null) {
+        try {
+          final bookingSvc = BookingService();
+          final updatedBooking = await bookingSvc.applyVoucher(bookingId, _selectedVoucherId);
+          debugPrint('Auto-applied voucher $_selectedVoucherId to booking $bookingId');
+
+          return BookingCreationResult(
+            success: true,
+            bookingId: bookingId,
+            paymentMethod: paymentMethod,
+            qrImageUrl: updatedBooking.qrImageUrl,
+            paymentDescription: updatedBooking.paymentDescription,
+            totalPrice: updatedBooking.finalPrice ?? updatedBooking.totalPrice ?? this.totalPrice,
+          );
+        } catch (e) {
+          debugPrint('Warning: Failed to auto-apply voucher: $e');
+          // Không fail booking vì voucher là optional
+        }
+      }
+
       return BookingCreationResult(
         success: true,
         bookingId: bookingId,
@@ -912,6 +951,8 @@ class BookingWizardProvider extends ChangeNotifier {
     _createdBookingId = null;
     _error = null;
     _bookingError = null;
+    _selectedVoucherId = null;
+    _voucherDiscount = 0;
   }
 
   /// Reset booking (public method)

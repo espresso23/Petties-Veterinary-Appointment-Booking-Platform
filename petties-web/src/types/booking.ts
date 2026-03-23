@@ -100,6 +100,11 @@ export interface Booking {
     distanceFee?: number; // Home visit fee (pricePerKm × distanceKm) applied once
     sosFee?: number;      // SOS emergency fee
 
+    // Voucher
+    voucherId?: string;
+    discountAmount?: number;
+    finalPrice?: number;
+
     // Timestamps
     createdAt: string;
 }
