@@ -55,6 +55,10 @@ public enum NotificationType {
     // Vaccination
     VACCINATION_REMINDER,
 
+    // Subscriptions
+    SUBSCRIPTION_EXPIRING_SOON,
+    SUBSCRIPTION_ACTIVATED,
+
     // Report
     REPORT_CREATED,
     REPORT_RESOLVED

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { 
-    SparklesIcon, 
+import {
+    SparklesIcon,
     ChevronRightIcon,
     PlusIcon,
     TrashIcon,
@@ -11,6 +11,7 @@ import {
     PencilIcon,
     ArrowPathIcon
 } from '@heroicons/react/24/outline'
+import { useNavigate } from 'react-router-dom'
 import { ChatbotUI, type ChatMessage } from './ChatbotUI'
 import { useChatSidebar } from '../../hooks/useChatSidebar'
 import { useAuthStore } from '../../store/authStore'
@@ -35,6 +36,7 @@ interface ChatSessionMessage {
 interface ChatSidebarProps {
     title?: string
     placeholder?: string
+    isVIP?: boolean
 }
 
 const QUICK_ACTIONS = [
@@ -53,8 +55,10 @@ const SUGGESTED_PROMPTS = [
 
 export const ChatSidebar = ({
     title = 'Trợ lý AI',
-    placeholder = 'Nhập tin nhắn...'
+    placeholder = 'Nhập tin nhắn...',
+    isVIP = false
 }: ChatSidebarProps) => {
+    const navigate = useNavigate()
     const { isOpen, toggle, close } = useChatSidebar()
     const [sessions, setSessions] = useState<ChatSession[]>([])
     const [showSessionList, setShowSessionList] = useState(false)
@@ -62,12 +66,17 @@ export const ChatSidebar = ({
     const [isCreatingSession, setIsCreatingSession] = useState(false)
     const wsRef = useRef<WebSocket | null>(null)
     const { showToast } = useToast()
-    
+
     const accessToken = useAuthStore((state) => state.accessToken)
-    
+    const userRole = useAuthStore((state) => state.user?.role)
+
+    // Check if user has permission to upgrade
+    const canUpgrade = userRole === 'CLINIC_OWNER'
+    const upgradePath = canUpgrade ? '/clinic-owner/subscriptions' : null
+
     // Use shared store
-    const { 
-        sessionId, 
+    const {
+        sessionId,
         messages: storeMessages,
         setSessionId,
         setMessages,
@@ -88,7 +97,7 @@ export const ChatSidebar = ({
     // Load sessions list
     const loadSessions = useCallback(async () => {
         if (!accessToken) return
-        
+
         setIsLoadingSessions(true)
         try {
             const response = await fetch(
@@ -99,7 +108,7 @@ export const ChatSidebar = ({
                     }
                 }
             )
-            
+
             if (response.ok) {
                 const data = await response.json()
                 setSessions(data.sessions || [])
@@ -114,7 +123,7 @@ export const ChatSidebar = ({
     // Create new session
     const createNewSession = useCallback(async () => {
         if (!accessToken || isCreatingSession) return
-        
+
         setIsCreatingSession(true)
         try {
             // Close existing WebSocket
@@ -122,7 +131,7 @@ export const ChatSidebar = ({
                 wsRef.current.close()
                 wsRef.current = null
             }
-            
+
             const response = await fetch(
                 `${import.meta.env.VITE_AGENT_API_BASE_URL || 'http://localhost:8000'}/api/v1/chat/sessions`,
                 {
@@ -136,7 +145,7 @@ export const ChatSidebar = ({
                     })
                 }
             )
-            
+
             if (response.ok) {
                 const data = await response.json()
                 setSessionId(data.session_id)
@@ -155,7 +164,7 @@ export const ChatSidebar = ({
     // Delete session
     const deleteSession = useCallback(async (sessionIdToDelete: string) => {
         if (!accessToken) return
-        
+
         try {
             const response = await fetch(
                 `${import.meta.env.VITE_AGENT_API_BASE_URL || 'http://localhost:8000'}/api/v1/chat/sessions/${sessionIdToDelete}`,
@@ -166,10 +175,10 @@ export const ChatSidebar = ({
                     }
                 }
             )
-            
+
             if (response.ok) {
                 showToast('success', 'Đã xóa cuộc chat')
-                
+
                 // If deleting current session, create new one
                 if (sessionId === sessionIdToDelete) {
                     await createNewSession()
@@ -186,13 +195,13 @@ export const ChatSidebar = ({
     // Select existing session
     const selectSession = useCallback(async (selectedSessionId: string) => {
         if (!accessToken) return
-        
+
         // Close existing WebSocket
         if (wsRef.current) {
             wsRef.current.close()
             wsRef.current = null
         }
-        
+
         try {
             const response = await fetch(
                 `${import.meta.env.VITE_AGENT_API_BASE_URL || 'http://localhost:8000'}/api/v1/chat/sessions/${selectedSessionId}`,
@@ -202,11 +211,11 @@ export const ChatSidebar = ({
                     }
                 }
             )
-            
+
             if (response.ok) {
                 const data = await response.json()
                 setSessionId(data.session_id)
-                
+
                 // Convert messages to ChatMessage format
                 const convertedMessages: ChatMessage[] = (data.messages || []).map((msg: ChatSessionMessage) => ({
                     id: msg.message_id || Date.now().toString(),
@@ -214,7 +223,7 @@ export const ChatSidebar = ({
                     content: msg.content,
                     timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date()
                 }))
-                
+
                 setMessages(convertedMessages)
                 setShowSessionList(false)
             }
@@ -228,7 +237,7 @@ export const ChatSidebar = ({
     useEffect(() => {
         if (accessToken && isOpen) {
             loadSessions()
-            
+
             // Create initial session if none exists
             if (!sessionId) {
                 createNewSession()
@@ -241,7 +250,7 @@ export const ChatSidebar = ({
         if (!sessionId || !accessToken) return
 
         const AGENT_WS_BASE_URL = import.meta.env.VITE_AGENT_WS_BASE_URL || 'ws://localhost:8000'
-        
+
         // Close existing WebSocket
         if (wsRef.current) {
             wsRef.current.close()
@@ -284,7 +293,7 @@ export const ChatSidebar = ({
                     if (content) {
                         updateLastMessage(content, false)
                     }
-                    
+
                     // Also handle thinking/reasoning content
                     if (data.thinking || data.reasoning) {
                         const thoughtContent = data.thinking || data.reasoning
@@ -301,7 +310,7 @@ export const ChatSidebar = ({
                 // Handle thinking type (for reasoning display)
                 if (data.type === 'thinking') {
                     const content = data.content || ''
-                    
+
                     if (content) {
                         updateLastMessage(content, true) // true = still loading/thinking
                     }
@@ -356,14 +365,14 @@ export const ChatSidebar = ({
         }
 
         const hasImages = images && images.length > 0
-        
+
         // Check WebSocket connection
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
             // Fallback to REST API if WebSocket is not available
             if (sessionId && accessToken) {
                 try {
                     const response = await fetch(
-                        `${import.meta.env.VITE_AGENT_API_BASE_URL || 'http://localhost:8000'}/api/v1/chat/sessions/${sessionId}/messages`, 
+                        `${import.meta.env.VITE_AGENT_API_BASE_URL || 'http://localhost:8000'}/api/v1/chat/sessions/${sessionId}/messages`,
                         {
                             method: 'POST',
                             headers: {
@@ -373,7 +382,7 @@ export const ChatSidebar = ({
                             body: JSON.stringify({ message, images })
                         }
                     )
-                    
+
                     if (response.ok) {
                         // Add user message to store
                         addMessage({
@@ -382,7 +391,7 @@ export const ChatSidebar = ({
                             content: message,
                             timestamp: new Date()
                         })
-                        
+
                         // Add assistant message
                         addMessage({
                             id: (Date.now() + 1).toString(),
@@ -390,7 +399,7 @@ export const ChatSidebar = ({
                             content: 'Đang xử lý...',
                             timestamp: new Date()
                         })
-                        
+
                         return {}
                     } else {
                         showToast('error', 'Không thể gửi tin nhắn')
@@ -471,10 +480,9 @@ export const ChatSidebar = ({
             </button>
 
             {/* Sidebar Container - slides from right */}
-            <div 
-                className={`fixed right-0 top-0 h-full w-[400px] z-30 transition-transform duration-300 ease-in-out ${
-                    isOpen ? 'translate-x-0' : 'translate-x-full'
-                }`}
+            <div
+                className={`fixed right-0 top-0 h-full w-[400px] z-30 transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'
+                    }`}
             >
                 {/* Sidebar Content */}
                 <div className="h-full border-l-2 border-stone-900 shadow-[-4px_4px_0_#1c1917] bg-white flex flex-col">
@@ -494,7 +502,7 @@ export const ChatSidebar = ({
                             >
                                 <FolderIcon className="w-5 h-5 text-white" />
                             </button>
-                            <button 
+                            <button
                                 onClick={close}
                                 className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
                             >
@@ -532,11 +540,10 @@ export const ChatSidebar = ({
                                     </div>
                                 ) : (
                                     sessions.map((session) => (
-                                        <div 
+                                        <div
                                             key={session.session_id}
-                                            className={`flex items-center justify-between px-4 py-2 border-b border-stone-100 hover:bg-stone-100 cursor-pointer ${
-                                                session.session_id === sessionId ? 'bg-amber-50' : ''
-                                            }`}
+                                            className={`flex items-center justify-between px-4 py-2 border-b border-stone-100 hover:bg-stone-100 cursor-pointer ${session.session_id === sessionId ? 'bg-amber-50' : ''
+                                                }`}
                                             onClick={() => selectSession(session.session_id)}
                                         >
                                             <div className="flex-1 min-w-0">
@@ -565,8 +572,8 @@ export const ChatSidebar = ({
                     )}
 
                     {/* Main Content - Chat or Welcome */}
-                    <div className="flex-1 overflow-hidden flex flex-col">
-                        <ChatbotUI 
+                    <div className="relative flex-1 overflow-hidden flex flex-col">
+                        <ChatbotUI
                             title={title}
                             placeholder={placeholder}
                             onSendMessage={handleSendMessage}
@@ -577,13 +584,41 @@ export const ChatSidebar = ({
                             onQuickAction={handleQuickAction}
                             showHeader={false}
                         />
+
+                        {!isVIP && (
+                            <div className="absolute inset-0 bg-white/90 backdrop-blur-[2px] z-50 flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
+                                <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mb-4 border-2 border-stone-900 shadow-[4px_4px_0_0_#1c1917]">
+                                    <SparklesIcon className="w-8 h-8 text-amber-600" />
+                                </div>
+                                <h3 className="text-xl font-black text-stone-900 uppercase mb-2 leading-tight">Yêu cầu Hội viên</h3>
+                                <p className="text-sm text-stone-600 mb-8 font-medium">
+                                    Trợ lý AI chỉ dành cho phòng khám có gói hội viên đang hoạt động.
+                                </p>
+
+                                {upgradePath ? (
+                                    <button
+                                        onClick={() => {
+                                            close()
+                                            navigate(upgradePath)
+                                        }}
+                                        className="w-full py-3 bg-amber-500 text-stone-950 font-black uppercase tracking-widest border-2 border-stone-900 shadow-[4px_4px_0_0_#1c1917] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#1c1917] transition-all"
+                                    >
+                                        Nâng cấp ngay
+                                    </button>
+                                ) : (
+                                    <div className="px-4 py-3 bg-stone-100 border-2 border-stone-900 rounded-lg text-xs font-bold text-stone-500 uppercase tracking-tight">
+                                        Vui lòng liên hệ chủ phòng khám để kích hoạt AI
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
 
             {/* Backdrop when sidebar is open */}
             {isOpen && (
-                <div 
+                <div
                     className="fixed inset-0 bg-black/20 z-20"
                     onClick={close}
                 />

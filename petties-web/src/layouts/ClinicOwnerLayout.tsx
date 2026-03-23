@@ -7,9 +7,13 @@ import type { NavGroup } from '../components/Sidebar/Sidebar'
 import { useSidebar } from '../hooks/useSidebar'
 import { useSseNotification } from '../hooks/useSseNotification'
 import { useSyncProfile } from '../hooks/useSyncProfile'
+import { useMembershipStore } from '../store/membershipStore'
+import { useClinicStore } from '../store/clinicStore'
+import { subscriptionService } from '../services/api/subscriptionService'
 import {
     Squares2X2Icon,
     HomeModernIcon,
+    CreditCardIcon,
     UserGroupIcon,
     WrenchScrewdriverIcon,
     BeakerIcon,
@@ -27,6 +31,13 @@ export const ClinicOwnerLayout = () => {
     const refreshUnreadCount = useNotificationStore((state) => state.refreshUnreadCount)
     const { state, toggleSidebar, isMobile } = useSidebar()
 
+    const setMembership = useMembershipStore(state => state.setMembership)
+    const { clinics, getMyClinics } = useClinicStore()
+
+    const isVIP = useMembershipStore(state => state.isVIP())
+    const planName = useMembershipStore(state => state.getPlanName())
+    const remainingDays = useMembershipStore(state => state.getRemainingDays())
+
     // Initialize SSE
     useSseNotification()
 
@@ -35,7 +46,16 @@ export const ClinicOwnerLayout = () => {
 
     useEffect(() => {
         refreshUnreadCount()
-    }, [refreshUnreadCount])
+        getMyClinics()
+    }, [refreshUnreadCount, getMyClinics])
+
+    useEffect(() => {
+        if (clinics && clinics.length > 0) {
+            subscriptionService.getClinicSubscription(clinics[0].clinicId)
+                .then(sub => setMembership(sub))
+                .catch(() => setMembership(null))
+        }
+    }, [clinics, setMembership])
 
     const navGroups: NavGroup[] = [
         {
@@ -43,6 +63,7 @@ export const ClinicOwnerLayout = () => {
             items: [
                 { path: '/clinic-owner', label: 'BẢNG ĐIỀU KHIỂN', icon: Squares2X2Icon, end: true },
                 { path: '/clinic-owner/clinics', label: 'QUẢN LÝ PHÒNG KHÁM', icon: HomeModernIcon },
+                { path: '/clinic-owner/subscriptions', label: 'GÓI DỊCH VỤ', icon: CreditCardIcon },
                 { path: '/clinic-owner/staff', label: 'NHÂN SỰ', icon: UserGroupIcon },
             ]
         },
@@ -78,6 +99,9 @@ export const ClinicOwnerLayout = () => {
                 toggleSidebar={toggleSidebar}
                 onLogout={handleLogout}
                 isMobile={isMobile}
+                isVIP={isVIP}
+                planName={planName}
+                remainingDays={remainingDays}
             />
 
             {/* Main Content */}

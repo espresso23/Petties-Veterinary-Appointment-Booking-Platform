@@ -31,6 +31,12 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
    */
   Optional<Payment> findByBookingBookingId(UUID bookingId);
 
+  Optional<Payment> findByPaymentDescription(String paymentDescription);
+
+  Optional<Payment> findFirstBySubscriptionSubscriptionIdOrderByCreatedAtDesc(UUID subscriptionId);
+
+  void deleteAllBySubscriptionIsNotNull();
+
   /**
    * Check xem booking đã có payment chưa
    */
