@@ -1,4 +1,4 @@
-# Petties Design Style Guide
+﻿# Petties Design Style Guide
 
 ## 🎨 Design Philosophy: Soft Neobrutalism
 

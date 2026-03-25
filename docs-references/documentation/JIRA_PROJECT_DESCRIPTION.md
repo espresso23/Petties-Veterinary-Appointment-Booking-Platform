@@ -1,4 +1,4 @@
-# 🐾 Petties – Jira README
+﻿# 🐾 Petties – Jira README
 
 ## 1. Mục tiêu dự án
 - **Mô tả ngắn**: **Petties** là hệ sinh thái quản lý và đặt lịch khám thú y toàn diện (**Clinic-Centric**), kết nối **Chủ pet** và các **Phòng khám** chuyên nghiệp. Hệ thống tối ưu hóa quy trình vận hành từ điều phối nhân viên, quản lý hồ sơ bệnh án điện tử (EMR) đến tư vấn AI chuyên sâu.

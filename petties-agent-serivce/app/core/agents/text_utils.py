@@ -8,7 +8,9 @@ Package: app.core.agents
 Version: v2.0.0 (Removed keyword constants — LLM handles all classification)
 """
 
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
+import re
+import unicodedata
 
 
 def extract_latest_user_message(messages: List[Any]) -> str:
@@ -42,12 +44,34 @@ def extract_all_user_messages(messages: List[Any]) -> List[str]:
     return user_messages
 
 
-def infer_pet_type(user_message: str) -> str:
-    """Infer pet type from user message; defaults to 'dog'."""
-    normalized = (user_message or "").lower()
-    if any(kw in normalized for kw in ["mèo", "meo", "cat", "kitten"]):
-        return "cat"
-    return "dog"
+def build_recent_dialogue(messages: List[Any], limit: int = 10) -> str:
+    """Build a short conversation transcript for prompt grounding."""
+    if not messages:
+        return ""
+
+    lines: List[str] = []
+    for msg in messages[-max(1, limit) :]:
+        if isinstance(msg, dict):
+            role = str(msg.get("role") or "").strip().lower()
+            content = str(msg.get("content") or "").strip()
+        else:
+            role = str(getattr(msg, "role", "") or "").strip().lower()
+            content = str(getattr(msg, "content", "") or "").strip()
+
+        if not content:
+            continue
+
+        if role == "assistant":
+            label = "Trợ lý"
+        elif role == "user":
+            label = "Người dùng"
+        else:
+            label = role or "Khác"
+
+        compact = re.sub(r"\s+", " ", content).strip()
+        lines.append(f"- {label}: {compact}")
+
+    return "\n".join(lines)
 
 
 def get_latest_successful_tool_data(
@@ -68,4 +92,60 @@ def get_latest_successful_tool_data(
         data = tool_result.get("data")
         if isinstance(data, dict):
             return data
+    return None
+
+
+def normalize_vietnamese_text(value: str) -> str:
+    """Normalize Vietnamese text for tolerant entity matching."""
+    s = (value or "").strip().lower()
+    s = s.replace("đ", "d")
+    s = unicodedata.normalize("NFD", s)
+    s = "".join(ch for ch in s if unicodedata.category(ch) != "Mn")
+    s = re.sub(r"[^a-z0-9\s]", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
+def resolve_pet_from_messages(
+    messages: List[Any],
+    pets: List[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """Find the most likely pet mentioned anywhere in user chat history."""
+    if not pets:
+        return None
+
+    user_messages = extract_all_user_messages(messages)
+    if not user_messages:
+        return None
+
+    normalized_history = [
+        normalize_vietnamese_text(msg) for msg in user_messages if str(msg).strip()
+    ]
+    normalized_history.reverse()
+
+    candidates = []
+    for pet in pets:
+        if not isinstance(pet, dict):
+            continue
+        name = str(pet.get("name") or "").strip()
+        if not name:
+            continue
+        normalized_name = normalize_vietnamese_text(name)
+        if not normalized_name:
+            continue
+        candidates.append((pet, normalized_name))
+
+    for message in normalized_history:
+        matches = [
+            pet
+            for pet, normalized_name in sorted(
+                candidates,
+                key=lambda item: len(item[1]),
+                reverse=True,
+            )
+            if normalized_name in message
+        ]
+        if matches:
+            return matches[0]
+
     return None

@@ -1,29 +1,8 @@
 """
 PETTIES AI SERVICE - Feedback Service
 
-Xử lý feedback từ TẤT CẢ roles (PET_OWNER, STAFF, CLINIC_MANAGER,
-CLINIC_OWNER, ADMIN) trên TẤT CẢ loại tương tác AI.
-
-Package: app.core.services
-Purpose: Save feedback, auto-classify, process positive -> embed case memory
-Version: v1.0.0
-
-Flow:
-    1. User gửi feedback (thumbs_up/down/report) qua POST /chat/feedback
-    2. FeedbackService.save_feedback() -> lưu vào MongoDB
-    3. Nếu positive -> process_positive_feedback():
-       a. Lấy message gốc từ MongoDB
-       b. Auto-classify category (medical/booking/clinic_ops/general)
-       c. Extract case info theo category
-       d. Tính weight theo role
-       e. Embed vào Case Memory (Qdrant) nếu weight > 0
-
-Trọng số feedback theo role:
-    VET/STAFF confirmed     = 1.0 (chuyên gia xác nhận)
-    CLINIC_MANAGER positive = 0.7
-    CLINIC_OWNER positive   = 0.7
-    PET_OWNER thumbs_up     = 0.6
-    ADMIN playground        = 0.0 (chỉ debug, không embed)
+Feedback duoc luu de phuc vu analytics, audit va monitoring.
+Service nay khong enrich Case Memory.
 """
 
 from __future__ import annotations
@@ -39,6 +18,9 @@ from loguru import logger
 # CONSTANTS
 # ============================================================
 
+# Feedback chi phuc vu analytics va monitoring.
+CASE_MEMORY_ENABLED = False
+
 # Trọng số feedback theo role
 ROLE_FEEDBACK_WEIGHTS: Dict[str, float] = {
     "VET": 1.0,
@@ -46,13 +28,12 @@ ROLE_FEEDBACK_WEIGHTS: Dict[str, float] = {
     "CLINIC_MANAGER": 0.7,
     "CLINIC_OWNER": 0.7,
     "PET_OWNER": 0.6,
-    "ADMIN": 0.0,  # Playground debug, không bao giờ embed
+    "ADMIN": 0.0,  # Playground debug
 }
 
 # Ánh xạ tool -> category cho auto-classification
 MEDICAL_TOOLS: Set[str] = {
     "pet_knowledge_search",
-    "analyze_pet_image",
     "check_vaccination_status",
 }
 
@@ -75,8 +56,6 @@ CLINIC_OPS_TOOLS: Set[str] = {
     "analyze_vet_workload",
 }
 
-# Loại feedback positive kích hoạt case embedding
-POSITIVE_FEEDBACK_TYPES: Set[str] = {"thumbs_up", "confirmed", "vet_confirmed"}
 
 
 # ============================================================
@@ -86,18 +65,9 @@ POSITIVE_FEEDBACK_TYPES: Set[str] = {"thumbs_up", "confirmed", "vet_confirmed"}
 
 class FeedbackService:
     """
-    Điều phối xử lý feedback cho tất cả roles và loại tương tác.
+    Dieu phoi feedback cho analytics, audit va monitoring.
 
-    Trách nhiệm:
-        - Lưu feedback vào MongoDB
-        - Tự động phân loại interaction category từ react_trace
-        - Xử lý positive feedback -> embed vào Case Memory
-        - Tính trọng số feedback theo role
-        - Cung cấp thống kê feedback
-
-    Cách dùng:
-        service = FeedbackService()
-        result = await service.save_feedback(feedback_data)
+    Service nay khong co trach nhiem dong bo case memory.
     """
 
     _instance: Optional["FeedbackService"] = None
@@ -114,7 +84,7 @@ class FeedbackService:
 
     async def save_feedback(self, feedback_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Lưu feedback của người dùng vào MongoDB và kích hoạt case embedding nếu positive.
+        Luu feedback cua nguoi dung vao MongoDB cho analytics va monitoring.
 
         Args:
             feedback_data: Dict chứa:
@@ -128,7 +98,7 @@ class FeedbackService:
                 - feedback_text: Nhận xét chi tiết (tùy chọn)
 
         Returns:
-            Dict với status, cờ case_embedded, và category.
+            Dict với status, category, và các cờ analytics/monitoring.
         """
         # Lazy import to avoid circular deps
         from app.core.database.mongodb import get_mongodb_database
@@ -175,20 +145,14 @@ class FeedbackService:
             logger.error(f"Failed to save feedback to MongoDB: {e}")
             return {"status": "error", "error": str(e)}
 
-        # Xử lý positive feedback -> embed case nếu phù hợp
-        case_embedded = False
-        if feedback_type in POSITIVE_FEEDBACK_TYPES:
-            case_embedded = await self.process_positive_feedback(
-                message_id=message_id,
-                feedback=doc,
-            )
-
         return {
             "status": "saved",
             "feedback_id": doc["feedback_id"],
-            "case_embedded": case_embedded,
             "category": category,
             "weight": doc["weight"],
+            "used_for_analytics": True,
+            "used_for_monitoring": True,
+            "used_for_enrichment": False,
         }
 
     async def process_positive_feedback(
@@ -196,124 +160,12 @@ class FeedbackService:
         message_id: str,
         feedback: Dict[str, Any],
     ) -> bool:
-        """
-        Xử lý positive feedback: trích xuất case info và embed vào Case Memory.
-
-        Bỏ qua embedding cho ADMIN role (weight=0) và category không hỗ trợ.
-
-        Args:
-            message_id: Tin nhắn AI được xác nhận.
-            feedback: Document feedback đầy đủ.
-
-        Returns:
-            True nếu case được embed thành công.
-        """
-        weight = feedback.get("weight", 0.0)
-        if weight <= 0:
-            logger.info(
-                f"Skipping case embedding for role={feedback.get('user_role')} "
-                f"(weight={weight})"
-            )
-            return False
-
-        # Lấy tin nhắn gốc từ MongoDB
-        message = await self._get_message(message_id)
-        if not message:
-            logger.warning(f"Message {message_id} not found, cannot embed case")
-            return False
-
-        # Feedback thường gắn trên assistant message; ảnh nằm ở user message trước đó.
-        metadata = message.get("metadata", {}) or {}
-        if not metadata.get("images"):
-            session_id = feedback.get("session_id", "")
-            if session_id:
-                latest_user_images = await self._get_latest_user_images(session_id)
-                if latest_user_images:
-                    metadata["images"] = latest_user_images
-                    message["metadata"] = metadata
-
-        category = feedback.get("feedback_category", "general")
-        user_role = feedback.get("user_role", "PET_OWNER")
-
-        # Trích xuất thông tin case dựa trên category
-        case_data = self._extract_case_by_category(message, category)
-        if not case_data or not case_data.get("text_to_embed"):
-            logger.info(f"No embeddable content for category={category}")
-            return False
-
-        # Thêm metadata feedback
-        case_data["feedback_type"] = "confirmed"
-        case_data["feedback_category"] = category
-        case_data["user_role"] = user_role
-        case_data["vet_verified"] = user_role in ("VET", "STAFF")
-        case_data["session_id"] = feedback.get("session_id", "")
-        case_data["message_id"] = message_id
-
-        # Embed vào Case Memory
-        try:
-            from app.core.rag.case_memory import get_case_memory_service
-
-            cm = get_case_memory_service()
-            text_to_embed = case_data.pop("text_to_embed")
-
-            # Phân tách URL và base64
-            image_urls = None
-            image_base64 = None
-            all_images = case_data.pop("image_urls", None)
-
-            if all_images:
-                urls = [
-                    img
-                    for img in all_images
-                    if isinstance(img, str) and img.startswith("http")
-                ]
-                base64s = [
-                    img
-                    for img in all_images
-                    if isinstance(img, str)
-                    and (img.startswith("data:") or not img.startswith("http"))
-                ]
-                if urls:
-                    image_urls = urls
-                if base64s:
-                    image_base64 = base64s
-
-            case_id = await cm.upsert_case(
-                text_to_embed=text_to_embed,
-                payload=case_data,
-                image_urls=image_urls,
-                image_base64=image_base64,
-            )
-
-            if case_id:
-                logger.info(
-                    f"Embedded case {case_id} from feedback "
-                    f"(category={category}, role={user_role})"
-                )
-
-                # Auto-update KG from confirmed medical cases
-                if category == "medical" and user_role in ("VET", "STAFF"):
-                    try:
-                        from app.core.rag.knowledge_graph import (
-                            get_knowledge_graph_service,
-                        )
-
-                        kg_service = get_knowledge_graph_service()
-                        # Run in background to not block the feedback response
-                        import asyncio
-
-                        asyncio.create_task(kg_service.add_text_to_graph(text_to_embed))
-                    except Exception as kg_err:
-                        logger.error(
-                            f"Failed to auto-update KG from feedback: {kg_err}"
-                        )
-
-                return True
-            return False
-
-        except Exception as e:
-            logger.error(f"Failed to embed case from feedback: {e}")
-            return False
+        """Legacy no-op kept for backward compatibility."""
+        logger.info(
+            "process_positive_feedback is deprecated and ignored "
+            f"(message_id={message_id}, feedback_id={feedback.get('feedback_id', '')})"
+        )
+        return False
 
     async def get_feedback_stats(
         self,
@@ -525,50 +377,32 @@ class FeedbackService:
             await collection.update_one(
                 {"feedback_id": feedback_id}, {"$set": update_data}
             )
-            return {"status": "updated", "feedback_id": feedback_id}
+            return {
+                "status": "updated",
+                "feedback_id": feedback_id,
+                "used_for_analytics": True,
+                "used_for_monitoring": True,
+                "used_for_enrichment": False,
+            }
         except Exception as e:
             return {"status": "error", "error": str(e)}
 
     async def delete_feedback(
         self, feedback_id: str, user_id: str, is_admin: bool = False
     ) -> Dict[str, Any]:
-        """Xóa feedback và cascade xóa case khỏi Qdrant."""
-        from app.core.database.mongodb import get_mongodb_database
-        from app.config.settings import settings
-
-        existing = await self.get_feedback_by_id(feedback_id)
-        if not existing:
-            return {"status": "error", "error": "Không tìm thấy feedback"}
-        if existing.get("user_id") != user_id and not is_admin:
-            return {"status": "error", "error": "Không có quyền"}
-
-        case_deleted = False
-        case_id = existing.get("case_id")
-        if case_id:
-            case_deleted = await self._delete_case_from_qdrant(case_id)
-
-        try:
-            db = await get_mongodb_database()
-            collection = db[settings.MONGODB_FEEDBACK_COLLECTION]
-            await collection.delete_one({"feedback_id": feedback_id})
-            return {
-                "status": "deleted",
-                "feedback_id": feedback_id,
-                "case_deleted": case_deleted,
-            }
-        except Exception as e:
-            return {"status": "error", "error": str(e)}
+        """Feedback records are append-only and cannot be deleted."""
+        return {
+            "status": "error",
+            "error": "Feedback chi phuc vu phan tich va giam sat, khong ho tro xoa",
+        }
 
     async def _delete_case_from_qdrant(self, case_id: str) -> bool:
-        """Xóa case khỏi Qdrant."""
-        try:
-            from app.core.rag.case_memory import get_case_memory_service
-
-            cm = get_case_memory_service()
-            return await cm.delete_case(case_id)
-        except Exception as e:
-            logger.error(f"Failed to delete case {case_id}: {e}")
-            return False
+        """Legacy no-op kept for backward compatibility."""
+        logger.warning(
+            "_delete_case_from_qdrant is deprecated because feedback no longer "
+            f"owns case memory records (case_id={case_id})"
+        )
+        return False
 
     # ----------------------------------------------------------
     # Nội bộ: Helper functions
@@ -859,5 +693,9 @@ __all__ = [
     "get_feedback_service",
     "reset_feedback_service",
     "ROLE_FEEDBACK_WEIGHTS",
-    "POSITIVE_FEEDBACK_TYPES",
 ]
+
+
+
+
+

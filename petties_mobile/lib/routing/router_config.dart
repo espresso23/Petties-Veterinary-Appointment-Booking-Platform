@@ -17,6 +17,7 @@ import '../ui/staff/patient/vaccination_form_screen.dart';
 import '../ui/staff/emr/create_emr_screen.dart';
 import '../ui/staff/emr/emr_detail_screen.dart';
 import '../ui/staff/emr/edit_emr_screen.dart';
+import '../ui/staff/ai_chat/staff_ai_chat_screen.dart';
 import '../ui/screens/profile/profile_screen.dart';
 import '../ui/screens/profile/edit_profile_screen.dart';
 import '../ui/screens/profile/change_password_screen.dart';
@@ -27,7 +28,7 @@ import '../ui/pet/pet_health_record_screen.dart';
 import '../ui/screens/notification/notification_list_screen.dart';
 import '../ui/chat/chat_list_screen.dart';
 import '../ui/chat/chat_detail_screen.dart';
-import '../ui/chat/ai_pet_care_chat_screen.dart';
+import '../ui/chat/ai_chat/ai_pet_care_chat_screen.dart';
 import '../ui/clinics/clinic_search_view.dart';
 import '../ui/clinics/clinic_detail_view.dart';
 import '../ui/clinics/clinic_map_view.dart';
@@ -302,6 +303,13 @@ class AppRouterConfig {
             final emrId = state.pathParameters['emrId']!;
             return EditEmrScreen(emrId: emrId);
           },
+        ),
+        GoRoute(
+          path: AppRoutes.staffAiChat,
+          pageBuilder: (context, state) => const MaterialPage<void>(
+            fullscreenDialog: true,
+            child: StaffAiChatScreen(),
+          ),
         ),
 
         // Clinic routes (from intergrationFeature)

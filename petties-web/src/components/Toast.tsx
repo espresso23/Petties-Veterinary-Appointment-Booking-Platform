@@ -73,6 +73,13 @@ function ToastContainer({ toasts, onClose }: { toasts: Toast[]; onClose: (id: st
 // Single Toast Item
 function ToastItem({ toast, onClose }: { toast: Toast; onClose: (id: string) => void }) {
     const [isVisible, setIsVisible] = useState(false)
+    const isMounted = useRef(true)
+
+    useEffect(() => {
+        return () => {
+            isMounted.current = false
+        }
+    }, [])
 
     useEffect(() => {
         // Animate in
@@ -81,7 +88,11 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: (id: string) => 
         // Auto dismiss
         const timer = setTimeout(() => {
             setIsVisible(false)
-            setTimeout(() => onClose(toast.id), 300)
+            setTimeout(() => {
+                if (isMounted.current) {
+                    onClose(toast.id)
+                }
+            }, 300)
         }, toast.duration || 5000)
 
         return () => clearTimeout(timer)
@@ -137,7 +148,11 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: (id: string) => 
             <button
                 onClick={() => {
                     setIsVisible(false)
-                    setTimeout(() => onClose(toast.id), 300)
+                    setTimeout(() => {
+                        if (isMounted.current) {
+                            onClose(toast.id)
+                        }
+                    }, 300)
                 }}
                 className="w-8 h-8 flex items-center justify-center bg-black text-white border-2 border-black hover:bg-gray-800 transition-all active:translate-x-[2px] active:translate-y-[2px]"
             >

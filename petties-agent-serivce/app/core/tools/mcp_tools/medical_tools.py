@@ -7,12 +7,13 @@ Uses Cohere embeddings + Qdrant vector search.
 Package: app.core.tools.mcp_tools
 Purpose:
     - RAG-based knowledge search for pet care & symptom analysis
-    - Web search fallback for additional information
     - Vietnamese language support via Cohere multilingual
 
 Tools:
     - pet_knowledge_search: Unified RAG tool for pet care Q&A + symptom analysis
-    - web_search: Web fallback for pet/vet questions
+    - get_staff_patients: Get staff's patients list for quick lookup
+    - get_patient_summary: Get quick summary of pet's medical record
+    - get_emr_history: Get full EMR history of a pet
 
 Reference: Technical Scope - Single Agent with ReAct pattern
 Version: v2.0.0 (Merged pet_care_qa + symptom_search into pet_knowledge_search)
@@ -22,81 +23,8 @@ from app.core.tools.mcp_server import mcp_server
 from typing import Dict, Any, List, Optional
 from loguru import logger
 import re
-import asyncio
-
-from duckduckgo_search import DDGS
 
 from app.config.settings import settings
-
-
-# NOTE: Không dùng STOP_WORDS — để LLM tự xử lý ngữ nghĩa.
-# Chỉ giữ PET_GUARD (safety), PENALTY_DOMAINS (scoring), GENERIC_CONTENT_PATTERNS.
-
-# --- PET GUARD (bilingual - chỉ dùng cho safety check, không scoring) ---
-PET_GUARD_KEYWORDS = {
-    # Vietnamese
-    "chó",
-    "cho",
-    "cún",
-    "cun",
-    "mèo",
-    "meo",
-    "thú cưng",
-    "thu cung",
-    "thú y",
-    "thu y",
-    "thú nuôi",
-    "thu nuoi",
-    "tiêu chảy",
-    "tieu chay",
-    "nôn",
-    "ăn",
-    "dinh dưỡng",
-    "ký sinh trùng",
-    "triệu chứng",
-    "bệnh",
-    # English
-    "dog",
-    "cat",
-    "pet",
-    "puppy",
-    "kitten",
-    "vet",
-    "veterinary",
-    "veterinarian",
-    "animal",
-    "parvo",
-    "distemper",
-    "diarrhea",
-    "vomit",
-    "vaccine",
-    "vaccination",
-    "grooming",
-    "clinic",
-    "symptom",
-    "disease",
-    "treatment",
-    "nutrition",
-    "diet",
-    "feed",
-}
-
-# --- DOMAIN-BASED PENALTIES (language-agnostic) ---
-PENALTY_DOMAINS = {
-    "wikipedia.org": 4,
-    "en.wikipedia.org": 4,
-    "vi.wikipedia.org": 4,
-    "fandom.com": 3,
-    "pinterest.com": 3,
-    "youtube.com": 2,
-}
-
-# Regex patterns cho generic content (language-agnostic)
-GENERIC_CONTENT_PATTERNS = [
-    re.compile(r"top\s*\d+", re.IGNORECASE),
-    re.compile(r"\d+\s*(giống|breeds?|loại|types?|best)", re.IGNORECASE),
-    re.compile(r"(most popular|phổ biến nhất|nổi tiếng nhất)", re.IGNORECASE),
-]
 
 
 def _clean_rag_text(text: str) -> str:
@@ -106,139 +34,70 @@ def _clean_rag_text(text: str) -> str:
     return cleaned.strip()
 
 
-def _tokenize(text: str) -> List[str]:
-    """Language-agnostic tokenizer: tách thành tokens (>= 2 ký tự)."""
-    tokens = re.findall(r"[\wÀ-ỹ]+", text.lower())
-    return [t for t in tokens if len(t) >= 2]
+def _normalize_pet_species(value: Any) -> str:
+    if value is None:
+        return "Không rõ"
+    text = str(value).strip()
+    lowered = text.lower()
+    if lowered in {"dog", "cho", "chó"}:
+        return "chó"
+    if lowered in {"cat", "meo", "mèo"}:
+        return "mèo"
+    return text
 
 
-def _extract_query_keywords(query: str) -> List[str]:
-    """Extract meaningful keywords từ query (bilingual)."""
-    return _tokenize(query)
+def _normalize_allergies(value: Any) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str):
+        return [item.strip() for item in value.split(",") if item.strip()]
+    return []
 
 
-def _is_pet_related_query(query: str) -> bool:
-    """Check xem query có liên quan pet/vet không (bilingual guard)."""
-    normalized_query = query.lower().strip()
-    return any(keyword in normalized_query for keyword in PET_GUARD_KEYWORDS)
+def _format_exam_date(value: Any) -> str:
+    if value is None:
+        return ""
+    text = str(value).strip()
+    if not text:
+        return ""
+    return text.replace("T", " ")[:19]
 
 
-def _extract_domain(url: str) -> str:
-    """Trích domain từ URL."""
-    match = re.search(r"https?://(?:www\.)?([^/]+)", url.lower())
-    return match.group(1) if match else ""
-
-
-def _score_web_result(query: str, title: str, snippet: str, url: str) -> int:
-    """Scoring dựa trên domain penalties — DuckDuckGo đã xếp hạng relevance rồi.
-
-    Không dùng keyword/token matching. LLM sẽ tự hiểu ngữ cảnh kết quả.
-    Scoring chỉ penalize nguồn kém chất lượng (Wikipedia, social media, etc.).
-    """
-    # Base score: DuckDuckGo đã lọc relevance, mặc định tin tưởng
-    score = 5
-
-    # Domain-based penalties (không phải keyword matching — domain filtering)
-    domain = _extract_domain(url)
-    for penalty_domain, penalty_score in PENALTY_DOMAINS.items():
-        if penalty_domain in domain:
-            score -= penalty_score
-            break
-
-    # Generic content patterns penalties (regex, language-agnostic)
-    combined_text = f"{title} {snippet}".lower()
-    for pattern in GENERIC_CONTENT_PATTERNS:
-        if pattern.search(combined_text):
-            score -= 3
-            break
-
-    return score
-
-
-def _build_search_query(query: str) -> str:
-    """Trả về query nguyên gốc — không thêm context, để LLM tự xử lý."""
-    return query.strip()
-
-
-def _deduplicate_scored_results(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    deduped: List[Dict[str, Any]] = []
-    seen = set()
-
-    for item in results:
-        title = _clean_rag_text(str(item.get("title", ""))).lower()
-        snippet = _clean_rag_text(str(item.get("snippet", ""))).lower()
-        url = str(item.get("url", "")).lower()
-        fingerprint = (title[:120], snippet[:160], url)
-        if fingerprint in seen:
+def _map_emr_images(images: Any) -> List[Dict[str, Any]]:
+    if not isinstance(images, list):
+        return []
+    mapped: List[Dict[str, Any]] = []
+    for item in images:
+        if not isinstance(item, dict):
             continue
-        seen.add(fingerprint)
-        deduped.append(item)
-
-    return deduped
-
-
-def _perform_duckduckgo_search(query: str, max_results: int) -> List[Dict[str, Any]]:
-    search_query = _build_search_query(query)
-    logger.info(f"web_search: expanded query = '{search_query}'")
-
-    with DDGS() as ddgs:
-        raw_results = list(
-            ddgs.text(
-                search_query,
-                max_results=max(max_results, 8),
-                safesearch="moderate",
-                region="wt-wt",
-            )
+        mapped.append(
+            {
+                "url": item.get("url"),
+                "description": item.get("description") or "",
+            }
         )
+    return mapped
 
-    logger.info(f"web_search: DuckDuckGo returned {len(raw_results)} raw results")
 
-    strict_results: List[Dict[str, Any]] = []
-    relaxed_results: List[Dict[str, Any]] = []
-    for item in raw_results:
-        title = _clean_rag_text(str(item.get("title", "")))
-        snippet = _clean_rag_text(str(item.get("body", "")))
-        url = str(item.get("href", ""))
-        combined_text = f"{title} {snippet}".lower()
-
-        if not any(keyword in combined_text for keyword in PET_GUARD_KEYWORDS):
-            logger.debug(f"web_search: SKIP (no pet keyword): {title[:60]}")
+def _map_emr_prescriptions(prescriptions: Any) -> List[Dict[str, Any]]:
+    if not isinstance(prescriptions, list):
+        return []
+    mapped: List[Dict[str, Any]] = []
+    for item in prescriptions:
+        if not isinstance(item, dict):
             continue
-
-        score = _score_web_result(query, title, snippet, url)
-        logger.debug(f"web_search: score={score} | {title[:60]}")
-
-        result_dict = {
-            "title": title,
-            "snippet": snippet[:280],
-            "url": url,
-            "source": url,
-            "score": score,
-        }
-
-        # Relaxed: score >= 1 (fallback khi strict rỗng)
-        if score >= 1:
-            relaxed_results.append(result_dict)
-
-        # Strict: score >= 4
-        if score >= 4:
-            strict_results.append(result_dict)
-
-    strict_results.sort(key=lambda x: x.get("score", 0), reverse=True)
-    strict_results = _deduplicate_scored_results(strict_results)
-    if strict_results:
-        logger.info(
-            f"web_search: returning {len(strict_results[:max_results])} strict results"
+        mapped.append(
+            {
+                "name": item.get("medicineName") or item.get("name") or "",
+                "dosage": item.get("dosage") or "",
+                "frequency": item.get("frequency") or "",
+                "duration_days": item.get("durationDays"),
+                "instructions": item.get("instructions") or "",
+            }
         )
-        return strict_results[:max_results]
-
-    # Fallback: dùng relaxed results nếu strict rỗng
-    relaxed_results.sort(key=lambda x: x.get("score", 0), reverse=True)
-    relaxed_results = _deduplicate_scored_results(relaxed_results)
-    logger.info(
-        f"web_search: strict=0, returning {len(relaxed_results[:max_results])} relaxed results"
-    )
-    return relaxed_results[:max_results]
+    return mapped
 
 
 # ===== RAG TOOLS =====
@@ -348,77 +207,6 @@ async def pet_knowledge_search(
         }
 
 
-@mcp_server.tool
-async def web_search(
-    query: str,
-    max_results: Optional[int] = None,
-) -> Dict[str, Any]:
-    """
-    Tìm kiếm thông tin từ web khi knowledge base chưa có đủ dữ liệu.
-
-    Chỉ sử dụng tool này cho các câu hỏi liên quan đến thú cưng, thú y,
-    chăm sóc, dinh dưỡng, triệu chứng hoặc điều trị tham khảo.
-
-    Tool này trả về raw data từ web. LLM sẽ tự tổng hợp và format câu trả lời.
-
-    Args:
-        query: Câu hỏi cần tìm trên web
-        max_results: Số lượng kết quả tối đa (mặc định lấy từ config)
-
-    Returns:
-        Dict chứa:
-            - query: str - Câu hỏi gốc
-            - results: List[Dict] - Danh sách kết quả web ({title, snippet, url, source, score})
-            - sources_used: int - Số nguồn tìm được
-            - search_source: str - "web_search"
-    """
-    effective_max_results = max_results or settings.DUCKDUCKGO_MAX_RESULTS
-
-    if not _is_pet_related_query(query):
-        return {
-            "query": query,
-            "results": [],
-            "sources_used": 0,
-            "search_source": "web_search",
-            "error": "Query ngoài phạm vi thú cưng/thú y",
-        }
-
-    try:
-        results = await asyncio.wait_for(
-            asyncio.to_thread(_perform_duckduckgo_search, query, effective_max_results),
-            timeout=15.0,
-        )
-
-        logger.info(
-            f"web_search: Found {len(results)} results for query: {query[:50]}..."
-        )
-
-        return {
-            "query": query,
-            "results": results,
-            "sources_used": len(results),
-            "search_source": "web_search",
-        }
-    except asyncio.TimeoutError:
-        logger.warning("web_search: DuckDuckGo timed out after 15s")
-        return {
-            "query": query,
-            "results": [],
-            "sources_used": 0,
-            "search_source": "web_search",
-            "error": "Tìm kiếm web bị timeout sau 15 giây",
-        }
-    except Exception as e:
-        logger.error(f"Lỗi trong web_search: {e}")
-        return {
-            "query": query,
-            "results": [],
-            "sources_used": 0,
-            "search_source": "web_search",
-            "error": str(e),
-        }
-
-
 # ===== STAFF DIAGNOSTIC SUPPORT TOOLS =====
 @mcp_server.tool
 async def get_staff_patients(
@@ -463,39 +251,56 @@ async def get_staff_patients(
 
         user_id = context.user_id  # Staff ID
         clinic_id = context.clinic_id
+        token = context.auth_token
 
-        if not user_id or not clinic_id:
+        if not user_id or not clinic_id or not token:
             return {
                 "error": "Thiếu thông tin staff hoặc clinic. Vui lòng liên hệ admin.",
                 "pets": [],
                 "total": 0,
             }
 
-        # Gọi backend API
         backend_client = get_backend_client()
-        # TODO: Implement actual API call once backend endpoint is available
-        # For now, return mock data for development
-        pets = [
-            {
-                "pet_id": "PET_001",
-                "pet_name": "Cún",
-                "species": "chó",
-                "breed": "Golden Retriever",
-                "owner_name": "Anh A",
-                "last_visit": "2026-03-10",
-            }
-        ]
+        raw_patients = await backend_client.get_staff_patients(
+            token=token,
+            clinic_id=clinic_id,
+            staff_id=user_id,
+        )
 
-        # Filter by query_name if provided
-        if query_name:
-            pets = [
-                pet for pet in pets if query_name.lower() in pet["pet_name"].lower()
-            ]
+        patients: List[Dict[str, Any]] = []
+        normalized_query = (query_name or "").strip().lower()
 
-        # Limit results
-        pets = pets[:limit]
+        for item in raw_patients or []:
+            if not isinstance(item, dict):
+                continue
+            pet_name = str(item.get("petName") or "").strip()
+            owner_name = str(item.get("ownerName") or "").strip()
+            if normalized_query and normalized_query not in pet_name.lower():
+                continue
 
-        return {"pets": pets, "total": len(pets)}
+            patients.append(
+                {
+                    "pet_id": item.get("petId"),
+                    "pet_name": pet_name,
+                    "species": _normalize_pet_species(item.get("species")),
+                    "breed": item.get("breed") or "Không rõ",
+                    "gender": item.get("gender") or "Không rõ",
+                    "age_years": item.get("ageYears"),
+                    "age_months": item.get("ageMonths"),
+                    "weight": item.get("weight"),
+                    "owner_name": owner_name or "Không rõ",
+                    "owner_phone": item.get("ownerPhone") or "",
+                    "booking_id": item.get("bookingId"),
+                    "booking_code": item.get("bookingCode") or "",
+                    "booking_status": item.get("bookingStatus") or "",
+                    "is_assigned_to_me": bool(item.get("isAssignedToMe")),
+                    "next_appointment": _format_exam_date(item.get("nextAppointment")),
+                    "last_visit": _format_exam_date(item.get("lastVisitDate")),
+                }
+            )
+
+        patients = patients[:limit]
+        return {"pets": patients, "total": len(patients)}
 
     except Exception as e:
         logger.error(f"Lỗi trong get_staff_patients: {e}")
@@ -554,8 +359,9 @@ async def get_patient_summary(
 
         user_id = context.user_id  # Staff ID
         clinic_id = context.clinic_id
+        token = context.auth_token
 
-        if not user_id or not clinic_id:
+        if not user_id or not clinic_id or not token:
             return {
                 "error": "Thiếu thông tin staff hoặc clinic. Vui lòng liên hệ admin.",
                 "pet_info": {},
@@ -563,39 +369,46 @@ async def get_patient_summary(
                 "total_exams": 0,
             }
 
-        # Gọi backend API
         backend_client = get_backend_client()
-        # TODO: Implement actual API call once backend endpoint is available
-        # For now, return mock data for development
+        pet = await backend_client.get_pet(token, pet_id)
+        emr_history = await backend_client.get_pet_emr_history(
+            token=token, pet_id=pet_id
+        )
+
         pet_info = {
-            "pet_id": pet_id,
-            "pet_name": "Cún",
-            "species": "chó",
-            "breed": "Golden Retriever",
-            "weight_kg": 28.0,
-            "allergies": ["Gà"],
-            "owner_name": "Anh A",
+            "pet_id": pet.get("id"),
+            "pet_name": pet.get("name") or "Không rõ",
+            "species": _normalize_pet_species(pet.get("species")),
+            "breed": pet.get("breed") or "Không rõ",
+            "weight_kg": pet.get("weight"),
+            "allergies": _normalize_allergies(pet.get("allergies")),
+            "owner_name": pet.get("ownerName") or "Không rõ",
+            "owner_phone": pet.get("ownerPhone") or "",
+            "gender": pet.get("gender") or "Không rõ",
+            "color": pet.get("color") or "Không rõ",
         }
 
-        recent_exams = [
-            {
-                "exam_date": "2026-03-10",
-                "assessment": "Viêm da dị ứng cấp",
-                "prescriptions": ["Cortisone 5mg x7 ngày", "Dép thuốc Betadine"],
-                "images": [
-                    {
-                        "url": "https://res.cloudinary.com/demo/image/upload/emr_PET_001_20260310_001.jpg",
-                        "description": "Vùng da bị đỏ, ngứa ở bên tai trái",
-                    }
-                ],
-            },
-            {
-                "exam_date": "2026-02-15",
-                "assessment": "Tiêu ch양 légère",
-                "prescriptions": ["Smecta 1 gói x3 ngày"],
-                "images": [],
-            },
-        ]
+        recent_exams: List[Dict[str, Any]] = []
+        for exam in (emr_history or [])[:3]:
+            if not isinstance(exam, dict):
+                continue
+            prescriptions = _map_emr_prescriptions(exam.get("prescriptions"))
+            recent_exams.append(
+                {
+                    "emr_id": exam.get("id"),
+                    "exam_date": _format_exam_date(
+                        exam.get("examinationDate") or exam.get("createdAt")
+                    ),
+                    "assessment": exam.get("assessment") or "",
+                    "plan": exam.get("plan") or "",
+                    "staff_name": exam.get("staffName") or "",
+                    "booking_code": exam.get("bookingCode") or "",
+                    "prescriptions": [
+                        item["name"] for item in prescriptions if item.get("name")
+                    ],
+                    "images": _map_emr_images(exam.get("images")),
+                }
+            )
 
         return {
             "pet_info": pet_info,
@@ -657,57 +470,45 @@ async def get_emr_history(
 
         user_id = context.user_id  # Staff ID
         clinic_id = context.clinic_id
+        token = context.auth_token
 
-        if not user_id or not clinic_id:
+        if not user_id or not clinic_id or not token:
             return {
                 "error": "Thiếu thông tin staff hoặc clinic. Vui lòng liên hệ admin.",
                 "emr_history": [],
                 "total": 0,
             }
 
-        # Gọi backend API
         backend_client = get_backend_client()
-        # TODO: Implement actual API call once backend endpoint is available
-        # For now, return mock data for development
-        emr_history = [
-            {
-                "exam_date": "2026-03-10",
-                "doctor_name": "BS. Nguyễn Văn A",
-                "subjective": "Chủ quan: Cún ngứa liên tục 3 ngày, chủ quan thấy đỏ da tai",
-                "objective": "Khách quan: Cân nặng 28kg, Nhiệt độ 38.5°C, Tai sinistra hyperemia",
-                "assessment": "Viêm da dị ứng cấp do gà",
-                "plan": "Ngừng ăn gà, uống cortisone 5mg x7 ngày, dùng Betadine lau vết",
-                "prescriptions": [
-                    {"name": "Cortisone", "dosage": "5mg x1/ngày x7 ngày"},
-                    {"name": "Betadine Solution", "dosage": "Lau vết 2x/ngày"},
-                ],
-                "images": [
-                    {
-                        "url": "https://res.cloudinary.com/demo/image/upload/emr_PET_001_20260310_001.jpg",
-                        "description": "Vùng da bị đỏ, ngứa ở bên tai trái",
-                    },
-                    {
-                        "url": "https://res.cloudinary.com/demo/image/upload/emr_PET_001_20260310_002.jpg",
-                        "description": "Tàiwane tai trái",
-                    },
-                ],
-            },
-            {
-                "exam_date": "2026-02-15",
-                "doctor_name": "BS. Trần Thị B",
-                "subjective": "Chủ quan: Cún đi ngoài phân lỏng 4 lần/ngày 2 ngày",
-                "objective": "Khách quan: Cân nặng 27.5kg, Nhiệt độ 38.2°C",
-                "assessment": "Tiêu ch양 léger có thể do thay đổi thức ăn",
-                "plan": "Uống Smecta 1 gói x3/ngày, ăn chè cháo 2 ngày",
-                "prescriptions": [
-                    {"name": "Smecta", "dosage": "1 gói x3/ngày x3 ngày"}
-                ],
-                "images": [],
-            },
-        ]
+        raw_history = await backend_client.get_pet_emr_history(
+            token=token, pet_id=pet_id
+        )
+        emr_history: List[Dict[str, Any]] = []
 
-        # Limit results
-        emr_history = emr_history[:limit]
+        for exam in (raw_history or [])[:limit]:
+            if not isinstance(exam, dict):
+                continue
+            emr_history.append(
+                {
+                    "emr_id": exam.get("id"),
+                    "exam_date": _format_exam_date(
+                        exam.get("examinationDate") or exam.get("createdAt")
+                    ),
+                    "doctor_name": exam.get("staffName") or "Không rõ",
+                    "subjective": exam.get("subjective") or "",
+                    "objective": exam.get("objective") or "",
+                    "assessment": exam.get("assessment") or "",
+                    "plan": exam.get("plan") or "",
+                    "notes": exam.get("notes") or "",
+                    "booking_code": exam.get("bookingCode") or "",
+                    "weight_kg": exam.get("weightKg"),
+                    "temperature_c": exam.get("temperatureC"),
+                    "heart_rate": exam.get("heartRate"),
+                    "bcs": exam.get("bcs"),
+                    "prescriptions": _map_emr_prescriptions(exam.get("prescriptions")),
+                    "images": _map_emr_images(exam.get("images")),
+                }
+            )
 
         return {"emr_history": emr_history, "total": len(emr_history)}
 
@@ -721,133 +522,193 @@ async def get_emr_history(
 
 
 @mcp_server.tool
-async def analyze_pet_image(
-    image_url: str,
-    context: str = "",
+async def get_pet_health_summary(
+    pet_id: str,
+    user_id: str,
 ) -> Dict[str, Any]:
     """
-    Phân tích hình ảnh y tế thú cưng để chẩn đoán sơ bộ.
-    Tool này sẽ gọi LSTM với khả năng xử lý hình ảnh để đưa ra kết quả chuyên môn.
+    Tổng hợp thông tin sức khỏe của pet cho Pet Owner.
+
+    Sử dụng khi:
+    - User muốn xem tổng quan sức khỏe của thú cưng
+    - User hỏi về tình trạng sức khỏe gần đây của pet
+    - User muốn biết có cần tái khám không
+
+    Tool này tự động tổng hợp:
+    - Thông tin pet cơ bản (tên, loài, giống, cân nặng)
+    - EMR gần nhất (chẩn đoán, điều trị, thuốc đang dùng)
+    - Cảnh báo mức độ nghiêm trọng (nếu có): dị ứng, cần tái khám
+    - Gợi ý hành động tiếp theo
 
     Args:
-        image_url: URL của hình ảnh cần phân tích (phải là đường link công khai)
-        context: Mô tả thêm về tình hình thú cưng (tùy chọn)
+        pet_id: ID của thú cưng cần xem
+        user_id: ID của Pet Owner (để verify ownership - user chỉ xem được pet của mình)
+
+    Examples:
+        get_pet_health_summary(pet_id="xxx", user_id="yyy")
+        # Trả về pet_info, latest_emr, health_warnings, suggested_actions
 
     Returns:
-        {
-            "diagnosis": "Chẩn đoán chính",
-            "differential_diagnoses": ["Chẩn đoán khác khả năng"],
-            "confidence": 0.0-1.0,
-            "severity": "mild|moderate|severe",
-            "affected_areas": ["vùng cơ thể bị ảnh hưởng"],
-            "possible_causes": ["nguyên nhân có thể"],
-            "recommended_actions": ["hành động đề xuất"],
-            "disclaimer": "Lưu ý pháp lý"
-        }
+        pet_info: Thông tin cơ bản của pet
+        latest_emr: Bệnh án gần nhất (chẩn đoán, điều trị, thuốc)
+        health_warnings: Cảnh báo sức khỏe (dị ứng, cần tái khám)
+        medication_reminders: Nhắc nhở thuốc đang dùng
+        suggested_actions: Gợi ý hành động (đặt lịch tái khám)
+        disclaimer: Thông tin chỉ mang tính tham khảo
     """
-    from app.services.llm_client import get_llm_client
-    from app.core.llms.openrouter import MultiModalLLMConfig
-    import base64
+    from app.core.tool_runtime_context import get_tool_runtime_context
+    from app.services.backend_client import get_backend_client
 
     try:
-        # Validate image URL
-        if not image_url or not isinstance(image_url, str):
+        context = get_tool_runtime_context()
+        if not context:
             return {
-                "error": "URL hình ảnh không hợp lệ",
-                "diagnosis": "",
-                "confidence": 0.0,
+                "error": "Không thể xác định thông tin người dùng. Vui lòng đăng nhập lại.",
+                "pet_info": None,
+                "latest_emr": None,
             }
 
-        # Lấy LLM client
-        llm_client = get_llm_client()
-
-        # Tạo prompt chuyên sâu cho chẩn đoán hình ảnh thú y
-        prompt = f"""
-Bạn là bác sĩ thú y có 10 năm kinh nghiệm. Hãy phân tích hình ảnh y tế thú cưng này và đưa ra chẩn đoán sơ bộ.
-
-YÊU CẦU:
-1. Xác định rõ vùng cơ thể trong hình (tai, mắt, da, chân, miệng...)
-2. Mô tả các biểu hiện lâm sàng thấy được (sưng, đỏ, phỏng, loét, xuất tiết...)
-3. Đưa ra chẩn đoán chính nhất
-4. Liệt kê 2-3 chẩn đoán phân biệt có khả năng
-5. Đánh giá mức độ nghiêm trọng (mild/moderate/severe)
-6. Gợi ý nguyên nhân có thể
-7. Đề xuất các bước kiểm tra tiếp theo hoặc xử lý ban đầu
-
-NGỮ CẦM THÊM (nếu có): {context}
-
-HƯỚNG DẪN TRẢ LỜI:
-Trả về DUY NHẤT một đối tượng JSON với cấu trúc sau:
-{{
-  "diagnosis": "Chẩn đoán chính",
-  "differential_diagnoses": ["Chẩn đoán khác 1", "Chẩn đoán khác 2"],
-  "confidence": 0.85,
-  "severity": "mild|moderate|severe",
-  "affected_areas": ["tai trái", "mắt phải"],
-  "possible_causes": ["dị ứng thức ăn", "trùng nấm"],
-  "recommended_actions": ["Xét� odp התחלה ф"],
-  "disclaimer": "Kết quả này chỉ là tư vấn sơ bộ. Cần đến phòng khám để chẩn đoán xác định và điều trị."
-}}
-
-LƯU Ý:
-- Giá trị confidence phải là số thực từ 0.0 đến 1.0
-- severity chỉ được phép là một trong ba giá trị: "mild", "moderate", "severe"
-- Mọi trường đều bắt buộc phải có trong JSON trả về
-- KHÔNG được giải thích thêm ngoài JSON
-        """.strip()
-
-        # Xác định xem image_url là URL hay base64
-        if image_url.startswith("http://") or image_url.startswith("https://"):
-            # URL trực tiếp
-            image_data = image_url
-        elif image_url.startswith("data:"):
-            # Data URL
-            image_data = image_url
-        else:
-            # Giả sử là base64 thuần
-            image_data = f"data:image/jpeg;base64,{image_url}"
-
-        # Gọi LLM để phân tích hình ảnh
-        try:
-            # TODO: Integrate with actual multimodal LLM once available
-            # For now, return mock analysis for development
-
-            # Mock response for development
-            result = {
-                "diagnosis": "Viêm da dị ứng cấp",
-                "differential_diagnoses": ["Trùng nấm da", "Viêm da do d kiến cắn"],
-                "confidence": 0.82,
-                "severity": "moderate",
-                "affected_areas": ["tai trái", "vùng môi"],
-                "possible_causes": [
-                    "Dị ứng proteína gà trong thức ăn",
-                    "Tiếp xúc với chất kích thích trong môi trường",
-                ],
-                "recommended_actions": [
-                    "Ngay lập tức ngừng cho ăn gà và các sản phẩm từ gà",
-                    "Rửa sạch vùng da bị ố bằng nước muối sinh lý 0.9%",
-                    "Theo dõi trong 24h, nếu ngày càng ghi vàng hoặc ứ nước cần đến khám ngay",
-                    "Đến khám lại sau 48h để đánh giá lại tình trạng",
-                ],
-                "disclaimer": "Kết quả này chỉ là tư vấn sơ bộ. Cần đến phòng khám để chẩn đoán xác định và điều trị.",
-            }
-
-            return result
-
-        except Exception as llm_error:
-            logger.error(f"Lỗi khi gọi LLM để phân tích hình ảnh: {llm_error}")
+        token = context.auth_token
+        if not token:
             return {
-                "error": f"Không thể phân tích hình ảnh do lỗi hệ thống: {str(llm_error)}",
-                "diagnosis": "Không thể xác định",
-                "confidence": 0.0,
+                "error": "Không thể xác định phiên đăng nhập. Vui lòng đăng nhập lại.",
+                "pet_info": None,
+                "latest_emr": None,
+                "health_warnings": [],
+                "medication_reminders": [],
+                "suggested_actions": [],
             }
+
+        if context.user_id != user_id:
+            return {
+                "error": "Bạn không có quyền xem thông tin sức khỏe của thú cưng này.",
+                "pet_info": None,
+                "latest_emr": None,
+                "health_warnings": [],
+                "medication_reminders": [],
+                "suggested_actions": [],
+            }
+
+        backend = get_backend_client()
+        pet_data = await backend.get_pet(token, pet_id)
+        emr_list = await backend.get_pet_emr_history(token=token, pet_id=pet_id)
+        latest_emr = emr_list[0] if isinstance(emr_list, list) and emr_list else None
+
+        warnings = []
+        suggested_actions = []
+        medication_reminders = []
+
+        if latest_emr:
+            assessment = latest_emr.get("assessment", "")
+            exam_date = (
+                latest_emr.get("examDate") or latest_emr.get("examinationDate") or ""
+            )
+
+            if exam_date:
+                from datetime import datetime, timezone
+
+                try:
+                    normalized_exam_date = str(exam_date).replace("Z", "+00:00")
+                    exam_dt = datetime.fromisoformat(normalized_exam_date)
+                    if exam_dt.tzinfo is None:
+                        exam_dt = exam_dt.replace(tzinfo=timezone.utc)
+                    days_ago = (datetime.now(timezone.utc) - exam_dt).days
+                    if days_ago > 30:
+                        warnings.append(
+                            {
+                                "type": "RECHECK_REQUIRED",
+                                "message": f"Đã {days_ago} ngày kể từ lần khám gần nhất. Cần tái khám.",
+                                "severity": "MEDIUM",
+                            }
+                        )
+                except Exception:
+                    pass
+
+            if "dị ứng" in assessment.lower() or "allergy" in assessment.lower():
+                warnings.append(
+                    {
+                        "type": "ALLERGY_ALERT",
+                        "message": "Pet có tiền sử dị ứng. Cần thông báo cho bác sĩ trước khi điều trị.",
+                        "severity": "HIGH",
+                    }
+                )
+
+            if latest_emr.get("prescriptions"):
+                for rx in latest_emr["prescriptions"]:
+                    medication_reminders.append(
+                        {
+                            "medication": rx.get("medicineName")
+                            or rx.get("name")
+                            or "",
+                            "dosage": rx.get("dosage") or "",
+                            "frequency": rx.get("frequency") or "",
+                        }
+                    )
+
+            suggested_actions.append(
+                {
+                    "type": "BOOK_APPOINTMENT",
+                    "label": "Đặt lịch tái khám",
+                    "reason": "Kiểm tra tiến triển sau điều trị",
+                }
+            )
+
+        if not latest_emr:
+            suggested_actions.append(
+                {
+                    "type": "BOOK_FIRST_VISIT",
+                    "label": "Đặt lịch khám lần đầu",
+                    "reason": "Pet chưa có lịch sử khám",
+                }
+            )
+
+        pet_info = {
+            "pet_id": pet_data.get("id"),
+            "name": pet_data.get("name"),
+            "species": _normalize_pet_species(pet_data.get("species")),
+            "breed": pet_data.get("breed") or "Không rõ",
+            "age_months": pet_data.get("ageMonths") or pet_data.get("age_months"),
+            "weight_kg": pet_data.get("weight"),
+            "allergies": _normalize_allergies(pet_data.get("allergies")),
+        }
+
+        latest_emr_summary = None
+        if latest_emr:
+            latest_emr_summary = {
+                "exam_date": _format_exam_date(
+                    latest_emr.get("examDate")
+                    or latest_emr.get("examinationDate")
+                    or latest_emr.get("createdAt")
+                ),
+                "clinic_name": latest_emr.get("clinicName", ""),
+                "diagnosis": latest_emr.get("assessment", ""),
+                "treatment": latest_emr.get("plan", ""),
+                "subjective": latest_emr.get("subjective", ""),
+                "objective": latest_emr.get("objective", ""),
+                "images": _map_emr_images(latest_emr.get("images")),
+                "prescriptions": _map_emr_prescriptions(
+                    latest_emr.get("prescriptions")
+                ),
+            }
+
+        return {
+            "pet_info": pet_info,
+            "latest_emr": latest_emr_summary,
+            "health_warnings": warnings,
+            "medication_reminders": medication_reminders,
+            "suggested_actions": suggested_actions,
+            "disclaimer": "Thông tin chỉ mang tính tham khảo. Vui lòng consult bác sĩ để được tư vấn chính xác.",
+        }
 
     except Exception as e:
-        logger.error(f"Lỗi trong analyze_pet_image: {e}")
+        logger.error(f"Lỗi trong get_pet_health_summary: {e}")
         return {
-            "error": f"Không thể xử lý yêu cầu phân tích hình ảnh: {str(e)}",
-            "diagnosis": "",
-            "confidence": 0.0,
+            "error": f"Không thể lấy thông tin sức khỏe: {str(e)}",
+            "pet_info": None,
+            "latest_emr": None,
+            "health_warnings": [],
+            "medication_reminders": [],
+            "suggested_actions": [],
         }
 
 
@@ -857,13 +718,10 @@ if __name__ == "__main__":
     print(
         "  - pet_knowledge_search: Unified RAG tool for pet care Q&A + symptom analysis"
     )
-    print("  - web_search: Web fallback for pet/vet questions")
     print("  - get_staff_patients: Get staff's patients list for quick lookup")
     print("  - get_patient_summary: Get quick summary of pet's medical record")
     print("  - get_emr_history: Get full EMR history of a pet")
-    print("  - analyze_pet_image: Analyze pet medical images for preliminary diagnosis")
     print("\nThese tools use:")
     print("  - Cohere embed-multilingual-v3.0 for Vietnamese support")
     print("  - Qdrant vector database for similarity search")
     print("  - LlamaIndex for document processing")
-    print("  - Multimodal LLM (Gemini/Claude) for image analysis")

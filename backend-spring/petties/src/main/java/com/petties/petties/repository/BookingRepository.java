@@ -26,6 +26,8 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
         @Query("SELECT DISTINCT b.pet.id FROM Booking b WHERE b.clinic.clinicId = :clinicId")
         List<UUID> findPetIdsByClinicId(@Param("clinicId") UUID clinicId);
 
+        boolean existsByPet_IdAndClinic_ClinicId(UUID petId, UUID clinicId);
+
         // ========== FIND BY CLINIC ==========
 
         /**

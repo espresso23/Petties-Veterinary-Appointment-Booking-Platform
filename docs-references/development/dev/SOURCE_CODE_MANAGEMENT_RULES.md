@@ -1,4 +1,4 @@
-# Source Code Management Rules - Team 5 Members
+﻿# Source Code Management Rules - Team 5 Members
 
 Quy tắc quản lý source code cho team Petties (5 người).
 

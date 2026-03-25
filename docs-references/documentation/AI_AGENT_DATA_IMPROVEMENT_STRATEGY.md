@@ -1,4 +1,7 @@
+> Legacy Note (2026-03-25): This document may contain historical references to `prompt_versions`, editable system-prompt versioning, or older AI schema/ERD counts. It is retained for historical or presentation context only. For current database truth and active AI storage architecture, use `docs-references/database/PETTIES_DBML.dbml`, `docs-references/documentation/PETTIES_ERD_DIAGRAM.md`, `docs-references/documentation/DATABASE_SCHEMA_ANALYSIS.md`, `docs-references/documentation/SRS/PETTIES_SRS.md`, and `docs-references/documentation/SDD/REPORT_4_SDD_SYSTEM_DESIGN.md`.
 # AI Agent - Data Management & Continuous Improvement Strategy
+
+> Lưu ý cập nhật ngày 2026-03-17: tài liệu này chứa nhiều nội dung lịch sử của hướng AI Diagnose cũ như Visual Case Memory từ feedback ảnh, thumbs up/down và Label Studio. Kiến trúc hiện hành đã chuyển sang knowledge base + EMR xác nhận + Gemini Vision theo [AI_DIAGNOSIS_FEATURE_PLAN.md](D:/SEP490/petties/docs-references/documentation/AI_DIAGNOSIS_FEATURE_PLAN.md) và [AI_DIAGNOSIS_PROGRESS.md](D:/SEP490/petties/docs-references/documentation/AI_DIAGNOSIS_PROGRESS.md). Không dùng tài liệu này làm nguồn triển khai chính cho doctor diagnostic flow mới.
 
 **Muc dich:** Giai thich cach AI Agent luu tru du lieu, cai thien theo thoi gian, va cac co che nang cao do chinh xac (Query Expansion, Knowledge Graph, Visual Case Memory, Feedback Loop).
 
@@ -756,10 +759,9 @@ sequenceDiagram
     "body_part": "ear",
     "symptoms": ["itching", "brown debris", "head shaking"],
     "treatment": "Ear drops + ear cleaning + in-clinic examination",
-    "feedback_type": "confirmed",
-    "feedback_count": 47,
+    "confirmation_count": 47,
     "confidence_score": 0.85,
-    "staff_verified": true,
+
     "created_at": "2026-03-11T10:00:00Z",
     "last_confirmed_at": "2026-03-11T10:00:00Z"
   }
@@ -794,11 +796,9 @@ results = case_memory_collection.search(
 # Re-rank based on feedback
 for result in results:
     base_score = result.score  # Cosine similarity
-    feedback_boost = min(result.payload["feedback_count"] / 100, 0.3)
-    staff_boost = 0.1 if result.payload["staff_verified"] else 0
-    
-    result.final_score = base_score + feedback_boost + staff_boost
-    # Example: case confirmed 50 times by Staff => +0.3 + 0.1 = +0.4 boost
+    confirmation_boost = min(result.payload["confirmation_count"] / 100, 0.3)
+    result.final_score = base_score + confirmation_boost
+    # Example: case confirmed 50 times => +0.3 boost
 
 results.sort(key=lambda r: r.final_score, reverse=True)
 ```
@@ -960,10 +960,10 @@ async def process_positive_feedback(message_id: str, feedback: dict):
     # 4. Embed vao Qdrant case memory
     await case_memory.upsert(case_id, embed(text_to_embed), case, collection=collection)
     
-    # 5. Update feedback count neu case tuong tu da ton tai
+    # 5. Update confirmation count neu case tuong tu da ton tai
     existing = await case_memory.search_similar(text_to_embed, threshold=0.95)
     if existing:
-        await case_memory.update_feedback_count(existing[0].id)
+        await case_memory.update_confirmation_count(existing[0].id)
 ```
 
 **Auto-classify interaction type** (khi frontend khong gui `feedback_category`):
@@ -973,7 +973,7 @@ def classify_interaction(message) -> str:
     """Tu dong phan loai tuong tac dua tren tool da goi trong react_trace."""
     tools_used = extract_tools_from_trace(message.metadata.get("react_trace", []))
     
-    MEDICAL_TOOLS = {"pet_knowledge_search", "analyze_pet_image", "check_vaccination_status"}
+    MEDICAL_TOOLS = {"pet_knowledge_search", "check_vaccination_status", "get_patient_summary", "get_emr_history"}
     BOOKING_TOOLS = {"search_clinics_nearby", "check_available_slots", "create_booking_for_user", "get_clinic_services"}
     CLINIC_OPS_TOOLS = {"analyze_revenue_trends", "suggest_staff_assignments", "create_staff_shifts", 
                         "generate_clinic_services"}
@@ -992,8 +992,8 @@ def classify_interaction(message) -> str:
 
 | Role | Feedback duoc xu ly the nao |
 |------|----------------------------|
-| **PET_OWNER** | Thumbs up/down anh huong Case Memory (medical) va booking patterns. Feedback nhieu nhat ve chat luong tra loi suc khoe. |
-| **STAFF** | Co quyen **xac nhan / bac bo** chan doan (trong so cao hon PET_OWNER). Staff confirmed = high-confidence case -> uu tien embed. |
+| **PET_OWNER** | Feedback cua PET_OWNER chi phuc vu danh gia chat luong chat va booking UX, khong lam ground truth cho chuan doan bac si. |
+| **STAFF** | Nguon xac nhan quan trong nhat cho doctor flow la EMR do STAFF/bac si nhap sau tham kham, khong phai thumbs up/down. |
 | **CLINIC_MANAGER** | Feedback ve clinic_ops tools (revenue, scheduling). Pattern analysis -> cai thien goi y quan ly. |
 | **CLINIC_OWNER** | Feedback ve pricing, service generation, workload. Anh huong business intelligence quality. |
 | **ADMIN** | Feedback tu Playground dung de debug va fine-tune system prompt. Khong embed vao shared Case Memory. |
@@ -1016,7 +1016,7 @@ ADMIN playground         = weight 0.0 (chi dung de debug, khong embed)
 | Hang ngay | Auto-classify implicit feedback (booking thanh cong, EMR lookup success) | Thu thap feedback tu dong |
 | Hang tuan | Review cases bi thumbs_down - phan loai theo category va role | Phat hien van de cu the tung tool/role |
 | Hang tuan | Phan tich `wrong_tool` feedback -> dieu chinh tool routing | Tool routing chinh xac hon |
-| Hang thang | Prune cases co score thap + feedback_count = 0 | Tranh nhieu vector store |
+| Hang thang | Prune cases co score thap + confirmation_count = 0 | Tranh nhieu vector store |
 | Hang thang | Thong ke feedback theo role -> dieu chinh role-specific prompts | Prompt tot hon cho tung role |
 | Hang quy | Re-rank toan bo case memory | Dam bao case tot nhat duoc uu tien |
 
@@ -1024,7 +1024,7 @@ ADMIN playground         = weight 0.0 (chi dung de debug, khong embed)
 
 | Feature | Status | Implementation |
 |---------|--------|----------------|
-| Thumbs up/down | ✅ Done | Mobile UI + API `/chat/feedback` |
+| Chat feedback phổ thông | ✅ Done | Mobile UI + API `/chat/feedback`, không phải nguồn truth chính cho diagnosis |
 | Staff confirm | ✅ Done | `feedback_service.py` |
 | Feedback categories | ✅ Done | medical, booking, clinic_ops, knowledge, general |
 | Role-based weights | ✅ Done | `feedback_service.py` - STAFF=1.0, PET_OWNER=0.6 |

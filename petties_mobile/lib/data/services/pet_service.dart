@@ -1,12 +1,23 @@
 import 'package:dio/dio.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/pet.dart';
+import '../models/pet_health_summary.dart';
 import 'api_client.dart';
 
 class PetService {
   final ApiClient _apiClient;
 
   PetService({ApiClient? apiClient}) : _apiClient = apiClient ?? ApiClient();
+
+  /// Get AI-powered health summary for a pet
+  Future<PetHealthSummary> getHealthSummary(String petId) async {
+    try {
+      final response = await _apiClient.get('/pets/$petId/health-summary');
+      return PetHealthSummary.fromJson(response.data);
+    } catch (e) {
+      rethrow;
+    }
+  }
 
   /// Get current user's pets
   Future<List<Pet>> getMyPets() async {

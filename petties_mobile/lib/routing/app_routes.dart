@@ -70,7 +70,8 @@ class AppRoutes {
   // Chat
   static const String chatList = '/chat';
   static const String chatDetail = '/chat/detail';
-    static const String aiChat = '/chat/ai';
+  static const String aiChat = '/chat/ai';
+  static const String staffAiChat = '/staff/ai-chat';
 
   // SOS Emergency Booking (Pet Owner)
   static const String sosRequest = '/sos/request';

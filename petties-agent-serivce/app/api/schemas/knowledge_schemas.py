@@ -19,6 +19,7 @@ from enum import Enum
 
 class FileTypeEnum(str, Enum):
     """Supported file types"""
+
     PDF = "pdf"
     DOCX = "docx"
     TXT = "txt"
@@ -27,25 +28,29 @@ class FileTypeEnum(str, Enum):
 
 # ===== Document Response Schemas =====
 
+
 class DocumentResponse(BaseModel):
     """Single document response"""
+
     id: int
     filename: str
     file_path: str
     file_type: Optional[str] = None
     file_size: Optional[int] = None
     processed: bool = False
-    vector_count: int = 0
+    vector_count: int = 0  # Text vectors
+    image_count: int = 0  # Image vectors (from PDF)
     uploaded_by: Optional[str] = None
     notes: Optional[str] = None
     uploaded_at: Optional[datetime] = None
     processed_at: Optional[datetime] = None
-    
+
     model_config = {"from_attributes": True}
 
 
 class DocumentListResponse(BaseModel):
     """List documents response"""
+
     total: int
     processed_count: int
     pending_count: int
@@ -54,14 +59,17 @@ class DocumentListResponse(BaseModel):
 
 class DocumentDetailResponse(BaseModel):
     """Document detail with chunks preview"""
+
     document: DocumentResponse
     chunks_preview: List[Dict[str, Any]] = []  # First 5 chunks
 
 
 # ===== Upload Schemas =====
 
+
 class UploadDocumentResponse(BaseModel):
     """Response after upload"""
+
     success: bool
     message: str
     document_id: int
@@ -73,6 +81,7 @@ class UploadDocumentResponse(BaseModel):
 
 class UploadErrorResponse(BaseModel):
     """Upload error response"""
+
     success: bool = False
     error: str
     allowed_types: List[str] = ["pdf", "docx", "txt", "md"]
@@ -80,32 +89,41 @@ class UploadErrorResponse(BaseModel):
 
 # ===== Processing Schemas =====
 
+
 class ProcessDocumentRequest(BaseModel):
     """Request to process document"""
+
     chunk_size: int = Field(500, ge=100, le=2000)
     chunk_overlap: int = Field(50, ge=0, le=200)
 
 
 class ProcessDocumentResponse(BaseModel):
     """Response after processing document into vectors"""
+
     success: bool
     message: str
     document_id: int
-    chunks_created: int
+    chunks_created: int  # Text vectors
+    images_indexed: int = 0  # Image vectors (from PDF)
     processing_time_ms: int
 
 
 # ===== RAG Query Schemas =====
 
+
 class QueryKnowledgeRequest(BaseModel):
     """RAG query request"""
+
     query: str = Field(..., min_length=3, max_length=500)
     top_k: int = Field(5, ge=1, le=20)
-    min_score: float = Field(0.5, ge=0.0, le=1.0)  # Production default - reduces false positives
+    min_score: float = Field(
+        0.5, ge=0.0, le=1.0
+    )  # Production default - reduces false positives
 
 
 class RetrievedChunk(BaseModel):
     """Single retrieved chunk"""
+
     document_id: int
     document_name: str
     chunk_index: int
@@ -116,6 +134,7 @@ class RetrievedChunk(BaseModel):
 
 class QueryKnowledgeResponse(BaseModel):
     """RAG query response"""
+
     success: bool
     query: str
     total_chunks: int
@@ -125,8 +144,10 @@ class QueryKnowledgeResponse(BaseModel):
 
 # ===== Delete Schemas =====
 
+
 class DeleteDocumentResponse(BaseModel):
     """Response after delete"""
+
     success: bool
     message: str
     document_id: int
@@ -136,12 +157,15 @@ class DeleteDocumentResponse(BaseModel):
 
 # ===== Status Schemas =====
 
+
 class KnowledgeBaseStatusResponse(BaseModel):
     """Overall knowledge base status with Qdrant info"""
+
     total_documents: int
     processed_documents: int
     pending_documents: int
     total_vectors: int
+    total_image_vectors: int = 0
     storage_size_bytes: int
     last_updated: Optional[datetime] = None
     qdrant_info: Optional[Dict[str, Any]] = None  # Qdrant collection stats
@@ -149,14 +173,17 @@ class KnowledgeBaseStatusResponse(BaseModel):
 
 # ===== Knowledge Graph Query Schemas =====
 
+
 class KGQueryRequest(BaseModel):
     """Knowledge Graph query request"""
+
     query: str = Field(..., min_length=2, max_length=500)
     top_k: int = Field(5, ge=1, le=20)
 
 
 class KGQueryResultItem(BaseModel):
     """Single result item from KG query"""
+
     subject: str
     predicate: str
     object: str
@@ -166,7 +193,45 @@ class KGQueryResultItem(BaseModel):
 
 class KGQueryResponse(BaseModel):
     """Knowledge Graph query response"""
+
     success: bool
     query: str
     results: List[KGQueryResultItem]
     message: Optional[str] = None
+
+
+# ===== Hybrid Search Schemas =====
+
+
+class HybridQueryRequest(BaseModel):
+    """Hybrid query request (text + image search)"""
+
+    query: str = Field(..., min_length=2, max_length=500)
+    image_urls: Optional[List[str]] = Field(
+        default=None, description="Image URLs for image search"
+    )
+    top_k: int = Field(5, ge=1, le=20)
+    min_score: float = Field(0.5, ge=0.0, le=1.0)
+
+
+class ImageSearchResult(BaseModel):
+    """Image search result"""
+
+    document_id: int
+    filename: str
+    image_id: str
+    score: float
+    payload: Optional[Dict[str, Any]] = None
+
+
+class HybridQueryResponse(BaseModel):
+    """Hybrid query response"""
+
+    success: bool
+    query: str
+    text_results: List[RetrievedChunk]
+    image_results: List[ImageSearchResult]
+    has_image_query: bool
+    total_text_results: int
+    total_image_results: int
+    retrieval_time_ms: int

@@ -1,4 +1,6 @@
-# AI Assistant - Role-Based Requirements Analysis
+﻿# AI Assistant - Role-Based Requirements Analysis
+
+> Lưu ý cập nhật ngày 2026-03-17: phần doctor diagnostic flow trong tài liệu này đã được thiết kế lại. `STAFF` không dùng `web_search` cho chẩn đoán; luồng mới ưu tiên knowledge base nội bộ, EMR đã xác nhận và Gemini Vision. Xem thêm [AI_DIAGNOSIS_FEATURE_PLAN.md](D:/SEP490/petties/docs-references/documentation/AI_DIAGNOSIS_FEATURE_PLAN.md).
 
 **Mục đích:** Phân tích chi tiết requirements cho AI Assistant theo từng role trước khi implement.
 
@@ -132,7 +134,7 @@
 | `get_patient_summary` | ✅ | Own clinic only |
 | `get_emr_history` | ✅ | Assigned bookings only |
 | `check_vaccination_status` | ✅ | Own clinic pets |
-| `analyze_pet_image` | Planned | Chỉ dùng khi vision runtime sẵn sàng |
+| Chẩn đoán hình ảnh cho bác sĩ | Redesigned | Sẽ dùng Gemini Vision + mô tả bác sĩ theo kiến trúc mới, chưa có runtime mới |
 | `create_booking_for_user` | ❌ | Staff không tự tạo booking cho customer trong scope hiện tại |
 | Manager/Owner tools | ❌ | Forbidden |
 

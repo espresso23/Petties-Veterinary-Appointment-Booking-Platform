@@ -1,4 +1,4 @@
-# PETTIES - Business Process Workflow (BPMN)
+﻿# PETTIES - Business Process Workflow (BPMN)
 
 Tài liệu mô tả luồng nghiệp vụ tổng quan theo chuẩn BPMN 2.0.
 

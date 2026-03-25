@@ -1,4 +1,4 @@
-# Nginx WebSocket & SSE Configuration Guide
+﻿# Nginx WebSocket & SSE Configuration Guide
 
 ## ⚠️ QUAN TRỌNG
 

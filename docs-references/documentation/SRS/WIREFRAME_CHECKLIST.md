@@ -117,13 +117,23 @@ This document tracks the generation of black & white wireframes for the Petties 
 ---
 
 #### Staff AI Assistant (Web + Mobile) - Context-aware assistant
-- [x] **AI Staff Assistant Widget** (UC-AI-020)
-  - Code: `petties-web/src/components/ai/AiStaffAssistantWidget.tsx` + `lib/ui/staff/widgets/ai_assistant_widget.dart`
-  - Stitch ID: `6ad582d8101146c7b82cce5fdff083ee`
-  - *UI Description: Widget cố định ở sidebar (Web) hoặc floating button bottom-right (Mobile). Icon AI với badge notification số (khi có gợi ý mới từ AI). Badge "AI Trợ lý - Staff". Click mở chat panel slide-in.*
+- [x] **AI Staff Chat Bubble (Mobile)** (UC-AI-020)
+  - Code: `lib/ui/staff/widgets/staff_ai_chat_bubble.dart`
+  - Stitch ID: `6ad582d8101146c7b82cce5fdff083ee` (reused from web)
+  - *UI Description: Floating button bottom-right trên Staff Home Screen. Icon auto_awesome (amber), text "AI Hỗ trợ". Neobrutalism style với offset shadow. Tap → navigate to /staff/ai-chat.*
 
-- [x] **AI Staff Chat Panel (Slide-in)** (UC-AI-020)
-  - Code: `petties-web/src/components/ai/AiStaffChatPanel.tsx` + `lib/ui/staff/ai_staff_chat_panel.dart`
+- [x] **AI Staff Chat Screen (Mobile)** (UC-AI-020)
+  - Code: `lib/ui/staff/ai_chat/staff_ai_chat_screen.dart` (wraps `AiChatScreen` with `isStaffContext: true`)
+  - Stitch ID: `396aa0772a8f444298a54ccacad46ed9` (reused from web slide-in)
+  - *UI Description: Fullscreen dialog. Chat interface với AI Agent cho Staff - context-aware với tools (get_staff_petients, search_clinics, etc.). Role-based system prompt từ AI Service.*
+
+- [x] **AI Staff Assistant Widget (Web)** (UC-AI-020)
+  - Code: `petties-web/src/components/ai/AiStaffAssistantWidget.tsx`
+  - Stitch ID: `6ad582d8101146c7b82cce5fdff083ee`
+  - *UI Description: Widget cố định ở sidebar (Web). Icon AI với badge notification. Click mở chat panel slide-in.*
+
+- [x] **AI Staff Chat Panel (Slide-in) (Web)** (UC-AI-020)
+  - Code: `petties-web/src/components/ai/AiStaffChatPanel.tsx`
   - Stitch ID: `396aa0772a8f444298a54ccacad46ed9`
   - *UI Description:
 
@@ -248,6 +258,11 @@ This document tracks the generation of black & white wireframes for the Petties 
 - [x] **Staff EMR Detail** (UC-VT-06)
   - Code: `lib/ui/staff/emr_detail_screen.dart`
   - Stitch ID: `948ceaa48762498c87ace145227ba51e`
+- [x] **Staff AI Diagnosis (Mobile)** (UC-STAFF-11)
+  - Code: `lib/ui/staff/widgets/ai_diagnosis_panel.dart` + `lib/ui/staff/widgets/ai_diagnosis_sheet.dart` + `lib/ui/staff/emr/create_emr_screen.dart` (integration)
+  - Stitch ID: `243a2c9646f3407ab610c82b528234b6`
+  - *UI Description: Bottom sheet 85% height trong Create/Edit EMR mobile flow. Gồm: header "HỖ TRỢ AI CHẨN ĐOÁN", TextField mô tả triệu chứng (multiline), khu vực ảnh lâm sàng với nút "+ Thêm ảnh", nút "PHÂN TÍCH TÌNH TRẠNG". Kết quả hiển thị: Top 3 chẩn đoán phân biệt, dấu hiệu từ ảnh, gợi ý đơn thuốc, và nút "ÁP DỤNG VÀO EMR" để điền kết quả vào form SOAP.*
+  - *Integration: Icon 🤖 trên AppBar của CreateEmrScreen/EditEmrScreen → gọi AiDiagnosisSheet.show() → Bottom Sheet → user nhập/chọn ảnh → AI phân tích → Áp dụng kết quả vào EMR form*
 - [x] **Staff Vaccination Record** (UC-VT-08)
   - Code: `lib/ui/staff/vaccination_record_screen.dart`
   - Stitch ID: `0d6c6e995b1744c4b22734e130fba67c`
@@ -410,6 +425,11 @@ This document tracks the generation of black & white wireframes for the Petties 
   - Code: `petties-web/src/pages/staff/emr/EditEmrPage.tsx`
   - Stitch ID: `7d85f629b38440efa97e8751233b3629`
   - *UI Description: Form chỉnh sửa EMR existing. Pre-filled data, rich text editor, attachment upload. Audit trail hiển thị lịch sử sửa.*
+- [x] **AI Diagnosis Panel** (UC-STAFF-11)
+  - Code: `petties-web/src/components/emr/AIDiagnosisPanel.tsx`
+  - Stitch ID: *(Chưa generate - wireframe monochrome)*
+  - *UI Description: Panel trong Create/Edit EMR page. Input: ô nhập mô tả lâm sàng, vùng tổn thương, triệu chứng, danh sách ảnh. Output: Card Chẩn đoán phân biệt (top 3), Dấu hiệu từ ảnh, nút Chèn vào SOAP fields. Disclaimer: "Đây là gợi ý hỗ trợ tham khảo".*
+  - > **⚠️ 2026-03-17 Update:** Component đã implement. Nguồn: Gemini Vision + KB nội bộ + EMR confirmed (thay thế thumbs feedback).*
 - [x] **Vaccination Management** (UC-VT-08)
   - Code: `petties-web/src/pages/staff/emr/components/VaccinationTab.tsx`
   - Stitch ID: `f82869af13634ec19a747ac1f9fa7c6a`

@@ -10,6 +10,7 @@ import 'providers/auth_provider.dart';
 import 'providers/user_provider.dart';
 import 'providers/notification_provider.dart';
 import 'providers/booking_wizard_provider.dart';
+import 'providers/emr_draft_provider.dart';
 import 'providers/clinic_provider.dart';
 import 'routing/router_config.dart' as app_router;
 import 'config/theme/app_theme.dart';
@@ -60,6 +61,7 @@ void main() async {
   final notificationProvider = NotificationProvider();
   final clinicProvider = ClinicProvider();
   final bookingWizardProvider = BookingWizardProvider();
+  final emrDraftProvider = EmrDraftProvider();
 
   // Initialize Sentry and run app immediately
   // FCM and background handler will be initialized AFTER first frame renders
@@ -72,6 +74,7 @@ void main() async {
           ChangeNotifierProvider.value(value: notificationProvider),
           ChangeNotifierProvider.value(value: clinicProvider),
           ChangeNotifierProvider.value(value: bookingWizardProvider),
+          ChangeNotifierProvider.value(value: emrDraftProvider),
         ],
         child: PettiesApp(authProvider: authProvider),
       ),

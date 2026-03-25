@@ -326,7 +326,7 @@ class _PatientListScreenState extends State<PatientListScreen> {
                                 size: 64, color: AppColors.stone300),
                             const SizedBox(height: 16),
                             Text(
-                              'Chưa có bệnh nhân nào',
+                              'Chưa có thú cưng nào',
                               style: TextStyle(
                                   color: AppColors.stone500, fontSize: 16),
                             ),
@@ -359,7 +359,7 @@ class _PatientListScreenState extends State<PatientListScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Hiển thị ${filteredPatients.length} / $_totalElements bệnh nhân',
+                    'Hiển thị ${filteredPatients.length} / $_totalElements thú cưng',
                     style: TextStyle(color: AppColors.stone500, fontSize: 13),
                   ),
                   Row(

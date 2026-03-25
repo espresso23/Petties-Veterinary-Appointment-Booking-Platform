@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ConfirmModal } from '../../../components/ConfirmModal'
 import { feedbackApi, kgApi, caseMemoryApi } from '../../../services/agentService'
 import type {
   FeedbackStatsResponse,
@@ -11,7 +10,9 @@ import type {
   KGVisualizeResponse,
   KGQueryResultItem,
   CaseMemoryStatsResponse,
-  CaseMemoryPruneResponse
+  CaseMemoryPruneResponse,
+  CaseMemoryItem,
+  CaseMemoryListParams,
 } from '../../../services/agentService'
 import {
   ArrowPathIcon,
@@ -32,9 +33,12 @@ import {
   XMarkIcon,
   ArrowsPointingOutIcon,
   MagnifyingGlassIcon,
+  EyeIcon,
+  DocumentTextIcon,
 } from '@heroicons/react/24/outline'
 import { useToast } from '../../../components/Toast'
 import { GraphVisualizer } from '../../../components/admin/GraphVisualizer'
+import { ConfirmModal } from '../../../components/ConfirmModal'
 
 /**
  * AI Insights Page - Neobrutalism Edition
@@ -69,6 +73,25 @@ export const AIInsightsPage = () => {
   const [casePruneResult, setCasePruneResult] = useState<CaseMemoryPruneResponse | null>(null)
   const [pruneOlderThanDays, setPruneOlderThanDays] = useState(90)
 
+  // --- Section 3b: Case Memory List ---
+
+  const [caseList, setCaseList] = useState<CaseMemoryItem[]>([])
+  const [caseListLoading, setCaseListLoading] = useState(false)
+  const [caseListPage, setCaseListPage] = useState(1)
+  const [caseListTotal, setCaseListTotal] = useState(0)
+  const [caseListFilters, setCaseListFilters] = useState<CaseMemoryListParams>({
+    page_size: 15,
+  })
+  const [caseListSearch, setCaseListSearch] = useState('')
+  const [showCaseFilters, setShowCaseFilters] = useState(false)
+
+  // --- Case Detail Modal ---
+  const [selectedCase, setSelectedCase] = useState<CaseMemoryItem | null>(null)
+  const [showCaseDetail, setShowCaseDetail] = useState(false)
+
+  // --- Delete Confirmation ---
+  const [deleteCaseId, setDeleteCaseId] = useState<string | null>(null)
+
   // --- Section 4: Feedback Detail List ---
   const [feedbackList, setFeedbackList] = useState<FeedbackListResponse | null>(null)
   const [feedbackListLoading, setFeedbackListLoading] = useState(false)
@@ -78,11 +101,6 @@ export const AIInsightsPage = () => {
   })
   const [showFilters, setShowFilters] = useState(false)
   const [showDetailSection, setShowDetailSection] = useState(false)
-
-  const [deletingFeedbackId, setDeletingFeedbackId] = useState<string | null>(null)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [, setDeleteLoading] = useState(false)
-
   // Knowledge Graph Query
   const [kgSearchQuery, setKgSearchQuery] = useState('')
   const [kgSearchResults, setKgSearchResults] = useState<KGQueryResultItem[]>([])
@@ -145,6 +163,45 @@ export const AIInsightsPage = () => {
     }
   }, [])
 
+  // --- Load Case Memory List ---
+  const loadCaseList = useCallback(async (page: number = 1) => {
+    try {
+      setCaseListLoading(true)
+      const params: CaseMemoryListParams = {
+        ...caseListFilters,
+        page,
+        page_size: caseListFilters.page_size || 15,
+      }
+      if (caseListSearch.trim()) {
+        params.query = caseListSearch.trim()
+      }
+      const data = await caseMemoryApi.list(params)
+      setCaseList(data.items)
+      setCaseListTotal(data.total)
+      setCaseListPage(page)
+    } catch (err) {
+      console.error('Failed to load case list:', err)
+      showToast('error', 'Không thể tải danh sách cases')
+    } finally {
+      setCaseListLoading(false)
+    }
+  }, [caseListFilters, caseListSearch, showToast])
+
+  // --- Handle Delete Case ---
+  const handleDeleteCase = async () => {
+    if (!deleteCaseId) return
+    try {
+      await caseMemoryApi.delete(deleteCaseId)
+      showToast('success', 'Đã xóa case thành công')
+      setDeleteCaseId(null)
+      await loadCaseList(caseListPage)
+      await loadCaseStats()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Lỗi không xác định'
+      showToast('error', `Xóa thất bại: ${message}`)
+    }
+  }
+
   // --- Load Feedback Detail List ---
   const loadFeedbackList = useCallback(async (page: number = 1) => {
     try {
@@ -171,7 +228,8 @@ export const AIInsightsPage = () => {
   useEffect(() => {
     loadKGStats()
     loadCaseStats()
-  }, [loadKGStats, loadCaseStats])
+    loadCaseList(1)
+  }, [loadKGStats, loadCaseStats, loadCaseList])
 
   // Load feedback list when detail section is opened or filters change
   useEffect(() => {
@@ -228,36 +286,6 @@ export const AIInsightsPage = () => {
     }
   }
 
-  // --- Delete Feedback Handler ---
-  const handleDeleteFeedback = async () => {
-    if (!deletingFeedbackId) return
-    try {
-      setDeleteLoading(true)
-      const result = await feedbackApi.deleteFeedback(deletingFeedbackId)
-      showToast('success', result.case_deleted
-        ? 'Đã xóa feedback và case tương ứng khỏi Case Memory'
-        : 'Đã xóa feedback thành công'
-      )
-      // Reload both stats and list
-      await Promise.all([
-        loadFeedbackStats(),
-        showDetailSection ? loadFeedbackList(feedbackListPage) : Promise.resolve(),
-      ])
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Lỗi không xác định'
-      showToast('error', `Xóa feedback thất bại: ${message}`)
-    } finally {
-      setDeleteLoading(false)
-      setShowDeleteConfirm(false)
-      setDeletingFeedbackId(null)
-    }
-  }
-
-  const confirmDeleteFeedback = (feedbackId: string) => {
-    setDeletingFeedbackId(feedbackId)
-    setShowDeleteConfirm(true)
-  }
-
   // --- Helpers ---
   const positiveRate = feedbackStats ? Math.round(feedbackStats.positive_rate * 100) : 0
   const thumbsUp = feedbackStats?.by_type?.thumbs_up ?? 0
@@ -305,11 +333,10 @@ export const AIInsightsPage = () => {
                 <button
                   key={days}
                   onClick={() => setPeriodDays(days)}
-                  className={`px-3 py-1.5 text-xs font-black uppercase border-2 border-stone-900 rounded-lg transition-all cursor-pointer ${
-                    periodDays === days
-                      ? 'bg-amber-600 text-white shadow-[2px_2px_0_#1c1917]'
-                      : 'bg-white text-stone-900 hover:bg-stone-100'
-                  }`}
+                  className={`px-3 py-1.5 text-xs font-black uppercase border-2 border-stone-900 rounded-lg transition-all cursor-pointer ${periodDays === days
+                    ? 'bg-amber-600 text-white shadow-[2px_2px_0_#1c1917]'
+                    : 'bg-white text-stone-900 hover:bg-stone-100'
+                    }`}
                 >
                   {days} ngày
                 </button>
@@ -429,9 +456,8 @@ export const AIInsightsPage = () => {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => setShowFilters(!showFilters)}
-                        className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-black uppercase border-2 border-stone-900 rounded-lg transition-all cursor-pointer ${
-                          showFilters ? 'bg-amber-400 shadow-none' : 'bg-white shadow-[2px_2px_0_#1c1917]'
-                        }`}
+                        className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-black uppercase border-2 border-stone-900 rounded-lg transition-all cursor-pointer ${showFilters ? 'bg-amber-400 shadow-none' : 'bg-white shadow-[2px_2px_0_#1c1917]'
+                          }`}
                       >
                         <FunnelIcon className="w-3.5 h-3.5" />
                         Bộ lọc
@@ -545,12 +571,12 @@ export const AIInsightsPage = () => {
                             <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Tool</th>
                             <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Nội dung</th>
                             <th className="text-right px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Trọng số</th>
-                            <th className="text-center px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Thao tác</th>
+                            <th className="text-center px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Trạng thái</th>
                           </tr>
                         </thead>
                         <tbody>
                           {feedbackList.items.map((item) => (
-                            <FeedbackRow key={item.feedback_id} item={item} onDelete={confirmDeleteFeedback} />
+                            <FeedbackRow key={item.feedback_id} item={item} />
                           ))}
                         </tbody>
                       </table>
@@ -701,7 +727,7 @@ export const AIInsightsPage = () => {
                     <MagnifyingGlassIcon className="w-5 h-5 text-purple-600" />
                     <h4 className="text-sm font-black uppercase text-stone-700">Test Truy vấn Knowledge Graph</h4>
                   </div>
-                  
+
                   <div className="flex gap-3 mb-6">
                     <div className="flex-1 relative">
                       <input
@@ -801,18 +827,12 @@ export const AIInsightsPage = () => {
               {/* Case Stats */}
               <StatCard
                 icon={<CircleStackIcon className="w-5 h-5 text-amber-600" />}
-                value={caseStats?.total_cases ?? 0}
+                value={caseStats?.points_count ?? 0}
                 label="Tổng số ca"
                 bgColor="bg-amber-50"
                 valueColor="text-amber-600"
               />
-              <StatCard
-                icon={<CheckCircleIcon className="w-5 h-5 text-green-600" />}
-                value={caseStats?.collection_status ?? 'N/A'}
-                label="Trạng thái collection"
-                bgColor="bg-green-50"
-                valueColor="text-green-600"
-              />
+              <CollectionStatusBadge status={caseStats?.status} />
 
               {/* Prune Card */}
               <div className="lg:col-span-2 bg-white border-2 border-stone-900 rounded-xl shadow-[4px_4px_0_#1c1917] p-6">
@@ -820,7 +840,7 @@ export const AIInsightsPage = () => {
                   <div>
                     <h3 className="text-sm font-black uppercase text-stone-700">Dọn dẹp Case Memory</h3>
                     <p className="text-xs text-stone-500 mt-1">
-                      Xóa các ca cũ có feedback thấp để giữ chất lượng dữ liệu
+                      Xóa các ca cũ có lần xác nhận thấp để giữ chất lượng dữ liệu
                     </p>
                   </div>
                 </div>
@@ -870,7 +890,7 @@ export const AIInsightsPage = () => {
                         <span className="font-bold uppercase">Đã xóa:</span> {casePruneResult.pruned_count} ca
                       </div>
                       <div>
-                        <span className="font-bold uppercase">Feedback thấp hơn:</span>{' '}
+                        <span className="font-bold uppercase">Ít xác nhận hơn:</span>{' '}
                         {casePruneResult.criteria.max_feedback_below}
                       </div>
                       <div>
@@ -884,28 +904,202 @@ export const AIInsightsPage = () => {
             </div>
           )}
         </section>
+
+        {/* ============================================
+           SECTION 3b: CASE MEMORY LIST
+           ============================================ */}
+        <section>
+          <div className="bg-white border-2 border-stone-900 rounded-xl shadow-[4px_4px_0_#1c1917] overflow-hidden">
+            {/* Header + Filters */}
+            <div className="p-4 border-b-2 border-stone-900 bg-stone-50">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-black uppercase text-stone-700 flex items-center gap-2">
+                  <DocumentTextIcon className="w-4 h-4" />
+                  Danh sách Cases
+                  {caseListTotal > 0 && (
+                    <span className="text-xs font-bold text-stone-400 normal-case">
+                      ({caseListTotal} kết quả)
+                    </span>
+                  )}
+                </h3>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowCaseFilters(!showCaseFilters)}
+                    className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-black uppercase border-2 border-stone-900 rounded-lg transition-all cursor-pointer ${showCaseFilters ? 'bg-amber-400 shadow-none' : 'bg-white shadow-[2px_2px_0_#1c1917]'
+                      }`}
+                  >
+                    <FunnelIcon className="w-3.5 h-3.5" />
+                    Bộ lọc
+                  </button>
+                  <button
+                    onClick={() => loadCaseList(caseListPage)}
+                    className="p-1.5 border-2 border-stone-900 rounded-lg bg-white shadow-[2px_2px_0_#1c1917] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all cursor-pointer"
+                  >
+                    <ArrowPathIcon className={`w-3.5 h-3.5 ${caseListLoading ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Search */}
+              <div className="flex gap-3 mb-3">
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    value={caseListSearch}
+                    onChange={(e) => setCaseListSearch(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && loadCaseList(1)}
+                    placeholder="Tìm kiếm trong nội dung case..."
+                    className="w-full px-4 py-2 bg-white border-2 border-stone-900 rounded-lg shadow-[2px_2px_0_#1c1917] focus:outline-none focus:ring-2 focus:ring-amber-500 placeholder:text-stone-400 text-sm"
+                  />
+                </div>
+                <button
+                  onClick={() => loadCaseList(1)}
+                  className="px-4 py-2 bg-amber-600 text-white font-black uppercase rounded-lg shadow-[3px_3px_0_#1c1917] hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px] transition-all"
+                >
+                  Tìm kiếm
+                </button>
+              </div>
+
+              {/* Filter Bar */}
+              {showCaseFilters && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3 bg-amber-50 border-2 border-stone-900 rounded-lg">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Loài</label>
+                    <select
+                      value={caseListFilters.species || ''}
+                      onChange={(e) => setCaseListFilters(prev => ({ ...prev, species: e.target.value || undefined }))}
+                      className="w-full px-2 py-1.5 text-xs border-2 border-stone-900 rounded-lg bg-white font-bold shadow-[2px_2px_0_#1c1917] cursor-pointer"
+                    >
+                      <option value="">Tất cả</option>
+                      <option value="dog">Chó</option>
+                      <option value="cat">Mèo</option>
+                      <option value="other">Khác</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Từ khóa chẩn đoán</label>
+                    <input
+                      type="text"
+                      value={caseListFilters.diagnosis || ''}
+                      onChange={(e) => setCaseListFilters(prev => ({ ...prev, diagnosis: e.target.value || undefined }))}
+                      placeholder="Ví dụ: viêm da"
+                      className="w-full px-2 py-1.5 text-xs border-2 border-stone-900 rounded-lg bg-white font-bold shadow-[2px_2px_0_#1c1917]"
+                    />
+                  </div>
+                  <div className="col-span-full flex justify-end">
+                    <button
+                      onClick={() => {
+                        setCaseListFilters({ page_size: 15 })
+                        setShowCaseFilters(false)
+                      }}
+                      className="inline-flex items-center gap-1 px-3 py-1 text-xs font-black uppercase text-stone-500 hover:text-stone-900 cursor-pointer"
+                    >
+                      <XMarkIcon className="w-3.5 h-3.5" />
+                      Xóa bộ lọc
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Table */}
+            {caseListLoading ? (
+              <div className="p-8">
+                <LoadingCard label="Đang tải danh sách cases..." />
+              </div>
+            ) : caseList.length > 0 ? (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-stone-100 border-b-2 border-stone-900">
+                        <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Loài</th>
+                        <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Chủ đề chính</th>
+                        <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Chẩn đoán</th>
+                        <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Triệu chứng</th>
+                        <th className="text-center px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Lần xác nhận</th>
+                        <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Ngày tạo</th>
+                        <th className="text-center px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {caseList.map((item) => (
+                        <CaseRow
+                          key={item.case_id}
+                          item={item}
+                          onView={() => {
+                            setSelectedCase(item)
+                            setShowCaseDetail(true)
+                          }}
+                          onDelete={() => setDeleteCaseId(item.case_id)}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination */}
+                <div className="flex items-center justify-between px-4 py-3 border-t-2 border-stone-900 bg-stone-50">
+                  <span className="text-xs font-bold text-stone-500">
+                    Trang {caseListPage} / {Math.ceil(caseListTotal / (caseListFilters.page_size || 15)) || 1}
+                    ({caseListTotal} kết quả)
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => loadCaseList(caseListPage - 1)}
+                      disabled={caseListPage <= 1}
+                      className="p-1.5 border-2 border-stone-900 rounded-lg bg-white shadow-[2px_2px_0_#1c1917] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none"
+                    >
+                      <ChevronLeftIcon className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => loadCaseList(caseListPage + 1)}
+                      disabled={caseListPage >= Math.ceil(caseListTotal / (caseListFilters.page_size || 15))}
+                      className="p-1.5 border-2 border-stone-900 rounded-lg bg-white shadow-[2px_2px_0_#1c1917] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none"
+                    >
+                      <ChevronRightIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="p-8">
+                <EmptyState text="Chưa có case nào" />
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Case Detail Modal */}
+        {showCaseDetail && selectedCase && (
+          <CaseDetailModal
+            case={selectedCase}
+            onClose={() => {
+              setShowCaseDetail(false)
+              setSelectedCase(null)
+            }}
+          />
+        )}
+
+        {/* Delete Confirmation Modal */}
+        <ConfirmModal
+          isOpen={deleteCaseId !== null}
+          title="Xác nhận xóa"
+          message="Bạn có chắc muốn xóa case này? Hành động này không thể hoàn tác."
+          confirmLabel="Xóa"
+          cancelLabel="Hủy"
+          onConfirm={handleDeleteCase}
+          onCancel={() => setDeleteCaseId(null)}
+          isDanger
+        />
       </div>
-      {/* Delete Feedback ConfirmModal */}
-      <ConfirmModal
-        isOpen={showDeleteConfirm}
-        title="Xác nhận xóa phản hồi"
-        message="Bạn có chắc muốn xóa phản hồi này? Nếu phản hồi đã embed case vào Case Memory, case đó cũng sẽ bị xóa."
-        confirmLabel="XÓA"
-        cancelLabel="HỦY"
-        onConfirm={handleDeleteFeedback}
-        onCancel={() => {
-          setShowDeleteConfirm(false)
-          setDeletingFeedbackId(null)
-        }}
-        isDanger
-      />
     </div>
   )
 }
 
 // ===== SUB-COMPONENTS =====
 
-function FeedbackRow({ item, onDelete }: { item: FeedbackItem; onDelete: (feedbackId: string) => void }) {
+function FeedbackRow({ item }: { item: FeedbackItem }) {
   const [expanded, setExpanded] = useState(false)
   const hasDetail = !!(item.feedback_text || item.feedback_reason || item.message_content)
 
@@ -941,16 +1135,9 @@ function FeedbackRow({ item, onDelete }: { item: FeedbackItem; onDelete: (feedba
           </span>
         </td>
         <td className="px-3 py-2.5 text-center">
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onDelete(item.feedback_id)
-            }}
-            className="p-1.5 text-red-500 hover:bg-red-50 border-2 border-transparent hover:border-red-300 rounded-lg transition-all cursor-pointer"
-            title="Xóa feedback"
-          >
-            <TrashIcon className="w-4 h-4" />
-          </button>
+          <span className="inline-block px-2 py-0.5 text-[10px] font-black uppercase border-2 border-stone-900 rounded-lg bg-stone-100 text-stone-700">
+            Lưu audit
+          </span>
         </td>
       </tr>
       {expanded && hasDetail && (
@@ -1166,6 +1353,274 @@ function formatFeedbackDate(isoStr: string): string {
   } catch {
     return isoStr
   }
+}
+
+// ===== CASE MEMORY COMPONENTS =====
+
+interface CaseRowProps {
+  item: CaseMemoryItem
+  onView: () => void
+  onDelete: () => void
+}
+
+function CaseRow({ item, onView, onDelete }: CaseRowProps) {
+  const speciesLabel = {
+    dog: 'Chó',
+    cat: 'Mèo',
+    other: 'Khác',
+  }[item.species] || item.species
+
+  const speciesColor = {
+    dog: 'bg-amber-100 text-amber-700',
+    cat: 'bg-purple-100 text-purple-700',
+    other: 'bg-stone-100 text-stone-700',
+  }[item.species] || 'bg-stone-100 text-stone-700'
+
+  return (
+    <tr className="border-b border-stone-200 hover:bg-amber-50 transition-colors">
+      <td className="px-3 py-2.5">
+        <span className={`inline-block px-2 py-0.5 text-[10px] font-black uppercase border-2 border-stone-900 rounded-lg ${speciesColor}`}>
+          {speciesLabel}
+        </span>
+        {item.breed && (
+          <div className="text-[10px] text-stone-500 mt-0.5">{item.breed}</div>
+        )}
+      </td>
+      <td className="px-3 py-2.5 text-xs font-medium text-stone-700 max-w-[200px] truncate">
+        {item.chief_complaint || '--'}
+      </td>
+      <td className="px-3 py-2.5 text-xs font-bold text-stone-900 max-w-[200px] truncate">
+        {item.final_diagnosis_text || '--'}
+      </td>
+      <td className="px-3 py-2.5 text-xs text-stone-600 max-w-[150px]">
+        <div className="flex flex-wrap gap-1">
+          {item.symptoms?.slice(0, 2).map((s, i) => (
+            <span key={i} className="px-1.5 py-0.5 bg-stone-100 text-stone-600 rounded text-[10px] border border-stone-200">
+              {s}
+            </span>
+          ))}
+          {item.symptoms && item.symptoms.length > 2 && (
+            <span className="px-1.5 py-0.5 text-[10px] text-stone-400">
+              +{item.symptoms.length - 2}
+            </span>
+          )}
+        </div>
+      </td>
+      <td className="px-3 py-2.5 text-center">
+        <span className={`inline-block px-2 py-0.5 text-xs font-black border-2 border-stone-900 rounded-lg ${item.confirmation_count > 0
+          ? 'bg-green-100 text-green-700'
+          : 'bg-stone-100 text-stone-500'
+          }`}>
+          {item.confirmation_count}
+        </span>
+      </td>
+      <td className="px-3 py-2.5 text-xs font-medium text-stone-600 whitespace-nowrap">
+        {item.created_at ? formatFeedbackDate(item.created_at) : '--'}
+      </td>
+      <td className="px-3 py-2.5 text-center">
+        <div className="flex items-center justify-center gap-1">
+          <button
+            onClick={onView}
+            className="p-1.5 border-2 border-stone-900 rounded-lg bg-white shadow-[2px_2px_0_#1c1917] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all cursor-pointer"
+            title="Xem chi tiết"
+          >
+            <EyeIcon className="w-3.5 h-3.5 text-blue-600" />
+          </button>
+          <button
+            onClick={onDelete}
+            className="p-1.5 border-2 border-stone-900 rounded-lg bg-white shadow-[2px_2px_0_#1c1917] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all cursor-pointer"
+            title="Xóa case"
+          >
+            <TrashIcon className="w-3.5 h-3.5 text-red-500" />
+          </button>
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+interface CaseDetailModalProps {
+  case: CaseMemoryItem
+  onClose: () => void
+}
+
+function CaseDetailModal({ case: item, onClose }: CaseDetailModalProps) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white border-4 border-stone-900 rounded-xl shadow-[8px_8px_0_#1c1917] w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b-2 border-stone-900 bg-amber-50">
+          <h3 className="text-lg font-black uppercase text-stone-900">Chi tiết Case</h3>
+          <button
+            onClick={onClose}
+            className="p-1.5 border-2 border-stone-900 rounded-lg bg-white shadow-[2px_2px_0_#1c1917] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all cursor-pointer"
+          >
+            <XMarkIcon className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          {/* Pet Info */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Loài</label>
+              <p className="font-bold text-stone-900 capitalize">{item.species}</p>
+            </div>
+            {item.breed && (
+              <div>
+                <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Giống</label>
+                <p className="font-bold text-stone-900">{item.breed}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Chief Complaint */}
+          <div>
+            <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Chủ đề chính</label>
+            <p className="font-medium text-stone-700">{item.chief_complaint || '--'}</p>
+          </div>
+
+          {/* Diagnosis */}
+          <div>
+            <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Chẩn đoán</label>
+            <p className="font-bold text-stone-900">{item.final_diagnosis_text || '--'}</p>
+            {item.canonical_code && (
+              <p className="text-xs text-stone-500 mt-1">Mã: {item.canonical_code}</p>
+            )}
+          </div>
+
+          {/* Symptoms */}
+          <div>
+            <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Triệu chứng</label>
+            <div className="flex flex-wrap gap-2">
+              {item.symptoms && item.symptoms.length > 0 ? (
+                item.symptoms.map((s, i) => (
+                  <span key={i} className="px-2 py-1 bg-stone-100 text-stone-700 rounded-lg text-sm border border-stone-200">
+                    {s}
+                  </span>
+                ))
+              ) : (
+                <span className="text-stone-400">--</span>
+              )}
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-3 bg-stone-50 border-2 border-stone-300 rounded-lg">
+              <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Lần xác nhận</label>
+              <p className="text-xl font-black text-amber-600">{item.confirmation_count}</p>
+            </div>
+            <div className="p-3 bg-stone-50 border-2 border-stone-300 rounded-lg">
+              <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Ngày tạo</label>
+              <p className="text-sm font-bold text-stone-700">
+                {item.created_at ? new Date(item.created_at).toLocaleDateString('vi-VN') : '--'}
+              </p>
+            </div>
+          </div>
+
+          {/* Image URLs */}
+          {item.image_urls && item.image_urls.length > 0 && (
+            <div>
+              <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Hình ảnh ({item.image_urls.length})</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {item.image_urls.map((url, i) => (
+                  <div
+                    key={i}
+                    className="overflow-hidden rounded-xl border-2 border-stone-200 bg-stone-50"
+                  >
+                    <img
+                      src={url}
+                      alt={`Hình case ${i + 1}`}
+                      className="h-40 w-full object-cover bg-white"
+                      loading="lazy"
+                    />
+                    <div className="flex items-center justify-between gap-2 border-t border-stone-200 px-3 py-2">
+                      <span className="text-xs font-bold text-stone-700">Hình {i + 1}</span>
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] font-bold uppercase text-blue-600 hover:text-blue-700"
+                      >
+                        Mở lớn
+                      </a>
+                    </div>
+                    {item.image_descriptions?.[i]?.trim() && (
+                      <div className="border-t border-stone-200 px-3 py-2">
+                        <p className="text-xs leading-5 text-stone-600">
+                          {item.image_descriptions[i]}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* EMR ID */}
+          {item.emr_id && (
+            <div>
+              <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">EMR ID</label>
+              <p className="text-xs font-mono text-stone-600">{item.emr_id}</p>
+            </div>
+          )}
+
+          {/* Full Content */}
+          <div>
+            <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Nội dung đầy đủ</label>
+            <div className="p-3 bg-stone-50 border-2 border-stone-200 rounded-lg text-sm text-stone-700 max-h-40 overflow-y-auto">
+              {item.text_content || '--'}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end px-6 py-4 border-t-2 border-stone-900 bg-stone-50">
+          <button
+            onClick={onClose}
+            className="px-6 py-2 text-sm font-black uppercase bg-stone-900 text-white border-2 border-stone-900 rounded-lg shadow-[3px_3px_0_#d97706] hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px] transition-all cursor-pointer"
+          >
+            Đóng
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ===== COLLECTION STATUS BADGE =====
+
+interface CollectionStatusBadgeProps {
+  status?: string
+}
+
+function CollectionStatusBadge({ status }: CollectionStatusBadgeProps) {
+  const isActive = status === 'green' || status === 'GREEN'
+
+  return (
+    <div className={`border-2 border-stone-900 rounded-xl shadow-[4px_4px_0_#1c1917] p-5 ${isActive ? 'bg-green-50' : 'bg-red-50'
+      }`}>
+      <div className="flex items-center gap-3 mb-2">
+        {isActive ? (
+          <span className="relative flex h-4 w-4">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-4 w-4 bg-green-500"></span>
+          </span>
+        ) : (
+          <span className="relative flex h-4 w-4">
+            <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500"></span>
+          </span>
+        )}
+        <div className={`text-2xl font-black ${isActive ? 'text-green-600' : 'text-red-500'}`}>
+          {isActive ? 'ACTIVE' : 'INACTIVE'}
+        </div>
+      </div>
+      <div className="text-xs font-bold text-stone-500 uppercase">Trạng thái collection</div>
+    </div>
+  )
 }
 
 export default AIInsightsPage

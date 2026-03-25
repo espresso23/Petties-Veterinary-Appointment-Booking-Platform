@@ -1,4 +1,4 @@
-# AI Service Architecture - Simple Diagram
+﻿# AI Service Architecture - Simple Diagram
 **Petties Veterinary Platform**
 
 ```mermaid

@@ -46,6 +46,7 @@ interface FieldErrors {
 // ============= COMPONENT =============
 export const EditEmrPage = () => {
     const { emrId } = useParams()
+    const trimmedEmrId = emrId?.trim() || ''
     const navigate = useNavigate()
     const { showToast } = useToast()
 
@@ -103,11 +104,11 @@ export const EditEmrPage = () => {
     // Load EMR Data
     useEffect(() => {
         const loadEmrData = async () => {
-            if (!emrId) return
+            if (!trimmedEmrId) return
             setIsLoading(true)
             try {
                 // 1. Get EMR details
-                const emr = await emrService.getEmrById(emrId)
+                const emr = await emrService.getEmrById(trimmedEmrId)
 
                 // Security check on client side (also checked on backend)
                 const currentUser = tokenStorage.getUser()
@@ -187,7 +188,7 @@ export const EditEmrPage = () => {
                 emrService.getEmrsByPetId(pet.id)
                     .then(emrs => {
                         const history = emrs
-                            .filter(e => e.id !== emrId) // Exclude current EMR
+                            .filter(e => e.id !== trimmedEmrId) // Exclude current EMR
                             .sort((a, b) => new Date(b.examinationDate).getTime() - new Date(a.examinationDate).getTime())
                             .slice(0, 5) // Last 5 visits
                             .map(e => ({
@@ -208,7 +209,7 @@ export const EditEmrPage = () => {
         }
         loadEmrData()
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [emrId, navigate])
+    }, [trimmedEmrId, navigate])
 
     // --- Form Handlers ---
 
@@ -217,7 +218,7 @@ export const EditEmrPage = () => {
         const file = e.target.files[0]
         try {
             const result = await emrService.uploadEmrImage(file)
-            setImages([...images, { url: result.url, description: '' }])
+            setImages(prev => [...prev, { url: result.url, description: '' }])
         } catch {
             showToast('error', 'Upload ảnh thất bại')
         }
@@ -263,7 +264,7 @@ export const EditEmrPage = () => {
     }
 
     const handleSubmit = async () => {
-        if (!validateForm() || !emrId || !petInfo) return
+        if (!validateForm() || !trimmedEmrId || !petInfo) return
 
         setIsSaving(true)
         try {
@@ -283,7 +284,7 @@ export const EditEmrPage = () => {
                 reExaminationDate: hasReExam && reExaminationDate ? `${reExaminationDate}T00:00:00` : undefined
             }
 
-            await emrService.updateEmr(emrId, request)
+            await emrService.updateEmr(trimmedEmrId, request)
 
             // Update pet weight in profile if changed
             if (objective.weight && petInfo) {

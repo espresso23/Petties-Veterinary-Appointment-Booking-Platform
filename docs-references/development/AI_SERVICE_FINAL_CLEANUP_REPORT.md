@@ -1,4 +1,4 @@
-# Petties AI Service - Final Cleanup Report ✅
+﻿# Petties AI Service - Final Cleanup Report ✅
 
 **Date:** 2025-12-25
 **Type:** Post-Migration Cleanup

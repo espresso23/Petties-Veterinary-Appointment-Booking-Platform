@@ -89,4 +89,13 @@ public class PetController {
         petService.deletePet(id);
         return ResponseEntity.noContent().build();
     }
+
+    /**
+     * Get AI-powered health summary for a pet (Pet Owner only)
+     */
+    @GetMapping("/{id}/health-summary")
+    public ResponseEntity<com.petties.petties.dto.pet.PetHealthSummaryResponse> getHealthSummary(
+            @PathVariable UUID id) {
+        return ResponseEntity.ok(petService.getHealthSummary(id));
+    }
 }

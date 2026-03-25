@@ -1,4 +1,4 @@
-# Mobile System Analysis: Payment & Booking Structure
+﻿# Mobile System Analysis: Payment & Booking Structure
 
 ## 1. Mobile Project Structure Overview
 The `petties_mobile` project follows a clean architecture with Feature-first or Layer-first hybrid approach:

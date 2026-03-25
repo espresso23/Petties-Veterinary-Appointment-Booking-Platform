@@ -1,3 +1,4 @@
+> Legacy Note (2026-03-25): This document may contain historical references to `prompt_versions`, editable system-prompt versioning, or older AI schema/ERD counts. It is retained for historical or presentation context only. For current database truth and active AI storage architecture, use `docs-references/database/PETTIES_DBML.dbml`, `docs-references/documentation/PETTIES_ERD_DIAGRAM.md`, `docs-references/documentation/DATABASE_SCHEMA_ANALYSIS.md`, `docs-references/documentation/SRS/PETTIES_SRS.md`, and `docs-references/documentation/SDD/REPORT_4_SDD_SYSTEM_DESIGN.md`.
 # Petties AI Service - Sprint 13 Audit & Improvement Checklist
 
 **Version:** 3.1
@@ -49,12 +50,12 @@
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `POST` | `/api/v1/chat/feedback` | All roles | Submit feedback (1-5 rating), auto-embed positive cases |
+| `POST` | `/api/v1/chat/feedback` | All roles | Submit feedback for analytics, audit, and monitoring |
 | `GET` | `/api/v1/chat/feedback/stats` | All roles | Feedback statistics (admin=all, others=own) |
 | `POST` | `/api/v1/knowledge/build-kg` | Admin | Build Knowledge Graph from existing documents |
 | `GET` | `/api/v1/knowledge/kg-stats` | Admin | Knowledge Graph statistics (nodes, edges) |
-| `GET` | `/api/v1/knowledge/case-memory/stats` | Admin | Case Memory statistics (total cases, avg feedback) |
-| `POST` | `/api/v1/knowledge/case-memory/prune` | Admin | Clean old zero-feedback cases |
+| `GET` | `/api/v1/knowledge/case-memory/stats` | Admin | Case Memory statistics for EMR-driven records |
+| `POST` | `/api/v1/knowledge/case-memory/prune` | Admin | Prune stale or low-value EMR-driven case-memory records |
 
 ### MCP Tools (9 total)
 
@@ -308,7 +309,7 @@ petties-agent-serivce/
 │   │   ├── context_policy.py        # Role-based tool access
 │   │   ├── services/
 │   │   │   ├── __init__.py
-│   │   │   └── feedback_service.py  # Feedback handling, auto-classify, case embedding
+│   │   │   └── feedback_service.py  # Feedback handling for analytics and monitoring
 │   │   ├── rag/
 │   │   │   ├── __init__.py             # v3.0.0 - exports all RAG modules
 │   │   │   ├── rag_engine.py           # LlamaIndex RAG engine

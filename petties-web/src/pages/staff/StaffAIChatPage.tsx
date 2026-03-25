@@ -1,9 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useToast, type ToastType } from '../../components/Toast'
 import { chatApi, feedbackApi, type ChatContextType, type ChatSessionMessage, type ChatSessionSummary } from '../../services/agentService'
 import { ChatMessage } from '../../components/admin/ChatMessage'
+import { AIDiagnosisPanel } from '../../components/emr/AIDiagnosisPanel'
+import {
+  createEmptyEmrAiDraft,
+  loadEmrAiDraft,
+  saveEmrAiDraft,
+  type EmrAiDraft,
+  type EmrAiSoapField,
+} from '../../utils/emrAiDraftBridge'
 import {
   ChatBubbleLeftRightIcon,
   PaperAirplaneIcon,
@@ -49,9 +57,18 @@ interface ImageUpload {
   base64: string
 }
 
+const parseAgeMonths = (value?: string | null): number | undefined => {
+  if (!value) return undefined
+  const parsed = Number.parseInt(value, 10)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
 export const StaffAIChatPage = () => {
   const toast = useToast()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const emrBridgeEnabled = searchParams.get('emrBridge') === '1'
+  const returnTo = searchParams.get('returnTo')
 
   // Membership state
   const isVIP = useMembershipStore(state => state.isVIP())
@@ -86,6 +103,16 @@ export const StaffAIChatPage = () => {
   // Image Upload state
   const [selectedImages, setSelectedImages] = useState<ImageUpload[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [bridgeDraft, setBridgeDraft] = useState<EmrAiDraft>(() => {
+    const stored = loadEmrAiDraft()
+    if (stored) return stored
+    return {
+      ...createEmptyEmrAiDraft(),
+      pet_id: searchParams.get('petId') ?? undefined,
+      booking_id: searchParams.get('bookingId') ?? undefined,
+      age_months: parseAgeMonths(searchParams.get('ageMonths')),
+    }
+  })
 
   // ==================== HELPER ====================
   const handleApiError = (err: unknown, toast: { showToast: (type: ToastType, message: string) => void }, fallbackMessage: string) => {
@@ -99,6 +126,30 @@ export const StaffAIChatPage = () => {
     }
     toast.showToast('error', message)
   }
+
+  const updateBridgeField = (field: EmrAiSoapField, value: string) => {
+    setBridgeDraft((prev) => ({ ...prev, [field]: value, updated_at: new Date().toISOString() }))
+  }
+
+  const handleApplyBridgeDraft = (draft: {
+    subjective_draft: string
+    objective_draft: string
+    assessment_draft: string
+    plan_draft: string
+  }) => {
+    if (draft.subjective_draft?.trim()) updateBridgeField('subjective', draft.subjective_draft)
+    if (draft.objective_draft?.trim()) updateBridgeField('objective', draft.objective_draft)
+    if (draft.assessment_draft?.trim()) updateBridgeField('assessment', draft.assessment_draft)
+    if (draft.plan_draft?.trim()) updateBridgeField('plan', draft.plan_draft)
+    toast.showToast('success', 'Đã cập nhật bản nháp EMR từ AI')
+  }
+
+  const handleSyncBridgeFromStorage = useCallback(() => {
+    const stored = loadEmrAiDraft()
+    if (!stored) return
+    setBridgeDraft(stored)
+    toast.showToast('success', 'Đã đồng bộ bản nháp EMR mới nhất.')
+  }, [toast])
 
   // Parse history messages to UI format
   const mapHistoryMessage = useCallback((msg: ChatSessionMessage): Message => {
@@ -193,6 +244,26 @@ export const StaffAIChatPage = () => {
   useEffect(() => {
     void loadSessions()
   }, [loadSessions])
+
+  useEffect(() => {
+    if (!emrBridgeEnabled) return
+    const stored = loadEmrAiDraft()
+    if (stored) {
+      setBridgeDraft(stored)
+      return
+    }
+    setBridgeDraft((prev) => ({
+      ...prev,
+      pet_id: searchParams.get('petId') ?? prev.pet_id,
+      booking_id: searchParams.get('bookingId') ?? prev.booking_id,
+      age_months: parseAgeMonths(searchParams.get('ageMonths')) ?? prev.age_months,
+    }))
+  }, [emrBridgeEnabled, searchParams])
+
+  useEffect(() => {
+    if (!emrBridgeEnabled) return
+    saveEmrAiDraft(bridgeDraft)
+  }, [bridgeDraft, emrBridgeEnabled])
 
   const createSession = useCallback(async () => {
     if (creatingSession) return
@@ -561,6 +632,22 @@ export const StaffAIChatPage = () => {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {emrBridgeEnabled && (
+                <>
+                  <button
+                    onClick={handleSyncBridgeFromStorage}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 font-black uppercase text-[10px] border-2 border-stone-900 transition-all cursor-pointer shadow-[2px_2px_0_#1c1917] hover:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] bg-white text-stone-900 hover:bg-stone-50"
+                  >
+                    Đồng bộ EMR
+                  </button>
+                  <button
+                    onClick={() => typeof returnTo === 'string' ? navigate(returnTo) : navigate(-1)}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 font-black uppercase text-[10px] border-2 border-stone-900 transition-all cursor-pointer shadow-[2px_2px_0_#1c1917] hover:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] bg-blue-200 text-stone-900 hover:bg-blue-300"
+                  >
+                    Quay lại EMR
+                  </button>
+                </>
+              )}
               <button
                 onClick={() => void createSession()}
                 disabled={creatingSession}
@@ -750,6 +837,60 @@ export const StaffAIChatPage = () => {
             </div>
           </div>
         </div>
+
+        {emrBridgeEnabled && (
+          <div className="w-[420px] border-l-2 border-stone-900 bg-stone-50 overflow-y-auto p-4 space-y-4">
+            <div className="bg-white border-2 border-stone-900 p-4 shadow-[3px_3px_0_#1c1917]">
+              <h3 className="text-xs font-black uppercase text-stone-800 mb-3">Bản nháp EMR từ sidepanel</h3>
+              <div className="space-y-2">
+                <textarea
+                  value={bridgeDraft.subjective}
+                  onChange={(e) => updateBridgeField('subjective', e.target.value)}
+                  rows={2}
+                  placeholder="Subjective"
+                  className="w-full border border-stone-300 rounded-lg p-2 text-xs focus:outline-none focus:border-amber-500"
+                />
+                <textarea
+                  value={bridgeDraft.objective}
+                  onChange={(e) => updateBridgeField('objective', e.target.value)}
+                  rows={2}
+                  placeholder="Objective"
+                  className="w-full border border-stone-300 rounded-lg p-2 text-xs focus:outline-none focus:border-amber-500"
+                />
+                <textarea
+                  value={bridgeDraft.assessment}
+                  onChange={(e) => updateBridgeField('assessment', e.target.value)}
+                  rows={2}
+                  placeholder="Assessment"
+                  className="w-full border border-stone-300 rounded-lg p-2 text-xs focus:outline-none focus:border-amber-500"
+                />
+                <textarea
+                  value={bridgeDraft.plan}
+                  onChange={(e) => updateBridgeField('plan', e.target.value)}
+                  rows={2}
+                  placeholder="Plan"
+                  className="w-full border border-stone-300 rounded-lg p-2 text-xs focus:outline-none focus:border-amber-500"
+                />
+              </div>
+            </div>
+
+            <AIDiagnosisPanel
+              petId={bridgeDraft.pet_id}
+              bookingId={bridgeDraft.booking_id}
+              species={bridgeDraft.species}
+              breed={bridgeDraft.breed}
+              ageMonths={bridgeDraft.age_months}
+              weightKg={bridgeDraft.weight_kg}
+              allergies={bridgeDraft.allergies}
+              subjective={bridgeDraft.subjective}
+              objective={bridgeDraft.objective}
+              assessment={bridgeDraft.assessment}
+              plan={bridgeDraft.plan}
+              imageUrls={bridgeDraft.image_urls}
+              onApplyDraft={handleApplyBridgeDraft}
+            />
+          </div>
+        )}
       </div>
 
       {/* Subscription Guard Overlay */}

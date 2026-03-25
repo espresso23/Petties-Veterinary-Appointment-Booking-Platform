@@ -157,10 +157,19 @@ export function useSseNotification(
     onBookingUpdateRef.current = onBookingUpdate
   }, [onBookingUpdate])
 
+  // Track mounted state to prevent state updates after unmount
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
   const eventSourceRef = useRef<EventSource | null>(null)
   const reconnectAttemptsRef = useRef(0)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const connectRef = useRef<() => void>(() => {})
+  const isMountedRef = useRef(true)
 
   // Generate SSE URL with token
   const getSseUrl = useCallback(() => {
@@ -298,11 +307,17 @@ export function useSseNotification(
       })
 
       eventSource.onopen = () => {
+        if (!isMountedRef.current) {
+          eventSource.close()
+          return
+        }
         console.log('[SSE] Connected successfully')
         setIsConnected(true)
         reconnectAttemptsRef.current = 0
-        // Refresh unread count on connect
-        refreshUnreadCount()
+        // Refresh unread count on connect (only if mounted)
+        if (isMountedRef.current) {
+          refreshUnreadCount()
+        }
       }
 
       // Listen for named events only (backend always sends event name).
@@ -316,21 +331,27 @@ export function useSseNotification(
 
       eventSource.onerror = (error) => {
         console.error('[SSE] Connection error:', error)
+        if (!isMountedRef.current) {
+          eventSource.close()
+          return
+        }
         setIsConnected(false)
         eventSource.close()
         eventSourceRef.current = null
 
-        // Auto-reconnect if within max attempts
-        if (reconnectAttemptsRef.current < maxReconnectAttempts && isAuthenticated) {
+        // Auto-reconnect if within max attempts and still mounted
+        if (isMountedRef.current && reconnectAttemptsRef.current < maxReconnectAttempts && isAuthenticated) {
           reconnectAttemptsRef.current++
           console.log(
             `[SSE] Reconnecting in ${reconnectDelay}ms (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`
           )
           reconnectTimeoutRef.current = setTimeout(() => {
-            connectRef.current()
+            if (isMountedRef.current) {
+              connectRef.current()
+            }
           }, reconnectDelay)
         } else {
-          console.warn('[SSE] Max reconnect attempts reached, stopping')
+          console.warn('[SSE] Max reconnect attempts reached or unmounted, stopping')
         }
       }
 
@@ -380,11 +401,15 @@ export function useSseNotification(
     } else {
       disconnect()
     }
-    // Cleanup: disconnect on unmount
+    // Cleanup: clear timeout and disconnect on unmount
     return () => {
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current)
+        reconnectTimeoutRef.current = null
+      }
       disconnect()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, isAuthenticated, accessToken])
 
   return {

@@ -1,4 +1,4 @@
-# 📅 PETTIES SPRINT WORKING PLAN (12 Sprints)
+﻿# 📅 PETTIES SPRINT WORKING PLAN (12 Sprints)
 
 **Version:** 2.1 | **Updated:** 28/01/2026  
 **Team Size:** 5 members | **Sprint Duration:** 1 week  
@@ -157,14 +157,18 @@
 ---
 
 ## 💡 SPRINT 11: AI Integration (24/02 - 02/03/2026)
-**Sprint Goal:** AI chatbot and RAG integration
+**Sprint Goal:** AI chatbot, RAG integration, and clinical diagnosis support
 
 **Deliverables:**
 - LlamaIndex + Qdrant RAG setup
 - AI Chat Q&A endpoint
 - Symptom checker logic
 - AI Chat screen (Mobile)
+- **AI diagnosis architecture redesign** theo hướng knowledge base + EMR xác nhận + Gemini Vision
+- **Doctor diagnostic guardrail**: không dùng `web_search`, chỉ dùng nguồn nội bộ tin cậy
+- **EMR-driven case memory** thay cho feedback loop cũ từ thumbs up/down
 - RAG retrieval tests ✓
+- Vision model inference tests ✓
 
 **Release:** AI module live ✓
 

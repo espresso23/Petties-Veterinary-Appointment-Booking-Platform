@@ -13,7 +13,16 @@ Changes from v0.0.1:
 - Real RAG query with similarity search
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File, Form
+from fastapi import (
+    APIRouter,
+    HTTPException,
+    Depends,
+    Query,
+    UploadFile,
+    File,
+    Form,
+    Body,
+)
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -45,6 +54,9 @@ from app.api.schemas.knowledge_schemas import (
     RetrievedChunk,
     DeleteDocumentResponse,
     KnowledgeBaseStatusResponse,
+    HybridQueryRequest,
+    HybridQueryResponse,
+    ImageSearchResult,
 )
 from app.db.postgres.models import KnowledgeDocument
 from app.db.postgres.session import get_db
@@ -93,7 +105,7 @@ def get_storage_dir() -> Path:
 
 
 ALLOWED_EXTENSIONS = {"pdf", "docx", "txt", "md"}
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB - Hỗ trợ PDF lớn (300+ trang)
 
 
 def get_rag_engine():
@@ -114,7 +126,7 @@ def get_rag_engine():
     Upload a document to the knowledge base.
     
     Supported formats: PDF, DOCX, TXT, MD
-    Max file size: 10MB
+    Max file size: 50MB (phù hợp cho PDF 300+ trang)
     
     After upload, document needs to be processed to create vector embeddings.
     """,
@@ -124,7 +136,7 @@ async def upload_document(
     notes: Optional[str] = Form(None),
     uploaded_by: Optional[str] = Form("admin"),
     db: AsyncSession = Depends(get_db),
-    _Subscription: bool = Depends(check_active_subscription)
+    _Subscription: bool = Depends(check_active_subscription),
 ):
     """
     Upload document to knowledge base
@@ -186,7 +198,7 @@ async def upload_document(
 
         return UploadDocumentResponse(
             success=True,
-            message=f"Document '{filename}' uploaded successfully",
+            message=f"Tài liệu '{filename}' tải lên thành công",
             document_id=document.id,
             filename=filename,
             file_size=file_size,
@@ -221,9 +233,9 @@ async def upload_document(
     """,
 )
 async def process_document(
-    document_id: int, 
+    document_id: int,
     db: AsyncSession = Depends(get_db),
-    _Subscription: bool = Depends(check_active_subscription)
+    _Subscription: bool = Depends(check_active_subscription),
 ):
     """
     Process document and index to Qdrant
@@ -248,22 +260,28 @@ async def process_document(
 
         if not document:
             raise HTTPException(
-                status_code=404, detail=f"Document {document_id} not found"
+                status_code=404, detail=f"Không tìm thấy tài liệu {document_id}"
             )
 
         # Allow reprocessing if document has 0 vectors (failed previous attempt)
-        if document.processed and document.vector_count > 0:
+        if (
+            document.processed
+            and document.vector_count > 0
+            and document.image_count > 0
+        ):
             return ProcessDocumentResponse(
                 success=True,
-                message=f"Document '{document.filename}' already processed",
+                message=f"Tài liệu '{document.filename}' đã được xử lý trước đó",
                 document_id=document_id,
                 chunks_created=document.vector_count,
                 processing_time_ms=0,
             )
 
-        if document.processed and document.vector_count == 0:
+        if document.processed and (
+            document.vector_count == 0 or document.image_count == 0
+        ):
             logger.warning(
-                f"Document {document_id} was marked processed with 0 vectors. Reprocessing..."
+                f"Document {document_id} was marked processed with {document.vector_count} vectors, {document.image_count} images. Reprocessing for missing data..."
             )
             # Reset processed status for retry
             document.processed = False
@@ -273,7 +291,7 @@ async def process_document(
         file_path = document.file_path
         if not file_path or not os.path.exists(file_path):
             raise HTTPException(
-                status_code=404, detail=f"Document file not found at {file_path}"
+                status_code=404, detail=f"Không tìm thấy file tại {file_path}"
             )
 
         with open(file_path, "rb") as f:
@@ -281,7 +299,7 @@ async def process_document(
 
         # Get RAG engine and index document
         rag = get_rag_engine()
-        chunks_count = await rag.index_document(
+        index_result = await rag.index_document(
             file_path=Path(file_path),
             filename=document.filename,
             document_id=document.id,
@@ -293,7 +311,7 @@ async def process_document(
         )
 
         # Validate processing succeeded
-        if chunks_count == 0:
+        if index_result.text_chunks == 0:
             raise HTTPException(
                 status_code=500,
                 detail="Xử lý tài liệu thất bại: Không tạo được vectors. "
@@ -306,7 +324,8 @@ async def process_document(
 
         # Update document status (only if vectors were created successfully)
         document.processed = True
-        document.vector_count = chunks_count
+        document.vector_count = index_result.text_chunks
+        document.image_count = index_result.image_vectors
         from datetime import timezone
 
         document.processed_at = datetime.now(timezone.utc)
@@ -315,14 +334,16 @@ async def process_document(
         processing_time = int((time.time() - start_time) * 1000)
 
         logger.info(
-            f"Processed document {document_id}: {chunks_count} chunks in {processing_time}ms"
+            f"Processed document {document_id}: {index_result.text_chunks} text chunks, "
+            f"{index_result.image_vectors} images in {processing_time}ms"
         )
 
         return ProcessDocumentResponse(
             success=True,
-            message=f"Document '{document.filename}' processed successfully",
+            message=f"Tài liệu '{document.filename}' xử lý thành công",
             document_id=document_id,
-            chunks_created=chunks_count,
+            chunks_created=index_result.text_chunks,
+            images_indexed=index_result.image_vectors,
             processing_time_ms=processing_time,
         )
 
@@ -434,10 +455,10 @@ async def get_document(document_id: int, db: AsyncSession = Depends(get_db)):
 
         if not document:
             raise HTTPException(
-                status_code=404, detail=f"Document {document_id} not found"
+                status_code=404, detail=f"Không tìm thấy tài liệu {document_id}"
             )
 
-        # TODO: Get chunks from Qdrant when implemented
+        # Pending: Get chunks from Qdrant when implemented
         chunks_preview = []
 
         return DocumentDetailResponse(
@@ -493,14 +514,14 @@ async def download_document(document_id: int, db: AsyncSession = Depends(get_db)
 
         if not document:
             raise HTTPException(
-                status_code=404, detail=f"Document {document_id} not found"
+                status_code=404, detail=f"Không tìm thấy tài liệu {document_id}"
             )
 
         file_path = document.file_path
         if not file_path or not os.path.exists(file_path):
             raise HTTPException(
                 status_code=404,
-                detail=f"File not found on disk for document {document_id}",
+                detail=f"Không tìm thấy file trên đĩa cho tài liệu {document_id}",
             )
 
         # Determine content type
@@ -553,7 +574,7 @@ async def delete_document(document_id: int, db: AsyncSession = Depends(get_db)):
 
         if not document:
             raise HTTPException(
-                status_code=404, detail=f"Document {document_id} not found"
+                status_code=404, detail=f"Không tìm thấy tài liệu {document_id}"
             )
 
         filename = document.filename
@@ -590,7 +611,7 @@ async def delete_document(document_id: int, db: AsyncSession = Depends(get_db)):
 
         return DeleteDocumentResponse(
             success=True,
-            message=f"Document '{filename}' and {vectors_actually_deleted} vectors deleted successfully",
+            message=f"Tài liệu '{filename}' và {vectors_actually_deleted} vectors đã xóa thành công",
             document_id=document_id,
             filename=filename,
             vectors_deleted=vectors_actually_deleted,
@@ -622,9 +643,9 @@ async def delete_document(document_id: int, db: AsyncSession = Depends(get_db)):
     """,
 )
 async def query_knowledge(
-    request: QueryKnowledgeRequest, 
+    request: QueryKnowledgeRequest,
     db: AsyncSession = Depends(get_db),
-    _Subscription: bool = Depends(check_active_subscription)
+    _Subscription: bool = Depends(check_active_subscription),
 ):
     """
     Test RAG retrieval with Qdrant + Cohere
@@ -718,6 +739,92 @@ async def query_knowledge(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ===== HYBRID QUERY (TEXT + IMAGE) =====
+
+
+@router.post(
+    "/query-hybrid",
+    response_model=HybridQueryResponse,
+    summary="[KB-01] Hybrid search (text + image)",
+    description="""
+    Hybrid search using both text and image embeddings.
+    
+    Use this when:
+    - Query contains both text and image URLs
+    - Want to find similar cases by image
+    - Combined text + image similarity search
+    
+    Requires:
+    - JINA_API_KEY configured in Knowledge settings
+    - PDF documents with extracted images
+    """,
+)
+async def query_hybrid(request: HybridQueryRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Hybrid query with text and/or image search
+
+    Body:
+        {
+            "query": "triệu chứng ghẻ",
+            "image_urls": ["https://example.com/pet_lesion.jpg"],
+            "top_k": 5,
+            "min_score": 0.5
+        }
+    """
+    try:
+        import time
+
+        start_time = time.time()
+
+        rag = get_rag_engine()
+        result = await rag.query_with_images(
+            query=request.query,
+            image_urls=request.image_urls,
+            top_k=request.top_k,
+            min_score=request.min_score,
+        )
+
+        text_chunks = [
+            RetrievedChunk(
+                document_id=r.document_id,
+                document_name=r.document_name,
+                chunk_index=r.chunk_index,
+                content=r.content,
+                score=r.score,
+                metadata={"source": r.document_name},
+            )
+            for r in result.get("text_results", [])
+        ]
+
+        image_results = [
+            ImageSearchResult(
+                document_id=r.get("document_id", 0),
+                filename=r.get("filename", ""),
+                image_id=r.get("image_id", ""),
+                score=r.get("score", 0.0),
+                payload=r.get("payload"),
+            )
+            for r in result.get("image_results", [])
+        ]
+
+        retrieval_time = int((time.time() - start_time) * 1000)
+
+        return HybridQueryResponse(
+            success=True,
+            query=request.query,
+            text_results=text_chunks,
+            image_results=image_results,
+            has_image_query=result.get("has_image_query", False),
+            total_text_results=len(text_chunks),
+            total_image_results=len(image_results),
+            retrieval_time_ms=retrieval_time,
+        )
+
+    except Exception as e:
+        logger.error(f"Error in hybrid query: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ===== RECREATE COLLECTION =====
 
 
@@ -771,7 +878,7 @@ async def recreate_collection(db: AsyncSession = Depends(get_db)):
 
         return {
             "success": True,
-            "message": f"Collection recreated successfully",
+            "message": f"Tái tạo collection thành công",
             "collection_name": status.get("collection_name"),
             "dimension": COHERE_EMBED_DIMENSION,
             "documents_reset": len(documents),
@@ -867,11 +974,17 @@ async def get_status(db: AsyncSession = Depends(get_db)):
         )
         processed_documents = processed_result.scalar() or 0
 
-        # Sum vectors from database
+        # Sum text vectors from database
         vectors_result = await db.execute(
             select(func.sum(KnowledgeDocument.vector_count))
         )
         total_vectors = vectors_result.scalar() or 0
+
+        # Sum image vectors from database
+        image_vectors_result = await db.execute(
+            select(func.sum(KnowledgeDocument.image_count))
+        )
+        total_image_vectors = image_vectors_result.scalar() or 0
 
         # Sum file sizes
         size_result = await db.execute(select(func.sum(KnowledgeDocument.file_size)))
@@ -899,6 +1012,7 @@ async def get_status(db: AsyncSession = Depends(get_db)):
             processed_documents=processed_documents,
             pending_documents=total_documents - processed_documents,
             total_vectors=total_vectors,
+            total_image_vectors=total_image_vectors,
             storage_size_bytes=storage_size,
             last_updated=last_updated,
             qdrant_info=qdrant_info,
@@ -943,7 +1057,10 @@ async def build_knowledge_graph(
         None, description="IDs tài liệu cụ thể. Để trống = tất cả đã processed."
     ),
     max_triplets: int = Query(
-        default=10, ge=1, le=50, description="Số triplets tối đa mỗi chunk"
+        default=200,
+        ge=1,
+        le=1000,
+        description="Số triplets tối đa tổng cộng sau deduplication",
     ),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1293,3 +1410,145 @@ async def prune_case_memory(
     except Exception as e:
         logger.error(f"Error pruning Case Memory: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/case-memory",
+    summary="[KB-05] Danh sách Cases",
+    description="Lấy danh sách cases với pagination và filters (species, diagnosis, query)",
+)
+async def list_case_memory(
+    query: Optional[str] = Query(
+        default=None, description="Tìm kiếm trong nội dung case"
+    ),
+    species: Optional[str] = Query(
+        default=None, description="Lọc theo loài (dog, cat, other)"
+    ),
+    diagnosis: Optional[str] = Query(
+        default=None, description="Lọc theo từ khóa chẩn đoán"
+    ),
+    page: int = Query(default=1, ge=1, description="Số trang"),
+    page_size: int = Query(default=20, ge=1, le=100, description="Số items mỗi trang"),
+    _: dict = Depends(get_admin_user),
+):
+    """List cases with pagination and filters."""
+    try:
+        cm = get_cm_service()
+        result = await cm.list_cases(
+            query=query,
+            species=species,
+            diagnosis=diagnosis,
+            page=page,
+            page_size=page_size,
+        )
+        return {"success": True, **result}
+    except Exception as e:
+        logger.error(f"Error listing Case Memory: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/case-memory/{case_id}",
+    summary="[KB-05] Chi tiết Case",
+    description="Lấy chi tiết một case theo ID",
+)
+async def get_case_memory(
+    case_id: str,
+    _: dict = Depends(get_admin_user),
+):
+    """Get case detail by ID."""
+    try:
+        cm = get_cm_service()
+        case = await cm.get_case(case_id)
+        if case is None:
+            raise HTTPException(status_code=404, detail="Không tìm thấy case")
+        return {"success": True, "case": case}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting Case Memory {case_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch(
+    "/case-memory/{case_id}",
+    summary="[KB-05] Cập nhật Case",
+    description="Cập nhật metadata của một case (diagnosis, symptoms)",
+)
+async def update_case_memory(
+    case_id: str,
+    diagnosis: Optional[str] = Body(default=None, description="Chẩn đoán mới"),
+    symptoms: Optional[List[str]] = Body(
+        default=None, description="Danh sách triệu chứng mới"
+    ),
+    _: dict = Depends(get_admin_user),
+):
+    """Update case metadata."""
+    try:
+        cm = get_cm_service()
+        success = await cm.update_case(
+            case_id=case_id,
+            diagnosis=diagnosis,
+            symptoms=symptoms,
+        )
+        if not success:
+            raise HTTPException(
+                status_code=404, detail="Không tìm thấy case hoặc cập nhật thất bại"
+            )
+        return {"success": True, "message": "Cập nhật case thành công"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating Case Memory {case_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete(
+    "/case-memory/{case_id}",
+    summary="[KB-05] Xóa Case",
+    description="Xóa một case khỏi Case Memory",
+)
+async def delete_case_memory(
+    case_id: str,
+    _: dict = Depends(get_admin_user),
+):
+    """Delete a case from Case Memory."""
+    try:
+        cm = get_cm_service()
+        success = await cm.delete_case(case_id)
+        if not success:
+            raise HTTPException(
+                status_code=404, detail="Không tìm thấy case hoặc xóa thất bại"
+            )
+        return {"success": True, "message": "Xóa case thành công"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting Case Memory {case_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/case-memory/sync-emr-confirmed",
+    summary="[KB-05] Đồng bộ EMR confirmed vào Case Memory",
+    description=(
+        "Gọi Spring internal endpoint để lấy EMR confirmed và upsert vào Case Memory. "
+        "Chỉ dành cho admin hoặc job vận hành nội bộ."
+    ),
+)
+async def sync_emr_confirmed_into_case_memory(
+    limit: int = Query(default=50, ge=1, le=200, description="Số EMR tối đa mỗi batch"),
+    cursor: Optional[str] = Query(default=None, description="Cursor của batch trước"),
+    updated_from: Optional[str] = Query(
+        default=None, description="ISO datetime bắt đầu"
+    ),
+    updated_to: Optional[str] = Query(
+        default=None, description="ISO datetime kết thúc"
+    ),
+    _: dict = Depends(get_admin_user),
+):
+    """Manually sync confirmed EMR records into Case Memory."""
+    raise HTTPException(
+        status_code=410,
+        detail="Endpoint này đã ngưng sử dụng. Spring Boot sẽ push trực tiếp EMR sang AI service.",
+    )

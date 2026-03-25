@@ -108,6 +108,29 @@ class PetControllerUnitTest {
     }
 
     @Test
+    @DisplayName("GET /pets/{id}/health-summary - Returns 200")
+    @WithMockUser(username = "staff", roles = "STAFF")
+    void getHealthSummary_returns200() throws Exception {
+        UUID id = UUID.randomUUID();
+        var response = com.petties.petties.dto.pet.PetHealthSummaryResponse.builder()
+                .petInfo(com.petties.petties.dto.pet.PetHealthSummaryResponse.PetInfoDto.builder()
+                        .petId(id.toString())
+                        .name("Bella")
+                        .build())
+                .healthWarnings(List.of())
+                .medicationReminders(List.of())
+                .suggestedActions(List.of())
+                .disclaimer("test")
+                .build();
+
+        when(petService.getHealthSummary(id)).thenReturn(response);
+
+        mockMvc.perform(get("/pets/{id}/health-summary", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.petInfo.name").value("Bella"));
+    }
+
+    @Test
     @DisplayName("POST /pets - Create pet with image returns 200")
     @WithMockUser(username = "owner", roles = "PET_OWNER")
     void createPet_withImage_returns200() throws Exception {

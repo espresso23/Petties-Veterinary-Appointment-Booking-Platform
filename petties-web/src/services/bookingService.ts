@@ -246,7 +246,7 @@ export const completeBooking = async (
  */
 export const checkoutBooking = async (
     bookingId: string,
-    options?: { overriddenSosFee?: number | null; voucherId?: string; removeVoucher?: boolean }
+    options?: { overriddenSosFee?: number | null; voucherId?: string; removeVoucher?: boolean; paymentMethod?: 'CASH' | 'QR' }
 ): Promise<Booking> => {
     const response = await axios.post(`${BOOKING_API}/${bookingId}/checkout`, options || {});
     return response.data;

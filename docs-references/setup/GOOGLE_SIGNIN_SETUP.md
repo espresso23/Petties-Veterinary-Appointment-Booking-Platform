@@ -1,4 +1,4 @@
-# Google Sign-In Setup Guide
+﻿# Google Sign-In Setup Guide
 
 Hướng dẫn cấu hình Google Sign-In cho Petties (Mobile + Web).
 

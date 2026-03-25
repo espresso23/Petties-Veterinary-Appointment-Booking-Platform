@@ -1,4 +1,4 @@
-# AI Chat Architecture Stabilization Checklist
+﻿# AI Chat Architecture Stabilization Checklist
 
 **Project:** Petties - Veterinary Appointment Booking Platform  
 **Scope:** AI Agent Service chat isolation, MongoDB persistence, admin playground separation  

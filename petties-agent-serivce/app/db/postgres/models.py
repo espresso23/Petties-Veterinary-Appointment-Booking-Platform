@@ -23,6 +23,7 @@ from sqlalchemy import (
     JSON,
     ForeignKey,
     Enum,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy.sql import func
@@ -73,11 +74,11 @@ class Agent(Base):
     max_tokens = Column(Integer, default=2000)
     top_p = Column(Float, default=0.9)  # NEW: Top-P parameter
     model = Column(
-        String(100), default="google/gemini-2.0-flash-exp:free"
+        String(100), default="google/gemini-2.5-flash-lite"
     )  # OpenRouter model
 
-    # Prompts
-    system_prompt = Column(Text)
+    # NOTE: system_prompt column removed - prompt is now hardcoded in code
+    # See: app/core/agents/single_agent.py DEFAULT_SYSTEM_PROMPT
 
     # Status
     enabled = Column(Boolean, default=True)
@@ -86,8 +87,7 @@ class Agent(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # Relationships
-    prompt_versions = relationship("PromptVersion", back_populates="agent")
+    # NOTE: prompt_versions relationship removed - versioning no longer needed
 
     def __repr__(self):
         return f"<Agent(name={self.name}, model={self.model})>"
@@ -103,7 +103,7 @@ class Tool(Base):
     Note: Tools duoc code thu cong voi FastMCP.
     Trong thuc te hien tai:
     - pet_knowledge_search va web_search co the bat/tat de test Playground
-    - cac business tools duoc system-managed, auto-enable va auto-assign cho petties_agent
+    - cac business tools duoc system-managed va auto-enable
 
     Columns:
         - id: Primary key
@@ -113,7 +113,6 @@ class Tool(Base):
         - input_schema: JSON schema cho input parameters
         - output_schema: JSON schema cho output data
         - enabled: Tool co duoc enable khong
-        - assigned_agents: JSON array voi agent names duoc phep dung
     """
 
     __tablename__ = "tools"
@@ -127,11 +126,10 @@ class Tool(Base):
     input_schema = Column(JSON)
     output_schema = Column(JSON)
 
-    # Status & Assignment
+    # Status
     enabled = Column(
         Boolean, default=False
     )  # Scanner/seed co the auto-enable theo policy
-    assigned_agents = Column(JSON)  # List of agent names: ["petties_agent"]
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -141,42 +139,10 @@ class Tool(Base):
         return f"<Tool(name={self.name}, enabled={self.enabled})>"
 
 
-# ===== PROMPT VERSIONS TABLE =====
-class PromptVersion(Base):
-    """
-    Prompt Versions Table
-
-    Purpose: Version control cho System Prompts
-    Columns:
-        - id: Primary key
-        - agent_id: Foreign key den agents table
-        - version: Version number (1, 2, 3, ...)
-        - prompt_text: Noi dung prompt
-        - is_active: Version nay co dang active khong
-        - created_by: Admin user tao version nay
-        - notes: Ghi chu ve thay doi
-    """
-
-    __tablename__ = "prompt_versions"
-
-    id = Column(Integer, primary_key=True, index=True)
-    agent_id = Column(Integer, ForeignKey("agents.id"), nullable=False)
-    version = Column(Integer, nullable=False)
-    prompt_text = Column(Text, nullable=False)
-    is_active = Column(Boolean, default=False)
-
-    # Metadata
-    created_by = Column(String(100))  # Admin username
-    notes = Column(Text)
-
-    # Timestamp
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    # Relationships
-    agent = relationship("Agent", back_populates="prompt_versions")
-
-    def __repr__(self):
-        return f"<PromptVersion(agent_id={self.agent_id}, version={self.version})>"
+# NOTE: PromptVersion table removed - prompt versioning no longer needed
+# System prompt is now hardcoded in app/core/agents/single_agent.py
+# Migration 005 removes prompt_versions table
+# class PromptVersion(Base): ... (removed)
 
 
 # ===== KNOWLEDGE BASE DOCUMENTS TABLE =====
@@ -206,7 +172,8 @@ class KnowledgeDocument(Base):
 
     # Processing status
     processed = Column(Boolean, default=False)
-    vector_count = Column(Integer, default=0)
+    vector_count = Column(Integer, default=0)  # Text vectors
+    image_count = Column(Integer, default=0)  # Image vectors from PDF
 
     # Metadata
     uploaded_by = Column(String(100))
@@ -222,6 +189,128 @@ class KnowledgeDocument(Base):
         )
 
 
+class DiseaseCatalog(Base):
+    """
+    Disease catalog for canonical diagnosis identities.
+
+    Purpose:
+    - Keep one canonical disease code shared by KB, KG, EMR and vision outputs
+    - Attach protocol metadata for doctor diagnosis flow
+    """
+
+    __tablename__ = "disease_catalog"
+
+    id = Column(Integer, primary_key=True, index=True)
+    canonical_code = Column(String(100), unique=True, nullable=False, index=True)
+    display_name_vi = Column(String(255), nullable=False)
+    species = Column(String(50), default="all", nullable=False)
+    body_system = Column(String(100))
+    protocol_key = Column(String(100))
+    is_active = Column(Boolean, default=True, nullable=False)
+    notes = Column(Text)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    aliases = relationship(
+        "DiseaseAlias",
+        back_populates="disease",
+        cascade="all, delete-orphan",
+    )
+
+    def __repr__(self):
+        return f"<DiseaseCatalog(code={self.canonical_code}, active={self.is_active})>"
+
+
+class DiseaseAlias(Base):
+    """
+    Alias table for disease mapping.
+
+    Purpose:
+    - Store per-source aliases that map back to one canonical disease code
+    - Support DB-backed review and expansion without code deploy
+    """
+
+    __tablename__ = "disease_aliases"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_type",
+            "normalized_alias",
+            "species",
+            name="uq_disease_alias_source_normalized_species",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    canonical_code = Column(
+        String(100),
+        ForeignKey("disease_catalog.canonical_code", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    source_type = Column(String(50), nullable=False, index=True)
+    alias_text = Column(String(255), nullable=False)
+    normalized_alias = Column(String(255), nullable=False, index=True)
+    species = Column(String(50), default="all", nullable=False)
+    review_status = Column(String(50), default="approved", nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    disease = relationship("DiseaseCatalog", back_populates="aliases")
+
+    def __repr__(self):
+        return (
+            f"<DiseaseAlias(source={self.source_type}, alias={self.alias_text}, "
+            f"canonical_code={self.canonical_code})>"
+        )
+
+
+class DiseaseMappingReviewItem(Base):
+    """
+    Queue for unmapped diagnosis labels that need review.
+
+    Purpose:
+    - Persist labels from EMR/vision that cannot be mapped yet
+    - Avoid silent skips during EMR -> case memory sync
+    """
+
+    __tablename__ = "disease_mapping_review_items"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_type",
+            "normalized_label",
+            "species",
+            name="uq_disease_mapping_review_source_normalized_species",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    raw_label = Column(String(255), nullable=False)
+    normalized_label = Column(String(255), nullable=False, index=True)
+    source_type = Column(String(50), nullable=False, index=True)
+    species = Column(String(50), default="all", nullable=False)
+    status = Column(String(50), default="pending", nullable=False)
+    hit_count = Column(Integer, default=1, nullable=False)
+    sample_payload = Column(JSON)
+
+    first_seen_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_seen_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    def __repr__(self):
+        return (
+            f"<DiseaseMappingReviewItem(raw_label={self.raw_label}, "
+            f"source={self.source_type}, species={self.species})>"
+        )
+
+
 # ===== SYSTEM SETTINGS TABLE =====
 class SettingCategory(str, enum.Enum):
     """Setting categories for admin dashboard"""
@@ -231,6 +320,7 @@ class SettingCategory(str, enum.Enum):
     EMBEDDINGS = "embeddings"  # Cohere embeddings
     VECTOR_DB = "vector_db"  # Qdrant settings
     GENERAL = "general"  # General settings
+    WEB_SEARCH = "web_search"  # Web search (Tavily)
 
 
 class SystemSetting(Base):
@@ -282,10 +372,10 @@ DEFAULT_SETTINGS = [
     },
     {
         "key": "OPENROUTER_DEFAULT_MODEL",
-        "value": "google/gemini-2.0-flash-exp:free",
+        "value": "google/gemini-2.5-flash-lite",
         "category": "llm",
         "is_sensitive": False,
-        "description": "Default LLM model (free tier: gemini-2.0-flash-exp:free)",
+        "description": "Default LLM model (default stable model: google/gemini-2.5-flash-lite)",
     },
     {
         "key": "OPENROUTER_FALLBACK_MODEL",
@@ -293,28 +383,6 @@ DEFAULT_SETTINGS = [
         "category": "llm",
         "is_sensitive": False,
         "description": "Fallback model when primary fails",
-    },
-    # ===== LLM - DeepSeek (FALLBACK) =====
-    {
-        "key": "DEEPSEEK_API_KEY",
-        "value": "",
-        "category": "llm",
-        "is_sensitive": True,
-        "description": "DeepSeek API Key (https://platform.deepseek.com/api_keys)",
-    },
-    {
-        "key": "DEEPSEEK_MODEL",
-        "value": "deepseek-chat",
-        "category": "llm",
-        "is_sensitive": False,
-        "description": "DeepSeek model (deepseek-chat for general, deepseek-coder for code)",
-    },
-    {
-        "key": "DEEPSEEK_BASE_URL",
-        "value": "https://api.deepseek.com",
-        "category": "llm",
-        "is_sensitive": False,
-        "description": "DeepSeek API base URL",
     },
     # ===== RAG - Cohere Embeddings (RECOMMENDED) =====
     {
@@ -368,6 +436,21 @@ DEFAULT_SETTINGS = [
         "is_sensitive": False,
         "description": "Jina image embedding model (fixed: jina-clip-v2)",
     },
+    # ===== Web Search - Tavily =====
+    {
+        "key": "TAVILY_API_KEY",
+        "value": "",
+        "category": "web_search",
+        "is_sensitive": True,
+        "description": "Tavily API Key for web search (https://tavily.com)",
+    },
+    {
+        "key": "TAVILY_MAX_RESULTS",
+        "value": "5",
+        "category": "web_search",
+        "is_sensitive": False,
+        "description": "Max Tavily search results per query",
+    },
     # ===== General Settings =====
     {
         "key": "JWT_SECRET",
@@ -377,23 +460,3 @@ DEFAULT_SETTINGS = [
         "description": "JWT Secret Key for token verification (Must match Spring Boot)",
     },
 ]
-
-
-# ===== LEGACY SUPPORT =====
-# Keep AgentType for backward compatibility during migration
-# Will be removed in future version
-
-
-class AgentType(str, enum.Enum):
-    """
-    [DEPRECATED] Agent types for Multi-Agent architecture
-
-    Migrated to Single Agent architecture.
-    Kept for backward compatibility during migration.
-    Will be removed in v2.0.0
-    """
-
-    MAIN = "main"  # Main Agent (now: Single Agent)
-    BOOKING = "booking"  # Deprecated
-    MEDICAL = "medical"  # Deprecated
-    RESEARCH = "research"  # Deprecated

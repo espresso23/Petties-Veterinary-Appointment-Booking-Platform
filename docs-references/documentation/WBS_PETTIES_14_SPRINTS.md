@@ -1,4 +1,4 @@
-# 🎫 PETTIES WORK BREAKDOWN STRUCTURE (WBS)
+﻿# 🎫 PETTIES WORK BREAKDOWN STRUCTURE (WBS)
 ## Project: Veterinary Appointment & SOS Platform
 **Version:** 1.5.0 | **Last Updated:** 22/01/2026 | **Audited from Codebase**  
 **Team Size:** 5 members | **Sprint Duration:** 1 week | **Target Effort:** ~40h/person/week
@@ -298,8 +298,8 @@
 | Attribute | Details |
 |-----------|---------|
 | **Goal** | Smart AI assistant with RAG knowledge, symptom checker, and auto-booking |
-| **Sprints** | S5-S10 |
-| **Status** | 🔄 60% In Progress |
+| **Sprints** | S5-S12 |
+| **Status** | 🔄 80% In Progress |
 
 **Actor Benefits:**
 - 🐾 **Pet Owner:** Ask pet care questions, describe symptoms, book via AI
@@ -314,6 +314,7 @@
 - `US-AI-06` AI Vision Pet Health Analysis (Images)
 - `US-AI-11` AI Feedback Audit & Visual Learning
 - `US-AI-12` Knowledge Graph Management & Visualization
+- `US-AI-13` KB Image Embeddings (PDF images + Jina CLIP) ✅ NEW
 
 **Dependencies:** EPIC-DISCOVERY (for AI booking), external AI services
 
@@ -1495,7 +1496,7 @@
 
 ---
 
-## � EPIC 11: [EPIC-CHAT] In-App Messaging System 💡 0%
+## ? EPIC 11: [EPIC-CHAT] In-App Messaging System ?? 0%
 > **Goal:** Real-time chat between Pet Owner and Clinic for appointment coordination
 
 ### 🔹 US-CHT-01: Chat với Clinic/Pet Owner 💡 Planned
@@ -1518,7 +1519,7 @@
 
 ---
 
-## �🐛 BUG TRACKING
+## ??? BUG TRACKING
 
 | Bug ID | Related US | Description | Assignee | Status |
 |--------|------------|-------------|----------|--------|
@@ -1537,8 +1538,8 @@
 | EPIC-CLINIC | 4 | 4 | 0 | 0 | ✅ 100% |
 | EPIC-DISCOVERY | 5 | 0 | 2 | 3 | 🔄 40% |
 | EPIC-SCHED | 3 | 3 | 0 | 0 | ✅ 100% |
-| EPIC-MEDICAL | 3 | 0 | 2 | 1 | � 50% |
-| EPIC-APPOINTMENT | 5 | 3 | 1 | 1 | � 80% |
+| EPIC-MEDICAL | 3 | 0 | 2 | 1 | ? 50% |
+| EPIC-APPOINTMENT | 5 | 3 | 1 | 1 | ? 80% |
 | EPIC-AI | 5 | 1 | 1 | 3 | 🔄 30% |
 | EPIC-NOTI | 3 | 3 | 0 | 0 | ✅ 100% |
 | EPIC-SOS | 3 | 0 | 0 | 3 | 💡 0% |

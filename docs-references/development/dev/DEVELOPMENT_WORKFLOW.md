@@ -1,4 +1,4 @@
-# Petties - Development Workflow
+﻿# Petties - Development Workflow
 
 **Last Updated:** December 16, 2025
 

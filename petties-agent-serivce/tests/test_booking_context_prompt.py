@@ -12,13 +12,12 @@ from app.core.agents.tool_routing import apply_booking_tool_routing
 
 
 class TestBookingContextPrompt:
-    def test_create_think_prompt_includes_booking_guidance_when_booking_intent_detected(
-        self,
-    ):
+    def test_create_think_prompt_includes_semantic_booking_guidance(self):
         agent = SingleAgent(
             llm_client=None,
             enabled_tools=[
                 "get_user_pets",
+                "search_clinics_nearby",
                 "check_available_slots",
                 "create_booking_for_user",
             ],
@@ -28,10 +27,10 @@ class TestBookingContextPrompt:
             messages=[
                 {
                     "role": "user",
-                    "content": "Mình muốn đặt lịch khám cho bé Bông vào ngày mai",
+                    "content": "Dat lich cho Hadine o phong kham PetCare sang thu bay nay",
                 }
             ],
-            context="",
+            context="Runtime location: latitude=15.9575, longitude=108.2575, address=Ngu Hanh Son, Da Nang",
             agent_name=agent.name,
             agent_type=agent.agent_type,
             system_prompt=agent.system_prompt,
@@ -39,134 +38,123 @@ class TestBookingContextPrompt:
             enabled_tools_lower=agent._enabled_tools_lower,
         )
 
-        assert "QUY TRÌNH HỖ TRỢ ĐẶT LỊCH" in prompt
-        assert "tại nhà hay tại phòng khám" in prompt
-        assert "CHỈ hỏi phần còn thiếu" in prompt
-        assert "tiêm chủng" in prompt
+        assert "BOOKING TOOLS" in prompt
+        assert "semantic params" in prompt
+        assert "create_booking" in prompt
+        assert "conditional booking" in prompt.lower()
 
-    def test_booking_routing_asks_for_booking_type_before_checking_slots(self):
-        agent = SingleAgent(
-            llm_client=None,
-            enabled_tools=["check_available_slots", "create_booking_for_user"],
-        )
-
+    def test_booking_validator_does_not_rewrite_create_booking_flow(self):
         parsed = {
-            "thought": "Tôi sẽ kiểm tra slot trống trước.",
-            "tool_name": "check_available_slots",
-            "tool_params": {
-                "clinic_id": "clinic-1",
-                "date": "2026-03-12",
-                "service_ids": ["svc-1"],
-            },
-            "should_end": False,
-        }
-        messages = [
-            {"role": "user", "content": "Đặt lịch khám cho bé Bông ngày mai nhé"}
-        ]
-
-        result = apply_booking_tool_routing(
-            parsed,
-            messages,
-            react_steps=[],
-            enabled_tools_lower=agent._enabled_tools_lower,
-            build_context_fn=build_context,
-        )
-
-        assert result["should_end"] is True
-        assert result["tool_name"] is None
-        assert "tại phòng khám hay bác sĩ đến nhà" in result["thought"]
-
-    def test_booking_routing_keeps_slot_check_when_type_known_from_history(self):
-        agent = SingleAgent(
-            llm_client=None,
-            enabled_tools=["check_available_slots", "create_booking_for_user"],
-        )
-
-        parsed = {
-            "thought": "Tôi sẽ kiểm tra slot trống.",
-            "tool_name": "check_available_slots",
-            "tool_params": {
-                "clinic_id": "clinic-1",
-                "date": "2026-03-12",
-                "service_ids": ["svc-1"],
-            },
-            "should_end": False,
-        }
-        messages = [
-            {"role": "user", "content": "Mình muốn khám tại nhà cho bé Bông"},
-            {"role": "assistant", "content": "Bạn muốn ngày nào ạ?"},
-            {"role": "user", "content": "Ngày mai buổi chiều"},
-        ]
-
-        result = apply_booking_tool_routing(
-            parsed,
-            messages,
-            react_steps=[],
-            enabled_tools_lower=agent._enabled_tools_lower,
-            build_context_fn=build_context,
-        )
-
-        assert result == parsed
-
-    def test_booking_routing_requires_confirmation_before_create_booking(self):
-        agent = SingleAgent(
-            llm_client=None,
-            enabled_tools=["create_booking_for_user"],
-        )
-
-        parsed = {
-            "thought": "Tôi sẽ tạo booking ngay.",
+            "thought": "Tao yeu cau booking cho user.",
             "tool_name": "create_booking_for_user",
             "tool_params": {
                 "pet_id": "pet-1",
                 "clinic_id": "clinic-1",
-                "booking_date": "2026-03-12",
-                "start_time": "14:00",
+                "booking_date": "2026-03-21",
+                "start_time": "09:00",
                 "service_ids": ["svc-1"],
+                "confirmed": True,
+            },
+            "should_end": False,
+        }
+
+        messages = [
+            {
+                "role": "user",
+                "content": "Dat lich cho Hadine o PetCare sang thu bay nay, neu con slot thi tao yeu cau giup toi",
+            }
+        ]
+
+        result = apply_booking_tool_routing(
+            parsed,
+            messages,
+            react_steps=[],
+            enabled_tools_lower={"create_booking_for_user", "check_available_slots"},
+            build_context_fn=build_context,
+        )
+
+        assert result["tool_name"] == "create_booking_for_user"
+        assert result["tool_params"]["pet_id"] == "pet-1"
+        assert result["tool_params"]["clinic_id"] == "clinic-1"
+        assert result["tool_params"]["service_ids"] == ["svc-1"]
+        assert "PetCare" in result["tool_params"]["latest_message"]
+        assert "Hadine" in result["tool_params"]["transcript"]
+
+    def test_booking_validator_uses_runtime_location_without_forcing_new_tool(self):
+        parsed = {
+            "thought": "Tim phong kham gan ban.",
+            "tool_name": "search_clinics_nearby",
+            "tool_params": {
+                "clinic_hint": "PetCare",
+                "service_hint": "kham tong quat",
             },
             "should_end": False,
         }
         messages = [
             {
                 "role": "user",
-                "content": "Mình muốn đặt lịch tại phòng khám cho bé Bông ngày 2026-03-12 lúc 14:00",
-            },
+                "content": "Dat lich cho Hadine o phong kham PetCare gan toi",
+            }
         ]
+
+        def _build_context(_: list[dict]) -> str:
+            return "Runtime location: latitude=15.9575, longitude=108.2575, address=Ngu Hanh Son, Da Nang"
 
         result = apply_booking_tool_routing(
             parsed,
             messages,
             react_steps=[],
-            enabled_tools_lower=agent._enabled_tools_lower,
-            build_context_fn=build_context,
+            enabled_tools_lower={"search_clinics_nearby"},
+            build_context_fn=_build_context,
         )
 
-        assert result["should_end"] is True
-        assert result["tool_name"] is None
-        assert "xác nhận giúp mình" in result["thought"]
+        assert result["tool_name"] == "search_clinics_nearby"
+        assert result["tool_params"]["latitude"] == 15.9575
+        assert result["tool_params"]["longitude"] == 108.2575
+        assert result["tool_params"]["address"] == "Ngu Hanh Son, Da Nang"
+        assert result["tool_params"]["clinic_hint"] == "PetCare"
 
-    def test_booking_routing_requires_home_visit_location_before_create_booking(self):
-        agent = SingleAgent(
-            llm_client=None,
-            enabled_tools=["create_booking_for_user"],
-        )
-
+    def test_booking_validator_requests_location_when_missing(self):
         parsed = {
-            "thought": "Tôi sẽ tạo booking tại nhà.",
-            "tool_name": "create_booking_for_user",
+            "thought": "Tim phong kham gan ban.",
+            "tool_name": "search_clinics_nearby",
             "tool_params": {
-                "pet_id": "pet-1",
-                "clinic_id": "clinic-1",
-                "booking_date": "2026-03-12",
-                "start_time": "14:00",
-                "service_ids": ["svc-1"],
+                "service_hint": "kham benh",
             },
             "should_end": False,
         }
+
+        result = apply_booking_tool_routing(
+            parsed,
+            messages=[{"role": "user", "content": "Tim phong kham gan toi"}],
+            react_steps=[],
+            enabled_tools_lower={"search_clinics_nearby"},
+            build_context_fn=lambda _: "",
+        )
+
+        assert result["should_end"] is True
+        assert result["tool_name"] is None
+        assert "vi tri hien tai" in result["thought"]
+
+    def test_booking_validator_enriches_date_from_latest_context(self):
+        parsed = {
+            "thought": "Kiem tra slot cho phong kham da chon.",
+            "tool_name": "check_available_slots",
+            "tool_params": {
+                "clinic_id": "clinic-1",
+                "service_hint": "kham benh",
+            },
+            "should_end": False,
+        }
+
         messages = [
             {
                 "role": "user",
-                "content": "Mình muốn đặt lịch khám tại nhà cho bé Bông ngày 2026-03-12 lúc 14:00",
+                "content": "Dat lich cho Hadine o PetCare chieu ngay mai",
+            },
+            {
+                "role": "user",
+                "content": "Doi lich sang thu bay nay",
             },
         ]
 
@@ -174,10 +162,38 @@ class TestBookingContextPrompt:
             parsed,
             messages,
             react_steps=[],
-            enabled_tools_lower=agent._enabled_tools_lower,
-            build_context_fn=build_context,
+            enabled_tools_lower={"check_available_slots"},
+            build_context_fn=lambda _: "",
         )
 
-        assert result["should_end"] is True
-        assert result["tool_name"] is None
-        assert "địa chỉ khám tại nhà" in result["thought"]
+        assert result["tool_name"] == "check_available_slots"
+        assert result["tool_params"]["date"] is not None
+        assert result["tool_params"]["time_preference"] == "buoi_sang"
+
+    def test_booking_validator_allows_explicit_clinic_without_runtime_gps(self):
+        parsed = {
+            "thought": "Tim phong kham PetCare theo yeu cau cua user.",
+            "tool_name": "search_clinics_nearby",
+            "tool_params": {
+                "clinic_hint": "PetCare",
+                "address": "Ngu Hanh Son Da Nang",
+            },
+            "should_end": False,
+        }
+
+        result = apply_booking_tool_routing(
+            parsed,
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Dat lich o phong kham PetCare tai Ngu Hanh Son Da Nang",
+                }
+            ],
+            react_steps=[],
+            enabled_tools_lower={"search_clinics_nearby"},
+            build_context_fn=lambda _: "",
+        )
+
+        assert result["should_end"] is False
+        assert result["tool_name"] == "search_clinics_nearby"
+        assert result["tool_params"]["clinic_hint"] == "PetCare"

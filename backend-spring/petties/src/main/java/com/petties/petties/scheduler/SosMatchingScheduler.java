@@ -20,10 +20,10 @@ public class SosMatchingScheduler {
     private final SosMatchingService sosMatchingService;
 
     /**
-     * Check for SOS booking timeouts every 5 seconds
+     * Check for SOS booking timeouts every 15 seconds
      * Escalates to next clinic if current one doesn't respond within 60 seconds
      */
-    @Scheduled(fixedRate = 5000)
+    @Scheduled(fixedRate = 15000)
     public void checkSosTimeouts() {
         try {
             sosMatchingService.checkTimeouts();

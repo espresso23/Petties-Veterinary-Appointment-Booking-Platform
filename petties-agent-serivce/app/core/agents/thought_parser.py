@@ -14,6 +14,35 @@ import json
 import re
 
 
+def _try_parse_json_object(raw: str) -> Dict[str, Any]:
+    """Best-effort parse for LLM-produced JSON objects."""
+    if raw is None:
+        return {}
+    s = str(raw).strip()
+    if not s:
+        return {}
+
+    # Remove code fences if present.
+    s = re.sub(r"^```(?:json)?\s*", "", s, flags=re.IGNORECASE).strip()
+    s = re.sub(r"\s*```$", "", s).strip()
+
+    # First try strict JSON.
+    try:
+        obj = json.loads(s)
+        return obj if isinstance(obj, dict) else {}
+    except Exception:
+        pass
+
+    # Common LLM mistakes: trailing commas.
+    s2 = re.sub(r",\s*}", "}", s)
+    s2 = re.sub(r",\s*]", "]", s2)
+    try:
+        obj = json.loads(s2)
+        return obj if isinstance(obj, dict) else {}
+    except Exception:
+        return {}
+
+
 def parse_thought(thought_content: str, enabled_tools: List[str]) -> Dict[str, Any]:
     """Parse LLM thought output to extract tool call or final answer.
 
@@ -49,12 +78,20 @@ def parse_thought(thought_content: str, enabled_tools: List[str]) -> Dict[str, A
     # --- 2. Extract Tool Input (JSON params) ---
     tool_params: Dict[str, Any] = {}
 
-    # Pattern 1: Standard — Tool Input: {...}
+    # Pattern 0: Tool Input in fenced code block
     input_match = re.search(
-        r"(?:\*+|#|)\s*(?:Tool Input|Action Input|Input)\s*(?:\*+|#|):\s*(\{.*?\})",
+        r"(?:Tool Input|Action Input|Input)\s*(?:\*+|#|)?:\s*```(?:json)?\s*([\s\S]*?)\s*```",
         thought_content,
-        re.DOTALL | re.IGNORECASE,
+        re.IGNORECASE,
     )
+
+    # Pattern 1: Standard — Tool Input: {...}
+    if not input_match:
+        input_match = re.search(
+            r"(?:\*+|#|)\s*(?:Tool Input|Action Input|Input)\s*(?:\*+|#|):\s*(\{.*?\})",
+            thought_content,
+            re.DOTALL | re.IGNORECASE,
+        )
 
     # Pattern 2: JSON on new line after label
     if not input_match:
@@ -79,16 +116,15 @@ def parse_thought(thought_content: str, enabled_tools: List[str]) -> Dict[str, A
 
     # Parse matched pattern
     if input_match:
-        try:
-            tool_params = json.loads(input_match.group(1).strip())
-        except (json.JSONDecodeError, ValueError) as exc:
-            logger.warning(f"Failed to parse tool params JSON: {exc}")
-            inner = re.search(r"(\{[^{}]*\})", input_match.group(1))
+        raw_params = input_match.group(1).strip()
+        tool_params = _try_parse_json_object(raw_params)
+        # "{}" is valid for tools that rely on runtime context injection (e.g. get_user_pets),
+        # so only warn when it looks like the LLM attempted JSON but we couldn't parse it.
+        if not tool_params and raw_params.strip() not in ("{}", "{ }"):
+            logger.warning("Failed to parse tool params JSON: invalid or empty object")
+            inner = re.search(r"(\{[\s\S]*\})", raw_params)
             if inner:
-                try:
-                    tool_params = json.loads(inner.group(1))
-                except (json.JSONDecodeError, ValueError):
-                    tool_params = {}
+                tool_params = _try_parse_json_object(inner.group(1))
 
     # Normalize keys (strip whitespace — LLM sometimes outputs { "query ": "..." })
     if tool_params and isinstance(tool_params, dict):
@@ -105,12 +141,14 @@ def parse_thought(thought_content: str, enabled_tools: List[str]) -> Dict[str, A
         )
         if parts:
             clean_thought = parts[0].strip()
-            clean_thought = re.sub(
-                r"^(?:\*+|#|)\s*Thought\s*(?:\*+|#|):\s*",
-                "",
-                clean_thought,
-                flags=re.IGNORECASE,
-            ).strip()
+
+    # Always remove "Thought:" prefix from user-facing text (safety guard).
+    clean_thought = re.sub(
+        r"^(?:\*+|#|)\s*Thought\s*(?:\*+|#|):\s*",
+        "",
+        clean_thought,
+        flags=re.IGNORECASE,
+    ).strip()
 
     # --- 4. Determine should_end ---
     should_end = False

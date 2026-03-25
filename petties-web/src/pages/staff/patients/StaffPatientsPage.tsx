@@ -256,7 +256,7 @@ export const StaffPatientsPage = () => {
 
     const handleAddVaccination = async (data: VaccinationFormData) => {
         if (!selectedPatient) {
-            showToast('error', 'Vui lòng chọn bệnh nhân')
+            showToast('error', 'Vui lòng chọn thú cưng')
             return
         }
 
@@ -451,7 +451,7 @@ export const StaffPatientsPage = () => {
                 {isLoadingPatients ? (
                     <div className="p-12 text-center text-stone-500">Đang tải...</div>
                 ) : patients.length === 0 ? (
-                    <div className="p-12 text-center text-stone-500">Chưa có bệnh nhân nào</div>
+                    <div className="p-12 text-center text-stone-500">Chưa có thú cưng nào</div>
                 ) : (
                     <>
                         <table className="w-full">
@@ -527,7 +527,7 @@ export const StaffPatientsPage = () => {
                         {/* Pagination */}
                         <div className="flex items-center justify-between px-4 py-3 border-t border-stone-200 bg-stone-50">
                             <span className="text-sm text-stone-600">
-                                Hiển thị {filteredPatients.length} / {totalPatients} bệnh nhân
+                                Hiển thị {filteredPatients.length} / {totalPatients} thú cưng
                             </span>
                             <div className="flex items-center gap-2">
                                 <button
@@ -702,16 +702,16 @@ export const StaffPatientsPage = () => {
                                                     if (existingEmr) {
                                                         // If exists, go to Detail or Edit depending on lock status
                                                         if (!existingEmr.isLocked && String(user?.userId) === String(existingEmr.staffId)) {
-                                                            navigate(`/staff/emr/edit/ ${existingEmr.id} `)
+                                                            navigate(`/staff/emr/edit/${existingEmr.id}`)
                                                         } else {
-                                                            navigate(`/staff/emr/detail/ ${existingEmr.id} `)
+                                                            navigate(`/staff/emr/detail/${existingEmr.id}`)
                                                         }
                                                         return
                                                     }
 
-                                                    let url = `/staff/emr/create/ ${selectedPatient.id} `
+                                                    let url = `/staff/emr/create/${selectedPatient.id}`
                                                     if (activeBooking) {
-                                                        url += `? bookingId=${activeBooking.bookingId}& bookingCode=${activeBooking.bookingCode} `
+                                                        url += `?bookingId=${activeBooking.bookingId}&bookingCode=${activeBooking.bookingCode}`
                                                     }
                                                     navigate(url)
                                                 }}
@@ -730,7 +730,7 @@ export const StaffPatientsPage = () => {
                                         <div className="text-center py-12 bg-stone-50 rounded-xl">
                                             <p className="text-stone-500 mb-4">Chưa có bệnh án nào</p>
                                             <button
-                                                onClick={() => navigate(`/staff/emr/create/ ${selectedPatient.id} `)}
+                                                onClick={() => navigate(`/staff/emr/create/${selectedPatient.id}`)}
                                                 className="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg"
                                             >
                                                 Tạo Bệnh án Đầu tiên
@@ -745,7 +745,7 @@ export const StaffPatientsPage = () => {
                                                         <div className="flex items-start justify-between">
                                                             <div>
                                                                 <button
-                                                                    onClick={() => navigate(`/staff/emr/detail/ ${emr.id} `)}
+                                                                    onClick={() => navigate(`/staff/emr/detail/${emr.id}`)}
                                                                     className="font-bold text-stone-800 text-lg hover:text-blue-600 hover:underline text-left transition-colors line-clamp-1 w-full block"
                                                                     title={emr.assessment}
                                                                 >
@@ -771,7 +771,7 @@ export const StaffPatientsPage = () => {
 
                                                                     return canEdit ? (
                                                                         <button
-                                                                            onClick={() => navigate(`/staff/emr/edit/ ${emr.id} `)}
+                                                                            onClick={() => navigate(`/staff/emr/edit/${emr.id}`)}
                                                                             className="px-3 py-1.5 bg-white border border-stone-200 text-stone-600 hover:text-amber-600 hover:border-amber-200 hover:bg-amber-50 rounded-lg transition-all flex items-center gap-1.5 shadow-sm"
                                                                             title="Chỉnh sửa bệnh án (Trong vòng 24h)"
                                                                         >
