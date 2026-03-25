@@ -56,12 +56,12 @@ class AgentFactory:
 
         Args:
             db_session: Database session
-            provider_override: Optional provider to use ("openrouter" | "deepseek")
+            provider_override: Optional provider to use ("openrouter")
             model_override: Optional model to override default (e.g., "google/gemini-2.5-flash-lite")
 
         Returns:
             SingleAgent instance voi:
-            - LLM client (OpenRouter/DeepSeek)
+            - LLM client (OpenRouter)
             - System prompt tu DB
             - Enabled tools tu DB
 
@@ -96,8 +96,7 @@ class AgentFactory:
         )
 
         # 4. Load enabled tools tu DB
-        tools_list = await AgentFactory._load_tools_for_agent(
-            agent_name=agent_config.name,
+        tools_list = await AgentFactory._load_enabled_tools(
             db_session=db_session,
             user_role=user_role,
             context_type=context_type,
@@ -114,8 +113,12 @@ class AgentFactory:
 
         logger.info(f"Enabled tools: {enabled_tools}")
 
+        # System prompt is hardcoded in single_agent.py - no longer load from DB
+        # Role guardrails and tool whitelist are added via ContextPolicyService
+        from app.core.agents.single_agent import DEFAULT_SYSTEM_PROMPT
+
         system_prompt = ContextPolicyService.build_system_prompt(
-            agent_config.system_prompt,
+            DEFAULT_SYSTEM_PROMPT,  # Hardcoded, not from DB
             user_role=user_role,
             context_type=context_type,
             allowed_tools=enabled_tools,
@@ -158,7 +161,7 @@ class AgentFactory:
         Args:
             agent_id: Database ID cua agent
             db_session: Database session
-            provider_override: Optional provider to use ("openrouter" | "deepseek")
+            provider_override: Optional provider to use ("openrouter")
             model_override: Optional model to override default
 
         Returns:
@@ -192,8 +195,7 @@ class AgentFactory:
         )
 
         # Load enabled tools tu DB
-        tools_list = await AgentFactory._load_tools_for_agent(
-            agent_name=agent_config.name,
+        tools_list = await AgentFactory._load_enabled_tools(
             db_session=db_session,
             user_role=user_role,
             context_type=context_type,
@@ -208,8 +210,11 @@ class AgentFactory:
             for t in tools_list
         ]
 
+        # System prompt is hardcoded in single_agent.py - no longer load from DB
+        from app.core.agents.single_agent import DEFAULT_SYSTEM_PROMPT
+
         system_prompt = ContextPolicyService.build_system_prompt(
-            agent_config.system_prompt,
+            DEFAULT_SYSTEM_PROMPT,  # Hardcoded, not from DB
             user_role=user_role,
             context_type=context_type,
             allowed_tools=enabled_tools,
@@ -231,33 +236,28 @@ class AgentFactory:
         return agent
 
     @staticmethod
-    async def _load_tools_for_agent(
-        agent_name: str,
+    async def _load_enabled_tools(
         db_session: AsyncSession,
         user_role: Optional[str] = None,
         context_type: Optional[str] = None,
     ) -> List[Tool]:
-        """Load enabled tools, respect agent assignment va role/context whitelist."""
+        """Load enabled tools and apply role/context whitelist."""
         tools_result = await db_session.execute(
             select(Tool).where(Tool.enabled == True)
         )
         tools_list = tools_result.scalars().all()
 
-        assigned_tools = [
-            tool for tool in tools_list if agent_name in (tool.assigned_agents or [])
-        ]
-
         if not user_role and not context_type:
-            return assigned_tools
+            return tools_list
 
         allowed_names = ContextPolicyService.get_allowed_tools(
             user_role=user_role,
             context_type=context_type,
-            available_tools=[tool.name for tool in assigned_tools],
+            available_tools=[tool.name for tool in tools_list],
         )
         allowed_lookup = {tool_name.lower() for tool_name in allowed_names}
 
-        return [tool for tool in assigned_tools if tool.name.lower() in allowed_lookup]
+        return [tool for tool in tools_list if tool.name.lower() in allowed_lookup]
 
     @staticmethod
     async def get_agent_config(db_session: AsyncSession) -> dict:
@@ -279,7 +279,6 @@ class AgentFactory:
                 "max_tokens": 2000,
                 "top_p": 0.9,
                 "model": "google/gemini-2.5-flash-lite",
-                "system_prompt": "...",
                 "enabled": True,
                 "enabled_tools": ["pet_knowledge_search", "web_search", ...]
             }
@@ -307,7 +306,6 @@ class AgentFactory:
             "max_tokens": agent_config.max_tokens,
             "top_p": agent_config.top_p,
             "model": agent_config.model,
-            "system_prompt": agent_config.system_prompt,
             "enabled": agent_config.enabled,
             "enabled_tools": enabled_tools,
         }

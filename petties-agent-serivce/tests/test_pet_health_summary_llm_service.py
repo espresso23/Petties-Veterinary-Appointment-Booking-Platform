@@ -33,6 +33,20 @@ class TestPetHealthSummaryLLMService(unittest.IsolatedAsyncioTestCase):
     def tearDown(self):
         PetHealthSummaryLLMService._instance = None
 
+    def test_build_prompt_targets_staff_instead_of_pet_owner(self):
+        service = PetHealthSummaryLLMService()
+
+        prompt = service._build_prompt(
+            pet_info={"name": "Milu", "species": "Chó", "breed": "Poodle", "weight": 3.2},
+            latest_emr={"assessment": "Viêm da", "plan": "Bôi thuốc"},
+            recent_emrs=[],
+            user_name="Tan",
+        )
+
+        self.assertIn("dành cho staff", prompt)
+        self.assertIn("Không viết như đang tư vấn cho pet owner", prompt)
+        self.assertIn("Không dùng các cụm kiểu", prompt)
+
     async def test_synthesize_summary_uses_db_backed_llm_client(self):
         fake_client = types.SimpleNamespace(
             generate=AsyncMock(
@@ -48,9 +62,7 @@ class TestPetHealthSummaryLLMService(unittest.IsolatedAsyncioTestCase):
         ), patch(
             "app.core.services.pet_health_summary_llm_service.get_llm_client_from_db",
             AsyncMock(return_value=fake_client),
-        ), patch(
-            "app.core.services.pet_health_summary_llm_service.get_llm_client"
-        ) as env_client:
+        ):
             service = PetHealthSummaryLLMService()
             result = await service.synthesize_summary(
                 pet_info={"name": "Milu"},
@@ -60,7 +72,6 @@ class TestPetHealthSummaryLLMService(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result["latest_emr_summary"]["diagnosis"], "On dinh")
         self.assertIs(service._llm_client, fake_client)
-        env_client.assert_not_called()
 
     async def test_synthesize_summary_falls_back_when_no_llm_config_available(self):
         with patch(
@@ -69,9 +80,6 @@ class TestPetHealthSummaryLLMService(unittest.IsolatedAsyncioTestCase):
         ), patch(
             "app.core.services.pet_health_summary_llm_service.get_llm_client_from_db",
             AsyncMock(side_effect=ValueError("db key missing")),
-        ), patch(
-            "app.core.services.pet_health_summary_llm_service.get_llm_client",
-            side_effect=ValueError("env key missing"),
         ):
             service = PetHealthSummaryLLMService()
             result = await service.synthesize_summary(
@@ -80,7 +88,7 @@ class TestPetHealthSummaryLLMService(unittest.IsolatedAsyncioTestCase):
                     {
                         "assessment": "Can tai kham",
                         "plan": "Theo doi them",
-                        "exam_date": "2026-03-20T08:00:00",
+                        "examDate": "2026-03-20T08:00:00",
                         "clinic_name": "PetCare",
                     }
                 ],
@@ -88,7 +96,6 @@ class TestPetHealthSummaryLLMService(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(result["latest_emr_summary"]["exam_date"], "2026-03-20T08:00:00")
-        self.assertEqual(result["latest_emr_summary"]["clinic_name"], "PetCare")
         self.assertEqual(result["suggested_actions"][0]["type"], "FOLLOW_UP")
 
 

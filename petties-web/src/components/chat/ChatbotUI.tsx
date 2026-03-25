@@ -10,6 +10,8 @@ export interface ChatMessage {
     isLoading?: boolean
     images?: string[]
     processingStatus?: string
+    thinkingProcess?: string[]
+    toolCalls?: Array<{ tool: string; input: unknown; output?: unknown }>
 }
 
 interface ImageUpload {
@@ -106,11 +108,11 @@ export const ChatbotUI = ({
         for (let i = 0; i < Math.min(files.length, MAX_IMAGES - selectedImages.length); i++) {
             const file = files[i]
             if (file.size > 5 * 1024 * 1024) {
-                alert(`Ảnh ${file.name} quá lớn (tối đa 5MB)`)
+                showToast('error', `Ảnh ${file.name} quá lớn (tối đa 5MB)`)
                 continue
             }
             if (!file.type.startsWith('image/')) {
-                alert(`${file.name} không phải file ảnh`)
+                showToast('error', `${file.name} không phải file ảnh`)
                 continue
             }
 
@@ -412,6 +414,43 @@ export const ChatbotUI = ({
                                 </div>
                             ) : (
                                 <p className="text-sm whitespace-pre-wrap px-4 py-3">{message.content}</p>
+                            )}
+
+                            {!message.isLoading && message.role === 'assistant' && ((message.thinkingProcess?.length || 0) > 0 || (message.toolCalls?.length || 0) > 0) && (
+                                <div className="border-t border-stone-200 px-4 py-3 space-y-3">
+                                    {(message.thinkingProcess?.length || 0) > 0 && (
+                                        <div className="rounded-xl border border-cyan-200 bg-cyan-50 p-3">
+                                            <p className="text-[11px] font-bold uppercase tracking-wide text-cyan-800">Đang phân tích</p>
+                                            <div className="mt-2 space-y-1">
+                                                {message.thinkingProcess?.map((step, index) => (
+                                                    <p key={`${message.id}-thinking-${index}`} className="text-xs text-cyan-900">
+                                                        {step}
+                                                    </p>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {(message.toolCalls?.length || 0) > 0 && (
+                                        <div className="space-y-2">
+                                            {message.toolCalls?.map((call, index) => (
+                                                <div key={`${message.id}-tool-${index}`} className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+                                                    <p className="text-[11px] font-bold uppercase tracking-wide text-stone-700">
+                                                        Tool: {call.tool}
+                                                    </p>
+                                                    <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-[11px] text-stone-600">
+                                                        {JSON.stringify(call.input ?? {}, null, 2)}
+                                                    </pre>
+                                                    {typeof call.output !== 'undefined' && (
+                                                        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg bg-white p-2 text-[11px] text-stone-700">
+                                                            {JSON.stringify(call.output, null, 2)}
+                                                        </pre>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                             )}
                         </div>
                     </div>

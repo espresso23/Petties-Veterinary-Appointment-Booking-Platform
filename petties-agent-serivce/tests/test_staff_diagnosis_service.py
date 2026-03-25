@@ -414,7 +414,227 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("kết mạc", diff.display_name_vi.lower())
         self.assertEqual(diff.confidence_note, "Mức gợi ý: thấp")
 
+    async def test_analyze_case_with_images_handles_vision_failure_gracefully(
+        self,
+    ):
+        """When Gemini Vision fails, analysis should still return results from RAG/case memory."""
+        service = StaffDiagnosisService()
+        request = StaffDiagnosisRequest(
+            species=Species.DOG,
+            weight_kg=10.0,
+            doctor_description="Cho cho bi an kin, co ghen vang mat trai.",
+            image_urls=[
+                "https://example.com/img1.jpg",
+            ],
+        )
+
+        mock_hybrid_engine = Mock()
+        mock_hybrid_engine.query = AsyncMock(
+            return_value=HybridResult(
+                chunks=[
+                    HybridChunk(
+                        content="Mat trai co ghen vang la viem ket mac.",
+                        score=0.85,
+                        source="rag",
+                        metadata={"document_name": "Cam nang mat"},
+                    )
+                ],
+                expanded_query="dog",
+                original_query="dog",
+                sources_used={"rag": 1, "kg": 0},
+            )
+        )
+
+        mock_case_memory = Mock()
+        mock_case_memory.search_similar = AsyncMock(return_value=[])
+
+        with (
+            patch(
+                "app.core.services.staff_diagnosis_service.get_hybrid_rag_engine",
+                return_value=mock_hybrid_engine,
+            ),
+            patch(
+                "app.core.services.staff_diagnosis_service.get_case_memory_service",
+                return_value=mock_case_memory,
+            ),
+            patch(
+                "app.core.services.disease_mapping_service.DiseaseMappingService.refresh_from_db",
+                new=AsyncMock(return_value=True),
+            ),
+            patch(
+                "app.core.services.staff_diagnosis_service.get_gemini_vision_adapter"
+            ) as mock_vision,
+        ):
+            mock_vision.return_value.analyze = AsyncMock(
+                side_effect=Exception("Gemini API error: rate limit exceeded")
+            )
+            response = await service.analyze_case(request)
+
+        self.assertIsNotNone(response.request_id)
+        self.assertTrue(len(response.top_differentials) >= 1)
+        self.assertEqual(len(response.image_analysis), 1)
+        self.assertEqual(
+            response.image_analysis[0]["url"], "https://example.com/img1.jpg"
+        )
+        self.assertIn("Chưa có mô tả", response.image_analysis[0]["description"])
+        self.assertEqual(response.vision_findings, [])
+
+    async def test_analyze_case_handles_hybrid_rag_failure_gracefully(
+        self,
+    ):
+        """When Hybrid RAG fails, should still return results from case memory."""
+        service = StaffDiagnosisService()
+        request = StaffDiagnosisRequest(
+            species=Species.DOG,
+            weight_kg=12.5,
+            doctor_description="Bé chó đỏ mắt, nhiều ghèn.",
+        )
+
+        mock_hybrid_engine = Mock()
+        mock_hybrid_engine.query = AsyncMock(
+            side_effect=Exception("Qdrant connection failed")
+        )
+
+        mock_case_memory = Mock()
+        mock_case_memory.search_similar = AsyncMock(
+            return_value=[
+                CaseResult(
+                    case_id="emr:1",
+                    content="Ca chó đỏ mắt có ghèn, bác sĩ xác nhận viêm kết mạc.",
+                    score=0.82,
+                    final_score=0.93,
+                    payload={
+                        "species": "dog",
+                        "display_name_vi": "Viêm kết mạc hoặc nhiễm trùng mắt",
+                        "final_diagnosis_text": "Viêm kết mạc",
+                        "canonical_code": "ocular_infection",
+                        "chief_complaint": "Đỏ mắt, nhiều ghèn mắt",
+                        "exam_at": "2026-03-16T08:30:00Z",
+                    },
+                )
+            ]
+        )
+
+        with (
+            patch(
+                "app.core.services.staff_diagnosis_service.get_hybrid_rag_engine",
+                return_value=mock_hybrid_engine,
+            ),
+            patch(
+                "app.core.services.staff_diagnosis_service.get_case_memory_service",
+                return_value=mock_case_memory,
+            ),
+            patch(
+                "app.core.services.disease_mapping_service.DiseaseMappingService.refresh_from_db",
+                new=AsyncMock(return_value=True),
+            ),
+        ):
+            response = await service.analyze_case(request)
+
+        self.assertIsNotNone(response.request_id)
+        self.assertTrue(len(response.top_differentials) >= 1)
+        self.assertIn("Viêm kết mạc", response.similar_confirmed_cases[0])
+
+    async def test_analyze_case_handles_case_memory_failure_gracefully(
+        self,
+    ):
+        """When Case Memory fails, should still return results from RAG."""
+        service = StaffDiagnosisService()
+        request = StaffDiagnosisRequest(
+            species=Species.DOG,
+            weight_kg=12.5,
+            doctor_description="Bé chó đỏ mắt, nhiều ghèn.",
+        )
+
+        mock_hybrid_engine = Mock()
+        mock_hybrid_engine.query = AsyncMock(
+            return_value=HybridResult(
+                chunks=[
+                    HybridChunk(
+                        content="Viêm kết mạc ở chó thường biểu hiện đỏ mắt, ghèn mắt.",
+                        score=0.84,
+                        source="rag",
+                        metadata={"document_name": "Cẩm nang bệnh mắt"},
+                    )
+                ],
+                expanded_query="dog | đỏ mắt ghèn mắt",
+                original_query="dog | đỏ mắt ghèn mắt",
+                sources_used={"rag": 1, "kg": 0},
+            )
+        )
+
+        mock_case_memory = Mock()
+        mock_case_memory.search_similar = AsyncMock(
+            side_effect=Exception("Qdrant connection failed")
+        )
+
+        with (
+            patch(
+                "app.core.services.staff_diagnosis_service.get_hybrid_rag_engine",
+                return_value=mock_hybrid_engine,
+            ),
+            patch(
+                "app.core.services.staff_diagnosis_service.get_case_memory_service",
+                return_value=mock_case_memory,
+            ),
+            patch(
+                "app.core.services.disease_mapping_service.DiseaseMappingService.refresh_from_db",
+                new=AsyncMock(return_value=True),
+            ),
+        ):
+            response = await service.analyze_case(request)
+
+        self.assertIsNotNone(response.request_id)
+        self.assertTrue(len(response.top_differentials) >= 1)
+        self.assertIn("Cẩm nang bệnh mắt", response.supporting_evidence_from_kb[0])
+
+    async def test_analyze_case_handles_all_services_failure(
+        self,
+    ):
+        """When all services fail, should still return generic fallback."""
+        service = StaffDiagnosisService()
+        request = StaffDiagnosisRequest(
+            species=Species.DOG,
+            doctor_description="Bé chó có triệu chứng lạ.",
+        )
+
+        mock_hybrid_engine = Mock()
+        mock_hybrid_engine.query = AsyncMock(
+            side_effect=Exception("Qdrant connection failed")
+        )
+
+        mock_case_memory = Mock()
+        mock_case_memory.search_similar = AsyncMock(
+            side_effect=Exception("Qdrant connection failed")
+        )
+
+        with (
+            patch(
+                "app.core.services.staff_diagnosis_service.get_hybrid_rag_engine",
+                return_value=mock_hybrid_engine,
+            ),
+            patch(
+                "app.core.services.staff_diagnosis_service.get_case_memory_service",
+                return_value=mock_case_memory,
+            ),
+            patch(
+                "app.core.services.disease_mapping_service.DiseaseMappingService.refresh_from_db",
+                new=AsyncMock(return_value=True),
+            ),
+        ):
+            response = await service.analyze_case(request)
+
+        self.assertIsNotNone(response.request_id)
+        self.assertEqual(len(response.top_differentials), 1)
+        self.assertIn(
+            "Không tìm thấy thông tin phù hợp",
+            response.supporting_evidence_from_kb[0],
+        )
+        self.assertIn(
+            "Không tìm thấy ca EMR xác nhận",
+            response.similar_confirmed_cases[0],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
-

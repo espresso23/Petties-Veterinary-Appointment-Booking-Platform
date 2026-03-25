@@ -104,6 +104,10 @@ class StaffDiagnosisRequest(BaseModel):
     body_part: Optional[str] = None
     symptoms: List[str] = Field(default_factory=list)
     image_urls: List[str] = Field(default_factory=list, max_length=10)
+    image_analysis_mode: str = Field(
+        default="full",
+        description="full = phân tích chẩn đoán + ảnh, describe_only = chỉ mô tả ảnh",
+    )
     soap_draft: SoapDraft = Field(default_factory=SoapDraft)
 
 

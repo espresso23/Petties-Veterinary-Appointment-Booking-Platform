@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from loguru import logger
 
@@ -47,8 +47,8 @@ class PetHealthSummaryLLMService:
 
         Args:
             pet_info: Thông tin pet cơ bản
-            emr_records: Danh sách EMR records (đã sắp xếp theo ngày giảm dần)
-            user_name: Tên chủ pet (để personalize)
+            emr_records: Danh sách EMR records, đã sắp xếp theo ngày giảm dần
+            user_name: Tên chủ pet
 
         Returns:
             Dict chứa: latest_emr_summary, health_warnings, medication_reminders, suggested_actions, ai_insights
@@ -65,8 +65,8 @@ class PetHealthSummaryLLMService:
             llm_client = await self._get_llm_client()
             response = await llm_client.generate(prompt, temperature=0.3, max_tokens=1500)
             return self._parse_llm_response(response.content, latest_emr)
-        except Exception as e:
-            logger.error(f"LLM synthesis failed: {e}")
+        except Exception as exc:
+            logger.error(f"LLM synthesis failed: {exc}")
             return self._fallback_parse(latest_emr)
 
     async def _synthesize_no_history(
@@ -77,24 +77,26 @@ class PetHealthSummaryLLMService:
         species = pet_info.get("species", "")
         breed = pet_info.get("breed", "")
 
-        prompt = f"""Bạn là bác sĩ thú y virtual của Petties. Hãy tạo thông tin tổng quang sức khỏe cho pet của user.
+        prompt = f"""Bạn là trợ lý tóm tắt hồ sơ bệnh án cho staff/phòng khám thú y của Petties.
+Nội dung dùng nội bộ trên màn tạo EMR, không viết như đang tư vấn cho chủ nuôi.
+Văn phong ngắn gọn, lâm sàng, ưu tiên giúp staff nắm nhanh tình trạng hồ sơ.
 
 Pet: {pet_name}
 Loài: {species}
 Giống: {breed}
 
-User chưa có lịch sử khám cho thú cưng này. Hãy:
-1. Tạo lời chào welcome cho user
-2. Gợi ý hành động phù hợp (đặt lịch khám lần đầu)
-3. Cung cấp vài mẹo chăm sóc sức khỏe ban đầu
+Bệnh nhân chưa có lịch sử EMR. Hãy:
+1. Xác nhận đây là ca chưa có hồ sơ khám trước đó.
+2. Đề xuất các bước staff nên thực hiện khi tiếp nhận ban đầu.
+3. Không dùng lời chào, không xưng hô với chủ nuôi, không đưa mẹo chăm sóc kiểu consumer.
 
 Trả về JSON format:
 {{
-  "welcome_message": "...",
+  "staff_summary": "...",
   "suggested_actions": [
     {{"type": "BOOK_FIRST_VISIT", "label": "...", "reason": "..."}}
   ],
-  "care_tips": ["...", "..."]
+  "intake_notes": ["...", "..."]
 }}
 """
 
@@ -108,12 +110,12 @@ Trả về JSON format:
                 "medication_reminders": [],
                 "suggested_actions": parsed.get("suggested_actions", []),
                 "ai_insights": {
-                    "welcome": parsed.get("welcome_message", ""),
-                    "care_tips": parsed.get("care_tips", []),
+                    "summary": parsed.get("staff_summary", ""),
+                    "intake_notes": parsed.get("intake_notes", []),
                 },
             }
-        except Exception as e:
-            logger.error(f"LLM synthesis for no history failed: {e}")
+        except Exception as exc:
+            logger.error(f"LLM synthesis for no history failed: {exc}")
             return {
                 "latest_emr_summary": None,
                 "health_warnings": [],
@@ -121,8 +123,8 @@ Trả về JSON format:
                 "suggested_actions": [
                     {
                         "type": "BOOK_FIRST_VISIT",
-                        "label": "Đặt lịch khám lần đầu",
-                        "reason": "Pet chưa có lịch sử khám",
+                        "label": "Tiếp nhận khám ban đầu",
+                        "reason": "Bệnh nhân chưa có EMR trước đó",
                     }
                 ],
                 "ai_insights": None,
@@ -155,7 +157,10 @@ Trả về JSON format:
             else "[]"
         )
 
-        prompt = f"""Bạn là bác sĩ thú y virtual của Petties. Hãy phân tích và tổng hợp thông tin sức khỏe cho pet của user.
+        return f"""Bạn là trợ lý AI tóm tắt hồ sơ bệnh án cho staff/phòng khám thú y của Petties.
+Mục tiêu là giúp staff xem nhanh lịch sử khám trước khi tạo EMR mới.
+Không viết như đang tư vấn cho pet owner. Không dùng lời khuyên chung chung cho chủ nuôi. Không thêm phần mở đầu hoặc kết luận xã giao.
+Ưu tiên văn phong ngắn, rõ, thiên về lâm sàng và vận hành nội bộ.
 
 # Thông tin Pet:
 - Tên: {pet_name}
@@ -178,23 +183,23 @@ Phân tích thông tin trên và trả về JSON format:
   "latest_emr_summary": {{
     "exam_date": "Ngày khám",
     "clinic_name": "Tên phòng khám",
-    "diagnosis": "Tóm tắt chẩn đoán ngắn gọn",
-    "treatment": "Tóm tắt điều trị",
-    "key_findings": ["Điểm quan trọng 1", "Điểm quan trọng 2"]
+    "diagnosis": "Tóm tắt chẩn đoán ngắn gọn theo ngôn ngữ chuyên môn",
+    "treatment": "Tóm tắt điều trị hoặc hướng xử trí đã ghi nhận",
+    "key_findings": ["Điểm lâm sàng quan trọng 1", "Điểm lâm sàng quan trọng 2"]
   }},
   "health_warnings": [
-    {{"type": "RECHECK_REQUIRED|ALLERGY_ALERT|MEDICATION|NUTRITION|OTHER", "message": "Mô tả cảnh báo", "severity": "HIGH|MEDIUM|LOW"}}
+    {{"type": "RECHECK_REQUIRED|ALLERGY_ALERT|MEDICATION|NUTRITION|OTHER", "message": "Cảnh báo ngắn gọn để staff lưu ý", "severity": "HIGH|MEDIUM|LOW"}}
   ],
   "medication_reminders": [
     {{"medication": "Tên thuốc", "dosage": "Liều lượng", "frequency": "Tần suất", "purpose": "Mục đích"}}
   ],
   "suggested_actions": [
-    {{"type": "BOOK_APPOINTMENT|FOLLOW_UP|VACCINATION|NUTRITION|OTHER", "label": "Nút bấm", "reason": "Lý do"}}
+    {{"type": "BOOK_APPOINTMENT|FOLLOW_UP|VACCINATION|NUTRITION|OTHER", "label": "Hành động staff nên thực hiện", "reason": "Lý do ngắn gọn"}}
   ],
   "ai_insights": {{
-    "summary": "Tóm tắt sức khỏe tổng quát 2-3 câu",
-    "trends": "Nhận xét xu hướng so với lần khám trước (nếu có)",
-    "advice": "Lời khuyên ngắn cho chủ pet"
+    "summary": "Tóm tắt hồ sơ lâm sàng 2-3 câu dành cho staff",
+    "trends": "Nhận xét xu hướng so với lần khám trước nếu có",
+    "advice": "Khuyến nghị nội bộ cho staff, không xưng hô với chủ nuôi"
   }}
 }}
 ```
@@ -204,9 +209,8 @@ Lưu ý:
 - Nếu không có thông tin nào thì để null hoặc mảng rỗng
 - Severity: HIGH (cần hành động ngay), MEDIUM (nên theo dõi), LOW (thông tin)
 - Dùng tiếng Việt
+- Không dùng các cụm kiểu "bạn nên", "chủ nuôi nên", "hãy theo dõi bé tại nhà"
 """
-
-        return prompt
 
     def _parse_llm_response(
         self, response: str, latest_emr: Dict[str, Any]
@@ -223,8 +227,8 @@ Lưu ý:
                 "suggested_actions": parsed.get("suggested_actions", []),
                 "ai_insights": parsed.get("ai_insights"),
             }
-        except (json.JSONDecodeError, IndexError) as e:
-            logger.warning(f"Failed to parse LLM response: {e}, using fallback")
+        except (json.JSONDecodeError, IndexError) as exc:
+            logger.warning(f"Failed to parse LLM response: {exc}, using fallback")
             return self._fallback_parse(latest_emr)
 
     def _fallback_parse(self, latest_emr: Dict[str, Any]) -> Dict[str, Any]:
@@ -233,15 +237,16 @@ Lưu ý:
         plan = latest_emr.get("plan", "")
 
         warnings = []
-        if assessment:
-            if "dị ứng" in assessment.lower() or "allergy" in assessment.lower():
-                warnings.append(
-                    {
-                        "type": "ALLERGY_ALERT",
-                        "message": "Pet có tiền sử dị ứng",
-                        "severity": "HIGH",
-                    }
-                )
+        if assessment and (
+            "dị ứng" in assessment.lower() or "allergy" in assessment.lower()
+        ):
+            warnings.append(
+                {
+                    "type": "ALLERGY_ALERT",
+                    "message": "Pet có tiền sử dị ứng",
+                    "severity": "HIGH",
+                }
+            )
 
         return {
             "latest_emr_summary": {

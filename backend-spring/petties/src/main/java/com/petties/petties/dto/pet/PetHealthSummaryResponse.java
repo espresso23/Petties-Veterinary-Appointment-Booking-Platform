@@ -19,6 +19,7 @@ public class PetHealthSummaryResponse {
     private List<HealthWarningDto> healthWarnings;
     private List<MedicationReminderDto> medicationReminders;
     private List<SuggestedActionDto> suggestedActions;
+    private AiInsightsDto aiInsights;
     private String disclaimer;
 
     @Data
@@ -75,5 +76,16 @@ public class PetHealthSummaryResponse {
         private String type;
         private String label;
         private String reason;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class AiInsightsDto {
+        private String summary;
+        private String trends;
+        private String advice;
+        private List<String> intakeNotes;
     }
 }

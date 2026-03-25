@@ -409,10 +409,7 @@ class CaseMemoryService:
             ],
         )
 
-        logger.info(
-            f"Upserted case {case_id} "
-            f"text_len={len(text_to_embed)})"
-        )
+        logger.info(f"Upserted case {case_id} text_len={len(text_to_embed)})")
         return case_id
 
     async def search_similar(
@@ -521,7 +518,8 @@ class CaseMemoryService:
 
                 confirmation_count = payload.get("confirmation_count", 0)
                 confirmation_boost = min(
-                    confirmation_count / CONFIRMATION_COUNT_DIVISOR, MAX_CONFIRMATION_BOOST
+                    confirmation_count / CONFIRMATION_COUNT_DIVISOR,
+                    MAX_CONFIRMATION_BOOST,
                 )
                 final_score = base_score + confirmation_boost
 
@@ -787,6 +785,373 @@ class CaseMemoryService:
                 "image_enabled": self._image_enabled,
                 "error": str(e),
             }
+
+    async def list_cases(
+        self,
+        query: Optional[str] = None,
+        species: Optional[str] = None,
+        diagnosis: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> Dict[str, Any]:
+        """
+        Lấy danh sách cases với pagination và filters.
+
+        Args:
+            query: Tìm kiếm trong nội dung case
+            species: Lọc theo loài (dog, cat)
+            diagnosis: Lọc theo từ khóa chẩn đoán
+            page: Số trang (1-indexed)
+            page_size: Số items mỗi trang (max 100)
+
+        Returns:
+            Dict với items, total, page, page_size
+        """
+        await self.initialize()
+
+        if self._qdrant_client is None:
+            return {
+                "items": [],
+                "total": 0,
+                "page": page,
+                "page_size": page_size,
+                "error": "CaseMemoryService not available",
+            }
+
+        try:
+            from qdrant_client.models import (
+                Filter,
+                FieldCondition,
+                MatchValue,
+                MatchAny,
+            )
+
+            # Build filter conditions
+            must_conditions = []
+            if species:
+                must_conditions.append(
+                    FieldCondition(key="species", match=MatchValue(value=species))
+                )
+
+            filter_obj = Filter(must=must_conditions) if must_conditions else None
+
+            # Calculate offset
+            offset_val = (page - 1) * page_size
+
+            # Scroll to get all points, then filter by query if needed
+            all_items = []
+            offset = None
+            while True:
+                points, next_offset = self._qdrant_client.scroll(
+                    collection_name=self._collection_name,
+                    scroll_filter=filter_obj,
+                    limit=100,
+                    with_payload=True,
+                    with_vectors=False,
+                    offset=offset,
+                )
+                if not points:
+                    break
+                all_items.extend(points)
+                if next_offset is None:
+                    break
+                offset = next_offset
+
+            # Filter by query text if provided
+            if query:
+                query_lower = query.lower()
+                all_items = [
+                    p
+                    for p in all_items
+                    if query_lower in (p.payload.get("text_content", "") or "").lower()
+                    or query_lower
+                    in (p.payload.get("chief_complaint", "") or "").lower()
+                    or query_lower
+                    in (p.payload.get("final_diagnosis_text", "") or "").lower()
+                ]
+
+            if diagnosis:
+                diagnosis_lower = diagnosis.lower()
+                all_items = [
+                    p
+                    for p in all_items
+                    if diagnosis_lower
+                    in (p.payload.get("final_diagnosis_text", "") or "").lower()
+                ]
+
+            # Sort by created_at descending
+            all_items.sort(key=lambda p: p.payload.get("created_at", ""), reverse=True)
+
+            # Paginate
+            total = len(all_items)
+            start_idx = (page - 1) * page_size
+            end_idx = start_idx + page_size
+            page_items = all_items[start_idx:end_idx]
+
+            # Format response
+            items = []
+            for point in page_items:
+                payload = point.payload or {}
+                items.append(
+                    {
+                        "case_id": payload.get("case_id", str(point.id)),
+                        "text_content": payload.get("text_content", ""),
+                        "species": payload.get("species", "unknown"),
+                        "breed": payload.get("breed"),
+                        "chief_complaint": payload.get("chief_complaint", ""),
+                        "symptoms": payload.get("symptoms", []),
+                        "final_diagnosis_text": payload.get("final_diagnosis_text", ""),
+                        "canonical_code": payload.get("canonical_code"),
+                        "confirmation_count": payload.get("confirmation_count", 0),
+                        "created_at": payload.get("created_at"),
+                        "last_confirmed_at": payload.get("last_confirmed_at"),
+                        "image_urls": payload.get("image_urls", []),
+                        "image_descriptions": payload.get("image_descriptions", []),
+                        "emr_id": payload.get("emr_id"),
+                        "clinic_id": payload.get("clinic_id"),
+                    }
+                )
+
+            return {
+                "items": items,
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to list cases: {e}")
+            return {
+                "items": [],
+                "total": 0,
+                "page": page,
+                "page_size": page_size,
+                "error": str(e),
+            }
+
+    async def get_case(self, case_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Lấy chi tiết một case.
+
+        Args:
+            case_id: UUID của case cần lấy
+
+        Returns:
+            Dict chứa case details hoặc None nếu không tìm thấy
+        """
+        await self.initialize()
+
+        if self._qdrant_client is None:
+            return None
+
+        try:
+            from qdrant_client.models import Filter, FieldCondition, MatchValue
+
+            # Try direct ID first
+            try:
+                points = self._qdrant_client.retrieve(
+                    collection_name=self._collection_name,
+                    ids=[self._to_point_id(case_id)],
+                    with_payload=True,
+                    with_vectors=False,
+                )
+            except Exception:
+                # Fallback: search by case_id in payload
+                scroll_results = self._qdrant_client.scroll(
+                    collection_name=self._collection_name,
+                    scroll_filter=Filter(
+                        must=[
+                            FieldCondition(
+                                key="case_id", match=MatchValue(value=case_id)
+                            )
+                        ]
+                    ),
+                    limit=1,
+                    with_payload=True,
+                    with_vectors=False,
+                )
+                points = scroll_results[0] if scroll_results else []
+
+            if not points:
+                return None
+
+            point = points[0]
+            payload = point.payload or {}
+            return {
+                "case_id": payload.get("case_id", str(point.id)),
+                "text_content": payload.get("text_content", ""),
+                "species": payload.get("species", "unknown"),
+                "breed": payload.get("breed"),
+                "chief_complaint": payload.get("chief_complaint", ""),
+                "symptoms": payload.get("symptoms", []),
+                "final_diagnosis_text": payload.get("final_diagnosis_text", ""),
+                "canonical_code": payload.get("canonical_code"),
+                "mapping_status": payload.get("mapping_status"),
+                "confirmation_count": payload.get("confirmation_count", 0),
+                "created_at": payload.get("created_at"),
+                "last_confirmed_at": payload.get("last_confirmed_at"),
+                "image_urls": payload.get("image_urls", []),
+                "image_descriptions": payload.get("image_descriptions", []),
+                "emr_id": payload.get("emr_id"),
+                "clinic_id": payload.get("clinic_id"),
+                "protocol_pattern": payload.get("protocol_pattern"),
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to get case {case_id}: {e}")
+            return None
+
+    async def update_case(
+        self,
+        case_id: str,
+        diagnosis: Optional[str] = None,
+        symptoms: Optional[List[str]] = None,
+        confirmation_count: Optional[int] = None,
+    ) -> bool:
+        """
+        Cập nhật metadata của một case.
+
+        Args:
+            case_id: UUID của case cần cập nhật
+            diagnosis: Chẩn đoán mới
+            symptoms: Danh sách triệu chứng mới
+            confirmation_count: Số lần xác nhận mới
+
+        Returns:
+            True nếu cập nhật thành công
+        """
+        await self.initialize()
+
+        if self._qdrant_client is None:
+            return False
+
+        try:
+            from qdrant_client.models import (
+                Filter,
+                FieldCondition,
+                MatchValue,
+                PointStruct,
+            )
+
+            # Find point
+            try:
+                points = self._qdrant_client.retrieve(
+                    collection_name=self._collection_name,
+                    ids=[self._to_point_id(case_id)],
+                    with_payload=True,
+                    with_vectors=True,
+                )
+            except Exception:
+                scroll_results = self._qdrant_client.scroll(
+                    collection_name=self._collection_name,
+                    scroll_filter=Filter(
+                        must=[
+                            FieldCondition(
+                                key="case_id", match=MatchValue(value=case_id)
+                            )
+                        ]
+                    ),
+                    limit=1,
+                    with_payload=True,
+                    with_vectors=True,
+                )
+                points = scroll_results[0] if scroll_results else []
+
+            if not points:
+                logger.warning(f"Case {case_id} not found for update")
+                return False
+
+            point = points[0]
+            updated_payload = dict(point.payload or {})
+
+            if diagnosis is not None:
+                updated_payload["final_diagnosis_text"] = diagnosis
+            if symptoms is not None:
+                updated_payload["symptoms"] = symptoms
+            if confirmation_count is not None:
+                updated_payload["confirmation_count"] = confirmation_count
+
+            changed_textual_fields = diagnosis is not None or symptoms is not None
+            if changed_textual_fields:
+                updated_payload["text_content"] = self._build_text_content(updated_payload)
+                text_vector = await self._embed_text(
+                    updated_payload["text_content"],
+                    input_type="search_document",
+                )
+                if not text_vector:
+                    logger.warning(f"Failed to re-embed case {case_id} after update")
+                    return False
+
+                vectors: Dict[str, Any] = {"text": text_vector}
+                current_vectors = getattr(point, "vector", None) or {}
+                if isinstance(current_vectors, dict):
+                    image_vector = current_vectors.get("image")
+                    if image_vector is not None:
+                        vectors["image"] = image_vector
+
+                self._qdrant_client.upsert(
+                    collection_name=self._collection_name,
+                    points=[
+                        PointStruct(
+                            id=point.id,
+                            vector=vectors,
+                            payload=updated_payload,
+                        )
+                    ],
+                )
+            elif confirmation_count is not None:
+                self._qdrant_client.set_payload(
+                    collection_name=self._collection_name,
+                    payload={"confirmation_count": confirmation_count},
+                    points=[point.id],
+                )
+
+            logger.info(f"Updated case {case_id}: {list(updated_payload.keys())}")
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to update case {case_id}: {e}")
+            return False
+
+    def _build_text_content(self, payload: Dict[str, Any]) -> str:
+        """Rebuild searchable text when diagnosis metadata changes."""
+        parts: List[str] = []
+
+        for key in ("species", "breed", "chief_complaint", "clinical_notes"):
+            value = payload.get(key)
+            if value:
+                parts.append(str(value))
+
+        symptoms = payload.get("symptoms", []) or []
+        if isinstance(symptoms, list):
+            clean_symptoms = [str(item).strip() for item in symptoms if str(item).strip()]
+            if clean_symptoms:
+                parts.append("Symptoms: " + ", ".join(clean_symptoms))
+
+        physical_exam = payload.get("physical_exam", []) or []
+        if isinstance(physical_exam, list):
+            clean_physical_exam = [
+                str(item).strip() for item in physical_exam if str(item).strip()
+            ]
+            if clean_physical_exam:
+                parts.append("Physical exam: " + ", ".join(clean_physical_exam))
+
+        diagnosis_text = (
+            payload.get("display_name_vi")
+            or payload.get("final_diagnosis_text")
+            or payload.get("canonical_code")
+        )
+        if diagnosis_text:
+            prefix = (
+                "Provisional diagnosis"
+                if payload.get("mapping_status") == "provisional"
+                else "Diagnosis"
+            )
+            parts.append(f"{prefix}: {diagnosis_text}")
+
+        rebuilt_text = "\n".join(parts).strip()
+        return rebuilt_text or str(payload.get("text_content") or "").strip()
 
     def _to_point_id(self, case_id: str) -> str:
         """Map logical case_id to a deterministic UUID accepted by Qdrant."""

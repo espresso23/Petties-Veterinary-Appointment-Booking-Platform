@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -23,6 +22,7 @@ class AiDiagnosisPanel extends StatefulWidget {
   final List<String>? imageUrls;
   final void Function(StaffDiagnosisResponse?)? onDiagnosisResult;
   final void Function(SoapSuggestions)? onApplyDraft;
+  final void Function(StaffDiagnosisResponse, List<String>)? onApplyDiagnosis;
 
   const AiDiagnosisPanel({
     super.key,
@@ -40,6 +40,7 @@ class AiDiagnosisPanel extends StatefulWidget {
     this.imageUrls,
     this.onDiagnosisResult,
     this.onApplyDraft,
+    this.onApplyDiagnosis,
   });
 
   @override
@@ -50,6 +51,9 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
   final DiagnosisService _diagnosisService = DiagnosisService();
   final TextEditingController _narrativeController = TextEditingController();
   final List<String> _selectedImages = [];
+  final Map<String, String> _imageDescriptions = {};
+  final Set<String> _imagesLoading = {};
+  final Map<String, TextEditingController> _imageDescriptionControllers = {};
   final ImagePicker _imagePicker = ImagePicker();
 
   bool _isLoading = false;
@@ -57,9 +61,13 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
   StaffDiagnosisResponse? _result;
 
   DiagnosisSpecies get _mappedSpecies {
-    final s = (widget.species ?? '').toLowerCase();
-    if (s.contains('dog') || s.contains('cho')) return DiagnosisSpecies.dog;
-    if (s.contains('cat') || s.contains('meo')) return DiagnosisSpecies.cat;
+    final species = (widget.species ?? '').toLowerCase();
+    if (species.contains('dog') || species.contains('cho')) {
+      return DiagnosisSpecies.dog;
+    }
+    if (species.contains('cat') || species.contains('meo')) {
+      return DiagnosisSpecies.cat;
+    }
     return DiagnosisSpecies.other;
   }
 
@@ -70,14 +78,48 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
   }
 
   int get _totalImages {
-    final existing = widget.imageUrls?.where((url) => url.isNotEmpty).length ?? 0;
+    final existing =
+        widget.imageUrls?.where((url) => url.isNotEmpty).length ?? 0;
     return existing + _selectedImages.length;
   }
 
   @override
   void dispose() {
     _narrativeController.dispose();
+    for (final controller in _imageDescriptionControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
+  }
+
+  Future<String?> _analyzeSingleImage(String imageUrl) async {
+    try {
+      final response = await _diagnosisService.analyzeCase(
+        species: _mappedSpecies,
+        petId: widget.petId,
+        bookingId: widget.bookingId,
+        breed: widget.breed,
+        ageMonths: widget.ageMonths,
+        weightKg: widget.weightKg,
+        sex: DiagnosisSex.unknown,
+        allergies: widget.allergies,
+        doctorDescription: _narrativeController.text.trim().isNotEmpty
+            ? _narrativeController.text.trim()
+            : 'Mô tả ảnh lâm sàng này',
+        imageUrls: [imageUrl],
+      );
+
+      if (response.imageDescriptions.isNotEmpty) {
+        return response.imageDescriptions.first;
+      }
+      if (response.visionFindings.isNotEmpty) {
+        return response.visionFindings.join('; ');
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Failed to analyze image: $e');
+      return null;
+    }
   }
 
   Future<void> _pickImages() async {
@@ -88,16 +130,49 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
         imageQuality: 85,
       );
 
-      if (pickedFiles.isEmpty) return;
+      if (pickedFiles.isEmpty) {
+        return;
+      }
 
+      final newImages = <String>[];
       for (final file in pickedFiles) {
-        final bytes = await File(file.path).readAsBytes();
-        final base64 = base64Encode(bytes);
+        final bytes = await file.readAsBytes();
+        final base64Image = base64Encode(bytes);
+        final dataUrl = 'data:image/jpeg;base64,$base64Image';
+        newImages.add(dataUrl);
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _selectedImages.addAll(newImages);
+      });
+
+      for (final imageUrl in newImages) {
         setState(() {
-          _selectedImages.add('data:image/jpeg;base64,$base64');
+          _imagesLoading.add(imageUrl);
+        });
+
+        final description = await _analyzeSingleImage(imageUrl);
+
+        if (!mounted) return;
+
+        setState(() {
+          _imagesLoading.remove(imageUrl);
+          if (description != null) {
+            _imageDescriptions[imageUrl] = description;
+            _imageDescriptionControllers[imageUrl] =
+                TextEditingController(text: description);
+          } else {
+            _imageDescriptionControllers[imageUrl] =
+                TextEditingController(text: '');
+          }
         });
       }
-    } catch (e) {
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
       setState(() {
         _error = 'Không thể chọn ảnh. Vui lòng thử lại.';
       });
@@ -105,13 +180,19 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
   }
 
   void _removeImage(int index) {
+    final imageUrl = _selectedImages[index];
+    _imageDescriptionControllers[imageUrl]?.dispose();
+    _imageDescriptionControllers.remove(imageUrl);
+    _imageDescriptions.remove(imageUrl);
     setState(() {
       _selectedImages.removeAt(index);
     });
   }
 
   Future<void> _analyze() async {
-    if (!_canAnalyze) return;
+    if (!_canAnalyze) {
+      return;
+    }
 
     setState(() {
       _isLoading = true;
@@ -150,14 +231,13 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
       });
 
       widget.onDiagnosisResult?.call(response);
-      widget.onApplyDraft?.call(response.soapSuggestions);
-    } on DiagnosisException catch (e) {
+    } on DiagnosisException catch (error) {
       setState(() {
-        _error = e.message;
+        _error = error.message;
         _result = null;
       });
       widget.onDiagnosisResult?.call(null);
-    } catch (e) {
+    } catch (_) {
       setState(() {
         _error = 'Không thể phân tích tình trạng của thú cưng.';
         _result = null;
@@ -173,9 +253,9 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: AppColors.white,
-        borderRadius: const BorderRadius.only(
+        borderRadius: BorderRadius.only(
           topLeft: Radius.circular(20),
           topRight: Radius.circular(20),
         ),
@@ -240,7 +320,8 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
       controller: _narrativeController,
       maxLines: 4,
       decoration: InputDecoration(
-        hintText: 'Mô tả ngắn tình trạng của bé tại đây. Có thể ghi chung triệu chứng, vùng nghi ngờ, diễn tiến và nhận định ban đầu.',
+        hintText:
+            'Mô tả ngắn tình trạng của bé tại đây. Có thể ghi triệu chứng, vùng nghi ngờ, diễn tiến và nhận định ban đầu.',
         hintStyle: const TextStyle(
           fontSize: 13,
           color: AppColors.stone400,
@@ -277,7 +358,8 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
         children: [
           Row(
             children: [
-              const Icon(Icons.photo_library, color: AppColors.primary, size: 18),
+              const Icon(Icons.photo_library,
+                  color: AppColors.primary, size: 18),
               const SizedBox(width: 6),
               const Text(
                 'Ảnh AI đang đọc',
@@ -291,11 +373,13 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
               GestureDetector(
                 onTap: _pickImages,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: AppColors.primary,
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: AppColors.stone900, width: 1.5),
+                    border:
+                        Border.all(color: AppColors.stone900, width: 1.5),
                   ),
                   child: const Text(
                     '+ Thêm ảnh',
@@ -319,51 +403,161 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
           ),
           if (_selectedImages.isNotEmpty) ...[
             const SizedBox(height: 8),
-            SizedBox(
-              height: 60,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: _selectedImages.length,
-                itemBuilder: (context, index) {
-                  final imageData = _selectedImages[index];
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: Stack(
+            ...List.generate(_selectedImages.length, (index) {
+              final imageData = _selectedImages[index];
+              final isLoading = _imagesLoading.contains(imageData);
+              final description = _imageDescriptions[imageData];
+              final controller = _imageDescriptionControllers[imageData];
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.stone200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.memory(
-                            Uri.parse(imageData).data!.contentAsBytes(),
-                            width: 50,
-                            height: 50,
-                            fit: BoxFit.cover,
+                        Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.memory(
+                                Uri.parse(imageData).data!.contentAsBytes(),
+                                width: 60,
+                                height: 60,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                            if (isLoading)
+                              Positioned.fill(
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: AppColors.stone900.withValues(alpha: 0.5),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Center(
+                                    child: SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: AppColors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Ảnh ${index + 1}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.stone800,
+                                ),
+                              ),
+                              if (isLoading)
+                                const Text(
+                                  'Đang phân tích...',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: AppColors.stone500,
+                                  ),
+                                )
+                              else if (description != null && description.isNotEmpty)
+                                const Text(
+                                  'Đã có mô tả',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: AppColors.teal600,
+                                  ),
+                                )
+                              else
+                                const Text(
+                                  'Chưa có mô tả',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: AppColors.stone400,
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
-                        Positioned(
-                          top: 0,
-                          right: 0,
-                          child: GestureDetector(
-                            onTap: () => _removeImage(index),
-                            child: Container(
-                              padding: const EdgeInsets.all(2),
-                              decoration: const BoxDecoration(
-                                color: AppColors.error,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.close,
-                                size: 12,
-                                color: AppColors.white,
-                              ),
+                        GestureDetector(
+                          onTap: () => _removeImage(index),
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: AppColors.error,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.close,
+                              size: 14,
+                              color: AppColors.white,
                             ),
                           ),
                         ),
                       ],
                     ),
-                  );
-                },
-              ),
-            ),
+                    if (!isLoading && controller != null) ...[
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: controller,
+                        maxLines: 2,
+                        minLines: 1,
+                        decoration: InputDecoration(
+                          hintText: 'Mô tả từ AI hoặc nhập tay...',
+                          hintStyle: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.stone400,
+                          ),
+                          filled: true,
+                          fillColor: AppColors.stone50,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: AppColors.stone200),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: AppColors.stone200),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                              color: AppColors.primary,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.stone700,
+                        ),
+                        onChanged: (value) {
+                          _imageDescriptions[imageData] = value;
+                        },
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }),
           ],
         ],
       ),
@@ -450,7 +644,6 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
       children: [
         const Divider(color: AppColors.stone300),
         const SizedBox(height: 8),
-        
         if (_result!.topDifferentials.isNotEmpty) ...[
           _buildSectionTitle('Chẩn đoán phân biệt'),
           const SizedBox(height: 8),
@@ -508,7 +701,6 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
           ),
           const SizedBox(height: 12),
         ],
-
         if (_result!.visionFindings.isNotEmpty) ...[
           _buildSectionTitle('Dấu hiệu từ ảnh'),
           const SizedBox(height: 8),
@@ -522,29 +714,30 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: _result!.visionFindings
-                  .map((f) => Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Text(
-                          '- $f',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.stone700,
-                          ),
+                  .map(
+                    (finding) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        '- $finding',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.stone700,
                         ),
-                      ))
+                      ),
+                    ),
+                  )
                   .toList(),
             ),
           ),
           const SizedBox(height: 12),
         ],
-
         if (_result!.prescriptionSuggestions.isNotEmpty) ...[
           _buildSectionTitle('Gợi ý đơn thuốc nháp'),
           const SizedBox(height: 8),
           ...List.generate(
             _result!.prescriptionSuggestions.length,
             (index) {
-              final rx = _result!.prescriptionSuggestions[index];
+              final prescription = _result!.prescriptionSuggestions[index];
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.all(12),
@@ -557,7 +750,7 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      rx.medicineName,
+                      prescription.medicineName,
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -566,16 +759,27 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${rx.dosage} | ${rx.frequency} | ${rx.durationDays ?? '-'} ngày',
+                      '${prescription.dosage} | ${prescription.frequency} | ${prescription.durationDays ?? '-'} ngày',
                       style: const TextStyle(
                         fontSize: 12,
                         color: AppColors.stone600,
                       ),
                     ),
-                    if (rx.caution != null) ...[
+                    if ((prescription.instructions).isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(
-                        rx.caution!,
+                        prescription.instructions,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.stone700,
+                        ),
+                      ),
+                    ],
+                    if (prescription.caution != null &&
+                        prescription.caution!.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        prescription.caution!,
                         style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
@@ -590,7 +794,6 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
           ),
           const SizedBox(height: 12),
         ],
-
         if (_result!.suggestedQuestions.isNotEmpty) ...[
           _buildSectionTitle('Cần hỏi thêm'),
           const SizedBox(height: 8),
@@ -604,24 +807,24 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: _result!.suggestedQuestions
-                  .map((q) => Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Text(
-                          '- $q',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.stone700,
-                          ),
+                  .map(
+                    (question) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        '- $question',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.stone700,
                         ),
-                      ))
+                      ),
+                    ),
+                  )
                   .toList(),
             ),
           ),
           const SizedBox(height: 12),
         ],
-
         _buildDisclaimer(),
-        
         const SizedBox(height: 12),
         _buildApplyButton(),
       ],
@@ -672,6 +875,13 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
       child: GestureDetector(
         onTap: () {
           widget.onApplyDraft?.call(_result!.soapSuggestions);
+          widget.onApplyDiagnosis?.call(
+            _result!,
+            [
+              ...?widget.imageUrls?.where((url) => url.isNotEmpty),
+              ..._selectedImages,
+            ],
+          );
         },
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 14),

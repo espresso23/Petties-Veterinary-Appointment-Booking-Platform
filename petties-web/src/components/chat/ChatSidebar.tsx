@@ -31,6 +31,13 @@ interface ChatSessionMessage {
     role: 'user' | 'assistant'
     content: string
     timestamp?: string
+    react_trace?: Array<{
+        step_type?: 'thought' | 'action' | 'observation'
+        content?: string
+        tool_name?: string
+        tool_params?: Record<string, unknown>
+        tool_result?: unknown
+    }>
 }
 
 interface ChatSidebarProps {
@@ -39,14 +46,14 @@ interface ChatSidebarProps {
 }
 
 const QUICK_ACTIONS = [
-    { label: 'Tạo EMR mới', icon: DocumentTextIcon, prompt: 'Tạo EMR cho bệnh nhân' },
-    { label: 'Xem bệnh nhân', icon: UserGroupIcon, prompt: 'Liệt kê bệnh nhân của phòng khám' },
+    { label: 'Tạo EMR mới', icon: DocumentTextIcon, prompt: 'Tạo EMR cho thú cưng' },
+    { label: 'Xem thú cưng', icon: UserGroupIcon, prompt: 'Liệt kê thú cưng của phòng khám' },
     { label: 'Xem lịch hẹn', icon: CalendarIcon, prompt: 'Hiển thị lịch hẹn hôm nay' },
     { label: 'Chẩn đoán bệnh', icon: PencilIcon, prompt: 'Hỗ trợ chẩn đoán bệnh' },
 ]
 
 const SUGGESTED_PROMPTS = [
-    'Bệnh nhân nào đến khám hôm nay?',
+    'Thú cưng nào đến khám hôm nay?',
     'Tạo EMR cho bé chó mèo',
     'Lịch hẹn trong tuần này',
     'Hướng dẫn chăm sóc thú cưng sau tiêm',
@@ -61,6 +68,7 @@ export const ChatSidebar = ({
     const [isLoadingSessions, setIsLoadingSessions] = useState(false)
     const [isCreatingSession, setIsCreatingSession] = useState(false)
     const wsRef = useRef<WebSocket | null>(null)
+    const isMountedRef = useRef(true)
     const { showToast } = useToast()
 
     const accessToken = useAuthStore((state) => state.accessToken)
@@ -74,6 +82,9 @@ export const ChatSidebar = ({
         setMessages,
         addMessage,
         updateLastMessage,
+        appendThinkingToLastMessage,
+        appendToolCallToLastMessage,
+        attachToolResultToLastMessage,
         setConnectionStatus,
         setIsOpen,
         updateEmrDraftField,
@@ -89,6 +100,8 @@ export const ChatSidebar = ({
         timestamp: msg.timestamp,
         isLoading: msg.isLoading ?? false,
         images: msg.images,
+        thinkingProcess: msg.thinkingProcess,
+        toolCalls: msg.toolCalls,
     }))
 
     useEffect(() => {
@@ -96,6 +109,14 @@ export const ChatSidebar = ({
             saveEmrAiDraft(emrDraft)
         }
     }, [emrDraft])
+
+    // Track mounted state to prevent state updates after unmount
+    useEffect(() => {
+        isMountedRef.current = true
+        return () => {
+            isMountedRef.current = false
+        }
+    }, [])
 
     const loadSessions = useCallback(async () => {
         if (!accessToken) return
@@ -212,12 +233,35 @@ export const ChatSidebar = ({
                 const data = await response.json()
                 setSessionId(data.session_id)
 
-                const convertedMessages: AISessionMessage[] = (data.messages || []).map((msg: ChatSessionMessage) => ({
-                    id: msg.message_id || Date.now().toString(),
-                    role: msg.role,
-                    content: msg.content,
-                    timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
-                }))
+                const convertedMessages: AISessionMessage[] = (data.messages || []).map((msg: ChatSessionMessage) => {
+                    const thinkingProcess: string[] = []
+                    const toolCalls: Array<{ tool: string; input: unknown; output?: unknown }> = []
+
+                    if (msg.role !== 'user' && msg.react_trace) {
+                        msg.react_trace.forEach((step) => {
+                            if (step.step_type === 'thought' && step.content) {
+                                thinkingProcess.push(step.content)
+                            } else if (step.step_type === 'action' && step.tool_name) {
+                                toolCalls.push({
+                                    tool: step.tool_name,
+                                    input: step.tool_params || {},
+                                    output: undefined,
+                                })
+                            } else if (step.step_type === 'observation' && toolCalls.length > 0) {
+                                toolCalls[toolCalls.length - 1].output = step.tool_result
+                            }
+                        })
+                    }
+
+                    return {
+                        id: msg.message_id || Date.now().toString(),
+                        role: msg.role,
+                        content: msg.content,
+                        timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
+                        thinkingProcess,
+                        toolCalls,
+                    }
+                })
 
                 setMessages(convertedMessages)
                 setShowSessionList(false)
@@ -250,10 +294,12 @@ export const ChatSidebar = ({
         const ws = new WebSocket(wsUrl)
 
         ws.onopen = () => {
+            if (!isMountedRef.current) return
             setConnectionStatus('connected')
         }
 
         ws.onmessage = (event) => {
+            if (!isMountedRef.current) return
             try {
                 const data = JSON.parse(event.data)
 
@@ -262,14 +308,29 @@ export const ChatSidebar = ({
                 }
 
                 if (data.type === 'thinking') {
+                    if (!isMountedRef.current) return
                     const content = data.content || ''
                     if (content) {
+                        appendThinkingToLastMessage(content)
                         updateLastMessage(content, true)
                     }
                     return
                 }
 
+                if (data.type === 'tool_call') {
+                    if (!isMountedRef.current) return
+                    appendToolCallToLastMessage(data.tool_name || 'unknown', data.tool_params || {})
+                    return
+                }
+
+                if (data.type === 'tool_result') {
+                    if (!isMountedRef.current) return
+                    attachToolResultToLastMessage(data.tool_name, data.result)
+                    return
+                }
+
                 if (data.type === 'stream' || data.type === 'final') {
+                    if (!isMountedRef.current) return
                     const content = data.content || data.full_response || ''
                     if (content) {
                         updateLastMessage(content, false)
@@ -278,6 +339,7 @@ export const ChatSidebar = ({
                 }
 
                 if (data.type === 'complete') {
+                    if (!isMountedRef.current) return
                     const content = data.full_response || data.content || ''
                     if (content) {
                         updateLastMessage(content, false)
@@ -286,6 +348,7 @@ export const ChatSidebar = ({
                 }
 
                 if (data.type === 'error') {
+                    if (!isMountedRef.current) return
                     addMessage({
                         id: `error-${Date.now()}`,
                         role: 'assistant',
@@ -299,10 +362,12 @@ export const ChatSidebar = ({
         }
 
         ws.onerror = () => {
+            if (!isMountedRef.current) return
             setConnectionStatus('disconnected')
         }
 
         ws.onclose = () => {
+            if (!isMountedRef.current) return
             setConnectionStatus('disconnected')
         }
 
@@ -314,7 +379,16 @@ export const ChatSidebar = ({
                 wsRef.current = null
             }
         }
-    }, [accessToken, addMessage, sessionId, setConnectionStatus, updateLastMessage])
+    }, [
+        accessToken,
+        addMessage,
+        appendThinkingToLastMessage,
+        appendToolCallToLastMessage,
+        attachToolResultToLastMessage,
+        sessionId,
+        setConnectionStatus,
+        updateLastMessage,
+    ])
 
     const handleSendMessage = useCallback(async (message: string, images?: string[]) => {
         if (!message.trim() && (!images || images.length === 0)) {
@@ -346,6 +420,8 @@ export const ChatSidebar = ({
             content: '',
             timestamp: new Date(),
             isLoading: true,
+            thinkingProcess: [],
+            toolCalls: [],
         })
 
         wsRef.current.send(JSON.stringify({ message, images }))

@@ -22,12 +22,12 @@ import static org.mockito.Mockito.verify;
 class AiCaseMemorySyncServiceUnitTest {
 
     @Test
-    @DisplayName("Sync confirmed EMR - Goi AI service voi internal key")
-    void syncConfirmedEmr_postsPayloadWithInternalKey() {
+    @DisplayName("Sync confirmed EMR - Gui den AI service khi auto-sync enabled")
+    void syncConfirmedEmr_postsToAiServiceWhenEnabled() {
         RestTemplate restTemplate = mock(RestTemplate.class);
         AiCaseMemorySyncService service = new AiCaseMemorySyncService(restTemplate);
-        ReflectionTestUtils.setField(service, "aiServiceUrl", "http://ai-service:8000/");
-        ReflectionTestUtils.setField(service, "internalAiSyncKey", "shared-key");
+        ReflectionTestUtils.setField(service, "autoSyncEnabled", true);
+        ReflectionTestUtils.setField(service, "aiServiceUrl", "http://ai-service:8000");
 
         InternalConfirmedEmrItemDto payload = InternalConfirmedEmrItemDto.builder()
                 .emrId("emr-1")
@@ -53,17 +53,33 @@ class AiCaseMemorySyncServiceUnitTest {
                 .getArgument(1);
 
         HttpHeaders headers = requestEntity.getHeaders();
-        assertEquals("shared-key", headers.getFirst("X-Internal-AI-Key"));
         assertEquals(payload, requestEntity.getBody());
     }
 
     @Test
-    @DisplayName("Sync confirmed EMR - Bo qua neu chua co internal key")
-    void syncConfirmedEmr_skipsWhenInternalKeyMissing() {
+    @DisplayName("Sync confirmed EMR - Bo qua khi auto-sync disabled")
+    void syncConfirmedEmr_skipsWhenAutoSyncDisabled() {
         RestTemplate restTemplate = mock(RestTemplate.class);
         AiCaseMemorySyncService service = new AiCaseMemorySyncService(restTemplate);
-        ReflectionTestUtils.setField(service, "aiServiceUrl", "http://ai-service:8000");
-        ReflectionTestUtils.setField(service, "internalAiSyncKey", "");
+        ReflectionTestUtils.setField(service, "autoSyncEnabled", false);
+
+        InternalConfirmedEmrItemDto payload = InternalConfirmedEmrItemDto.builder()
+                .emrId("emr-1")
+                .finalDiagnosisText("Viem da do vi khuan")
+                .build();
+
+        service.syncConfirmedEmr(payload);
+
+        verify(restTemplate, never()).postForEntity(any(String.class), any(), eq(Void.class));
+    }
+
+    @Test
+    @DisplayName("Sync confirmed EMR - Bo qua khi ai-service-url empty")
+    void syncConfirmedEmr_skipsWhenAiServiceUrlEmpty() {
+        RestTemplate restTemplate = mock(RestTemplate.class);
+        AiCaseMemorySyncService service = new AiCaseMemorySyncService(restTemplate);
+        ReflectionTestUtils.setField(service, "autoSyncEnabled", true);
+        ReflectionTestUtils.setField(service, "aiServiceUrl", "");
 
         InternalConfirmedEmrItemDto payload = InternalConfirmedEmrItemDto.builder()
                 .emrId("emr-1")

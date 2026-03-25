@@ -1,10 +1,10 @@
 """
 Jina Image Embeddings Client
 
-Embed áº£nh (URL hoáº·c base64) sang vector dÃ¹ng Jina Embeddings API (jina-clip-v2).
+Embed ảnh (URL hoặc base64) sang vector dùng Jina Embeddings API (jina-clip-v2).
 
 Package: app.core.embeddings
-Purpose: Cung cáº¥p hÃ m tiá»‡n Ã­ch embed áº£nh Ä‘á»ƒ dÃ¹ng trong Case Memory.
+Purpose: Cung cấp hàm tiện ích embed ảnh để dùng trong Case Memory.
 Version: v1.1.0 (Optimized with Retry & Cache)
 """
 
@@ -29,11 +29,11 @@ from app.core.config_helper import get_setting
 
 JINA_EMBEDDINGS_ENDPOINT = "https://api.jina.ai/v1/embeddings"
 DEFAULT_JINA_IMAGE_MODEL = "jina-clip-v2"
-"""Jina CLIP v2 tráº£ vá» 1024 dim. Pháº£i khá»›p vá»›i Qdrant collection."""
+"""Jina CLIP v2 trả về 1024 dim. Phải khớp với Qdrant collection."""
 
 EXPECTED_IMAGE_DIMENSION = 1024
 
-"""Jina batch size - an toÃ n hÆ¡n á»Ÿ má»©c 50 Ä‘á»ƒ trÃ¡nh timeout/413 vá»›i áº£nh thá»±c táº¿."""
+"""Jina batch size - an toàn hơn ở mức 50 để tránh timeout/413 với ảnh thực tế."""
 JINA_BATCH_SIZE = 50
 
 """TTL cho config cache (seconds)."""
@@ -54,10 +54,10 @@ _config_cache_time: float = 0.0
 
 
 async def _get_jina_config() -> Optional[dict]:
-    """Láº¥y API key vÃ  model tá»« system_settings vá»›i cÆ¡ cháº¿ caching."""
+    """Lấy API key và model từ system_settings với cơ chế caching."""
     global _config_cache, _config_cache_time
 
-    # Tráº£ vá» cache náº¿u chÆ°a háº¿t háº¡n
+    # Trả về cache nếu chưa hết hạn
     if _config_cache and (time.monotonic() - _config_cache_time) < CONFIG_CACHE_TTL:
         return _config_cache
 
@@ -76,7 +76,7 @@ async def _get_jina_config() -> Optional[dict]:
             )
             return None
 
-        # Cáº­p nháº­t cache
+        # Cập nhật cache
         _config_cache = {"api_key": api_key, "model": model}
         _config_cache_time = time.monotonic()
         return _config_cache
@@ -87,7 +87,7 @@ async def _get_jina_config() -> Optional[dict]:
 
 
 def _validate_embedding(emb: list, index: int) -> Optional[List[float]]:
-    """Validate embedding dimension (1024). Tráº£ vá» None náº¿u sai dim."""
+    """Validate embedding dimension (1024). Trả về None nếu sai dim."""
     if not isinstance(emb, list):
         return None
     if len(emb) != EXPECTED_IMAGE_DIMENSION:
@@ -139,8 +139,8 @@ def _normalize_base64_input(value: str) -> Optional[str]:
 
 async def embed_image_urls(urls: List[str]) -> List[List[float]]:
     """
-    Embed danh sÃ¡ch URL áº£nh sang vector báº±ng Jina API.
-    Há»— trá»£ retry 429/503 vÃ  caching config.
+    Embed danh sách URL ảnh sang vector bằng Jina API.
+    Hỗ trợ retry 429/503 và caching config.
     """
     if not urls:
         return []
@@ -149,7 +149,7 @@ async def embed_image_urls(urls: List[str]) -> List[List[float]]:
     if not config:
         return []
 
-    # Filter vÃ  validate URLs (há»— trá»£ cáº£ http vÃ  https cho dev)
+    # Filter và validate URLs (hỗ trợ cả http và https cho dev)
     inputs: List[str] = []
     for url in urls:
         if not isinstance(url, str):
@@ -184,7 +184,7 @@ async def embed_image_urls(urls: List[str]) -> List[List[float]]:
                     "input": batch,
                 }
 
-                # Retry vá»›i exponential backoff cho 429/503
+                # Retry với exponential backoff cho 429/503
                 last_resp = None
                 for attempt in range(3):
                     try:
@@ -381,4 +381,3 @@ __all__ = [
     "JINA_BATCH_SIZE",
     "JINA_BASE64_BATCH_SIZE",
 ]
-

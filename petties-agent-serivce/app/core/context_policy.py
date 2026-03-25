@@ -63,13 +63,10 @@ class ContextPolicyService:
         },
         "STAFF": {
             "pet_knowledge_search",
-            "get_user_pets",
-            "search_clinics_nearby",
-            "check_available_slots",
-            "create_booking_for_user",
-            "get_clinic_services",
+            "get_staff_patients",
+            "get_patient_summary",
+            "get_emr_history",
             "check_vaccination_status",
-            # NOTE: get_patient_summary, get_emr_history — disabled until MCP implementation ready
         },
         "CLINIC_MANAGER": {
             "pet_knowledge_search",

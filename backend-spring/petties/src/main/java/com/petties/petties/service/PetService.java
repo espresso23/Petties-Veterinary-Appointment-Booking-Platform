@@ -17,6 +17,7 @@ import com.petties.petties.model.enums.Role;
 import com.petties.petties.repository.BookingRepository;
 import com.petties.petties.repository.EmrRecordRepository;
 import com.petties.petties.repository.PetRepository;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
@@ -26,9 +27,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
@@ -539,7 +546,9 @@ public class PetService {
         Pet pet = petRepository.findById(petId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thú cưng"));
 
-        if (!pet.getUser().getUserId().equals(currentUser.getUserId())) {
+        boolean isOwner = pet.getUser() != null && pet.getUser().getUserId().equals(currentUser.getUserId());
+        boolean isStaff = currentUser.getRole() == Role.STAFF;
+        if (!isOwner && (!isStaff || !canStaffAccessPetHealthSummary(currentUser, petId))) {
             throw new ForbiddenException("Bạn không có quyền xem thông tin sức khỏe của thú cưng này");
         }
 
@@ -666,9 +675,18 @@ public class PetService {
             requestBody.put("emr_records", emrList);
 
             String url = aiServiceUrl + "/api/v1/pet-health-summary/synthesize";
-            
-            Map<String, Object> response = restTemplate.postForObject(url, requestBody, Map.class);
-            
+
+            HttpHeaders headers = new HttpHeaders();
+            copyAuthorizationHeader(headers);
+
+            ResponseEntity<Map> responseEntity = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    new HttpEntity<>(requestBody, headers),
+                    Map.class);
+
+            Map<String, Object> response = responseEntity.getBody();
+
             if (response != null) {
                 return convertToPetHealthSummaryResponse(response, petInfo, emrRecords);
             }
@@ -738,12 +756,34 @@ public class PetService {
                     .build();
         }
 
+        com.petties.petties.dto.pet.PetHealthSummaryResponse.AiInsightsDto aiInsightsDto = null;
+        Object rawAiInsights = aiResponse.get("ai_insights");
+        if (rawAiInsights instanceof Map<?, ?> aiInsightsMap) {
+            List<String> intakeNotes = new ArrayList<>();
+            Object rawIntakeNotes = aiInsightsMap.get("intake_notes");
+            if (rawIntakeNotes instanceof List<?> notes) {
+                for (Object note : notes) {
+                    if (note != null) {
+                        intakeNotes.add(String.valueOf(note));
+                    }
+                }
+            }
+
+            aiInsightsDto = com.petties.petties.dto.pet.PetHealthSummaryResponse.AiInsightsDto.builder()
+                    .summary((String) aiInsightsMap.get("summary"))
+                    .trends((String) aiInsightsMap.get("trends"))
+                    .advice((String) aiInsightsMap.get("advice"))
+                    .intakeNotes(intakeNotes)
+                    .build();
+        }
+
         return com.petties.petties.dto.pet.PetHealthSummaryResponse.builder()
                 .petInfo(petInfo)
                 .latestEmr(latestEmrDto)
                 .healthWarnings(warnings)
                 .medicationReminders(medicationReminders)
                 .suggestedActions(suggestedActions)
+                .aiInsights(aiInsightsDto)
                 .disclaimer((String) aiResponse.getOrDefault("disclaimer", 
                         "Thông tin chỉ mang tính tham khảo. Vui lòng consult bác sĩ để được tư vấn chính xác."))
                 .build();
@@ -797,7 +837,52 @@ public class PetService {
                 .healthWarnings(warnings)
                 .medicationReminders(medicationReminders)
                 .suggestedActions(suggestedActions)
+                .aiInsights(com.petties.petties.dto.pet.PetHealthSummaryResponse.AiInsightsDto.builder()
+                        .summary(!emrRecords.isEmpty()
+                                ? "Đã tổng hợp nhanh từ các bệnh án gần đây. Ưu tiên xem chẩn đoán và kế hoạch của lần khám mới nhất."
+                                : "Bệnh nhân chưa có bệnh án trước đó để tổng hợp.")
+                        .trends(!emrRecords.isEmpty() && emrRecords.size() > 1
+                                ? "Có dữ liệu nhiều lần khám để staff đối chiếu tiến triển."
+                                : null)
+                        .advice(!emrRecords.isEmpty()
+                                ? "Đối chiếu lần khám hiện tại với các bệnh án gần đây trước khi chốt Assessment và Plan."
+                                : "Tiếp nhận như ca khám ban đầu và bổ sung bệnh sử đầy đủ.")
+                        .intakeNotes(new ArrayList<>())
+                        .build())
                 .disclaimer("Thông tin chỉ mang tính tham khảo. Vui lòng consult bác sĩ để được tư vấn chính xác.")
                 .build();
+    }
+
+    private boolean canStaffAccessPetHealthSummary(User currentUser, UUID petId) {
+        Clinic workingClinic = currentUser.getWorkingClinic();
+        if (workingClinic == null || workingClinic.getClinicId() == null) {
+            return false;
+        }
+
+        UUID clinicId = workingClinic.getClinicId();
+        if (bookingRepository.existsByPet_IdAndClinic_ClinicId(petId, clinicId)) {
+            return true;
+        }
+
+        return emrRecordRepository.findByPetIdOrderByCreatedAtDesc(petId).stream()
+                .anyMatch(emr -> clinicId.equals(emr.getClinicId()));
+    }
+
+    private void copyAuthorizationHeader(HttpHeaders headers) {
+        ServletRequestAttributes attributes =
+                (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attributes == null) {
+            return;
+        }
+
+        HttpServletRequest request = attributes.getRequest();
+        if (request == null) {
+            return;
+        }
+
+        String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
+        if (authorization != null && !authorization.isBlank()) {
+            headers.set(HttpHeaders.AUTHORIZATION, authorization);
+        }
     }
 }

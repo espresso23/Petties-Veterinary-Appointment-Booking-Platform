@@ -229,3 +229,140 @@ def resolve_booking_datetime_inputs(
         "exact_time": resolved_exact_time,
         "time_preference": resolved_time_preference,
     }
+
+
+def parse_conditional_intent(
+    user_message: str,
+    transcript: Optional[str] = None,
+) -> Optional[Dict[str, any]]:
+    """Parse 'nếu...thì...' conditional intents from user message.
+
+    Returns dict with:
+        - condition_type: slot_available | clinic_confirmed | price_acceptable | etc.
+        - condition_details: parsed details about the condition
+        - action: create_booking | suggest_alternative | wait_for_confirmation
+        - raw_text: original conditional text
+    """
+    text = normalize_vietnamese_text(user_message)
+    if not text:
+        return None
+
+    conditional_patterns = [
+        (
+            r"neu\s+((con|co|dung|khong\s+day))\s+.*?thi\s+(tao|dat|giup)",
+            "slot_available",
+            "create_booking",
+        ),
+        (
+            r"neu\s+((phong\s+kham|clinic)[^,]*)\s+con\s+slot",
+            "slot_available",
+            "create_booking",
+        ),
+        (
+            r"neu\s+((ngay|gio|thoi\s+gian)[^,]*)\s+con\s+trong",
+            "slot_available",
+            "create_booking",
+        ),
+        (
+            r"neu\s+((phong\s+kham|clinic)[^,]*)\s+gan\s+nh[ao]t",
+            "nearest_clinic",
+            "auto_select",
+        ),
+        (r"neu\s+([^,]+)\s+th[ij]\s+([^,]+)", None, None),  # Generic pattern
+    ]
+
+    for pattern, condition_type, action in conditional_patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            condition_text = match.group(1) if match.lastindex >= 1 else ""
+            action_text = match.group(2) if match.lastindex >= 2 else ""
+
+            if condition_type == "slot_available" or action == "create_booking":
+                return {
+                    "condition_type": "slot_available",
+                    "action": "create_booking",
+                    "condition_details": {
+                        "check_slot": True,
+                        "preferred_time": action_text or None,
+                    },
+                    "raw_text": match.group(0),
+                }
+
+            if condition_type == "nearest_clinic" or "gan nhat" in condition_text:
+                return {
+                    "condition_type": "nearest_clinic",
+                    "action": "auto_select",
+                    "condition_details": {
+                        "auto_select_nearest": True,
+                    },
+                    "raw_text": match.group(0),
+                }
+
+    if "tao yeu cau" in text and ("dat lich" in text or "booking" in text):
+        if any(kw in text for kw in ["giup", "giup toi", "ho tan", "ban"]):
+            return {
+                "condition_type": "explicit_request",
+                "action": "create_booking",
+                "condition_details": {
+                    "user_confirmed": True,
+                    "auto_follow_up": True,
+                },
+                "raw_text": text,
+            }
+
+    return None
+
+
+def fuzzy_match_pet_name(
+    pet_name: str, pet_list: List[Dict[str, Any]]
+) -> Optional[Dict[str, Any]]:
+    """Fuzzy match pet name against list of user pets.
+
+    Returns the best matching pet dict or None if no good match.
+    Uses normalized Vietnamese text comparison.
+    """
+    if not pet_name or not pet_list:
+        return None
+
+    normalized_query = normalize_vietnamese_text(pet_name).lower().strip()
+    if not normalized_query:
+        return None
+
+    best_match = None
+    best_score = 0.0
+
+    for pet in pet_list:
+        pet_name_val = pet.get("name", "") or ""
+        normalized_pet_name = normalize_vietnamese_text(pet_name_val).lower().strip()
+
+        if not normalized_pet_name:
+            continue
+
+        score = 0.0
+
+        if normalized_pet_name == normalized_query:
+            score = 1.0
+        elif normalized_query in normalized_pet_name:
+            score = 0.8
+        elif normalized_pet_name in normalized_query:
+            score = 0.7
+        elif _fuzzy_token_match(normalized_query, normalized_pet_name):
+            score = 0.5
+
+        if score > best_score:
+            best_score = score
+            best_match = pet
+
+    return best_match if best_score >= 0.4 else None
+
+
+def _fuzzy_token_match(query: str, target: str) -> bool:
+    """Check if query tokens have high overlap with target."""
+    query_tokens = set(query.split())
+    target_tokens = set(target.split())
+
+    if not query_tokens or not target_tokens:
+        return False
+
+    overlap = len(query_tokens & target_tokens)
+    return overlap >= len(query_tokens) * 0.6

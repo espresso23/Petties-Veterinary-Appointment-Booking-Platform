@@ -38,20 +38,26 @@ class GeminiVisionAdapter:
                 image_descriptions=[],
                 top_conditions=[],
                 needs_more_data=True,
-                missing_information=["No image provided"],
+                missing_information=["Chưa có hình ảnh để phân tích"],
                 safety_notes=[
-                    "Vision analysis requires image input and does not replace clinical diagnosis."
+                    "Phân tích hình ảnh chỉ có giá trị hỗ trợ, không thay thế chẩn đoán lâm sàng."
                 ],
             )
 
         try:
             prompt = self._build_prompt(request)
+            logger.info(
+                f"Vision analyze: {len(request.image_urls)} images for request {request.request_id}"
+            )
             async with AsyncSessionLocal() as db:
                 llm_client = await get_llm_client_from_db(db)
             llm_response = await llm_client.generate(
                 prompt=prompt,
                 images=request.image_urls,
                 temperature=0.1,
+            )
+            logger.info(
+                f"Vision LLM response length: {len(llm_response.content)} chars, model: {llm_response.model}"
             )
             parsed = self._parse_response_content(llm_response.content)
             response = self._to_contract_response(request.request_id, parsed)
@@ -64,35 +70,38 @@ class GeminiVisionAdapter:
                 image_descriptions=[],
                 top_conditions=[],
                 needs_more_data=True,
-                missing_information=["Vision model response could not be parsed"],
+                missing_information=[
+                    "Không đọc được phản hồi từ mô hình phân tích ảnh"
+                ],
                 safety_notes=[
-                    "Vision output is unavailable. Please rely on internal KB and confirmed EMR."
+                    "Tạm thời không có kết quả từ mô hình ảnh. Hãy ưu tiên Knowledge Base nội bộ và EMR đã xác nhận."
                 ],
             )
 
     def _build_prompt(self, request: GeminiVisionDiagnosisRequest) -> str:
-        symptoms = ", ".join(request.clinical_context.symptoms) or "none"
+        symptoms = ", ".join(request.clinical_context.symptoms) or "không có"
         return (
-            "You are a veterinary image analysis assistant.\n"
-            "Task: analyze provided pet medical image(s) and suggest top related conditions.\n"
-            "Images are ordered exactly as uploaded. You must describe each image in the same order.\n"
-            "Do not provide final diagnosis certainty. Return JSON only.\n\n"
-            f"Species: {request.species.value}\n"
-            f"Body part: {request.body_part or 'unknown'}\n"
-            f"Doctor description: {request.doctor_description or 'none'}\n"
-            f"Symptoms: {symptoms}\n"
-            f"Duration: {request.clinical_context.duration or 'unknown'}\n"
-            f"Age months: {request.clinical_context.age_months or 'unknown'}\n"
-            f"Sex: {request.clinical_context.sex.value}\n\n"
-            "Return strict JSON with keys:\n"
+            "Bạn là trợ lý phân tích hình ảnh thú y cho bác sĩ.\n"
+            "Nhiệm vụ: phân tích các ảnh bệnh lý của thú cưng, mô tả dấu hiệu nhìn thấy và gợi ý các hướng bệnh liên quan nhất.\n"
+            "Ảnh được gửi theo đúng thứ tự upload, bạn phải mô tả đúng theo thứ tự đó.\n"
+            "Tất cả nội dung trong JSON phải bằng tiếng Việt rõ ràng, ngắn gọn, không dùng tiếng Anh trừ tên thuốc hoặc thuật ngữ y khoa quá phổ biến.\n"
+            "Không khẳng định chắc chắn chẩn đoán cuối cùng. Chỉ trả về JSON hợp lệ, không thêm markdown hay giải thích ngoài JSON.\n\n"
+            f"Loài: {request.species.value}\n"
+            f"Vùng nghi ngờ: {request.body_part or 'chưa rõ'}\n"
+            f"Mô tả bác sĩ: {request.doctor_description or 'chưa có'}\n"
+            f"Triệu chứng: {symptoms}\n"
+            f"Thời gian diễn tiến: {request.clinical_context.duration or 'chưa rõ'}\n"
+            f"Tuổi theo tháng: {request.clinical_context.age_months or 'chưa rõ'}\n"
+            f"Giới tính: {request.clinical_context.sex.value}\n\n"
+            "Trả về JSON nghiêm ngặt với các khóa:\n"
             "{\n"
             '  "visual_findings": ["..."],\n'
-            '  "image_descriptions": ["description for image 1", "description for image 2"],\n'
+            '  "image_descriptions": ["mô tả ảnh 1", "mô tả ảnh 2"],\n'
             '  "top_conditions": [\n'
             "    {\n"
-            '      "raw_label": "string",\n'
+            '      "raw_label": "tên bệnh hoặc hướng bệnh",\n'
             '      "confidence_score": 0.0,\n'
-            '      "reason": "string"\n'
+            '      "reason": "lý do ngắn gọn bằng tiếng Việt"\n'
             "    }\n"
             "  ],\n"
             '  "needs_more_data": true,\n'

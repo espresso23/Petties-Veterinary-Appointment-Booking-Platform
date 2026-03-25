@@ -15,6 +15,7 @@ from app.core.agents.text_utils import normalize_vietnamese_text
 from app.core.tool_runtime_context import (
     get_tool_runtime_context,
     require_tool_runtime_context,
+    get_booking_context_cache,
 )
 from app.core.tools.mcp_server import mcp_server
 from app.services.backend_client import BackendClientError, get_backend_client
@@ -36,17 +37,24 @@ def _normalize_booking_type(
     return "IN_CLINIC"
 
 
-def _require_auth_token() -> Optional[str]:
+class AuthenticationRequiredError(RuntimeError):
+    """Raised when JWT token is required but not available."""
+
+    pass
+
+
+def _require_auth_token() -> str:
+    """Yêu cầu JWT token - raise exception nếu không có token."""
     context = require_tool_runtime_context()
     if not context.auth_token:
-        logger.warning(
-            "JWT token not available for booking tools - using optional auth mode"
+        raise AuthenticationRequiredError(
+            "Yeu cau dang nhap de su dung chuc nang nay. Vui long dang nhap truoc."
         )
-        return None
     return context.auth_token
 
 
 def _get_optional_auth_token() -> Optional[str]:
+    """Lấy JWT token nếu có - không raise nếu không có."""
     context = get_tool_runtime_context()
     return context.auth_token if context else None
 
@@ -426,6 +434,19 @@ async def _resolve_clinic_reference(
             "auto_selected": False,
         }
 
+    cache = get_booking_context_cache()
+    cached = cache.get_clinic_resolution(normalized_ref)
+    if cached:
+        logger.info(f"Using cached clinic resolution for hint: {normalized_ref}")
+        return {
+            "clinic_id": cached.resolved_clinic_id,
+            "clinic_hint": normalized_ref,
+            "clinic": cached.resolved_clinic,
+            "clinics": cached.clinic_options,
+            "needs_clarification": cached.resolved_clinic is None,
+            "auto_selected": cached.resolved_clinic is not None,
+        }
+
     client = get_backend_client()
     context_snapshot = await _resolve_backend_booking_context(
         token=token,
@@ -499,6 +520,12 @@ async def _resolve_clinic_reference(
     clinics = _filter_clinics_by_hint(clinics, normalized_ref)
     resolved_clinic = _select_resolved_clinic(clinics, normalized_ref)
     if resolved_clinic:
+        cache.cache_clinic_resolution(
+            clinic_hint=normalized_ref,
+            resolved_clinic_id=str(resolved_clinic.get("id") or ""),
+            resolved_clinic=resolved_clinic,
+            clinic_options=clinics,
+        )
         return {
             "clinic_id": resolved_clinic.get("id"),
             "clinic_hint": normalized_ref,
@@ -508,6 +535,12 @@ async def _resolve_clinic_reference(
             "auto_selected": True,
         }
 
+    cache.cache_clinic_resolution(
+        clinic_hint=normalized_ref,
+        resolved_clinic_id="",
+        resolved_clinic=None,
+        clinic_options=clinics,
+    )
     return {
         "clinic_id": None,
         "clinic_hint": normalized_ref,
@@ -635,20 +668,46 @@ def _format_vaccination_record(record: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @mcp_server.tool
-async def get_user_pets(user_id: Optional[str] = None) -> Dict[str, Any]:
-    """Lay danh sach thu cung cua user hien tai de phuc vu booking flow."""
-    resolved_user_id = _resolve_user_id(user_id)
-    token = _require_auth_token()
-    client = get_backend_client()
+async def get_user_pets(
+    user_id: Optional[str] = None,
+    pet_hint: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Lấy danh sách thú cưng của user hiện tại.
 
-    if not token:
+    Sử dụng khi:
+    - User nói "thú cưng của tôi", "bé nhà tôi" mà chưa rõ tên cụ thể
+    - Cần xem thông tin pet để đặt lịch khám
+    - Cần lấy pet_id để truyền vào các tool booking khác
+
+    Params:
+        user_id: Override user ID (thường không cần truyền, lấy từ session)
+        pet_hint: Tên thú cưng để fuzzy match, trả về pet khớp nhất với tên
+
+    Examples:
+        get_user_pets()  # Lay tat ca thu cung cua user
+        get_user_pets(pet_hint="mèo")  # Tim thu cung co ten chua "mèo"
+
+    Returns:
+        pets: Danh sách thú cưng với pet_id, name, species, breed, age
+        total_pets: Tổng số thú cưng
+        resolved_pet_id: Nếu fuzzy match tìm được 1 kết quả, trả về pet_id đó
+        requires_auth: Có cần đăng nhập không
+    """
+    from app.core.agents.booking_context import fuzzy_match_pet_name
+
+    resolved_user_id = _resolve_user_id(user_id)
+    try:
+        token = _require_auth_token()
+    except AuthenticationRequiredError as e:
         return {
             "user_id": resolved_user_id,
             "pets": [],
             "total_pets": 0,
-            "message": "Chua dang nhap - khong the lay danh sach thu cung. Vui long dang nhap truoc.",
+            "message": str(e),
             "requires_auth": True,
         }
+
+    client = get_backend_client()
 
     try:
         pets = await client.get_user_pets(token, resolved_user_id)
@@ -674,6 +733,16 @@ async def get_user_pets(user_id: Optional[str] = None) -> Dict[str, Any]:
         for pet in pets
     ]
 
+    resolved_pet_id = None
+    matched_pet = None
+    if pet_hint and formatted_pets:
+        matched_pet = fuzzy_match_pet_name(pet_hint, formatted_pets)
+        if matched_pet:
+            resolved_pet_id = matched_pet.get("id")
+            logger.info(
+                f"fuzzy_match_pet_name: hint='{pet_hint}' matched to '{matched_pet.get('name')}' (id={resolved_pet_id})"
+            )
+
     if not formatted_pets:
         return {
             "user_id": resolved_user_id,
@@ -682,7 +751,7 @@ async def get_user_pets(user_id: Optional[str] = None) -> Dict[str, Any]:
             "message": "Ban chua co thu cung nao trong ho so.",
         }
 
-    return {
+    response = {
         "user_id": resolved_user_id,
         "pets": formatted_pets,
         "total_pets": len(formatted_pets),
@@ -691,6 +760,17 @@ async def get_user_pets(user_id: Optional[str] = None) -> Dict[str, Any]:
             "pets": formatted_pets,
         },
     }
+
+    if resolved_pet_id:
+        response["resolved_pet_id"] = resolved_pet_id
+        response["resolved_pet"] = matched_pet
+        response["pet_hint_used"] = pet_hint
+        response["message"] = (
+            f"Da tim thay thu cung '{matched_pet.get('name')}' phu hop voi '{pet_hint}'. "
+            f"Su dung pet_id={resolved_pet_id} de dat lich."
+        )
+
+    return response
 
 
 @mcp_server.tool
@@ -703,7 +783,34 @@ async def get_clinic_services(
     transcript: Optional[str] = None,
     latest_message: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Lay danh sach dich vu cua phong kham va resolve theo ngu canh neu co."""
+    """Lấy danh sách dịch vụ của phòng khám, có thể lọc theo loại thú cưng và hình thức khám.
+
+    Sử dụng khi:
+    - Đã biết phòng khám, cần xem có dịch vụ gì
+    - User muốn đặt dịch vụ cụ thể
+    - Muốn xem giá dịch vụ trước khi đặt lịch
+    - Cần xem dịch vụ tiêm chủng (có thể có nhiều dose/mũi)
+
+    Params:
+    - clinic_id: ID phòng khám (bắt buộc)
+    - pet_species: Lọc dịch vụ theo loại thú cưng (VD: "dog", "cat")
+    - is_home_visit: Chỉ lấy dịch vụ khám tại nhà
+    - service_hint: Lọc theo tên/nhóm dịch vụ (VD: "tiêm", "khám tổng quát")
+    - booking_type: Hình thức khám ("IN_CLINIC", "HOME_VISIT")
+
+    Examples:
+        get_clinic_services(clinic_id="xxx")
+        get_clinic_services(clinic_id="xxx", pet_species="dog")
+        get_clinic_services(clinic_id="xxx", service_hint="tiêm")
+        get_clinic_services(clinic_id="xxx", is_home_visit=True)
+
+    Returns:
+        services: Danh sách dịch vụ của phòng khám
+        matched_services: Dịch vụ khớp với hint
+        is_vaccination: Danh sách dịch vụ tiêm chủng (có thể có nhiều dose)
+        suggested_service_options: Gợi ý dịch vụ phù hợp
+        needs_clarification: Cần hỏi user để làm rõ thêm
+    """
     optional_token = _get_optional_auth_token()
     clinic_resolution = await _resolve_clinic_reference(
         clinic_ref=clinic_id,
@@ -846,10 +953,40 @@ async def check_vaccination_status(
     pet_id: str,
     vaccine_template_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Kiem tra lich su va lich tiem sap toi cua thu cung."""
+    """Kiểm tra lịch sử tiêm chủng và lịch tiêm nhắc của thú cưng.
+
+    Sử dụng khi:
+    - User hỏi về lịch sử tiêm phòng của thú cưng
+    - User muốn biết mũi tiếp theo là gì và khi nào cần tiêm
+    - User hỏi về tình trạng dị sợi (vaccination status)
+
+    Args:
+        pet_id: ID bắt buộc của thú cưng cần kiểm tra
+        vaccine_template_id: ID mẫu tiêm (tùy chọn), nếu truyền sẽ lọc theo loại vaccine cụ thể
+
+    Returns:
+        history: Danh sách các mũi đã tiêm (đã hoàn thành)
+        upcoming: Danh sách các mũi cần tiêm (chưa thực hiện)
+        total_history: Số mũi đã tiêm
+        total_upcoming: Số mũi sắp tới
+        requires_auth: Có cần đăng nhập không
+    """
     client = get_backend_client()
     try:
         token = _require_auth_token()
+    except AuthenticationRequiredError as e:
+        return {
+            "pet_id": pet_id,
+            "vaccine_template_id": vaccine_template_id,
+            "history": [],
+            "upcoming": [],
+            "total_history": 0,
+            "total_upcoming": 0,
+            "message": str(e),
+            "requires_auth": True,
+        }
+
+    try:
         history = await client.get_vaccinations_by_pet(token, pet_id)
         upcoming = await client.get_upcoming_vaccinations(token, pet_id)
     except BackendClientError as exc:
@@ -910,7 +1047,6 @@ async def search_clinics_nearby(
     top_k: int = 5,
     address: Optional[str] = None,
     clinic_hint: Optional[str] = None,
-    clinic_name_hint: Optional[str] = None,
     service_hint: Optional[str] = None,
     pet_id: Optional[str] = None,
     pet_species: Optional[str] = None,
@@ -918,10 +1054,42 @@ async def search_clinics_nearby(
     transcript: Optional[str] = None,
     latest_message: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Tim phong kham gan vi tri nguoi dung, co the uu tien theo ngu canh booking."""
+    """Tìm kiếm phòng khám thú y.
+
+    Sử dụng khi:
+    - User hỏi "tìm phòng khám", "phòng khám ở đâu"
+    - User muốn đặt lịch tại phòng khám cụ thể (truyền tên phòng khám bằng clinic_hint)
+    - User muốn tìm phòng khám gần vị trí hiện tại (truyền lat/lng)
+
+    Params quan trọng:
+    - clinic_hint: Tìm phòng khám theo TÊN. Không cần GPS. Tìm khắp nơi.
+    - latitude + longitude: Tìm phòng khám GẦN vị trí. Cần cả 2 giá trị.
+    - address: Tìm theo địa chỉ text (thay thế cho lat/lng)
+    - radius_km: Bán kính tìm (mặc định 5km)
+    - top_k: Số lượng kết quả trả về (mặc định 5)
+    - service_hint: Lọc phòng khám theo dịch vụ cung cấp
+    - pet_species: Lọc phòng khám theo loại thú cưng được phục vụ
+
+    Examples:
+        search_clinics_nearby(clinic_hint="PetCare")  # Tim theo ten
+        search_clinics_nearby(latitude=10.76, longitude=106.69)  # Tim gan vi tri
+        search_clinics_nearby(lat, lng, radius_km=10)  # Tim gan + ban kinh lon hon
+        search_clinics_nearby(address="Quận 1, TP.HCM")  # Tim theo dia chi text
+
+    Returns:
+        clinics: Danh sách phòng khám tìm được
+        matched_clinic: Phòng khám khớp với tên (nếu có)
+        total_found: Tổng số phòng khám tìm được
+        needs_clarification: Cần hỏi user để làm rõ thêm
+    """
+    logger.info(
+        f"search_clinics_nearby called: lat={latitude}, lng={longitude}, "
+        f"clinic_hint={clinic_hint}, address={address}, timezone=Asia/Ho_Chi_Minh"
+    )
+
     client = get_backend_client()
     optional_token = _get_optional_auth_token()
-    effective_clinic_hint = str(clinic_hint or clinic_name_hint or "").strip() or None
+    effective_clinic_hint = str(clinic_hint or "").strip() or None
 
     context_snapshot = await _resolve_backend_booking_context(
         token=optional_token,
@@ -1167,7 +1335,41 @@ async def check_available_slots(
     latest_message: Optional[str] = None,
     date_expression: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Kiem tra khung gio con trong cua phong kham."""
+    """Kiểm tra khung giờ trống của phòng khám để đặt lịch.
+
+    Sử dụng khi:
+    - Đã biết phòng khám, cần xem ngày nào có lịch trống
+    - Cần xem giờ nào còn trống trong ngày cụ thể
+
+    Params quan trọng:
+    - clinic_id: ID phòng khám (bắt buộc)
+    - date: Ngày chuẩn ISO (VD: "2026-03-25")
+    - date_expression: Ngày dạng text (VD: "thứ bảy này", "ngày 15", "cuối tuần")
+    - exact_time: Giờ chính xác (VD: "14:30")
+    - time_preference: Ưu tiên buổi (VD: "sáng", "chiều")
+    - service_ids: Lọc theo dịch vụ cụ thể
+    - pet_id: ID thú cưng (để resolve context)
+    - pet_species: Loại thú cưng ("dog", "cat")
+    - booking_type: Loại khám ("IN_CLINIC", "HOME_VISIT")
+
+    Examples:
+        check_available_slots(clinic_id="xxx", date="2026-03-25")
+        check_available_slots(clinic_id="xxx", date_expression="thứ bảy này")
+        check_available_slots(clinic_id="xxx", time_preference="sáng")
+        check_available_slots(clinic_id="xxx", service_ids=["svc1", "svc2"])
+
+    Returns:
+        slots: Danh sách khung giờ trống
+        recommended_slots: Các khung giờ được gợi ý
+        message: Thông báo trạng thái
+        needs_clarification: Cần hỏi user để làm rõ thêm
+    """
+    logger.info(
+        f"check_available_slots called: clinic_id={clinic_id}, date={date}, "
+        f"date_expression={date_expression}, exact_time={exact_time}, "
+        f"time_preference={time_preference}, resolved_date will use Asia/Ho_Chi_Minh timezone"
+    )
+
     client = get_backend_client()
     optional_token = _get_optional_auth_token()
     clinic_resolution = await _resolve_clinic_reference(
@@ -1195,6 +1397,8 @@ async def check_available_slots(
             "alternative_slots": [],
             "available_slots": [],
             "total_slots": 0,
+            "exact_match": False,
+            "preferred_unavailable": False,
             "needs_clarification": True,
             "next_best_action": "choose_clinic",
             "message": clinic_resolution.get("message")
@@ -1256,6 +1460,8 @@ async def check_available_slots(
             "alternative_slots": [],
             "available_slots": [],
             "total_slots": 0,
+            "exact_match": False,
+            "preferred_unavailable": False,
             "needs_clarification": True,
             "next_best_action": "provide_date",
             "message": "Minh chua xac dinh duoc ngay kham cu the. Ban co the noi theo dang nhu `thu bay nay`, `ngay mai` hoac `2026-03-21`.",
@@ -1274,6 +1480,8 @@ async def check_available_slots(
             "alternative_slots": [],
             "available_slots": [],
             "total_slots": 0,
+            "exact_match": False,
+            "preferred_unavailable": False,
             "needs_clarification": True,
             "next_best_action": "choose_service",
             "message": "Minh chua xac dinh duoc dich vu can kiem tra slot. Ban muon kham benh, tiem phong hay dich vu nao cho be?",
@@ -1307,6 +1515,8 @@ async def check_available_slots(
                 "services": normalized_service_ids,
                 "available_slots": [],
                 "total_slots": 0,
+                "exact_match": False,
+                "preferred_unavailable": False,
                 "message": f"Khong the kiem tra slot luc nay: {exc}",
                 "needs_clarification": False,
                 "next_best_action": "retry",
@@ -1325,6 +1535,8 @@ async def check_available_slots(
                 )
                 resolved_service_names = slot_response.get("resolvedServiceNames") or []
                 no_slots = not available_slots
+                has_alternatives = bool(alternative_slots)
+                preferred_unavailable = bool(not recommended_slots and has_alternatives)
                 return {
                     "clinic_id": clinic_id,
                     "resolved_clinic_id": resolved_clinic_id or clinic_id,
@@ -1341,10 +1553,13 @@ async def check_available_slots(
                         slot_response.get("totalAvailable") or len(available_slots)
                     ),
                     "exact_match": bool(slot_response.get("exactMatch")),
+                    "preferred_unavailable": preferred_unavailable,
                     "message": slot_response.get("message"),
                     "resolved_time_preference": resolved_time_preference,
                     "needs_clarification": no_slots,
-                    "next_best_action": "choose_another_time"
+                    "next_best_action": "choose_alternative"
+                    if preferred_unavailable
+                    else "choose_another_time"
                     if no_slots
                     else "select_slot",
                     "ui_card": {
@@ -1359,7 +1574,11 @@ async def check_available_slots(
                             slot_response.get("totalAvailable") or len(available_slots)
                         ),
                         "message": slot_response.get("message")
-                        or "Mình đã tìm được các khung giờ phù hợp. Bạn chọn một khung giờ để tiếp tục nhé.",
+                        or (
+                            "Không có slot đúng giờ bạn muốn. Đây là các khung giờ gần nhất bạn có thể chọn."
+                            if preferred_unavailable
+                            else "Mình đã tìm được các khung giờ phù hợp. Bạn chọn một khung giờ để tiếp tục nhé."
+                        ),
                     },
                 }
 
@@ -1476,6 +1695,7 @@ async def check_available_slots(
         else "Khong con slot phu hop trong ngay nay. Ban co the thu buoi khac hoac ngay khac gan nhat.",
         "resolved_time_preference": resolved_time_preference,
         "exact_match": bool(resolved_exact_time and formatted_slots),
+        "preferred_unavailable": False,
         "needs_clarification": not bool(formatted_slots),
         "next_best_action": "choose_another_time"
         if not formatted_slots
@@ -1511,6 +1731,7 @@ async def create_booking_for_user(
     distance_km: Optional[float] = None,
     user_id: Optional[str] = None,
     confirmed: bool = False,
+    auto_create_if_available: bool = False,
     date_expression: Optional[str] = None,
     time_preference: Optional[str] = None,
     transcript: Optional[str] = None,
@@ -1527,16 +1748,19 @@ async def create_booking_for_user(
             {"pet_id": "uuid1", "pet_hint": "bé mèo 1", "service_ids": ["svc1", "svc2"]},
             {"pet_id": "uuid2", "pet_hint": "bé mèo 2", "service_ids": ["svc1"]}
         ]
+
+    auto_create_if_available: When True, treats the request as user having conditionally
+    confirmed ("nếu còn slot thì tạo"). Backend will auto-create if slot is available.
     """
     resolved_user_id = _resolve_user_id(user_id)
-    token = _require_auth_token()
-
-    if not token:
+    try:
+        token = _require_auth_token()
+    except AuthenticationRequiredError as e:
         return {
             "success": False,
             "ready_to_create": False,
             "requires_auth": True,
-            "message": "Chua dang nhap - khong the tao booking. Vui long dang nhap truoc.",
+            "message": str(e),
         }
 
     client = get_backend_client()
@@ -1646,6 +1870,41 @@ async def create_booking_for_user(
             "needs_clarification": True,
             "next_best_action": "collect_missing_fields",
             "message": f"Chua the tao yeu cau booking vi con thieu: {', '.join(missing_fields)}.",
+        }
+
+    effective_confirmed = confirmed or auto_create_if_available
+    if not effective_confirmed:
+        return {
+            "success": False,
+            "ready_to_create": False,
+            "missing_fields": [],
+            "needs_clarification": True,
+            "next_best_action": "confirm_booking",
+            "message": "Minh da co du du lieu co ban nhung chua co xac nhan cuoi tu ban. Hay xac nhan ro rang truoc khi minh tao yeu cau booking.",
+            "booking_preview": {
+                "pet_id": pet_id,
+                "clinic_id": resolved_clinic_id or clinic_id,
+                "clinic_name": (clinic_resolution.get("clinic") or {}).get("name"),
+                "booking_date": resolved_booking_date,
+                "start_time": resolved_start_time,
+                "service_ids": normalized_service_ids,
+                "booking_type": normalized_booking_type,
+                "notes": notes,
+                "home_address": home_address,
+            },
+            "ui_card": {
+                "type": "booking_summary",
+                "pet_id": pet_id,
+                "clinic_id": resolved_clinic_id or clinic_id,
+                "clinic_name": (clinic_resolution.get("clinic") or {}).get("name"),
+                "booking_date": resolved_booking_date,
+                "start_time": resolved_start_time,
+                "service_ids": normalized_service_ids,
+                "booking_type": normalized_booking_type,
+                "notes": notes,
+                "home_address": home_address,
+                "message": "Mình đã tổng hợp đủ thông tin cơ bản. Bạn xác nhận để mình tạo yêu cầu đặt lịch nhé.",
+            },
         }
 
     if not confirmed:

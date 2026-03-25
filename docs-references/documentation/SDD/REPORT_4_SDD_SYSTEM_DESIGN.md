@@ -3,8 +3,8 @@
 > Update note dated 2026-03-17: older sections describing `analyze_pet_image`, Visual Case Memory from image feedback, Label Studio, or the previous feedback loop are no longer the deployed architecture. The current AI diagnosis technical reference is defined in [AI_SERVICE_TECHNICAL_SPECIFICATION.md](D:/SEP490/petties/docs-references/documentation/AI_SERVICE_TECHNICAL_SPECIFICATION.md) and [AI_DIAGNOSIS_FEATURE_PLAN.md](D:/SEP490/petties/docs-references/documentation/AI_DIAGNOSIS_FEATURE_PLAN.md).
 
 **Project:** Petties - Veterinary Appointment Booking Platform
-**Version:** 3.3.6 (Standardized AI booking documentation language and completion flow)
-**Last Updated:** 2026-03-20
+**Version:** 3.3.7 (Added Staff AI Chat Panel detailed design)
+**Last Updated:** 2026-03-24
 **Document Status:** In Progress
 
 ## TABLE OF CONTENTS
@@ -24,6 +24,7 @@
     - [4.2 User Profile Management](#42-user-profile-management)
     - [4.20 AI Tool Booking Orchestration APIs](#420-ai-tool-booking-orchestration-apis)
     - [4.21 Staff AI Diagnosis in EMR Workspace](#421-staff-ai-diagnosis-in-emr-workspace)
+    - [4.23 Staff AI Chat Panel](#423-staff-ai-chat-panel)
 ### 4.3 Staff and Scheduling Management
 
 This module covers clinic roster management and staff shift scheduling. The current design is centered around two controllers and two services: one pair manages clinic staff assignment by email and roster removal, while the other pair manages shift creation, schedule viewing, shift detail lookup, and shift deletion.
@@ -1984,7 +1985,6 @@ Alternative persisted paths: CANCELLED, NO_SHOW
 **Default Settings (seeded on init):**
 ```
 OPENROUTER_API_KEY, OPENROUTER_DEFAULT_MODEL, OPENROUTER_FALLBACK_MODEL
-DEEPSEEK_API_KEY, DEEPSEEK_MODEL, DEEPSEEK_BASE_URL
 COHERE_API_KEY, COHERE_EMBEDDING_MODEL
 QDRANT_URL, QDRANT_API_KEY, QDRANT_COLLECTION_NAME
 JWT_SECRET
@@ -4083,6 +4083,8 @@ sequenceDiagram
 
 #### 4.6.3 Create EMR (SOAP Notes) (EMR-2, UC-VT-06)
 
+Staff Create EMR now includes two read-only context blocks before completion of the SOAP flow: an `AI Health Summary` card backed by `PetHealthSummaryLLMService`, and an `EMR History Summary` panel showing the 3 most recent EMR records for the same pet. The health-summary endpoint remains shared with the existing pet health summary feature, but Staff access is restricted to pets already linked to the staff's current clinic through booking or EMR data.
+
 ```mermaid
 sequenceDiagram
     actor V as Staff
@@ -4092,45 +4094,73 @@ sequenceDiagram
     participant BR as BookingRepository
     participant PR as PetRepository
     participant EMRR as EMRRepository
+    participant AI as AI Service
     participant DB as Database
 
-    V->>UI: 1. Fill SOAP form (S, O, A, P + Weight)
+    V->>UI: 1. Open Create EMR screen
     activate UI
-    UI->>PC: 2. createEMR(bookingId, EMRRequest)
+    UI->>PC: 2. getHealthSummary(petId)
     activate PC
-    PC->>PS: 3. createEMR(bookingId, request)
+    PC->>PS: 3. getHealthSummary(petId)
+    activate PC
     activate PS
-    PS->>BR: 4. findById(bookingId)
-    activate BR
-    BR->>DB: 5. Query booking by ID
-    activate DB
-    DB-->>BR: 6. Booking Entity
-    deactivate DB
-    BR-->>PS: 7. Booking
-    deactivate BR
-    PS->>PS: 8. Validate status == IN_PROGRESS
-    PS->>PS: 9. Validate Staff is assigned
-    PS->>EMRR: 10. save(EMR: subjective, objective, assessment, plan)
+    PS->>PS: 4. Validate pet owner or staff clinic scope
+    PS->>EMRR: 5. findByPetIdOrderByCreatedAtDesc(petId)
     activate EMRR
-    EMRR->>DB: 11. Insert new EMR record
+    EMRR->>DB: 6. Query EMR history
     activate DB
-    DB-->>EMRR: 12. Inserted
+    DB-->>EMRR: 7. EMR list
     deactivate DB
-    EMRR-->>PS: 13. Saved EMR
+    EMRR-->>PS: 8. EMR list
     deactivate EMRR
-    PS->>PR: 14. updatePetWeight(petId, newWeight)
-    activate PR
-    PR->>DB: 15. Update pet weight
-    activate DB
-    DB-->>PR: 16. Updated
-    deactivate DB
-    PR-->>PS: 17. OK
-    deactivate PR
-    PS-->>PC: 18. EMRResponse
+    PS->>AI: 9. POST /pet-health-summary/synthesize
+    activate AI
+    AI-->>PS: 10. AI health summary payload
+    deactivate AI
+    PS-->>PC: 11. PetHealthSummaryResponse
     deactivate PS
-    PC-->>UI: 19. 201 Created
+    PC-->>UI: 12. 200 OK
     deactivate PC
-    UI-->>V: 20. Show success & update medical timeline
+    UI-->>V: 13. Show AI Health Summary + EMR History Summary
+    deactivate UI
+
+    V->>UI: 14. Fill SOAP form (S, O, A, P + Weight)
+    activate UI
+    UI->>PC: 15. createEMR(bookingId, EMRRequest)
+    activate PC
+    PC->>PS: 16. createEMR(bookingId, request)
+    activate PS
+    PS->>BR: 17. findById(bookingId)
+    activate BR
+    BR->>DB: 18. Query booking by ID
+    activate DB
+    DB-->>BR: 19. Booking Entity
+    deactivate DB
+    BR-->>PS: 20. Booking
+    deactivate BR
+    PS->>PS: 21. Validate status == IN_PROGRESS
+    PS->>PS: 22. Validate Staff is assigned
+    PS->>EMRR: 23. save(EMR: subjective, objective, assessment, plan)
+    activate EMRR
+    EMRR->>DB: 24. Insert new EMR record
+    activate DB
+    DB-->>EMRR: 25. Inserted
+    deactivate DB
+    EMRR-->>PS: 26. Saved EMR
+    deactivate EMRR
+    PS->>PR: 27. updatePetWeight(petId, newWeight)
+    activate PR
+    PR->>DB: 28. Update pet weight
+    activate DB
+    DB-->>PR: 29. Updated
+    deactivate DB
+    PR-->>PS: 30. OK
+    deactivate PR
+    PS-->>PC: 31. EMRResponse
+    deactivate PS
+    PC-->>UI: 32. 201 Created
+    deactivate PC
+    UI-->>V: 33. Show success & update medical timeline
     deactivate UI
 ```
 
@@ -9438,10 +9468,11 @@ classDiagram
 
 #### 4.21.3 Class Specifications
 
-> **⚠️ 2026-03-17 Update:** AI Diagnosis flow đã được cập nhật:
-> - Nguồn dữ liệu: EMR confirmed (thay thế thumbs up/down feedback)
-> - Case Memory: EMR-driven, không còn từ FeedbackService
-> - Xem [AI_DIAGNOSIS_FEATURE_PLAN.md](./AI_DIAGNOSIS_FEATURE_PLAN.md)
+> **⚠️ 2026-03-23 Update:** AI Diagnosis flow đã hoàn thành và production-ready:
+> - Nguồn dữ liệu: EMR confirmed (Case Memory), Knowledge Base, Knowledge Graph
+> - Case Memory: EMR-driven từ confirmed diagnoses
+> - Evidence display: `supporting_evidence_from_kb`, `similar_confirmed_cases`
+> - Technical documentation: [AI_DIAGNOSIS_COMPLETE.md](./AI_DIAGNOSIS_COMPLETE.md)
 
 **1. CreateEmrPage**
 - **Responsibility:** Trang staff nhập SOAP notes, ảnh lâm sàng và hiển thị panel AI chẩn đoán ngay cạnh form bệnh án.
@@ -9835,6 +9866,180 @@ classDiagram
     PetHealthSummaryService --> GetPetHealthSummaryTool
     PetHealthSummaryService --> EMRService
 ```
+
+### 4.23 Staff AI Chat Panel
+
+Module này mô tả chat panel thường dùng cho `STAFF` trên web. Mục tiêu là cho phép staff hỏi đáp nghiệp vụ hằng ngày bằng dữ liệu nội bộ của phòng khám, đồng thời tự nhận context bệnh nhân đang mở nếu panel được bật từ màn Create EMR.
+
+#### 4.23.1 Design Direction
+
+- **Primary use case:** Hỏi nhanh danh sách bệnh nhân, tóm tắt hồ sơ, lịch sử EMR và thông tin lâm sàng liên quan.
+- **Context-aware:** Khi đang ở Create EMR, panel tự đồng bộ `petId`, `bookingId`, SOAP draft và ảnh hiện tại.
+- **Transparent execution:** WebSocket stream hiển thị `thinking`, `tool_call`, `tool_result` dưới dạng tóm tắt an toàn cho staff.
+- **Grounded response:** Agent ưu tiên tool nội bộ và knowledge base nội bộ; không dùng `web_search` cho câu hỏi chẩn đoán dành cho staff.
+
+#### 4.23.2 Class Diagram
+
+```mermaid
+classDiagram
+    class ChatSidebar {
+        +createNewSession()
+        +selectSession(sessionId)
+        +handleSendMessage(message, images)
+        +renderTraceCards()
+    }
+
+    class AIChatStore {
+        +sessionId
+        +messages
+        +reactTraceByMessage
+        +emrDraft
+        +setEmrDraft(draft)
+        +updateLastMessage(content)
+        +appendReactStep(messageId, step)
+    }
+
+    class CreateEmrPage {
+        +syncEmrDraftToChatStore()
+        +openAiChatSidepanel()
+    }
+
+    class StaffChatAgent {
+        +run(messages, context)
+    }
+
+    class ContextPolicyService {
+        +getAllowedTools(role, context)
+        +buildSystemPrompt(...)
+    }
+
+    class MedicalTools {
+        +get_staff_patients(query_name, limit)
+        +get_patient_summary(pet_id)
+        +get_emr_history(pet_id, limit)
+    }
+
+    class SpringBackendClient {
+        +get_staff_patients(token, clinic_id, staff_id)
+        +get_pet(token, pet_id)
+        +get_pet_emr_history(token, pet_id)
+    }
+
+    class PetController {
+        +getStaffPatients(clinicId, staffId)
+        +getPet(id)
+    }
+
+    class EmrController {
+        +getEmrsByPetId(petId)
+    }
+
+    CreateEmrPage --> AIChatStore
+    ChatSidebar --> AIChatStore
+    ChatSidebar --> StaffChatAgent
+    StaffChatAgent --> ContextPolicyService
+    StaffChatAgent --> MedicalTools
+    MedicalTools --> SpringBackendClient
+    SpringBackendClient --> PetController
+    SpringBackendClient --> EmrController
+```
+
+#### 4.23.3 Class Specifications
+
+**1. `ChatSidebar`**
+- **Responsibility:** Render side panel chat cho staff, quản lý WebSocket session, hiển thị trace `thinking/tool/result`.
+- **Key Methods:** `createNewSession()`, `selectSession()`, `handleSendMessage()`, `renderTraceCards()`.
+
+**2. `AIChatStore`**
+- **Responsibility:** Lưu session hiện tại, message list, trace theo message và `emrDraft` nếu chat được mở từ Create EMR.
+- **Key Methods:** `setEmrDraft()`, `updateLastMessage()`, `appendReactStep()`, `clearMessages()`.
+
+**3. `CreateEmrPage`**
+- **Responsibility:** Đồng bộ context bệnh án hiện tại sang chat store để AI không phải hỏi lại dữ liệu đã có.
+- **Key Methods:** `syncEmrDraftToChatStore()`, `openAiChatSidepanel()`.
+
+**4. `StaffChatAgent`**
+- **Responsibility:** Xử lý hội thoại BUSINESS_CHAT cho role `STAFF`, quyết định khi nào dùng tool hồ sơ nội bộ hoặc knowledge base.
+- **Key Methods:** `run(messages, context)`.
+
+**5. `ContextPolicyService`**
+- **Responsibility:** Whitelist tool theo role/context; cho `STAFF` bật các tool `get_staff_patients`, `get_patient_summary`, `get_emr_history`.
+- **Key Methods:** `getAllowedTools()`, `buildSystemPrompt()`.
+
+**6. `MedicalTools`**
+- **Responsibility:** Đóng gói các tool MCP để tra cứu bệnh nhân và EMR thật từ Spring Boot.
+- **Key Methods:** `get_staff_patients()`, `get_patient_summary()`, `get_emr_history()`.
+
+**7. `SpringBackendClient`**
+- **Responsibility:** Gọi REST API từ AI service sang Spring Boot với JWT hiện tại để lấy dữ liệu đúng quyền.
+- **Key Methods:** `get_staff_patients()`, `get_pet()`, `get_pet_emr_history()`.
+
+**8. `PetController` / `EmrController`**
+- **Responsibility:** Expose dữ liệu bệnh nhân và EMR cho AI tools dùng lại qua backend client.
+
+#### 4.23.4 Sequence Diagram: Staff hỏi đáp hồ sơ bệnh nhân trong chat panel
+
+```mermaid
+sequenceDiagram
+    actor Staff
+    participant UI as ChatSidebar
+    participant Store as AIChatStore
+    participant WS as WebSocket Chat
+    participant Agent as StaffChatAgent
+    participant Policy as ContextPolicyService
+    participant Tool as MedicalTools
+    participant Backend as SpringBackendClient
+    participant PetAPI as PetController
+    participant EmrAPI as EmrController
+
+    Staff->>UI: Mở chat panel từ Create EMR
+    UI->>Store: setEmrDraft(petId, bookingId, soapDraft, images)
+    Staff->>UI: "Tóm tắt lịch sử EMR của bé này"
+    UI->>WS: send(message, sessionId, context)
+    WS->>Agent: run(BUSINESS_CHAT, role=STAFF)
+    Agent->>Policy: getAllowedTools(STAFF, BUSINESS_CHAT)
+    Policy-->>Agent: get_patient_summary, get_emr_history, ...
+    Agent-->>UI: thinking
+    Agent->>Tool: get_patient_summary(pet_id from context)
+    Tool->>Backend: get_pet(token, pet_id)
+    Backend->>PetAPI: GET /pets/{id}
+    PetAPI-->>Backend: pet info
+    Tool->>Backend: get_pet_emr_history(token, pet_id)
+    Backend->>EmrAPI: GET /emr/pet/{petId}
+    EmrAPI-->>Backend: emr list
+    Backend-->>Tool: combined data
+    Tool-->>Agent: patient summary payload
+    Agent-->>UI: tool_call
+    Agent-->>UI: tool_result
+    Agent-->>UI: final answer with react_trace
+    UI-->>Staff: Hiển thị tóm tắt hồ sơ + trace
+```
+
+#### 4.23.5 Sequence Diagram: Sidebar chat hoạt động như chat thường khi không có EMR context
+
+```mermaid
+sequenceDiagram
+    actor Staff
+    participant UI as ChatSidebar
+    participant WS as WebSocket Chat
+    participant Agent as StaffChatAgent
+    participant Tool as MedicalTools
+
+    Staff->>UI: Mở chat panel ở trang Staff Patients
+    Staff->>UI: "Tìm bệnh nhân tên Rocky"
+    UI->>WS: send(message)
+    Agent-->>UI: thinking
+    Agent->>Tool: get_staff_patients(query_name="Rocky")
+    Tool-->>Agent: matched patients
+    Agent-->>UI: tool_call
+    Agent-->>UI: tool_result
+    Agent-->>UI: final answer
+```
+
+#### 4.23.6 Cross-Reference to SRS
+
+- SRS section: `3.11.13 Staff AI Chat Panel cho hỏi đáp nghiệp vụ và hồ sơ bệnh nhân (UC-STAFF-12)`
+- Related section: `3.11.11 Hỗ trợ AI chẩn đoán trong không gian làm việc EMR (UC-STAFF-11)`
 
 #### 4.22.3 API Contracts
 

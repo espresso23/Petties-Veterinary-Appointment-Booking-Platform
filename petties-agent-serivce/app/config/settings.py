@@ -158,7 +158,7 @@ class Settings(BaseSettings):
 
     # ==================== AI/LLM Configuration ====================
     LLM_PROVIDER: str = Field(
-        default="openrouter", description="LLM provider: openrouter, deepseek"
+        default="openrouter", description="LLM provider: openrouter"
     )
 
     # ===== OpenRouter (RECOMMENDED - Cloud API) =====
@@ -172,19 +172,6 @@ class Settings(BaseSettings):
     OPENROUTER_FALLBACK_MODEL: str = Field(
         default="meta-llama/llama-3.3-70b-instruct",
         description="Fallback model when primary fails",
-    )
-
-    # ===== DeepSeek (FALLBACK - Cloud API) =====
-    DEEPSEEK_API_KEY: str = Field(
-        default="",
-        description="DeepSeek API Key (https://platform.deepseek.com/api_keys)",
-    )
-    DEEPSEEK_BASE_URL: str = Field(
-        default="https://api.deepseek.com", description="DeepSeek API base URL"
-    )
-    DEEPSEEK_MODEL: str = Field(
-        default="deepseek-chat",
-        description="DeepSeek model (deepseek-chat, deepseek-coder)",
     )
 
     # ===== Cohere Embeddings (RECOMMENDED) =====

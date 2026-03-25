@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'dart:typed_data';
 import '../models/emr.dart';
 import 'api_client.dart';
 
@@ -81,6 +82,23 @@ class EmrService {
         data: formData,
       );
       
+      return response.data['url'];
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<String> uploadImageBytes(Uint8List bytes, {String fileName = 'emr-image.jpg'}) async {
+    try {
+      final formData = FormData.fromMap({
+        'file': MultipartFile.fromBytes(bytes, filename: fileName),
+      });
+
+      final response = await _apiClient.post(
+        '/emr/upload-image',
+        data: formData,
+      );
+
       return response.data['url'];
     } catch (e) {
       rethrow;

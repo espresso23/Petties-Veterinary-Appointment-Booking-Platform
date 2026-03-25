@@ -33,6 +33,10 @@ from app.api.websocket.chat_constants import (
     WS_REASON_SESSION_FORBIDDEN,
 )
 from app.core.agents.factory import AgentFactory
+from app.core.agents.thinking_formatter import (
+    format_thinking_for_stream,
+    get_thinking_summary,
+)
 from app.core.chat_context import (
     BUSINESS_CHAT,
     PLAYGROUND_TEST,
@@ -591,6 +595,7 @@ async def _setup_agent(
     session_id: str,
     db_session: Any,
     user: CurrentUser,
+    auth_token: Optional[str],
     agent_id: Optional[int],
     provider_override: Optional[str],
     model_override: Optional[str],
@@ -642,7 +647,7 @@ async def _setup_agent(
         ToolRuntimeContext(
             user_id=user.user_id,
             role=user.role,
-            auth_token=None,
+            auth_token=auth_token,
             clinic_id=user.clinic_id,
             session_id=session_id,
             context_type=session_context,
@@ -740,15 +745,59 @@ async def _stream_and_collect(
                 step = event.get("step", {})
                 ws_message = map_react_step_to_message(step, step_index)
                 safe_step = dict(step) if isinstance(step, dict) else {}
-                if safe_step.get("step_type") == "thought":
-                    safe_step["content"] = ""
-                react_trace.append({"step_index": step_index, **safe_step})
-                await manager.send_message(session_id, ws_message)
 
-                if (
-                    str(safe_step.get("step_type") or "").strip().lower()
-                    == "observation"
-                ):
+                # Stream thinking in real-time for better UX
+                step_type = str(safe_step.get("step_type") or "").strip().lower()
+
+                if step_type == "thought":
+                    # Stream thought content directly
+                    thought_content = safe_step.get("content", "")
+                    if thought_content:
+                        # Send thinking_stream event for real-time display
+                        await manager.send_message(
+                            session_id,
+                            {
+                                "type": "thinking_stream",
+                                "content": thought_content,
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                            },
+                        )
+                    # Keep empty content in react_trace for backward compatibility
+                    safe_step["content"] = ""
+
+                elif step_type == "action":
+                    # Stream tool call info
+                    tool_name = safe_step.get("tool_name", "")
+                    tool_params = safe_step.get("tool_params", {})
+                    thinking_texts = format_thinking_for_stream([safe_step])
+                    for text in thinking_texts:
+                        await manager.send_message(
+                            session_id,
+                            {
+                                "type": "thinking_stream",
+                                "content": text,
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                            },
+                        )
+
+                elif step_type == "observation":
+                    # Stream observation summary
+                    observation_content = safe_step.get("content", "")
+                    if observation_content:
+                        # Truncate long observations for display
+                        display_content = observation_content[:200]
+                        if len(observation_content) > 200:
+                            display_content += "..."
+                        await manager.send_message(
+                            session_id,
+                            {
+                                "type": "thinking_stream",
+                                "content": f"📋 {display_content}",
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                            },
+                        )
+
+                    # Also send UI card if available
                     ui_payload = extract_ui_card(safe_step)
                     if ui_payload:
                         ui_type = ui_payload.get("type")
@@ -761,6 +810,9 @@ async def _stream_and_collect(
                                     "timestamp": datetime.now(timezone.utc).isoformat(),
                                 },
                             )
+
+                react_trace.append({"step_index": step_index, **safe_step})
+                await manager.send_message(session_id, ws_message)
                 step_index += 1
 
             elif event_type == "token":
@@ -943,6 +995,7 @@ async def handle_chat_message(
                     session_id,
                     db,
                     user,
+                    auth_token,
                     parsed.agent_id,
                     parsed.provider_override,
                     parsed.model_override,

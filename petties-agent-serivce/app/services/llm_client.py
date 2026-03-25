@@ -1,14 +1,13 @@
 """
 PETTIES AGENT SERVICE - LLM Client Wrapper
-Unified interface cho OpenRouter va DeepSeek
+Unified interface cho OpenRouter
 
 Package: app.services
 Purpose: Abstract LLM calls voi support cho streaming
-Version: v1.2.0 (Removed Ollama & OpenAI - OpenRouter + DeepSeek only)
+Version: v1.3.0 (OpenRouter only)
 
 Supported Providers:
 - OpenRouter (RECOMMENDED): Cloud API voi multi-model routing
-- DeepSeek: Cloud API fallback
 
 OpenRouter Models:
 - google/gemini-2.5-flash-lite (1M context, FREE)
@@ -35,7 +34,7 @@ from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 class LLMConfig(BaseModel):
     """Configuration cho LLM client"""
 
-    provider: str = "openrouter"  # openrouter | deepseek | openai
+    provider: str = "openrouter"  # openrouter
     model: str = "google/gemini-2.5-flash-lite"  # Default: Free Gemini
     fallback_model: str = "meta-llama/llama-3.3-70b-instruct"  # Fallback model
     temperature: float = 0.7
@@ -103,7 +102,7 @@ class OpenRouterClient(BaseLLMClient):
     - Google Gemini (free tier available)
     - Meta Llama 3.3
     - Anthropic Claude
-    - Mistral, DeepSeek, Qwen, etc.
+    - Mistral, Qwen, etc.
 
     Usage:
         ```python
@@ -426,214 +425,6 @@ class OpenRouterClient(BaseLLMClient):
 
 
 # ============================================================
-# DEEPSEEK CLIENT (FALLBACK)
-# ============================================================
-
-
-class DeepSeekClient(BaseLLMClient):
-    """
-    DeepSeek LLM Client (Cloud API)
-
-    DeepSeek provides high-quality LLM with excellent Vietnamese support.
-    API is compatible with OpenAI format.
-
-    Models:
-        - deepseek-chat: General conversation (recommended)
-        - deepseek-coder: Code generation
-
-    Usage:
-        ```python
-        client = DeepSeekClient(LLMConfig(
-            api_key="sk-...",
-            model="deepseek-chat",
-            base_url="https://api.deepseek.com"
-        ))
-        response = await client.generate("Xin chào!")
-        ```
-
-    Reference: https://platform.deepseek.com/api-docs
-    """
-
-    DEFAULT_BASE_URL = "https://api.deepseek.com"
-
-    def __init__(self, config: LLMConfig):
-        super().__init__(config)
-
-        if not config.api_key:
-            raise ValueError("DeepSeek API key is required")
-
-        self.api_key = config.api_key
-        self.model = config.model or "deepseek-chat"
-        self.base_url = config.base_url or self.DEFAULT_BASE_URL
-
-        self.client = httpx.AsyncClient(
-            base_url=self.base_url,
-            timeout=120.0,
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-        )
-
-        logger.info(f"DeepSeekClient initialized: {self.model} @ {self.base_url}")
-
-    async def generate(
-        self, prompt: str, system_prompt: Optional[str] = None, **kwargs
-    ) -> LLMResponse:
-        """Generate response from DeepSeek"""
-        logger.debug(f"Generating with DeepSeek {self.model}: {prompt[:50]}...")
-
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
-
-        payload = {
-            "model": kwargs.get("model", self.model),
-            "messages": messages,
-            "temperature": kwargs.get("temperature", self.config.temperature),
-            "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
-            "top_p": kwargs.get("top_p", self.config.top_p),
-        }
-
-        try:
-            response = await self.client.post("/v1/chat/completions", json=payload)
-            response.raise_for_status()
-            data = response.json()
-
-            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-            usage = data.get("usage", {})
-
-            return LLMResponse(
-                content=content,
-                model=data.get("model", self.model),
-                usage={
-                    "prompt_tokens": usage.get("prompt_tokens", 0),
-                    "completion_tokens": usage.get("completion_tokens", 0),
-                    "total_tokens": usage.get("total_tokens", 0),
-                },
-                finish_reason=data.get("choices", [{}])[0].get("finish_reason", "stop"),
-            )
-
-        except httpx.HTTPStatusError as e:
-            logger.error(
-                f"DeepSeek HTTP error: {e.response.status_code} - {e.response.text}"
-            )
-            raise
-
-        except httpx.HTTPError as e:
-            logger.error(f"DeepSeek HTTP error: {e}")
-            raise
-
-    async def stream(
-        self, prompt: str, system_prompt: Optional[str] = None, **kwargs
-    ) -> AsyncIterator[str]:
-        """Stream response tokens from DeepSeek"""
-        logger.debug(f"Streaming with DeepSeek {self.model}: {prompt[:50]}...")
-
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
-
-        payload = {
-            "model": kwargs.get("model", self.model),
-            "messages": messages,
-            "temperature": kwargs.get("temperature", self.config.temperature),
-            "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
-            "top_p": kwargs.get("top_p", self.config.top_p),
-            "stream": True,
-        }
-
-        try:
-            async with self.client.stream(
-                "POST", "/v1/chat/completions", json=payload
-            ) as response:
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    if line.startswith("data: "):
-                        data_str = line[6:]  # Remove "data: " prefix
-                        if data_str.strip() == "[DONE]":
-                            break
-                        try:
-                            data = json.loads(data_str)
-                            delta = data.get("choices", [{}])[0].get("delta", {})
-                            content = delta.get("content", "")
-                            if content:
-                                yield content
-                        except json.JSONDecodeError:
-                            continue
-
-        except httpx.HTTPError as e:
-            logger.error(f"DeepSeek stream error: {e}")
-            raise
-
-    async def chat(
-        self,
-        messages: List[Dict[str, str]],
-        system_prompt: Optional[str] = None,
-        **kwargs,
-    ) -> LLMResponse:
-        """Chat with full message history"""
-        formatted_messages = []
-
-        if system_prompt:
-            formatted_messages.append({"role": "system", "content": system_prompt})
-
-        for msg in messages:
-            formatted_messages.append(
-                {"role": msg.get("role", "user"), "content": msg.get("content", "")}
-            )
-
-        payload = {
-            "model": kwargs.get("model", self.model),
-            "messages": formatted_messages,
-            "temperature": kwargs.get("temperature", self.config.temperature),
-            "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
-            "top_p": kwargs.get("top_p", self.config.top_p),
-        }
-
-        try:
-            response = await self.client.post("/v1/chat/completions", json=payload)
-            response.raise_for_status()
-            data = response.json()
-
-            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-            usage = data.get("usage", {})
-
-            return LLMResponse(
-                content=content,
-                model=data.get("model", self.model),
-                usage={
-                    "prompt_tokens": usage.get("prompt_tokens", 0),
-                    "completion_tokens": usage.get("completion_tokens", 0),
-                    "total_tokens": usage.get("total_tokens", 0),
-                },
-                finish_reason=data.get("choices", [{}])[0].get("finish_reason", "stop"),
-            )
-
-        except httpx.HTTPError as e:
-            logger.error(f"DeepSeek chat error: {e}")
-            raise
-
-    async def close(self):
-        """Close HTTP client"""
-        await self.client.aclose()
-
-    async def test_connection(self) -> Dict[str, Any]:
-        """Test DeepSeek connection"""
-        try:
-            response = await self.generate(prompt="Hello", max_tokens=5)
-            return {
-                "status": "success",
-                "model": self.model,
-                "response_length": len(response.content),
-            }
-        except Exception as e:
-            return {"status": "error", "message": str(e)}
-
-
-# ============================================================
 # FACTORY FUNCTIONS
 # ============================================================
 
@@ -646,12 +437,11 @@ def create_llm_client(config: Optional[LLMConfig] = None) -> BaseLLMClient:
         config: LLMConfig (optional, will load from settings if None)
 
     Returns:
-        LLM client instance (OpenRouterClient or DeepSeekClient)
+        LLM client instance (OpenRouterClient)
     """
     from app.config.settings import settings
 
     if config is None:
-        # Default to OpenRouter
         config = LLMConfig(
             provider="openrouter",
             model=getattr(settings, "OPENROUTER_MODEL", "google/gemini-2.5-flash-lite"),
@@ -664,12 +454,8 @@ def create_llm_client(config: Optional[LLMConfig] = None) -> BaseLLMClient:
 
     if provider == "openrouter":
         return OpenRouterClient(config)
-    elif provider == "deepseek":
-        return DeepSeekClient(config)
     else:
-        raise ValueError(
-            f"Unknown LLM provider: {provider}. Supported: openrouter, deepseek"
-        )
+        raise ValueError(f"Unknown LLM provider: {provider}. Supported: openrouter")
 
 
 async def create_llm_client_from_db(
@@ -682,75 +468,47 @@ async def create_llm_client_from_db(
 
     Args:
         db_session: Async DB session to load settings from SystemSettings table
-        provider_override: Override provider selection ("openrouter" | "deepseek")
+        provider_override: Override provider selection ("openrouter")
         model_override: Override model selection
 
     Returns:
-        LLM client instance (OpenRouterClient or DeepSeekClient)
+        LLM client instance (OpenRouterClient)
     """
     from app.api.routes.settings import get_setting
 
-    # Determine provider: override > default (openrouter)
     provider = (provider_override or "openrouter").lower()
     logger.info(
         f"Creating LLM client: provider={provider}, model_override={model_override}"
     )
 
-    # === DeepSeek Provider ===
-    if provider == "deepseek":
-        deepseek_api_key = await get_setting("DEEPSEEK_API_KEY", db_session)
+    openrouter_api_key = await get_setting("OPENROUTER_API_KEY", db_session)
 
-        if not deepseek_api_key:
-            logger.warning("DeepSeek API key not found, falling back to OpenRouter")
-            provider = "openrouter"
-        else:
-            model = (
-                model_override
-                or await get_setting("DEEPSEEK_MODEL", db_session)
-                or "deepseek-chat"
-            )
-            config = LLMConfig(
-                provider="deepseek",
-                model=model,
-                api_key=deepseek_api_key,
-                base_url="https://api.deepseek.com",
-                temperature=0.7,
-                max_tokens=2000,
-            )
-            logger.info(f"Using DeepSeek: model={model}")
-            return DeepSeekClient(config)
+    if not openrouter_api_key:
+        raise ValueError(
+            "Không tìm thấy OPENROUTER_API_KEY. "
+            "Vui lòng cấu hình OPENROUTER_API_KEY trong Settings."
+        )
 
-    # === OpenRouter Provider (default) ===
-    if provider == "openrouter":
-        openrouter_api_key = await get_setting("OPENROUTER_API_KEY", db_session)
-
-        if openrouter_api_key:
-            model = (
-                model_override
-                or await get_setting("OPENROUTER_DEFAULT_MODEL", db_session)
-                or "google/gemini-2.5-flash-lite"
-            )
-            fallback_model = (
-                await get_setting("OPENROUTER_FALLBACK_MODEL", db_session)
-                or "meta-llama/llama-3.3-70b-instruct"
-            )
-
-            config = LLMConfig(
-                provider="openrouter",
-                model=model,
-                fallback_model=fallback_model,
-                api_key=openrouter_api_key,
-                temperature=0.7,
-                max_tokens=2000,
-            )
-            logger.info(f"Using OpenRouter: model={model}")
-            return OpenRouterClient(config)
-
-    # === No cloud API keys found ===
-    raise ValueError(
-        "Không tìm thấy API key cho bất kỳ LLM provider nào. "
-        "Vui lòng cấu hình OPENROUTER_API_KEY hoặc DEEPSEEK_API_KEY trong Settings."
+    model = (
+        model_override
+        or await get_setting("OPENROUTER_DEFAULT_MODEL", db_session)
+        or "google/gemini-2.5-flash-lite"
     )
+    fallback_model = (
+        await get_setting("OPENROUTER_FALLBACK_MODEL", db_session)
+        or "meta-llama/llama-3.3-70b-instruct"
+    )
+
+    config = LLMConfig(
+        provider="openrouter",
+        model=model,
+        fallback_model=fallback_model,
+        api_key=openrouter_api_key,
+        temperature=0.7,
+        max_tokens=2000,
+    )
+    logger.info(f"Using OpenRouter: model={model}")
+    return OpenRouterClient(config)
 
 
 # ============================================================
@@ -846,7 +604,6 @@ __all__ = [
     "LLMResponse",
     "BaseLLMClient",
     "OpenRouterClient",
-    "DeepSeekClient",
     "create_llm_client",
     "create_llm_client_from_db",
     "get_llm_client",

@@ -68,6 +68,7 @@ class EmrCaseMemorySyncService:
         case_id = f"emr:{emr_record.get('emr_id', '')}".strip()
         search_text = self._build_search_text(emr_record, mapping_result)
         image_urls = self._extract_image_urls(emr_record)
+        image_descriptions = self._extract_image_descriptions(emr_record)
         protocol_pattern = self._extract_protocol_pattern(emr_record, mapping_result)
 
         payload = {
@@ -95,6 +96,7 @@ class EmrCaseMemorySyncService:
             "exam_at": emr_record.get("exam_at"),
             "synced_at": datetime.now(timezone.utc).isoformat(),
             "protocol_pattern": protocol_pattern,
+            "image_descriptions": image_descriptions,
         }
 
         result_case_id = await get_case_memory_service().upsert_case(
@@ -180,6 +182,20 @@ class EmrCaseMemorySyncService:
             if value.startswith("http://") or value.startswith("https://"):
                 clean_urls.append(value)
         return clean_urls
+
+    def _extract_image_descriptions(self, emr_record: Dict[str, Any]) -> List[str]:
+        attachments = emr_record.get("attachments", {}) or {}
+        if not isinstance(attachments, dict):
+            return []
+
+        descriptions = attachments.get("image_descriptions", []) or []
+        if not isinstance(descriptions, list):
+            return []
+
+        return [
+            item.strip() if isinstance(item, str) else ""
+            for item in descriptions
+        ]
 
     def _extract_protocol_pattern(
         self,

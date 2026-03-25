@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../../config/constants/app_colors.dart';
+import '../../../data/models/diagnosis.dart';
 import '../../../data/models/emr.dart';
 import '../../../data/models/pet.dart';
 import '../../../data/services/emr_service.dart';
@@ -54,6 +55,7 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
 
   List<Prescription> _prescriptions = [];
   List<EmrImage> _images = [];
+  final Map<String, TextEditingController> _imageDescriptionControllers = {};
   bool _isSubmitting = false;
   bool _isEditingPrescription = false;
 
@@ -146,6 +148,9 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
 
       // Images
       _images = List.from(emr.images);
+      for (final image in _images) {
+        _getImageDescriptionController(image);
+      }
 
       // Client-side lock check (backup for backend timezone issues)
       final now = DateTime.now();
@@ -210,29 +215,190 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
       initialObjective: _objectiveController.text.isNotEmpty ? _objectiveController.text : null,
       initialAssessment: _assessmentController.text.isNotEmpty ? _assessmentController.text : null,
       initialPlan: _planController.text.isNotEmpty ? _planController.text : null,
-      onApplyDraft: (draft) {
-        setState(() {
-          if (draft.subjectiveDraft.isNotEmpty) {
-            _subjectiveController.text = draft.subjectiveDraft;
-          }
-          if (draft.objectiveDraft.isNotEmpty) {
-            _objectiveController.text = draft.objectiveDraft;
-          }
-          if (draft.assessmentDraft.isNotEmpty) {
-            _assessmentController.text = draft.assessmentDraft;
-          }
-          if (draft.planDraft.isNotEmpty) {
-            _planController.text = draft.planDraft;
-          }
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã áp dụng gợi ý từ AI vào form'),
-            backgroundColor: AppColors.success,
-          ),
-        );
+      imageUrls: _images.map((image) => image.url).toList(),
+      onApplyDiagnosis: (result, diagnosisImageUrls) {
+        _applyDiagnosisResult(result, diagnosisImageUrls);
       },
     );
+  }
+
+  void _applyDiagnosisResult(
+    StaffDiagnosisResponse result,
+    List<String> diagnosisImageUrls,
+  ) {
+    final addedPrescriptions =
+        _mergePrescriptionSuggestions(result.prescriptionSuggestions);
+    final addedImages =
+        _mergeDiagnosisImages(diagnosisImageUrls, result.imageAnalysis);
+
+    setState(() {
+      if (result.soapSuggestions.subjectiveDraft.isNotEmpty) {
+        _subjectiveController.text = result.soapSuggestions.subjectiveDraft;
+      }
+      if (result.soapSuggestions.objectiveDraft.isNotEmpty) {
+        _objectiveController.text = result.soapSuggestions.objectiveDraft;
+      }
+      if (result.soapSuggestions.assessmentDraft.isNotEmpty) {
+        _assessmentController.text = result.soapSuggestions.assessmentDraft;
+      }
+      if (result.soapSuggestions.planDraft.isNotEmpty) {
+        _planController.text = result.soapSuggestions.planDraft;
+      }
+    });
+
+    final snackParts = <String>['Đã áp dụng gợi ý AI vào bệnh án'];
+    if (addedPrescriptions > 0) {
+      snackParts.add('thêm $addedPrescriptions đơn thuốc');
+    }
+    if (addedImages > 0) {
+      snackParts.add('thêm $addedImages hình ảnh');
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(snackParts.join(', ')),
+        backgroundColor: AppColors.success,
+      ),
+    );
+  }
+
+  int _mergePrescriptionSuggestions(
+    List<StaffDiagnosisPrescriptionSuggestion> suggestions,
+  ) {
+    var added = 0;
+    final existingKeys = _prescriptions
+        .map((item) => item.medicineName.trim().toLowerCase())
+        .where((item) => item.isNotEmpty)
+        .toSet();
+
+    for (final suggestion in suggestions) {
+      final medicineName = suggestion.medicineName.trim();
+      if (medicineName.isEmpty) {
+        continue;
+      }
+
+      final key = medicineName.toLowerCase();
+      if (existingKeys.contains(key)) {
+        continue;
+      }
+
+      _prescriptions.add(
+        Prescription(
+          medicineName: medicineName,
+          dosage: suggestion.dosage.isEmpty ? null : suggestion.dosage,
+          frequency: suggestion.frequency,
+          durationDays: suggestion.durationDays,
+          instructions:
+              suggestion.instructions.isEmpty ? null : suggestion.instructions,
+        ),
+      );
+      existingKeys.add(key);
+      added++;
+    }
+
+    return added;
+  }
+
+  int _mergeDiagnosisImages(
+    List<String> diagnosisImageUrls,
+    List<ImageAnalysisResult> imageAnalysis,
+  ) {
+    var added = 0;
+    final descriptionsByUrl = {
+      for (final item in imageAnalysis)
+        item.url:
+            item.description.trim().isEmpty ? null : item.description.trim(),
+    };
+
+    for (final imageUrl in diagnosisImageUrls) {
+      final existingIndex = _images.indexWhere((image) => image.url == imageUrl);
+      final aiDescription = descriptionsByUrl[imageUrl];
+
+      if (existingIndex >= 0) {
+        final current = _images[existingIndex];
+        final nextDescription = (current.description?.trim().isNotEmpty ?? false)
+            ? current.description
+            : aiDescription;
+        _images[existingIndex] = EmrImage(
+          url: current.url,
+          description: nextDescription,
+        );
+        _getImageDescriptionController(_images[existingIndex]).text =
+            nextDescription ?? '';
+        continue;
+      }
+
+      final image = EmrImage(url: imageUrl, description: aiDescription);
+      _images.add(image);
+      _getImageDescriptionController(image).text = aiDescription ?? '';
+      added++;
+    }
+
+    return added;
+  }
+
+  bool _isDataUrl(String value) {
+    return value.startsWith('data:');
+  }
+
+  Future<List<EmrImage>> _prepareImagesForSubmit() async {
+    final prepared = <EmrImage>[];
+
+    for (var index = 0; index < _images.length; index++) {
+      final image = _images[index];
+      final description = _getImageDescriptionController(image).text.trim();
+      var finalUrl = image.url;
+
+      if (_isDataUrl(image.url)) {
+        final bytes = Uri.parse(image.url).data?.contentAsBytes();
+        if (bytes == null) {
+          throw Exception('Không thể đọc dữ liệu ảnh tạm để tải lên.');
+        }
+        finalUrl = await _emrService.uploadImageBytes(
+          bytes,
+          fileName: 'emr-image-${DateTime.now().millisecondsSinceEpoch}-$index.jpg',
+        );
+      }
+
+      prepared.add(
+        EmrImage(
+          url: finalUrl,
+          description: description.isEmpty ? null : description,
+        ),
+      );
+    }
+
+    setState(() {
+      _images
+        ..clear()
+        ..addAll(prepared);
+      for (final image in prepared) {
+        _getImageDescriptionController(image).text = image.description ?? '';
+      }
+    });
+
+    return prepared;
+  }
+
+  ImageProvider _buildImageProvider(String source) {
+    if (_isDataUrl(source)) {
+      final bytes = Uri.parse(source).data?.contentAsBytes();
+      if (bytes != null) {
+        return MemoryImage(bytes);
+      }
+    }
+    return NetworkImage(source);
+  }
+
+  TextEditingController _getImageDescriptionController(EmrImage image) {
+    return _imageDescriptionControllers.putIfAbsent(
+      image.url,
+      () => TextEditingController(text: image.description ?? ''),
+    );
+  }
+
+  void _disposeImageDescriptionController(String url) {
+    _imageDescriptionControllers.remove(url)?.dispose();
   }
 
   Future<void> _handleSubmit() async {
@@ -241,6 +407,7 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
     setState(() => _isSubmitting = true);
 
     try {
+      final imagesForSubmit = await _prepareImagesForSubmit();
       final request = CreateEmrRequest(
         petId: _originalEmr!.petId,
         subjective: _subjectiveController.text.isEmpty
@@ -256,7 +423,7 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
         temperatureC: double.tryParse(_temperatureController.text),
         heartRate: int.tryParse(_heartRateController.text),
         prescriptions: _prescriptions.isEmpty ? null : _prescriptions,
-        images: _images.isEmpty ? null : _images,
+        images: imagesForSubmit.isEmpty ? null : imagesForSubmit,
         reExaminationDate: _enableReExam ? _reExaminationDate : null,
         notes: _notesController.text.isEmpty ? null : _notesController.text,
       );
@@ -435,6 +602,9 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
     _notesController.dispose();
     _reExamAmountController.dispose();
     _allergiesController.dispose();
+    for (final controller in _imageDescriptionControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -1840,7 +2010,7 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(8),
                             image: DecorationImage(
-                              image: NetworkImage(img.url),
+                              image: _buildImageProvider(img.url),
                               fit: BoxFit.contain,
                             ),
                             color: AppColors.stone200,
@@ -1853,7 +2023,10 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
                         right: 4,
                         child: GestureDetector(
                           onTap: () {
-                            setState(() => _images.removeAt(index));
+                            setState(() {
+                              _disposeImageDescriptionController(img.url);
+                              _images.removeAt(index);
+                            });
                           },
                           child: Container(
                             padding: const EdgeInsets.all(4),
@@ -1870,7 +2043,7 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
                   ),
                   const SizedBox(height: 4),
                   TextField(
-                    controller: TextEditingController(text: img.description),
+                    controller: _getImageDescriptionController(img),
                     decoration: const InputDecoration(
                       hintText: 'Mô tả hình ảnh...',
                       isDense: true,
@@ -1880,9 +2053,7 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
                     ),
                     style: const TextStyle(fontSize: 11),
                     onChanged: (value) {
-                      // Directly update the object in the list
-                      _images[index] =
-                          EmrImage(url: img.url, description: value);
+                      _images[index] = EmrImage(url: img.url, description: value);
                     },
                   ),
                 ],
@@ -1983,8 +2154,10 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
     setState(() => _isSubmitting = true);
     try {
       final url = await _emrService.uploadImage(file.path);
+      final image = EmrImage(url: url);
+      _getImageDescriptionController(image);
       setState(() {
-        _images.add(EmrImage(url: url));
+        _images.add(image);
         _isSubmitting = false;
       });
     } catch (e) {
@@ -2010,7 +2183,9 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
               panEnabled: true,
               minScale: 0.5,
               maxScale: 4,
-              child: Image.network(img.url),
+              child: Image(
+                image: _buildImageProvider(img.url),
+              ),
             ),
             Positioned(
               top: 40,

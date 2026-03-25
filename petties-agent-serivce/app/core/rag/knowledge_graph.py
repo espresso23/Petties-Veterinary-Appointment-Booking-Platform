@@ -40,8 +40,11 @@ from app.db.postgres.session import AsyncSessionLocal
 # CONSTANTS
 # ============================================================
 
-MAX_TRIPLETS_PER_CHUNK = 10
+MAX_TRIPLETS_PER_CHUNK = 50
 """Số triplets tối đa được extract từ mỗi text chunk."""
+
+MAX_TOTAL_TRIPLETS = 1000
+"""Số triplets tối đa tổng cộng được extract sau deduplication."""
 
 KG_PERSIST_DIR = "./data/knowledge_graph"
 """Thư mục lưu trữ graph store lên đĩa."""
@@ -187,7 +190,9 @@ class KnowledgeGraphService:
                 )
 
             self._initialized = True
-            logger.info("KnowledgeGraphService initialized successfully (MongoDB backend)")
+            logger.info(
+                "KnowledgeGraphService initialized successfully (MongoDB backend)"
+            )
 
     # ----------------------------------------------------------
     # Public API
@@ -244,6 +249,7 @@ class KnowledgeGraphService:
 
             from app.core.database.mongodb import get_mongodb_database
             from app.config.settings import settings
+
             db_mongo = await get_mongodb_database()
             kg_collection = db_mongo[settings.MONGODB_KG_TRIPLETS_COLLECTION]
 
@@ -284,13 +290,13 @@ class KnowledgeGraphService:
 
                 # Deduplication: MongoDB unique index will handle it, but we can compute hash
                 triplet_hash = self._get_triplet_hash(subj_clean, pred_clean, obj_clean)
-                
+
                 doc_record = {
                     "subject": subj_clean,
                     "predicate": pred_clean,
                     "object": obj_clean,
                     "source": "documents",
-                    "triplet_hash": triplet_hash
+                    "triplet_hash": triplet_hash,
                 }
 
                 try:
@@ -298,10 +304,10 @@ class KnowledgeGraphService:
                         {
                             "subject": subj_clean,
                             "predicate": pred_clean,
-                            "object": obj_clean
+                            "object": obj_clean,
                         },
                         {"$setOnInsert": doc_record},
-                        upsert=True
+                        upsert=True,
                     )
                     saved_count += 1
                 except Exception as e:
@@ -324,7 +330,10 @@ class KnowledgeGraphService:
             return 0
 
     async def _extract_triplets_with_llm(
-        self, text: str, openrouter_key: str, max_triplets: int = 10
+        self,
+        text: str,
+        openrouter_key: str,
+        max_triplets_per_chunk: int = MAX_TRIPLETS_PER_CHUNK,
     ) -> List[Tuple[str, str, str]]:
         """
         Trích xuất triplets từ text bằng LLM qua OpenRouter API.
@@ -332,7 +341,7 @@ class KnowledgeGraphService:
         Args:
             text: Văn bản cần extract
             openrouter_key: API key cho OpenRouter
-            max_triplets: Số triplets tối đa
+            max_triplets_per_chunk: Số triplets tối đa mỗi chunk
 
         Returns:
             List of (subject, predicate, object) tuples
@@ -431,8 +440,15 @@ Ví dụ output:
                 logger.warning(f"Error extracting triplets from chunk: {e}")
                 continue
 
-        # Loại bỏ duplicates
+        # Loại bỏ duplicates và tôn trọng giới hạn caller truyền vào
+        max_triplets = max(
+            1,
+            min(int(max_triplets_per_chunk or MAX_TOTAL_TRIPLETS), MAX_TOTAL_TRIPLETS),
+        )
         unique_triplets = list(set(all_triplets))[:max_triplets]
+        logger.info(
+            f"Extracted {len(all_triplets)} triplets before dedup, {len(unique_triplets)} after dedup"
+        )
         return unique_triplets
 
     def _parse_triplets_json(self, raw: str) -> List[Any]:
@@ -706,7 +722,7 @@ Ví dụ output:
                     "predicate": pred_clean,
                     "object": obj_clean,
                     "source": "text_auto_update",
-                    "triplet_hash": triplet_hash
+                    "triplet_hash": triplet_hash,
                 }
 
                 # Upsert into MongoDB
@@ -714,15 +730,17 @@ Ví dụ output:
                     {
                         "subject": subj_clean,
                         "predicate": pred_clean,
-                        "object": obj_clean
+                        "object": obj_clean,
                     },
                     {"$setOnInsert": doc_record},
-                    upsert=True
+                    upsert=True,
                 )
                 if res.upserted_id:
                     added_count += 1
             except Exception as e:
-                logger.warning(f"Error adding triplet ({subj_clean}, {pred_clean}, {obj_clean}): {e}")
+                logger.warning(
+                    f"Error adding triplet ({subj_clean}, {pred_clean}, {obj_clean}): {e}"
+                )
 
         if added_count > 0:
             logger.info(
@@ -760,7 +778,7 @@ Ví dụ output:
             "triplet_count": triplet_count,
             "entity_count": len(all_entities),
             "relation_types": sorted(list(predicates)),
-            "relation_type_count": len(predicates)
+            "relation_type_count": len(predicates),
         }
 
     async def reset_knowledge_graph(self) -> Dict[str, Any]:
@@ -777,6 +795,7 @@ Ví dụ output:
         try:
             from app.core.database.mongodb import get_mongodb_database
             from app.config.settings import settings
+
             db_mongo = await get_mongodb_database()
             kg_collection = db_mongo[settings.MONGODB_KG_TRIPLETS_COLLECTION]
             await kg_collection.delete_many({})
@@ -802,8 +821,11 @@ Ví dụ output:
         try:
             from app.core.database.mongodb import get_mongodb_database
             from app.config.settings import settings
+
             db_mongo = await get_mongodb_database()
-            return await db_mongo[settings.MONGODB_KG_TRIPLETS_COLLECTION].count_documents({})
+            return await db_mongo[
+                settings.MONGODB_KG_TRIPLETS_COLLECTION
+            ].count_documents({})
         except Exception:
             return 0
 
@@ -813,11 +835,16 @@ Ví dụ output:
         try:
             from app.core.database.mongodb import get_mongodb_database
             from app.config.settings import settings
+
             db_mongo = await get_mongodb_database()
-            cursor = db_mongo[settings.MONGODB_KG_TRIPLETS_COLLECTION].find({}, {"subject": 1, "predicate": 1, "object": 1, "_id": 0})
+            cursor = db_mongo[settings.MONGODB_KG_TRIPLETS_COLLECTION].find(
+                {}, {"subject": 1, "predicate": 1, "object": 1, "_id": 0}
+            )
             docs = await cursor.to_list(length=None)
             for d in docs:
-                triplets.append((d.get("subject", ""), d.get("predicate", ""), d.get("object", "")))
+                triplets.append(
+                    (d.get("subject", ""), d.get("predicate", ""), d.get("object", ""))
+                )
         except Exception as e:
             logger.warning(f"Failed to fetch triplets from MongoDB: {e}")
         return triplets

@@ -169,14 +169,26 @@ def _deduplicate_scored_results(results: List[Dict[str, Any]]) -> List[Dict[str,
     return deduped
 
 
-def _get_tavily_client() -> Optional["TavilyClientType"]:
-    """Get Tavily client if API key is available."""
+async def _get_tavily_client(db=None) -> Optional["TavilyClientType"]:
+    """Get Tavily client with DB-first priority, fallback to env."""
     if not TAVILY_AVAILABLE:
         return None
 
-    api_key = settings.TAVILY_API_KEY
+    api_key = None
+
+    if db:
+        try:
+            from app.core.config_helper import get_setting
+
+            api_key = await get_setting("TAVILY_API_KEY", db)
+        except Exception as e:
+            logger.warning(f"Failed to get TAVILY_API_KEY from DB: {e}")
+
     if not api_key:
-        logger.warning("TAVILY_API_KEY not configured")
+        api_key = settings.TAVILY_API_KEY
+
+    if not api_key:
+        logger.warning("TAVILY_API_KEY not configured (DB + env)")
         return None
 
     from tavily import TavilyClient
@@ -184,19 +196,22 @@ def _get_tavily_client() -> Optional["TavilyClientType"]:
     return TavilyClient(api_key=api_key)
 
 
-def _perform_tavily_search(query: str, max_results: int) -> List[Dict[str, Any]]:
-    """Perform web search using Tavily API."""
+async def _perform_tavily_search(
+    query: str, max_results: int, db=None
+) -> List[Dict[str, Any]]:
+    """Perform web search using Tavily API with DB-first priority."""
     search_query = _build_search_query(query)
     logger.info(f"web_search: Tavily query = '{search_query}'")
 
-    client = _get_tavily_client()
+    client = await _get_tavily_client(db)
 
     if not client:
         logger.warning("web_search: Tavily not available, returning empty results")
         return []
 
     try:
-        response = client.search(
+        response = await asyncio.to_thread(
+            client.search,
             query=search_query,
             max_results=max(max_results, 8),
             include_answer=False,
@@ -256,9 +271,6 @@ def _perform_tavily_search(query: str, max_results: int) -> List[Dict[str, Any]]
         return []
 
 
-# ===== COMMON TOOLS =====
-
-
 @mcp_server.tool
 async def web_search(
     query: str,
@@ -298,10 +310,13 @@ async def web_search(
         }
 
     try:
-        results = await asyncio.wait_for(
-            asyncio.to_thread(_perform_tavily_search, query, effective_max_results),
-            timeout=20.0,
-        )
+        from app.db.postgres.session import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as session:
+            results = await asyncio.wait_for(
+                _perform_tavily_search(query, effective_max_results, session),
+                timeout=20.0,
+            )
 
         logger.info(
             f"web_search: Found {len(results)} results for query: {query[:50]}..."

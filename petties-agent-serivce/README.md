@@ -5,7 +5,7 @@
 ```
 Version: v2.0.0 (Full LlamaIndex RAG)
 Status:  ✅ Single Agent + Full LlamaIndex Integration
-Stack:   Python 3.12 | FastAPI | LangGraph | LlamaIndex | PostgreSQL | Qdrant Cloud | OpenRouter/DeepSeek | Cohere
+Stack:   Python 3.12 | FastAPI | LangGraph | LlamaIndex | PostgreSQL | Qdrant Cloud | OpenRouter | Cohere
 ```
 
 ---
@@ -297,7 +297,7 @@ petties-agent-serivce/
 │   │       └── session.py      # Async session
 │   │
 │   └── services/               # Services
-│       └── llm_client.py       # OpenRouter/DeepSeek client wrapper
+│       └── llm_client.py       # OpenRouter client wrapper
 │
 ├── scripts/
 │   └── seed_db.py              # ⭐ Database seeding (loads templates → DB)
@@ -482,8 +482,8 @@ Response:
 
 | Component | Technology | Purpose |
 |-----------|------------|---------|
-| **LLM Provider** | **OpenRouter API / DeepSeek** | ⭐ Gateway đến nhiều LLM providers (Cloud) |
-| **Primary Models** | **gemini-2.5-flash-lite, deepseek-chat** | ⭐ Stable tier + Vietnamese support |
+| **LLM Provider** | **OpenRouter API** | ⭐ Gateway đến nhiều LLM providers (Cloud) |
+| **Primary Models** | **gemini-2.5-flash-lite, llama-3.3-70b** | ⭐ Stable tier + Vietnamese support |
 | **Fallback** | **llama-3.3-70b** | Best quality khi cần |
 | **Embeddings** | **Cohere embed-multilingual-v3** | ⭐ Best for Vietnamese (Cloud API) |
 | **RAG Framework** | **LlamaIndex (Full)** | ⭐ Document processing, chunking, retrieval |

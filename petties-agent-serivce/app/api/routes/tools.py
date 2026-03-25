@@ -16,12 +16,10 @@ from loguru import logger
 from app.api.schemas.tool_schemas import (
     ExecuteToolRequest,
     ExecuteToolResponse,
-    AssignToolToAgentRequest,
     EnableToolRequest,
     ToolResponse,
     ToolListResponse,
     ScanToolsResponse,
-    ErrorResponse
 )
 from app.core.tools.scanner import ToolScanner
 from app.api.middleware.auth import get_admin_user
@@ -41,7 +39,7 @@ router = APIRouter(prefix="/tools", tags=["Tools"], dependencies=[Depends(get_ad
     summary="[TL-02] Scan FastMCP code-based tools",
     description="Scan FastMCP server and sync code-based tools to database"
 )
-async def scan_code_tools(db: AsyncSession = Depends(get_db)):
+async def scan_code_tools():
     """
     TL-02: Scan FastMCP code-based tools
 
@@ -84,7 +82,6 @@ async def scan_code_tools(db: AsyncSession = Depends(get_db)):
 )
 async def get_tools(
     enabled: Optional[bool] = Query(None, description="Filter by enabled status"),
-    agent_name: Optional[str] = Query(None, description="Filter by assigned agent"),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -92,7 +89,6 @@ async def get_tools(
 
     Query params:
         - enabled: true / false
-        - agent_name: booking_agent / medical_agent / research_agent
     """
     try:
         query = select(Tool)
@@ -100,9 +96,6 @@ async def get_tools(
         # Apply filters
         if enabled is not None:
             query = query.where(Tool.enabled == enabled)
-
-        if agent_name:
-            query = query.where(Tool.assigned_agents.contains([agent_name]))
 
         result = await db.execute(query)
         tools = result.scalars().all()
@@ -112,7 +105,6 @@ async def get_tools(
             tools=[ToolResponse.model_validate(tool) for tool in tools],
             filters={
                 "enabled": enabled,
-                "agent_name": agent_name
             }
         )
 
@@ -196,105 +188,6 @@ async def toggle_tool_enabled(
         raise
     except Exception as e:
         logger.error(f"Error toggling tool: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post(
-    "/{tool_id}/assign",
-    summary="Assign tool to agent",
-    description="Assign tool to agent (Admin flow)"
-)
-async def assign_tool_to_agent(
-    tool_id: int,
-    request: AssignToolToAgentRequest,
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Assign tool to agent
-
-    Body:
-        {
-            "agent_name": "booking_agent"
-        }
-    """
-    try:
-        result = await db.execute(
-            select(Tool).where(Tool.id == tool_id)
-        )
-        tool = result.scalar_one_or_none()
-
-        if not tool:
-            raise HTTPException(status_code=404, detail=f"Tool {tool_id} not found")
-
-        # Validate agent_name exists
-        from app.db.postgres.models import Agent
-        agent_result = await db.execute(select(Agent).where(Agent.name == request.agent_name))
-        if not agent_result.scalar_one_or_none():
-            raise HTTPException(status_code=404, detail=f"Agent '{request.agent_name}' not found")
-
-        # Add agent to assigned_agents if not already assigned
-        assigned_agents = tool.assigned_agents or []
-        if request.agent_name not in assigned_agents:
-            assigned_agents.append(request.agent_name)
-            tool.assigned_agents = assigned_agents
-            await db.commit()
-
-        return {
-            "success": True,
-            "message": f"Tool assigned to {request.agent_name}",
-            "tool_id": tool_id,
-            "tool_name": tool.name,
-            "assigned_agents": tool.assigned_agents
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error assigning tool: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.delete(
-    "/{tool_id}/unassign/{agent_name}",
-    summary="Unassign tool from agent",
-    description="Remove tool assignment from agent"
-)
-async def unassign_tool_from_agent(
-    tool_id: int,
-    agent_name: str,
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Unassign tool from agent
-    """
-    try:
-        result = await db.execute(
-            select(Tool).where(Tool.id == tool_id)
-        )
-        tool = result.scalar_one_or_none()
-
-        if not tool:
-            raise HTTPException(status_code=404, detail=f"Tool {tool_id} not found")
-
-        # Remove agent from assigned_agents
-        assigned_agents = tool.assigned_agents or []
-        if agent_name in assigned_agents:
-            assigned_agents.remove(agent_name)
-            tool.assigned_agents = assigned_agents
-            await db.commit()
-
-        return {
-            "success": True,
-            "message": f"Tool unassigned from {agent_name}",
-            "tool_id": tool_id,
-            "tool_name": tool.name,
-            "assigned_agents": tool.assigned_agents
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error unassigning tool: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

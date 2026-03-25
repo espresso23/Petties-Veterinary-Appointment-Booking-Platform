@@ -21,6 +21,7 @@ class AiDiagnosisSheet {
     List<String>? imageUrls,
     void Function(StaffDiagnosisResponse?)? onDiagnosisResult,
     void Function(SoapSuggestions)? onApplyDraft,
+    void Function(StaffDiagnosisResponse, List<String>)? onApplyDiagnosis,
   }) {
     return showModalBottomSheet(
       context: context,
@@ -61,6 +62,7 @@ class AiDiagnosisSheet {
                         imageUrls: imageUrls,
                         onDiagnosisResult: onDiagnosisResult,
                         onApplyDraft: onApplyDraft,
+                        onApplyDiagnosis: onApplyDiagnosis,
                       ),
                     ),
                   ),

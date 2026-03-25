@@ -14,7 +14,8 @@ import {
   EyeIcon,
   EyeSlashIcon,
   ExclamationTriangleIcon,
-  PhotoIcon
+  PhotoIcon,
+  MagnifyingGlassIcon
 } from '@heroicons/react/24/outline'
 import { useToast } from '../../../components/Toast'
 import { useAuthStore } from '../../../store/authStore'
@@ -59,6 +60,11 @@ export const KnowledgePage = () => {
   const [showJinaKey, setShowJinaKey] = useState(false)
   const [savingJina, setSavingJina] = useState(false)
   const [testingJina, setTestingJina] = useState(false)
+  // Web Search - Tavily
+  const [tavilyApiKey, setTavilyApiKey] = useState('')
+  const [showTavilyKey, setShowTavilyKey] = useState(false)
+  const [savingTavily, setSavingTavily] = useState(false)
+  const [testingTavily, setTestingTavily] = useState(false)
 
   const getAuthHeaders = (): Record<string, string> => {
     const token = useAuthStore.getState().accessToken
@@ -78,11 +84,13 @@ export const KnowledgePage = () => {
         const qdrantUrlSetting = settings.find(s => s.key === 'QDRANT_URL')
         const qdrantKeySetting = settings.find(s => s.key === 'QDRANT_API_KEY')
         const jina = settings.find(s => s.key === 'JINA_API_KEY')
+        const tavily = settings.find(s => s.key === 'TAVILY_API_KEY')
 
         if (cohere?.value) setCohereApiKey(cohere.value)
         if (qdrantUrlSetting?.value) setQdrantUrl(qdrantUrlSetting.value)
         if (qdrantKeySetting?.value) setQdrantApiKey(qdrantKeySetting.value)
         if (jina?.value) setJinaApiKey(jina.value)
+        if (tavily?.value) setTavilyApiKey(tavily.value)
       } else {
         console.error('Failed to fetch settings:', response.status)
       }
@@ -220,6 +228,38 @@ export const KnowledgePage = () => {
       showToast('error', 'Không thể kiểm tra kết nối Jina')
     } finally {
       setTestingJina(false)
+    }
+  }
+
+  const handleSaveTavily = async () => {
+    try {
+      setSavingTavily(true)
+      await saveSetting('TAVILY_API_KEY', tavilyApiKey)
+      showToast('success', 'Đã lưu Tavily API key thành công!')
+    } catch {
+      showToast('error', 'Không thể lưu Tavily API key')
+    } finally {
+      setSavingTavily(false)
+    }
+  }
+
+  const handleTestTavily = async () => {
+    try {
+      setTestingTavily(true)
+      const response = await fetch(`${AI_API_BASE_URL}/api/v1/settings/test-tavily`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      })
+      const result = await response.json()
+      if (result.status === 'success') {
+        showToast('success', 'Kết nối Tavily thành công!')
+      } else {
+        showToast('error', result.message || 'Kết nối Tavily thất bại')
+      }
+    } catch {
+      showToast('error', 'Không thể kiểm tra kết nối Tavily')
+    } finally {
+      setTestingTavily(false)
     }
   }
 
@@ -480,6 +520,63 @@ export const KnowledgePage = () => {
                   className="flex-1 px-4 py-2 bg-blue-500 text-white border-4 border-black font-black uppercase text-sm hover:bg-blue-600 disabled:opacity-50 shadow-[4px_4px_0_#1c1917] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all cursor-pointer"
                 >
                   {savingQdrant ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Tavily Web Search Config */}
+          <div className="bg-white border-4 border-black shadow-[8px_8px_0_#1c1917] p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-orange-100 border-2 border-black">
+                <MagnifyingGlassIcon className="w-6 h-6 text-orange-700" />
+              </div>
+              <div>
+                <h2 className="text-lg font-black uppercase">WEB SEARCH (TAVILY)</h2>
+                <p className="text-xs text-stone-600 uppercase">tavily.com</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-black uppercase text-stone-700 mb-2">API KEY</label>
+                <div className="relative">
+                  <input
+                    type={showTavilyKey ? 'text' : 'password'}
+                    value={tavilyApiKey}
+                    onChange={(e) => setTavilyApiKey(e.target.value)}
+                    placeholder="Nhập Tavily API key"
+                    className="w-full px-4 py-3 border-4 border-black font-mono text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowTavilyKey(!showTavilyKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-500 hover:text-stone-700 cursor-pointer"
+                  >
+                    {showTavilyKey ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handleTestTavily}
+                  disabled={testingTavily || !tavilyApiKey}
+                  className="flex-1 px-4 py-2 bg-orange-100 border-4 border-black font-black uppercase text-sm text-stone-900 hover:bg-orange-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                >
+                  {testingTavily ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                      Đang kiểm tra...
+                    </span>
+                  ) : 'Test kết nối'}
+                </button>
+                <button
+                  onClick={handleSaveTavily}
+                  disabled={savingTavily}
+                  className="flex-1 px-4 py-2 bg-orange-500 text-white border-4 border-black font-black uppercase text-sm hover:bg-orange-600 disabled:opacity-50 shadow-[4px_4px_0_#1c1917] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all cursor-pointer"
+                >
+                  {savingTavily ? 'Đang lưu...' : 'Lưu'}
                 </button>
               </div>
             </div>

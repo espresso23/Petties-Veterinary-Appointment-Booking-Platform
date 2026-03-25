@@ -27,7 +27,6 @@ class AgentConfig:
     max_tokens: int
     top_p: float
     model: str
-    system_prompt: Optional[str]
     enabled: bool
 
 
@@ -127,7 +126,6 @@ class AgentConfigLoader:
                             if agent.top_p is not None
                             else cls.DEFAULT_TOP_P,
                             model=agent.model or cls.DEFAULT_MODEL,
-                            system_prompt=agent.system_prompt,
                             enabled=agent.enabled,
                         )
                         logger.info(
@@ -160,7 +158,6 @@ class AgentConfigLoader:
             max_tokens=cls.DEFAULT_MAX_TOKENS,
             top_p=cls.DEFAULT_TOP_P,
             model=cls.DEFAULT_MODEL,
-            system_prompt=None,  # Will use DEFAULT_SYSTEM_PROMPT
             enabled=True,
         )
 
@@ -170,10 +167,10 @@ class AgentConfigLoader:
         Get system prompt for the agent.
 
         Returns:
-            System prompt from DB, or default if not set
+            Hardcoded default system prompt
         """
-        config = await cls.get_config(agent_name)
-        return config.system_prompt or cls.DEFAULT_SYSTEM_PROMPT
+        _ = agent_name
+        return cls.DEFAULT_SYSTEM_PROMPT
 
     @classmethod
     async def get_temperature(cls, agent_name: str = "petties_agent") -> float:

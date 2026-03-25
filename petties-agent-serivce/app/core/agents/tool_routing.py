@@ -12,17 +12,24 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, Iterable, List, Optional
 import re
+import logging
 
-from app.core.agents.booking_context import resolve_booking_datetime_inputs
+from app.core.agents.booking_context import (
+    parse_conditional_intent,
+    resolve_booking_datetime_inputs,
+)
 from app.core.agents.booking_flow import BOOKING_TOOL_NAMES
 from app.core.agents.text_utils import (
     extract_all_user_messages,
     extract_latest_user_message,
 )
+from app.core.tool_runtime_context import get_booking_context_cache
+
+logger = logging.getLogger(__name__)
 
 
 BOOKING_TOOL_PARAM_ALLOWLIST: Dict[str, set[str]] = {
-    "get_user_pets": {"user_id"},
+    "get_user_pets": {"user_id", "pet_hint"},
     "get_clinic_services": {
         "clinic_id",
         "pet_species",
@@ -39,7 +46,6 @@ BOOKING_TOOL_PARAM_ALLOWLIST: Dict[str, set[str]] = {
         "top_k",
         "address",
         "clinic_hint",
-        "clinic_name_hint",
         "service_hint",
         "pet_id",
         "pet_species",
@@ -67,6 +73,7 @@ BOOKING_TOOL_PARAM_ALLOWLIST: Dict[str, set[str]] = {
         "booking_date",
         "start_time",
         "service_ids",
+        "items",
         "booking_type",
         "notes",
         "home_address",
@@ -75,6 +82,7 @@ BOOKING_TOOL_PARAM_ALLOWLIST: Dict[str, set[str]] = {
         "distance_km",
         "user_id",
         "confirmed",
+        "auto_create_if_available",
         "date_expression",
         "time_preference",
         "transcript",
@@ -137,8 +145,12 @@ def _extract_runtime_location(context: str) -> Dict[str, Any]:
 
     location: Dict[str, Any] = {}
 
-    lat_match = re.search(r"latitude\s*=\s*([+-]?\d+(?:\.\d+)?)", context, re.IGNORECASE)
-    lng_match = re.search(r"longitude\s*=\s*([+-]?\d+(?:\.\d+)?)", context, re.IGNORECASE)
+    lat_match = re.search(
+        r"latitude\s*=\s*([+-]?\d+(?:\.\d+)?)", context, re.IGNORECASE
+    )
+    lng_match = re.search(
+        r"longitude\s*=\s*([+-]?\d+(?:\.\d+)?)", context, re.IGNORECASE
+    )
     address_match = re.search(r"address\s*=\s*([^\n]+)", context, re.IGNORECASE)
 
     if lat_match:
@@ -162,23 +174,39 @@ def _build_missing_input_response(message: str) -> Dict[str, Any]:
     }
 
 
-def _filter_allowed_params(tool_name: str, tool_params: Dict[str, Any]) -> Dict[str, Any]:
+def _filter_allowed_params(
+    tool_name: str, tool_params: Dict[str, Any]
+) -> Dict[str, Any]:
     allowlist = BOOKING_TOOL_PARAM_ALLOWLIST.get(tool_name)
     if not allowlist:
         return tool_params
+
+    stripped_keys = [key for key in tool_params.keys() if key not in allowlist]
+    if stripped_keys:
+        logger.warning(
+            f"Tool '{tool_name}' received unexpected params that will be stripped: {stripped_keys}. "
+            f"Allowed params: {allowlist}"
+        )
+
     return {key: value for key, value in tool_params.items() if key in allowlist}
 
 
-def _enrich_context_fields(tool_name: str, tool_params: Dict[str, Any], messages: List[Any]) -> None:
+def _enrich_context_fields(
+    tool_name: str, tool_params: Dict[str, Any], messages: List[Any]
+) -> None:
     if tool_name not in BOOKING_TOOL_NAMES:
         return
 
     latest_message = extract_latest_user_message(messages)
     transcript = _all_user_text(messages)
 
-    if "latest_message" in BOOKING_TOOL_PARAM_ALLOWLIST.get(tool_name, set()) and not tool_params.get("latest_message"):
+    if "latest_message" in BOOKING_TOOL_PARAM_ALLOWLIST.get(
+        tool_name, set()
+    ) and not tool_params.get("latest_message"):
         tool_params["latest_message"] = latest_message
-    if "transcript" in BOOKING_TOOL_PARAM_ALLOWLIST.get(tool_name, set()) and not tool_params.get("transcript"):
+    if "transcript" in BOOKING_TOOL_PARAM_ALLOWLIST.get(
+        tool_name, set()
+    ) and not tool_params.get("transcript"):
         tool_params["transcript"] = transcript
 
 
@@ -193,7 +221,12 @@ def _normalize_booking_tool_params(
     params = _filter_allowed_params(tool_name, params)
     _enrich_context_fields(tool_name, params, messages)
 
-    if tool_name in {"search_clinics_nearby", "create_booking_for_user", "check_available_slots", "get_clinic_services"}:
+    if tool_name in {
+        "search_clinics_nearby",
+        "create_booking_for_user",
+        "check_available_slots",
+        "get_clinic_services",
+    }:
         params["booking_type"] = _normalize_booking_type(params.get("booking_type"))
 
     if tool_name == "get_clinic_services":
@@ -207,35 +240,60 @@ def _normalize_booking_tool_params(
         params["service_ids"] = _normalize_service_ids(params.get("service_ids"))
 
         resolved_datetime = resolve_booking_datetime_inputs(
-            date=params.get("date") if tool_name == "check_available_slots" else params.get("booking_date"),
+            date=params.get("date")
+            if tool_name == "check_available_slots"
+            else params.get("booking_date"),
             date_expression=params.get("date_expression"),
-            exact_time=params.get("exact_time") if tool_name == "check_available_slots" else params.get("start_time"),
+            exact_time=params.get("exact_time")
+            if tool_name == "check_available_slots"
+            else params.get("start_time"),
             time_preference=params.get("time_preference"),
             latest_message=params.get("latest_message"),
             transcript=params.get("transcript"),
         )
         date_key = "date" if tool_name == "check_available_slots" else "booking_date"
-        time_key = "exact_time" if tool_name == "check_available_slots" else "start_time"
+        time_key = (
+            "exact_time" if tool_name == "check_available_slots" else "start_time"
+        )
 
         if not params.get(date_key) and resolved_datetime.get("date"):
             params[date_key] = resolved_datetime["date"]
         if not params.get(time_key) and resolved_datetime.get("exact_time"):
             params[time_key] = resolved_datetime["exact_time"]
-        if not params.get("time_preference") and resolved_datetime.get("time_preference"):
+        if not params.get("time_preference") and resolved_datetime.get(
+            "time_preference"
+        ):
             params["time_preference"] = resolved_datetime["time_preference"]
 
     if tool_name == "create_booking_for_user":
         confirmed = _coerce_bool(params.get("confirmed"))
         params["confirmed"] = bool(confirmed) if confirmed is not None else False
 
+        latest_message = params.get("latest_message") or ""
+        transcript = params.get("transcript") or ""
+        conditional = parse_conditional_intent(latest_message, transcript)
+        if conditional:
+            cache = get_booking_context_cache()
+            from app.core.tool_runtime_context import ConditionalIntent
+
+            intent = ConditionalIntent(
+                condition_type=conditional.get("condition_type", "explicit_request"),
+                action=conditional.get("action", "create_booking"),
+                condition_details=conditional.get("condition_details", {}),
+                raw_text=conditional.get("raw_text", ""),
+            )
+            cache.set_conditional_intent(intent)
+            if conditional.get("action") == "create_booking" and not params.get(
+                "confirmed"
+            ):
+                params["auto_create_if_available"] = True
+                logger.info(
+                    f"Conditional intent detected: {conditional.get('condition_type')}, auto_create_if_available=True"
+                )
+
     if tool_name == "search_clinics_nearby":
         params["radius_km"] = _coerce_float(params.get("radius_km")) or 5.0
         params["top_k"] = _coerce_int(params.get("top_k"), 5)
-
-        clinic_name_hint = str(params.get("clinic_name_hint") or "").strip()
-        if clinic_name_hint and not params.get("clinic_hint"):
-            params["clinic_hint"] = clinic_name_hint
-        params.pop("clinic_name_hint", None)
 
         params["latitude"] = _coerce_float(params.get("latitude"))
         params["longitude"] = _coerce_float(params.get("longitude"))
@@ -288,10 +346,11 @@ def apply_booking_tool_routing(
     if normalized_tool == "search_clinics_nearby":
         has_explicit_target = bool(
             str(tool_params.get("clinic_hint") or "").strip()
-            or str(tool_params.get("clinic_name_hint") or "").strip()
             or str(tool_params.get("address") or "").strip()
         )
-        if (tool_params.get("latitude") is None or tool_params.get("longitude") is None) and not has_explicit_target:
+        if (
+            tool_params.get("latitude") is None or tool_params.get("longitude") is None
+        ) and not has_explicit_target:
             return {
                 **parsed,
                 **_build_missing_input_response(
@@ -299,7 +358,10 @@ def apply_booking_tool_routing(
                 ),
             }
 
-    if normalized_tool == "get_clinic_services" and not str(tool_params.get("clinic_id") or "").strip():
+    if (
+        normalized_tool == "get_clinic_services"
+        and not str(tool_params.get("clinic_id") or "").strip()
+    ):
         return {
             **parsed,
             **_build_missing_input_response(
@@ -307,7 +369,10 @@ def apply_booking_tool_routing(
             ),
         }
 
-    if normalized_tool == "check_available_slots" and not str(tool_params.get("clinic_id") or "").strip():
+    if (
+        normalized_tool == "check_available_slots"
+        and not str(tool_params.get("clinic_id") or "").strip()
+    ):
         return {
             **parsed,
             **_build_missing_input_response(
@@ -317,7 +382,9 @@ def apply_booking_tool_routing(
 
     if normalized_tool == "create_booking_for_user":
         missing_fields: List[str] = []
-        if not str(tool_params.get("pet_id") or "").strip():
+        booking_items = tool_params.get("items")
+        has_multi_pet_items = isinstance(booking_items, list) and bool(booking_items)
+        if not has_multi_pet_items and not str(tool_params.get("pet_id") or "").strip():
             missing_fields.append("thu cung")
         if not str(tool_params.get("clinic_id") or "").strip():
             missing_fields.append("phong kham")
@@ -325,7 +392,9 @@ def apply_booking_tool_routing(
             return {
                 **parsed,
                 **_build_missing_input_response(
-                    "Minh chua xac dinh duoc " + ", ".join(missing_fields) + " de tao yeu cau booking."
+                    "Minh chua xac dinh duoc "
+                    + ", ".join(missing_fields)
+                    + " de tao yeu cau booking."
                 ),
             }
 

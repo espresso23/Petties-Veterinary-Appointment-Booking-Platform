@@ -34,6 +34,72 @@ def _clean_rag_text(text: str) -> str:
     return cleaned.strip()
 
 
+def _normalize_pet_species(value: Any) -> str:
+    if value is None:
+        return "Không rõ"
+    text = str(value).strip()
+    lowered = text.lower()
+    if lowered in {"dog", "cho", "chó"}:
+        return "chó"
+    if lowered in {"cat", "meo", "mèo"}:
+        return "mèo"
+    return text
+
+
+def _normalize_allergies(value: Any) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str):
+        return [item.strip() for item in value.split(",") if item.strip()]
+    return []
+
+
+def _format_exam_date(value: Any) -> str:
+    if value is None:
+        return ""
+    text = str(value).strip()
+    if not text:
+        return ""
+    return text.replace("T", " ")[:19]
+
+
+def _map_emr_images(images: Any) -> List[Dict[str, Any]]:
+    if not isinstance(images, list):
+        return []
+    mapped: List[Dict[str, Any]] = []
+    for item in images:
+        if not isinstance(item, dict):
+            continue
+        mapped.append(
+            {
+                "url": item.get("url"),
+                "description": item.get("description") or "",
+            }
+        )
+    return mapped
+
+
+def _map_emr_prescriptions(prescriptions: Any) -> List[Dict[str, Any]]:
+    if not isinstance(prescriptions, list):
+        return []
+    mapped: List[Dict[str, Any]] = []
+    for item in prescriptions:
+        if not isinstance(item, dict):
+            continue
+        mapped.append(
+            {
+                "name": item.get("medicineName") or item.get("name") or "",
+                "dosage": item.get("dosage") or "",
+                "frequency": item.get("frequency") or "",
+                "duration_days": item.get("durationDays"),
+                "instructions": item.get("instructions") or "",
+            }
+        )
+    return mapped
+
+
 # ===== RAG TOOLS =====
 
 
@@ -185,38 +251,56 @@ async def get_staff_patients(
 
         user_id = context.user_id  # Staff ID
         clinic_id = context.clinic_id
+        token = context.auth_token
 
-        if not user_id or not clinic_id:
+        if not user_id or not clinic_id or not token:
             return {
                 "error": "Thiếu thông tin staff hoặc clinic. Vui lòng liên hệ admin.",
                 "pets": [],
                 "total": 0,
             }
 
-        # Gọi backend API
         backend_client = get_backend_client()
-        # Pending implementation - requires backend endpoint
-        pets = [
-            {
-                "pet_id": "PET_001",
-                "pet_name": "Cún",
-                "species": "chó",
-                "breed": "Golden Retriever",
-                "owner_name": "Anh A",
-                "last_visit": "2026-03-10",
-            }
-        ]
+        raw_patients = await backend_client.get_staff_patients(
+            token=token,
+            clinic_id=clinic_id,
+            staff_id=user_id,
+        )
 
-        # Filter by query_name if provided
-        if query_name:
-            pets = [
-                pet for pet in pets if query_name.lower() in pet["pet_name"].lower()
-            ]
+        patients: List[Dict[str, Any]] = []
+        normalized_query = (query_name or "").strip().lower()
 
-        # Limit results
-        pets = pets[:limit]
+        for item in raw_patients or []:
+            if not isinstance(item, dict):
+                continue
+            pet_name = str(item.get("petName") or "").strip()
+            owner_name = str(item.get("ownerName") or "").strip()
+            if normalized_query and normalized_query not in pet_name.lower():
+                continue
 
-        return {"pets": pets, "total": len(pets)}
+            patients.append(
+                {
+                    "pet_id": item.get("petId"),
+                    "pet_name": pet_name,
+                    "species": _normalize_pet_species(item.get("species")),
+                    "breed": item.get("breed") or "Không rõ",
+                    "gender": item.get("gender") or "Không rõ",
+                    "age_years": item.get("ageYears"),
+                    "age_months": item.get("ageMonths"),
+                    "weight": item.get("weight"),
+                    "owner_name": owner_name or "Không rõ",
+                    "owner_phone": item.get("ownerPhone") or "",
+                    "booking_id": item.get("bookingId"),
+                    "booking_code": item.get("bookingCode") or "",
+                    "booking_status": item.get("bookingStatus") or "",
+                    "is_assigned_to_me": bool(item.get("isAssignedToMe")),
+                    "next_appointment": _format_exam_date(item.get("nextAppointment")),
+                    "last_visit": _format_exam_date(item.get("lastVisitDate")),
+                }
+            )
+
+        patients = patients[:limit]
+        return {"pets": patients, "total": len(patients)}
 
     except Exception as e:
         logger.error(f"Lỗi trong get_staff_patients: {e}")
@@ -275,8 +359,9 @@ async def get_patient_summary(
 
         user_id = context.user_id  # Staff ID
         clinic_id = context.clinic_id
+        token = context.auth_token
 
-        if not user_id or not clinic_id:
+        if not user_id or not clinic_id or not token:
             return {
                 "error": "Thiếu thông tin staff hoặc clinic. Vui lòng liên hệ admin.",
                 "pet_info": {},
@@ -284,38 +369,46 @@ async def get_patient_summary(
                 "total_exams": 0,
             }
 
-        # Gọi backend API
         backend_client = get_backend_client()
-        # Pending implementation - requires backend endpoint
+        pet = await backend_client.get_pet(token, pet_id)
+        emr_history = await backend_client.get_pet_emr_history(
+            token=token, pet_id=pet_id
+        )
+
         pet_info = {
-            "pet_id": pet_id,
-            "pet_name": "Cún",
-            "species": "chó",
-            "breed": "Golden Retriever",
-            "weight_kg": 28.0,
-            "allergies": ["Gà"],
-            "owner_name": "Anh A",
+            "pet_id": pet.get("id"),
+            "pet_name": pet.get("name") or "Không rõ",
+            "species": _normalize_pet_species(pet.get("species")),
+            "breed": pet.get("breed") or "Không rõ",
+            "weight_kg": pet.get("weight"),
+            "allergies": _normalize_allergies(pet.get("allergies")),
+            "owner_name": pet.get("ownerName") or "Không rõ",
+            "owner_phone": pet.get("ownerPhone") or "",
+            "gender": pet.get("gender") or "Không rõ",
+            "color": pet.get("color") or "Không rõ",
         }
 
-        recent_exams = [
-            {
-                "exam_date": "2026-03-10",
-                "assessment": "Viêm da dị ứng cấp",
-                "prescriptions": ["Cortisone 5mg x7 ngày", "Dép thuốc Betadine"],
-                "images": [
-                    {
-                        "url": "https://res.cloudinary.com/demo/image/upload/emr_PET_001_20260310_001.jpg",
-                        "description": "Vùng da bị đỏ, ngứa ở bên tai trái",
-                    }
-                ],
-            },
-            {
-                "exam_date": "2026-02-15",
-                "assessment": "Tiêu ch양 légère",
-                "prescriptions": ["Smecta 1 gói x3 ngày"],
-                "images": [],
-            },
-        ]
+        recent_exams: List[Dict[str, Any]] = []
+        for exam in (emr_history or [])[:3]:
+            if not isinstance(exam, dict):
+                continue
+            prescriptions = _map_emr_prescriptions(exam.get("prescriptions"))
+            recent_exams.append(
+                {
+                    "emr_id": exam.get("id"),
+                    "exam_date": _format_exam_date(
+                        exam.get("examinationDate") or exam.get("createdAt")
+                    ),
+                    "assessment": exam.get("assessment") or "",
+                    "plan": exam.get("plan") or "",
+                    "staff_name": exam.get("staffName") or "",
+                    "booking_code": exam.get("bookingCode") or "",
+                    "prescriptions": [
+                        item["name"] for item in prescriptions if item.get("name")
+                    ],
+                    "images": _map_emr_images(exam.get("images")),
+                }
+            )
 
         return {
             "pet_info": pet_info,
@@ -377,56 +470,45 @@ async def get_emr_history(
 
         user_id = context.user_id  # Staff ID
         clinic_id = context.clinic_id
+        token = context.auth_token
 
-        if not user_id or not clinic_id:
+        if not user_id or not clinic_id or not token:
             return {
                 "error": "Thiếu thông tin staff hoặc clinic. Vui lòng liên hệ admin.",
                 "emr_history": [],
                 "total": 0,
             }
 
-        # Gọi backend API
         backend_client = get_backend_client()
-        # Pending implementation - requires backend endpoint
-        emr_history = [
-            {
-                "exam_date": "2026-03-10",
-                "doctor_name": "BS. Nguyễn Văn A",
-                "subjective": "Chủ quan: Cún ngứa liên tục 3 ngày, chủ quan thấy đỏ da tai",
-                "objective": "Khách quan: Cân nặng 28kg, Nhiệt độ 38.5°C, Tai sinistra hyperemia",
-                "assessment": "Viêm da dị ứng cấp do gà",
-                "plan": "Ngừng ăn gà, uống cortisone 5mg x7 ngày, dùng Betadine lau vết",
-                "prescriptions": [
-                    {"name": "Cortisone", "dosage": "5mg x1/ngày x7 ngày"},
-                    {"name": "Betadine Solution", "dosage": "Lau vết 2x/ngày"},
-                ],
-                "images": [
-                    {
-                        "url": "https://res.cloudinary.com/demo/image/upload/emr_PET_001_20260310_001.jpg",
-                        "description": "Vùng da bị đỏ, ngứa ở bên tai trái",
-                    },
-                    {
-                        "url": "https://res.cloudinary.com/demo/image/upload/emr_PET_001_20260310_002.jpg",
-                        "description": "Tàiwane tai trái",
-                    },
-                ],
-            },
-            {
-                "exam_date": "2026-02-15",
-                "doctor_name": "BS. Trần Thị B",
-                "subjective": "Chủ quan: Cún đi ngoài phân lỏng 4 lần/ngày 2 ngày",
-                "objective": "Khách quan: Cân nặng 27.5kg, Nhiệt độ 38.2°C",
-                "assessment": "Tiêu ch양 léger có thể do thay đổi thức ăn",
-                "plan": "Uống Smecta 1 gói x3/ngày, ăn chè cháo 2 ngày",
-                "prescriptions": [
-                    {"name": "Smecta", "dosage": "1 gói x3/ngày x3 ngày"}
-                ],
-                "images": [],
-            },
-        ]
+        raw_history = await backend_client.get_pet_emr_history(
+            token=token, pet_id=pet_id
+        )
+        emr_history: List[Dict[str, Any]] = []
 
-        # Limit results
-        emr_history = emr_history[:limit]
+        for exam in (raw_history or [])[:limit]:
+            if not isinstance(exam, dict):
+                continue
+            emr_history.append(
+                {
+                    "emr_id": exam.get("id"),
+                    "exam_date": _format_exam_date(
+                        exam.get("examinationDate") or exam.get("createdAt")
+                    ),
+                    "doctor_name": exam.get("staffName") or "Không rõ",
+                    "subjective": exam.get("subjective") or "",
+                    "objective": exam.get("objective") or "",
+                    "assessment": exam.get("assessment") or "",
+                    "plan": exam.get("plan") or "",
+                    "notes": exam.get("notes") or "",
+                    "booking_code": exam.get("bookingCode") or "",
+                    "weight_kg": exam.get("weightKg"),
+                    "temperature_c": exam.get("temperatureC"),
+                    "heart_rate": exam.get("heartRate"),
+                    "bcs": exam.get("bcs"),
+                    "prescriptions": _map_emr_prescriptions(exam.get("prescriptions")),
+                    "images": _map_emr_images(exam.get("images")),
+                }
+            )
 
         return {"emr_history": emr_history, "total": len(emr_history)}
 
@@ -447,25 +529,32 @@ async def get_pet_health_summary(
     """
     Tổng hợp thông tin sức khỏe của pet cho Pet Owner.
 
+    Sử dụng khi:
+    - User muốn xem tổng quan sức khỏe của thú cưng
+    - User hỏi về tình trạng sức khỏe gần đây của pet
+    - User muốn biết có cần tái khám không
+
     Tool này tự động tổng hợp:
-    - Thông tin pet cơ bản
-    - EMR gần nhất (chẩn đoán, điều trị)
-    - Cảnh báo mức độ nghiêm trọng (nếu có)
-    - Gợi ý hành động
+    - Thông tin pet cơ bản (tên, loài, giống, cân nặng)
+    - EMR gần nhất (chẩn đoán, điều trị, thuốc đang dùng)
+    - Cảnh báo mức độ nghiêm trọng (nếu có): dị ứng, cần tái khám
+    - Gợi ý hành động tiếp theo
 
     Args:
-        pet_id: ID của thú cưng
-        user_id: ID của Pet Owner (để verify ownership)
+        pet_id: ID của thú cưng cần xem
+        user_id: ID của Pet Owner (để verify ownership - user chỉ xem được pet của mình)
+
+    Examples:
+        get_pet_health_summary(pet_id="xxx", user_id="yyy")
+        # Trả về pet_info, latest_emr, health_warnings, suggested_actions
 
     Returns:
-        {
-            "pet_info": {...},
-            "latest_emr": {...},
-            "health_warnings": [...],
-            "medication_reminders": [...],
-            "suggested_actions": [...],
-            "disclaimer": "..."
-        }
+        pet_info: Thông tin cơ bản của pet
+        latest_emr: Bệnh án gần nhất (chẩn đoán, điều trị, thuốc)
+        health_warnings: Cảnh báo sức khỏe (dị ứng, cần tái khám)
+        medication_reminders: Nhắc nhở thuốc đang dùng
+        suggested_actions: Gợi ý hành động (đặt lịch tái khám)
+        disclaimer: Thông tin chỉ mang tính tham khảo
     """
     from app.core.tool_runtime_context import get_tool_runtime_context
     from app.services.backend_client import get_backend_client
@@ -479,29 +568,31 @@ async def get_pet_health_summary(
                 "latest_emr": None,
             }
 
-        backend = get_backend_client()
-
-        pet_response = await backend.get(f"/pets/{pet_id}")
-        if pet_response.status_code != 200:
+        token = context.auth_token
+        if not token:
             return {
-                "error": "Không tìm thấy thú cưng",
+                "error": "Không thể xác định phiên đăng nhập. Vui lòng đăng nhập lại.",
                 "pet_info": None,
+                "latest_emr": None,
+                "health_warnings": [],
+                "medication_reminders": [],
+                "suggested_actions": [],
             }
-
-        pet_data = pet_response.json()
 
         if context.user_id != user_id:
             return {
                 "error": "Bạn không có quyền xem thông tin sức khỏe của thú cưng này.",
                 "pet_info": None,
+                "latest_emr": None,
+                "health_warnings": [],
+                "medication_reminders": [],
+                "suggested_actions": [],
             }
 
-        emr_response = await backend.get(f"/emr/pet/{pet_id}?limit=1")
-        latest_emr = None
-        if emr_response.status_code == 200:
-            emr_list = emr_response.json()
-            if emr_list and len(emr_list) > 0:
-                latest_emr = emr_list[0]
+        backend = get_backend_client()
+        pet_data = await backend.get_pet(token, pet_id)
+        emr_list = await backend.get_pet_emr_history(token=token, pet_id=pet_id)
+        latest_emr = emr_list[0] if isinstance(emr_list, list) and emr_list else None
 
         warnings = []
         suggested_actions = []
@@ -509,14 +600,18 @@ async def get_pet_health_summary(
 
         if latest_emr:
             assessment = latest_emr.get("assessment", "")
-            plan = latest_emr.get("plan", "")
-            exam_date = latest_emr.get("examDate", "")
+            exam_date = (
+                latest_emr.get("examDate") or latest_emr.get("examinationDate") or ""
+            )
 
             if exam_date:
-                from datetime import datetime, timedelta, timezone
+                from datetime import datetime, timezone
 
                 try:
-                    exam_dt = datetime.fromisoformat(exam_date.replace("Z", "+00:00"))
+                    normalized_exam_date = str(exam_date).replace("Z", "+00:00")
+                    exam_dt = datetime.fromisoformat(normalized_exam_date)
+                    if exam_dt.tzinfo is None:
+                        exam_dt = exam_dt.replace(tzinfo=timezone.utc)
                     days_ago = (datetime.now(timezone.utc) - exam_dt).days
                     if days_ago > 30:
                         warnings.append(
@@ -526,7 +621,7 @@ async def get_pet_health_summary(
                                 "severity": "MEDIUM",
                             }
                         )
-                except:
+                except Exception:
                     pass
 
             if "dị ứng" in assessment.lower() or "allergy" in assessment.lower():
@@ -542,9 +637,11 @@ async def get_pet_health_summary(
                 for rx in latest_emr["prescriptions"]:
                     medication_reminders.append(
                         {
-                            "medication": rx.get("medicineName", ""),
-                            "dosage": rx.get("dosage", ""),
-                            "frequency": rx.get("frequency", ""),
+                            "medication": rx.get("medicineName")
+                            or rx.get("name")
+                            or "",
+                            "dosage": rx.get("dosage") or "",
+                            "frequency": rx.get("frequency") or "",
                         }
                     )
 
@@ -568,21 +665,30 @@ async def get_pet_health_summary(
         pet_info = {
             "pet_id": pet_data.get("id"),
             "name": pet_data.get("name"),
-            "species": pet_data.get("species"),
-            "breed": pet_data.get("breed"),
+            "species": _normalize_pet_species(pet_data.get("species")),
+            "breed": pet_data.get("breed") or "Không rõ",
             "age_months": pet_data.get("ageMonths") or pet_data.get("age_months"),
             "weight_kg": pet_data.get("weight"),
+            "allergies": _normalize_allergies(pet_data.get("allergies")),
         }
 
         latest_emr_summary = None
         if latest_emr:
             latest_emr_summary = {
-                "exam_date": latest_emr.get("examDate", ""),
+                "exam_date": _format_exam_date(
+                    latest_emr.get("examDate")
+                    or latest_emr.get("examinationDate")
+                    or latest_emr.get("createdAt")
+                ),
                 "clinic_name": latest_emr.get("clinicName", ""),
                 "diagnosis": latest_emr.get("assessment", ""),
                 "treatment": latest_emr.get("plan", ""),
                 "subjective": latest_emr.get("subjective", ""),
                 "objective": latest_emr.get("objective", ""),
+                "images": _map_emr_images(latest_emr.get("images")),
+                "prescriptions": _map_emr_prescriptions(
+                    latest_emr.get("prescriptions")
+                ),
             }
 
         return {

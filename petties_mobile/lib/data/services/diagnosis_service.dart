@@ -1,10 +1,13 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
 
+import '../../config/constants/app_constants.dart';
 import '../../config/env/environment.dart';
+import '../../utils/storage_service.dart';
 import '../models/diagnosis.dart';
 
 class DiagnosisService {
+  final StorageService _storage = StorageService();
   final Dio _dio = Dio(BaseOptions(
     baseUrl: '${Environment.aiServiceUrl}/api',
     connectTimeout: const Duration(seconds: 30),
@@ -13,8 +16,8 @@ class DiagnosisService {
 
   DiagnosisService() {
     _dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) {
-        final token = _getToken();
+      onRequest: (options, handler) async {
+        final token = await _getToken();
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
         }
@@ -23,8 +26,12 @@ class DiagnosisService {
     ));
   }
 
-  String? _getToken() {
-    return null;
+  Future<String?> _getToken() async {
+    final token = await _storage.getString(AppConstants.accessTokenKey);
+    if (token == null || token.isEmpty) {
+      return null;
+    }
+    return token;
   }
 
   Future<StaffDiagnosisResponse> analyzeCase({

@@ -38,10 +38,10 @@ class TestBookingContextPrompt:
             enabled_tools_lower=agent._enabled_tools_lower,
         )
 
-        assert "NGUYEN TAC BOOKING VOI AI" in prompt
-        assert "khong duoc route theo keyword cung" in prompt
-        assert "uu tien phong kham do" in prompt
-        assert "Chi fetch du lieu khi can" in prompt
+        assert "BOOKING TOOLS" in prompt
+        assert "semantic params" in prompt
+        assert "create_booking" in prompt
+        assert "conditional booking" in prompt.lower()
 
     def test_booking_validator_does_not_rewrite_create_booking_flow(self):
         parsed = {
@@ -85,7 +85,7 @@ class TestBookingContextPrompt:
             "thought": "Tim phong kham gan ban.",
             "tool_name": "search_clinics_nearby",
             "tool_params": {
-                "clinic_name_hint": "PetCare",
+                "clinic_hint": "PetCare",
                 "service_hint": "kham tong quat",
             },
             "should_end": False,
@@ -183,7 +183,12 @@ class TestBookingContextPrompt:
 
         result = apply_booking_tool_routing(
             parsed,
-            messages=[{"role": "user", "content": "Dat lich o phong kham PetCare tai Ngu Hanh Son Da Nang"}],
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Dat lich o phong kham PetCare tai Ngu Hanh Son Da Nang",
+                }
+            ],
             react_steps=[],
             enabled_tools_lower={"search_clinics_nearby"},
             build_context_fn=lambda _: "",

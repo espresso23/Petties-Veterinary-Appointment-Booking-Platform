@@ -9,6 +9,8 @@ export interface AISessionMessage {
     timestamp: Date
     images?: string[]
     isLoading?: boolean
+    thinkingProcess?: string[]
+    toolCalls?: Array<{ tool: string; input: unknown; output?: unknown }>
 }
 
 interface AIChatState {
@@ -22,6 +24,9 @@ interface AIChatState {
     setMessages: (messages: AISessionMessage[]) => void
     addMessage: (message: AISessionMessage) => void
     updateLastMessage: (content: string, isLoading?: boolean) => void
+    appendThinkingToLastMessage: (content: string) => void
+    appendToolCallToLastMessage: (tool: string, input: unknown) => void
+    attachToolResultToLastMessage: (tool: string | undefined, output: unknown) => void
     setConnectionStatus: (status: 'disconnected' | 'connecting' | 'connected') => void
     setIsOpen: (isOpen: boolean) => void
     setEmrDraft: (draft: EmrAiDraft | null) => void
@@ -68,6 +73,63 @@ export const useAIChatStore = create<AIChatState>()(
                     })
                 }
                 
+                return { messages }
+            }),
+
+            appendThinkingToLastMessage: (content) => set((state) => {
+                if (!content.trim()) return state
+                const messages = [...state.messages]
+                const lastIndex = messages.length - 1
+                if (lastIndex < 0 || messages[lastIndex].role !== 'assistant') {
+                    return state
+                }
+
+                const lastMessage = messages[lastIndex]
+                messages[lastIndex] = {
+                    ...lastMessage,
+                    thinkingProcess: [...(lastMessage.thinkingProcess || []), content],
+                    isLoading: true,
+                }
+                return { messages }
+            }),
+
+            appendToolCallToLastMessage: (tool, input) => set((state) => {
+                const messages = [...state.messages]
+                const lastIndex = messages.length - 1
+                if (lastIndex < 0 || messages[lastIndex].role !== 'assistant') {
+                    return state
+                }
+
+                const lastMessage = messages[lastIndex]
+                messages[lastIndex] = {
+                    ...lastMessage,
+                    toolCalls: [...(lastMessage.toolCalls || []), { tool, input, output: undefined }],
+                    isLoading: true,
+                }
+                return { messages }
+            }),
+
+            attachToolResultToLastMessage: (tool, output) => set((state) => {
+                const messages = [...state.messages]
+                const lastIndex = messages.length - 1
+                if (lastIndex < 0 || messages[lastIndex].role !== 'assistant') {
+                    return state
+                }
+
+                const lastMessage = messages[lastIndex]
+                const toolCalls = [...(lastMessage.toolCalls || [])]
+                for (let i = toolCalls.length - 1; i >= 0; i -= 1) {
+                    if (!tool || toolCalls[i].tool === tool) {
+                        toolCalls[i] = { ...toolCalls[i], output }
+                        break
+                    }
+                }
+
+                messages[lastIndex] = {
+                    ...lastMessage,
+                    toolCalls,
+                    isLoading: true,
+                }
                 return { messages }
             }),
             

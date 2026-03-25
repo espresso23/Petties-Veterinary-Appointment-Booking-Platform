@@ -119,8 +119,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _error =
-            'Không thể khởi tạo trợ lý AI';
+        _error = 'Không thể khởi tạo trợ lý AI';
       });
     } finally {
       if (mounted) {
@@ -152,8 +151,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _error =
-            'Không thể khởi tạo lại phiên chat AI';
+        _error = 'Không thể khởi tạo lại phiên chat AI';
       });
     }
   }
@@ -186,8 +184,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _error =
-            'Không tạo được phiên chat AI mới';
+        _error = 'Không tạo được phiên chat AI mới';
       });
     } finally {
       if (mounted) {
@@ -250,8 +247,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
     if (_reconnectAttempts >= _maxReconnectAttempts) {
       setState(() {
-        _error = reason ??
-            'Kết nối trợ lý AI bị gián đoạn';
+        _error = reason ?? 'Kết nối trợ lý AI bị gián đoạn';
         _agentStatus = null;
         _isSending = false;
         _isReconnecting = false;
@@ -279,8 +275,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       if (!mounted) return;
       setState(() {
         _isReconnecting = false;
-        _agentStatus =
-            'Đã kết nối lại trợ lý AI';
+        _agentStatus = 'Đã kết nối lại trợ lý AI';
       });
     } on AiChatException catch (error) {
       if (!mounted) return;
@@ -294,8 +289,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       if (!mounted) return;
       setState(() {
         _isReconnecting = false;
-        _error = reason ??
-            'Kết nối trợ lý AI bị gián đoạn';
+        _error = reason ?? 'Kết nối trợ lý AI bị gián đoạn';
         _agentStatus = null;
         _isSending = false;
       });
@@ -335,8 +329,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
           _error = null;
           _isReconnecting = false;
           _reconnectAttempts = 0;
-          _agentStatus =
-              'Đã kết nối trợ lý AI';
+          _agentStatus = 'Đã kết nối trợ lý AI';
         });
         break;
       case AiChatSocketEventType.history:
@@ -345,16 +338,14 @@ class _AiChatScreenState extends State<AiChatScreen> {
       case AiChatSocketEventType.ack:
         setState(() {
           // ACK là tín hiệu hệ thống; không dùng để hiển thị lại nội dung user.
-          _agentStatus =
-              'Đã nhận yêu cầu.';
+          _agentStatus = 'Đã nhận yêu cầu.';
         });
         break;
       case AiChatSocketEventType.thinking:
         _captureReactStep(event);
         setState(() {
           _isSending = true;
-          _agentStatus = event.content ??
-              'Trợ lý đang suy luận...';
+          _agentStatus = event.content ?? 'Trợ lý đang suy luận...';
         });
         break;
       case AiChatSocketEventType.toolCall:
@@ -362,17 +353,14 @@ class _AiChatScreenState extends State<AiChatScreen> {
         setState(() {
           _isSending = true;
           _agentStatus = _mapToolStatus(event.toolName) ??
-              (event.toolName != null
-                  ? 'Đang xử lý...'
-                  : 'Đang xử lý...');
+              (event.toolName != null ? 'Đang xử lý...' : 'Đang xử lý...');
         });
         break;
       case AiChatSocketEventType.toolResult:
         _captureReactStep(event);
         setState(() {
           _isSending = true;
-          _agentStatus =
-              'Đang tổng hợp phản hồi...';
+          _agentStatus = 'Đang tổng hợp phản hồi...';
         });
         break;
       case AiChatSocketEventType.stream:
@@ -628,8 +616,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
         content: nextContent,
         timestamp: DateTime.now(),
         isStreaming: isStreaming ?? last.isStreaming,
-        reactTrace:
-            reactTrace != null ? _mergeReactTrace(last.reactTrace, reactTrace) : null,
+        reactTrace: reactTrace != null
+            ? _mergeReactTrace(last.reactTrace, reactTrace)
+            : null,
         clinicSuggestions: clinicSuggestions,
         serviceOptions: serviceOptions,
         serviceClinicId: serviceClinicId,
@@ -648,7 +637,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       setState(() {
         _error = null;
         _isSending = true;
-        _agentStatus = 'Dang tra loi...';
+        _agentStatus = 'Đang trả lời...';
       });
       return;
     }
@@ -673,8 +662,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     setState(() {
       _error = null;
       _isSending = true;
-      _agentStatus =
-          'Đang trả lời...';
+      _agentStatus = 'Đang trả lời...';
 
       if (_messages.isNotEmpty &&
           _messages.last.role == 'assistant' &&
@@ -720,7 +708,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     setState(() {
       _agentStatus = null;
       _upsertAssistantMessage(
-        content: 'Duoi day la cac phong kham phu hop de tiep tuc booking.',
+        content: 'Dưới đây là các phòng khám phù hợp để tiếp tục booking.',
         isStreaming: false,
         clinicSuggestions: clinics,
         preferExistingContent: true,
@@ -728,6 +716,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     });
     _scrollToBottom();
   }
+
   void _addServiceOptions(
     List<AiBookingServiceOption> services, {
     String? clinicId,
@@ -738,7 +727,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       _agentStatus = null;
       _upsertAssistantMessage(
         content: (leadText ??
-                'Minh da tim duoc mot so dich vu phu hop. Ban chon dich vu nhe.')
+                'Mình đã tìm được một số dịch vụ phù hợp. Bạn chọn dịch vụ nhé.')
             .trim(),
         isStreaming: false,
         serviceOptions: services,
@@ -748,6 +737,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     });
     _scrollToBottom();
   }
+
   void _addSlotGrid(AiSlotGridPayload slotGrid) {
     if (slotGrid.recommendedSlots.isEmpty &&
         slotGrid.alternativeSlots.isEmpty) {
@@ -758,7 +748,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       _bookingTracker = _bookingTracker.mergeSlot(slotGrid, null);
       _upsertAssistantMessage(
         content: (slotGrid.message ??
-                'Minh da tim duoc mot so khung gio phu hop. Ban chon khung gio de tiep tuc nhe.')
+                'Mình đã tìm được một số khung giờ phù hợp. Bạn chọn khung giờ để tiếp tục nhé.')
             .trim(),
         isStreaming: false,
         slotGrid: slotGrid,
@@ -767,13 +757,14 @@ class _AiChatScreenState extends State<AiChatScreen> {
     });
     _scrollToBottom();
   }
+
   void _addBookingSummary(AiBookingSummaryPayload summary) {
     setState(() {
       _agentStatus = null;
       _bookingTracker = _bookingTracker.mergeSummary(summary);
       _upsertAssistantMessage(
         content: (summary.message ??
-                'Minh da tong hop du thong tin co ban. Ban xac nhan de minh tao yeu cau dat lich nhe.')
+                'Mình đã tổng hợp đủ thông tin cơ bản. Bạn xác nhận để mình tạo yêu cầu đặt lịch nhé.')
             .trim(),
         isStreaming: false,
         bookingSummary: summary,
@@ -782,12 +773,13 @@ class _AiChatScreenState extends State<AiChatScreen> {
     });
     _scrollToBottom();
   }
+
   void _addBookingCreated(AiBookingCreatedPayload bookingCreated) {
     setState(() {
       _agentStatus = null;
       _upsertAssistantMessage(
         content: (bookingCreated.message ??
-                'Minh da tao yeu cau dat lich thanh cong. Clinic manager se xac nhan sau.')
+                'Mình đã tạo yêu cầu đặt lịch thành công. Clinic manager sẽ xác nhận sau.')
             .trim(),
         isStreaming: false,
         bookingCreated: bookingCreated,
@@ -795,6 +787,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     });
     _scrollToBottom();
   }
+
   Future<void> _handleServiceSelection(
     _UiChatMessage message,
     AiBookingServiceOption service,
@@ -838,7 +831,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
     _updateBookingTracker((current) => current.mergeServices(selectedServices));
     await _sendStructuredBookingAction(
       userMessage:
-          selectedNames.length == 1 ? 'Ch?n d?ch v?' : 'Ch?n c?c d?ch v?',
+          selectedNames.length == 1
+              ? 'Chọn dịch vụ'
+              : 'Chọn các dịch vụ',
       uiAction: <String, dynamic>{
         'type': 'select_services',
         'service_ids': selectedIds,
@@ -1024,8 +1019,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     try {
       if (mounted) {
         setState(() {
-          _agentStatus =
-              'Đang lấy vị trí hiện tại...';
+          _agentStatus = 'Đang lấy vị trí hiện tại...';
         });
       }
       final payload =
@@ -1036,12 +1030,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
       _ensureLocationCached();
       return _lastLocationPayload;
     } finally {
-      if (mounted &&
-          _agentStatus ==
-              'Đang lấy vị trí hiện tại...') {
+      if (mounted && _agentStatus == 'Đang lấy vị trí hiện tại...') {
         setState(() {
-          _agentStatus =
-              'Đang gửi câu hỏi cho trợ lý AI...';
+          _agentStatus = 'Đang gửi câu hỏi cho trợ lý AI...';
         });
       }
     }
@@ -1081,6 +1072,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     });
     _scrollToBottom();
   }
+
   Future<void> _sendMessage({
     String? preset,
     String? userVisibleMessage,
@@ -1110,8 +1102,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
         ),
       );
       _error = null;
-      _agentStatus =
-          'Đang gửi câu hỏi cho trợ lý AI...';
+      _agentStatus = 'Đang gửi câu hỏi cho trợ lý AI...';
       _isSending = true;
     });
 
@@ -1137,8 +1128,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _error =
-            'Không gửi được câu hỏi tới trợ lý AI';
+        _error = 'Không gửi được câu hỏi tới trợ lý AI';
         _agentStatus = null;
         _isSending = false;
       });
@@ -1187,8 +1177,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     setState(() {
       _isInitializing = true;
       _error = null;
-      _agentStatus =
-          'Đang tải phiên chat...';
+      _agentStatus = 'Đang tải phiên chat...';
     });
 
     try {
@@ -1207,8 +1196,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _error =
-            'Không thể mở phiên chat AI này';
+        _error = 'Không thể mở phiên chat AI này';
       });
     } finally {
       if (mounted) {
@@ -1239,8 +1227,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-              'Đã xóa phiên chat AI'),
+          content: Text('Đã xóa phiên chat AI'),
           backgroundColor: AppColors.success,
         ),
       );
@@ -1256,8 +1243,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-              'Không thể xóa phiên chat AI'),
+          content: Text('Không thể xóa phiên chat AI'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -1316,8 +1302,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-              'Bạn đã gửi phản hồi cho câu trả lời này rồi'),
+          content: Text('Bạn đã gửi phản hồi cho câu trả lời này rồi'),
           backgroundColor: AppColors.stone600,
         ),
       );
@@ -1360,8 +1345,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-              'Không gửi được phản hồi cho trợ lý AI'),
+          content: Text('Không gửi được phản hồi cho trợ lý AI'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -1397,14 +1381,12 @@ class _AiChatScreenState extends State<AiChatScreen> {
         actions: [
           IconButton(
             onPressed: _isInitializing ? null : _showSessionListSheet,
-            tooltip:
-                'Lịch sử phiên chat',
+            tooltip: 'Lịch sử phiên chat',
             icon: const Icon(Icons.history),
           ),
           IconButton(
             onPressed: _isInitializing ? null : _startNewSession,
-            tooltip:
-                'Phiên chat mới',
+            tooltip: 'Phiên chat mới',
             icon: const Icon(Icons.add_comment_outlined),
           ),
         ],
@@ -1701,11 +1683,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   Widget _buildMessageBubble(_UiChatMessage message) {
     final isUser = message.role == 'user';
-    final displayContent = !isUser &&
-            message.content.isEmpty &&
-            message.isStreaming
-        ? 'Trợ lý đang suy luận...'
-        : message.content;
+    final displayContent =
+        !isUser && message.content.isEmpty && message.isStreaming
+            ? 'Trợ lý đang suy luận...'
+            : message.content;
     final structuredBookingSummary = !isUser ? message.bookingSummary : null;
     final bookingDraft = !isUser && structuredBookingSummary == null
         ? extractBookingConfirmationDraft(
@@ -1829,12 +1810,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
                           message.serviceOptions!.isNotEmpty) ...[
                         const SizedBox(height: 12),
                         AiServiceOptionCard(
-                          services:
-                              message.serviceOptions ??
+                          services: message.serviceOptions ??
                               const <AiBookingServiceOption>[],
                           selectedIds:
                               _selectedServiceIdsByMessage[message.id] ??
-                              const <String>{},
+                                  const <String>{},
                           isBusy: _isSending || _isReconnecting,
                           onToggleService: (service) =>
                               _handleServiceSelection(message, service),
@@ -1875,12 +1855,12 @@ class _AiChatScreenState extends State<AiChatScreen> {
                         const SizedBox(height: 10),
                         AiStructuredBookingSummaryCard(
                           summary: structuredBookingSummary,
-                          isConfirmed: _confirmedMessageIds.contains(message.id),
+                          isConfirmed:
+                              _confirmedMessageIds.contains(message.id),
                           isBusy: _isSending || _isReconnecting,
-                          quickActions:
-                              buildBookingSummaryQuickActions(
-                                structuredBookingSummary,
-                              ),
+                          quickActions: buildBookingSummaryQuickActions(
+                            structuredBookingSummary,
+                          ),
                           formatBookingDate: _formatBookingDate,
                           onQuickAction: _handleBookingQuickAction,
                           onConfirm: () => _confirmBookingSummary(
@@ -1902,7 +1882,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                         const SizedBox(height: 10),
                         AiBookingConfirmationCard(
                           draft: bookingDraft,
-                          isConfirmed: _confirmedMessageIds.contains(message.id),
+                          isConfirmed:
+                              _confirmedMessageIds.contains(message.id),
                           isBusy: _isSending || _isReconnecting,
                           formatBookingDate: _formatBookingDate,
                           onConfirm: () =>
@@ -1993,7 +1974,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
     );
   }
 
-  Future<void> _openBookingCreated(AiBookingCreatedPayload bookingCreated) async {
+  Future<void> _openBookingCreated(
+      AiBookingCreatedPayload bookingCreated) async {
     try {
       if ((bookingCreated.bookingId ?? '').trim().isNotEmpty) {
         final booking = await _bookingService.getBookingById(
@@ -2068,18 +2050,15 @@ class _AiChatScreenState extends State<AiChatScreen> {
   }
 
   String _friendlyErrorMessage(String message) {
-    if (message.contains(
-        'Không tìm thấy API trợ lý AI')) {
+    if (message.contains('Không tìm thấy API trợ lý AI')) {
       return 'Ứng dụng không kết nối đúng tới AI service. Cần kiểm tra lại cấu hình địa chỉ AI service.';
     }
 
-    if (message.contains(
-        'Không tìm thấy phiên chat AI')) {
+    if (message.contains('Không tìm thấy phiên chat AI')) {
       return 'Phiên chat cũ không còn khả dụng. Hệ thống sẽ tạo phiên mới khi bạn thử lại.';
     }
 
-    if (message.contains(
-        'không còn hợp lệ')) {
+    if (message.contains('không còn hợp lệ')) {
       return 'Phiên chat hiện tại không còn hợp lệ. Hãy tạo phiên mới để tiếp tục.';
     }
 
@@ -2147,5 +2126,3 @@ class _UiChatMessage {
     );
   }
 }
-
-

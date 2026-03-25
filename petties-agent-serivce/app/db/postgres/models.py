@@ -77,8 +77,8 @@ class Agent(Base):
         String(100), default="google/gemini-2.5-flash-lite"
     )  # OpenRouter model
 
-    # Prompts
-    system_prompt = Column(Text)
+    # NOTE: system_prompt column removed - prompt is now hardcoded in code
+    # See: app/core/agents/single_agent.py DEFAULT_SYSTEM_PROMPT
 
     # Status
     enabled = Column(Boolean, default=True)
@@ -87,8 +87,7 @@ class Agent(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # Relationships
-    prompt_versions = relationship("PromptVersion", back_populates="agent")
+    # NOTE: prompt_versions relationship removed - versioning no longer needed
 
     def __repr__(self):
         return f"<Agent(name={self.name}, model={self.model})>"
@@ -104,7 +103,7 @@ class Tool(Base):
     Note: Tools duoc code thu cong voi FastMCP.
     Trong thuc te hien tai:
     - pet_knowledge_search va web_search co the bat/tat de test Playground
-    - cac business tools duoc system-managed, auto-enable va auto-assign cho petties_agent
+    - cac business tools duoc system-managed va auto-enable
 
     Columns:
         - id: Primary key
@@ -114,7 +113,6 @@ class Tool(Base):
         - input_schema: JSON schema cho input parameters
         - output_schema: JSON schema cho output data
         - enabled: Tool co duoc enable khong
-        - assigned_agents: JSON array voi agent names duoc phep dung
     """
 
     __tablename__ = "tools"
@@ -128,11 +126,10 @@ class Tool(Base):
     input_schema = Column(JSON)
     output_schema = Column(JSON)
 
-    # Status & Assignment
+    # Status
     enabled = Column(
         Boolean, default=False
     )  # Scanner/seed co the auto-enable theo policy
-    assigned_agents = Column(JSON)  # List of agent names: ["petties_agent"]
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -142,42 +139,10 @@ class Tool(Base):
         return f"<Tool(name={self.name}, enabled={self.enabled})>"
 
 
-# ===== PROMPT VERSIONS TABLE =====
-class PromptVersion(Base):
-    """
-    Prompt Versions Table
-
-    Purpose: Version control cho System Prompts
-    Columns:
-        - id: Primary key
-        - agent_id: Foreign key den agents table
-        - version: Version number (1, 2, 3, ...)
-        - prompt_text: Noi dung prompt
-        - is_active: Version nay co dang active khong
-        - created_by: Admin user tao version nay
-        - notes: Ghi chu ve thay doi
-    """
-
-    __tablename__ = "prompt_versions"
-
-    id = Column(Integer, primary_key=True, index=True)
-    agent_id = Column(Integer, ForeignKey("agents.id"), nullable=False)
-    version = Column(Integer, nullable=False)
-    prompt_text = Column(Text, nullable=False)
-    is_active = Column(Boolean, default=False)
-
-    # Metadata
-    created_by = Column(String(100))  # Admin username
-    notes = Column(Text)
-
-    # Timestamp
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    # Relationships
-    agent = relationship("Agent", back_populates="prompt_versions")
-
-    def __repr__(self):
-        return f"<PromptVersion(agent_id={self.agent_id}, version={self.version})>"
+# NOTE: PromptVersion table removed - prompt versioning no longer needed
+# System prompt is now hardcoded in app/core/agents/single_agent.py
+# Migration 005 removes prompt_versions table
+# class PromptVersion(Base): ... (removed)
 
 
 # ===== KNOWLEDGE BASE DOCUMENTS TABLE =====
@@ -355,6 +320,7 @@ class SettingCategory(str, enum.Enum):
     EMBEDDINGS = "embeddings"  # Cohere embeddings
     VECTOR_DB = "vector_db"  # Qdrant settings
     GENERAL = "general"  # General settings
+    WEB_SEARCH = "web_search"  # Web search (Tavily)
 
 
 class SystemSetting(Base):
@@ -418,28 +384,6 @@ DEFAULT_SETTINGS = [
         "is_sensitive": False,
         "description": "Fallback model when primary fails",
     },
-    # ===== LLM - DeepSeek (FALLBACK) =====
-    {
-        "key": "DEEPSEEK_API_KEY",
-        "value": "",
-        "category": "llm",
-        "is_sensitive": True,
-        "description": "DeepSeek API Key (https://platform.deepseek.com/api_keys)",
-    },
-    {
-        "key": "DEEPSEEK_MODEL",
-        "value": "deepseek-chat",
-        "category": "llm",
-        "is_sensitive": False,
-        "description": "DeepSeek model (deepseek-chat for general, deepseek-coder for code)",
-    },
-    {
-        "key": "DEEPSEEK_BASE_URL",
-        "value": "https://api.deepseek.com",
-        "category": "llm",
-        "is_sensitive": False,
-        "description": "DeepSeek API base URL",
-    },
     # ===== RAG - Cohere Embeddings (RECOMMENDED) =====
     {
         "key": "COHERE_API_KEY",
@@ -491,6 +435,21 @@ DEFAULT_SETTINGS = [
         "category": "embeddings",
         "is_sensitive": False,
         "description": "Jina image embedding model (fixed: jina-clip-v2)",
+    },
+    # ===== Web Search - Tavily =====
+    {
+        "key": "TAVILY_API_KEY",
+        "value": "",
+        "category": "web_search",
+        "is_sensitive": True,
+        "description": "Tavily API Key for web search (https://tavily.com)",
+    },
+    {
+        "key": "TAVILY_MAX_RESULTS",
+        "value": "5",
+        "category": "web_search",
+        "is_sensitive": False,
+        "description": "Max Tavily search results per query",
     },
     # ===== General Settings =====
     {

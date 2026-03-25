@@ -332,15 +332,26 @@ public class EmrService {
         private InternalConfirmedEmrItemDto mapToInternalConfirmedItem(EmrRecord emr) {
                 Pet pet = petRepository.findById(emr.getPetId()).orElse(null);
 
-                List<String> imageUrls = emr.getImages() != null
+                List<EmrImage> validImages = emr.getImages() != null
                                 ? emr.getImages().stream()
-                                                .map(EmrImage::getUrl)
-                                                .filter(url -> url != null && !url.isBlank())
-                                                .collect(Collectors.toList())
+                                                .filter(image -> image != null
+                                                                && image.getUrl() != null
+                                                                && !image.getUrl().isBlank())
+                                                .toList()
                                 : List.of();
+
+                List<String> imageUrls = validImages.stream()
+                                .map(EmrImage::getUrl)
+                                .collect(Collectors.toList());
+
+                List<String> imageDescriptions = validImages.stream()
+                                .map(EmrImage::getDescription)
+                                .map(description -> description != null ? description.trim() : "")
+                                .collect(Collectors.toList());
 
                 Map<String, Object> attachments = new LinkedHashMap<>();
                 attachments.put("image_urls", imageUrls);
+                attachments.put("image_descriptions", imageDescriptions);
 
                 return InternalConfirmedEmrItemDto.builder()
                                 .emrId(emr.getId())

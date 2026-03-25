@@ -14,8 +14,9 @@ No web search is used in the doctor diagnostic flow.
 from __future__ import annotations
 
 import asyncio
+import json
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from loguru import logger
@@ -37,6 +38,8 @@ from app.core.services.diagnosis_protocol_service import (
 )
 from app.core.services.disease_mapping_service import get_disease_mapping_service
 from app.core.vision.gemini_vision_adapter import get_gemini_vision_adapter
+from app.db.postgres.session import AsyncSessionLocal
+from app.services.llm_client import BaseLLMClient, get_llm_client_from_db
 
 
 @dataclass
@@ -55,25 +58,49 @@ class DifferentialCandidate:
 class StaffDiagnosisService:
     """Build staff diagnosis response from multimodal input and internal evidence."""
 
+    def __init__(self) -> None:
+        self._llm_client: Optional[BaseLLMClient] = None
+
     async def analyze_case(
         self,
         request: StaffDiagnosisRequest,
     ) -> DoctorDiagnosisSynthesisResponse:
         request_id = request.request_id or str(uuid4())
 
-        # Only refresh if cache is stale (TTL expired)
         service = get_disease_mapping_service()
         if service._should_refresh():
             await service.refresh_from_db()
 
         vision_response = GeminiVisionDiagnosisResponse(request_id=request_id)
-        if request.image_urls:
+        if request.image_analysis_mode == "describe_only":
+            if request.image_urls:
+                vision_response = await self._analyze_vision(request_id, request)
+            return DoctorDiagnosisSynthesisResponse(
+                request_id=request_id,
+                vision_findings=vision_response.visual_findings,
+                image_descriptions=vision_response.image_descriptions,
+                image_analysis=self._build_image_analysis(
+                    request.image_urls, vision_response
+                ),
+                disclaimer="Mô tả ảnh do AI hỗ trợ. Bác sĩ cần đối chiếu thăm khám lâm sàng.",
+            )
+        preloaded_cases = await self._query_case_memory(
+            query=self._build_case_memory_prefetch_query(request),
+            request=request,
+        )
+        if self._should_run_vision(request, preloaded_cases):
             vision_response = await self._analyze_vision(request_id, request)
+        elif request.image_urls:
+            logger.debug(
+                "Skipped image analysis for request {} due to strong case match",
+                request_id,
+            )
 
         retrieval_query = self._build_retrieval_query(request, vision_response)
         hybrid_result, similar_cases = await self._retrieve_internal_context(
             query=retrieval_query,
             request=request,
+            preloaded_cases=preloaded_cases,
         )
 
         top_differentials = self._build_top_differentials(
@@ -86,7 +113,6 @@ class StaffDiagnosisService:
             request=request,
             primary_diagnosis=top_differentials[0] if top_differentials else None,
         )
-
         emr_protocol_patterns = self._extract_protocol_patterns_from_cases(
             similar_cases
         )
@@ -107,7 +133,24 @@ class StaffDiagnosisService:
                 + protocol_decision.summary
             ).strip()
 
+        llm_synthesis = await self._synthesize_with_llm(
+            request=request,
+            top_differentials=top_differentials,
+            hybrid_result=hybrid_result,
+            similar_cases=similar_cases,
+            protocol_decision=protocol_decision,
+            vision_response=vision_response,
+        )
+        if llm_synthesis and llm_synthesis.get("top_differentials"):
+            top_differentials = llm_synthesis["top_differentials"]
+
         image_analysis = self._build_image_analysis(request.image_urls, vision_response)
+        suggested_questions = (
+            llm_synthesis.get("suggested_questions") if llm_synthesis else None
+        )
+        soap_suggestions = (
+            llm_synthesis.get("soap_suggestions") if llm_synthesis else None
+        )
 
         return DoctorDiagnosisSynthesisResponse(
             request_id=request_id,
@@ -117,10 +160,10 @@ class StaffDiagnosisService:
             vision_findings=vision_response.visual_findings,
             image_descriptions=vision_response.image_descriptions,
             image_analysis=image_analysis,
-            suggested_questions=self._build_follow_up_questions(
-                request, protocol_decision
-            ),
-            soap_suggestions=self._build_soap_suggestions(
+            suggested_questions=suggested_questions
+            or self._build_follow_up_questions(request, protocol_decision),
+            soap_suggestions=soap_suggestions
+            or self._build_soap_suggestions(
                 request=request,
                 top_differentials=top_differentials,
                 vision_response=vision_response,
@@ -149,15 +192,23 @@ class StaffDiagnosisService:
                 sex=request.sex,
             ),
         )
-        return await get_gemini_vision_adapter().analyze(vision_request)
+        try:
+            return await get_gemini_vision_adapter().analyze(vision_request)
+        except Exception as exc:
+            logger.warning("Vision analysis failed in staff diagnosis: {}", exc)
+            return GeminiVisionDiagnosisResponse(request_id=request_id)
 
     async def _retrieve_internal_context(
         self,
         *,
         query: str,
         request: StaffDiagnosisRequest,
+        preloaded_cases: Optional[List[CaseResult]] = None,
     ) -> tuple[HybridResult, List[CaseResult]]:
         hybrid_task = self._query_hybrid_rag(query=query, request=request)
+        if preloaded_cases is not None:
+            hybrid_result = await hybrid_task
+            return hybrid_result, preloaded_cases
         case_task = self._query_case_memory(query=query, request=request)
         return await asyncio.gather(hybrid_task, case_task)
 
@@ -203,6 +254,75 @@ class StaffDiagnosisService:
             logger.warning("Case memory search failed in staff diagnosis: {}", exc)
             return []
 
+    def _build_case_memory_prefetch_query(self, request: StaffDiagnosisRequest) -> str:
+        parts: List[str] = [request.species.value]
+        if request.breed:
+            parts.append(request.breed)
+        if request.body_part:
+            parts.append(f"Vùng nghi ngờ: {request.body_part}")
+        if request.doctor_description:
+            parts.append(request.doctor_description)
+        if request.symptoms:
+            parts.append("Triệu chứng: " + ", ".join(request.symptoms))
+        return (
+            " | ".join(part for part in parts if part).strip() or request.species.value
+        )
+
+    def _should_run_vision(
+        self, request: StaffDiagnosisRequest, similar_cases: List[CaseResult]
+    ) -> bool:
+        if not request.image_urls:
+            return False
+        if not similar_cases:
+            return True
+
+        top_case = similar_cases[0]
+        payload = top_case.payload or {}
+
+        has_diagnosis = bool(
+            payload.get("display_name_vi")
+            or payload.get("final_diagnosis_text")
+            or payload.get("canonical_code")
+        )
+        if not has_diagnosis:
+            return True
+
+        is_provisional = payload.get("mapping_status") == "provisional"
+        confirmation_count = payload.get("confirmation_count", 0)
+
+        has_image_match = bool(request.image_urls)
+        threshold = 0.7 if has_image_match else 0.85
+        min_confirmations = 3
+
+        if is_provisional:
+            threshold += 0.1
+
+        is_strong_match = (
+            top_case.final_score >= threshold
+            and confirmation_count >= min_confirmations
+        )
+
+        logger.debug(
+            "Vision decision for request {}: score={:.2f} (threshold={}), "
+            "confirmations={} (min={}), is_provisional={}, run_vision={}",
+            request.request_id,
+            top_case.final_score,
+            threshold,
+            confirmation_count,
+            min_confirmations,
+            is_provisional,
+            not is_strong_match,
+        )
+
+        return not is_strong_match
+
+    async def _get_llm_client(self) -> BaseLLMClient:
+        if self._llm_client is not None:
+            return self._llm_client
+        async with AsyncSessionLocal() as db:
+            self._llm_client = await get_llm_client_from_db(db)
+        return self._llm_client
+
     def _build_retrieval_query(
         self,
         request: StaffDiagnosisRequest,
@@ -238,6 +358,192 @@ class StaffDiagnosisService:
         return (
             " | ".join(part for part in parts if part).strip() or request.species.value
         )
+
+    async def _synthesize_with_llm(
+        self,
+        *,
+        request: StaffDiagnosisRequest,
+        top_differentials: List[DiagnosisSuggestion],
+        hybrid_result: HybridResult,
+        similar_cases: List[CaseResult],
+        protocol_decision: ProtocolDecision,
+        vision_response: GeminiVisionDiagnosisResponse,
+    ) -> Optional[Dict[str, Any]]:
+        try:
+            llm_client = await self._get_llm_client()
+            response = await llm_client.generate(
+                self._build_llm_synthesis_prompt(
+                    request=request,
+                    top_differentials=top_differentials,
+                    hybrid_result=hybrid_result,
+                    similar_cases=similar_cases,
+                    protocol_decision=protocol_decision,
+                    vision_response=vision_response,
+                ),
+                temperature=0.2,
+                max_tokens=1800,
+            )
+            return self._parse_llm_synthesis_response(
+                response.content,
+                top_differentials,
+            )
+        except Exception as exc:
+            logger.warning("Staff diagnosis LLM synthesis failed: {}", exc)
+            return None
+
+    def _build_llm_synthesis_prompt(
+        self,
+        *,
+        request: StaffDiagnosisRequest,
+        top_differentials: List[DiagnosisSuggestion],
+        hybrid_result: HybridResult,
+        similar_cases: List[CaseResult],
+        protocol_decision: ProtocolDecision,
+        vision_response: GeminiVisionDiagnosisResponse,
+    ) -> str:
+        payload = {
+            "request": {
+                "species": request.species.value,
+                "breed": request.breed,
+                "age_months": request.age_months,
+                "weight_kg": request.weight_kg,
+                "body_part": request.body_part,
+                "doctor_description": request.doctor_description,
+                "symptoms": request.symptoms,
+                "allergies": request.allergies,
+            },
+            "vision_findings": vision_response.visual_findings,
+            "image_descriptions": vision_response.image_descriptions,
+            "top_differentials": [
+                {
+                    "canonical_code": item.canonical_code,
+                    "display_name_vi": item.display_name_vi,
+                    "confidence_note": item.confidence_note,
+                    "supporting_reasons": item.supporting_reasons,
+                }
+                for item in top_differentials
+            ],
+            "supporting_evidence_from_kb": self._format_hybrid_evidence(hybrid_result),
+            "similar_confirmed_cases": self._format_similar_cases(similar_cases),
+            "protocol_summary": protocol_decision.summary,
+            "protocol_cautions": protocol_decision.cautions,
+            "protocol_missing_inputs": protocol_decision.missing_inputs,
+            "prescriptions": [
+                {
+                    "medicine_name": rx.medicine_name,
+                    "dosage": rx.dosage,
+                    "frequency": rx.frequency,
+                    "duration_days": rx.duration_days,
+                    "instructions": rx.instructions,
+                    "caution": rx.caution,
+                    "route": rx.route,
+                }
+                for rx in protocol_decision.prescriptions
+            ],
+        }
+        return f"""Bạn là trợ lý AI nội bộ hỗ trợ staff/vet tổng hợp ca bệnh cho Petties.
+Chỉ dùng dữ liệu nội bộ đã cho. Nếu dữ liệu ảnh rỗng thì không được bịa thêm mô tả ảnh.
+Nếu Case Memory đã đủ mạnh thì ưu tiên tổng hợp từ Case Memory và Knowledge Base, không cần giả định rằng vision đã chạy.
+Viết hoàn toàn bằng tiếng Việt, ngắn gọn, lâm sàng, không thêm markdown. Chỉ trả về JSON hợp lệ.
+
+DỮ LIỆU:
+{json.dumps(payload, ensure_ascii=False, indent=2)}
+
+JSON:
+{{
+  "top_differentials": [
+    {{
+      "display_name_vi": "Tên chẩn đoán",
+      "confidence_note": "Mức gợi ý: cao|trung bình|thấp",
+      "supporting_reasons": ["Lý do 1", "Lý do 2"]
+    }}
+  ],
+  "soap_suggestions": {{
+    "subjective_draft": "...",
+    "objective_draft": "...",
+    "assessment_draft": "...",
+    "plan_draft": "..."
+  }},
+  "suggested_questions": ["...", "...", "..."]
+}}
+"""
+
+    def _parse_llm_synthesis_response(
+        self,
+        content: str,
+        fallback_differentials: List[DiagnosisSuggestion],
+    ) -> Optional[Dict[str, Any]]:
+        raw = (content or "").strip()
+        if not raw:
+            return None
+        try:
+            if "```" in raw:
+                raw = raw.split("```json")[-1].split("```")[0].strip()
+            payload = json.loads(raw)
+            if not isinstance(payload, dict):
+                return None
+        except Exception:
+            return None
+
+        result: Dict[str, Any] = {}
+        differentials = payload.get("top_differentials")
+        if isinstance(differentials, list) and differentials:
+            normalized: List[DiagnosisSuggestion] = []
+            for index, item in enumerate(differentials[:3]):
+                if not isinstance(item, dict):
+                    continue
+                fallback = (
+                    fallback_differentials[index]
+                    if index < len(fallback_differentials)
+                    else None
+                )
+                display_name = str(item.get("display_name_vi") or "").strip()
+                if not display_name and fallback is not None:
+                    display_name = fallback.display_name_vi
+                if not display_name:
+                    continue
+                reasons = item.get("supporting_reasons") or []
+                if not isinstance(reasons, list):
+                    reasons = []
+                normalized.append(
+                    DiagnosisSuggestion(
+                        canonical_code=fallback.canonical_code if fallback else None,
+                        display_name_vi=display_name,
+                        confidence_note=str(
+                            item.get("confidence_note")
+                            or (
+                                fallback.confidence_note
+                                if fallback
+                                else "Mức gợi ý: trung bình"
+                            )
+                        ),
+                        supporting_reasons=[
+                            str(reason).strip()
+                            for reason in reasons
+                            if str(reason).strip()
+                        ]
+                        or (fallback.supporting_reasons if fallback else []),
+                    )
+                )
+            if normalized:
+                result["top_differentials"] = normalized
+
+        soap = payload.get("soap_suggestions")
+        if isinstance(soap, dict):
+            result["soap_suggestions"] = SoapSuggestions(
+                subjective_draft=str(soap.get("subjective_draft") or ""),
+                objective_draft=str(soap.get("objective_draft") or ""),
+                assessment_draft=str(soap.get("assessment_draft") or ""),
+                plan_draft=str(soap.get("plan_draft") or ""),
+            )
+
+        suggested_questions = payload.get("suggested_questions")
+        if isinstance(suggested_questions, list):
+            result["suggested_questions"] = [
+                str(item).strip() for item in suggested_questions if str(item).strip()
+            ][:5]
+
+        return result or None
 
     def _build_top_differentials(
         self,
@@ -409,23 +715,19 @@ class StaffDiagnosisService:
             complaint = payload.get("chief_complaint")
             species = payload.get("species")
             if species and complaint:
-                prefix = (
-                    "Case EMR provisional" if is_provisional else "Case EMR xác nhận"
-                )
+                prefix = "Ca EMR tạm gán nhãn" if is_provisional else "Ca EMR xác nhận"
                 candidate.add_reason(
                     f"{prefix} ở {species} có biểu hiện gần giống: {complaint}."
                 )
             elif complaint:
-                prefix = (
-                    "Case EMR provisional" if is_provisional else "Case EMR xác nhận"
-                )
+                prefix = "Ca EMR tạm gán nhãn" if is_provisional else "Ca EMR xác nhận"
                 candidate.add_reason(f"{prefix} có biểu hiện gần giống: {complaint}.")
 
             final_diagnosis = payload.get("final_diagnosis_text")
             if final_diagnosis:
                 if is_provisional:
                     candidate.add_reason(
-                        f"Ca tương tự đang mang nhãn provisional: {final_diagnosis}."
+                        f"Ca tương tự hiện đang ở trạng thái tạm gán nhãn: {final_diagnosis}."
                     )
                 else:
                     candidate.add_reason(
@@ -488,7 +790,7 @@ class StaffDiagnosisService:
                 f"{diagnosis}. Biểu hiện chính: {detail}"
             )
             if payload.get("mapping_status") == "provisional":
-                line += ". Trạng thái mapping: provisional"
+                line += ". Trạng thái đối chiếu: tạm gán nhãn"
             if payload.get("exam_at"):
                 line += f". Ngày khám: {payload['exam_at']}"
             lines.append(line)
@@ -611,7 +913,6 @@ class StaffDiagnosisService:
                 ],
             )
         ]
-
 
     def _build_soap_suggestions(
         self,

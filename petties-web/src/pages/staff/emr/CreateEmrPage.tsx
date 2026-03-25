@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useToast } from '../../../components/Toast'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
@@ -13,14 +13,7 @@ import { ConfirmModal } from '../../../components/ConfirmModal'
 import { AIDiagnosisPanel } from '../../../components/emr/AIDiagnosisPanel'
 import { AISuggestionInlineCard } from '../../../components/emr/AISuggestionInlineCard'
 import { emrService } from '../../../services/emrService'
-import { petService } from '../../../services/api/petService'
-import {
-    createEmptyEmrAiDraft,
-    loadEmrAiDraft,
-    matchesEmrContext,
-    saveEmrAiDraft,
-    type EmrAiDraft,
-} from '../../../utils/emrAiDraftBridge'
+import { petService, type PetHealthSummary } from '../../../services/api/petService'
 import { useAIChatStore } from '../../../store/aiChatStore'
 import DatePicker, { registerLocale } from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -64,20 +57,21 @@ interface UploadingImageItem {
     error?: string
 }
 
-const buildAiImageDescription = (
-    result: StaffDiagnosisResponse,
-    imageDescriptionIndex: number
-): string => {
-    const imageSpecificDescription = result.image_descriptions?.[imageDescriptionIndex]?.trim()
-    if (imageSpecificDescription) {
-        return imageSpecificDescription
-    }
+interface PendingImageItem {
+    file: File
+    previewUrl: string
+    description: string
+}
 
-    if (result.vision_findings.length > 0) {
-        return result.vision_findings.slice(0, 2).join('; ')
-    }
+const formatSummaryDate = (date?: string) => {
+    if (!date) return 'Không rõ'
+    return new Date(date).toLocaleDateString('vi-VN')
+}
 
-    return 'AI chưa trích xuất được mô tả hình ảnh rõ ràng cho ảnh này.'
+const getWarningClasses = (severity?: string) => {
+    if (severity === 'HIGH') return 'border-red-200 bg-red-50 text-red-700'
+    if (severity === 'MEDIUM') return 'border-amber-200 bg-amber-50 text-amber-700'
+    return 'border-blue-200 bg-blue-50 text-blue-700'
 }
 
 // ============= COMPONENT =============
@@ -89,26 +83,27 @@ export const CreateEmrPage = () => {
     const bookingCode = searchParams.get('bookingCode')
     const { showToast } = useToast()
     const setAiSidebarOpen = useAIChatStore((state) => state.setIsOpen)
-    const setEmrDraft = useAIChatStore((state) => state.setEmrDraft)
-    const aiSidebarDraft = useAIChatStore((state) => state.emrDraft)
+    const setAiChatDraft = useAIChatStore((state) => state.setEmrDraft)
 
     // State for pet info (loaded from API)
     const [petInfo, setPetInfo] = useState<PetInfo | null>(null)
     const [isLoadingPet, setIsLoadingPet] = useState(true)
-    const [medicalHistory, setMedicalHistory] = useState<{ date: string; diagnosis: string }[]>([])
+    const [medicalHistory, setMedicalHistory] = useState<EmrRecord[]>([])
+    const [healthSummary, setHealthSummary] = useState<PetHealthSummary | null>(null)
+    const [isSummarizingHistory, setIsSummarizingHistory] = useState(false)
 
     // Load pet info from API
     useEffect(() => {
         let isMounted = true
-        
+
         if (petId) {
             setIsLoadingPet(true)
             Promise.all([
                 petService.getPetById(petId),
-                emrService.getEmrsByPetId(petId).catch(() => [])
+                emrService.getEmrsByPetId(petId).catch(() => []),
             ]).then(([pet, emrs]) => {
                 if (!isMounted) return  // Prevent state update on unmounted component
-                
+
                 // Calculate age from dateOfBirth
                 let ageStr = 'N/A'
                 if (pet.dateOfBirth) {
@@ -133,22 +128,34 @@ export const CreateEmrPage = () => {
                 })
                 // Initialize weight field
                 if (pet.weight) setWeight(pet.weight.toString())
-                // Convert EMR records to medical history
-                setMedicalHistory(emrs.map((emr: EmrRecord) => ({
-                    date: new Date(emr.examinationDate).toLocaleDateString('vi-VN'),
-                    diagnosis: emr.assessment?.substring(0, 50) || 'N/A'
-                })))
+                setMedicalHistory((emrs as EmrRecord[]).slice(0, 3))
             }).catch(err => {
                 console.error('Error loading pet:', err)
             }).finally(() => {
                 if (isMounted) setIsLoadingPet(false)
             })
         }
-        
+
         return () => {
             isMounted = false
         }
     }, [petId])
+
+    const handleGenerateHealthSummary = async () => {
+        if (!petId) return
+
+        setIsSummarizingHistory(true)
+        try {
+            const summary = await petService.getHealthSummary(petId)
+            setHealthSummary(summary)
+            showToast('success', 'Đã tổng hợp tất cả bệnh án gần đây.')
+        } catch (err) {
+            console.error('Failed to generate health summary:', err)
+            showToast('error', 'Không thể tổng hợp bệnh án gần đây. Vui lòng thử lại.')
+        } finally {
+            setIsSummarizingHistory(false)
+        }
+    }
 
     // ============= FORM STATE =============
     const [subjective, setSubjective] = useState('')
@@ -184,9 +191,9 @@ export const CreateEmrPage = () => {
     }, [reExamAmount, reExamUnit])
 
     const [images, setImages] = useState<EmrImage[]>([])
-    const [pendingImageFiles, setPendingImageFiles] = useState<File[]>([])
-    const [pendingImagePreviews, setPendingImagePreviews] = useState<string[]>([])
+    const [pendingImages, setPendingImages] = useState<PendingImageItem[]>([])
     const [uploadingImages, setUploadingImages] = useState<UploadingImageItem[]>([])
+    const pendingImagesRef = useRef<PendingImageItem[]>([])
     const [isLoading, setIsLoading] = useState(false)
     const [errors, setErrors] = useState<FieldErrors>({})
     const [previewImage, setPreviewImage] = useState<EmrImage | null>(null)
@@ -239,13 +246,15 @@ export const CreateEmrPage = () => {
         if (files.length === 0) return
 
         setErrors(prev => ({ ...prev, general: undefined, images: undefined }))
-        
-        // Create preview URLs for new files
-        const newPreviews = files.map(file => URL.createObjectURL(file))
-        
-        setPendingImageFiles(prev => [...prev, ...files])
-        setPendingImagePreviews(prev => [...prev, ...newPreviews])
-        
+
+        const newPendingImages = files.map((file) => ({
+            file,
+            previewUrl: URL.createObjectURL(file),
+            description: '',
+        }))
+
+        setPendingImages(prev => [...prev, ...newPendingImages])
+
         showToast('info', `Đã chọn ${files.length} ảnh. Ảnh sẽ được tải lên khi lưu bệnh án.`)
         e.target.value = ''
     }
@@ -253,17 +262,20 @@ export const CreateEmrPage = () => {
     // Upload pending images to Cloudinary
     const uploadPendingImages = async (): Promise<EmrImage[]> => {
         const uploadedImages: EmrImage[] = []
-        
-        for (const file of pendingImageFiles) {
+
+        for (const pendingImage of pendingImages) {
             try {
-                const result = await emrService.uploadEmrImage(file)
-                uploadedImages.push({ url: result.url })
+                const result = await emrService.uploadEmrImage(pendingImage.file)
+                uploadedImages.push({
+                    url: result.url,
+                    description: pendingImage.description.trim() || undefined,
+                })
             } catch (err) {
                 console.error('Upload error:', err)
                 throw err
             }
         }
-        
+
         return uploadedImages
     }
 
@@ -298,17 +310,17 @@ export const CreateEmrPage = () => {
 
             // Upload pending images first (if any)
             let allImages = [...images]
-            if (pendingImageFiles.length > 0) {
-                setUploadingImages(pendingImageFiles.map((file) => ({
-                    name: file.name,
+            if (pendingImages.length > 0) {
+                setUploadingImages(pendingImages.map((item) => ({
+                    name: item.file.name,
                     status: 'uploading' as const,
                 })))
-                
+
                 try {
                     const uploadedImages = await uploadPendingImages()
                     allImages = [...allImages, ...uploadedImages]
-                    setUploadingImages(pendingImageFiles.map((file) => ({
-                        name: file.name,
+                    setUploadingImages(pendingImages.map((item) => ({
+                        name: item.file.name,
                         status: 'done' as const,
                     })))
                 } catch (uploadErr) {
@@ -342,6 +354,8 @@ export const CreateEmrPage = () => {
             }
 
             await emrService.createEmr(request)
+            pendingImages.forEach((item) => URL.revokeObjectURL(item.previewUrl))
+            setPendingImages([])
 
             // Update pet weight in profile if changed
             if (weight && petInfo) {
@@ -448,92 +462,73 @@ export const CreateEmrPage = () => {
         return typeof parsed === 'number' && Number.isFinite(parsed) ? parsed : undefined
     }
 
-    const buildCurrentDraft = (): EmrAiDraft => ({
-        ...createEmptyEmrAiDraft(),
-        pet_id: petInfo?.id,
-        booking_id: bookingId || undefined,
-        species: petInfo?.species,
-        breed: petInfo?.breed,
-        age_months: estimateAgeMonths(),
-        weight_kg: getNormalizedWeightKg(),
-        allergies: allergies
-            .split(',')
-            .map((item) => item.trim())
-            .filter(Boolean),
-        subjective,
-        objective,
-        assessment,
-        plan,
-        image_urls: images.map((img) => img.url).filter(Boolean),
-    })
-
-    const syncDraftFromBridge = () => {
-        if (!petInfo?.id) return
-        const savedDraft = aiSidebarDraft && matchesEmrContext(aiSidebarDraft, petInfo.id, bookingId || undefined)
-            ? aiSidebarDraft
-            : loadEmrAiDraft()
-        if (!matchesEmrContext(savedDraft, petInfo.id, bookingId || undefined)) return
-        if (!savedDraft) return
-
-        if (savedDraft.subjective) setSubjective(savedDraft.subjective)
-        if (savedDraft.objective) setObjective(savedDraft.objective)
-        if (savedDraft.assessment) setAssessment(savedDraft.assessment)
-        if (savedDraft.plan) setPlan(savedDraft.plan)
-        showToast('success', 'Đã đồng bộ nội dung từ chat sidebar.')
-    }
-
-    useEffect(() => {
-        if (!petInfo?.id) return
-        const draft = buildCurrentDraft()
-        saveEmrAiDraft(draft)
-        setEmrDraft(draft)
-    }, [petInfo?.id, petInfo?.species, petInfo?.breed, petInfo?.weight, bookingId, weight, allergies, subjective, objective, assessment, plan, images, setEmrDraft])
-
-    useEffect(() => {
-        if (!petInfo?.id) return
-        const savedDraft = loadEmrAiDraft()
-        if (!matchesEmrContext(savedDraft, petInfo.id, bookingId || undefined)) return
-        if (!savedDraft) return
-        if (!subjective && !objective && !assessment && !plan) {
-            if (savedDraft.subjective) setSubjective(savedDraft.subjective)
-            if (savedDraft.objective) setObjective(savedDraft.objective)
-            if (savedDraft.assessment) setAssessment(savedDraft.assessment)
-            if (savedDraft.plan) setPlan(savedDraft.plan)
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [petInfo?.id, bookingId])
-
-    useEffect(() => {
-        return () => {
-            setEmrDraft(null)
-        }
-    }, [setEmrDraft])
-
-    useEffect(() => {
-        if (!aiDiagnosisResult) return
-
-        let filledCount = 0
-        setImages((prev) => prev.map((image, index) => {
-            if (image.description?.trim()) return image
-            filledCount += 1
+    const handlePendingImageDescriptionsChange = (descriptions: Record<string, string>) => {
+        setPendingImages((prev) => prev.map((item) => {
+            const aiDescription = descriptions[item.previewUrl]?.trim()
+            if (!aiDescription || item.description.trim()) {
+                return item
+            }
             return {
-                ...image,
-                description: buildAiImageDescription(aiDiagnosisResult, index),
+                ...item,
+                description: aiDescription,
             }
         }))
+    }
 
-        if (filledCount > 0) {
-            showToast('success', `AI đã tự điền mô tả cho ${filledCount} ảnh lâm sàng còn trống.`)
-        }
-    }, [aiDiagnosisResult, showToast])
+    const currentAgeMonths = estimateAgeMonths()
+    const currentWeightKg = getNormalizedWeightKg()
+
+    useEffect(() => {
+        if (!petInfo) return
+
+        setAiChatDraft({
+            version: 1,
+            updated_at: new Date().toISOString(),
+            pet_id: petInfo.id,
+            booking_id: bookingId || undefined,
+            species: petInfo.species,
+            breed: petInfo.breed,
+            age_months: currentAgeMonths,
+            weight_kg: currentWeightKg,
+            allergies: allergies.split(',').map((item) => item.trim()).filter(Boolean),
+            subjective,
+            objective,
+            assessment,
+            plan,
+            image_urls: [
+                ...images.map((img) => img.url).filter(Boolean),
+                ...pendingImages.map((item) => item.previewUrl).filter(Boolean),
+            ],
+        })
+    }, [
+        allergies,
+        assessment,
+        bookingId,
+        currentAgeMonths,
+        currentWeightKg,
+        images,
+        objective,
+        pendingImages,
+        petInfo,
+        plan,
+        setAiChatDraft,
+        subjective,
+    ])
 
     const openAiChatSidepanel = () => {
         if (!petInfo?.id) return
-        const draft = buildCurrentDraft()
-        saveEmrAiDraft(draft)
-        setEmrDraft(draft)
         setAiSidebarOpen(true)
     }
+
+    useEffect(() => {
+        pendingImagesRef.current = pendingImages
+    }, [pendingImages])
+
+    useEffect(() => {
+        return () => {
+            pendingImagesRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl))
+        }
+    }, [])
 
     // ============= RENDER =============
     // Loading state
@@ -634,14 +629,123 @@ export const CreateEmrPage = () => {
                             </div>
                         </div>
 
+                        <div className="bg-white rounded-2xl p-4 shadow-sm border border-amber-200">
+                            <div className="flex items-center justify-between gap-3">
+                                <div>
+                                    <h3 className="font-bold text-stone-800">Tổng hợp bệnh án gần đây</h3>
+                                    <p className="text-xs text-stone-500">
+                                        Staff chủ động bấm để AI tổng hợp toàn bộ bệnh án gần đây trước khi ghi EMR mới.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => void handleGenerateHealthSummary()}
+                                    disabled={isSummarizingHistory}
+                                    className="rounded-xl border border-amber-300 bg-amber-100 px-3 py-2 text-xs font-bold uppercase tracking-wide text-amber-800 shadow-[2px_2px_0_#1c1917] transition-all hover:bg-amber-200 active:translate-y-[1px] disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    {isSummarizingHistory ? 'Đang tổng hợp...' : 'Tổng hợp tất cả bệnh án gần đây'}
+                                </button>
+                            </div>
+
+                            {healthSummary ? (
+                                <div className="mt-4 space-y-3">
+                                    {healthSummary.aiInsights?.summary ? (
+                                        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-stone-700">
+                                            <p className="text-xs font-bold uppercase tracking-wide text-amber-800">Tóm tắt hồ sơ</p>
+                                            <p className="mt-2 whitespace-pre-wrap">{healthSummary.aiInsights.summary}</p>
+                                            {healthSummary.aiInsights.trends && (
+                                                <p className="mt-2 text-xs text-stone-600">
+                                                    <span className="font-semibold">Xu hướng:</span> {healthSummary.aiInsights.trends}
+                                                </p>
+                                            )}
+                                            {healthSummary.aiInsights.advice && (
+                                                <p className="mt-2 text-xs text-stone-600">
+                                                    <span className="font-semibold">Lưu ý cho staff:</span> {healthSummary.aiInsights.advice}
+                                                </p>
+                                            )}
+                                            {(healthSummary.aiInsights.intakeNotes?.length || 0) > 0 && (
+                                                <ul className="mt-2 space-y-1">
+                                                    {healthSummary.aiInsights?.intakeNotes?.map((note, index) => (
+                                                        <li key={`intake-note-${index}`} className="text-xs text-stone-600">
+                                                            - {note}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            )}
+                                        </div>
+                                    ) : null}
+
+                                    {healthSummary.latestEmr ? (
+                                        <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 text-sm text-stone-700 space-y-2">
+                                            <p className="text-xs font-bold uppercase tracking-wide text-stone-600">Lần khám gần nhất</p>
+                                            <p><span className="font-semibold">Ngày khám:</span> {formatSummaryDate(healthSummary.latestEmr.examDate)}</p>
+                                            {healthSummary.latestEmr.clinicName && <p><span className="font-semibold">Phòng khám:</span> {healthSummary.latestEmr.clinicName}</p>}
+                                            {healthSummary.latestEmr.diagnosis && <p><span className="font-semibold">Chẩn đoán:</span> {healthSummary.latestEmr.diagnosis}</p>}
+                                            {healthSummary.latestEmr.treatment && <p><span className="font-semibold">Điều trị:</span> {healthSummary.latestEmr.treatment}</p>}
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-stone-500">Chưa có dữ liệu tổng hợp từ bệnh án trước.</p>
+                                    )}
+                                    {healthSummary.healthWarnings.length > 0 && (
+                                        <div className="space-y-2">
+                                            {healthSummary.healthWarnings.map((warning, index) => (
+                                                <div key={`${warning.type}-${index}`} className={`rounded-xl border p-3 text-sm font-medium ${getWarningClasses(warning.severity)}`}>
+                                                    {warning.message}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {healthSummary.medicationReminders.length > 0 && (
+                                        <div className="space-y-2">
+                                            {healthSummary.medicationReminders.map((item, index) => (
+                                                <div key={`${item.medication}-${index}`} className="rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-800">
+                                                    <p className="font-semibold">{item.medication}</p>
+                                                    <p className="text-xs">{[item.dosage, item.frequency].filter(Boolean).join(' • ')}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {healthSummary.suggestedActions.length > 0 && (
+                                        <div className="space-y-2">
+                                            {healthSummary.suggestedActions.map((action, index) => (
+                                                <div key={`${action.type}-${index}`} className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                                                    <p className="font-semibold">{action.label}</p>
+                                                    <p className="text-xs">{action.reason}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {healthSummary.disclaimer && (
+                                        <p className="text-xs italic text-stone-500">{healthSummary.disclaimer}</p>
+                                    )}
+                                </div>
+                            ) : (
+                                <p className="mt-3 text-sm text-stone-500">
+                                    Chưa chạy tổng hợp. Bấm nút ở trên để AI đọc các bệnh án gần đây và tóm tắt cho staff.
+                                </p>
+                            )}
+                        </div>
+
                         {/* Medical History Summary */}
                         <div className="bg-white rounded-2xl p-4 shadow-sm">
-                            <h3 className="font-bold text-stone-700 mb-3">Tóm tắt Bệnh sử</h3>
-                            <div className="space-y-2 text-sm">
-                                {medicalHistory.map((h, i) => (
-                                    <p key={i} className="text-stone-600">
-                                        <span className="font-medium">{h.date}:</span> {h.diagnosis}
-                                    </p>
+                            <h3 className="font-bold text-stone-700 mb-3">Tóm tắt bệnh sử</h3>
+                            <div className="space-y-3 text-sm">
+                                {medicalHistory.map((emr) => (
+                                    <div key={emr.id} className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+                                        <p className="font-semibold text-stone-700">{formatSummaryDate(emr.examinationDate)}</p>
+                                        <p className="mt-1 text-stone-600">{emr.assessment || 'Chưa có chẩn đoán'}</p>
+                                        {emr.plan && <p className="mt-1 text-xs text-stone-500 line-clamp-2">Kế hoạch: {emr.plan}</p>}
+                                        <div className="mt-2 flex items-center justify-between text-xs text-stone-500">
+                                            <span>{emr.staffName || 'Không rõ nhân viên'}</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => navigate(`/staff/emr/detail/${emr.id}`)}
+                                                className="font-bold uppercase text-blue-600"
+                                            >
+                                                Xem chi tiết
+                                            </button>
+                                        </div>
+                                    </div>
                                 ))}
                                 {medicalHistory.length === 0 && (
                                     <p className="text-stone-400 text-sm">Chưa có lịch sử khám</p>
@@ -1016,13 +1120,12 @@ export const CreateEmrPage = () => {
                                             <div key={`${item.name}-${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs">
                                                 <span className="truncate text-stone-700">{item.name}</span>
                                                 <span
-                                                    className={`shrink-0 font-bold uppercase ${
-                                                        item.status === 'done'
+                                                    className={`shrink-0 font-bold uppercase ${item.status === 'done'
                                                             ? 'text-green-700'
                                                             : item.status === 'error'
                                                                 ? 'text-red-600'
                                                                 : 'text-amber-700'
-                                                    }`}
+                                                        }`}
                                                 >
                                                     {item.status === 'waiting' && 'Chờ tải'}
                                                     {item.status === 'uploading' && 'Đang tải'}
@@ -1095,34 +1198,53 @@ export const CreateEmrPage = () => {
                             )}
 
                             {/* Pending images preview (not yet uploaded) */}
-                            {pendingImagePreviews.length > 0 && (
+                            {pendingImages.length > 0 && (
                                 <div className="mt-4">
                                     <p className="text-xs font-bold text-amber-600 mb-2">
                                         Ảnh mới chọn (chờ tải lên):
                                     </p>
                                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                        {pendingImagePreviews.map((previewUrl, i) => (
+                                        {pendingImages.map((pendingImage, i) => (
                                             <div key={`pending-${i}`} className="rounded-2xl border border-amber-300 bg-amber-50/70 p-3 shadow-sm transition-all hover:shadow-md relative">
                                                 <div className="relative mb-3">
                                                     <img
-                                                        src={previewUrl}
+                                                        src={pendingImage.previewUrl}
                                                         alt={`Preview ${i + 1}`}
                                                         className="h-36 w-full rounded-xl object-cover cursor-pointer transition-opacity hover:opacity-80"
-                                                        onClick={() => setPreviewImage({ url: previewUrl, description: '' })}
+                                                        onClick={() => setPreviewImage({ url: pendingImage.previewUrl, description: pendingImage.description })}
                                                     />
                                                     <button
                                                         type="button"
                                                         onClick={() => {
                                                             // Cleanup preview URL
-                                                            URL.revokeObjectURL(previewUrl)
-                                                            // Remove from arrays
-                                                            setPendingImagePreviews(prev => prev.filter((_, idx) => idx !== i))
-                                                            setPendingImageFiles(prev => prev.filter((_, idx) => idx !== i))
+                                                            URL.revokeObjectURL(pendingImage.previewUrl)
+                                                            setPendingImages(prev => prev.filter((_, idx) => idx !== i))
                                                         }}
                                                         className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-xs text-white shadow-sm transition-colors hover:bg-red-600"
                                                     >
                                                         ×
                                                     </button>
+                                                </div>
+                                                <div className="relative group mb-2">
+                                                    <input
+                                                        type="text"
+                                                        value={pendingImage.description}
+                                                        onChange={(e) => {
+                                                            const nextValue = e.target.value
+                                                            setPendingImages((prev) =>
+                                                                prev.map((item, idx) =>
+                                                                    idx === i ? { ...item, description: nextValue } : item,
+                                                                ),
+                                                            )
+                                                        }}
+                                                        placeholder="Mô tả ảnh lâm sàng..."
+                                                        className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs text-stone-700 focus:border-amber-500 focus:outline-none"
+                                                    />
+                                                    {pendingImage.description.trim() && (
+                                                        <div className="pointer-events-none absolute bottom-full left-0 right-0 z-10 mb-2 hidden rounded-xl border border-amber-200 bg-white p-3 text-xs text-stone-700 shadow-lg group-hover:block group-focus-within:block">
+                                                            {pendingImage.description}
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <p className="text-xs text-amber-700 text-center">Chờ tải lên</p>
                                             </div>
@@ -1145,13 +1267,6 @@ export const CreateEmrPage = () => {
                             >
                                 {'Mở chat AI trong sidebar'}
                             </button>
-                            <button
-                                type="button"
-                                onClick={syncDraftFromBridge}
-                                className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs font-bold uppercase tracking-wide text-stone-700 transition-all hover:bg-stone-100 active:scale-95"
-                            >
-                                {'Đồng bộ từ chat sidebar'}
-                            </button>
                         </div>
                         <AIDiagnosisPanel
                             petId={petInfo.id}
@@ -1166,7 +1281,8 @@ export const CreateEmrPage = () => {
                             assessment={assessment}
                             plan={plan}
                             imageUrls={images.map((img) => img.url).filter(Boolean)}
-                            pendingImageUrls={pendingImagePreviews}
+                            pendingImageUrls={pendingImages.map((item) => item.previewUrl)}
+                            onPendingImageDescriptionsChange={handlePendingImageDescriptionsChange}
                             onDiagnosisResult={setAiDiagnosisResult}
                         />
 

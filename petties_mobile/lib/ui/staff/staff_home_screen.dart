@@ -296,7 +296,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
           Icon(Icons.search, color: AppColors.stone400),
           SizedBox(width: 12),
           Text(
-            'Tìm kiếm lịch hẹn, bệnh nhân...',
+            'Tìm kiếm lịch hẹn, thú cưng...',
             style: TextStyle(
                 color: AppColors.stone400,
                 fontSize: 14,

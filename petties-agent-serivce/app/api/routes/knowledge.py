@@ -13,7 +13,16 @@ Changes from v0.0.1:
 - Real RAG query with similarity search
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File, Form
+from fastapi import (
+    APIRouter,
+    HTTPException,
+    Depends,
+    Query,
+    UploadFile,
+    File,
+    Form,
+    Body,
+)
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -1040,7 +1049,10 @@ async def build_knowledge_graph(
         None, description="IDs tài liệu cụ thể. Để trống = tất cả đã processed."
     ),
     max_triplets: int = Query(
-        default=10, ge=1, le=50, description="Số triplets tối đa mỗi chunk"
+        default=200,
+        ge=1,
+        le=1000,
+        description="Số triplets tối đa tổng cộng sau deduplication",
     ),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1392,6 +1404,122 @@ async def prune_case_memory(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get(
+    "/case-memory",
+    summary="[KB-05] Danh sách Cases",
+    description="Lấy danh sách cases với pagination và filters (species, diagnosis, query)",
+)
+async def list_case_memory(
+    query: Optional[str] = Query(
+        default=None, description="Tìm kiếm trong nội dung case"
+    ),
+    species: Optional[str] = Query(
+        default=None, description="Lọc theo loài (dog, cat, other)"
+    ),
+    diagnosis: Optional[str] = Query(
+        default=None, description="Lọc theo từ khóa chẩn đoán"
+    ),
+    page: int = Query(default=1, ge=1, description="Số trang"),
+    page_size: int = Query(default=20, ge=1, le=100, description="Số items mỗi trang"),
+    _: dict = Depends(get_admin_user),
+):
+    """List cases with pagination and filters."""
+    try:
+        cm = get_cm_service()
+        result = await cm.list_cases(
+            query=query,
+            species=species,
+            diagnosis=diagnosis,
+            page=page,
+            page_size=page_size,
+        )
+        return {"success": True, **result}
+    except Exception as e:
+        logger.error(f"Error listing Case Memory: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/case-memory/{case_id}",
+    summary="[KB-05] Chi tiết Case",
+    description="Lấy chi tiết một case theo ID",
+)
+async def get_case_memory(
+    case_id: str,
+    _: dict = Depends(get_admin_user),
+):
+    """Get case detail by ID."""
+    try:
+        cm = get_cm_service()
+        case = await cm.get_case(case_id)
+        if case is None:
+            raise HTTPException(status_code=404, detail="Không tìm thấy case")
+        return {"success": True, "case": case}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting Case Memory {case_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch(
+    "/case-memory/{case_id}",
+    summary="[KB-05] Cập nhật Case",
+    description="Cập nhật metadata của một case (diagnosis, symptoms)",
+)
+async def update_case_memory(
+    case_id: str,
+    diagnosis: Optional[str] = Body(default=None, description="Chẩn đoán mới"),
+    symptoms: Optional[List[str]] = Body(
+        default=None, description="Danh sách triệu chứng mới"
+    ),
+    _: dict = Depends(get_admin_user),
+):
+    """Update case metadata."""
+    try:
+        cm = get_cm_service()
+        success = await cm.update_case(
+            case_id=case_id,
+            diagnosis=diagnosis,
+            symptoms=symptoms,
+        )
+        if not success:
+            raise HTTPException(
+                status_code=404, detail="Không tìm thấy case hoặc cập nhật thất bại"
+            )
+        return {"success": True, "message": "Cập nhật case thành công"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating Case Memory {case_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete(
+    "/case-memory/{case_id}",
+    summary="[KB-05] Xóa Case",
+    description="Xóa một case khỏi Case Memory",
+)
+async def delete_case_memory(
+    case_id: str,
+    _: dict = Depends(get_admin_user),
+):
+    """Delete a case from Case Memory."""
+    try:
+        cm = get_cm_service()
+        success = await cm.delete_case(case_id)
+        if not success:
+            raise HTTPException(
+                status_code=404, detail="Không tìm thấy case hoặc xóa thất bại"
+            )
+        return {"success": True, "message": "Xóa case thành công"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting Case Memory {case_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post(
     "/case-memory/sync-emr-confirmed",
     summary="[KB-05] Đồng bộ EMR confirmed vào Case Memory",
@@ -1414,5 +1542,5 @@ async def sync_emr_confirmed_into_case_memory(
     """Manually sync confirmed EMR records into Case Memory."""
     raise HTTPException(
         status_code=410,
-        detail="Endpoint nÃ y Ä‘Ã£ ngÆ°ng sá»­ dá»¥ng. Spring Boot sáº½ push trá»±c tiáº¿p EMR sang AI service.",
+        detail="Endpoint này đã ngưng sử dụng. Spring Boot sẽ push trực tiếp EMR sang AI service.",
     )

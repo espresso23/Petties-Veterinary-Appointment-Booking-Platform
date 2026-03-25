@@ -46,17 +46,10 @@ export interface Agent {
     max_tokens: number
     top_p: number // Added top_p support
     model: string
-    system_prompt?: string
     enabled: boolean
     created_at?: string
     updated_at?: string
     tools?: string[]
-}
-
-export interface PromptVersion {
-    version: number
-    prompt: string
-    created_at: string
 }
 
 export interface ScanToolsResult {
@@ -88,7 +81,6 @@ export interface Tool {
     name: string
     description?: string
     enabled: boolean
-    assigned_agents?: string[]
 }
 
 export interface Document {
@@ -196,8 +188,11 @@ export interface KGBuildResponse {
 
 export interface CaseMemoryStatsResponse {
     success: boolean
-    total_cases: number
-    collection_status: string
+    points_count: number
+    status: string
+    collection: string
+    initialized: boolean
+    image_enabled: boolean
     [key: string]: unknown
 }
 
@@ -209,6 +204,45 @@ export interface CaseMemoryPruneResponse {
         max_feedback_below: number
         older_than_days: number
     }
+}
+
+export interface CaseMemoryItem {
+    case_id: string
+    text_content: string
+    species: string
+    breed?: string
+    chief_complaint: string
+    symptoms: string[]
+    final_diagnosis_text: string
+    canonical_code?: string
+    confirmation_count: number
+    created_at: string
+    last_confirmed_at?: string
+    image_urls: string[]
+    image_descriptions?: string[]
+    emr_id?: string
+    clinic_id?: string
+}
+
+export interface CaseMemoryListResponse {
+    success: boolean
+    items: CaseMemoryItem[]
+    total: number
+    page: number
+    page_size: number
+}
+
+export interface CaseMemoryDetailResponse {
+    success: boolean
+    case: CaseMemoryItem
+}
+
+export interface CaseMemoryListParams {
+    query?: string
+    species?: string
+    diagnosis?: string
+    page?: number
+    page_size?: number
 }
 
 export type ChatContextType = 'BUSINESS_CHAT' | 'PLAYGROUND_TEST'
@@ -291,6 +325,7 @@ export interface StaffDiagnosisRequest {
     body_part?: string
     symptoms?: string[]
     image_urls?: string[]
+    image_analysis_mode?: 'full' | 'describe_only'
     soap_draft?: {
         subjective?: string
         objective?: string
@@ -362,28 +397,6 @@ export const agentApi = {
         if (!response.ok) throw new Error('Failed to update agent')
         const result = await response.json()
         return result.agent
-    },
-
-    // Update system prompt
-    async updatePrompt(id: number, promptText: string, notes?: string): Promise<void> {
-        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/agents/${id}/prompt`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                prompt_text: promptText,
-                notes: notes,
-                created_by: 'admin'
-            })
-        })
-        if (!response.ok) throw new Error('Failed to update prompt')
-    },
-
-    // Get prompt history
-    async getPromptHistory(id: number): Promise<PromptVersion[]> {
-        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/agents/${id}/prompt-history`)
-        if (!response.ok) throw new Error('Failed to fetch prompt history')
-        const data = await response.json()
-        return data.versions
     },
 
     // Test agent - returns response with thinking process and tool calls
@@ -727,6 +740,58 @@ export const caseMemoryApi = {
     async getStats(): Promise<CaseMemoryStatsResponse> {
         const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/case-memory/stats`)
         if (!response.ok) throw new Error('Không thể lấy thống kê Case Memory')
+        return response.json()
+    },
+
+    async list(params: CaseMemoryListParams = {}): Promise<CaseMemoryListResponse> {
+        const searchParams = new URLSearchParams()
+        if (params.query) searchParams.set('query', params.query)
+        if (params.species) searchParams.set('species', params.species)
+        if (params.diagnosis) searchParams.set('diagnosis', params.diagnosis)
+        if (params.page) searchParams.set('page', String(params.page))
+        if (params.page_size) searchParams.set('page_size', String(params.page_size))
+        
+        const queryString = searchParams.toString()
+        const response = await fetchWithAuth(
+            `${AGENT_API_BASE_URL}/api/v1/knowledge/case-memory${queryString ? `?${queryString}` : ''}`
+        )
+        if (!response.ok) {
+            const err = await response.json().catch(() => null)
+            throw new Error(err?.detail || 'Không thể lấy danh sách Case Memory')
+        }
+        return response.json()
+    },
+
+    async get(caseId: string): Promise<CaseMemoryDetailResponse> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/case-memory/${caseId}`)
+        if (!response.ok) {
+            const err = await response.json().catch(() => null)
+            throw new Error(err?.detail || 'Không thể lấy chi tiết Case')
+        }
+        return response.json()
+    },
+
+    async update(caseId: string, data: { diagnosis?: string; symptoms?: string[] }): Promise<{ success: boolean; message: string }> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/case-memory/${caseId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        if (!response.ok) {
+            const err = await response.json().catch(() => null)
+            throw new Error(err?.detail || 'Không thể cập nhật Case')
+        }
+        return response.json()
+    },
+
+    async delete(caseId: string): Promise<{ success: boolean; message: string }> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/case-memory/${caseId}`, {
+            method: 'DELETE'
+        })
+        if (!response.ok) {
+            const err = await response.json().catch(() => null)
+            throw new Error(err?.detail || 'Không thể xóa Case')
+        }
         return response.json()
     },
 

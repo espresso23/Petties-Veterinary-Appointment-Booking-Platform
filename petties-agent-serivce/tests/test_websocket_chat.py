@@ -161,6 +161,58 @@ class WebSocketChatTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(captured["user_role"], "PET_OWNER")
         self.assertEqual(captured["context_type"], BUSINESS_CHAT)
 
+    async def test_handle_chat_message_propagates_auth_token_to_runtime_context(self):
+        captured_context = {}
+
+        async def fake_get_agent(**kwargs):
+            return FakeAgent()
+
+        async def fake_save_chat_message(data):
+            return data
+
+        async def fake_touch_chat_session(session_id, data=None):
+            return {"session_id": session_id, "data": data}
+
+        async def fake_send_message(session_id, payload):
+            return {"session_id": session_id, "payload": payload}
+
+        def fake_set_tool_runtime_context(context):
+            captured_context["value"] = context
+            return "runtime-token"
+
+        def fake_reset_tool_runtime_context(token):
+            return None
+
+        user = CurrentUser(user_id="user-1", role="PET_OWNER", is_admin=False)
+
+        with (
+            patch.object(websocket_chat.AgentFactory, "get_agent", fake_get_agent),
+            patch.object(
+                websocket_chat, "AsyncSessionLocal", lambda: FakeSessionContext()
+            ),
+            patch.object(websocket_chat, "save_chat_message", fake_save_chat_message),
+            patch.object(websocket_chat, "touch_chat_session", fake_touch_chat_session),
+            patch.object(websocket_chat, "set_tool_runtime_context", fake_set_tool_runtime_context),
+            patch.object(
+                websocket_chat,
+                "reset_tool_runtime_context",
+                fake_reset_tool_runtime_context,
+            ),
+            patch.object(websocket_chat.manager, "send_message", fake_send_message),
+        ):
+            await websocket_chat.handle_chat_message(
+                websocket=None,
+                session_id="session-1",
+                user=user,
+                session_context=BUSINESS_CHAT,
+                message=json.dumps({"message": "Xin chao"}),
+                auth_token="jwt-token",
+            )
+
+        self.assertEqual(captured_context["value"].auth_token, "jwt-token")
+        self.assertEqual(captured_context["value"].user_id, "user-1")
+        self.assertEqual(captured_context["value"].context_type, BUSINESS_CHAT)
+
     async def test_websocket_close_reasons_are_stable_constants(self):
         self.assertEqual(websocket_chat.WS_REASON_AUTH_REQUIRED, "CHAT_AUTH_REQUIRED")
         self.assertEqual(websocket_chat.WS_REASON_INVALID_AUTH, "CHAT_INVALID_AUTH")
