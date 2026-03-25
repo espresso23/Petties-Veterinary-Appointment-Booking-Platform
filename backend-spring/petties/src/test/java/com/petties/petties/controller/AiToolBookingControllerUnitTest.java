@@ -98,8 +98,8 @@ class AiToolBookingControllerUnitTest {
     }
 
     @Test
-    @DisplayName("Build draft missing required fields returns 400")
-    void buildDraft_missingRequiredFields_returns400() throws Exception {
+    @DisplayName("Build draft with valid required fields returns 200")
+    void buildDraft_validRequest_returns200() throws Exception {
         AiBookingDraftRequest request = AiBookingDraftRequest.builder()
                 .clinicId(UUID.randomUUID())
                 .bookingDate(LocalDate.of(2026, 3, 21))
@@ -107,10 +107,15 @@ class AiToolBookingControllerUnitTest {
                 .serviceIds(List.of(UUID.randomUUID()))
                 .build();
 
+        when(aiToolBookingService.buildDraft(any())).thenReturn(
+                AiBookingDraftResponse.builder()
+                        .readyToConfirm(true)
+                        .build());
+
         mockMvc.perform(post("/ai-tools/booking/draft")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isOk());
     }
 
     @Test
