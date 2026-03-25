@@ -2,18 +2,18 @@ package com.petties.petties.service;
 
 import com.petties.petties.dto.booking.BookingResponse;
 import com.petties.petties.dto.booking.CheckoutRequest;
-import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.exception.ResourceNotFoundException;
 import com.petties.petties.mapper.BookingMapper;
 import com.petties.petties.model.Booking;
 import com.petties.petties.model.Clinic;
+import com.petties.petties.model.Payment;
 import com.petties.petties.model.Pet;
 import com.petties.petties.model.User;
 import com.petties.petties.model.enums.BookingStatus;
 import com.petties.petties.model.enums.BookingType;
-import com.petties.petties.model.enums.Role;
 import com.petties.petties.repository.BookingRepository;
 import com.petties.petties.repository.EmrRecordRepository;
+import com.petties.petties.repository.PaymentRepository;
 import com.petties.petties.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -38,7 +38,7 @@ import static org.mockito.Mockito.*;
 
 /**
  * Unit tests for BookingService status transition methods
- * Tests: checkIn, checkout, notifyOnWay
+ * Tests: checkIn, complete, notifyOnWay
  */
 @ExtendWith(MockitoExtension.class)
 class BookingStatusTransitionTest {
@@ -63,6 +63,9 @@ class BookingStatusTransitionTest {
 
     @Mock
     private BookingNotificationService bookingNotificationService;
+
+    @Mock
+    private PaymentRepository paymentRepository;
 
     @InjectMocks
     private BookingService bookingService;
@@ -119,6 +122,9 @@ class BookingStatusTransitionTest {
                     .type(b.getType())
                     .build();
         });
+
+        lenient().when(paymentRepository.findByBookingBookingId(any(UUID.class))).thenReturn(Optional.empty());
+        lenient().when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     // ========== CHECK-IN TESTS ==========
@@ -180,6 +186,57 @@ class BookingStatusTransitionTest {
             // When/Then
             assertThatThrownBy(() -> bookingService.checkIn(bookingId))
                     .isInstanceOf(ResourceNotFoundException.class);
+        }
+    }
+
+    // ========== COMPLETE TESTS ==========
+
+    @Nested
+    @DisplayName("Complete Tests")
+    class CompleteTests {
+
+        @Test
+        @DisplayName("TC-UNIT-BOOKING-005: Complete từ IN_PROGRESS thành công")
+        void complete_fromInProgress_success() {
+            // Given
+            testBooking.setStatus(BookingStatus.IN_PROGRESS);
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
+            when(bookingRepository.save(any(Booking.class))).thenAnswer(i -> i.getArgument(0));
+
+            // When
+            BookingResponse response = bookingService.complete(bookingId, null);
+
+            // Then
+            assertThat(response).isNotNull();
+            assertThat(testBooking.getStatus()).isEqualTo(BookingStatus.COMPLETED);
+            verify(bookingRepository).save(testBooking);
+            verify(notificationService).sendCompletedNotification(testBooking);
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-BOOKING-006: Complete từ CONFIRMED thất bại")
+        void complete_fromCONFIRMED_shouldFail() {
+            // Given
+            testBooking.setStatus(BookingStatus.CONFIRMED);
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
+
+            // When/Then
+            assertThatThrownBy(() -> bookingService.complete(bookingId, null))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("IN_PROGRESS");
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-BOOKING-007: Complete từ COMPLETED thất bại (đã hoàn thành)")
+        void complete_fromCompleted_shouldFail() {
+            // Given
+            testBooking.setStatus(BookingStatus.COMPLETED);
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
+
+            // When/Then
+            assertThatThrownBy(() -> bookingService.complete(bookingId, null))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("IN_PROGRESS");
         }
     }
 
@@ -351,70 +408,6 @@ class BookingStatusTransitionTest {
             verify(bookingRepository).save(testBooking);
             verify(bookingNotificationService).pushBookingUpdateToUsers(testBooking, "COMPLETED");
             verify(notificationService).sendCompletedNotification(testBooking);
-        }
-
-        @Test
-        @DisplayName("TC-UNIT-BOOKING-020: Manager cùng clinic có thể checkout dù không được assign")
-        void processCheckoutAuthorized_managerSameClinic_notAssigned_success() {
-            // Given
-            testBooking.setStatus(BookingStatus.IN_PROGRESS);
-            testBooking.setType(BookingType.HOME_VISIT);
-            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
-            when(bookingRepository.save(any(Booking.class))).thenAnswer(i -> i.getArgument(0));
-
-            User manager = new User();
-            manager.setUserId(UUID.randomUUID());
-            manager.setRole(Role.CLINIC_MANAGER);
-            manager.setWorkingClinic(clinic);
-
-            // When
-            BookingResponse response = bookingService.processCheckoutAuthorized(bookingId, new CheckoutRequest(), manager);
-
-            // Then
-            assertThat(response).isNotNull();
-            assertThat(testBooking.getStatus()).isEqualTo(BookingStatus.COMPLETED);
-            verify(bookingRepository).save(testBooking);
-            verify(notificationService).sendCompletedNotification(testBooking);
-        }
-
-        @Test
-        @DisplayName("TC-UNIT-BOOKING-021: Manager khác clinic không được checkout")
-        void processCheckoutAuthorized_managerOtherClinic_shouldFail() {
-            // Given
-            testBooking.setStatus(BookingStatus.IN_PROGRESS);
-            testBooking.setType(BookingType.HOME_VISIT);
-            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
-
-            Clinic otherClinic = new Clinic();
-            otherClinic.setClinicId(UUID.randomUUID());
-
-            User manager = new User();
-            manager.setUserId(UUID.randomUUID());
-            manager.setRole(Role.CLINIC_MANAGER);
-            manager.setWorkingClinic(otherClinic);
-
-            // When/Then
-            assertThatThrownBy(() -> bookingService.processCheckoutAuthorized(bookingId, new CheckoutRequest(), manager))
-                    .isInstanceOf(ForbiddenException.class)
-                    .hasMessageContaining("Bạn không thuộc phòng khám xử lý booking này");
-        }
-
-        @Test
-        @DisplayName("TC-UNIT-BOOKING-022: Admin không được checkout")
-        void processCheckoutAuthorized_admin_shouldFail() {
-            // Given
-            testBooking.setStatus(BookingStatus.IN_PROGRESS);
-            testBooking.setType(BookingType.HOME_VISIT);
-            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
-
-            User admin = new User();
-            admin.setUserId(UUID.randomUUID());
-            admin.setRole(Role.ADMIN);
-
-            // When/Then
-            assertThatThrownBy(() -> bookingService.processCheckoutAuthorized(bookingId, new CheckoutRequest(), admin))
-                    .isInstanceOf(ForbiddenException.class)
-                    .hasMessageContaining("Admin không được checkout booking");
         }
     }
 

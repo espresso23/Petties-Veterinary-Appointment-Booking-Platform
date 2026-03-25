@@ -1,0 +1,2 @@
+ALTER TABLE vouchers ADD COLUMN require_online_payment BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE vouchers ADD COLUMN limit_one_per_user BOOLEAN NOT NULL DEFAULT FALSE;

@@ -63,6 +63,9 @@ public class BookingResponse {
     // ========== PAYMENT INFO ==========
     private String paymentStatus; // PENDING, PAID, REFUNDED, FAILED
     private String paymentMethod; // CASH, QR, CARD
+    private String paymentDescription; // SePay payment description for QR matching
+    private String qrImageUrl; // QR code image URL (only for QR + PENDING)
+    private Boolean canShowQrPaymentButton; // Stable UI flag for Pet Owner QR action
 
     // ========== BOOKING INFO ==========
     @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd")
@@ -75,6 +78,11 @@ public class BookingResponse {
     private BookingStatus status;
     private BigDecimal totalPrice;
     private String notes;
+
+    // ========== VOUCHER & DISCOUNT ==========
+    private UUID voucherId;
+    private BigDecimal discountAmount;
+    private BigDecimal finalPrice;
 
     /**
      * Danh sách thú cưng trong booking (multi-pet), mỗi pet kèm danh sách dịch vụ của pet đó.

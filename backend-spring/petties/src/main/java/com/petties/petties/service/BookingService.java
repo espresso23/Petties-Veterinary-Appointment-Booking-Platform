@@ -27,10 +27,13 @@ import com.petties.petties.model.Booking;
 import com.petties.petties.model.BookingServiceItem;
 import com.petties.petties.model.Clinic;
 import com.petties.petties.model.ClinicService;
+import com.petties.petties.model.Payment;
 import com.petties.petties.model.Pet;
 import com.petties.petties.model.User;
 import com.petties.petties.model.enums.BookingStatus;
 import com.petties.petties.model.enums.BookingType;
+import com.petties.petties.model.enums.PaymentMethod;
+import com.petties.petties.model.enums.PaymentStatus;
 import com.petties.petties.model.enums.Role;
 import com.petties.petties.model.enums.ServiceCategory;
 import com.petties.petties.model.enums.StaffSpecialty;
@@ -41,6 +44,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import com.petties.petties.dto.booking.EstimatedCompletionResponse;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -52,20 +57,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.AbstractMap;
-import java.util.ArrayList;
 import com.petties.petties.model.OperatingHours;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -90,31 +83,218 @@ public class BookingService {
         private final VaccinationService vaccinationService;
         private final BookingMapper bookingMapper;
         private final BookingNotificationService bookingNotificationService;
+        private final PaymentRepository paymentRepository;
+        private final TransactionService transactionService;
         private final SosSessionManager sosSessionManager;
         private final TrackingService trackingService;
+        private final VoucherService voucherService;
+        private final com.petties.petties.repository.VoucherRepository voucherRepository;
+
+        @Value("${sepay.qr.acc:}")
+        private String sepayQrAcc;
+
+        @Value("${sepay.qr.bank:}")
+        private String sepayQrBank;
+
+        private static final int MAX_RETRY_COUNT = 3;
+
+        private static final String PREFERRED_PAYMENT_PREFIX = "Phương thức thanh toán mong muốn:";
 
         // ========== HELPER METHODS ==========
 
         /**
-         * Validate vaccine species compatibility between pet and service.
+         * Validate vaccine species compatibility between pet and service
+         * Throws BadRequestException if vaccine is not compatible with pet species
          */
-        private void validateVaccineSpeciesCompatibility(Pet pet, ClinicService service) {
-                if (service.getVaccineTemplate() == null) {
-                        return;
+        private void validateClinicNotStruck(Clinic clinic) {
+                if (clinic.getStatus() != com.petties.petties.model.enums.ClinicStatus.APPROVED) {
+                        throw new BadRequestException("Phòng khám chưa được duyệt hoặc không hoạt động");
                 }
-
-                var targetSpecies = service.getVaccineTemplate().getTargetSpecies();
-                if (!SpeciesUtils.isVaccineCompatible(targetSpecies, pet.getSpecies())) {
-                        String vaccineSpecies = SpeciesUtils.getVietnameseName(targetSpecies);
+                if (clinic.getStrikeUntil() != null && clinic.getStrikeUntil().isAfter(java.time.LocalDateTime.now())) {
                         throw new BadRequestException(
+                                        "Phòng khám đang tạm ngưng nhận đặt lịch do vi phạm. Vui lòng thử lại sau ngày "
+                                                        + clinic.getStrikeUntil().toLocalDate() + ".");
+                }
+        }
+
+        private void validatePetOwnerNotStruck(User petOwner) {
+                if (petOwner.getStrikeUntil() != null && petOwner.getStrikeUntil().isAfter(java.time.LocalDateTime.now())) {
+                        throw new BadRequestException(
+                                        "Tài khoản của bạn đang bị hạn chế đặt lịch do vi phạm. Vui lòng thử lại sau ngày "
+                                                        + petOwner.getStrikeUntil().toLocalDate() + ".");
+                }
+        }
+
+        private void validateVaccineSpeciesCompatibility(Pet pet, ClinicService service) {
+                if (service.getVaccineTemplate() != null) {
+                        var targetSpecies = service.getVaccineTemplate().getTargetSpecies();
+                        if (!SpeciesUtils.isVaccineCompatible(targetSpecies, pet.getSpecies())) {
+                                String vaccineSpecies = SpeciesUtils.getVietnameseName(targetSpecies);
+                                throw new BadRequestException(
                                         String.format("Vắc-xin '%s' chỉ dành cho %s, không phù hợp với thú cưng '%s' của bạn",
-                                                        service.getName(), vaccineSpecies, pet.getName()));
+                                                service.getName(), vaccineSpecies, pet.getName())
+                                );
+                        }
                 }
         }
 
         /**
+         * Normalize payment method preference from client request.
+         * Only accept QR/CASH to avoid storing invalid values.
+         */
+        private String normalizePreferredPaymentMethod(String paymentMethod) {
+                if (paymentMethod == null || paymentMethod.isBlank()) {
+                        return null;
+                }
+                String normalized = paymentMethod.trim().toUpperCase();
+                if (!"QR".equals(normalized) && !"CASH".equals(normalized)) {
+                        return null;
+                }
+                return normalized;
+        }
+
+        /**
+         * Merge existing notes with preferred payment method line.
+         */
+        private String mergeBookingNotesWithPreferredPayment(String notes, String paymentMethod) {
+                String normalized = normalizePreferredPaymentMethod(paymentMethod);
+                if (normalized == null) {
+                        return notes;
+                }
+
+                String label = "QR".equals(normalized) ? "Chuyển khoản QR" : "Tiền mặt";
+                String preferenceLine = PREFERRED_PAYMENT_PREFIX + " " + label;
+
+                if (notes == null || notes.isBlank()) {
+                        return preferenceLine;
+                }
+
+                if (notes.contains(PREFERRED_PAYMENT_PREFIX)) {
+                        return notes;
+                }
+
+                return notes + "\n" + preferenceLine;
+        }
+
+        private PaymentMethod resolvePreferredPaymentMethodFromBooking(Booking booking) {
+                if (booking.getPaymentMethod() != null) {
+                        return booking.getPaymentMethod();
+                }
+
+                String notes = booking.getNotes() != null ? booking.getNotes().toLowerCase() : "";
+                if (notes.contains("phương thức thanh toán mong muốn: chuyển khoản qr")
+                                || notes.contains("phuong thuc thanh toan mong muon: chuyen khoan qr")
+                                || notes.contains("chuyển khoản qr")
+                                || notes.contains("chuyen khoan qr")) {
+                        return PaymentMethod.QR;
+                }
+
+                if (notes.contains("phương thức thanh toán mong muốn: tiền mặt")
+                                || notes.contains("phuong thuc thanh toan mong muon: tien mat")
+                                || notes.contains("tiền mặt")
+                                || notes.contains("tien mat")) {
+                        return PaymentMethod.CASH;
+                }
+
+                return null;
+        }
+
+        private boolean prepareQrPaymentWhenInProgress(Booking booking) {
+                PaymentMethod preferredMethod = resolvePreferredPaymentMethodFromBooking(booking);
+                if (preferredMethod != PaymentMethod.QR) {
+                        return false;
+                }
+
+                String paymentDescription = transactionService.generatePaymentDescription(booking.getBookingId());
+                if (paymentDescription == null || paymentDescription.isBlank()) {
+                        log.warn("Could not generate payment description for booking {} during IN_PROGRESS transition",
+                                        booking.getBookingCode());
+                        return false;
+                }
+
+                Payment payment = paymentRepository.findByBookingBookingId(booking.getBookingId()).orElse(null);
+
+                if (payment == null) {
+                        try {
+                                payment = Payment.builder()
+                                                .booking(booking)
+                                                .amount(booking.getTotalPrice())
+                                                .method(PaymentMethod.QR)
+                                                .status(PaymentStatus.PENDING)
+                                                .paymentDescription(paymentDescription)
+                                                .build();
+                                paymentRepository.save(payment);
+                        } catch (DataIntegrityViolationException ex) {
+                                // Concurrent check-in / repeated action can create the payment in another request.
+                                payment = paymentRepository.findByBookingBookingId(booking.getBookingId())
+                                                .orElseThrow(() -> ex);
+                                if (payment.getPaymentDescription() == null || payment.getPaymentDescription().isBlank()) {
+                                        payment.setPaymentDescription(paymentDescription);
+                                        paymentRepository.save(payment);
+                                }
+                        }
+                } else if (payment.getStatus() != PaymentStatus.PAID) {
+                        payment.setMethod(PaymentMethod.QR);
+                        payment.setStatus(PaymentStatus.PENDING);
+                        payment.setPaidAt(null);
+                        payment.setStripePaymentId(null);
+                        payment.setPaymentDescription(paymentDescription);
+                        paymentRepository.save(payment);
+                }
+
+                booking.setPayment(payment);
+                booking.syncPaymentStatus(payment);
+                return true;
+        }
+
+        /**
+         * Prepare QR payment immediately after booking creation.
+         * Creates/reuses Payment as QR/PENDING, generates paymentDescription and QR image URL.
+         */
+        private BookingResponse buildBookingResponseWithQrPayment(Booking booking) {
+                Payment existingPayment = paymentRepository.findByBookingBookingId(booking.getBookingId()).orElse(null);
+
+                Payment payment;
+                if (existingPayment != null) {
+                        existingPayment.setMethod(PaymentMethod.QR);
+                        existingPayment.setStatus(PaymentStatus.PENDING);
+                        existingPayment.setPaidAt(null);
+                        existingPayment.setStripePaymentId(null);
+                        existingPayment.setPaymentDescription(null);
+                        payment = existingPayment;
+                } else {
+                        payment = Payment.builder()
+                                        .booking(booking)
+                                        .amount(booking.getTotalPrice())
+                                        .method(PaymentMethod.QR)
+                                        .status(PaymentStatus.PENDING)
+                                        .build();
+                }
+
+                paymentRepository.save(payment);
+                booking.setPayment(payment);
+                booking.syncPaymentStatus(payment);
+                bookingRepository.save(booking);
+
+                String paymentDescription = transactionService.generatePaymentDescription(booking.getBookingId());
+                String qrImageUrl = String.format(
+                                "https://qr.sepay.vn/img?acc=%s&bank=%s&amount=%s&des=%s",
+                                sepayQrAcc,
+                                sepayQrBank,
+                                (booking.getFinalPrice() != null ? booking.getFinalPrice() : booking.getTotalPrice()).toBigInteger().toString(),
+                                paymentDescription);
+
+                BookingResponse response = bookingMapper.mapToResponse(booking);
+                response.setQrImageUrl(qrImageUrl);
+                return response;
+        }
+
+        /**
          * Get current user by userId (helper method for Controller to avoid direct
-         * Repository access).
+         * Repository access)
+         *
+         * @param userId User ID from JWT token
+         * @return User entity
          */
         @Transactional(readOnly = true)
         public User getCurrentUserById(UUID userId) {
@@ -158,6 +338,9 @@ public class BookingService {
                                                         "Không tìm thấy chủ thú cưng"));
                         Clinic clinic = clinicRepository.findById(request.getClinicId())
                                         .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
+
+                        validatePetOwnerNotStruck(petOwner);
+                        validateClinicNotStruck(clinic);
 
                         List<Pet> petsToUse = new ArrayList<>();
                         List<ClinicService> servicesToUse = new ArrayList<>();
@@ -205,14 +388,14 @@ public class BookingService {
                                         throw new ForbiddenException("Thú cưng không thuộc quyền sở hữu của bạn");
                                 }
                                 primaryPetId = pet.getId();
-                                List<ClinicService> services = clinicServiceRepository
-                                                .findAllById(request.getServiceIds());
-                                if (services.isEmpty()) {
-                                        throw new BadRequestException("Vui lòng chọn ít nhất một dịch vụ hợp lệ");
-                                }
-                                if (services.size() != request.getServiceIds().size()) {
-                                        throw new ResourceNotFoundException("Một số dịch vụ không tồn tại");
-                                }
+                        List<ClinicService> services = clinicServiceRepository
+                                        .findAllById(request.getServiceIds());
+                        if (services.isEmpty()) {
+                                throw new BadRequestException("Vui lòng chọn ít nhất một dịch vụ hợp lệ");
+                        }
+                        if (services.size() != request.getServiceIds().size()) {
+                                throw new ResourceNotFoundException("Một số dịch vụ không tồn tại");
+                        }
                                 for (ClinicService s : services) {
                                         if (!s.getClinic().getClinicId().equals(clinic.getClinicId())) {
                                                 throw new BadRequestException("Dịch vụ không thuộc phòng khám đã chọn");
@@ -257,9 +440,9 @@ public class BookingService {
                                 log.debug("SOS fee calculated: {}", sosFee);
                         } else {
                                 distanceFee = pricingService.calculateBookingDistanceFee(clinic.getClinicId(),
-                                                distanceKm,
-                                                request.getType());
-                                log.debug("Distance fee calculated: {}", distanceFee);
+                                        distanceKm,
+                                        request.getType());
+                        log.debug("Distance fee calculated: {}", distanceFee);
                         }
 
                         // 3. Final total
@@ -278,7 +461,8 @@ public class BookingService {
                                         .distanceFee(distanceFee)
                                         .sosFee(sosFee)
                                         .status(BookingStatus.PENDING)
-                                        .notes(request.getNotes())
+                                        .notes(mergeBookingNotesWithPreferredPayment(
+                                                        request.getNotes(), request.getPaymentMethod()))
                                         .homeAddress(request.getHomeAddress())
                                         .homeLat(request.getHomeLat())
                                         .homeLong(request.getHomeLong())
@@ -306,10 +490,10 @@ public class BookingService {
 
                         // Generate unique booking code using UUID (no race condition)
                         String bookingCode = Booking.generateUniqueBookingCode(request.getBookingDate());
-                        booking.setBookingCode(bookingCode);
+                                        booking.setBookingCode(bookingCode);
 
                         Booking savedBooking = bookingRepository.save(booking);
-                        log.info("Booking created successfully: {}", savedBooking.getBookingCode());
+                                        log.info("Booking created successfully: {}", savedBooking.getBookingCode());
 
                         // ========== NOTIFICATION AFTER SUCCESSFUL SAVE ==========
                         try {
@@ -317,6 +501,12 @@ public class BookingService {
                                 log.debug("Notification sent to clinic");
                         } catch (Exception e) {
                                 log.error("Failed to send notification (non-blocking): {}", e.getMessage());
+                        }
+
+                        String preferredPaymentMethod = normalizePreferredPaymentMethod(request.getPaymentMethod());
+                        if ("QR".equals(preferredPaymentMethod)) {
+                                log.info("Booking {} selected QR at creation, initializing QR payment", savedBooking.getBookingCode());
+                                return buildBookingResponseWithQrPayment(savedBooking);
                         }
 
                         return bookingMapper.mapToResponse(savedBooking);
@@ -360,9 +550,12 @@ public class BookingService {
                         ProxyRecipientInfo recipientInfo = request.getRecipient();
                         User recipient = createRecipientUser(recipientInfo);
 
-                        // Step 2: Validate clinic
+                        // Step 2: Validate clinic and recipient (pet owner)
                         Clinic clinic = clinicRepository.findById(request.getClinicId())
                                         .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
+
+                        validatePetOwnerNotStruck(recipient);
+                        validateClinicNotStruck(clinic);
 
                         // Step 3: Collect (serviceId, pet) pairs - mỗi cặp ứng với 1 BookingServiceItem
                         // Dùng List thay vì Map vì cùng serviceId có thể dùng cho nhiều pet khác nhau
@@ -437,7 +630,8 @@ public class BookingService {
                                         .totalPrice(totalPrice)
                                         .distanceFee(distanceFee)
                                         .status(BookingStatus.PENDING)
-                                        .notes(request.getNotes())
+                                        .notes(mergeBookingNotesWithPreferredPayment(
+                                                        request.getNotes(), request.getPaymentMethod()))
                                         .homeAddress(request.getHomeAddress() != null ? request.getHomeAddress()
                                                         : recipientInfo.getAddress())
                                         .homeLat(request.getHomeLat() != null ? request.getHomeLat()
@@ -485,6 +679,13 @@ public class BookingService {
                                 log.error("Failed to send notification (non-blocking): {}", e.getMessage());
                         }
 
+                        String preferredPaymentMethod = normalizePreferredPaymentMethod(request.getPaymentMethod());
+                        if ("QR".equals(preferredPaymentMethod)) {
+                                log.info("Proxy booking {} selected QR at creation, initializing QR payment",
+                                                savedBooking.getBookingCode());
+                                return buildBookingResponseWithQrPayment(savedBooking);
+                        }
+
                         return bookingMapper.mapToResponse(savedBooking);
 
                 } catch (BadRequestException | IllegalStateException | IllegalArgumentException e) {
@@ -497,17 +698,28 @@ public class BookingService {
         }
 
         /**
-         * Create a new guest user for proxy booking.
-         * In proxy booking flow, we always create a new guest user without checking
-         * existing records.
+         * Get or create a user for proxy booking.
+         * Checks if a user with the given phone number already exists:
+         * - If it exists, reuse it (prioritizing existing users/guests).
+         * - If not, create a new guest user and save their phone number.
          */
         private User createRecipientUser(ProxyRecipientInfo recipientInfo) {
+                // Check if user already exists with this phone number
+                if (recipientInfo.getPhone() != null && !recipientInfo.getPhone().trim().isEmpty()) {
+                        Optional<User> existingUserOpt = userRepository.findByPhone(recipientInfo.getPhone().trim());
+                        if (existingUserOpt.isPresent()) {
+                                log.info("Found existing user {} for proxy booking by phone: {}", 
+                                                existingUserOpt.get().getUserId(), recipientInfo.getPhone());
+                                return existingUserOpt.get();
+                        }
+                }
+
                 // Generate a unique username using phone + timestamp to avoid conflicts
                 String uniqueUsername = "proxy_" + recipientInfo.getPhone() + "_" + System.currentTimeMillis();
 
                 User newUser = new User();
                 newUser.setFullName(recipientInfo.getFullName());
-                newUser.setPhone(null); // Don't set phone to avoid unique constraint issues
+                newUser.setPhone(recipientInfo.getPhone()); // Save phone number for future proxy bookings
                 newUser.setAddress(recipientInfo.getAddress());
                 newUser.setRole(Role.PET_OWNER);
                 newUser.setUsername(uniqueUsername);
@@ -817,7 +1029,7 @@ public class BookingService {
                 // Release slots back to AVAILABLE before cancelling
                 log.info("Releasing slots for booking {}", booking.getBookingCode());
                 try {
-                        staffAssignmentService.releaseSlotsForBooking(booking);
+                staffAssignmentService.releaseSlotsForBooking(booking);
                 } catch (Exception e) {
                         log.warn("Failed to release slots for booking {}: {}. Continuing with cancellation.",
                                         booking.getBookingCode(), e.getMessage());
@@ -833,7 +1045,7 @@ public class BookingService {
 
                 // Push SSE event for real-time sync
                 try {
-                        bookingNotificationService.pushBookingUpdateToUsers(savedBooking, "CANCELLED");
+                bookingNotificationService.pushBookingUpdateToUsers(savedBooking, "CANCELLED");
                 } catch (Exception e) {
                         log.warn("Failed to push SSE notification for cancelled booking {}: {}",
                                         savedBooking.getBookingCode(), e.getMessage());
@@ -999,7 +1211,7 @@ public class BookingService {
         // ========== ADD-ON SERVICE (During Active Booking) ==========
 
         /**
-         * Add a service to an active booking (IN_PROGRESS)
+         * Add a service to an active booking (IN_PROGRESS or ARRIVED)
          * Used when staff wants to add extra services during home visit
          * Distance fee is NOT recalculated (already at location)
          *
@@ -1015,7 +1227,15 @@ public class BookingService {
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
-                validateClinicAccessPermission(booking, currentUser);
+                if (currentUser.getRole() == Role.STAFF || currentUser.getRole() == Role.CLINIC_MANAGER) {
+                        UUID userClinicId = currentUser.getWorkingClinic() != null
+                                        ? currentUser.getWorkingClinic().getClinicId()
+                                        : null;
+                        UUID bookingClinicId = booking.getClinic() != null ? booking.getClinic().getClinicId() : null;
+                        if (userClinicId == null || bookingClinicId == null || !bookingClinicId.equals(userClinicId)) {
+                                throw new ForbiddenException("Bạn không có quyền thao tác booking của phòng khám khác");
+                        }
+                }
 
                 // Validate status - only allow for active bookings
                 if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
@@ -1029,7 +1249,7 @@ public class BookingService {
 
                 // Validate service belongs to the same clinic
                 if (!service.getClinic().getClinicId().equals(booking.getClinic().getClinicId())) {
-                        throw new IllegalArgumentException("Dịch vụ không thuộc phòng khám này");
+                        throw new ForbiddenException("Bạn không thể thêm dịch vụ của phòng khám khác");
                 }
 
                 // Check if service already exists in booking
@@ -1162,46 +1382,187 @@ public class BookingService {
                         booking.setTotalPrice(servicesTotal.add(sosFee));
                 }
 
-                // Final status update
+
+                // Apply voucher discount if any
+                BigDecimal originalTotal = booking.getTotalPrice() != null ? booking.getTotalPrice() : BigDecimal.ZERO;
+                BigDecimal discount = BigDecimal.ZERO;
+
+                if (booking.getVoucher() != null) {
+                        try {
+                                // Double check if conditions still match
+                                discount = voucherService.calculateVoucherDiscount(booking.getVoucher().getVoucherId(), booking.getClinic().getClinicId(), originalTotal);
+                                booking.setDiscountAmount(discount);
+                        } catch (Exception e) {
+                                // Voucher may be invalid now (e.g. amount too small after removing services)
+                                log.warn("Voucher {} became invalid for booking {}: {}", booking.getVoucher().getVoucherId(), bookingId, e.getMessage());
+                                booking.setVoucher(null);
+                                booking.setDiscountAmount(BigDecimal.ZERO);
+                        }
+                } else {
+                        booking.setDiscountAmount(BigDecimal.ZERO);
+                }
+
+                BigDecimal finalTotal = originalTotal.subtract(discount).max(BigDecimal.ZERO);
+                booking.setFinalPrice(finalTotal);
+
+                // Checkout sẽ hoàn tất booking ngay sau khi chốt thông tin thanh toán.
+                String reqMethodStr = request != null ? request.getPaymentMethod() : null;
+                PaymentMethod method;
+                Payment payment = paymentRepository.findByBookingBookingId(bookingId).orElse(null);
+                
+                if (reqMethodStr != null && !reqMethodStr.isBlank()) {
+                        method = PaymentMethod.valueOf(reqMethodStr.trim().toUpperCase());
+                } else {
+                        // Lấy phương thức thanh toán gốc của booking thay vì mặc định ép CASH
+                        if (payment != null && payment.getMethod() != null) {
+                                method = payment.getMethod();
+                        } else {
+                                PaymentMethod pref = resolvePreferredPaymentMethodFromBooking(booking);
+                                method = pref != null ? pref : PaymentMethod.CASH;
+                        }
+                }
+
+                if (booking.getVoucher() != null && Boolean.TRUE.equals(booking.getVoucher().getRequireOnlinePayment())) {
+                        if (method == PaymentMethod.CASH) {
+                                throw new BadRequestException("Voucher đang sử dụng chỉ áp dụng cho hình thức Thanh toán trực tuyến (Mã QR/Online). Vui lòng quét QR hoặc gỡ voucher để thu tiền mặt.");
+                        }
+                }
+
+                // Nếu đã thanh toán rồi thì chỉ cần hoàn tất booking, không tạo payment mới
+                if (payment != null && payment.getStatus() == PaymentStatus.PAID) {
+                        booking.setPayment(payment);
+                        booking.syncPaymentStatus(payment);
+                        booking.setStatus(BookingStatus.COMPLETED);
+                        Booking savedBooking = bookingRepository.save(booking);
+
+                        try {
+                                trackingService.clearTracking(bookingId);
+                        } catch (Exception e) {
+                                log.warn("Failed to clear tracking data: {}", e.getMessage());
+                        }
+
+                        bookingNotificationService.pushBookingUpdateToUsers(savedBooking, "COMPLETED");
+                        try {
+                                notificationService.sendCompletedNotification(savedBooking);
+                        } catch (Exception e) {
+                                log.warn("Failed to send completed notification after checkout: {}", e.getMessage());
+                        }
+
+                        log.info("Booking {} checked out and completed (Already PAID previously)", booking.getBookingCode());
+                        return bookingMapper.mapToResponse(savedBooking);
+                }
+
+                // Với QR, bắt buộc phải xác nhận PAID trước khi complete.
+                if (method == PaymentMethod.QR) {
+                        throw new BadRequestException(
+                                        "Booking QR chưa thanh toán thành công. Vui lòng chờ xác nhận thanh toán trước khi hoàn tất.");
+                }
+
+                // Dùng lại hoặc tạo mới payment CASH
+                if (payment == null) {
+                        payment = Payment.builder()
+                                        .booking(booking)
+                                        .amount(finalTotal)
+                                        .method(method)
+                                        .status(PaymentStatus.PENDING)
+                                        .build();
+                }
+
+                payment.setMethod(method);
+                payment.setAmount(finalTotal);
+                payment.markAsPaid();
+
+                paymentRepository.save(payment);
+                booking.setPayment(payment);
+                booking.syncPaymentStatus(payment);
                 booking.setStatus(BookingStatus.COMPLETED);
-                bookingRepository.save(booking);
+                Booking savedBooking = bookingRepository.save(booking);
+                if (savedBooking != null) {
+                        booking = savedBooking;
+                }
 
-                log.info("Booking {} checked out successfully. Final total: {}", bookingId, booking.getTotalPrice());
+                try {
+                        trackingService.clearTracking(bookingId);
+                } catch (Exception e) {
+                        log.warn("Failed to clear tracking data: {}", e.getMessage());
+                }
 
-                // Push SSE event
                 bookingNotificationService.pushBookingUpdateToUsers(booking, "COMPLETED");
-
-                // Notify pet owner
                 try {
                         notificationService.sendCompletedNotification(booking);
                 } catch (Exception e) {
-                        log.warn("Failed to send completed notification: {}", e.getMessage());
+                        log.warn("Failed to send completed notification after checkout: {}", e.getMessage());
                 }
 
+                log.info("Booking {} checked out by staff and completed with method {}",
+                                booking.getBookingCode(), payment.getMethod());
                 return bookingMapper.mapToResponse(booking);
         }
 
+        // ========== VOUCHER APPLICATION ==========
+
         @Transactional
-        public BookingResponse processCheckoutAuthorized(UUID bookingId, CheckoutRequest request, User currentUser) {
+        public BookingResponse applyVoucherToBooking(UUID bookingId, com.petties.petties.dto.booking.ApplyVoucherRequest request, User currentUser) {
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
-                validateCheckoutPermission(booking, currentUser);
-                return processCheckout(bookingId, request, currentUser);
-        }
-
-        private void validateCheckoutPermission(Booking booking, User currentUser) {
-                if (currentUser != null && currentUser.getRole() == Role.ADMIN) {
-                        throw new ForbiddenException("Admin không được checkout booking");
+                // Pet Owner must own the booking, or staff/manager handles it
+                if (currentUser.getRole() == com.petties.petties.model.enums.Role.PET_OWNER && 
+                    !booking.getPetOwner().getUserId().equals(currentUser.getUserId())) {
+                        throw new ForbiddenException("Bạn không có quyền thao tác trên lịch hẹn này");
                 }
 
-                validateClinicAccessPermission(booking, currentUser);
-
-                if (currentUser == null || currentUser.getRole() == Role.CLINIC_MANAGER) {
-                        return;
+                if (booking.getStatus() == BookingStatus.COMPLETED || booking.getStatus() == BookingStatus.CANCELLED) {
+                        throw new BadRequestException("Không thể áp dụng/gỡ voucher cho lịch hẹn đã hoàn thành hoặc đã hủy");
                 }
 
-                validateExecutionPermission(booking, currentUser);
+                if (request != null && request.getVoucherId() != null) {
+                        // Apply voucher
+                        UUID vId = request.getVoucherId();
+                        BigDecimal discount = voucherService.calculateVoucherDiscount(vId, booking.getClinic().getClinicId(), booking.getTotalPrice());
+                        com.petties.petties.model.Voucher voucher = voucherRepository.findById(vId).orElseThrow();
+                        
+                        booking.setVoucher(voucher);
+                        booking.setDiscountAmount(discount);
+                        BigDecimal finalP = booking.getTotalPrice().subtract(discount).max(BigDecimal.ZERO);
+                        booking.setFinalPrice(finalP);
+
+                        // If payment exists and not paid, update amount
+                        Payment payment = booking.getPayment();
+                        if (payment != null && payment.getStatus() != PaymentStatus.PAID) {
+                                payment.setAmount(finalP);
+                                // Refresh QR if already generated
+                                if (payment.getMethod() == PaymentMethod.QR) {
+                                       String paymentDesc = transactionService.generatePaymentDescription(booking.getBookingId());
+                                       payment.setPaymentDescription(paymentDesc);
+                                }
+                                paymentRepository.save(payment);
+                        }
+
+                        booking = bookingRepository.save(booking); // Explicitly save to ensure DB is updated
+                        log.info("User {} applied voucher {} to booking {}", currentUser.getUserId(), vId, bookingId);
+                } else {
+                        // Remove voucher
+                        booking.setVoucher(null);
+                        booking.setDiscountAmount(BigDecimal.ZERO);
+                        booking.setFinalPrice(booking.getTotalPrice());
+
+                        Payment payment = booking.getPayment();
+                        if (payment != null && payment.getStatus() != PaymentStatus.PAID) {
+                                payment.setAmount(booking.getTotalPrice());
+                                if (payment.getMethod() == PaymentMethod.QR) {
+                                       String paymentDesc = transactionService.generatePaymentDescription(booking.getBookingId());
+                                       payment.setPaymentDescription(paymentDesc);
+                                }
+                                paymentRepository.save(payment);
+                        }
+
+                        log.info("User {} removed voucher from booking {}", currentUser.getUserId(), bookingId);
+                }
+
+                Booking saved = bookingRepository.save(booking);
+                bookingNotificationService.pushBookingUpdateToUsers(saved, "VOUCHER_UPDATED");
+                return bookingMapper.mapToResponse(saved);
         }
 
         /**
@@ -1209,17 +1570,14 @@ public class BookingService {
          * ONLY allowed for add-on services (isAddOn = true)
          */
         @Transactional
-        public BookingResponse removeServiceFromBooking(UUID bookingId, UUID bookingServiceId, User currentUser) {
+        public BookingResponse removeServiceFromBooking(UUID bookingId, UUID bookingServiceId) {
                 log.info("Removing service {} from booking {}", bookingServiceId, bookingId);
 
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
-                validateClinicAccessPermission(booking, currentUser);
-
                 if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
-                        throw new IllegalStateException(
-                                        "Chỉ có thể xóa dịch vụ phát sinh khi booking đang ở trạng thái IN_PROGRESS");
+                        throw new IllegalStateException("Chỉ có thể xóa dịch vụ phát sinh khi booking đang thực hiện");
                 }
 
                 BookingServiceItem itemToRemove = booking.getBookingServices().stream()
@@ -1267,7 +1625,15 @@ public class BookingService {
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
-                validateClinicAccessPermission(booking, currentUser);
+                if (currentUser.getRole() == Role.STAFF || currentUser.getRole() == Role.CLINIC_MANAGER) {
+                        UUID userClinicId = currentUser.getWorkingClinic() != null
+                                        ? currentUser.getWorkingClinic().getClinicId()
+                                        : null;
+                        UUID bookingClinicId = booking.getClinic() != null ? booking.getClinic().getClinicId() : null;
+                        if (userClinicId == null || bookingClinicId == null || !bookingClinicId.equals(userClinicId)) {
+                                throw new ForbiddenException("Bạn không có quyền xem dịch vụ của phòng khám khác");
+                        }
+                }
 
                 // Get all active services for the clinic
                 List<ClinicService> allActiveServices = clinicServiceRepository
@@ -1357,17 +1723,10 @@ public class BookingService {
          */
         @Transactional
         public BookingResponse checkIn(UUID bookingId) {
-                return checkIn(bookingId, null);
-        }
-
-        @Transactional
-        public BookingResponse checkIn(UUID bookingId, User currentUser) {
                 log.info("Check-in booking {}", bookingId);
 
                 Booking booking = bookingRepository.findByIdWithDetails(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
-
-                validateExecutionPermission(booking, currentUser);
 
 // Validate status - chỉ cho phép check-in khi CONFIRMED (check-in chuyển sang IN_PROGRESS)
                 if (booking.getStatus() != BookingStatus.CONFIRMED) {
@@ -1378,6 +1737,7 @@ public class BookingService {
 
                 // Update status to IN_PROGRESS
                 booking.setStatus(BookingStatus.IN_PROGRESS);
+                boolean qrPaymentPrepared = prepareQrPaymentWhenInProgress(booking);
                 bookingRepository.save(booking);
 
                 log.info("Booking {} checked in successfully. Status: IN_PROGRESS", booking.getBookingCode());
@@ -1385,8 +1745,22 @@ public class BookingService {
                 // Push SSE event for real-time sync
                 bookingNotificationService.pushBookingUpdateToUsers(booking, "CHECK_IN");
 
-                // Notify pet owner
-                notificationService.sendCheckinNotification(booking);
+                // Notify pet owner (do not break check-in flow if notification insert is duplicated)
+                try {
+                        notificationService.sendCheckinNotification(booking);
+                } catch (Exception e) {
+                        log.warn("Failed to send check-in notification for booking {}: {}",
+                                        booking.getBookingCode(), e.getMessage());
+                }
+
+                if (qrPaymentPrepared) {
+                        try {
+                                notificationService.sendPaymentRequiredNotification(booking);
+                        } catch (Exception e) {
+                                log.warn("Failed to send payment-required notification for booking {}: {}",
+                                                booking.getBookingCode(), e.getMessage());
+                        }
+                }
 
                 // Auto-create draft vaccination records chỉ khi booking có dịch vụ tiêm phòng
                 try {
@@ -1413,17 +1787,10 @@ public class BookingService {
          */
         @Transactional
         public BookingResponse startMoving(UUID bookingId) {
-                return startMoving(bookingId, null);
-        }
-
-        @Transactional
-        public BookingResponse startMoving(UUID bookingId, User currentUser) {
                 log.info("Staff starting movement for booking {}", bookingId);
 
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
-
-                validateExecutionPermission(booking, currentUser);
 
                 // Validate type
                 if (booking.getType() != com.petties.petties.model.enums.BookingType.SOS
@@ -1440,6 +1807,7 @@ public class BookingService {
 
                 // Update status to IN_PROGRESS
                 booking.setStatus(BookingStatus.IN_PROGRESS);
+                boolean qrPaymentPrepared = prepareQrPaymentWhenInProgress(booking);
                 bookingRepository.save(booking);
 
                 log.info("Booking {} started moving. Status: IN_PROGRESS", booking.getBookingCode());
@@ -1454,22 +1822,24 @@ public class BookingService {
                         log.warn("Failed to send movement notification: {}", e.getMessage());
                 }
 
+                if (qrPaymentPrepared) {
+                        try {
+                                notificationService.sendPaymentRequiredNotification(booking);
+                        } catch (Exception e) {
+                                log.warn("Failed to send payment-required notification for booking {}: {}",
+                                                booking.getBookingCode(), e.getMessage());
+                        }
+                }
+
                 return bookingMapper.mapToResponse(booking);
         }
 
         @Transactional
         public BookingResponse arrived(UUID bookingId) {
-                return arrived(bookingId, null);
-        }
-
-        @Transactional
-        public BookingResponse arrived(UUID bookingId, User currentUser) {
                 log.info("Staff arrived for booking {}", bookingId);
 
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
-
-                validateExecutionPermission(booking, currentUser);
 
                 // Validate status - must be IN_PROGRESS (movement phase)
                 if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
@@ -1503,56 +1873,170 @@ public class BookingService {
                 return bookingMapper.mapToResponse(booking);
         }
 
-        private void validateExecutionPermission(Booking booking, User currentUser) {
-                validateClinicAccessPermission(booking, currentUser);
+        /**
+         * Complete booking with payment method selection (Manager action)
+         * - CASH: Creates Payment (PAID) → Booking COMPLETED immediately
+         * - QR: Creates Payment (PENDING) → Returns QR info → Booking stays IN_PROGRESS
+         * - null request: Legacy behavior → Booking COMPLETED without payment
+         *
+         * @param bookingId Booking ID
+         * @param request   CheckoutRequest with paymentMethod (CASH or QR), nullable
+         * @return Updated booking response (with qrImageUrl for QR)
+         */
+        @Transactional
+        public BookingResponse complete(UUID bookingId, CheckoutRequest request) {
+                log.info("Completing booking {} with payment method: {}",
+                                bookingId, request != null ? request.getPaymentMethod() : "NONE");
 
-                if (currentUser == null) {
-                        return;
+                Booking booking = bookingRepository.findById(bookingId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+
+                // Validate status
+                if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
+                        throw new IllegalStateException(
+                                        "Chỉ có thể hoàn thành/thanh toán khi booking ở trạng thái IN_PROGRESS. Trạng thái hiện tại: "
+                                                        + booking.getStatus());
                 }
 
-                boolean isAssignedStaff = booking.getAssignedStaff() != null
-                                && booking.getAssignedStaff().getUserId().equals(currentUser.getUserId());
+                // Nếu không truyền phương thức thanh toán:
+                // - QR: cho phép hoàn tất trước, giữ payment ở trạng thái PENDING
+                // - CASH/khác: giữ hành vi cũ (đánh dấu đã thanh toán)
+                if (request == null || request.getPaymentMethod() == null) {
+                        // Tìm payment hiện tại (nếu có)
+                        Payment payment = paymentRepository.findByBookingBookingId(bookingId).orElse(null);
 
-                boolean isAssignedInServices = booking.getBookingServices() != null
-                                && booking.getBookingServices().stream()
-                                                .anyMatch(item -> item.getAssignedStaff() != null
-                                                                && item.getAssignedStaff().getUserId()
-                                                                                .equals(currentUser.getUserId()));
+                        if (payment == null) {
+                                PaymentMethod inferredMethod = booking.getPaymentMethod() != null
+                                                ? booking.getPaymentMethod()
+                                                : PaymentMethod.CASH;
 
-                boolean hasAssignmentData = booking.getAssignedStaff() != null
-                                || (booking.getBookingServices() != null
-                                                && booking.getBookingServices().stream()
-                                                                .anyMatch(item -> item.getAssignedStaff() != null));
+                                PaymentStatus initialStatus = inferredMethod == PaymentMethod.QR
+                                                ? PaymentStatus.PENDING
+                                                : PaymentStatus.PAID;
 
-                if (!hasAssignmentData) {
-                        return;
+                                // Chưa có payment → tạo mới theo method đã chọn từ trước trên booking
+                                payment = Payment.builder()
+                                                .booking(booking)
+                                                .amount(booking.getTotalPrice())
+                                                .method(inferredMethod)
+                                                .status(initialStatus)
+                                                .build();
+
+                                if (inferredMethod == PaymentMethod.QR) {
+                                        payment.setPaidAt(null);
+                                        if (payment.getPaymentDescription() == null || payment.getPaymentDescription().isBlank()) {
+                                                payment.setPaymentDescription(transactionService.generatePaymentDescription(bookingId));
+                                        }
+                                }
+                        } else if (payment.getStatus() != PaymentStatus.PAID) {
+                                // Đã có payment nhưng chưa PAID
+                                payment.setMethod(
+                                                payment.getMethod() != null ? payment.getMethod() : PaymentMethod.CASH);
+
+                                if (payment.getMethod() == PaymentMethod.QR) {
+                                        // QR cho phép hoàn tất trước, giữ unpaid để Pet Owner thanh toán sau
+                                        payment.setStatus(PaymentStatus.PENDING);
+                                        payment.setPaidAt(null);
+                                        if (payment.getPaymentDescription() == null || payment.getPaymentDescription().isBlank()) {
+                                                payment.setPaymentDescription(transactionService.generatePaymentDescription(bookingId));
+                                        }
+                                } else {
+                                        // CASH/khác: đánh dấu đã thanh toán như luồng cũ
+                                        payment.markAsPaid();
+                                }
+                        }
+
+                        paymentRepository.save(payment);
+                        booking.setPayment(payment);
+                        booking.syncPaymentStatus(payment);
+
+                        booking.setStatus(BookingStatus.COMPLETED);
+                        bookingRepository.save(booking);
+                        log.info("Booking {} completed with implicit payment (method: {})", booking.getBookingCode(),
+                                        payment.getMethod());
+
+                        // Clear GPS tracking data from Redis (for SOS/HOME_VISIT bookings)
+                        try {
+                                trackingService.clearTracking(bookingId);
+                        } catch (Exception e) {
+                                log.warn("Failed to clear tracking data: {}", e.getMessage());
+                        }
+
+                        // Push SSE event for real-time sync
+                        bookingNotificationService.pushBookingUpdateToUsers(booking, "COMPLETED");
+
+                        // Notify pet owner
+                        try {
+                                notificationService.sendCompletedNotification(booking);
+                        } catch (Exception e) {
+                                log.warn("Failed to send completed notification: {}", e.getMessage());
+                        }
+
+                        return bookingMapper.mapToResponse(booking);
                 }
 
-                if (!isAssignedStaff && !isAssignedInServices) {
-                        throw new ForbiddenException("Bạn không được phân công xử lý booking này");
-                }
-        }
+                PaymentMethod method = PaymentMethod.valueOf(request.getPaymentMethod());
 
-        private void validateClinicAccessPermission(Booking booking, User currentUser) {
-                if (currentUser == null) {
-                        return;
-                }
+                // Check if payment already exists for this booking (1-1 relationship)
+                Payment existingPayment = paymentRepository.findByBookingBookingId(bookingId).orElse(null);
 
-                if (currentUser.getRole() == Role.ADMIN) {
-                        return;
-                }
-
-                UUID bookingClinicId = booking.getClinic() != null ? booking.getClinic().getClinicId() : null;
-                UUID userClinicId = currentUser.getWorkingClinic() != null
-                                ? currentUser.getWorkingClinic().getClinicId()
-                                : null;
-
-                if (bookingClinicId == null || userClinicId == null || !bookingClinicId.equals(userClinicId)) {
-                        throw new ForbiddenException("Bạn không thuộc phòng khám xử lý booking này");
+                // Nếu đã thanh toán rồi thì chỉ cần hoàn tất booking, không tạo payment mới
+                if (existingPayment != null && existingPayment.getStatus() == PaymentStatus.PAID) {
+                        booking.syncPaymentStatus(existingPayment);
+                        booking.setStatus(BookingStatus.COMPLETED);
+                        bookingRepository.save(booking);
+                        return bookingMapper.mapToResponse(booking);
                 }
 
-                if (currentUser.getRole() != Role.STAFF && currentUser.getRole() != Role.CLINIC_MANAGER) {
-                        throw new ForbiddenException("Bạn không có quyền thao tác booking này");
+                // Với QR, bắt buộc phải xác nhận PAID trước khi complete.
+                if (method == PaymentMethod.QR) {
+                        throw new BadRequestException(
+                                        "Booking QR chưa thanh toán thành công. Vui lòng chờ xác nhận thanh toán trước khi hoàn tất.");
+                }
+
+                // Dùng lại bản ghi payment hiện tại (PENDING/FAILED/REFUNDED) thay vì tạo bản ghi mới
+                Payment payment;
+                if (existingPayment != null) {
+                        log.info("Reusing existing payment {} for booking {} with new method {} and resetting state",
+                                        existingPayment.getPaymentId(), bookingId, method);
+                        existingPayment.setMethod(method);
+                        existingPayment.setStatus(PaymentStatus.PENDING);
+                        existingPayment.setPaidAt(null);
+                        existingPayment.setStripePaymentId(null);
+                        existingPayment.setPaymentDescription(null);
+                        payment = existingPayment;
+                } else {
+                        // Chưa có payment nào cho booking này → tạo mới
+                        payment = Payment.builder()
+                                .booking(booking)
+                                .amount(booking.getTotalPrice())
+                                .method(method)
+                                .status(PaymentStatus.PENDING)
+                                .build();
+                }
+
+                if (method == PaymentMethod.CASH) {
+                        // CASH: Mark as paid immediately and complete booking
+                        payment.markAsPaid();
+                        paymentRepository.save(payment);
+
+                        booking.setPayment(payment);
+                        booking.syncPaymentStatus(payment);
+                        booking.setStatus(BookingStatus.COMPLETED);
+                        bookingRepository.save(booking);
+
+                        log.info("Booking {} completed with CASH payment", booking.getBookingCode());
+
+                        bookingNotificationService.pushBookingUpdateToUsers(booking, "COMPLETED");
+                        try {
+                                notificationService.sendCompletedNotification(booking);
+                        } catch (Exception e) {
+                                log.warn("Failed to send completed notification: {}", e.getMessage());
+                        }
+
+                        return bookingMapper.mapToResponse(booking);
+                } else {
+                        throw new IllegalArgumentException("Phương thức thanh toán không được hỗ trợ: " + method);
                 }
         }
 

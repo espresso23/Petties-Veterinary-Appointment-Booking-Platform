@@ -260,7 +260,7 @@ public class AuthService {
 
                 if (principal instanceof UserDetailsServiceImpl.UserPrincipal) {
                         UserDetailsServiceImpl.UserPrincipal userPrincipal = (UserDetailsServiceImpl.UserPrincipal) principal;
-                        return userRepository.findById(userPrincipal.getUserId())
+                        return userRepository.findByIdWithWorkingClinic(userPrincipal.getUserId())
                                         .orElseThrow(() -> {
                                                 log.error("User not found in database for ID: {}",
                                                                 userPrincipal.getUserId());

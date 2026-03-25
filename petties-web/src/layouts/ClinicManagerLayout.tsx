@@ -19,11 +19,12 @@ import {
     CalendarIcon,
     ClipboardDocumentListIcon,
     ChatBubbleLeftRightIcon,
-    CurrencyDollarIcon,
     BellIcon,
     UserCircleIcon,
     ClipboardDocumentCheckIcon,
-    HomeModernIcon
+    HomeModernIcon,
+    ChartBarIcon,
+    TicketIcon
 } from '@heroicons/react/24/outline'
 import '../styles/brutalist.css'
 
@@ -40,6 +41,8 @@ export const ClinicManagerLayout = () => {
     const refreshChatUnreadCount = useChatStore((state) => state.refreshUnreadCount)
     const incrementChatUnreadCount = useChatStore((state) => state.incrementUnreadCount)
     const { state, toggleSidebar, isMobile } = useSidebar()
+
+
 
     // Initialize SSE with booking update handler
     useSseNotification({
@@ -153,13 +156,14 @@ export const ClinicManagerLayout = () => {
                 { path: '/clinic-manager/bookings', label: 'BOOKING', icon: ClipboardDocumentListIcon, unreadCount: pendingBookingCount },
                 { path: '/clinic-manager/services', label: 'DỊCH VỤ', icon: ClipboardDocumentCheckIcon },
                 { path: '/clinic-manager/clinic', label: 'PHÒNG KHÁM', icon: HomeModernIcon },
+                { path: '/clinic-manager/vouchers', label: 'VOUCHER', icon: TicketIcon },
             ]
         },
         {
             title: 'HỆ THỐNG',
             items: [
                 { path: '/clinic-manager/chat', label: 'CHAT', icon: ChatBubbleLeftRightIcon, unreadCount: chatUnreadCount },
-                { path: '/clinic-manager/refunds', label: 'HOÀN TIỀN', icon: CurrencyDollarIcon },
+                { path: '/clinic-manager/revenue', label: 'DOANH THU', icon: ChartBarIcon },
                 { path: '/clinic-manager/notifications', label: 'THÔNG BÁO', icon: BellIcon, unreadCount },
                 { path: '/clinic-manager/profile', label: 'HỒ SƠ CÁ NHÂN', icon: UserCircleIcon },
             ]
@@ -186,6 +190,8 @@ export const ClinicManagerLayout = () => {
                 toggleSidebar={toggleSidebar}
                 onLogout={handleLogout}
                 isMobile={isMobile}
+                isVIP={false}
+                planName="MANAGEMENT"
             />
 
             {/* Main Content */}

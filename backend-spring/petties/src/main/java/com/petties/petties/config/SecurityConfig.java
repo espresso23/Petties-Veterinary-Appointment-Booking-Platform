@@ -34,7 +34,7 @@ public class SecurityConfig {
     private final UserDetailsServiceImpl userDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    @Value("${cors.allowed-origins:http://localhost:5173,http://localhost:3000,https://*.ngrok.io,https://*.ngrok-free.app,https://*.ngrok.dev}")
+    @Value("${cors.allowed-origins:http://localhost:5173,http://localhost:3000,https://*.ngrok.io,https://*.ngrok-free.app,https://*.ngrok.dev,https://*.ngrok-free.dev}")
     private String allowedOrigins;
 
     @Bean

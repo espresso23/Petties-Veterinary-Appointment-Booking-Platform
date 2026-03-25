@@ -2,6 +2,8 @@ package com.petties.petties.model;
 
 import com.petties.petties.model.enums.BookingStatus;
 import com.petties.petties.model.enums.BookingType;
+import com.petties.petties.model.enums.PaymentMethod;
+import com.petties.petties.model.enums.PaymentStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -125,6 +127,17 @@ public class Booking {
     @Column(name = "total_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal totalPrice;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "voucher_id")
+    private Voucher voucher;
+
+    @Column(name = "discount_amount", precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal discountAmount = BigDecimal.ZERO;
+
+    @Column(name = "final_price", precision = 12, scale = 2)
+    private BigDecimal finalPrice;
+
     // ========== STATUS ==========
 
     @Enumerated(EnumType.STRING)
@@ -137,6 +150,16 @@ public class Booking {
 
     @Column(name = "cancelled_by")
     private UUID cancelledBy;
+
+    // ========== PAYMENT STATUS (denormalized) ==========
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", length = 20)
+    private PaymentStatus paymentStatus;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method", length = 20)
+    private PaymentMethod paymentMethod;
 
     // ========== NOTES ==========
 
@@ -227,5 +250,16 @@ public class Booking {
      */
     public boolean isHomeService() {
         return type == BookingType.HOME_VISIT || type == BookingType.SOS;
+    }
+
+    /**
+     * Sync denormalized payment fields from Payment entity.
+     * Gọi mỗi khi Payment được tạo mới hoặc cập nhật status/method.
+     */
+    public void syncPaymentStatus(Payment payment) {
+        if (payment != null) {
+            this.paymentStatus = payment.getStatus();
+            this.paymentMethod = payment.getMethod();
+        }
     }
 }

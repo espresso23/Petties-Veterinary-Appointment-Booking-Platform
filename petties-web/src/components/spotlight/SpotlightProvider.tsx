@@ -5,6 +5,8 @@ import { SpotlightModal, type AIAction } from './SpotlightModal'
 import { useAuthStore } from '../../store/authStore'
 import { useAIChatStore } from '../../store/aiChatStore'
 import { useNavigate } from 'react-router-dom'
+import { useMembershipStore } from '../../store/membershipStore'
+import { useToast } from '../Toast'
 
 interface SpotlightProviderProps {
     children?: React.ReactNode
@@ -14,13 +16,16 @@ export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {
     const navigate = useNavigate()
     const { isOpen, position, context, open, close } = useSpotlight()
     const accessToken = useAuthStore((state) => state.accessToken)
-    
-    const { 
-        sessionId, 
-        messages, 
+    const isVIP = useMembershipStore(state => state.isVIP())
+    const loadingMembership = useMembershipStore(state => state.isLoading)
+    const { showToast } = useToast()
+
+    const {
+        sessionId,
+        messages,
         connectionStatus,
-        setSessionId, 
-        setMessages, 
+        setSessionId,
+        setMessages,
         addMessage,
         updateLastMessage,
         setConnectionStatus,
@@ -33,7 +38,7 @@ export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {
     // Connect to WebSocket
     const connectWebSocket = (sid: string) => {
         if (!accessToken) return
-        
+
         if (wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) {
             return
         }
@@ -76,7 +81,7 @@ export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {
                     if (content) {
                         updateLastMessage(content, false)
                     }
-                    
+
                     // Also handle thinking/reasoning content
                     if (data.thinking || data.reasoning) {
                         const thoughtContent = data.thinking || data.reasoning
@@ -94,7 +99,7 @@ export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {
                 if (data.type === 'thinking') {
                     const step = data.step || {}
                     const content = data.content || step.thought || step.content || ''
-                    
+
                     // Update existing loading message instead of adding new one
                     if (content) {
                         updateLastMessage(content, true) // true = still loading/thinking
@@ -141,7 +146,7 @@ export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {
     useEffect(() => {
         const initSpotlightSession = async () => {
             if (!accessToken || !isOpen || sessionId) return
-            
+
             try {
                 const baseUrl = import.meta.env.VITE_AGENT_API_BASE_URL || 'http://localhost:8000'
                 const response = await fetch(`${baseUrl}/api/v1/chat/sessions`, {
@@ -152,7 +157,7 @@ export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {
                     },
                     body: JSON.stringify({ context_type: 'BUSINESS_CHAT' })
                 })
-                
+
                 if (response.ok) {
                     const data = await response.json()
                     const newSessionId = data.session_id
@@ -163,7 +168,7 @@ export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {
                 console.error('[Spotlight] Failed to create session:', error)
             }
         }
-        
+
         if (isOpen && !sessionId) {
             initSpotlightSession()
         }
@@ -205,6 +210,10 @@ export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {
             if (isOpen) {
                 close()
             } else {
+                if (!isVIP && !loadingMembership) {
+                    showToast('error', 'Tính năng trợ lý AI (Spotlight) yêu cầu gói hội viên VIP.')
+                    return
+                }
                 open()
             }
         }
@@ -214,9 +223,9 @@ export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {
     useEffect(() => {
         const handleActionConfirm = (event: CustomEvent<AIAction>) => {
             const action = event.detail
-            
+
             console.log('Spotlight action confirmed:', action)
-            
+
             switch (action.type) {
                 case 'emr_create':
                     if (action.data.petId) {
@@ -246,22 +255,22 @@ export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {
 
     // Handle sending message to AI
     const handleSendMessage = async (
-        message: string, 
+        message: string,
         additionalContext?: Record<string, unknown>
     ) => {
         if (!accessToken) {
-            return { 
-                response: 'Vui lòng đăng nhập để sử dụng AI Assistant', 
+            return {
+                response: 'Vui lòng đăng nhập để sử dụng AI Assistant',
                 actions: [],
-                suggestions: [] 
+                suggestions: []
             }
         }
 
         if (!sessionId) {
-            return { 
-                response: 'Đang kết nối... Vui lòng chờ trong giây lát.', 
+            return {
+                response: 'Đang kết nối... Vui lòng chờ trong giây lát.',
                 actions: [],
-                suggestions: [] 
+                suggestions: []
             }
         }
 
@@ -300,7 +309,7 @@ export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${accessToken}`
                     },
-                    body: JSON.stringify({ 
+                    body: JSON.stringify({
                         message,
                         ...additionalContext
                     })
@@ -320,7 +329,7 @@ export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {
     return (
         <>
             {children}
-            
+
             <SpotlightModal
                 isOpen={isOpen}
                 onClose={close}

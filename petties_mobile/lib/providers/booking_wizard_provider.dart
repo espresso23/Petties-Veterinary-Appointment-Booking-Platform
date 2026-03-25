@@ -6,9 +6,33 @@ import '../data/models/clinic.dart';
 import '../data/models/clinic_service.dart';
 import '../data/models/pet.dart';
 import '../data/services/booking_wizard_service.dart';
+import '../data/services/booking_service.dart';
 
 /// Booking type enum
 enum BookingType { atClinic, homeVisit }
+
+class BookingCreationResult {
+  final bool success;
+  final String? bookingId;
+  final String paymentMethod;
+  final String? qrImageUrl;
+  final String? paymentDescription;
+  final double totalPrice;
+
+  const BookingCreationResult({
+    required this.success,
+    this.bookingId,
+    this.paymentMethod = 'CASH',
+    this.qrImageUrl,
+    this.paymentDescription,
+    this.totalPrice = 0,
+  });
+
+  bool get requiresQrPayment =>
+      paymentMethod == 'QR' && (qrImageUrl?.isNotEmpty ?? false);
+
+  static const BookingCreationResult failed = BookingCreationResult(success: false);
+}
 
 /// Provider for booking wizard state management
 class BookingWizardProvider extends ChangeNotifier {
@@ -34,6 +58,11 @@ class BookingWizardProvider extends ChangeNotifier {
   // Key: petId, Value: List of services for that pet
   final Map<String, List<ClinicServiceModel>> _petServices = {};
   String _notes = '';
+  String _paymentMethod = 'QR';
+
+  // Voucher (chọn trên confirm screen, apply sau createBooking)
+  String? _selectedVoucherId;
+  double _voucherDiscount = 0;
 
   // Track which pet is currently being selected for services
   String? _currentPetIdForServiceSelection;
@@ -55,8 +84,8 @@ class BookingWizardProvider extends ChangeNotifier {
   bool _isLoadingServices = false;
   bool _isLoadingSlots = false;
   bool _isCreatingBooking = false;
-  String? _error;
   String? _createdBookingId;
+  String? _error;
 
   BookingWizardProvider({BookingWizardService? bookingService})
       : _bookingService = bookingService ?? BookingWizardService();
@@ -81,6 +110,10 @@ class BookingWizardProvider extends ChangeNotifier {
   List<ClinicServiceModel> get availableServices => _availableServices;
   Map<String, List<ClinicServiceModel>> get petServices => _petServices;
   String get notes => _notes;
+  String get paymentMethod => _paymentMethod;
+
+  String? get selectedVoucherId => _selectedVoucherId;
+  double get voucherDiscount => _voucherDiscount;
 
   String? get currentPetIdForServiceSelection =>
       _currentPetIdForServiceSelection;
@@ -98,8 +131,8 @@ class BookingWizardProvider extends ChangeNotifier {
   bool get isLoadingServices => _isLoadingServices;
   bool get isLoadingSlots => _isLoadingSlots;
   bool get isCreatingBooking => _isCreatingBooking;
-  String? get error => _error;
   String? get createdBookingId => _createdBookingId;
+  String? get error => _error;
 
   /// Calculate total price (sum of all pets' services + distance fee)
   double get totalPrice {
@@ -486,6 +519,25 @@ class BookingWizardProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Set preferred payment method for booking confirmation screen
+  /// Allowed values: QR, CASH
+  void setPaymentMethod(String method) {
+    final normalized = method.trim().toUpperCase();
+    if (normalized != 'QR' && normalized != 'CASH') return;
+    _paymentMethod = normalized;
+    // Khi đổi payment method, clear voucher vì có thể không còn khả dụng
+    _selectedVoucherId = null;
+    _voucherDiscount = 0;
+    notifyListeners();
+  }
+
+  /// Set voucher đã chọn trên confirm screen
+  void setVoucher(String? voucherId, {double discount = 0}) {
+    _selectedVoucherId = voucherId;
+    _voucherDiscount = discount;
+    notifyListeners();
+  }
+
   /// Select date
   void selectDate(DateTime date) {
     _selectedDate = date;
@@ -755,9 +807,13 @@ class BookingWizardProvider extends ChangeNotifier {
   }
 
   /// Create booking
-  Future<bool> createBooking() async {
-    if (!canConfirmBooking || _clinic == null) return false;
-    if (_isCreatingBooking) return false;
+  Future<BookingCreationResult> createBooking() async {
+    if (!canConfirmBooking || _clinic == null) {
+      return BookingCreationResult.failed;
+    }
+    if (_isCreatingBooking) {
+      return BookingCreationResult.failed;
+    }
 
     _isCreatingBooking = true;
     _bookingError = null;
@@ -767,6 +823,7 @@ class BookingWizardProvider extends ChangeNotifier {
       final String bookingTypeApi =
           _bookingType == BookingType.homeVisit ? 'HOME_VISIT' : 'IN_CLINIC';
 
+      Map<String, dynamic> responseData;
       if (isBookingForOthers && _beneficiary != null) {
         // Đặt hộ: build items payload theo schema /bookings/proxy
         final List<Map<String, dynamic>> itemsPayload = [];
@@ -786,13 +843,14 @@ class BookingWizardProvider extends ChangeNotifier {
           });
         }
 
-        _createdBookingId = await _bookingService.createBookingForOthers(
+        responseData = await _bookingService.createBookingForOthers(
           clinicId: _clinic!.clinicId,
           beneficiary: _beneficiary!,
           bookingDate: _selectedDate!,
           bookingTime: _selectedTime!,
           bookingType: bookingTypeApi,
           items: itemsPayload,
+          paymentMethod: _paymentMethod,
           notes: _notes.isNotEmpty ? _notes : null,
         );
       } else {
@@ -808,12 +866,13 @@ class BookingWizardProvider extends ChangeNotifier {
           }
         }
 
-        _createdBookingId = await _bookingService.createBooking(
+        responseData = await _bookingService.createBooking(
           clinicId: _clinic!.clinicId,
           bookingDate: _selectedDate!,
           bookingTime: _selectedTime!,
           bookingType: bookingTypeApi,
           items: itemsPayload,
+          paymentMethod: _paymentMethod,
           notes: _notes.isNotEmpty ? _notes : null,
           homeAddress:
               _bookingType == BookingType.homeVisit ? _userAddress : null,
@@ -824,12 +883,49 @@ class BookingWizardProvider extends ChangeNotifier {
               _bookingType == BookingType.homeVisit ? distanceToClinic : null,
         );
       }
-      return true;
+
+      final bookingId = responseData['bookingId']?.toString();
+        _createdBookingId = bookingId;
+      final paymentMethod =
+          (responseData['paymentMethod']?.toString().toUpperCase() ?? _paymentMethod);
+      final qrImageUrl = responseData['qrImageUrl']?.toString();
+      final paymentDescription = responseData['paymentDescription']?.toString();
+      final totalPrice = (responseData['totalPrice'] as num?)?.toDouble() ?? this.totalPrice;
+
+      // Auto-apply voucher nếu user đã chọn trước trên confirm screen
+      if (_selectedVoucherId != null && bookingId != null) {
+        try {
+          final bookingSvc = BookingService();
+          final updatedBooking = await bookingSvc.applyVoucher(bookingId, _selectedVoucherId);
+          debugPrint('Auto-applied voucher $_selectedVoucherId to booking $bookingId');
+
+          return BookingCreationResult(
+            success: true,
+            bookingId: bookingId,
+            paymentMethod: paymentMethod,
+            qrImageUrl: updatedBooking.qrImageUrl,
+            paymentDescription: updatedBooking.paymentDescription,
+            totalPrice: updatedBooking.finalPrice ?? updatedBooking.totalPrice ?? this.totalPrice,
+          );
+        } catch (e) {
+          debugPrint('Warning: Failed to auto-apply voucher: $e');
+          // Không fail booking vì voucher là optional
+        }
+      }
+
+      return BookingCreationResult(
+        success: true,
+        bookingId: bookingId,
+        paymentMethod: paymentMethod,
+        qrImageUrl: qrImageUrl,
+        paymentDescription: paymentDescription,
+        totalPrice: totalPrice,
+      );
     } catch (e) {
       // Parse API error message (tiếng Việt từ backend)
       _bookingError = _parseBookingError(e);
       debugPrint('Error creating booking: $e');
-      return false;
+      return BookingCreationResult.failed;
     } finally {
       _isCreatingBooking = false;
       notifyListeners();
@@ -846,14 +942,17 @@ class BookingWizardProvider extends ChangeNotifier {
     _beneficiaryPets.clear();
     _availableServices = [];
     _notes = '';
+    _paymentMethod = 'QR';
     _selectedDate = null;
     _selectedTime = null;
     _selectedTimeSlots = [];
     _availableSlots = [];
     _expectedPickupTime = null;
+    _createdBookingId = null;
     _error = null;
     _bookingError = null;
-    _createdBookingId = null;
+    _selectedVoucherId = null;
+    _voucherDiscount = 0;
   }
 
   /// Reset booking (public method)

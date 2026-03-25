@@ -1,4 +1,5 @@
-﻿# AI Service Architecture Presentation
+> Legacy Note (2026-03-25): This document may contain historical references to `prompt_versions`, editable system-prompt versioning, or older AI schema/ERD counts. It is retained for historical or presentation context only. For current database truth and active AI storage architecture, use `docs-references/database/PETTIES_DBML.dbml`, `docs-references/documentation/PETTIES_ERD_DIAGRAM.md`, `docs-references/documentation/DATABASE_SCHEMA_ANALYSIS.md`, `docs-references/documentation/SRS/PETTIES_SRS.md`, and `docs-references/documentation/SDD/REPORT_4_SDD_SYSTEM_DESIGN.md`.
+# AI Service Architecture Presentation
 
 > Lưu ý cập nhật ngày 2026-03-17: slide này có thể còn chứa tham chiếu lịch sử tới AI Diagnose cũ, thumbs feedback và visual case memory. Kiến trúc hiện hành là knowledge base + EMR xác nhận + Gemini Vision.
 ## Petties - Veterinary Appointment Booking Platform

@@ -11,6 +11,7 @@ import {
     PencilIcon,
     ArrowPathIcon,
 } from '@heroicons/react/24/outline'
+import { useNavigate } from 'react-router-dom'
 import { ChatbotUI, type ChatMessage } from './ChatbotUI'
 import { useAuthStore } from '../../store/authStore'
 import { useToast } from '../../hooks/useToast'
@@ -43,6 +44,7 @@ interface ChatSessionMessage {
 interface ChatSidebarProps {
     title?: string
     placeholder?: string
+    isVIP?: boolean
 }
 
 const QUICK_ACTIONS = [
@@ -61,8 +63,10 @@ const SUGGESTED_PROMPTS = [
 
 export const ChatSidebar = ({
     title = 'Trợ lý AI',
-    placeholder = 'Nhập tin nhắn...'
+    placeholder = 'Nhập tin nhắn...',
+    isVIP = false,
 }: ChatSidebarProps) => {
+    const navigate = useNavigate()
     const [sessions, setSessions] = useState<ChatSession[]>([])
     const [showSessionList, setShowSessionList] = useState(false)
     const [isLoadingSessions, setIsLoadingSessions] = useState(false)
@@ -72,6 +76,9 @@ export const ChatSidebar = ({
     const { showToast } = useToast()
 
     const accessToken = useAuthStore((state) => state.accessToken)
+    const userRole = useAuthStore((state) => state.user?.role)
+    const canUpgrade = userRole === 'CLINIC_OWNER'
+    const upgradePath = canUpgrade ? '/clinic-owner/subscriptions' : null
 
     const {
         sessionId,
@@ -307,7 +314,7 @@ export const ChatSidebar = ({
                     return
                 }
 
-                if (data.type === 'thinking') {
+                if (data.type === 'thinking' || data.type === 'thinking_stream') {
                     if (!isMountedRef.current) return
                     const content = data.content || ''
                     if (content) {
@@ -594,7 +601,7 @@ export const ChatSidebar = ({
                             </div>
                         )}
 
-                        <div className="flex-1 overflow-hidden flex flex-col">
+                        <div className="relative flex-1 overflow-hidden flex flex-col">
                             <ChatbotUI
                                 title={title}
                                 placeholder={placeholder}
@@ -607,6 +614,34 @@ export const ChatSidebar = ({
                                 showHeader={false}
                                 contextPanel={emrContextPanel}
                             />
+
+                            {!isVIP && (
+                                <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/90 p-8 text-center backdrop-blur-[2px]">
+                                    <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border-2 border-stone-900 bg-amber-100 shadow-[4px_4px_0_0_#1c1917]">
+                                        <SparklesIcon className="h-8 w-8 text-amber-600" />
+                                    </div>
+                                    <h3 className="mb-2 text-xl font-black uppercase leading-tight text-stone-900">Yêu cầu hội viên</h3>
+                                    <p className="mb-8 text-sm font-medium text-stone-600">
+                                        Trợ lý AI chỉ dành cho phòng khám có gói hội viên đang hoạt động.
+                                    </p>
+
+                                    {upgradePath ? (
+                                        <button
+                                            onClick={() => {
+                                                close()
+                                                navigate(upgradePath)
+                                            }}
+                                            className="w-full border-2 border-stone-900 bg-amber-500 py-3 font-black uppercase tracking-widest text-stone-950 shadow-[4px_4px_0_0_#1c1917] transition-all hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#1c1917]"
+                                        >
+                                            Nâng cấp ngay
+                                        </button>
+                                    ) : (
+                                        <div className="rounded-lg border-2 border-stone-900 bg-stone-100 px-4 py-3 text-xs font-bold uppercase tracking-tight text-stone-500">
+                                            Vui lòng liên hệ chủ phòng khám để kích hoạt AI
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -620,3 +655,4 @@ export const ChatSidebar = ({
 }
 
 export default ChatSidebar
+

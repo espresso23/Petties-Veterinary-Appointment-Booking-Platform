@@ -88,11 +88,11 @@ export interface ClinicServiceRequest {
   isHomeVisit?: boolean
   serviceCategory?: string
   petType?: string
-  reminderInterval?: number
-  reminderUnit?: string
   weightPrices?: WeightPriceDto[]
   vaccineTemplateId?: string
   dosePrices?: VaccineDosePriceDTO[]
+  reminderInterval?: number
+  reminderUnit?: string
 }
 
 export interface ClinicServiceUpdateRequest extends Partial<ClinicServiceRequest> {

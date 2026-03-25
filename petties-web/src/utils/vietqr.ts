@@ -64,12 +64,30 @@ export const VIETQR_BANKS: VietQRBank[] = [
 export function getVietQRImageUrl(
     bankCode: string,
     accountNumber: string,
-    template: 'compact' | 'compact2' | 'qr_only' | 'print' = 'compact2'
+    template: 'compact' | 'compact2' | 'qr_only' | 'print' = 'compact2',
+    options?: {
+        amount?: number
+        addInfo?: string
+        accountName?: string
+    }
 ): string {
     if (!bankCode || !accountNumber) {
         return ''
     }
-    return `https://img.vietqr.io/image/${bankCode}-${accountNumber}-${template}.jpg`
+    const baseUrl = `https://img.vietqr.io/image/${bankCode}-${accountNumber}-${template}.jpg`
+    const params = new URLSearchParams()
+
+    if (options?.amount && options.amount > 0) {
+        params.set('amount', String(Math.round(options.amount)))
+    }
+    if (options?.addInfo) {
+        params.set('addInfo', options.addInfo)
+    }
+    if (options?.accountName) {
+        params.set('accountName', options.accountName)
+    }
+
+    return params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl
 }
 
 /**
@@ -77,4 +95,36 @@ export function getVietQRImageUrl(
  */
 export function findBankByCode(code: string): VietQRBank | undefined {
     return VIETQR_BANKS.find((bank) => bank.code.toLowerCase() === code.toLowerCase())
+}
+
+function normalizeVietnameseText(text: string): string {
+    return text
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd')
+        .replace(/Đ/g, 'D')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '')
+}
+
+/**
+ * Find bank by Vietnamese bank name
+ */
+export function findBankByName(name: string): VietQRBank | undefined {
+    if (!name) return undefined
+
+    const normalizedInput = normalizeVietnameseText(name)
+
+    return VIETQR_BANKS.find((bank) => {
+        const normalizedFullName = normalizeVietnameseText(bank.name)
+        const normalizedShortName = normalizeVietnameseText(bank.shortName)
+        const normalizedCode = normalizeVietnameseText(bank.code)
+
+        return normalizedInput.includes(normalizedFullName)
+            || normalizedFullName.includes(normalizedInput)
+            || normalizedInput.includes(normalizedShortName)
+            || normalizedShortName.includes(normalizedInput)
+            || normalizedInput.includes(normalizedCode)
+            || normalizedCode.includes(normalizedInput)
+    })
 }

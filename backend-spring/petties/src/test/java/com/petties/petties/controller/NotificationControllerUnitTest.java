@@ -65,7 +65,7 @@ class NotificationControllerUnitTest {
                 notif.setMessage("Hello");
 
                 when(authService.getCurrentUser()).thenReturn(user);
-                when(notificationService.getNotificationsByUser(eq(user), any(Pageable.class)))
+                when(notificationService.getNotificationsByUserId(eq(user.getUserId()), any(Pageable.class)))
                                 .thenReturn(new PageImpl<>(List.of(notif)));
 
                 // Act & Assert
@@ -83,7 +83,7 @@ class NotificationControllerUnitTest {
                 user.setUserId(UUID.randomUUID());
 
                 when(authService.getCurrentUser()).thenReturn(user);
-                when(notificationService.getUnreadCountByUser(user)).thenReturn(5L);
+                when(notificationService.getUnreadCountByUserId(user.getUserId())).thenReturn(5L);
 
                 // Act & Assert
                 mockMvc.perform(get("/notifications/me/unread-count"))

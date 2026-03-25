@@ -99,10 +99,12 @@ public class Clinic {
     @Convert(converter = com.petties.petties.converter.OperatingHoursConverter.class)
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "operating_hours", columnDefinition = "jsonb")
+    @Builder.Default
     private Map<String, OperatingHours> operatingHours = new HashMap<>();
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
+    @Builder.Default
     private ClinicStatus status = ClinicStatus.PENDING;
 
     @Column(name = "rejection_reason", columnDefinition = "TEXT")
@@ -118,6 +120,10 @@ public class Clinic {
 
     @Column(name = "approved_at")
     private LocalDateTime approvedAt;
+
+    /** Thời điểm hết hạn strike. NULL = không bị strike. Khi có giá trị: clinic không nhận booking mới, không xuất hiện trong tìm kiếm. */
+    @Column(name = "strike_until")
+    private LocalDateTime strikeUntil;
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)

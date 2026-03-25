@@ -92,6 +92,7 @@ public class ClinicService {
     private List<ServiceWeightPrice> weightPrices = new ArrayList<>();
 
     // Vaccine dose prices - giá theo số mũi tiêm
+    @Builder.Default
     @OneToMany(mappedBy = "service", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<VaccineDosePrice> dosePrices = new ArrayList<>();
 

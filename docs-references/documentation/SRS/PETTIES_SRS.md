@@ -8,8 +8,8 @@
 
 **Project:** Petties - Veterinary Appointment Booking Platform
 
-**Version:** 2.3.8 (Added Staff AI Chat Panel requirement and EMR context support)
-**Last Updated:** 2026-03-24
+**Version:** 2.3.9 (Aligned documentation baseline with approved 20-module checklist)
+**Last Updated:** 2026-03-25
 **Document Status:** In Progress
 
 
@@ -543,6 +543,33 @@ graph TB
 
 
 
+#### Feature Coverage Baseline (Approved 2026-03-25)
+
+This SRS uses the approved 20-module checklist as the minimum documentation baseline. "Covered" means the module already has explicit functional decomposition in the current document. "Partial" means the merged codebase contains active scope, but the SRS still needs deeper screen-level or use-case-level detailing in later documentation passes.
+
+| Module | Baseline scope | Current SRS state |
+|---|---|---|
+| 1. Authentication | Sign up, login, Google login, logout, forgot/reset password | Covered |
+| 2. Clinic Management | Register, approve/reject, activate/suspend, details, statistics | Partial |
+| 3. User Profile Management | View/update profile, change password/email | Covered |
+| 4. Service Management | Master service and clinic service CRUD/inheritance | Covered |
+| 5. Clinic Discovery | Search, map, clinic details, service list | Covered |
+| 6. SOS Booking | SOS matching, alerting, tracking, custom fee checkout | Covered |
+| 7. Booking Management | Booking, proxy booking, details, cancel, assign/reassign, progress, add-ons | Covered |
+| 8. Patient Management | Patient history and patient detail views | Partial |
+| 9. Pet Profile Management | Pet profile CRUD | Covered |
+| 10. EMR & Vaccination Management | EMR, vaccination, medication reminders | Covered |
+| 11. Staff & Scheduling Management | Invite staff, shifts, schedule, staff list/statistics | Covered |
+| 12. Chat Management | Conversation, messages, chat history, auto reply | Partial |
+| 13. Booking Review Management | Review CRUD and clinic review display | Covered |
+| 14. Notification Management | Notification creation, listing, update, deletion | Partial |
+| 15. Settlement Management | Withdrawal request, review, clinic revenue, withdrawable balance | Partial |
+| 16. Payment Management | QR payment, payment verification, booking payment details, transaction history | Partial |
+| 17. System Management | Platform-wide statistics and governance dashboards | Partial |
+| 18. Report Management | Create/view/resolve reports and report moderation | Covered |
+| 19. AI Assistant | Consumer AI chat, booking support, KB/case memory, diagnostics, analytics | Covered |
+| 20. AI Subscriptions Management | Plan CRUD, subscription status/history, subscriber badge, current plan | Partial |
+
 #### Authentication & Account Management
 
 
@@ -847,15 +874,15 @@ graph TB
 
 | 75 | View request cancel booking | UC-CM-07 | - | ✅ BookingController | ✅ Web | ✅ Done |
 
-| 76 | Approve/ Reject Request | UC-CM-07 | - | 🔄 | ❌ | 🔄 In Progress |
+| 76 | Approve/ Reject Request | UC-CM-07 | - | ✅ BookingController | ✅ Web | ✅ Done |
 
-| 77 | View Statistics | UC-CO-05 | - | ❌ | ❌ | ❌ Not Started |
+| 77 | View Statistics | UC-CO-05 | - | ✅ PaymentController | ✅ Web | ✅ Done |
 
-| 78 | View Payment Transactions History | - | - | ❌ | ❌ | ❌ Not Started |
+| 78 | View Payment Transactions History | - | - | ✅ PaymentController | ✅ Mobile/Web | ✅ Done |
 
-| 79 | Process Refund | UC-CM-07 | - | ❌ | ❌ | ❌ Not Started |
+| 79 | Process Refund | UC-CM-07 | - | ✅ RefundApplicationController | ✅ Web | ✅ Done |
 
-| 80 | View List Cancellation And Refund | - | - | ❌ | ❌ | ❌ Not Started |
+| 80 | View List Cancellation And Refund | - | - | ✅ RefundApplicationController | ✅ Web | ✅ Done |
 
 | 106 | Check Staff Availability | UC-BOOK-06 | 3.8.6 | ✅ BookingController | ✅ Web | ✅ Done |
 
@@ -2637,9 +2664,8 @@ erDiagram
 
 | **CHAT_CONVERSATION** | **CHAT_MESSAGE** | contains | 1 : N | Một cuộc hội thoại chứa nhiều tin nhắn. |
 
-| **AGENT** | **PROMPT_VERSION** | has | 1 : N | Một AI agent có nhiều phiên bản system prompt. |
 
-| **AGENT** | **TOOL** | enables | 1 : N (logical) | Agent sử dụng tool theo cấu hình logic `assigned_agents`, không phải foreign key trực tiếp. |
+| **AGENT** | **TOOL** | enables | 1 : N (logical) | Single-agent runtime discovers and enables tools by policy. There is no `prompt_versions` table and no `assigned_agents` JSON relation in the current schema. |
 
 | **USER** | **AI_CHAT_SESSION** | starts | 1 : N (logical) | User được tham chiếu logic trong MongoDB AI chat session, không phải FK PostgreSQL. |
 
@@ -2653,149 +2679,88 @@ erDiagram
 
 #### 3.1.6 Entities Description
 
+The following catalog lists the active storage structures used by the current Petties codebase. The section is grouped by storage engine so business data, AI governance data, runtime chat data, and vector indexes are not mixed together.
 
+##### Backend PostgreSQL Entities (30 tables)
 
-Dưới đây là danh sách các thực thể và cấu trúc dữ liệu chính đang được sử dụng trong hệ thống Petties, được tách theo từng storage và service để tránh nhầm lẫn giữa backend nghiệp vụ và AI service.
-
-
-
-##### Backend PostgreSQL Entities (21 tables)
-
-
-
-| Nhóm | Thực thể | Mô tả | Các trường chính |
-
+| Group | Entity | Description | Key Fields |
 |:---:|---|---|---|
-
-| **Auth & User** | **USER** | Tài khoản định danh (5 roles) | user_id, username, email, password, role, working_clinic_id, specialty, fcm_token |
-
-| | **REFRESH_TOKEN** | Token duy trì phiên đăng nhập | token_id, user_id, token_hash, expires_at |
-
-| | **BLACKLISTED_TOKEN** | Token bị vô hiệu hóa sau logout | token_id, token_hash, user_id, expires_at |
-
-| **Pet** | **PET** | Hồ sơ thông tin thú cưng | pet_id, user_id, name, species, breed, date_of_birth, weight, gender, allergies, image_url |
-
-| **Clinic** | **CLINIC** | Thông tin phòng khám thú y | clinic_id, owner_id, name, address, phone, status, latitude, longitude, operating_hours(JSON), rating_avg |
-
-| | **CLINIC_IMAGE** | Ảnh không gian phòng khám | image_id, clinic_id, image_url, is_primary, display_order |
-
-| | **CLINIC_PRICE_PER_KM** | Giá di chuyển theo km và phụ phí SOS | clinic_id, price_per_km, sos_fee |
-
-| **Services** | **MASTER_SERVICE** | Bản mẫu dịch vụ dùng chung | master_service_id, name, description, default_price, duration_time, slots_required, is_home_visit, default_price_per_km, service_category, pet_type, icon |
-
-| | **CLINIC_SERVICE** | Dịch vụ thực tế tại phòng khám | service_id, clinic_id, master_service_id, vaccine_template_id, is_custom, name, description, base_price, duration_time, slots_required, is_active, is_home_visit, reminder_interval, reminder_unit, service_category, pet_type |
-
-| | **SERVICE_WEIGHT_PRICE** | Khung giá theo cân nặng | weight_price_id, service_id, master_service_id, min_weight, max_weight, price |
-
-| | **VACCINE_TEMPLATE** | Dữ liệu mẫu vắc-xin và lịch nhắc | vaccine_template_id, name, manufacturer, description, default_price, min_age_weeks, repeat_interval_days, series_doses, is_annual_repeat, min_interval_days, target_species |
-
-| | **VACCINE_DOSE_PRICE** | Giá theo mũi tiêm của dịch vụ vắc-xin | id, service_id, dose_number, dose_label, price, is_active |
-
-| **Scheduling** | **STAFF_SHIFT** | Ca trực của nhân viên | shift_id, staff_id, clinic_id, work_date, start_time, end_time, break_start, break_end, is_overnight |
-
-| | **SLOT** | Đơn vị thời gian 30 phút | slot_id, shift_id, start_time, end_time, status (AVAILABLE/BOOKED/BLOCKED) |
-
-| **Booking** | **BOOKING** | Lịch hẹn khám | booking_id, booking_code, pet_id, pet_owner_id, clinic_id, assigned_staff_id, proxy_booker_id, type, status, total_price, distance_fee, home_address |
-
-| | **BOOKING_SERVICE_ITEM** | M:N Booking ↔ Service | booking_service_id, booking_id, service_id, assigned_staff_id, unit_price, base_price, weight_price, quantity |
-
-| | **BOOKING_SLOT** | M:N Booking ↔ Slot | booking_slot_id, booking_id, slot_id, booking_service_id |
-
-| | **PAYMENT** | Giao dịch thanh toán | payment_id, booking_id, amount, method, status, payment_description, stripe_payment_id, paid_at |
-
-| | **REVIEW** | Đánh giá sau khám | review_id, booking_id, clinic_id, user_id, rating, comment, created_at |
-
-| **Operations** | **NOTIFICATION** | Thông báo đẩy/in-app | notification_id, user_id, clinic_id, shift_id, emr_id, type, message, reason, read, action_type, action_data |
-
-| | **CHAT_AUTO_REPLY_SETTING** | Cấu hình trả lời tự động theo phòng khám | setting_id, clinic_id, quick_reply_enabled, quick_reply_message, away_message_enabled, away_condition |
-
-
+| **Auth & User** | **USER** | Identity and access account for all platform roles | user_id, username, email, password, role, working_clinic_id, specialty, fcm_token |
+| | **REFRESH_TOKEN** | Refresh token persistence for login sessions | token_id, user_id, token_hash, expires_at |
+| | **BLACKLISTED_TOKEN** | Revoked access token registry after logout/logout-all | token_id, token_hash, user_id, expires_at |
+| **Pet** | **PET** | Pet profile owned by a pet owner | pet_id, user_id, name, species, breed, date_of_birth, weight, gender, allergies, image_url |
+| **Clinic** | **CLINIC** | Registered veterinary clinic profile | clinic_id, owner_id, name, address, phone, status, latitude, longitude, operating_hours, rating_avg |
+| | **CLINIC_IMAGE** | Clinic gallery and cover images | image_id, clinic_id, image_url, is_primary, display_order |
+| | **CLINIC_PRICE_PER_KM** | Distance pricing and SOS transport fee configuration | clinic_id, price_per_km, sos_fee |
+| **Services** | **MASTER_SERVICE** | Shared service template catalog | master_service_id, name, description, default_price, duration_time, slots_required, is_home_visit, service_category, pet_type |
+| | **CLINIC_SERVICE** | Clinic-specific service offering | service_id, clinic_id, master_service_id, vaccine_template_id, is_custom, name, description, base_price, duration_time, slots_required, is_active |
+| | **SERVICE_WEIGHT_PRICE** | Weight-based pricing tiers | weight_price_id, service_id, master_service_id, min_weight, max_weight, price |
+| | **VACCINE_TEMPLATE** | Vaccination master template and schedule rule | vaccine_template_id, name, manufacturer, default_price, repeat_interval_days, series_doses, target_species |
+| | **VACCINE_DOSE_PRICE** | Dose-level pricing for vaccine services | id, service_id, dose_number, dose_label, price, is_active |
+| **Scheduling** | **STAFF_SHIFT** | Staff work shifts | shift_id, staff_id, clinic_id, work_date, start_time, end_time, break_start, break_end, is_overnight |
+| | **SLOT** | Bookable 30-minute slot inside a shift | slot_id, shift_id, start_time, end_time, status |
+| **Booking & Payment** | **BOOKING** | Appointment / home-visit / SOS booking | booking_id, booking_code, pet_id, pet_owner_id, clinic_id, assigned_staff_id, proxy_booker_id, type, status, total_price |
+| | **BOOKING_SERVICE_ITEM** | Booking-to-service line item | booking_service_id, booking_id, service_id, assigned_staff_id, unit_price, base_price, weight_price, quantity |
+| | **BOOKING_SLOT** | Booking-to-slot reservation link | booking_slot_id, booking_id, slot_id, booking_service_id |
+| | **PAYMENT** | Payment transaction record for booking or subscription | payment_id, booking_id, subscription_id, amount, method, status, payment_description, paid_at |
+| | **REFUND_APPLICATION** | Refund request and admin processing workflow | refund_application_id, booking_id, requester_id, clinic_id, refund_amount, status, reason |
+| | **CLINIC_BALANCE** | Clinic wallet and withdrawable balance snapshot | clinic_balance_id, clinic_id, available_balance, pending_balance, total_earned, total_withdrawn |
+| | **WITHDRAWAL** | Clinic withdrawal request and settlement result | withdrawal_id, clinic_id, requested_by, amount, status, bank_name, account_number, processed_at |
+| **Commercial & Governance** | **REPORT** | Booking or service incident report submitted by users | report_id, booking_id, reporter_id, clinic_id, type, status, description |
+| | **SUBSCRIPTION_PLAN** | Sellable AI subscription plan definition | plan_id, name, code, price, duration_days, is_active, features |
+| | **USER_SUBSCRIPTION** | Purchased plan attached to a clinic owner or user | subscription_id, user_id, plan_id, status, start_date, end_date, auto_renew |
+| | **VOUCHER** | Voucher definition and usage rule | voucher_id, code, name, discount_type, discount_value, min_order_value, valid_from, valid_to |
+| | **CLINIC_VOUCHER** | Clinic-specific voucher activation and quota | clinic_voucher_id, clinic_id, voucher_id, quantity, remaining_quantity, is_active |
+| | **CLINIC_STRIKE_CONFIG** | Strike policy configuration for clinic violations | clinic_strike_config_id, clinic_id, strike_count, suspension_threshold, last_strike_at |
+| | **USER_STRIKE_CONFIG** | Strike policy configuration for pet owner violations | user_strike_config_id, user_id, strike_count, suspension_threshold, last_strike_at |
+| **Operations** | **NOTIFICATION** | In-app / push notification event | notification_id, user_id, clinic_id, shift_id, emr_id, type, message, reason, read, action_type |
+| | **CHAT_AUTO_REPLY_SETTING** | Clinic auto-reply and away-message setting | setting_id, clinic_id, quick_reply_enabled, quick_reply_message, away_message_enabled, away_condition |
 
 ##### Backend MongoDB Documents (4 collections)
 
-
-
-| Nhóm | Thực thể | Collection | Mô tả | Các trường chính |
-
+| Group | Entity | Collection | Description | Key Fields |
 |:---:|---|---|---|---|
+| **Medical** | **EMR_RECORD** | emr_records | SOAP-based electronic medical record | _id, pet_id, booking_id, staff_id, clinic_id, subjective, objective, assessment, plan, prescriptions[], images[] |
+| | **VACCINATION_RECORD** | vaccination_records | Vaccination history and reminder schedule | _id, pet_id, booking_id, staff_id, clinic_id, vaccine_name, vaccination_date, next_due_date, vaccine_template_id, dose_number |
+| **Communication** | **CHAT_CONVERSATION** | chat_conversations | Direct chat thread between pet owner and clinic | _id, pet_owner_id, clinic_id, clinic_name, pet_owner_name, last_message, unread_count_pet_owner, unread_count_clinic |
+| | **CHAT_MESSAGE** | chat_messages | Individual messages inside clinic chat | _id, chat_box_id, sender_id, sender_type, content, message_type, image_url, status, is_read, action_buttons[] |
 
-| **Medical** | **EMR_RECORD** | emr_records | Bệnh án điện tử (SOAP) | _id, pet_id, booking_id, staff_id, clinic_id, clinic_name, staff_name, subjective, objective, assessment, plan, notes, weight_kg, temperature_c, heart_rate, bcs, re_examination_date, prescriptions[], images[] |
+##### Embedded Classes (no standalone table)
 
-| | **VACCINATION_RECORD** | vaccination_records | Sổ tiêm chủng | _id, pet_id, booking_id, staff_id, clinic_id, vaccine_name, batch_number, status, vaccination_date, next_due_date, reminder_sent, vaccine_template_id, dose_number, total_doses, series_id |
-
-| **Communication** | **CHAT_CONVERSATION** | chat_conversations | Phiên hội thoại 1-1 Pet Owner <-> Clinic | _id, pet_owner_id, clinic_id, clinic_name, clinic_logo, pet_owner_name, last_message, last_message_sender, unread_count_pet_owner, unread_count_clinic, last_auto_reply_at |
-
-| | **CHAT_MESSAGE** | chat_messages | Nội dung tin nhắn trong hội thoại | _id, chat_box_id, sender_id, sender_type, sender_name, content, message_type, image_url, status, is_read, action_buttons[] |
-
-
-
-##### Embedded Classes (không có table riêng)
-
-
-
-| Class | Embedded In | Mô tả | Các trường |
-
+| Class | Embedded In | Description | Fields |
 |---|---|---|---|
+| **OperatingHours** | Clinic.operating_hours (JSON) | Daily clinic opening schedule | open_time, close_time, break_start, break_end, is_closed |
+| **Prescription** | EmrRecord.prescriptions[] | Medication instruction item | medicine_name, dosage, frequency, duration_days, instructions |
+| **EmrImage** | EmrRecord.images[] | Medical image attachment metadata | url, description |
+| **ActionButton** | ChatMessage.action_buttons[] | Auto-reply / interactive message button | id, label, type |
 
-| **OperatingHours** | Clinic.operating_hours (JSON) | Giờ mở cửa theo ngày | open_time, close_time, break_start, break_end, is_closed |
+##### AI Service PostgreSQL Entities (7 tables)
 
-| **Prescription** | EmrRecord.prescriptions[] | Đơn thuốc | medicine_name, dosage, frequency, duration_days, instructions |
-
-| **EmrImage** | EmrRecord.images[] | Ảnh y khoa | url, description |
-
-| **ActionButton** | ChatMessage.action_buttons[] | Nút tương tác trong auto-reply/chat | id, label, type |
-
-
-
-##### AI Service PostgreSQL Entities (5 tables)
-
-
-
-| Thực thể | Mô tả | Ghi chú |
-
+| Entity | Description | Notes |
 |---|---|---|
+| **AGENT** | Single-agent runtime configuration | Stores model, temperature, top_p, max_tokens, enabled flag. System prompt is hardcoded in code, not stored in PostgreSQL. |
+| **TOOL** | Tool registry metadata | Stores semantic description and JSON schemas for FastMCP tools. No per-agent assignment field exists in the active schema. |
+| **KNOWLEDGE_DOCUMENT** | Knowledge-base document metadata | File metadata in PostgreSQL; embeddings and search payloads live in Qdrant. |
+| **DISEASE_CATALOG** | Normalized disease taxonomy for staff AI diagnosis | Supports canonical disease names and metadata used in diagnosis flows. |
+| **DISEASE_ALIAS** | Alias/synonym mapping for disease names | Links colloquial or legacy names to canonical disease entries. |
+| **DISEASE_MAPPING_REVIEW_ITEM** | Review queue for disease normalization | Stores unresolved or review-needed diagnosis mapping candidates. |
+| **SYSTEM_SETTING** | Runtime configuration for AI service | Stores API keys, model defaults, Qdrant/Cohere/Jina/Tavily settings. |
 
-| **AGENT** | Cấu hình single agent | Lưu model, temperature, top_p, max_tokens, system_prompt |
+##### AI Service MongoDB Documents (5 collections)
 
-| **TOOL** | Metadata của tool mà agent có thể sử dụng | Gán agent theo `assigned_agents` JSON, không dùng foreign key trực tiếp |
-
-| **PROMPT_VERSION** | Version control cho system prompt | Gắn với AGENT qua `agent_id` |
-
-| **KNOWLEDGE_DOCUMENT** | Metadata tài liệu RAG | Metadata ở PostgreSQL, vector embeddings ở Qdrant Cloud |
-
-| **SYSTEM_SETTING** | Cấu hình runtime cho AI service | Lưu API key, model mặc định, Qdrant URL, Cohere config |
-
-
-
-##### AI Service MongoDB Documents (4 collections)
-
-
-
-| Thực thể | Collection | Mô tả | Ghi chú |
-
+| Entity | Collection | Description | Notes |
 |---|---|---|---|
+| **AI_CHAT_SESSION** | ai_chat_sessions | AI conversation session between user and assistant | Stores context type, user_id, agent name, timestamps, and logical references to business actors. |
+| **AI_CHAT_MESSAGE** | ai_chat_messages | AI messages and ReAct trace payloads | Stores tool calls, observations, sources, thinking metadata, and streaming output history. |
+| **AI_PROACTIVE_NOTIFICATION** | ai_proactive_notifications | AI-generated proactive notification log | Used for AI-driven reminders and suggestion workflows. |
+| **CHAT_FEEDBACK** | chat_feedback | User feedback on AI answers | Stores thumbs up/down and optional textual feedback per message. |
+| **KNOWLEDGE_GRAPH_TRIPLET** | knowledge_graph_triplets | Extracted graph facts for knowledge workflows | Stores subject-predicate-object triplets and metadata used by graph-based retrieval. |
 
-| **AI_CHAT_SESSION** | ai_chat_sessions | Phiên hội thoại giữa user và AI | Lưu session metadata, context_type, timestamps, logical refs tới user/agent |
+##### Future / Runtime-Managed Structures
 
-| **AI_CHAT_MESSAGE** | ai_chat_messages | Tin nhắn AI chat và ReAct trace | Lưu tool calls, observations, thinking steps theo session MongoDB |
-
-| **AI_PROACTIVE_NOTIFICATION** | ai_proactive_notifications | Log thông báo/chủ động gợi ý từ AI | Runtime collection cho AI proactive workflows |
-
-| **CHAT_FEEDBACK** | chat_feedback | Phản hồi chất lượng câu trả lời AI | Lưu thumbs up/down và feedback theo message |
-
-
-
-##### Future Entities (chưa implement - dành cho các UC còn lại)
-
-
-
-| Thực thể | UC liên quan | Mô tả | Dự kiến các trường |
-
+| Structure | Scope | Description | Expected Fields |
 |---|---|---|---|
-
-| **USER_REPORT** | UC-PO-16 | Báo cáo vi phạm | id, reporter_id, reported_user_id, clinic_id, category, status |
-
-
+| **LANGGRAPH_CHECKPOINT** | Optional AI runtime table | Runtime checkpoint state created only when LangGraph checkpoint persistence is enabled in deployment. It is not part of the canonical DBML baseline. | thread_id, checkpoint_ns, checkpoint_id, parent_checkpoint_id, state_json, created_at |
 
 ---
 
@@ -5615,6 +5580,46 @@ Figure 51. AI Booking Advisory for Vaccination with dose price and due-shot remi
 
 
 
+#### *3.8.18 Booking Report (UC-PO-16 / UC-CM-17 / UC-AD-05)*
+**User Story:**
+> *As a Pet Owner or Clinic Staff/Manager, I want to report issues related to a booking so that the platform admin can review and take necessary actions.*
+
+**Function trigger**
+- **Navigation path (Pet Owner - Mobile):** My Bookings → Booking Detail → "Báo cáo".
+- **Navigation path (Clinic - Web):** Booking Dashboard → Booking Detail Modal → "Báo cáo".
+- **Timing frequency:** On demand, after or during the booking.
+
+**Function description**
+- **Actors/Roles:** Pet Owner, Staff, Clinic Manager, Admin.
+- **Purpose:** Submit and resolve booking-related reports.
+- **Interface:**
+    - Report modal với lý do báo cáo.
+    - Admin report management screen với bộ lọc trạng thái và modal xử lý.
+
+**Data processing**
+1. User mở report modal từ booking detail và nhập lý do.
+2. System kiểm tra người gửi thuộc booking và chưa có pending report trùng.
+3. System tạo `REPORT` record với trạng thái `PENDING`.
+4. System gửi thông báo cho Platform Admin.
+5. Admin review báo cáo, nhập ghi chú xử lý, rồi chọn `APPROVED` hoặc `REJECTED`.
+6. System cập nhật trạng thái báo cáo và gửi thông báo cho các bên liên quan.
+
+**Screen layout**
+Figure 49. Screen Submit Report (Mobile/Web Modal)
+Figure 50. Screen Admin Report Management (Web)
+
+**Function details**
+- **Data:**
+    - **Submit request:** `POST /api/reports` + `{ bookingId, reason }`
+    - **Resolve request:** `PUT /api/admin/reports/{id}/resolve` + `{ status, adminNote }`
+- **Validation:**
+    - Lý do báo cáo tối thiểu 10 ký tự.
+    - Ghi chú xử lý của admin tối thiểu 5 ký tự.
+- **Normal case:** Người dùng báo cáo vấn đề của lịch hẹn, admin duyệt và hệ thống lưu kết quả xử lý.
+- **Abnormal/Exception cases:**
+    - A1. Duplicate report — System báo người dùng đã gửi báo cáo cho lịch hẹn này.
+    - A2. Missing reason — System chặn submit và yêu cầu nhập lý do báo cáo.
+
 ### 3.9 Electronic Medical Records (EMR) Flow
 
 
@@ -7540,7 +7545,7 @@ Figure 47. Pet Selection Dialog (Mobile)
 
 2. System processes text, generates vectors, stores metadata in PostgreSQL `knowledge_documents`, and upserts vectors to Qdrant.
 
-3. Admin updates Prompt. System creates a new row in PostgreSQL `prompt_versions`.
+3. Admin updates agent parameters or tool policy. The system persists the change in PostgreSQL `agents`, `tools`, or `system_settings`, depending on the setting being changed.
 
 
 
@@ -9572,9 +9577,9 @@ Security tests verify that the system is protected against unauthorized access a
 
 **Document Status:** In Progress
 
-**Version:** 2.3.3 (Added AI Tool Booking API orchestration requirements for chat-first booking)
+**Version:** 2.3.9 (Aligned documentation baseline with approved 20-module checklist)
 
-**Last Updated:** 2026-03-16
+**Last Updated:** 2026-03-25
 
 **Author:** Petties Development Team
 

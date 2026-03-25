@@ -45,6 +45,12 @@ public class BookingNotificationService {
 
             SseEventDto event = SseEventDto.bookingUpdate(eventData);
 
+            // Push to pet owner
+            if (booking.getPetOwner() != null) {
+                sseEmitterService.pushToUser(booking.getPetOwner().getUserId(), event);
+                log.debug("Pushed BOOKING_UPDATE to pet owner: {}", booking.getPetOwner().getUserId());
+            }
+
             // Push to assigned staff
             if (booking.getAssignedStaff() != null) {
                 sseEmitterService.pushToUser(booking.getAssignedStaff().getUserId(), event);

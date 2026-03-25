@@ -8,6 +8,7 @@ import logging
 import uuid
 
 from app.api.middleware.auth import CurrentUser, get_current_user
+from app.api.middleware.subscription_guard import check_active_subscription
 from app.api.schemas.feedback_schemas import (
     FeedbackRequest,
     FeedbackResponse,
@@ -182,7 +183,9 @@ def _map_session(
     "/sessions", response_model=CreateSessionResponse, summary="Create new chat session"
 )
 async def create_session(
-    request: CreateSessionRequest, user: CurrentUser = Depends(get_current_user)
+    request: CreateSessionRequest, 
+    user: CurrentUser = Depends(get_current_user),
+    _Subscription: bool = Depends(check_active_subscription)
 ):
     """
     Create a new chat session
@@ -274,6 +277,7 @@ async def send_message(
     session_id: str,
     request: SendMessageRequest,
     user: CurrentUser = Depends(get_current_user),
+    _Subscription: bool = Depends(check_active_subscription)
 ):
     """
     Save user message to chat session.

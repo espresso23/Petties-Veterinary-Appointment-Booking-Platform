@@ -58,11 +58,21 @@ class BookingResponse {
   final String? assignedStaffPhone;
   final String? assignedStaffSpecialty;
   final String? assignedStaffAvatarUrl;
+  final String? paymentStatus;
+  final String? paymentMethod;
+  final String? paymentDescription;
+  final String? qrImageUrl;
+  final bool? canShowQrPaymentButton;
   final bool? isReviewed;
   final String? reviewId;
   final int? rating;
   final String? reviewComment;
   final String? arrivedAt;
+
+  // Voucher
+  final String? voucherId;
+  final double? discountAmount;
+  final double? finalPrice;
 
   BookingResponse({
     this.bookingId,
@@ -105,11 +115,19 @@ class BookingResponse {
     this.assignedStaffPhone,
     this.assignedStaffSpecialty,
     this.assignedStaffAvatarUrl,
+    this.paymentStatus,
+    this.paymentMethod,
+    this.paymentDescription,
+    this.qrImageUrl,
+    this.canShowQrPaymentButton,
     this.isReviewed,
     this.reviewId,
     this.rating,
     this.reviewComment,
     this.arrivedAt,
+    this.voucherId,
+    this.discountAmount,
+    this.finalPrice,
   });
 
   factory BookingResponse.fromJson(Map<String, dynamic> json) {
@@ -176,13 +194,22 @@ class BookingResponse {
       assignedStaffPhone: json['assignedStaffPhone'],
       assignedStaffSpecialty: json['assignedStaffSpecialty'],
       assignedStaffAvatarUrl: json['assignedStaffAvatarUrl'],
+      paymentStatus: json['paymentStatus'],
+      paymentMethod: json['paymentMethod'],
+      paymentDescription: json['paymentDescription'],
+      qrImageUrl: json['qrImageUrl'],
+      canShowQrPaymentButton: json['canShowQrPaymentButton'] != null ? json['canShowQrPaymentButton'] == true : null,
       isReviewed: json['isReviewed'],
       reviewId: json['reviewId'],
       rating: json['rating'],
       reviewComment: json['reviewComment'],
       arrivedAt: json['arrivedAt'],
+      voucherId: json['voucherId'],
+      discountAmount: (json['discountAmount'] as num?)?.toDouble() ?? 0.0,
+      finalPrice: (json['finalPrice'] as num?)?.toDouble() ?? (json['totalPrice'] as num?)?.toDouble(),
     );
   }
+
 }
 
 class BookingPet {

@@ -15,7 +15,7 @@ class BookingService {
     return BookingResponse.fromJson(response.data);
   }
 
-  /// Get booking by code
+  /// Get booking by booking code
   Future<BookingResponse> getBookingByCode(String bookingCode) async {
     final response = await _apiClient.get('/bookings/code/$bookingCode');
     return BookingResponse.fromJson(response.data);
@@ -28,17 +28,27 @@ class BookingService {
     return BookingResponse.fromJson(response.data);
   }
 
-  /// Checkout booking: thanh toán và hoàn tất lịch hẹn (IN_PROGRESS → COMPLETED)
-  /// Chỉ gọi khi booking đang ở trạng thái IN_PROGRESS
+  /// Complete booking (Staff action: IN_PROGRESS → COMPLETED)
+  Future<BookingResponse> complete(String bookingId) async {
+    final response = await _apiClient.post('/bookings/$bookingId/complete');
+    return BookingResponse.fromJson(response.data);
+  }
+
+  /// Checkout booking (Staff action: COMPLETED → finalize payment)
+  /// Only callable when status is COMPLETED
   /// @param bookingId Booking UUID
   /// @param overriddenSosFee Optional: Override SOS fee (for staff adjustment)
+  /// @param paymentMethod Payment method: QR or CASH (default QR)
   Future<BookingResponse> checkout(String bookingId,
-      {double? overriddenSosFee}) async {
+      {double? overriddenSosFee, String paymentMethod = 'QR'}) async {
+    final payload = <String, dynamic>{'paymentMethod': paymentMethod};
+    if (overriddenSosFee != null) {
+      payload['overriddenSosFee'] = overriddenSosFee;
+    }
+
     final response = await _apiClient.post(
       '/bookings/$bookingId/checkout',
-      data: overriddenSosFee != null
-          ? {'overriddenSosFee': overriddenSosFee}
-          : <String, dynamic>{},
+      data: payload,
     );
     return BookingResponse.fromJson(response.data);
   }
@@ -50,8 +60,8 @@ class BookingService {
     return BookingResponse.fromJson(response.data);
   }
 
-  /// Staff arrived at customer location (SOS/HOME_VISIT)
-  /// Keeps booking status IN_PROGRESS and marks arrival timestamp.
+  /// Staff arrived at customer location
+  /// Note: Does not change status (remains IN_PROGRESS), just sets arrivedAt timestamp
   Future<BookingResponse> arrived(String bookingId) async {
     final response = await _apiClient.post('/bookings/$bookingId/arrived');
     return BookingResponse.fromJson(response.data);
@@ -161,6 +171,16 @@ class BookingService {
       String bookingId, String serviceId) async {
     final response = await _apiClient.delete(
       '/bookings/$bookingId/services/$serviceId',
+    );
+    return BookingResponse.fromJson(response.data);
+  }
+
+  /// Apply/Remove Voucher for Booking (Pet Owner action)
+  Future<BookingResponse> applyVoucher(
+      String bookingId, String? voucherId) async {
+    final response = await _apiClient.post(
+      '/bookings/$bookingId/apply-voucher',
+      data: {'voucherId': voucherId},
     );
     return BookingResponse.fromJson(response.data);
   }

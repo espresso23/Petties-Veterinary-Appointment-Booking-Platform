@@ -75,6 +75,8 @@ export interface Booking {
     // Payment info
     paymentStatus?: string; // PENDING, PAID, REFUNDED, FAILED
     paymentMethod?: string; // CASH, QR, CARD
+    paymentDescription?: string; // SePay payment description for QR matching
+    qrImageUrl?: string; // QR code image URL (only for QR + PENDING)
 
     // Booking info
     bookingDate: string;
@@ -97,6 +99,11 @@ export interface Booking {
     distanceKm?: number;
     distanceFee?: number; // Home visit fee (pricePerKm × distanceKm) applied once
     sosFee?: number;      // SOS emergency fee
+
+    // Voucher
+    voucherId?: string;
+    discountAmount?: number;
+    finalPrice?: number;
 
     // Timestamps
     createdAt: string;

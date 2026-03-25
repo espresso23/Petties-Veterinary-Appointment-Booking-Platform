@@ -11,9 +11,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * Payment entity - Thanh toán cho booking
- * 
- * Relationship: 1:1 với Booking
+ * Payment entity - Thanh toán cho booking hoặc đăng ký hội viên
  */
 @Entity
 @Table(name = "payments")
@@ -30,8 +28,12 @@ public class Payment {
     private UUID paymentId;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "booking_id", unique = true, nullable = false)
+    @JoinColumn(name = "booking_id", unique = true)
     private Booking booking;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "subscription_id")
+    private UserSubscription subscription;
 
     @Column(name = "amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal amount;

@@ -4,18 +4,22 @@ import com.petties.petties.dto.booking.BookingResponse;
 import com.petties.petties.dto.booking.ClinicTodayBookingResponse;
 import com.petties.petties.dto.booking.UpcomingBookingDTO;
 import com.petties.petties.dto.clinicService.ClinicServiceResponse;
-
 import com.petties.petties.model.Booking;
 import com.petties.petties.model.BookingServiceItem;
 import com.petties.petties.model.Clinic;
 import com.petties.petties.model.ClinicService;
 import com.petties.petties.model.EmrRecord;
+import com.petties.petties.model.Payment;
 import com.petties.petties.model.Pet;
 import com.petties.petties.model.User;
+import com.petties.petties.model.enums.BookingStatus;
+import com.petties.petties.model.enums.PaymentMethod;
+import com.petties.petties.model.enums.PaymentStatus;
 import com.petties.petties.repository.EmrRecordRepository;
 import com.petties.petties.util.BookingScheduleUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
@@ -29,7 +33,6 @@ import java.util.UUID;
 
 /**
  * BookingMapper - Component for mapping Booking entities to DTOs.
- * Extracted from BookingService to follow Single Responsibility Principle.
  */
 @Component
 @RequiredArgsConstructor
@@ -38,26 +41,33 @@ public class BookingMapper {
 
     private final EmrRecordRepository emrRecordRepository;
 
+    @Value("${sepay.qr.acc:}")
+    private String sepayQrAcc;
+
+    @Value("${sepay.qr.bank:}")
+    private String sepayQrBank;
+
     /**
      * Map Booking entity to BookingResponse DTO
      */
     public BookingResponse mapToResponse(Booking booking) {
         try {
-                        Pet pet = safeGetBookingPet(booking);
+            Pet pet = booking.getPet();
             User owner = booking.getPetOwner();
             Clinic clinic = booking.getClinic();
             User staff = booking.getAssignedStaff();
 
-                        if (owner == null) {
-                                log.warn("Booking {} has null owner while mapping response", booking.getBookingId());
+            if (pet == null || owner == null) {
+                log.warn("Booking {} has null pet or owner - cannot map to response", booking.getBookingId());
+                throw new IllegalArgumentException(
+                        "Dữ liệu lịch hẹn không hợp lệ: thiếu thông tin thú cưng hoặc chủ sở hữu");
             }
 
-            // Check if EMR already exists for this booking
-            List<EmrRecord> emrs = emrRecordRepository
-                    .findByBookingId(booking.getBookingId());
+            // EMR
+            List<EmrRecord> emrs = emrRecordRepository.findByBookingId(booking.getBookingId());
             String emrId = !emrs.isEmpty() ? emrs.get(0).getId() : null;
 
-            // Calculate pet age
+            // Tuổi thú cưng
             String petAge = "N/A";
             if (pet.getDateOfBirth() != null) {
                 Period age = Period.between(pet.getDateOfBirth(), LocalDate.now());
@@ -66,16 +76,10 @@ public class BookingMapper {
                         : age.getMonths() + " tháng";
             }
 
-            // Map services with assigned staff info and calculate scheduled times
-            // Multi-pet: parallel schedule (cùng thời điểm cho các pet khác nhau)
-            // Single-pet: sequential (giữ tương thích)
-                        Map<UUID, LocalTime[]> schedule;
-                        try {
-                                schedule = BookingScheduleUtil.computeSchedule(booking);
-                        } catch (Exception ex) {
-                                log.warn("Could not compute schedule for booking {}: {}", booking.getBookingId(), ex.getMessage());
-                                schedule = new LinkedHashMap<>();
-                        }
+            boolean isReviewed = booking.getReview() != null;
+
+            // Lịch dịch vụ + staff
+            Map<UUID, LocalTime[]> schedule = BookingScheduleUtil.computeSchedule(booking);
             List<BookingResponse.BookingServiceItemResponse> serviceResponses = new ArrayList<>();
 
             List<BookingServiceItem> bookingServices = booking.getBookingServices() != null
@@ -87,11 +91,10 @@ public class BookingMapper {
                     log.warn("BookingServiceItem {} has null service, skipping", item.getBookingServiceId());
                     continue;
                 }
-                                Pet itemPet = safeGetItemPet(item);
-                                if (itemPet == null) {
-                                        itemPet = pet;
-                                }
+
+                Pet itemPet = item.getPet() != null ? item.getPet() : booking.getPet();
                 User itemStaff = item.getAssignedStaff();
+
                 int durationMinutes = item.getService().getDurationTime() != null
                         ? item.getService().getDurationTime()
                         : 30;
@@ -132,10 +135,12 @@ public class BookingMapper {
                         .build());
             }
 
-            // Nhóm dịch vụ theo pet cho multi-pet (pets list)
+            // Nhóm service theo pet
             Map<UUID, List<BookingResponse.BookingServiceItemResponse>> byPet = new LinkedHashMap<>();
             for (BookingResponse.BookingServiceItemResponse sr : serviceResponses) {
-                UUID key = sr.getPetId() != null ? sr.getPetId() : UUID.fromString("00000000-0000-0000-0000-000000000000");
+                UUID key = sr.getPetId() != null
+                        ? sr.getPetId()
+                        : UUID.fromString("00000000-0000-0000-0000-000000000000");
                 byPet.computeIfAbsent(key, k -> new ArrayList<>()).add(sr);
             }
             List<BookingResponse.PetInBookingSummary> pets = new ArrayList<>();
@@ -154,27 +159,31 @@ public class BookingMapper {
                     .bookingId(booking.getBookingId())
                     .bookingCode(booking.getBookingCode())
                     .emrId(emrId)
-                    // Pet info
-                    .petId(pet != null ? pet.getId() : null)
-                    .petName(pet != null ? pet.getName() : "Thú cưng đã xóa")
-                    .petSpecies(pet != null && pet.getSpecies() != null ? pet.getSpecies().name() : null)
-                    .petBreed(pet != null ? pet.getBreed() : null)
+                    .isReviewed(isReviewed)
+                    .reviewId(isReviewed ? booking.getReview().getReviewId() : null)
+                    .rating(isReviewed ? booking.getReview().getRating() : null)
+                    .reviewComment(isReviewed ? booking.getReview().getComment() : null)
+                    // Pet chính
+                    .petId(pet.getId())
+                    .petName(pet.getName())
+                    .petSpecies(pet.getSpecies() != null ? pet.getSpecies().name() : null)
+                    .petBreed(pet.getBreed())
                     .petAge(petAge)
-                    .petPhotoUrl(pet != null ? pet.getImageUrl() : null)
-                    .petWeight(pet != null ? pet.getWeight() : null)
-                    // Owner info
-                    .ownerId(owner != null ? owner.getUserId() : null)
-                    .ownerName(owner != null ? owner.getFullName() : null)
-                    .ownerPhone(owner != null ? owner.getPhone() : null)
-                    .ownerEmail(owner != null ? owner.getEmail() : null)
-                    .ownerAvatarUrl(owner != null ? owner.getAvatar() : null)
-                    .ownerAddress(owner != null ? owner.getAddress() : null)
-                    // Clinic info (nullable for SOS during matching)
+                    .petPhotoUrl(pet.getImageUrl())
+                    .petWeight(pet.getWeight())
+                    // Owner
+                    .ownerId(owner.getUserId())
+                    .ownerName(owner.getFullName())
+                    .ownerPhone(owner.getPhone())
+                    .ownerEmail(owner.getEmail())
+                    .ownerAvatarUrl(owner.getAvatar())
+                    .ownerAddress(owner.getAddress())
+                    // Clinic (nullable cho SOS)
                     .clinicId(clinic != null ? clinic.getClinicId() : null)
                     .clinicName(clinic != null ? clinic.getName() : null)
                     .clinicAddress(clinic != null ? clinic.getAddress() : null)
                     .clinicPhone(clinic != null ? clinic.getPhone() : null)
-                    // Staff info
+                    // Staff
                     .assignedStaffId(staff != null ? staff.getUserId() : null)
                     .assignedStaffName(staff != null ? staff.getFullName() : null)
                     .assignedStaffSpecialty(
@@ -182,15 +191,23 @@ public class BookingMapper {
                                     ? staff.getSpecialty().name()
                                     : null)
                     .assignedStaffAvatarUrl(staff != null ? staff.getAvatar() : null)
-                    // Payment info
-                    .paymentStatus(booking.getPayment() != null
-                            ? booking.getPayment().getStatus().name()
-                            : "PENDING")
-                    .paymentMethod(booking.getPayment() != null
-                            && booking.getPayment().getMethod() != null
-                                    ? booking.getPayment().getMethod().name()
-                                    : null)
-                    // Booking info
+                    // Payment
+                    .paymentStatus(booking.getPaymentStatus() != null
+                            ? booking.getPaymentStatus().name()
+                            : null)
+                    .paymentMethod(booking.getPaymentMethod() != null
+                            ? booking.getPaymentMethod().name()
+                            : null)
+                    .paymentDescription(booking.getPayment() != null
+                            ? booking.getPayment().getPaymentDescription()
+                            : null)
+                    .qrImageUrl(buildQrImageUrl(booking.getPayment()))
+                    .canShowQrPaymentButton(shouldShowQrPaymentButton(booking))
+                    // Voucher & Discount
+                    .voucherId(booking.getVoucher() != null ? booking.getVoucher().getVoucherId() : null)
+                    .discountAmount(booking.getDiscountAmount())
+                    .finalPrice(booking.getFinalPrice())
+                    // Booking
                     .bookingDate(booking.getBookingDate())
                     .bookingTime(booking.getBookingTime())
                     .type(booking.getType())
@@ -198,7 +215,7 @@ public class BookingMapper {
                     .totalPrice(booking.getTotalPrice())
                     .notes(booking.getNotes())
                     .pets(pets)
-                    // Home visit info
+                    // Home visit
                     .homeAddress(booking.getHomeAddress())
                     .homeLat(booking.getHomeLat())
                     .homeLong(booking.getHomeLong())
@@ -206,38 +223,13 @@ public class BookingMapper {
                     .distanceFee(booking.getDistanceFee())
                     .sosFee(booking.getSosFee())
                     .symptoms(booking.getSymptoms())
-                    // Timestamps
                     .createdAt(booking.getCreatedAt())
-                    // Review info
-                    .isReviewed(booking.getReview() != null)
-                    .reviewId(booking.getReview() != null ? booking.getReview().getReviewId() : null)
-                    .rating(booking.getReview() != null ? booking.getReview().getRating() : null)
-                    .reviewComment(booking.getReview() != null ? booking.getReview().getComment() : null)
                     .build();
         } catch (Exception e) {
             log.error("Error mapping booking {} to response: {}", booking.getBookingId(), e.getMessage(), e);
             throw new RuntimeException("Error mapping booking " + booking.getBookingCode(), e);
         }
     }
-
-        private Pet safeGetBookingPet(Booking booking) {
-                try {
-                        return booking.getPet();
-                } catch (Exception ex) {
-                        log.warn("Booking {} references a deleted/unavailable pet: {}", booking.getBookingId(), ex.getMessage());
-                        return null;
-                }
-        }
-
-        private Pet safeGetItemPet(BookingServiceItem item) {
-                try {
-                        return item.getPet();
-                } catch (Exception ex) {
-                        log.warn("BookingServiceItem {} references a deleted/unavailable pet: {}", item.getBookingServiceId(),
-                                        ex.getMessage());
-                        return null;
-                }
-        }
 
     /**
      * Map Booking entity to UpcomingBookingDTO for home screen display
@@ -305,7 +297,7 @@ public class BookingMapper {
      */
     public ClinicTodayBookingResponse mapToClinicTodayResponse(Booking booking, UUID currentStaffId) {
         try {
-                        Pet pet = safeGetBookingPet(booking);
+            Pet pet = booking.getPet();
             User owner = booking.getPetOwner();
             Clinic clinic = booking.getClinic();
             User staff = booking.getAssignedStaff();
@@ -323,24 +315,10 @@ public class BookingMapper {
             }
 
             boolean isMyAssignment = false;
-                        Map<UUID, LocalTime[]> schedule;
-                        try {
-                                schedule = BookingScheduleUtil.computeSchedule(booking);
-                        } catch (Exception ex) {
-                                log.warn("Could not compute clinic schedule for booking {}: {}", booking.getBookingId(), ex.getMessage());
-                                schedule = new LinkedHashMap<>();
-                        }
+            Map<UUID, LocalTime[]> schedule = BookingScheduleUtil.computeSchedule(booking);
             List<ClinicTodayBookingResponse.BookingServiceItemResponse> serviceResponses = new ArrayList<>();
 
-                        List<BookingServiceItem> bookingServices = booking.getBookingServices() != null
-                                        ? booking.getBookingServices()
-                                        : new ArrayList<>();
-
-                        for (BookingServiceItem item : bookingServices) {
-                                if (item.getService() == null) {
-                                        log.warn("BookingServiceItem {} has null service, skipping in clinic mapping", item.getBookingServiceId());
-                                        continue;
-                                }
+            for (BookingServiceItem item : booking.getBookingServices()) {
                 User itemStaff = item.getAssignedStaff();
 
                 if (itemStaff != null && itemStaff.getUserId().equals(currentStaffId)) {
@@ -423,13 +401,12 @@ public class BookingMapper {
                                     : null)
                     .assignedStaffAvatarUrl(staff != null ? staff.getAvatar() : null)
                     // Payment info
-                    .paymentStatus(booking.getPayment() != null
-                            ? booking.getPayment().getStatus().name()
+                    .paymentStatus(booking.getPaymentStatus() != null
+                            ? booking.getPaymentStatus().name()
                             : "PENDING")
-                    .paymentMethod(booking.getPayment() != null
-                            && booking.getPayment().getMethod() != null
-                                    ? booking.getPayment().getMethod().name()
-                                    : null)
+                    .paymentMethod(booking.getPaymentMethod() != null
+                            ? booking.getPaymentMethod().name()
+                            : null)
                     // Booking info
                     .bookingDate(booking.getBookingDate())
                     .bookingTime(booking.getBookingTime())
@@ -473,4 +450,31 @@ public class BookingMapper {
                 .isActive(service.getIsActive())
                 .build();
     }
+
+    private String buildQrImageUrl(Payment payment) {
+        if (payment == null) return null;
+        if (payment.getMethod() != PaymentMethod.QR) return null;
+        if (payment.getStatus() == PaymentStatus.PAID) return null;
+        String desc = payment.getPaymentDescription();
+        if (desc == null || desc.isBlank()) return null;
+        if (sepayQrAcc == null || sepayQrAcc.isBlank() ||
+                sepayQrBank == null || sepayQrBank.isBlank()) return null;
+        return String.format(
+                "https://qr.sepay.vn/img?acc=%s&bank=%s&amount=%s&des=%s",
+                sepayQrAcc,
+                sepayQrBank,
+                payment.getAmount() != null ? payment.getAmount().toBigInteger().toString() : "0",
+                desc);
+    }
+
+        private boolean shouldShowQrPaymentButton(Booking booking) {
+                if (booking == null || booking.getStatus() != BookingStatus.IN_PROGRESS) {
+                        return false;
+                }
+
+                Payment payment = booking.getPayment();
+                return payment != null
+                                && payment.getMethod() == PaymentMethod.QR
+                                && payment.getStatus() != PaymentStatus.PAID;
+        }
 }

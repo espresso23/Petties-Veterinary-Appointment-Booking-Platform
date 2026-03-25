@@ -35,6 +35,7 @@ import shutil
 import tempfile
 from datetime import datetime
 from app.api.middleware.auth import get_admin_user
+from app.api.middleware.subscription_guard import check_active_subscription
 from app.config.settings import settings
 
 from app.api.schemas.knowledge_schemas import (
@@ -135,6 +136,7 @@ async def upload_document(
     notes: Optional[str] = Form(None),
     uploaded_by: Optional[str] = Form("admin"),
     db: AsyncSession = Depends(get_db),
+    _Subscription: bool = Depends(check_active_subscription),
 ):
     """
     Upload document to knowledge base
@@ -196,7 +198,7 @@ async def upload_document(
 
         return UploadDocumentResponse(
             success=True,
-            message=f"Document '{filename}' uploaded successfully",
+            message=f"Tài liệu '{filename}' tải lên thành công",
             document_id=document.id,
             filename=filename,
             file_size=file_size,
@@ -230,7 +232,11 @@ async def upload_document(
     After processing, the document can be queried via RAG.
     """,
 )
-async def process_document(document_id: int, db: AsyncSession = Depends(get_db)):
+async def process_document(
+    document_id: int,
+    db: AsyncSession = Depends(get_db),
+    _Subscription: bool = Depends(check_active_subscription),
+):
     """
     Process document and index to Qdrant
 
@@ -254,7 +260,7 @@ async def process_document(document_id: int, db: AsyncSession = Depends(get_db))
 
         if not document:
             raise HTTPException(
-                status_code=404, detail=f"Document {document_id} not found"
+                status_code=404, detail=f"Không tìm thấy tài liệu {document_id}"
             )
 
         # Allow reprocessing if document has 0 vectors (failed previous attempt)
@@ -265,7 +271,7 @@ async def process_document(document_id: int, db: AsyncSession = Depends(get_db))
         ):
             return ProcessDocumentResponse(
                 success=True,
-                message=f"Document '{document.filename}' already processed",
+                message=f"Tài liệu '{document.filename}' đã được xử lý trước đó",
                 document_id=document_id,
                 chunks_created=document.vector_count,
                 processing_time_ms=0,
@@ -285,7 +291,7 @@ async def process_document(document_id: int, db: AsyncSession = Depends(get_db))
         file_path = document.file_path
         if not file_path or not os.path.exists(file_path):
             raise HTTPException(
-                status_code=404, detail=f"Document file not found at {file_path}"
+                status_code=404, detail=f"Không tìm thấy file tại {file_path}"
             )
 
         with open(file_path, "rb") as f:
@@ -334,7 +340,7 @@ async def process_document(document_id: int, db: AsyncSession = Depends(get_db))
 
         return ProcessDocumentResponse(
             success=True,
-            message=f"Document '{document.filename}' processed successfully",
+            message=f"Tài liệu '{document.filename}' xử lý thành công",
             document_id=document_id,
             chunks_created=index_result.text_chunks,
             images_indexed=index_result.image_vectors,
@@ -449,7 +455,7 @@ async def get_document(document_id: int, db: AsyncSession = Depends(get_db)):
 
         if not document:
             raise HTTPException(
-                status_code=404, detail=f"Document {document_id} not found"
+                status_code=404, detail=f"Không tìm thấy tài liệu {document_id}"
             )
 
         # Pending: Get chunks from Qdrant when implemented
@@ -508,14 +514,14 @@ async def download_document(document_id: int, db: AsyncSession = Depends(get_db)
 
         if not document:
             raise HTTPException(
-                status_code=404, detail=f"Document {document_id} not found"
+                status_code=404, detail=f"Không tìm thấy tài liệu {document_id}"
             )
 
         file_path = document.file_path
         if not file_path or not os.path.exists(file_path):
             raise HTTPException(
                 status_code=404,
-                detail=f"File not found on disk for document {document_id}",
+                detail=f"Không tìm thấy file trên đĩa cho tài liệu {document_id}",
             )
 
         # Determine content type
@@ -568,7 +574,7 @@ async def delete_document(document_id: int, db: AsyncSession = Depends(get_db)):
 
         if not document:
             raise HTTPException(
-                status_code=404, detail=f"Document {document_id} not found"
+                status_code=404, detail=f"Không tìm thấy tài liệu {document_id}"
             )
 
         filename = document.filename
@@ -605,7 +611,7 @@ async def delete_document(document_id: int, db: AsyncSession = Depends(get_db)):
 
         return DeleteDocumentResponse(
             success=True,
-            message=f"Document '{filename}' and {vectors_actually_deleted} vectors deleted successfully",
+            message=f"Tài liệu '{filename}' và {vectors_actually_deleted} vectors đã xóa thành công",
             document_id=document_id,
             filename=filename,
             vectors_deleted=vectors_actually_deleted,
@@ -637,7 +643,9 @@ async def delete_document(document_id: int, db: AsyncSession = Depends(get_db)):
     """,
 )
 async def query_knowledge(
-    request: QueryKnowledgeRequest, db: AsyncSession = Depends(get_db)
+    request: QueryKnowledgeRequest,
+    db: AsyncSession = Depends(get_db),
+    _Subscription: bool = Depends(check_active_subscription),
 ):
     """
     Test RAG retrieval with Qdrant + Cohere
@@ -870,7 +878,7 @@ async def recreate_collection(db: AsyncSession = Depends(get_db)):
 
         return {
             "success": True,
-            "message": f"Collection recreated successfully",
+            "message": f"Tái tạo collection thành công",
             "collection_name": status.get("collection_name"),
             "dimension": COHERE_EMBED_DIMENSION,
             "documents_reset": len(documents),

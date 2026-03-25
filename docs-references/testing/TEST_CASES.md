@@ -1,7 +1,7 @@
 ﻿# PETTIES - Test Cases Document
 
-**Version:** 3.0
-**Last Updated:** 2025-12-20
+**Version:** 3.1
+**Last Updated:** 2026-03-25
 
 ---
 
@@ -11,6 +11,10 @@
 |---------|-----------------|--------|
 | User Profile API | [features/USER_PROFILE_API_TEST.md](features/USER_PROFILE_API_TEST.md) | Complete |
 | Authentication API | [features/AUTH_API_TEST_REPORT.md](features/AUTH_API_TEST_REPORT.md) | Complete |
+| Mobile Payment | [features/MOBILE_PAYMENT_TEST_REPORT.md](features/MOBILE_PAYMENT_TEST_REPORT.md) | Draft for execution |
+| Subscription API | TBD - create dedicated report file | Planned after merge stabilization |
+| Refund & Withdrawal API | TBD - create dedicated report file | Planned after merge stabilization |
+| Report & Strike Governance API | TBD - create dedicated report file | Planned after merge stabilization |
 
 ---
 
@@ -135,12 +139,47 @@
 
 ---
 
-## 6. Test Execution Log
+## 6. Voucher API Test Cases
+
+| Test ID | Endpoint / Role | Description | Expected Result | Status |
+|---------|----------|-------------|-----------------|--------|
+| TC-UNIT-VOUCHER-001 | Admin | Lấy danh sách toàn bộ voucher | 200 OK, danh sách voucher | ✅ Pass |
+| TC-UNIT-VOUCHER-002 | Admin | Tạo voucher mới hợp lệ | 201 Created, voucher data | ✅ Pass |
+| TC-UNIT-VOUCHER-003 | Admin | Tạo voucher (trùng code) | 400 Bad Request | ✅ Pass |
+| TC-UNIT-VOUCHER-004 | Admin | Tạo voucher (sai ngày) | 400 Bad Request | ✅ Pass |
+| TC-UNIT-VOUCHER-005 | Admin | Bật/tắt trạng thái voucher | 200 OK, updated status | ✅ Pass |
+| TC-UNIT-VOUCHER-006 | Admin | Cập nhật thông tin voucher | 200 OK, updated data | ✅ Pass |
+| TC-UNIT-VOUCHER-007 | Admin | Xóa voucher chưa có lượt dùng | 204 No Content | ✅ Pass |
+| TC-UNIT-VOUCHER-008 | Admin | Xóa voucher đã có lượt dùng | 400 Bad Request | ✅ Pass |
+| TC-UNIT-VOUCHER-009 | Clinic Manager | Lấy danh sách voucher của clinic | 200 OK, danh sách | ✅ Pass |
+| TC-UNIT-VOUCHER-010 | Clinic Manager | Apply voucher vào clinic | 200 OK, success | ✅ Pass |
+| TC-UNIT-VOUCHER-011 | Clinic Manager | Gỡ voucher khỏi clinic | 204 No Content | ✅ Pass |
+| TC-UNIT-VOUCHER-012 | Pet Owner | Get danh sách voucher (filter CASH) | 200 OK, filtered list | ✅ Pass |
+| TC-UNIT-VOUCHER-013 | Pet Owner | Calculate voucher discount (hợp lệ) | 200 OK, discount amount | ✅ Pass |
+| TC-UNIT-VOUCHER-014 | Pet Owner | Calculate discount (dưới min order) | 400 Bad Request | ✅ Pass |
+
+---
+
+## 7. Test Execution Log
 
 ### Unit Tests (Implemented)
 
 | Test ID | Date | Result | Notes |
 |---------|------|--------|-------|
+| TC-UNIT-VOUCHER-001 | 2026-03-23 | PASSED | Voucher Service |
+| TC-UNIT-VOUCHER-002 | 2026-03-23 | PASSED | Voucher Service |
+| TC-UNIT-VOUCHER-003 | 2026-03-23 | PASSED | Voucher Service |
+| TC-UNIT-VOUCHER-004 | 2026-03-23 | PASSED | Voucher Service |
+| TC-UNIT-VOUCHER-005 | 2026-03-23 | PASSED | Voucher Service |
+| TC-UNIT-VOUCHER-006 | 2026-03-23 | PASSED | Voucher Service |
+| TC-UNIT-VOUCHER-007 | 2026-03-23 | PASSED | Voucher Service |
+| TC-UNIT-VOUCHER-008 | 2026-03-23 | PASSED | Voucher Service |
+| TC-UNIT-VOUCHER-009 | 2026-03-23 | PASSED | Voucher Service |
+| TC-UNIT-VOUCHER-010 | 2026-03-23 | PASSED | Voucher Service |
+| TC-UNIT-VOUCHER-011 | 2026-03-23 | PASSED | Voucher Service |
+| TC-UNIT-VOUCHER-012 | 2026-03-23 | PASSED | Voucher Service |
+| TC-UNIT-VOUCHER-013 | 2026-03-23 | PASSED | Voucher Service |
+| TC-UNIT-VOUCHER-014 | 2026-03-23 | PASSED | Voucher Service |
 | TC-UNIT-AUTH-001 | 2025-12-19 | PASSED | Login endpoint test |
 | TC-UNIT-AUTH-002 | 2025-12-20 | PASSED | Blank Username |
 | TC-UNIT-AUTH-003 | 2025-12-20 | PASSED | Blank Password |
@@ -189,17 +228,18 @@
 
 | Module | Unit Tests Implemented | Unit Tests Pending | Total Tests |
 |--------|----------------------|-------------------|-------------|
-| **Authentication** | 14 âœ… | 0 â³ | 14 |
-| **User Profile** | 20 âœ… | 0 â³ | 20 |
-| **Pet Management** | 0 âœ… | 13 â³ | 13 |
-| **Booking** | 0 âœ… | 11 â³ | 11 |
-| **Clinic** | 0 âœ… | 9 â³ | 9 |
-| **TOTAL** | **34 âœ…** | **33 â³** | **67** |
+| **Authentication** | 14 ✅ | 0 ⏳ | 14 |
+| **User Profile** | 20 ✅ | 0 ⏳ | 20 |
+| **Pet Management** | 0 ✅ | 13 ⏳ | 13 |
+| **Booking** | 0 ✅ | 11 ⏳ | 11 |
+| **Clinic** | 0 ✅ | 9 ⏳ | 9 |
+| **Voucher** | 14 ✅ | 0 ⏳ | 14 |
+| **TOTAL** | **48 ✅** | **33 ⏳** | **81** |
 
 **Legend:**
-- âœ… Implemented and passing
-- â³ Pending implementation
-- âŒ Failed
+- ✅ Implemented and passing
+- ⏳ Pending implementation
+- ❌ Failed
 
 ### Next Steps
 
@@ -208,6 +248,18 @@
 3. **Sprint 9-10:** Implement Unit Tests for Clinic module
 4. **Sprint 11-12:** E2E System Testing with Postman/Manual testing
 5. **Sprint 13:** Regression testing and final QA
+
+### Coverage Backlog For Merged Features
+
+The merged codebase introduced several commercial and governance modules that are not yet represented in the legacy unit-test totals above. The following inventories must be authored next so the test plan stays aligned with the approved SRS/SDD checklist.
+
+| Module | Planned scope | Current documentation state |
+|--------|---------------|-----------------------------|
+| Subscription | Plan CRUD, subscribe flow, current status, history, cancellation, admin listing | Pending authoring |
+| Refund & Withdrawal | Create refund application, clinic history, admin approve/reject, withdrawal detail, status update | Pending authoring |
+| Voucher | Cross-check admin, clinic-manager, pet-owner flows against mobile/web parity after merge | Partially covered |
+| Report & Strike | Create report, list own/admin reports, resolve report, clinic strike config, user strike config | Pending authoring |
+| Payment Webhook (SePay) | Callback validation, idempotency, payment-to-booking reconciliation | Pending authoring |
 
 ---
 

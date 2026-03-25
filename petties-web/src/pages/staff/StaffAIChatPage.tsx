@@ -20,7 +20,10 @@ import {
   PhotoIcon,
   XMarkIcon,
   SparklesIcon,
+  ShoppingBagIcon,
+  ShieldCheckIcon,
 } from '@heroicons/react/24/outline'
+import { useMembershipStore } from '../../store/membershipStore'
 
 const AI_WS_BASE_URL = import.meta.env.VITE_AGENT_WS_BASE_URL || 'ws://localhost:8000'
 const MAX_IMAGES = 3
@@ -67,6 +70,12 @@ export const StaffAIChatPage = () => {
   const emrBridgeEnabled = searchParams.get('emrBridge') === '1'
   const returnTo = searchParams.get('returnTo')
 
+  // Membership state
+  const isVIP = useMembershipStore(state => state.isVIP())
+  const planName = useMembershipStore(state => state.getPlanName())
+  const loadingMembership = useMembershipStore(state => state.isLoading)
+  const user = useAuthStore(state => state.user)
+
   // WebSocket state
   const wsRef = useRef<WebSocket | null>(null)
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected')
@@ -74,7 +83,7 @@ export const StaffAIChatPage = () => {
   const [creatingSession, setCreatingSession] = useState(false)
   const [loadingSessions, setLoadingSessions] = useState(false)
   const [sessionList, setSessionList] = useState<ChatSessionSummary[]>([])
-  
+
   // Chat state
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -170,11 +179,11 @@ export const StaffAIChatPage = () => {
 
     let extractedImages: string[] = []
     if (msg.metadata && msg.metadata.images && Array.isArray(msg.metadata.images)) {
-        extractedImages = msg.metadata.images.map((img: unknown) => {
-          if (typeof img === 'string') return img
-          const imgObj = img as { url?: string }
-          return imgObj.url || ''
-        })
+      extractedImages = msg.metadata.images.map((img: unknown) => {
+        if (typeof img === 'string') return img
+        const imgObj = img as { url?: string }
+        return imgObj.url || ''
+      })
     }
 
     return {
@@ -312,7 +321,7 @@ export const StaffAIChatPage = () => {
       if (wsRef.current === ws) wsRef.current = null
     }
     ws.onerror = () => setConnectionStatus('error')
-    
+
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data)
@@ -322,7 +331,7 @@ export const StaffAIChatPage = () => {
       }
     }
     wsRef.current = ws
-  }, [sessionInfo?.contextType, sessionInfo?.sessionId])
+  }, [sessionInfo?.contextType, sessionInfo?.sessionId, isVIP])
 
   const handleWebSocketMessage = useCallback((data: {
     type: string
@@ -468,6 +477,10 @@ export const StaffAIChatPage = () => {
   }, [messages, streamingContent])
 
   const sendMessage = async () => {
+    if (!isVIP) {
+      toast.showToast('error', 'Vui lòng nâng cấp gói hội viên để sử dụng tính năng này.')
+      return
+    }
     if (!input.trim() || sending || connectionStatus !== 'connected' || !sessionInfo?.sessionId) return
 
     const userMessage: Message = {
@@ -604,11 +617,10 @@ export const StaffAIChatPage = () => {
                 <h1 className="text-xl font-black text-stone-900 uppercase tracking-tight">Trợ lý AI</h1>
                 <p className="text-[10px] text-stone-600 font-bold uppercase tracking-wide">Tư vấn thú y cho Staff</p>
               </div>
-              <div className={`flex items-center gap-1.5 px-2 py-1 border-2 border-stone-900 transition-colors shadow-[1px_1px_0_#1c1917] ${
-                connectionStatus === 'connected' ? 'bg-green-100' :
+              <div className={`flex items-center gap-1.5 px-2 py-1 border-2 border-stone-900 transition-colors shadow-[1px_1px_0_#1c1917] ${connectionStatus === 'connected' ? 'bg-green-100' :
                 connectionStatus === 'connecting' ? 'bg-yellow-100' :
-                connectionStatus === 'error' ? 'bg-red-100' : 'bg-stone-50'
-              }`}>
+                  connectionStatus === 'error' ? 'bg-red-100' : 'bg-stone-50'
+                }`}>
                 {connectionStatus === 'connected' ? (
                   <SparklesIcon className="w-3 h-3 text-green-700" />
                 ) : (
@@ -880,6 +892,63 @@ export const StaffAIChatPage = () => {
           </div>
         )}
       </div>
+
+      {/* Subscription Guard Overlay */}
+      {!isVIP && !loadingMembership && (
+        <div className="absolute inset-0 z-[60] flex items-center justify-center backdrop-blur-[2px] bg-stone-900/10">
+          <div className="max-w-md w-full mx-4 bg-white border-4 border-stone-900 shadow-[8px_8px_0_0_#1c1917] p-8 text-center animate-in zoom-in duration-300">
+            <div className="w-20 h-20 bg-amber-100 border-4 border-stone-900 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-[4px_4px_0_0_#1c1917]">
+              <SparklesIcon className="w-12 h-12 text-amber-600 animate-pulse" />
+            </div>
+
+            <h2 className="text-2xl font-black text-stone-900 uppercase tracking-tight mb-3">
+              Tính năng Trợ lý AI
+            </h2>
+
+            <p className="text-stone-600 font-bold mb-8 leading-relaxed">
+              Trợ lý AI chuyên sâu chỉ dành cho phòng khám đã kích hoạt <span className="text-amber-600">Gói Hội Viên (VIP)</span>. Với VIP, bạn có thể:
+            </p>
+
+            <div className="space-y-4 mb-8 text-left">
+              <div className="flex items-center gap-3 p-3 bg-stone-50 border-2 border-stone-900 rounded-xl shadow-[2px_2px_0_0_#1c1917]">
+                <ShieldCheckIcon className="w-6 h-6 text-green-600 shrink-0" />
+                <span className="text-xs font-black text-stone-700 uppercase">Tư vấn bệnh lý & Phác đồ điều trị</span>
+              </div>
+              <div className="flex items-center gap-3 p-3 bg-stone-50 border-2 border-stone-900 rounded-xl shadow-[2px_2px_0_0_#1c1917]">
+                <SparklesIcon className="w-6 h-6 text-blue-600 shrink-0" />
+                <span className="text-xs font-black text-stone-700 uppercase">Tự động phân tích hồ sơ bệnh án</span>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                onClick={() => {
+                  if (user?.role === 'CLINIC_OWNER') {
+                    navigate('/clinic-owner/subscriptions')
+                  } else {
+                    toast.showToast('info', 'Vui lòng liên hệ chủ phòng khám để nâng cấp gói hội viên.')
+                  }
+                }}
+                className="w-full py-4 bg-amber-400 hover:bg-amber-500 text-stone-900 border-2 border-stone-900 font-black uppercase text-sm tracking-widest shadow-[4px_4px_0_0_#1c1917] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all flex items-center justify-center gap-2"
+              >
+                <ShoppingBagIcon className="w-5 h-5" />
+                {user?.role === 'CLINIC_OWNER' ? 'Nâng cấp ngay' : 'Liên hệ chủ phòng khám'}
+              </button>
+
+              <button
+                onClick={() => navigate(-1)}
+                className="w-full py-3 bg-white hover:bg-stone-50 text-stone-500 border-2 border-stone-900 font-black uppercase text-xs tracking-widest shadow-[3px_3px_0_0_#1c1917] hover:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] transition-all"
+              >
+                Quay lại
+              </button>
+            </div>
+
+            <p className="mt-6 text-[10px] text-stone-400 font-bold uppercase tracking-widest">
+              Trạng thái hiện tại: {planName}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -53,6 +53,7 @@ public class BookingDataSeeder implements CommandLineRunner {
         private final BookingSlotRepository bookingSlotRepository;
         private final VaccinationRecordRepository vaccinationRecordRepository;
         private final com.petties.petties.service.NotificationService notificationService;
+        private final com.petties.petties.repository.ReportRepository reportRepository;
 
         private long bookingSequenceCounter = 1;
 
@@ -68,27 +69,25 @@ public class BookingDataSeeder implements CommandLineRunner {
 
                 log.info("📦 Seeding booking mock data...");
 
-                try {
-                        log.info("   Cleaning up old data to ensure fresh seeding...");
-                        // Order of deletion to avoid FK constraints
-                        bookingSlotRepository.deleteAll();
-                        slotRepository.deleteAll();
-                        vaccinationRecordRepository.deleteAll();
-                        bookingRepository.deleteAll();
-                        staffShiftRepository.deleteAll();
+                log.info("   Cleaning up old data to ensure fresh seeding...");
+                // Order of deletion to avoid FK constraints (reports -> bookings)
+                reportRepository.deleteAll();
+                reportRepository.flush();
+                bookingSlotRepository.deleteAll();
+                slotRepository.deleteAll();
+                vaccinationRecordRepository.deleteAll();
+                bookingRepository.deleteAll();
+                staffShiftRepository.deleteAll();
 
-                        bookingRepository.flush();
-                        staffShiftRepository.flush();
+                bookingRepository.flush();
+                staffShiftRepository.flush();
 
-                        seedMockPets();
-                        seedMockStaffShifts();
-                        seedMockServices(); // Add services with required categories
-                        seedMockBookings();
+                seedMockPets();
+                seedMockStaffShifts();
+                seedMockServices(); // Add services with required categories
+                seedMockBookings();
 
-                        log.info("✅ Booking mock data seeded successfully!");
-                } catch (Exception e) {
-                        log.error("❌ Failed to seed booking mock data: ", e);
-                }
+                log.info("✅ Booking mock data seeded successfully!");
         }
 
         /**
@@ -209,6 +208,58 @@ public class BookingDataSeeder implements CommandLineRunner {
                         }
                 }
                 log.info("   + Verified staff shifts for ALL staff for next 7 days");
+        }
+
+        private List<Slot> generateSlots(StaffShift shift, LocalTime breakStart, LocalTime breakEnd) {
+                List<Slot> slots = new java.util.ArrayList<>();
+                LocalTime currentTime = shift.getStartTime();
+                LocalTime endTime = shift.getEndTime();
+                boolean isOvernight = Boolean.TRUE.equals(shift.getIsOvernight());
+
+                if (isOvernight) {
+                        LocalTime lastSlotBeforeMidnight = LocalTime.of(23, 30);
+                        while (currentTime.isBefore(lastSlotBeforeMidnight)
+                                        || currentTime.equals(lastSlotBeforeMidnight)) {
+                                LocalTime slotEnd = currentTime.plusMinutes(30);
+                                if (slotEnd.isBefore(currentTime))
+                                        break;
+                                if (!isInBreakTime(currentTime, slotEnd, breakStart, breakEnd)) {
+                                        slots.add(new Slot(null, shift, currentTime, slotEnd, SlotStatus.AVAILABLE,
+                                                        java.time.LocalDateTime.now(), java.time.LocalDateTime.now()));
+                                }
+                                currentTime = slotEnd;
+                                if (currentTime.equals(LocalTime.MIDNIGHT)
+                                                || currentTime.isBefore(shift.getStartTime()))
+                                        break;
+                        }
+
+                        currentTime = LocalTime.of(0, 0);
+                        while (currentTime.plusMinutes(30).compareTo(endTime) <= 0) {
+                                LocalTime slotEnd = currentTime.plusMinutes(30);
+                                if (!isInBreakTime(currentTime, slotEnd, breakStart, breakEnd)) {
+                                        slots.add(new Slot(null, shift, currentTime, slotEnd, SlotStatus.AVAILABLE,
+                                                        java.time.LocalDateTime.now(), java.time.LocalDateTime.now()));
+                                }
+                                currentTime = slotEnd;
+                        }
+                } else {
+                        while (currentTime.plusMinutes(30).compareTo(endTime) <= 0) {
+                                LocalTime slotEnd = currentTime.plusMinutes(30);
+                                if (!isInBreakTime(currentTime, slotEnd, breakStart, breakEnd)) {
+                                        slots.add(new Slot(null, shift, currentTime, slotEnd, SlotStatus.AVAILABLE,
+                                                        java.time.LocalDateTime.now(), java.time.LocalDateTime.now()));
+                                }
+                                currentTime = slotEnd;
+                        }
+                }
+                return slots;
+        }
+
+        private boolean isInBreakTime(LocalTime slotStart, LocalTime slotEnd, LocalTime breakStart,
+                        LocalTime breakEnd) {
+                if (breakStart == null || breakEnd == null)
+                        return false;
+                return slotStart.isBefore(breakEnd) && slotEnd.isAfter(breakStart);
         }
 
         /**
@@ -578,6 +629,10 @@ public class BookingDataSeeder implements CommandLineRunner {
          */
         private void createBooking(Clinic clinic, Pet pet, User petOwner, LocalDate date,
                         LocalTime time, BookingType type, String notes, List<ClinicService> services) {
+                if (bookingRepository.existsByPetAndClinicAndDateAndTime(pet.getId(), clinic.getClinicId(), date, time)) {
+                        log.info("   🔒 Booking already exists for {} at {} {}. Skipping.", pet.getName(), date, time);
+                        return;
+                }
 
                 // Check if booking already exists
                 if (bookingExists(pet, clinic, date, time)) {
@@ -665,14 +720,8 @@ public class BookingDataSeeder implements CommandLineRunner {
                         LocalDate date, LocalTime time, String notes, List<ClinicService> services,
                         String address, double lat, double lng, BigDecimal distanceKm) {
 
-                // Check for duplicate booking
-                boolean exists = bookingRepository.findByClinicIdAndDate(clinic.getClinicId(), date).stream()
-                                .anyMatch(b -> b.getPet().getId().equals(pet.getId())
-                                                && b.getBookingTime().equals(time)
-                                                && b.getStatus() != BookingStatus.CANCELLED);
-                if (exists) {
-                        log.info("   🔒 Booking already exists for pet {} at {} {}, skipping.", pet.getName(), date,
-                                        time);
+                if (bookingRepository.existsByPetAndClinicAndDateAndTime(pet.getId(), clinic.getClinicId(), date, time)) {
+                        log.info("   🔒 Booking already exists for {} at {} {}. Skipping.", pet.getName(), date, time);
                         return;
                 }
 
@@ -768,14 +817,8 @@ public class BookingDataSeeder implements CommandLineRunner {
                         String address, double lat, double lng, BigDecimal distanceKm, BookingStatus status,
                         String staffUsername, BookingType type) {
 
-                // Check for duplicate booking
-                boolean exists = bookingRepository.findByClinicIdAndDate(clinic.getClinicId(), date).stream()
-                                .anyMatch(b -> b.getPet().getId().equals(pet.getId())
-                                                && b.getBookingTime().equals(time)
-                                                && b.getStatus() != BookingStatus.CANCELLED);
-                if (exists) {
-                        log.info("   🔒 Booking already exists for pet {} at {} {}, skipping.", pet.getName(), date,
-                                        time);
+                if (bookingRepository.existsByPetAndClinicAndDateAndTime(pet.getId(), clinic.getClinicId(), date, time)) {
+                        log.info("   🔒 Booking already exists for {} at {} {}. Skipping.", pet.getName(), date, time);
                         return;
                 }
 

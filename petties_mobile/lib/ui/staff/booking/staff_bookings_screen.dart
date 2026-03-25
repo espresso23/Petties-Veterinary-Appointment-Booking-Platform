@@ -38,7 +38,7 @@ class _StaffBookingsScreenState extends State<StaffBookingsScreen>
     {'label': 'Tất cả', 'value': 'all'},
     {'label': 'Chờ khám', 'value': 'CONFIRMED'},
     {'label': 'Đang khám', 'value': 'IN_PROGRESS'},
-    {'label': 'Đã khám', 'value': 'COMPLETED'},
+    {'label': 'Hoàn thành', 'value': 'COMPLETED'},
   ];
 
   @override

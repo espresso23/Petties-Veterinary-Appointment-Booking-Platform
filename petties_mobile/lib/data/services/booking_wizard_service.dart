@@ -147,12 +147,13 @@ class BookingWizardService {
   }
 
   /// Create booking
-  Future<String> createBooking({
+  Future<Map<String, dynamic>> createBooking({
     required String clinicId,
     required DateTime bookingDate,
     required String bookingTime,
     required String bookingType,
     required List<Map<String, dynamic>> items,
+    String? paymentMethod,
     String? notes,
     String? homeAddress,
     double? homeLat,
@@ -169,6 +170,7 @@ class BookingWizardService {
         'bookingTime': bookingTime,
         'type': bookingType,
         'items': items,
+        if (paymentMethod != null) 'paymentMethod': paymentMethod,
         if (notes != null) 'notes': notes,
         if (homeAddress != null) 'homeAddress': homeAddress,
         if (homeLat != null) 'homeLat': homeLat,
@@ -180,20 +182,21 @@ class BookingWizardService {
 
       final response = await _apiClient.post('/bookings', data: body);
 
-      return response.data['bookingId'] ?? '';
+      return Map<String, dynamic>.from(response.data as Map);
     } catch (e) {
       rethrow;
     }
   }
 
   /// Create booking for others (Đặt hộ)
-  Future<String> createBookingForOthers({
+  Future<Map<String, dynamic>> createBookingForOthers({
     required String clinicId,
     required BeneficiaryInfo beneficiary,
     required DateTime bookingDate,
     required String bookingTime,
     required String bookingType,
     required List<Map<String, dynamic>> items,
+    String? paymentMethod,
     String? notes,
   }) async {
     try {
@@ -211,13 +214,14 @@ class BookingWizardService {
         'bookingDate': dateStr,
         'bookingTime': bookingTime,
         'type': bookingType,
+        if (paymentMethod != null) 'paymentMethod': paymentMethod,
         if (notes != null) 'notes': notes,
       };
 
       debugPrint('body booking proxy: $body');
 
       final response = await _apiClient.post('/bookings/proxy', data: body);
-      return response.data['bookingId'] ?? '';
+      return Map<String, dynamic>.from(response.data as Map);
     } catch (e) {
       rethrow;
     }

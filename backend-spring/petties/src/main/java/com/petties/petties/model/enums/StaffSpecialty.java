@@ -7,6 +7,8 @@ package com.petties.petties.model.enums;
  * Filter dịch vụ và gán staff thuận tiện hơn
  */
 public enum StaffSpecialty {
+    GENERAL("Bác sĩ tổng quát"),
+    SURGERY("Bác sĩ phẫu thuật"),
     VET("Bác sĩ thú y"),
     GROOMER("Nhân viên chăm sóc thú cưng");
 

@@ -6,6 +6,7 @@ package com.petties.petties.model.enums;
  * Mỗi category map đến StaffSpecialty (VET hoặc GROOMER) để auto-assign staff
  */
 public enum ServiceCategory {
+    KHAM(StaffSpecialty.VET), // Legacy alias: Khám
     GROOMING_SPA(StaffSpecialty.GROOMER), // Làm đẹp & Spa
     VACCINATION(StaffSpecialty.VET), // Tiêm phòng
     CHECK_UP(StaffSpecialty.VET), // Khám tổng quát

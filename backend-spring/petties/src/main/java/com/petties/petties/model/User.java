@@ -79,6 +79,9 @@ public class User {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    @Column(name = "strike_until")
+    private LocalDateTime strikeUntil; // NULL = không bị strike; có giá trị = hạn chế đặt lịch đến thời điểm này
+
     // ========== STAFF-SPECIFIC FIELDS ==========
 
     // Chuyên môn của Staff (VET hoặc GROOMER)
@@ -104,6 +107,7 @@ public class User {
 
     // For Clinic Owners: The clinics they own (1 owner can have multiple clinics)
     @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL)
+    @Builder.Default
     private List<Clinic> ownedClinics = new ArrayList<>();
 
     // For Managers and Staff: The clinic they belong to

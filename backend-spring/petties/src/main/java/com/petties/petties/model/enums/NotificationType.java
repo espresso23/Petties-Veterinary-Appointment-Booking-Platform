@@ -33,17 +33,33 @@ public enum NotificationType {
     BOOKING_CONFIRMED,
     BOOKING_CANCELLED,
     BOOKING_CHECKIN, // Staff đã check-in và bắt đầu khám
-    BOOKING_COMPLETED, // Lịch hẹn đã hoàn thành
+    BOOKING_PAYMENT_REQUIRED, // Đã chốt thông tin thanh toán, chờ Pet Owner thanh toán
+    BOOKING_COMPLETED, // Lịch hẹn đã hoàn thành và thanh toán xong
     STAFF_ON_WAY, // Nhân viên đang trên đường đến (HOME_VISIT/SOS)
     STAFF_ARRIVED, // Nhân viên đã đến địa chỉ của bạn
     BOOKING_ASSIGNED, // Staff được gán vào booking
 
     // Additional Clinic notifications
     CLINIC_VERIFIED,
+    CLINIC_STRIKE, // Clinic bị hạn chế do nhiều report được approve
+    PET_OWNER_STRIKE, // Pet owner bị hạn chế đặt lịch do nhiều report được approve
+
+    // Refund / Withdrawal Request notifications
+    REFUND_REQUESTED,
+    REFUND_APPROVED,
+    REFUND_REJECTED,
 
     // Re-examination
     RE_EXAMINATION_REMINDER,
 
     // Vaccination
-    VACCINATION_REMINDER
+    VACCINATION_REMINDER,
+
+    // Subscriptions
+    SUBSCRIPTION_EXPIRING_SOON,
+    SUBSCRIPTION_ACTIVATED,
+
+    // Report
+    REPORT_CREATED,
+    REPORT_RESOLVED
 }

@@ -1,4 +1,5 @@
-﻿# AI Service Deep Dive
+> Legacy Note (2026-03-25): This document may contain historical references to `prompt_versions`, editable system-prompt versioning, or older AI schema/ERD counts. It is retained for historical or presentation context only. For current database truth and active AI storage architecture, use `docs-references/database/PETTIES_DBML.dbml`, `docs-references/documentation/PETTIES_ERD_DIAGRAM.md`, `docs-references/documentation/DATABASE_SCHEMA_ANALYSIS.md`, `docs-references/documentation/SRS/PETTIES_SRS.md`, and `docs-references/documentation/SDD/REPORT_4_SDD_SYSTEM_DESIGN.md`.
+# AI Service Deep Dive
 
 > Lưu ý cập nhật ngày 2026-03-17: một số tham chiếu AI Diagnose trong slide này chỉ còn giá trị lịch sử. Luồng chẩn đoán hiện tại cho bác sĩ dùng knowledge base nội bộ + EMR xác nhận + Gemini Vision, không dùng `web_search`.
 ## Petties Veterinary Platform
