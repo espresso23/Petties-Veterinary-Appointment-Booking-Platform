@@ -1,6 +1,6 @@
 # Hướng dẫn Test E2E - AI Diagnosis (STAFF)
 
-> Last Updated: 2026-03-20
+> Last Updated: 2026-03-26
 > Phạm vi: luồng STAFF trong Web EMR + AI sidepanel chat
 
 ## 1. Mục tiêu kiểm thử
@@ -16,6 +16,19 @@
 2. Có ít nhất 1 thú cưng để mở màn hình tạo EMR.
 3. `petties-agent-serivce` đang chạy và route `/api/v1/staff-diagnosis/analyze` đã mount.
 4. (Khuyến nghị) Có dữ liệu KB nội bộ để quan sát kết quả gợi ý rõ hơn.
+
+## 2.1 Hardening checks bắt buộc
+
+Trước khi gọi build là ổn định cho AI diagnosis, bắt buộc verify thêm các rule sau:
+
+1. `booking_id` phải được backend đối chiếu thật với booking record trước khi synthesis chạy.
+2. Với role `STAFF`, booking phải thuộc đúng `clinic_id` hiện tại; nếu không phải trả `403`.
+3. Nếu request gửi đồng thời `booking_id` và `pet_id`, hai giá trị phải khớp; nếu không phải trả `422`.
+4. Nếu chỉ có `pet_id`, backend phải verify pet nằm trong patient scope staff được phép xem; nếu không phải fail-safe.
+5. Nếu record không tồn tại, route phải trả `404`, không được tiếp tục bằng dữ liệu client tự gửi.
+6. Preview từng ảnh phải dùng `image_analysis_mode=describe_only`.
+7. Full analyze từ EMR phải dùng `image_analysis_mode=full`.
+8. Khi KB / Case Memory / protocol không đủ evidence, AI không được tự sinh treatment heuristic theo keyword cơ thể hay tên bệnh.
 
 ## 3. Kịch bản E2E chính (Happy Flow)
 
@@ -55,6 +68,20 @@
 1. Dùng user không phải `STAFF`/`ADMIN` gọi API `/api/v1/staff-diagnosis/analyze`.
 2. Kỳ vọng HTTP `403`.
 3. Kỳ vọng message: `Chỉ STAFF hoặc ADMIN mới được dùng chức năng chẩn đoán này.`
+
+## 4.1 Kịch bản trust boundary và safety
+
+1. Dùng `STAFF` hợp lệ nhưng gọi diagnosis với `booking_id` thuộc clinic khác.
+2. Kỳ vọng HTTP `403`.
+3. Dùng `STAFF` gửi `booking_id` hợp lệ nhưng cố tình sửa `pet_id` khác với booking thật.
+4. Kỳ vọng HTTP `422`.
+5. Dùng `ADMIN` hoặc `STAFF` gửi `pet_id` / `booking_id` không tồn tại.
+6. Kỳ vọng HTTP `404`.
+7. Chạy một ca có evidence nội bộ rỗng.
+8. Kỳ vọng:
+   - không có prescription heuristic
+   - không có plan kiểu "vệ sinh mắt", "nhỏ thuốc tai", "bôi thuốc" chỉ vì keyword
+   - plan chỉ còn guidance an toàn, theo dõi lâm sàng, và yêu cầu bổ sung dữ liệu khi cần
 
 ## 5. Kỳ vọng dữ liệu
 

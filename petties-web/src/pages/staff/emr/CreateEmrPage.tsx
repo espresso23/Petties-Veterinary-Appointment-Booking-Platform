@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useToast } from '../../../components/Toast'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
@@ -462,7 +462,7 @@ export const CreateEmrPage = () => {
         return typeof parsed === 'number' && Number.isFinite(parsed) ? parsed : undefined
     }
 
-    const handlePendingImageDescriptionsChange = (descriptions: Record<string, string>) => {
+    const handlePendingImageDescriptionsChange = useCallback((descriptions: Record<string, string>) => {
         setPendingImages((prev) => prev.map((item) => {
             const aiDescription = descriptions[item.previewUrl]?.trim()
             if (!aiDescription || item.description.trim()) {
@@ -473,7 +473,7 @@ export const CreateEmrPage = () => {
                 description: aiDescription,
             }
         }))
-    }
+    }, [])
 
     const currentAgeMonths = estimateAgeMonths()
     const currentWeightKg = getNormalizedWeightKg()
@@ -554,10 +554,10 @@ export const CreateEmrPage = () => {
     }
 
     return (
-        <div className="min-h-screen bg-stone-100 p-6">
-            <div className="max-w-7xl mx-auto">
+        <div className="min-h-screen bg-stone-100 p-6 overflow-x-hidden">
+            <div className="max-w-7xl mx-auto overflow-visible">
                 {/* Main Grid */}
-                <div className="grid grid-cols-12 gap-6">
+                <div className="grid grid-cols-12 gap-6 overflow-visible">
 
                     {/* ========== LEFT SIDEBAR ========== */}
                     <div className="col-span-3 space-y-4">
@@ -849,7 +849,7 @@ export const CreateEmrPage = () => {
                                         <button
                                             type="button"
                                             onClick={handleApplyAiPrescriptions}
-                                            className="rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-orange-700 transition-all hover:bg-orange-100 active:scale-95"
+                                            className="z-20 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-orange-700 transition-all hover:bg-orange-100 active:scale-95"
                                         >
                                             Nhận toàn bộ đơn
                                         </button>
@@ -874,7 +874,7 @@ export const CreateEmrPage = () => {
                                                     <button
                                                         type="button"
                                                         onClick={() => handleAddSingleAiPrescription(index)}
-                                                        className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-stone-700 transition-all hover:bg-stone-100 active:scale-95"
+                                                        className="z-20 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-stone-700 transition-all hover:bg-stone-100 active:scale-95"
                                                     >
                                                         Thêm thuốc này
                                                     </button>
@@ -1501,7 +1501,7 @@ export const CreateEmrPage = () => {
                 </div>
 
                 {/* Submit Button */}
-                <div className="flex justify-end mt-6" >
+                <div className="flex justify-end mt-6 relative z-[100]" >
                     <button
                         onClick={handleSubmit}
                         disabled={isLoading}

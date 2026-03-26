@@ -24,6 +24,7 @@ import {
   ShieldCheckIcon,
 } from '@heroicons/react/24/outline'
 import { useMembershipStore } from '../../store/membershipStore'
+import type { ChatStage, UIAction, UIComponent, UISchemaV1 } from '../../types/chat'
 
 const AI_WS_BASE_URL = import.meta.env.VITE_AGENT_WS_BASE_URL || 'ws://localhost:8000'
 const MAX_IMAGES = 3
@@ -39,6 +40,8 @@ interface Message {
   toolCalls?: Array<{ tool: string; input: unknown; output?: unknown }>
   feedback?: 'good' | 'bad' | null
   isStreaming?: boolean
+  uiSchema?: UISchemaV1
+  stage?: ChatStage
 }
 
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
@@ -241,6 +244,30 @@ export const StaffAIChatPage = () => {
     }
   }, [disconnectWebSocket, mapHistoryMessage, toast])
 
+  const sendUiAction = useCallback((action: UIAction) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      toast.showToast('error', 'Kết nối chat chưa sẵn sàng')
+      return
+    }
+
+    const bookingParams =
+      action.type === 'confirm_booking' &&
+      action.payload &&
+      typeof action.payload['booking_params'] === 'object' &&
+      action.payload['booking_params'] !== null
+        ? action.payload['booking_params'] as Record<string, unknown>
+        : null
+
+    const payload = {
+      type: action.type,
+      ...(bookingParams ?? action.payload ?? {}),
+    }
+
+    wsRef.current.send(JSON.stringify({ message: '', ui_action: payload }))
+    setSending(true)
+    setStreamingContent('')
+  }, [toast])
+
   useEffect(() => {
     void loadSessions()
   }, [loadSessions])
@@ -353,6 +380,8 @@ export const StaffAIChatPage = () => {
       tool_result?: unknown
     }>
     error?: string
+    ui_schema?: UISchemaV1
+    stage?: ChatStage
   }) => {
     switch (data.type) {
       case 'connected':
@@ -408,6 +437,16 @@ export const StaffAIChatPage = () => {
           timestamp: new Date().toISOString()
         }])
         break
+      case 'ui_schema':
+        setMessages(prev => [...prev, {
+          id: `ui-${Date.now()}`,
+          role: 'assistant',
+          content: '',
+          timestamp: new Date(),
+          uiSchema: data.ui_schema,
+          stage: data.stage,
+        }])
+        break
       case 'stream':
         setStreamingContent(prev => prev + (data.content ?? ''))
         break
@@ -428,14 +467,30 @@ export const StaffAIChatPage = () => {
             }
           }
         }
-        setMessages(prev => [...prev, {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: data.full_response ?? '',
-          timestamp: new Date(),
-          thinkingProcess,
-          toolCalls
-        }])
+        setMessages(prev => {
+          const last = prev[prev.length - 1]
+          if (last && last.role === 'assistant' && last.uiSchema && !last.content.trim()) {
+            return [
+              ...prev.slice(0, -1),
+              {
+                ...last,
+                content: data.full_response ?? '',
+                timestamp: new Date(),
+                thinkingProcess,
+                toolCalls,
+              }
+            ]
+          }
+
+          return [...prev, {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: data.full_response ?? '',
+            timestamp: new Date(),
+            thinkingProcess,
+            toolCalls
+          }]
+        })
         // Removed: void loadSessions() - Not needed on every complete message
         break
       }
@@ -607,7 +662,7 @@ export const StaffAIChatPage = () => {
   }, [disconnectWebSocket, sessionInfo?.sessionId, toast])
 
   return (
-    <div className="h-full bg-stone-50 flex flex-col overflow-hidden">
+    <div className="h-full min-h-0 bg-stone-50 flex flex-col relative">
       {/* Header */}
       <div className="bg-white border-b-2 border-stone-900 shrink-0">
         <div className="w-full mx-auto px-4 py-3">
@@ -669,7 +724,7 @@ export const StaffAIChatPage = () => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 min-h-0 flex overflow-hidden">
         {/* Session List Sidebar */}
         <div className="w-64 border-r-2 border-stone-900 bg-white flex flex-col shrink-0">
           <div className="p-3 border-b-2 border-stone-900 bg-stone-100">
@@ -723,9 +778,9 @@ export const StaffAIChatPage = () => {
         </div>
 
         {/* Chat Area */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden">
           {/* Messages */}
-          <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 bg-stone-50">
+          <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto p-4 bg-stone-50">
             {!sessionInfo?.sessionId ? (
               <div className="flex items-center justify-center h-full">
                 <div className="p-6 bg-white border-4 border-stone-900 shadow-[6px_6px_0_#1c1917] max-w-sm text-center">
@@ -764,6 +819,9 @@ export const StaffAIChatPage = () => {
                     images={msg.images}
                     feedback={msg.feedback}
                     onFeedback={(feedback) => handleFeedback(msg.id, feedback)}
+                    uiSchema={msg.uiSchema}
+                    stage={msg.stage}
+                    onUiAction={(action: UIAction, _component: UIComponent) => sendUiAction(action)}
                   />
                 ))}
                 {(sending || streamingContent) && (
@@ -839,7 +897,7 @@ export const StaffAIChatPage = () => {
         </div>
 
         {emrBridgeEnabled && (
-          <div className="w-[420px] border-l-2 border-stone-900 bg-stone-50 overflow-y-auto p-4 space-y-4">
+          <div className="hidden 2xl:block w-[420px] border-l-2 border-stone-900 bg-stone-50 overflow-y-auto p-4 space-y-4">
             <div className="bg-white border-2 border-stone-900 p-4 shadow-[3px_3px_0_#1c1917]">
               <h3 className="text-xs font-black uppercase text-stone-800 mb-3">Bản nháp EMR từ sidepanel</h3>
               <div className="space-y-2">

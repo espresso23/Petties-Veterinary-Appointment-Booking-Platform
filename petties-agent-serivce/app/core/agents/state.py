@@ -109,6 +109,9 @@ class ReActState(TypedDict):
     #     "location": {"lat": 10.762622, "lng": 106.660172}
     # }
 
+    # Conversation State Machine
+    stage: Literal["IDLE", "COLLECTING", "PRESENTING", "CONFIRMING", "BOOKED"]
+
     # Error handling
     error: Optional[str]
 
@@ -181,5 +184,6 @@ def create_initial_react_state(
         should_end=False,
         iteration=0,
         context=final_context,
+        stage="IDLE",
         error=None,
     )

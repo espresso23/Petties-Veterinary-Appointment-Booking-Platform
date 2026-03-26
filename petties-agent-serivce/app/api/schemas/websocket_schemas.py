@@ -34,10 +34,14 @@ class ConnectedMessage(BaseWebSocketMessage):
     session_id: str
     message: str = "Connected to Petties Agent Chat"
     supported_message_types: List[str] = [
-        "thinking", "tool_call", "tool_result",
-        "stream", "complete", "error",
-        "clinic_suggestion", "service_chips", "slot_grid",
-        "booking_summary", "booking_created"
+        "thinking",
+        "tool_call",
+        "tool_result",
+        "stream",
+        "complete",
+        "error",
+        "info",
+        "ui_schema",
     ]
 
 

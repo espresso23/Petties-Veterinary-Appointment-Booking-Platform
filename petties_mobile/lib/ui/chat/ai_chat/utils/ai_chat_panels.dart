@@ -441,27 +441,37 @@ class AiChatComposer extends StatelessWidget {
   Widget build(BuildContext context) {
     final isBusy = isSending || isReconnecting;
     final hasImages = selectedImages != null && selectedImages!.isNotEmpty;
+    final isKeyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
+    final shouldShowSuggestions = suggestions.isNotEmpty && !isKeyboardVisible;
+    final shouldShowTracker = tracker.hasData && !isKeyboardVisible;
+    final shouldShowError = errorText != null && !isKeyboardVisible;
+    final shouldShowImages = hasImages && !isKeyboardVisible;
+    final composerMaxLines = isKeyboardVisible ? 2 : 3;
+    final verticalPadding = isKeyboardVisible ? 6.0 : 8.0;
 
     return Container(
-      padding: EdgeInsets.fromLTRB(horizontalPadding, 8, horizontalPadding, 8),
+      padding: EdgeInsets.fromLTRB(
+        horizontalPadding,
+        verticalPadding,
+        horizontalPadding,
+        verticalPadding,
+      ),
       decoration: const BoxDecoration(
         color: AppColors.white,
         border: Border(
           top: BorderSide(color: AppColors.stone900, width: 2),
         ),
       ),
-      child: SafeArea(
-        top: false,
-        child: Column(
+      child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (tracker.hasData) AiBookingTrackerCard(tracker: tracker),
-            if (suggestions.isNotEmpty)
+            if (shouldShowTracker) AiBookingTrackerCard(tracker: tracker),
+            if (shouldShowSuggestions)
               AiChatComposerSuggestions(
                 suggestions: suggestions,
                 onSuggestionTap: onSuggestionTap,
               ),
-            if (errorText != null) ...[
+            if (shouldShowError) ...[
               Container(
                 width: double.infinity,
                 margin: const EdgeInsets.only(bottom: 8),
@@ -496,7 +506,7 @@ class AiChatComposer extends StatelessWidget {
                 ),
               ),
             ],
-            if (hasImages) ...[
+            if (shouldShowImages) ...[
               SizedBox(
                 height: 80,
                 child: ListView.builder(
@@ -592,7 +602,7 @@ class AiChatComposer extends StatelessWidget {
                     child: TextField(
                       controller: controller,
                       minLines: 1,
-                      maxLines: 3,
+                      maxLines: composerMaxLines,
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => onSend(),
                       style: const TextStyle(fontSize: 14),
@@ -645,7 +655,6 @@ class AiChatComposer extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
   }
 }

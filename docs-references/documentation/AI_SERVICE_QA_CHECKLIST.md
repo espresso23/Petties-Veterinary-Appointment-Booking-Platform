@@ -4,6 +4,9 @@
 **Date:** 2026-03-24
 **Service:** petties-agent-serivce
 
+> For architecture-layer audit and migration compliance, use:
+> [AI_SERVICE_AUDIT_CHECKLIST.md](./AI_SERVICE_AUDIT_CHECKLIST.md)
+
 ---
 
 ## 1. Infrastructure Requirements

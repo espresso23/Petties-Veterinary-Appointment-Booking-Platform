@@ -117,6 +117,9 @@ class SpringBackendClient:
     async def get_pet(self, token: str, pet_id: str) -> Any:
         return await self._request("GET", f"/pets/{pet_id}", token=token)
 
+    async def get_booking(self, token: str, booking_id: str) -> Any:
+        return await self._request("GET", f"/bookings/{booking_id}", token=token)
+
     async def get_staff_patients(
         self,
         *,

@@ -138,7 +138,7 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
         break;
       case 'CONFIRMED':
         color = Colors.blue;
-        label = 'ĐÃ XÁC NHẬN';
+        label = 'Đà XÁC NHẬN';
         icon = Icons.check_circle;
         break;
       case 'IN_PROGRESS':
@@ -155,7 +155,7 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
       case 'REJECTED':
       case 'NO_SHOW':
         color = Colors.red;
-        label = 'ĐÃ HỦY';
+        label = 'Đà HỦY';
         icon = Icons.cancel;
         break;
       default:
@@ -187,19 +187,36 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: color,
-                        letterSpacing: 0.5,
+                    Expanded(
+                      child: Text(
+                        label,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: color,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ),
-                    if (booking.paymentStatus != null)
-                      _buildPaymentBadge(booking.paymentStatus!),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Wrap(
+                        alignment: WrapAlignment.end,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          if (booking.paymentMethod != null)
+                            _buildPaymentMethodText(booking.paymentMethod!),
+                          if (booking.paymentStatus != null)
+                            _buildPaymentBadge(booking.paymentStatus!),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -1128,35 +1145,113 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
         ),
       );
     }
-    // Hiển thị nút QR thanh toán theo PAYMENT STATUS (PAID thì ẩn)
+    // Hiển thị nút thanh toán (QR hoặc Tiền mặt) theo PAYMENT STATUS (PAID thì ẩn)
     final showQrButton = _shouldShowQrButton();
+    final showCashButton = _shouldShowCashPaymentButton();
 
-    if (showQrButton) {
+    if (showQrButton || showCashButton) {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: const BoxDecoration(
           color: AppColors.white,
           border: Border(top: BorderSide(color: AppColors.stone200)),
         ),
-        child: SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: () => _handleQrPaymentTap(context),
-            icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
-            label: const Text(
-              'THANH TOÁN QR',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.amber.shade700,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-            ),
-          ),
+        child: Column(
+          children: [
+            if (showQrButton)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _handleQrPaymentTap(context),
+                  icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
+                  label: const Text(
+                    'THANH TOÁN QR',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.amber.shade700,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+              ),
+            if (showQrButton && showCashButton)
+              const SizedBox(height: 12),
+            if (showCashButton)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _handleCashPaymentTap(context),
+                  icon: const Icon(Icons.payments, color: Colors.white),
+                  label: const Text(
+                    'THANH TOÁN TIỀN MẶT',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green.shade700,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+              ),
+          ],
         ),
       );
     }
     return const SizedBox.shrink();
+  }
+
+  /// Kiểm tra xem có nên hiển thị nút tiền mặt không
+  bool _shouldShowCashPaymentButton() {
+    final status = booking.status?.trim().toUpperCase() ?? '';
+    final paymentStatus = booking.paymentStatus?.trim().toUpperCase();
+    final paymentMethod = _resolvePaymentMethod(booking);
+
+    if (paymentStatus == 'PAID') {
+      return false;
+    }
+    if (status == 'CANCELLED') {
+      return false;
+    }
+    if (paymentMethod != 'CASH') {
+      return false;
+    }
+    return true;
+  }
+
+  /// Xử lý khi người dùng click nút Thanh toán tiền mặt
+  void _handleCashPaymentTap(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.payments, color: Colors.green),
+            SizedBox(width: 8),
+            Text('Thanh toán tiền mặt', style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: const Text('Bạn đã thanh toán tiền mặt cho staff chưa?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('CHƯA'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Cảm ơn! Đã xác nhận thanh toán tiền mặt'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            },
+            child: const Text('Đà THANH TOÁN'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Kiểm tra xem có nên hiển thị nút QR hay không
@@ -1164,9 +1259,12 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
   bool _shouldShowQrButton() {
     final status = booking.status?.trim().toUpperCase() ?? '';
     final paymentStatus = booking.paymentStatus?.trim().toUpperCase();
+    
+    // Ẩn khi đã thanh toán
     if (paymentStatus == 'PAID') {
       return false;
     }
+    // Ẩn khi đã hủy
     if (status == 'CANCELLED') {
       return false;
     }
@@ -1175,6 +1273,7 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
     if (paymentMethod == 'CASH') {
       return false;
     }
+    // Hiển thị QR cho cả IN_PROGRESS và COMPLETED (chưa thanh toán)
     return true;
   }
 
@@ -1189,6 +1288,7 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
     final paymentMethod = _resolvePaymentMethod(booking);
     final paymentStatus = booking.paymentStatus?.trim().toUpperCase();
 
+    // QR payment booking: method = QR và chưa paid (PENDING hoặc COMPLETED với PENDING)
     return paymentMethod == 'QR' && 
         paymentStatus != 'PAID' &&
         ((booking.qrImageUrl?.trim().isNotEmpty ?? false) ||
@@ -1417,13 +1517,37 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
     return timeStr;
   }
 
+  Widget _buildPaymentMethodText(String method) {
+    final isQr = method.toUpperCase() == 'QR';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: isQr ? Colors.blue.shade100 : Colors.green.shade100,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isQr ? Colors.blue.shade400 : Colors.green.shade400,
+          width: 1,
+        ),
+      ),
+      child: Text(
+        isQr ? 'QR' : 'Tiền mặt',
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+          color: isQr ? Colors.blue.shade800 : Colors.green.shade800,
+          letterSpacing: 0.4,
+        ),
+      ),
+    );
+  }
+
   Widget _buildPaymentBadge(String paymentStatus) {
     final normalized = paymentStatus.toUpperCase();
     final isPaid = normalized == 'PAID';
     final background = isPaid ? Colors.green.shade100 : Colors.orange.shade100;
     final border = isPaid ? Colors.green.shade400 : Colors.orange.shade400;
     final textColor = isPaid ? Colors.green.shade800 : Colors.orange.shade800;
-    final label = isPaid ? 'ĐÃ THANH TOÁN' : 'CHƯA THANH TOÁN';
+    final label = isPaid ? 'Đà THANH TOÁN' : 'CHƯA THANH TOÁN';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

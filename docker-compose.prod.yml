@@ -24,6 +24,8 @@ services:
     restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      # Hibernate - validate schema in production
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
       # Neon PostgreSQL
       DB_HOST: ${DB_HOST:-}
       DB_PORT: ${DB_PORT:-5432}
@@ -133,6 +135,25 @@ services:
     volumes:
       # Persist uploaded documents across container rebuilds
       - ai_storage_prod_data:/app/storage
+      # Persist uploaded knowledge documents
+      - ai_uploads_prod_data:/app/uploads
+
+  # ============================================
+  # NGINX REVERSE PROXY (Production)
+  # ============================================
+  nginx-prod:
+    image: nginx:alpine
+    container_name: petties-prod-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"  # Public access via domain (behind AWS ALB/Cloudflare)
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+      - ai-service
+    networks:
+      - petties-prod-network
 
 # ============================================
 # NETWORKS
@@ -147,4 +168,6 @@ networks:
 # ============================================
 volumes:
   ai_storage_prod_data:
+    driver: local
+  ai_uploads_prod_data:
     driver: local

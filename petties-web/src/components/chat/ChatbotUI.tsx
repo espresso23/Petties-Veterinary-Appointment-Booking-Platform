@@ -267,7 +267,7 @@ export const ChatbotUI = ({
     const isAllUploadsComplete = selectedImages.every(img => img.progress >= 100)
 
     return (
-        <div className="flex flex-col h-full bg-white">
+        <div className="flex h-full min-h-0 flex-col bg-white">
             {/* Header */}
             {showHeader && (
                 <div className="flex items-center justify-between px-4 py-3 border-b-2 border-stone-900 bg-amber-500">
@@ -297,11 +297,11 @@ export const ChatbotUI = ({
             )}
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-stone-50">
+            <div className="min-h-0 flex-1 overflow-y-auto bg-stone-50 p-4 space-y-4">
                 {contextPanel}
 
                 {messages.length === 0 && (quickActions.length > 0 || suggestedPrompts.length > 0) ? (
-                    <div className="flex flex-col h-full">
+                    <div className="flex flex-col">
                         {/* Welcome Message */}
                         <div className="text-center mb-6">
                             <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -352,7 +352,7 @@ export const ChatbotUI = ({
                         )}
                     </div>
                 ) : messages.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-center space-y-3">
+                    <div className="flex min-h-[220px] flex-col items-center justify-center text-center space-y-3">
                         <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center">
                             <SparklesIcon className="w-8 h-8 text-amber-600" />
                         </div>
@@ -460,7 +460,7 @@ export const ChatbotUI = ({
 
             {/* Selected Images Preview with Progress */}
             {selectedImages.length > 0 && (
-                <div className="px-3 py-2 border-t border-stone-200 bg-stone-50">
+                <div className="shrink-0 border-t border-stone-200 bg-stone-50 px-3 py-2">
                     <div className="flex flex-wrap gap-2">
                         {selectedImages.map((img, idx) => (
                             <div key={idx} className="relative group">
@@ -501,7 +501,7 @@ export const ChatbotUI = ({
             )}
 
             {/* Input Area */}
-            <div className="p-3 border-t-2 border-stone-900 bg-white">
+            <div className="shrink-0 border-t-2 border-stone-900 bg-white p-3">
                 <div className="flex gap-2 items-center">
                     {/* Photo Upload Button - Primary */}
                     <input

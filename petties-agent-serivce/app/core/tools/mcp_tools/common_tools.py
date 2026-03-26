@@ -198,7 +198,7 @@ async def _get_tavily_client(db=None) -> Optional["TavilyClientType"]:
 
 async def _perform_tavily_search(
     query: str, max_results: int, db=None
-) -> List[Dict[str, Any]]:
+) -> Dict[str, Any]:
     """Perform web search using Tavily API with DB-first priority."""
     search_query = _build_search_query(query)
     logger.info(f"web_search: Tavily query = '{search_query}'")
@@ -207,19 +207,48 @@ async def _perform_tavily_search(
 
     if not client:
         logger.warning("web_search: Tavily not available, returning empty results")
-        return []
+        return {
+            "results": [],
+            "images": [],
+            "answer": None,
+            "follow_up_questions": [],
+        }
 
     try:
         response = await asyncio.to_thread(
             client.search,
             query=search_query,
             max_results=max(max_results, 8),
-            include_answer=False,
+            include_answer="basic",
+            include_images=True,
             include_raw_content=False,
         )
 
         raw_results = response.get("results", [])
-        logger.info(f"web_search: Tavily returned {len(raw_results)} raw results")
+        raw_images = response.get("images", [])
+        ai_answer = response.get("answer")
+        follow_up_questions = response.get("follow_up_questions", []) or []
+
+        logger.info(
+            f"web_search: Tavily returned {len(raw_results)} results, {len(raw_images)} images"
+        )
+
+        # Process images - filter for pet-related images
+        processed_images: List[Dict[str, Any]] = []
+        for img in raw_images[:6]:  # Limit to 6 images
+            img_title = str(img.get("title", "")).lower()
+            img_desc = str(img.get("description", "")).lower()
+            combined = f"{img_title} {img_desc}"
+
+            # Filter for pet-related images
+            if any(keyword in combined for keyword in PET_GUARD_KEYWORDS):
+                processed_images.append(
+                    {
+                        "url": img.get("url", ""),
+                        "title": img.get("title", ""),
+                        "description": img.get("description", ""),
+                    }
+                )
 
         strict_results: List[Dict[str, Any]] = []
         relaxed_results: List[Dict[str, Any]] = []
@@ -253,22 +282,30 @@ async def _perform_tavily_search(
 
         strict_results.sort(key=lambda x: x.get("score", 0), reverse=True)
         strict_results = _deduplicate_scored_results(strict_results)
-        if strict_results:
-            logger.info(
-                f"web_search: returning {len(strict_results[:max_results])} strict results"
-            )
-            return strict_results[:max_results]
 
-        relaxed_results.sort(key=lambda x: x.get("score", 0), reverse=True)
-        relaxed_results = _deduplicate_scored_results(relaxed_results)
-        logger.info(
-            f"web_search: strict=0, returning {len(relaxed_results[:max_results])} relaxed results"
+        final_results = (
+            strict_results[:max_results]
+            if strict_results
+            else relaxed_results[:max_results]
         )
-        return relaxed_results[:max_results]
+
+        return {
+            "results": final_results,
+            "images": processed_images,
+            "answer": ai_answer if ai_answer else None,
+            "follow_up_questions": follow_up_questions[:3]
+            if follow_up_questions
+            else [],
+        }
 
     except Exception as e:
         logger.error(f"web_search: Tavily API error: {e}")
-        return []
+        return {
+            "results": [],
+            "images": [],
+            "answer": None,
+            "follow_up_questions": [],
+        }
 
 
 @mcp_server.tool
@@ -295,6 +332,9 @@ async def web_search(
         Dict chua:
             - query: str - Cau hoi goc
             - results: List[Dict] - Danh sach ket qua web ({title, snippet, url, source, score})
+            - images: List[Dict] - Hình ảnh minh họa ({url, title, description})
+            - answer: str - AI-generated summary từ Tavily
+            - follow_up_questions: List[str] - Các câu hỏi gợi ý
             - sources_used: int - So nguon tim duoc
             - search_source: str - "web_search"
     """
@@ -304,6 +344,9 @@ async def web_search(
         return {
             "query": query,
             "results": [],
+            "images": [],
+            "answer": None,
+            "follow_up_questions": [],
             "sources_used": 0,
             "search_source": "web_search",
             "error": "Query ngoài phạm vi thú cưng/thú y",
@@ -313,18 +356,27 @@ async def web_search(
         from app.db.postgres.session import AsyncSessionLocal
 
         async with AsyncSessionLocal() as session:
-            results = await asyncio.wait_for(
+            search_data = await asyncio.wait_for(
                 _perform_tavily_search(query, effective_max_results, session),
                 timeout=20.0,
             )
 
+        # Extract data from new dict format
+        results = search_data.get("results", [])
+        images = search_data.get("images", [])
+        answer = search_data.get("answer")
+        follow_up_questions = search_data.get("follow_up_questions", [])
+
         logger.info(
-            f"web_search: Found {len(results)} results for query: {query[:50]}..."
+            f"web_search: Found {len(results)} results, {len(images)} images for query: {query[:50]}..."
         )
 
         return {
             "query": query,
             "results": results,
+            "images": images,
+            "answer": answer,
+            "follow_up_questions": follow_up_questions,
             "sources_used": len(results),
             "search_source": "web_search",
         }
@@ -333,6 +385,9 @@ async def web_search(
         return {
             "query": query,
             "results": [],
+            "images": [],
+            "answer": None,
+            "follow_up_questions": [],
             "sources_used": 0,
             "search_source": "web_search",
             "error": "Tìm kiếm web bị timeout sau 20 giây",
@@ -342,6 +397,9 @@ async def web_search(
         return {
             "query": query,
             "results": [],
+            "images": [],
+            "answer": None,
+            "follow_up_questions": [],
             "sources_used": 0,
             "search_source": "web_search",
             "error": str(e),

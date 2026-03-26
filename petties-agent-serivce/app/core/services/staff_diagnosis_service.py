@@ -27,6 +27,7 @@ from app.api.schemas.diagnosis_contracts import (
     DoctorDiagnosisSynthesisResponse,
     GeminiVisionDiagnosisRequest,
     GeminiVisionDiagnosisResponse,
+    PrescriptionSuggestion,
     SoapSuggestions,
     StaffDiagnosisRequest,
 )
@@ -126,10 +127,11 @@ class StaffDiagnosisService:
                 request=request,
             )
 
-        if not (hybrid_result.chunks or similar_cases):
-            protocol_decision.prescriptions = []
+        has_internal_evidence = bool(hybrid_result.chunks or similar_cases)
+        if not has_internal_evidence:
             protocol_decision.summary = (
-                "Chưa có đủ bằng chứng nội bộ từ Knowledge Base hoặc Case Memory để kích hoạt protocol điều trị. "
+                "Chưa có đủ bằng chứng nội bộ từ Knowledge Base hoặc Case Memory. "
+                "AI có thể dựa vào triệu chứng và kiến thức chung để gợi ý đơn thuốc tham khảo. "
                 + protocol_decision.summary
             ).strip()
 
@@ -152,6 +154,21 @@ class StaffDiagnosisService:
             llm_synthesis.get("soap_suggestions") if llm_synthesis else None
         )
 
+        llm_prescriptions = (
+            llm_synthesis.get("prescription_suggestions") if llm_synthesis else None
+        )
+        has_protocol_prescriptions = bool(protocol_decision.prescriptions)
+        if has_protocol_prescriptions:
+            final_prescriptions = protocol_decision.prescriptions
+        elif llm_prescriptions:
+            final_prescriptions = llm_prescriptions
+        else:
+            final_prescriptions = []
+
+        has_llm_prescription = (
+            bool(llm_prescriptions) and not has_protocol_prescriptions
+        )
+
         return DoctorDiagnosisSynthesisResponse(
             request_id=request_id,
             top_differentials=top_differentials,
@@ -171,8 +188,13 @@ class StaffDiagnosisService:
                 similar_cases=similar_cases,
                 protocol_decision=protocol_decision,
             ),
-            prescription_suggestions=protocol_decision.prescriptions,
-            disclaimer="Gợi ý từ tài liệu nội bộ. Bác sĩ cần xác nhận lại chẩn đoán.",
+            prescription_suggestions=final_prescriptions,
+            disclaimer="Gợi ý từ tài liệu nội bộ. Bác sĩ cần xác nhận lại chẩn đoán."
+            + (
+                " Lưu ý: Đơn thuốc được gợi ý từ AI - cần bác sĩ xác nhận trước khi kê đơn."
+                if has_llm_prescription
+                else ""
+            ),
         )
 
     async def _analyze_vision(
@@ -383,10 +405,22 @@ class StaffDiagnosisService:
                 temperature=0.2,
                 max_tokens=1800,
             )
-            return self._parse_llm_synthesis_response(
+            logger.debug(
+                f"LLM synthesis raw response (first 500 chars): {response.content[:500]}"
+            )
+            parsed = self._parse_llm_synthesis_response(
                 response.content,
                 top_differentials,
             )
+            if parsed:
+                logger.info(
+                    f"LLM synthesis parsed: top_differentials={len(parsed.get('top_differentials', []))}, "
+                    f"prescriptions={len(parsed.get('prescription_suggestions', []))}, "
+                    f"soap_suggestions={'yes' if parsed.get('soap_suggestions') else 'no'}"
+                )
+            else:
+                logger.warning("LLM synthesis response parsing failed")
+            return parsed
         except Exception as exc:
             logger.warning("Staff diagnosis LLM synthesis failed: {}", exc)
             return None
@@ -440,10 +474,19 @@ class StaffDiagnosisService:
                 }
                 for rx in protocol_decision.prescriptions
             ],
+            "has_internal_protocol": bool(protocol_decision.prescriptions),
         }
         return f"""Bạn là trợ lý AI nội bộ hỗ trợ staff/vet tổng hợp ca bệnh cho Petties.
 Chỉ dùng dữ liệu nội bộ đã cho. Nếu dữ liệu ảnh rỗng thì không được bịa thêm mô tả ảnh.
 Nếu Case Memory đã đủ mạnh thì ưu tiên tổng hợp từ Case Memory và Knowledge Base, không cần giả định rằng vision đã chạy.
+
+QUAN TRỌNG về đơn thuốc:
+- Nếu has_internal_protocol=true: Giữ nguyên đơn thuốc từ protocol nội bộ (nếu có)
+- Nếu has_internal_protocol=false (KHÔNG có trong KB/Case Memory):
+  - BẮT BUỘC phải gợi ý ít nhất 1-2 loại thuốc phổ biến, phù hợp với triệu chứng/chẩn đoán
+  - Dựa vào kiến thức thú y chung để suggest thuốc điều trị triệu chứng
+  - Ghi rõ disclaimer là "Cần xác nhận từ bác sĩ" vì không có trong data nội bộ
+
 Viết hoàn toàn bằng tiếng Việt, ngắn gọn, lâm sàng, không thêm markdown. Chỉ trả về JSON hợp lệ.
 
 DỮ LIỆU:
@@ -464,7 +507,18 @@ JSON:
     "assessment_draft": "...",
     "plan_draft": "..."
   }},
-  "suggested_questions": ["...", "...", "..."]
+  "suggested_questions": ["...", "...", "..."],
+  "prescription_suggestions": [
+    {{
+      "medicine_name": "Tên thuốc",
+      "dosage": "Liều dùng",
+      "frequency": "Tần suất",
+      "duration_days": Số_ngày,
+      "instructions": "Hướng dẫn sử dụng",
+      "caution": "Lưu ý (nếu có)"
+    }}
+  ],
+  "prescription_disclaimer": "Cần xác nhận từ bác sĩ|Đã kiểm chứng"
 }}
 """
 
@@ -542,6 +596,31 @@ JSON:
             result["suggested_questions"] = [
                 str(item).strip() for item in suggested_questions if str(item).strip()
             ][:5]
+
+        prescriptions = payload.get("prescription_suggestions")
+        if isinstance(prescriptions, list) and prescriptions:
+            parsed_rx: List[PrescriptionSuggestion] = []
+            for rx in prescriptions:
+                if not isinstance(rx, dict):
+                    continue
+                medicine = str(rx.get("medicine_name") or "").strip()
+                if not medicine:
+                    continue
+                parsed_rx.append(
+                    PrescriptionSuggestion(
+                        medicine_name=medicine,
+                        dosage=str(rx.get("dosage") or ""),
+                        frequency=str(rx.get("frequency") or ""),
+                        duration_days=rx.get("duration_days"),
+                        instructions=str(rx.get("instructions") or ""),
+                        caution=rx.get("caution"),
+                        source="llm_fallback",
+                        source_detail=payload.get("prescription_disclaimer")
+                        or "Gợi ý từ LLM - cần xác nhận bác sĩ",
+                    )
+                )
+            if parsed_rx:
+                result["prescription_suggestions"] = parsed_rx
 
         return result or None
 
@@ -1065,22 +1144,15 @@ JSON:
             lines.append(f"Cân nặng: {request.weight_kg:.1f} kg.")
 
         if not lines:
-            top_lower = top_label.lower()
-            if "mắt" in top_lower:
-                lines.append("1. Vệ sinh mắt bằng NaCl 0.9%.")
-                lines.append("2. Nhỏ mắt kháng sinh theo chỉ định.")
-                lines.append("3. Tái khám 3-5 ngày.")
-            elif "tai" in top_lower:
-                lines.append("1. Vệ sinh tai bằng dung dịch chuyên dụng.")
-                lines.append("2. Nhỏ thuốc tai theo chỉ định.")
-                lines.append("3. Tái khám 5-7 ngày.")
-            elif "da" in top_lower or "ghẻ" in top_lower:
-                lines.append("1. Tắm/làm sạch vùng tổn thương.")
-                lines.append("2. Bôi/thuốc theo chỉ định.")
-                lines.append("3. Tái khám 7 ngày.")
-            else:
-                lines.append("1. Theo dõi triệu chứng.")
-                lines.append("2. Tái khám theo diễn tiến.")
+            lines.append(
+                "1. Cần bổ sung thăm khám lâm sàng và đối chiếu thêm dữ liệu trước khi chốt hướng điều trị."
+            )
+            lines.append(
+                "2. Theo dõi diễn tiến triệu chứng và cân nhắc chỉ định xét nghiệm phù hợp nếu biểu hiện kéo dài hoặc nặng lên."
+            )
+            lines.append(
+                "3. Tái khám hoặc đánh giá lại sau khi đã có thêm evidence nội bộ và kết quả lâm sàng."
+            )
 
         return "\n".join(lines)
 

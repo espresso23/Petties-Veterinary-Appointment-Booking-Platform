@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../../../../config/constants/app_colors.dart';
 import '../../../../data/models/ai_chat.dart';
@@ -17,7 +17,6 @@ class AiChatMessageAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
     return Container(
       width: 34,
       height: 34,
@@ -47,7 +46,6 @@ class AiBookingMetaPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
@@ -130,7 +128,7 @@ class AiBookingReadyBanner extends StatelessWidget {
           SizedBox(width: 8),
           Expanded(
             child: Text(
-              'AI đã tổng hợp đủ thông tin để bạn xác nhận đặt lịch ngay trong đoạn chat này.',
+              'AI đã chuẩn bị đủ thông tin để mở màn xác nhận đặt lịch chuẩn.',
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
@@ -353,8 +351,9 @@ class AiChatTracePanel extends StatelessWidget {
             return const SizedBox.shrink();
           }
 
-          final rawStepType =
-              step['step_type']?.toString() ?? step['type']?.toString() ?? 'step';
+          final rawStepType = step['step_type']?.toString() ??
+              step['type']?.toString() ??
+              'step';
           final stepType = rawStepType.toLowerCase();
           final content = step['content']?.toString() ?? '';
           final toolName = step['tool_name']?.toString();
@@ -420,8 +419,7 @@ class AiChatThinkingBubble extends StatelessWidget {
   final List<Map<String, dynamic>> trace;
   final bool isExpanded;
   final VoidCallback? onToggleExpanded;
-  final String? Function(String? toolName, dynamic result)?
-      summarizeToolResult;
+  final String? Function(String? toolName, dynamic result)? summarizeToolResult;
 
   const AiChatThinkingBubble({
     super.key,
@@ -508,9 +506,7 @@ class AiChatThinkingBubble extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                isExpanded
-                                    ? 'ẨN CHI TIẾT'
-                                    : 'XEM CHI TIẾT',
+                                isExpanded ? 'ẨN CHI TIẾT' : 'XEM CHI TIẾT',
                                 style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w800,
@@ -850,8 +846,7 @@ class AiClinicSuggestionCard extends StatelessWidget {
 
 class _AiChatInlineThinkingTrace extends StatelessWidget {
   final List<Map<String, dynamic>> trace;
-  final String? Function(String? toolName, dynamic result)?
-      summarizeToolResult;
+  final String? Function(String? toolName, dynamic result)? summarizeToolResult;
 
   const _AiChatInlineThinkingTrace({
     required this.trace,
@@ -942,4 +937,3 @@ class _AiChatInlineThinkingTrace extends StatelessWidget {
     );
   }
 }
-

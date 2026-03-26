@@ -166,6 +166,46 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
             result["resolved_clinic_id"], "3fa85f64-5717-4562-b3fc-2c963f66afa6"
         )
 
+    async def test_get_clinic_services_normalizes_vietnamese_pet_species_to_enum(self):
+        runtime_token = set_tool_runtime_context(
+            ToolRuntimeContext(
+                user_id="user-1", role="PET_OWNER", auth_token="jwt-token"
+            )
+        )
+
+        client = AsyncMock()
+        client.resolve_booking_context.return_value = {}
+        client.get_booking_clinic_options.return_value = {
+            "totalFound": 1,
+            "clinics": [
+                {
+                    "clinicId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                    "clinicName": "Pet Care Da Nang",
+                    "address": "Da Nang",
+                }
+            ],
+        }
+        client.get_clinic_services.return_value = []
+
+        try:
+            with patch(
+                "app.core.tools.mcp_tools.booking_tools.get_backend_client",
+                return_value=client,
+            ):
+                await get_clinic_services(
+                    "pet_care",
+                    pet_species="Chó",
+                    latest_message="Dat lich cho cho",
+                )
+        finally:
+            reset_tool_runtime_context(runtime_token)
+
+        client.get_clinic_services.assert_awaited_once_with(
+            "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+            pet_species="DOG",
+            is_home_visit=None,
+        )
+
     async def test_check_available_slots_returns_choose_clinic_when_hint_is_ambiguous(
         self,
     ):
@@ -353,6 +393,42 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(sent_payload["serviceHint"], "kham benh")
         self.assertEqual(result["resolved_service_ids"], ["svc-1"])
         self.assertEqual(result["available_slots"][0]["start_time"], "09:00")
+
+    async def test_check_available_slots_normalizes_vietnamese_pet_species_to_enum(
+        self,
+    ):
+        runtime_token = set_tool_runtime_context(
+            ToolRuntimeContext(
+                user_id="user-1", role="PET_OWNER", auth_token="jwt-token"
+            )
+        )
+
+        client = AsyncMock()
+        client.get_booking_slot_options.return_value = {
+            "resolvedServiceIds": ["svc-1"],
+            "resolvedServiceNames": ["Kham benh"],
+            "recommendedSlots": [],
+            "alternatives": [],
+        }
+
+        try:
+            with patch(
+                "app.core.tools.mcp_tools.booking_tools.get_backend_client",
+                return_value=client,
+            ):
+                await check_available_slots(
+                    clinic_id="clinic-1",
+                    date_expression="thu bay nay",
+                    service_hint="kham benh",
+                    pet_species="Chó",
+                    latest_message="Dat lich cho cho thu bay nay",
+                )
+        finally:
+            reset_tool_runtime_context(runtime_token)
+
+        client.get_booking_slot_options.assert_awaited_once()
+        sent_payload = client.get_booking_slot_options.await_args.args[1]
+        self.assertEqual(sent_payload["petSpecies"], "DOG")
 
     async def test_create_booking_reports_missing_fields_before_confirmation(self):
         runtime_token = set_tool_runtime_context(

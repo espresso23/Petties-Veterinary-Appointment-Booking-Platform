@@ -282,4 +282,25 @@ def normalize_tool_output(tool_name: str, result: Any) -> Any:
             v = out[k].strip()
             out[k] = v if _ISO_DATE_RE.match(v) else out[k]
 
+    # Normalize error vs success state based on PLAN.md without changing LLM data schema wrappers
+    if "success" not in out:
+        is_error = False
+        error_code = "INTERNAL_ERROR"
+        
+        # Simple heuristic to identify explicit error returns from tools
+        msg_str = str(out.get("message", "")).lower()
+        if "khong the" in msg_str or "không thể" in msg_str or "chua xac dinh duoc" in msg_str or "chua the" in msg_str:
+            is_error = True
+        
+        if "auth" in msg_str or "token" in msg_str or out.get("requires_auth"):
+            is_error = True
+            error_code = "UNAUTHORIZED"
+
+        if is_error:
+            out["success"] = False
+            out["error_code"] = out.get("error_code", error_code)
+            out["recoverable"] = out.get("recoverable", True)
+        else:
+            out["success"] = True
+
     return out

@@ -122,10 +122,13 @@ class ToolExecutor:
                     if key in allowed_keys
                 }
 
-        # Step 2: Validate parameters
+        # Step 2: Filter out None/null values to prevent Pydantic validation errors
+        parameters = {k: v for k, v in parameters.items() if v is not None}
+
+        # Step 3: Validate parameters
         self._validate_parameters(tool, parameters)
 
-        # Step 3: Execute via FastMCP (with normalized params)
+        # Step 4: Execute via FastMCP (with normalized params)
         result = await self._execute_mcp_tool(tool_name, parameters)
 
         if result.get("success"):

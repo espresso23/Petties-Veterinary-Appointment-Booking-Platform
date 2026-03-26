@@ -3,13 +3,13 @@ PETTIES AGENT SERVICE - WebSocket Chat Handler
 Real-time chat with streaming responses
 
 Package: app.api.websocket
-Purpose: WebSocket endpoint with generic tool response dispatching
-Version: v2.0.0 (Tool self-contained UI cards - no hardcoded extractors)
+Purpose: WebSocket endpoint with generic UI schema dispatching
+Version: v2.1.0 (Presentation Layer owned `ui_schema`)
 
 Design:
-- Tools define their own ui_card in return value
-- chat.py uses generic dispatcher to extract and send ui_card
-- No hardcoded tool names or extraction logic
+- Tools return structured business data
+- Presentation Layer converts tool results into `ui_schema`
+- chat.py streams reasoning plus versioned UI schema payloads
 """
 
 import asyncio
@@ -39,6 +39,7 @@ from app.core.agents.thinking_formatter import (
     format_thinking_for_stream,
     get_thinking_summary,
 )
+from app.core.presentation.builder import build_ui_schema
 from app.core.chat_context import (
     BUSINESS_CHAT,
     PLAYGROUND_TEST,
@@ -63,6 +64,10 @@ from app.config.settings import settings
 logger = logging.getLogger(__name__)
 
 
+class StreamTerminated(Exception):
+    """Stop chat processing after a terminal websocket event has been emitted."""
+
+
 def _truncate(text: str, max_len: int = 160) -> str:
     s = (text or "").strip()
     if len(s) <= max_len:
@@ -73,11 +78,11 @@ def _truncate(text: str, max_len: int = 160) -> str:
 def summarize_thought(text: Any) -> str:
     """Return a safe, short, user-facing reasoning summary."""
     if not isinstance(text, str):
-        return "Dang phan tich yeu cau..."
+        return "Đang phân tích yêu cầu..."
 
     s = text.strip()
     if not s:
-        return "Dang phan tich yeu cau..."
+        return "Đang phân tích yêu cầu..."
 
     # Strip common prefixes.
     s = re.sub(r"^\s*thought\s*:\s*", "", s, flags=re.IGNORECASE).strip()
@@ -91,7 +96,7 @@ def summarize_thought(text: Any) -> str:
     s = re.split(r"\btool\s*input\s*:\b", s, maxsplit=1, flags=re.IGNORECASE)[0].strip()
 
     s = strip_redundant_greeting(s)
-    return _truncate(s, 160) if s else "Dang phan tich yeu cau..."
+    return _truncate(s, 160) if s else "Đang phân tích yêu cầu..."
 
 
 class ConnectionManager:
@@ -328,33 +333,99 @@ def sanitize_assistant_response(
     return normalized
 
 
-def extract_ui_card(step: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """
-    Generic UI card extractor - reads ui_card from tool's return value.
-
-    Design: Tools define their own ui_card in return value.
-    chat.py is agnostic to tool names and data structures.
-    """
-    tool_result = step.get("tool_result") or {}
-
-    if isinstance(tool_result, dict) and isinstance(tool_result.get("data"), dict):
-        tool_result = tool_result.get("data") or {}
-
-    ui_card = tool_result.get("ui_card")
-    if not ui_card or not isinstance(ui_card, dict):
+def _unwrap_tool_result_for_schema(
+    tool_name: str, tool_result: Any
+) -> Optional[Dict[str, Any]]:
+    if not tool_name or not tool_result:
         return None
 
-    ui_type = ui_card.get("type")
-    if not ui_type:
+    if not isinstance(tool_result, dict):
+        return {
+            "tool_name": str(tool_name),
+            "success": True,
+            "data": tool_result,
+        }
+
+    normalized = dict(tool_result)
+
+    # Executor wraps MCP result as {"success": bool, "data": {...}, "tool_name": "..."}.
+    # The presentation layer needs the tool-level contract, not the executor wrapper.
+    inner_data = normalized.get("data")
+    if (
+        normalized.get("tool_name") == tool_name
+        and isinstance(inner_data, dict)
+        and "success" in inner_data
+    ):
+        normalized = dict(inner_data)
+
+    if (
+        normalized.get("tool_name") == tool_name
+        and normalized.get("success") is False
+        and isinstance(normalized.get("error"), dict)
+    ):
+        normalized = dict(normalized["error"])
+        normalized["success"] = False
+
+    normalized["tool_name"] = str(tool_name)
+    return normalized
+
+
+def infer_stage_from_schema(step: Dict[str, Any], ui_schema: Dict[str, Any]) -> str:
+    tool_name = str(step.get("tool_name") or "")
+    components = ui_schema.get("components", [])
+    component_types = {
+        str(component.get("type") or "") for component in components if isinstance(component, dict)
+    }
+
+    if "booking_summary" in component_types:
+        tool_result = _unwrap_tool_result_for_schema(tool_name, step.get("tool_result")) or {}
+        data = tool_result.get("data", {}) if isinstance(tool_result.get("data"), dict) else {}
+        booking_payload = {}
+        if isinstance(data.get("booking"), dict):
+            booking_payload = data.get("booking") or {}
+        elif isinstance(data.get("booking_preview"), dict):
+            booking_payload = data.get("booking_preview") or {}
+
+        has_created_booking = bool(
+            booking_payload.get("id")
+            or booking_payload.get("booking_id")
+            or booking_payload.get("booking_code")
+        )
+        if has_created_booking or data.get("ready_to_create"):
+            return "BOOKED"
+        return "CONFIRMING"
+
+    if component_types & {
+        "clinic_card",
+        "pet_card",
+        "service_chip",
+        "slot_button",
+        "vaccination_card",
+        "emr_summary",
+        "empty_state",
+        "error_card",
+    }:
+        return "PRESENTING"
+
+    return "IDLE"
+
+
+def build_ui_schema_for_step(step: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Builds a UISchemaV1 from a specific observation step.
+    """
+    tool_name = step.get("tool_name")
+    tool_result = step.get("tool_result")
+
+    tr_input = _unwrap_tool_result_for_schema(str(tool_name or ""), tool_result)
+    if not tr_input:
         return None
 
-    result = {"type": ui_type}
-    for key, value in ui_card.items():
-        if key == "type":
-            continue
-        result[key] = value
+    schema = build_ui_schema([tr_input])
+    if not schema:
+        return None
 
-    return result
+    return schema.model_dump()
 
 
 def _normalize_location_payload(raw_location: Any) -> Optional[Dict[str, Any]]:
@@ -705,7 +776,8 @@ async def _stream_and_collect(
     react_trace: List[Dict[str, Any]] = []
     step_index = 0
     full_response = ""
-    sent_ui_types: Dict[str, bool] = {}
+    ui_tool_results: List[Dict[str, Any]] = []
+    sent_ui_schema = False
     streamed_final_answer = False
 
     loop = asyncio.get_running_loop()
@@ -799,19 +871,12 @@ async def _stream_and_collect(
                             },
                         )
 
-                    # Also send UI card if available
-                    ui_payload = extract_ui_card(safe_step)
-                    if ui_payload:
-                        ui_type = ui_payload.get("type")
-                        if not sent_ui_types.get(ui_type):
-                            sent_ui_types[ui_type] = True
-                            await manager.send_message(
-                                session_id,
-                                {
-                                    **ui_payload,
-                                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                                },
-                            )
+                    normalized_ui_result = _unwrap_tool_result_for_schema(
+                        str(safe_step.get("tool_name") or ""),
+                        safe_step.get("tool_result"),
+                    )
+                    if normalized_ui_result:
+                        ui_tool_results.append(normalized_ui_result)
 
                 react_trace.append({"step_index": step_index, **safe_step})
                 await manager.send_message(session_id, ws_message)
@@ -822,6 +887,27 @@ async def _stream_and_collect(
 
             elif event_type == "final_answer":
                 full_response = event.get("content", full_response) or ""
+                if not sent_ui_schema and ui_tool_results:
+                    schema = build_ui_schema(ui_tool_results)
+                    if schema:
+                        schema_payload = schema.model_dump()
+                        stage = infer_stage_from_schema(
+                            {
+                                "tool_name": ui_tool_results[-1].get("tool_name"),
+                                "tool_result": ui_tool_results[-1],
+                            },
+                            schema_payload,
+                        )
+                        await manager.send_message(
+                            session_id,
+                            {
+                                "type": "ui_schema",
+                                "ui_schema": schema_payload,
+                                "stage": stage,
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                            },
+                        )
+                        sent_ui_schema = True
                 if not streamed_final_answer and full_response.strip():
                     streamed_final_answer = True
                     for chunk in iter_stream_chunks(full_response, max_chars=72):
@@ -843,7 +929,7 @@ async def _stream_and_collect(
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                     },
                 )
-                raise asyncio.CancelledError()
+                raise StreamTerminated("Agent emitted terminal error event")
 
     except asyncio.TimeoutError:
         with suppress(Exception):
@@ -855,8 +941,29 @@ async def _stream_and_collect(
                 "error": "Quá thời gian phản hồi của trợ lý. Vui lòng thử lại.",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             },
-        )
-        raise
+                )
+        raise StreamTerminated("Agent stream timeout")
+
+    if not sent_ui_schema and ui_tool_results:
+        schema = build_ui_schema(ui_tool_results)
+        if schema:
+            schema_payload = schema.model_dump()
+            stage = infer_stage_from_schema(
+                {
+                    "tool_name": ui_tool_results[-1].get("tool_name"),
+                    "tool_result": ui_tool_results[-1],
+                },
+                schema_payload,
+            )
+            await manager.send_message(
+                session_id,
+                {
+                    "type": "ui_schema",
+                    "ui_schema": schema_payload,
+                    "stage": stage,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+            )
 
     return full_response, react_trace, step_index
 
@@ -1034,6 +1141,8 @@ async def handle_chat_message(
                     chat_history if chat_history else None,
                     user.role,
                 )
+            except StreamTerminated:
+                return
             finally:
                 reset_tool_runtime_context(runtime_token)
 

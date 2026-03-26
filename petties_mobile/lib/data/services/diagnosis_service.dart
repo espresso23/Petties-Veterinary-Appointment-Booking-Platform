@@ -47,6 +47,8 @@ class DiagnosisService {
     String? bodyPart,
     List<String>? symptoms,
     List<String>? imageUrls,
+    DiagnosisImageAnalysisMode imageAnalysisMode =
+        DiagnosisImageAnalysisMode.full,
     SoapDraft? soapDraft,
   }) async {
     final request = StaffDiagnosisRequest(
@@ -62,6 +64,7 @@ class DiagnosisService {
       bodyPart: bodyPart,
       symptoms: symptoms,
       imageUrls: imageUrls,
+      imageAnalysisMode: imageAnalysisMode,
       soapDraft: soapDraft,
     );
 

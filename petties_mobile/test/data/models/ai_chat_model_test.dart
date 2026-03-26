@@ -57,5 +57,101 @@ void main() {
       expect(event.reactStep!['step_type'], 'thought');
       expect(event.toolParams?['radius_km'], 5);
     });
+
+    test('parse ui_schema socket event with select_services and native confirm actions', () {
+      final event = AiChatSocketEvent.fromJson({
+        'type': 'ui_schema',
+        'ui_schema': {
+          'version': '1.0',
+          'layout': 'list',
+          'components': [
+            {
+              'type': 'service_chip',
+              'id': 'svc_1',
+              'data': {
+                'id': 'svc-1',
+                'name': 'Khám tổng quát cho chó',
+                'group_id': 'service_group_clinic_1',
+              },
+              'actions': [
+                {
+                  'type': 'select_item',
+                  'label': 'Chọn',
+                  'payload': {
+                    'item_id': 'svc-1',
+                    'item_type': 'service',
+                    'group_id': 'service_group_clinic_1',
+                  }
+                }
+              ]
+            },
+            {
+              'type': 'button',
+              'id': 'service_group_clinic_1_continue',
+              'data': {
+                'label': 'Tiếp tục',
+                'group_id': 'service_group_clinic_1',
+              },
+              'actions': [
+                {
+                  'type': 'select_services',
+                  'label': 'Tiếp tục',
+                  'payload': {
+                    'group_id': 'service_group_clinic_1',
+                    'clinic_id': 'clinic-1',
+                  }
+                }
+              ]
+            },
+            {
+              'type': 'booking_summary',
+              'id': 'booking_summary',
+              'data': {
+                'clinic_id': 'clinic-1',
+                'pet_id': 'pet-1',
+                'booking_date': '2026-03-27',
+                'start_time': '09:00',
+                'service_ids': ['svc-1'],
+                'service_names': ['Khám tổng quát cho chó'],
+              },
+              'actions': [
+                {
+                  'type': 'open_native_confirm',
+                  'label': 'Mở màn xác nhận',
+                  'payload': {
+                    'clinic_id': 'clinic-1',
+                    'pet_id': 'pet-1',
+                    'booking_date': '2026-03-27',
+                    'start_time': '09:00',
+                    'service_ids': ['svc-1'],
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      });
+
+      expect(event.type, AiChatSocketEventType.uiSchema);
+      expect(event.uiSchema, isNotNull);
+      expect(event.uiSchema!.components, hasLength(3));
+      expect(event.uiSchema!.components[1].actions!.first.type, 'select_services');
+      expect(
+        event.uiSchema!.components[2].actions!.first.type,
+        'open_native_confirm',
+      );
+    });
+
+    test('legacy service_chips event falls back to unknown', () {
+      final event = AiChatSocketEvent.fromJson({
+        'type': 'service_chips',
+        'services': [
+          {'id': 'svc-1', 'name': 'Khám tổng quát'}
+        ],
+      });
+
+      expect(event.type, AiChatSocketEventType.unknown);
+      expect(event.uiSchema, isNull);
+    });
   });
 }

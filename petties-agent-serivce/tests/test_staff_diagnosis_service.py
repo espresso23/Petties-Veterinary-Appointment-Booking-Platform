@@ -150,6 +150,9 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
             ],
         )
         self.assertEqual(response.prescription_suggestions, [])
+        self.assertIn("Cần bổ sung thăm khám lâm sàng", response.soap_suggestions.plan_draft)
+        self.assertNotIn("Vệ sinh mắt", response.soap_suggestions.plan_draft)
+        self.assertNotIn("Nhỏ thuốc tai", response.soap_suggestions.plan_draft)
 
     async def test_analyze_case_with_images_returns_image_analysis(self):
         service = StaffDiagnosisService()

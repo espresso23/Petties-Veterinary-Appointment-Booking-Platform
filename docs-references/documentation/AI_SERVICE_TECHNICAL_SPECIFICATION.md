@@ -1,7 +1,7 @@
 ﻿# Tài liệu Kỹ thuật - AI Agent Service (Petties)
 
 **Phiên bản:** 1.5  
-**Cập nhật:** 2026-03-22  
+**Cập nhật:** 2026-03-26  
 **Tham chiếu:** `AI_DIAGNOSIS_FEATURE_PLAN.md`, `AI_DIAGNOSIS_PROGRESS.md`
 
 ---
@@ -41,6 +41,26 @@ Kiến trúc hiện tại **không còn dùng custom AI Diagnose stack cũ** nh�
   - các nguồn nội bộ đáng tin cậy khác nếu có
 - Nếu hệ thống không có dữ liệu phù hợp thì phải trả lời rõ:
   - `Hiện chưa có thông tin về bệnh này trong hệ thống tri thức nội bộ.`
+
+### 2.3 Diagnosis trust boundary and safety
+
+Current production-grade diagnosis flow must follow these rules:
+
+- `POST /api/v1/staff-diagnosis/analyze` keeps the same endpoint but no longer trusts client clinical context directly when `booking_id` or `pet_id` is provided.
+- Context precedence:
+  - `booking_id` verified from backend first
+  - `pet_id` verified from backend if no booking context is available
+  - raw request fields act only as hints when authoritative backend data is missing
+- For `STAFF`, backend must enforce clinic-safe scope before diagnosis synthesis runs.
+- For `ADMIN`, backend still allows diagnosis, but referenced records must exist; nonexistent records fail safely.
+- Standard route semantics:
+  - `403` for role or clinic-scope violation
+  - `404` for missing `booking_id` / `pet_id`
+  - `422` for `pet_id` and `booking_id` mismatch
+- Image analysis modes:
+  - `describe_only`: image description / visual findings only
+  - `full`: full diagnosis synthesis with internal retrieval and protocol flow
+- When internal evidence is insufficient, the system must not generate disease-specific treatment steps from keyword heuristics. It may return only safe next-step guidance, disclaimers, allergy cautions, and missing-input warnings.
 
 ---
 

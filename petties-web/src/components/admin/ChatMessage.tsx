@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { CheckIcon, XMarkIcon, LinkIcon, CpuChipIcon, WrenchScrewdriverIcon, UserIcon, BoltIcon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
+import { LoadingCard, UISchemaRenderer } from '../chat/renderers'
+import type { ChatStage, UIAction, UIComponent, UISchemaV1 } from '../../types/chat'
 
 interface ChatMessageProps {
   role: 'user' | 'assistant'
@@ -11,6 +13,9 @@ interface ChatMessageProps {
   toolCalls?: Array<{ tool: string; input: Record<string, unknown>; output?: unknown }>
   feedback?: 'good' | 'bad' | null
   onFeedback?: (feedback: 'good' | 'bad') => void
+  uiSchema?: UISchemaV1
+  stage?: ChatStage
+  onUiAction?: (action: UIAction, component: UIComponent) => void
 }
 
 /**
@@ -91,7 +96,10 @@ export const ChatMessage = ({
   thinkingProcess = [],
   toolCalls = [],
   feedback,
-  onFeedback
+  onFeedback,
+  uiSchema,
+  stage,
+  onUiAction,
 }: ChatMessageProps) => {
   const isUser = role === 'user'
 
@@ -144,6 +152,18 @@ export const ChatMessage = ({
           <div className={`text-sm md:text-base font-bold whitespace-pre-wrap leading-relaxed ${isUser ? 'text-white' : 'text-stone-900'}`}>
             {content}
           </div>
+
+          {!isUser && stage === 'COLLECTING' && !uiSchema && (
+            <div className="mt-4">
+              <LoadingCard />
+            </div>
+          )}
+
+          {!isUser && uiSchema && (
+            <div className="mt-4">
+              <UISchemaRenderer schema={uiSchema} onAction={onUiAction} />
+            </div>
+          )}
 
           {/* Citations */}
           {!isUser && citations.length > 0 && (

@@ -20,6 +20,9 @@ class AiDiagnosisPanel extends StatefulWidget {
   final String? initialAssessment;
   final String? initialPlan;
   final List<String>? imageUrls;
+  final DiagnosisService? diagnosisService;
+  final ImagePicker? imagePicker;
+  final Future<List<XFile>> Function()? pickImagesOverride;
   final void Function(StaffDiagnosisResponse?)? onDiagnosisResult;
   final void Function(SoapSuggestions)? onApplyDraft;
   final void Function(StaffDiagnosisResponse, List<String>)? onApplyDiagnosis;
@@ -38,6 +41,9 @@ class AiDiagnosisPanel extends StatefulWidget {
     this.initialAssessment,
     this.initialPlan,
     this.imageUrls,
+    this.diagnosisService,
+    this.imagePicker,
+    this.pickImagesOverride,
     this.onDiagnosisResult,
     this.onApplyDraft,
     this.onApplyDiagnosis,
@@ -48,13 +54,13 @@ class AiDiagnosisPanel extends StatefulWidget {
 }
 
 class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
-  final DiagnosisService _diagnosisService = DiagnosisService();
+  late final DiagnosisService _diagnosisService;
   final TextEditingController _narrativeController = TextEditingController();
   final List<String> _selectedImages = [];
   final Map<String, String> _imageDescriptions = {};
   final Set<String> _imagesLoading = {};
   final Map<String, TextEditingController> _imageDescriptionControllers = {};
-  final ImagePicker _imagePicker = ImagePicker();
+  late final ImagePicker _imagePicker;
 
   bool _isLoading = false;
   String? _error;
@@ -84,6 +90,13 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _diagnosisService = widget.diagnosisService ?? DiagnosisService();
+    _imagePicker = widget.imagePicker ?? ImagePicker();
+  }
+
+  @override
   void dispose() {
     _narrativeController.dispose();
     for (final controller in _imageDescriptionControllers.values) {
@@ -107,6 +120,7 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
             ? _narrativeController.text.trim()
             : 'Mô tả ảnh lâm sàng này',
         imageUrls: [imageUrl],
+        imageAnalysisMode: DiagnosisImageAnalysisMode.describeOnly,
       );
 
       if (response.imageDescriptions.isNotEmpty) {
@@ -124,18 +138,20 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
 
   Future<void> _pickImages() async {
     try {
-      final pickedFiles = await _imagePicker.pickMultiImage(
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 85,
-      );
+      final files = widget.pickImagesOverride != null
+          ? await widget.pickImagesOverride!.call()
+          : await _imagePicker.pickMultiImage(
+              maxWidth: 1024,
+              maxHeight: 1024,
+              imageQuality: 85,
+            );
 
-      if (pickedFiles.isEmpty) {
+      if (files.isEmpty) {
         return;
       }
 
       final newImages = <String>[];
-      for (final file in pickedFiles) {
+      for (final file in files) {
         final bytes = await file.readAsBytes();
         final base64Image = base64Encode(bytes);
         final dataUrl = 'data:image/jpeg;base64,$base64Image';
@@ -216,6 +232,7 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
         allergies: widget.allergies,
         doctorDescription: _narrativeController.text.trim(),
         imageUrls: allImages.isNotEmpty ? allImages : null,
+        imageAnalysisMode: DiagnosisImageAnalysisMode.full,
         soapDraft: widget.initialAssessment != null || widget.initialPlan != null
             ? SoapDraft(
                 subjective: widget.initialSubjective,

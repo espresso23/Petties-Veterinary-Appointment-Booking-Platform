@@ -165,6 +165,52 @@ def _extract_runtime_location(context: str) -> Dict[str, Any]:
     return location
 
 
+def _extract_last_booking_identity(
+    react_steps: List[Dict[str, Any]],
+) -> Dict[str, Optional[str]]:
+    """Lấy clinic_id/pet_id gần nhất từ action hoặc observation trước đó."""
+    last_clinic_id: Optional[str] = None
+    last_pet_id: Optional[str] = None
+
+    for step in reversed(react_steps or []):
+        if not isinstance(step, dict):
+            continue
+
+        step_type = str(step.get("step_type") or "").strip().lower()
+        if step_type == "action":
+            params = step.get("tool_params")
+            if isinstance(params, dict):
+                if not last_clinic_id:
+                    candidate = str(params.get("clinic_id") or "").strip()
+                    if candidate:
+                        last_clinic_id = candidate
+                if not last_pet_id:
+                    candidate = str(params.get("pet_id") or "").strip()
+                    if candidate:
+                        last_pet_id = candidate
+        elif step_type == "observation":
+            result = step.get("tool_result")
+            payload = result.get("data") if isinstance(result, dict) else None
+            if isinstance(payload, dict):
+                if not last_clinic_id:
+                    candidate = str(
+                        payload.get("resolved_clinic_id") or payload.get("clinic_id") or ""
+                    ).strip()
+                    if candidate:
+                        last_clinic_id = candidate
+                if not last_pet_id:
+                    candidate = str(
+                        payload.get("resolved_pet_id") or payload.get("pet_id") or ""
+                    ).strip()
+                    if candidate:
+                        last_pet_id = candidate
+
+        if last_clinic_id and last_pet_id:
+            break
+
+    return {"clinic_id": last_clinic_id, "pet_id": last_pet_id}
+
+
 def _build_missing_input_response(message: str) -> Dict[str, Any]:
     return {
         "tool_name": None,
@@ -266,6 +312,16 @@ def _normalize_booking_tool_params(
             params["time_preference"] = resolved_datetime["time_preference"]
 
     if tool_name == "create_booking_for_user":
+        inherited_identity = _extract_last_booking_identity(react_steps)
+        if not str(params.get("clinic_id") or "").strip() and inherited_identity.get(
+            "clinic_id"
+        ):
+            params["clinic_id"] = inherited_identity["clinic_id"]
+        if not str(params.get("pet_id") or "").strip() and inherited_identity.get(
+            "pet_id"
+        ):
+            params["pet_id"] = inherited_identity["pet_id"]
+
         confirmed = _coerce_bool(params.get("confirmed"))
         params["confirmed"] = bool(confirmed) if confirmed is not None else False
 

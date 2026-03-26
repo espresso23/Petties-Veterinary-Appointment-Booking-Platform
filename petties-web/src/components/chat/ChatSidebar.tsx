@@ -525,12 +525,12 @@ export const ChatSidebar = ({
             </button>
 
             <div
-                className={`fixed right-0 top-0 z-30 h-full w-[420px] transition-transform duration-300 ease-in-out ${
+                className={`fixed right-0 top-0 z-50 h-full w-[420px] transition-transform duration-300 ease-in-out ${
                     isOpen ? 'translate-x-0' : 'translate-x-full'
                 }`}
             >
-                <div className="flex h-full flex-col border-l-2 border-stone-900 bg-white shadow-[-4px_4px_0_#1c1917]">
-                    <div className="min-w-0 flex flex-1 flex-col">
+                <div className="flex h-full min-h-0 flex-col border-l-2 border-stone-900 bg-white shadow-[-4px_4px_0_#1c1917]">
+                    <div className="min-w-0 flex flex-1 min-h-0 flex-col">
                         <div className="flex items-center justify-between px-4 py-3 border-b-2 border-stone-900 bg-amber-500">
                             <div className="flex items-center gap-2">
                                 <SparklesIcon className="w-5 h-5 text-white" />
@@ -601,7 +601,7 @@ export const ChatSidebar = ({
                             </div>
                         )}
 
-                        <div className="relative flex-1 overflow-hidden flex flex-col">
+                        <div className="relative flex-1 flex flex-col min-h-0">
                             <ChatbotUI
                                 title={title}
                                 placeholder={placeholder}
@@ -648,7 +648,7 @@ export const ChatSidebar = ({
             </div>
 
             {isOpen && (
-                <div className="fixed inset-0 bg-black/20 z-20" onClick={close} />
+                <div className="fixed inset-0 bg-black/20 z-40 lg:hidden" onClick={close} />
             )}
         </>
     )

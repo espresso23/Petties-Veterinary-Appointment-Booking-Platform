@@ -60,6 +60,7 @@ export const AIDiagnosisPanel = ({
     const imagesLoadingRef = useRef<Set<string>>(new Set())
     const imageDescriptionsRef = useRef<Record<string, string>>({})
     const isMountedRef = useRef(true)
+    const lastCalledDescriptionsRef = useRef<string>('')
 
     const normalizedImageUrls = imageUrls.filter(Boolean)
     const allImageUrls = [...normalizedImageUrls, ...pendingImageUrls.filter(Boolean)]
@@ -112,7 +113,11 @@ export const AIDiagnosisPanel = ({
     }, [pendingImageUrls])
 
     useEffect(() => {
-        onPendingImageDescriptionsChange?.(imageDescriptions)
+        const descriptionsString = JSON.stringify(imageDescriptions)
+        if (descriptionsString !== lastCalledDescriptionsRef.current && onPendingImageDescriptionsChange) {
+            lastCalledDescriptionsRef.current = descriptionsString
+            onPendingImageDescriptionsChange(imageDescriptions)
+        }
     }, [imageDescriptions, onPendingImageDescriptionsChange])
 
     const convertBlobToBase64 = async (url: string): Promise<string> => {

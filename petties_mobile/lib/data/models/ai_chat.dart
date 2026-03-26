@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 class AiChatMessage {
   final String? messageId;
   final String role;
@@ -66,9 +68,14 @@ class AiClinic {
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
       address: json['address']?.toString() ?? '',
-      distanceKm: json['distance_km'] is num ? (json['distance_km'] as num).toDouble() : null,
-      rating: json['rating'] is num ? (json['rating'] as num).toDouble() : null,
-      totalReviews: json['total_reviews'] is num ? (json['total_reviews'] as num).toInt() : null,
+      distanceKm: json['distance_km'] is num
+          ? (json['distance_km'] as num).toDouble()
+          : null,
+      rating:
+          json['rating'] is num ? (json['rating'] as num).toDouble() : null,
+      totalReviews: json['total_reviews'] is num
+          ? (json['total_reviews'] as num).toInt()
+          : null,
       services: (json['services'] as List<dynamic>? ?? const [])
           .whereType<Map<String, dynamic>>()
           .map(AiClinicService.fromJson)
@@ -106,10 +113,122 @@ class AiClinicService {
     return AiClinicService(
       name: json['name']?.toString() ?? '',
       category: json['category']?.toString(),
-      basePrice: json['base_price'] is num ? (json['base_price'] as num).toDouble() : null,
+      basePrice: json['base_price'] is num
+          ? (json['base_price'] as num).toDouble()
+          : null,
       description: json['description']?.toString(),
       isVaccination: json['is_vaccination'] == true,
     );
+  }
+}
+
+class AiChatSession {
+  final String sessionId;
+  final String? title;
+  final String contextType;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+  final List<AiChatMessage> messages;
+
+  const AiChatSession({
+    required this.sessionId,
+    this.title,
+    required this.contextType,
+    this.createdAt,
+    this.updatedAt,
+    this.messages = const [],
+  });
+
+  factory AiChatSession.fromJson(Map<String, dynamic> json) {
+    return AiChatSession(
+      sessionId: json['session_id']?.toString() ?? '',
+      title: json['title']?.toString(),
+      contextType: json['context_type']?.toString() ?? 'BUSINESS_CHAT',
+      createdAt: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'].toString())
+          : null,
+      updatedAt: json['updated_at'] != null
+          ? DateTime.tryParse(json['updated_at'].toString())
+          : null,
+      messages: (json['messages'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(AiChatMessage.fromJson)
+          .toList(),
+    );
+  }
+}
+
+enum AiChatSocketEventType {
+  connected,
+  history,
+  ack,
+  thinking,
+  toolCall,
+  toolResult,
+  stream,
+  complete,
+  error,
+  clinicSuggestion,
+  info,
+  suggestedPrompts,
+  petCards,
+  quickReplies,
+  clinicCarousel,
+  serviceChips,
+  dateChips,
+  slotGrid,
+  bookingSummary,
+  bookingCreated,
+  uiSchema,
+  unknown;
+
+  static AiChatSocketEventType fromString(String? value) {
+    switch (value) {
+      case 'connected':
+        return AiChatSocketEventType.connected;
+      case 'history':
+        return AiChatSocketEventType.history;
+      case 'ack':
+        return AiChatSocketEventType.ack;
+      case 'thinking':
+        return AiChatSocketEventType.thinking;
+      case 'tool_call':
+        return AiChatSocketEventType.toolCall;
+      case 'tool_result':
+        return AiChatSocketEventType.toolResult;
+      case 'stream':
+        return AiChatSocketEventType.stream;
+      case 'complete':
+        return AiChatSocketEventType.complete;
+      case 'error':
+        return AiChatSocketEventType.error;
+      case 'clinic_suggestion':
+        return AiChatSocketEventType.clinicSuggestion;
+      case 'info':
+        return AiChatSocketEventType.info;
+      case 'suggested_prompts':
+        return AiChatSocketEventType.suggestedPrompts;
+      case 'pet_cards':
+        return AiChatSocketEventType.petCards;
+      case 'quick_replies':
+        return AiChatSocketEventType.quickReplies;
+      case 'clinic_carousel':
+        return AiChatSocketEventType.clinicCarousel;
+      case 'service_chips':
+        return AiChatSocketEventType.serviceChips;
+      case 'date_chips':
+        return AiChatSocketEventType.dateChips;
+      case 'slot_grid':
+        return AiChatSocketEventType.slotGrid;
+      case 'booking_summary':
+        return AiChatSocketEventType.bookingSummary;
+      case 'booking_created':
+        return AiChatSocketEventType.bookingCreated;
+      case 'ui_schema':
+        return AiChatSocketEventType.uiSchema;
+      default:
+        return AiChatSocketEventType.unknown;
+    }
   }
 }
 
@@ -133,9 +252,13 @@ class AiClinicSuggestion {
           .whereType<Map<String, dynamic>>()
           .map(AiClinic.fromJson)
           .toList(),
-      totalFound: json['total_found'] is num ? (json['total_found'] as num).toInt() : 0,
-      latitude: location?['lat'] is num ? (location!['lat'] as num).toDouble() : null,
-      longitude: location?['lng'] is num ? (location!['lng'] as num).toDouble() : null,
+      totalFound:
+          json['total_found'] is num ? (json['total_found'] as num).toInt() : 0,
+      latitude:
+          location?['lat'] is num ? (location!['lat'] as num).toDouble() : null,
+      longitude: location?['lng'] is num
+          ? (location!['lng'] as num).toDouble()
+          : null,
     );
   }
 }
@@ -158,7 +281,8 @@ class AiBookingServiceOption {
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
       category: json['category']?.toString(),
-      basePrice: json['base_price'] is num ? (json['base_price'] as num).toDouble() : null,
+      basePrice:
+          json['base_price'] is num ? (json['base_price'] as num).toDouble() : null,
     );
   }
 }
@@ -229,7 +353,8 @@ class AiSlotGridPayload {
           .whereType<Map<String, dynamic>>()
           .map(AiBookingSlotOption.fromJson)
           .toList(),
-      totalSlots: json['total_slots'] is num ? (json['total_slots'] as num).toInt() : 0,
+      totalSlots:
+          json['total_slots'] is num ? (json['total_slots'] as num).toInt() : 0,
       message: json['message']?.toString(),
     );
   }
@@ -322,7 +447,9 @@ class AiBookingCreatedPayload {
   factory AiBookingCreatedPayload.fromJson(Map<String, dynamic> json) {
     final booking = json['booking'] is Map<String, dynamic>
         ? json['booking'] as Map<String, dynamic>
-        : (json['booking'] is Map ? Map<String, dynamic>.from(json['booking'] as Map) : json);
+        : (json['booking'] is Map
+            ? Map<String, dynamic>.from(json['booking'] as Map)
+            : json);
     return AiBookingCreatedPayload(
       bookingId: booking['id']?.toString(),
       bookingCode: booking['booking_code']?.toString(),
@@ -348,111 +475,104 @@ class AiBookingCreatedPayload {
   }
 }
 
-class AiChatSession {
-  final String sessionId;
-  final String? title;
-  final String contextType;
-  final DateTime? createdAt;
-  final DateTime? updatedAt;
-  final List<AiChatMessage> messages;
+class UiAction {
+  final String type;
+  final String label;
+  final Map<String, dynamic>? payload;
 
-  const AiChatSession({
-    required this.sessionId,
-    this.title,
-    required this.contextType,
-    this.createdAt,
-    this.updatedAt,
-    this.messages = const [],
+  UiAction({
+    required this.type,
+    required this.label,
+    this.payload,
   });
 
-  factory AiChatSession.fromJson(Map<String, dynamic> json) {
-    return AiChatSession(
-      sessionId: json['session_id']?.toString() ?? '',
-      title: json['title']?.toString(),
-      contextType: json['context_type']?.toString() ?? 'BUSINESS_CHAT',
-      createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'].toString())
+  factory UiAction.fromJson(Map<String, dynamic> json) {
+    return UiAction(
+      type: json['type']?.toString() ?? '',
+      label: json['label']?.toString() ?? '',
+      payload: json['payload'] is Map
+          ? Map<String, dynamic>.from(json['payload'] as Map)
           : null,
-      updatedAt: json['updated_at'] != null
-          ? DateTime.tryParse(json['updated_at'].toString())
-          : null,
-      messages: (json['messages'] as List<dynamic>? ?? const [])
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'type': type,
+        'label': label,
+        if (payload != null) 'payload': payload,
+      };
+}
+
+class UiComponentV1 {
+  final String type;
+  final String id;
+  final Map<String, dynamic> data;
+  final List<UiAction>? actions;
+
+  UiComponentV1({
+    required this.type,
+    required this.id,
+    required this.data,
+    this.actions,
+  });
+
+  factory UiComponentV1.fromJson(Map<String, dynamic> json) {
+    return UiComponentV1(
+      type: json['type']?.toString() ?? 'text',
+      id: json['id']?.toString() ?? UniqueKey().toString(),
+      data: json['data'] is Map
+          ? Map<String, dynamic>.from(json['data'] as Map)
+          : <String, dynamic>{},
+      actions: (json['actions'] as List<dynamic>? ?? const [])
           .whereType<Map<String, dynamic>>()
-          .map(AiChatMessage.fromJson)
+          .map(UiAction.fromJson)
           .toList(),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'type': type,
+        'id': id,
+        'data': data,
+        if (actions != null)
+          'actions': actions!.map((action) => action.toJson()).toList(),
+      };
 }
 
-enum AiChatSocketEventType {
-  connected,
-  history,
-  ack,
-  thinking,
-  toolCall,
-  toolResult,
-  stream,
-  complete,
-  error,
-  clinicSuggestion,
-  info,
-  suggestedPrompts,
-  petCards,
-  quickReplies,
-  clinicCarousel,
-  serviceChips,
-  dateChips,
-  slotGrid,
-  bookingSummary,
-  bookingCreated,
-  unknown;
+class UiSchemaV1 {
+  final String version;
+  final String layout;
+  final List<UiComponentV1> components;
+  final Map<String, dynamic>? metadata;
 
-  static AiChatSocketEventType fromString(String? value) {
-    switch (value) {
-      case 'connected':
-        return AiChatSocketEventType.connected;
-      case 'history':
-        return AiChatSocketEventType.history;
-      case 'ack':
-        return AiChatSocketEventType.ack;
-      case 'thinking':
-        return AiChatSocketEventType.thinking;
-      case 'tool_call':
-        return AiChatSocketEventType.toolCall;
-      case 'tool_result':
-        return AiChatSocketEventType.toolResult;
-      case 'stream':
-        return AiChatSocketEventType.stream;
-      case 'complete':
-        return AiChatSocketEventType.complete;
-      case 'error':
-        return AiChatSocketEventType.error;
-      case 'clinic_suggestion':
-        return AiChatSocketEventType.clinicSuggestion;
-      case 'info':
-        return AiChatSocketEventType.info;
-      case 'suggested_prompts':
-        return AiChatSocketEventType.suggestedPrompts;
-      case 'pet_cards':
-        return AiChatSocketEventType.petCards;
-      case 'quick_replies':
-        return AiChatSocketEventType.quickReplies;
-      case 'clinic_carousel':
-        return AiChatSocketEventType.clinicCarousel;
-      case 'service_chips':
-        return AiChatSocketEventType.serviceChips;
-      case 'date_chips':
-        return AiChatSocketEventType.dateChips;
-      case 'slot_grid':
-        return AiChatSocketEventType.slotGrid;
-      case 'booking_summary':
-        return AiChatSocketEventType.bookingSummary;
-      case 'booking_created':
-        return AiChatSocketEventType.bookingCreated;
-      default:
-        return AiChatSocketEventType.unknown;
-    }
+  const UiSchemaV1({
+    required this.version,
+    required this.layout,
+    required this.components,
+    this.metadata,
+  });
+
+  factory UiSchemaV1.fromJson(Map<String, dynamic> json) {
+    return UiSchemaV1(
+      version: json['version']?.toString() ?? '1.0',
+      layout: json['layout']?.toString() ?? 'list',
+      components: (json['components'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(UiComponentV1.fromJson)
+          .toList(),
+      metadata: json['metadata'] is Map
+          ? Map<String, dynamic>.from(json['metadata'] as Map)
+          : null,
+    );
   }
+
+  Map<String, dynamic> toJson() => {
+        'version': version,
+        'layout': layout,
+        'components':
+            components.map((component) => component.toJson()).toList(),
+        if (metadata != null) 'metadata': metadata,
+      };
 }
 
 class AiChatSocketEvent {
@@ -461,6 +581,8 @@ class AiChatSocketEvent {
   final String? content;
   final String? fullResponse;
   final String? error;
+  final String? stage;
+  final UiSchemaV1? uiSchema;
   final List<AiChatMessage> messages;
   final List<dynamic>? reactTrace;
   final String? toolName;
@@ -481,6 +603,8 @@ class AiChatSocketEvent {
     this.content,
     this.fullResponse,
     this.error,
+    this.stage,
+    this.uiSchema,
     this.messages = const [],
     this.reactTrace,
     this.toolName,
@@ -497,20 +621,26 @@ class AiChatSocketEvent {
   });
 
   factory AiChatSocketEvent.fromJson(Map<String, dynamic> json) {
+    final type = AiChatSocketEventType.fromString(json['type']?.toString());
+    final uiSchema = json['ui_schema'] is Map<String, dynamic>
+        ? UiSchemaV1.fromJson(json['ui_schema'] as Map<String, dynamic>)
+        : (json['ui_schema'] is Map
+            ? UiSchemaV1.fromJson(
+                Map<String, dynamic>.from(json['ui_schema'] as Map),
+              )
+              : null);
     AiClinicSuggestion? clinicSuggestion;
     if (json['clinics'] != null || json['total_found'] != null) {
       clinicSuggestion = AiClinicSuggestion.fromJson(json);
     }
-    final type = AiChatSocketEventType.fromString(json['type']?.toString());
     final serviceOptions = type == AiChatSocketEventType.serviceChips
         ? (json['services'] as List<dynamic>? ?? const [])
             .whereType<Map<String, dynamic>>()
             .map(AiBookingServiceOption.fromJson)
             .toList()
         : const <AiBookingServiceOption>[];
-    final slotGrid = type == AiChatSocketEventType.slotGrid
-        ? AiSlotGridPayload.fromJson(json)
-        : null;
+    final slotGrid =
+        type == AiChatSocketEventType.slotGrid ? AiSlotGridPayload.fromJson(json) : null;
     final bookingSummary =
         type == AiChatSocketEventType.bookingSummary && json['summary'] is Map
             ? AiBookingSummaryPayload.fromJson(
@@ -527,8 +657,11 @@ class AiChatSocketEvent {
       content: json['content']?.toString(),
       fullResponse: json['full_response']?.toString(),
       error: json['error']?.toString(),
+      stage: json['stage']?.toString(),
+      uiSchema: uiSchema,
       toolName: json['tool_name']?.toString(),
-      stepIndex: json['step_index'] is num ? (json['step_index'] as num).toInt() : null,
+      stepIndex:
+          json['step_index'] is num ? (json['step_index'] as num).toInt() : null,
       reactStep: json['react_step'] is Map
           ? Map<String, dynamic>.from(json['react_step'] as Map)
           : null,
@@ -550,5 +683,3 @@ class AiChatSocketEvent {
     );
   }
 }
-
-

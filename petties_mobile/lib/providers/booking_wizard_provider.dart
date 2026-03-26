@@ -292,6 +292,50 @@ class BookingWizardProvider extends ChangeNotifier {
     loadServices();
   }
 
+  /// Hydrate booking state from AI chat and jump directly to confirmation flow.
+  void hydrateFromAiChat({
+    required Clinic clinic,
+    required Pet pet,
+    required List<ClinicServiceModel> availableServices,
+    required List<ClinicServiceModel> selectedServices,
+    required BookingType bookingType,
+    String? userAddress,
+    double? userLatitude,
+    double? userLongitude,
+    String? notes,
+    DateTime? bookingDate,
+    String? selectedTime,
+  }) {
+    _clinic = clinic;
+    _userAddress = userAddress;
+    _userLatitude = userLatitude;
+    _userLongitude = userLongitude;
+    _selectedPets
+      ..clear()
+      ..add(pet);
+    _petServices
+      ..clear()
+      ..[pet.id] = List<ClinicServiceModel>.from(selectedServices);
+    _availableServices = List<ClinicServiceModel>.from(availableServices);
+    _currentPetIdForServiceSelection = pet.id;
+    _bookingType = bookingType;
+    _notes = notes ?? '';
+    _selectedDate = bookingDate;
+    _selectedTime = selectedTime;
+    _selectedTimeSlots =
+        selectedTime != null && selectedTime.trim().isNotEmpty
+            ? <String>[selectedTime.trim()]
+            : <String>[];
+    _availableSlots = [];
+    _expectedPickupTime = null;
+    _createdBookingId = null;
+    _error = null;
+    _bookingError = null;
+    _selectedVoucherId = null;
+    _voucherDiscount = 0;
+    notifyListeners();
+  }
+
   /// Update user location (for home visit booking)
   void updateUserLocation({
     required String address,

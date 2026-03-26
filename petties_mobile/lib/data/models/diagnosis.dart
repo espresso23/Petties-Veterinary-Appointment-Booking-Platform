@@ -10,6 +10,11 @@ enum DiagnosisSex {
   unknown,
 }
 
+enum DiagnosisImageAnalysisMode {
+  full,
+  describeOnly,
+}
+
 class StaffDiagnosisRequest {
   final String? requestId;
   final String? petId;
@@ -24,6 +29,7 @@ class StaffDiagnosisRequest {
   final String? bodyPart;
   final List<String>? symptoms;
   final List<String>? imageUrls;
+  final DiagnosisImageAnalysisMode? imageAnalysisMode;
   final SoapDraft? soapDraft;
 
   StaffDiagnosisRequest({
@@ -40,6 +46,7 @@ class StaffDiagnosisRequest {
     this.bodyPart,
     this.symptoms,
     this.imageUrls,
+    this.imageAnalysisMode,
     this.soapDraft,
   });
 
@@ -58,6 +65,11 @@ class StaffDiagnosisRequest {
       if (bodyPart != null) 'body_part': bodyPart,
       if (symptoms != null) 'symptoms': symptoms,
       if (imageUrls != null) 'image_urls': imageUrls,
+      if (imageAnalysisMode != null)
+        'image_analysis_mode':
+            imageAnalysisMode == DiagnosisImageAnalysisMode.describeOnly
+                ? 'describe_only'
+                : 'full',
       if (soapDraft != null) 'soap_draft': soapDraft!.toJson(),
     };
   }
