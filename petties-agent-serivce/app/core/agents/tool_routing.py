@@ -32,6 +32,7 @@ BOOKING_TOOL_PARAM_ALLOWLIST: Dict[str, set[str]] = {
     "get_user_pets": {"user_id", "pet_hint"},
     "get_clinic_services": {
         "clinic_id",
+        "clinic_hint",
         "pet_species",
         "is_home_visit",
         "service_hint",
@@ -55,6 +56,7 @@ BOOKING_TOOL_PARAM_ALLOWLIST: Dict[str, set[str]] = {
     },
     "check_available_slots": {
         "clinic_id",
+        "clinic_hint",
         "date",
         "date_expression",
         "service_ids",
@@ -70,6 +72,7 @@ BOOKING_TOOL_PARAM_ALLOWLIST: Dict[str, set[str]] = {
     "create_booking_for_user": {
         "pet_id",
         "clinic_id",
+        "clinic_hint",
         "booking_date",
         "start_time",
         "service_ids",
@@ -282,6 +285,23 @@ def _normalize_booking_tool_params(
         elif bool_value is not None:
             params["is_home_visit"] = bool_value
 
+    if tool_name in {
+        "get_clinic_services",
+        "check_available_slots",
+        "create_booking_for_user",
+    }:
+        inherited_identity = _extract_last_booking_identity(react_steps)
+        clinic_id = str(params.get("clinic_id") or "").strip()
+        clinic_hint = str(params.get("clinic_hint") or "").strip()
+        if not clinic_id and inherited_identity.get("clinic_id"):
+            params["clinic_id"] = inherited_identity["clinic_id"]
+        elif not clinic_id and clinic_hint:
+            # Booking tools can resolve a clinic reference from clinic_id,
+            # so preserve the hint by remapping it instead of dropping it.
+            params["clinic_id"] = clinic_hint
+
+        params.pop("clinic_hint", None)
+
     if tool_name in {"check_available_slots", "create_booking_for_user"}:
         params["service_ids"] = _normalize_service_ids(params.get("service_ids"))
 
@@ -312,7 +332,6 @@ def _normalize_booking_tool_params(
             params["time_preference"] = resolved_datetime["time_preference"]
 
     if tool_name == "create_booking_for_user":
-        inherited_identity = _extract_last_booking_identity(react_steps)
         if not str(params.get("clinic_id") or "").strip() and inherited_identity.get(
             "clinic_id"
         ):

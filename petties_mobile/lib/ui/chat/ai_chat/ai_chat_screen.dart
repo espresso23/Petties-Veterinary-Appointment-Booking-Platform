@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:web_socket_channel/io.dart';
@@ -2466,7 +2467,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
                               _requestBookingDraftChanges(bookingDraft),
                         ),
                       ],
-                      if (!isUser && trace.isNotEmpty) ...[
+                      if (!isUser && kDebugMode && trace.isNotEmpty) ...[
                         const SizedBox(height: 10),
                         AiChatTracePanel(trace: trace),
                       ],

@@ -5,7 +5,6 @@ import { useNotificationStore } from '../store/notificationStore'
 import { useBookingStore } from '../store/bookingStore'
 import { Sidebar } from '../components/Sidebar/Sidebar'
 import type { NavGroup } from '../components/Sidebar/Sidebar'
-import { ChatSidebar } from '../components/chat/ChatSidebar'
 import { useSidebar } from '../hooks/useSidebar'
 import { useSseNotification } from '../hooks/useSseNotification'
 import { useSyncProfile } from '../hooks/useSyncProfile'
@@ -123,13 +122,6 @@ export const StaffLayout = () => {
                     <Outlet />
                 </div>
             </main>
-
-            {/* AI Chat Sidebar - Toggleable slide-in panel */}
-            <ChatSidebar
-                title="Trợ lý AI"
-                placeholder="Hỏi tôi về thú cưng, dịch vụ, lịch hẹn..."
-                isVIP={isVIP}
-            />
         </div>
     )
 }

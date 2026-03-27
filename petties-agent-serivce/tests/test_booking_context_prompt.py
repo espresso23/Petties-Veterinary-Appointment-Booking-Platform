@@ -197,3 +197,32 @@ class TestBookingContextPrompt:
         assert result["should_end"] is False
         assert result["tool_name"] == "search_clinics_nearby"
         assert result["tool_params"]["clinic_hint"] == "PetCare"
+
+    def test_booking_validator_maps_clinic_hint_for_clinic_services(self):
+        parsed = {
+            "thought": "Tai dich vu cua phong kham Pet Care.",
+            "tool_name": "get_clinic_services",
+            "tool_params": {
+                "clinic_hint": "Pet Care",
+                "service_hint": "kham tong quat",
+            },
+            "should_end": False,
+        }
+
+        result = apply_booking_tool_routing(
+            parsed,
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Dat lich cho Hadine o phong kham Pet Care, dich vu kham tong quat",
+                }
+            ],
+            react_steps=[],
+            enabled_tools_lower={"get_clinic_services"},
+            build_context_fn=lambda _: "",
+        )
+
+        assert result["should_end"] is False
+        assert result["tool_name"] == "get_clinic_services"
+        assert result["tool_params"]["clinic_id"] == "Pet Care"
+        assert "clinic_hint" not in result["tool_params"]

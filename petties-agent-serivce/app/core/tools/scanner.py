@@ -36,6 +36,9 @@ SYSTEM_MANAGED_TOOLS = {
     "check_vaccination_status",
     "check_available_slots",
     "create_booking_for_user",
+    "get_staff_patients",
+    "get_patient_summary",
+    "get_emr_history",
 }
 
 
