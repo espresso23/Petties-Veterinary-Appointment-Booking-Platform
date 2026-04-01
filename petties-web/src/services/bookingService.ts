@@ -2,7 +2,7 @@
  * Booking API Service
  */
 import axios from './api/client';
-import type { Booking, CreateBookingRequest, ConfirmBookingRequest, AvailableStaffResponse, StaffAvailabilityCheckResponse, ConfirmBookingWithOptionsRequest } from '../types/booking';
+import type { Booking, CreateBookingRequest, ConfirmBookingRequest, AvailableStaffResponse, StaffAvailabilityCheckResponse, ConfirmBookingWithOptionsRequest, StaffHomeSummaryResponse } from '../types/booking';
 import type { SosAlertMessage } from './websocket/sosWebSocket';
 import type { BookingStatus } from '../types/booking';
 import type { ClinicServiceResponse } from '../types/service';
@@ -68,6 +68,14 @@ export const getBookingsByStaff = async (
 
     const url = `${BOOKING_API}/staff/${staffId}?${params.toString()}`;
     const response = await axios.get(url);
+    return response.data;
+};
+
+/**
+ * Staff dashboard home summary (today counts + upcoming bookings)
+ */
+export const getStaffHomeSummary = async (): Promise<StaffHomeSummaryResponse> => {
+    const response = await axios.get(`${BOOKING_API}/staff/home-summary`);
     return response.data;
 };
 
@@ -336,6 +344,7 @@ export const getActiveSosAlerts = async (): Promise<SosAlertMessage[]> => {
 // Named export for backwards compatibility and object-style imports
 export const bookingService = {
     getBookingsByClinic,
+    getStaffHomeSummary,
     getBookingsByStaff,
     getBookingById,
     getBookingByCode,

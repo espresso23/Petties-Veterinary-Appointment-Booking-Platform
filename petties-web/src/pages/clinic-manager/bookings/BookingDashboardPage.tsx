@@ -22,10 +22,10 @@ import { StaffAvailabilityWarningModal, type ConfirmOption } from '../../../comp
 import { AddServiceModal } from '../../../components/booking/AddServiceModal';
 import { ReportBookingModal } from '../../../components/booking/ReportBookingModal';
 import { ConfirmModal } from '../../../components/ConfirmModal';
-import { getMyReports } from '../../../services/reportService';
+import { getMyReports, withdrawReport } from '../../../services/reportService';
 import type { ReportResponse } from '../../../types/report';
 import { useToast } from '../../../components/Toast';
-import { TrashIcon, TruckIcon, ScaleIcon, FlagIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, TruckIcon, ScaleIcon, FlagIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useSseNotification } from '../../../hooks/useSseNotification';
 import '../../../styles/brutalist.css';
 
@@ -54,6 +54,36 @@ const getAllServices = (booking: Booking): BookingServiceItem[] => {
     }
     return booking.services || [];
 };
+
+function getReportStatusLabel(status: ReportResponse['status']): string {
+    switch (status) {
+        case 'PENDING':
+            return 'Chờ xử lý';
+        case 'APPROVED':
+            return 'Đã duyệt';
+        case 'REJECTED':
+            return 'Từ chối';
+        case 'WITHDRAWN':
+            return 'Đã rút';
+        default:
+            return status;
+    }
+}
+
+function getReportStatusBadgeClass(status: ReportResponse['status']): string {
+    switch (status) {
+        case 'PENDING':
+            return 'bg-yellow-400 text-stone-900';
+        case 'APPROVED':
+            return 'bg-mint-400 text-stone-900';
+        case 'REJECTED':
+            return 'bg-red-500 text-white';
+        case 'WITHDRAWN':
+            return 'bg-stone-300 text-stone-900';
+        default:
+            return 'bg-stone-200 text-stone-900';
+    }
+}
 
 /**
  * Booking Dashboard Page - Manager view
@@ -84,7 +114,22 @@ export const BookingDashboardPage = () => {
 
     // Report state
     const [reportModalOpen, setReportModalOpen] = useState(false);
-    const [bookingToReport, setBookingToReport] = useState<{ id: string; code: string } | null>(null);
+    const [bookingToReport, setBookingToReport] = useState<{
+        id: string;
+        code: string;
+        clinicName: string;
+        bookingDate: string;
+        bookingTime: string;
+    } | null>(null);
+    /** Metadata lịch hẹn khi sửa báo cáo (lấy từ danh sách hoặc API) */
+    const [reportEditBookingMeta, setReportEditBookingMeta] = useState<{
+        clinicName: string;
+        bookingDate: string;
+        bookingTime: string;
+    } | null>(null);
+    const [editingReport, setEditingReport] = useState<ReportResponse | null>(null);
+    const [reportToWithdraw, setReportToWithdraw] = useState<ReportResponse | null>(null);
+    const [withdrawingReportId, setWithdrawingReportId] = useState<string | null>(null);
 
     // Main view: Lịch hẹn | Lịch sử báo cáo
     const [viewMode, setViewMode] = useState<'bookings' | 'reports'>('bookings');
@@ -348,18 +393,104 @@ export const BookingDashboardPage = () => {
             setSelectedBooking(null);
             setCancelModalOpen(false);
             setBookingIdToCancel(null);
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Failed to cancel booking:', error);
-            const errorMessage = error.response?.data?.message || error.message || 'Không thể hủy lịch hẹn. Vui lòng thử lại.';
+            const errorMessage =
+                isAxiosError(error) && error.response?.data && typeof error.response.data === 'object' && 'message' in error.response.data
+                    ? String((error.response.data as { message?: unknown }).message)
+                    : error instanceof Error
+                      ? error.message
+                      : 'Không thể hủy lịch hẹn. Vui lòng thử lại.';
             showToast('error', errorMessage);
         } finally {
             setCancelling(null);
         }
     };
 
-    const handleOpenReportModal = (bookingId: string, bookingCode: string) => {
-        setBookingToReport({ id: bookingId, code: bookingCode });
+    const handleOpenReportModal = (booking: Booking) => {
+        setEditingReport(null);
+        setBookingToReport({
+            id: booking.bookingId,
+            code: booking.bookingCode,
+            clinicName: booking.clinicName,
+            bookingDate: booking.bookingDate,
+            bookingTime: booking.bookingTime,
+        });
         setReportModalOpen(true);
+    };
+
+    const handleOpenEditReportModal = (report: ReportResponse) => {
+        setBookingToReport(null);
+        setEditingReport(report);
+        setReportModalOpen(true);
+    };
+
+    // Khi sửa báo cáo: lấy tên phòng khám + ngày giờ từ danh sách lịch hẹn hoặc gọi API
+    useEffect(() => {
+        if (!reportModalOpen || !editingReport) {
+            setReportEditBookingMeta(null);
+            return;
+        }
+        const local = bookings.find((b) => b.bookingId === editingReport.bookingId);
+        if (local) {
+            setReportEditBookingMeta({
+                clinicName: local.clinicName,
+                bookingDate: local.bookingDate,
+                bookingTime: local.bookingTime,
+            });
+            return;
+        }
+        setReportEditBookingMeta({
+            clinicName: user?.workingClinicName ?? '',
+            bookingDate: '',
+            bookingTime: '',
+        });
+        let cancelled = false;
+        getBookingById(editingReport.bookingId)
+            .then((bk) => {
+                if (!cancelled) {
+                    setReportEditBookingMeta({
+                        clinicName: bk.clinicName,
+                        bookingDate: bk.bookingDate,
+                        bookingTime: bk.bookingTime,
+                    });
+                }
+            })
+            .catch(() => {
+                /* giữ giá trị tối thiểu từ workingClinicName */
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [reportModalOpen, editingReport, bookings, user?.workingClinicName]);
+
+    const handleCloseReportModal = () => {
+        setReportModalOpen(false);
+        setBookingToReport(null);
+        setEditingReport(null);
+    };
+
+    const confirmWithdrawReport = async () => {
+        if (!reportToWithdraw) return;
+        setWithdrawingReportId(reportToWithdraw.id);
+        try {
+            await withdrawReport(reportToWithdraw.id);
+            showToast('success', 'Đã rút báo cáo thành công.');
+            if (reportDetail?.id === reportToWithdraw.id) {
+                setReportDetail(null);
+            }
+            await fetchReports();
+        } catch (error) {
+            console.error('Failed to withdraw report:', error);
+            const msg =
+                isAxiosError(error) && error.response?.data && typeof error.response.data === 'object' && 'message' in error.response.data
+                    ? String((error.response.data as { message?: unknown }).message)
+                    : 'Không thể rút báo cáo. Vui lòng thử lại.';
+            showToast('error', msg);
+        } finally {
+            setWithdrawingReportId(null);
+            setReportToWithdraw(null);
+        }
     };
 
     // Format date
@@ -702,24 +833,46 @@ export const BookingDashboardPage = () => {
                                         <div className="text-sm line-clamp-2" title={report.reason}>{report.reason}</div>
                                     </td>
                                     <td className="p-4 text-center">
-                                        <span className={`px-3 py-1 text-xs font-bold uppercase border-2 border-stone-900 ${
-                                            report.status === 'PENDING' ? 'bg-yellow-400 text-stone-900' :
-                                            report.status === 'APPROVED' ? 'bg-mint-400 text-stone-900' :
-                                            'bg-red-500 text-white'
-                                        }`}>
-                                            {report.status === 'PENDING' ? 'Chờ xử lý' : report.status === 'APPROVED' ? 'Đã duyệt' : 'Từ chối'}
+                                        <span
+                                            className={`px-3 py-1 text-xs font-bold uppercase border-2 border-stone-900 ${getReportStatusBadgeClass(
+                                                report.status
+                                            )}`}
+                                        >
+                                            {getReportStatusLabel(report.status)}
                                         </span>
                                     </td>
                                     <td className="p-4 text-center text-sm text-stone-600">
                                         {new Date(report.createdAt).toLocaleDateString('vi-VN')}
                                     </td>
                                     <td className="p-4 text-center">
-                                        <button
-                                            onClick={() => setReportDetail(report)}
-                                            className="px-3 py-1 text-xs font-bold uppercase bg-white border-2 border-stone-900 hover:shadow-[2px_2px_0_#1c1917]"
-                                        >
-                                            Chi tiết
-                                        </button>
+                                        <div className="flex flex-wrap gap-2 justify-center">
+                                            <button
+                                                type="button"
+                                                onClick={() => setReportDetail(report)}
+                                                className="px-3 py-1 text-xs font-bold uppercase bg-white border-2 border-stone-900 hover:shadow-[2px_2px_0_#1c1917]"
+                                            >
+                                                Chi tiết
+                                            </button>
+                                            {report.status === 'PENDING' && (
+                                                <>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleOpenEditReportModal(report)}
+                                                        className="px-3 py-1 text-xs font-bold uppercase bg-amber-400 border-2 border-stone-900 hover:shadow-[2px_2px_0_#1c1917]"
+                                                    >
+                                                        Sửa
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setReportToWithdraw(report)}
+                                                        disabled={withdrawingReportId === report.id}
+                                                        className="px-3 py-1 text-xs font-bold uppercase bg-red-500 text-white border-2 border-stone-900 hover:shadow-[2px_2px_0_#1c1917] disabled:opacity-50"
+                                                    >
+                                                        {withdrawingReportId === report.id ? '...' : 'Hủy báo cáo'}
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             ))
@@ -735,9 +888,26 @@ export const BookingDashboardPage = () => {
                     <div className="bg-white border-4 border-stone-900 shadow-[8px_8px_0_#1c1917] max-w-2xl w-full flex flex-col animate-in fade-in zoom-in duration-200">
                         <div className="bg-amber-400 border-b-4 border-stone-900 p-4 flex justify-between items-center">
                             <h2 className="text-xl font-bold uppercase">Chi tiết báo cáo</h2>
-                            <button onClick={() => setReportDetail(null)} className="w-8 h-8 flex items-center justify-center bg-white border-2 border-stone-900 hover:bg-stone-100">✕</button>
+                            <button
+                                type="button"
+                                onClick={() => setReportDetail(null)}
+                                className="w-8 h-8 flex items-center justify-center bg-white border-2 border-stone-900 hover:bg-stone-100"
+                                aria-label="Đóng"
+                            >
+                                <XMarkIcon className="w-5 h-5 text-stone-900" />
+                            </button>
                         </div>
                         <div className="p-6 space-y-4 overflow-y-auto max-h-[70vh]">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[10px] font-bold text-stone-500 uppercase">Trạng thái:</span>
+                                <span
+                                    className={`px-3 py-1 text-xs font-bold uppercase border-2 border-stone-900 ${getReportStatusBadgeClass(
+                                        reportDetail.status
+                                    )}`}
+                                >
+                                    {getReportStatusLabel(reportDetail.status)}
+                                </span>
+                            </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="border-2 border-stone-900 p-3 bg-stone-50">
                                     <p className="text-[10px] font-bold text-stone-500 uppercase">Mã booking</p>
@@ -752,7 +922,25 @@ export const BookingDashboardPage = () => {
                                 <p className="text-[10px] font-bold text-stone-500 uppercase mb-1">Lý do báo cáo</p>
                                 <p className="text-sm font-medium">{reportDetail.reason}</p>
                             </div>
-                            {reportDetail.status !== 'PENDING' && reportDetail.adminNote && (
+                            {reportDetail.attachmentUrls && reportDetail.attachmentUrls.length > 0 && (
+                                <div className="border-2 border-stone-900 p-3 bg-stone-50">
+                                    <p className="text-[10px] font-bold text-stone-500 uppercase mb-2">Ảnh đính kèm</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {reportDetail.attachmentUrls.map((url) => (
+                                            <a
+                                                key={url}
+                                                href={url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="block w-24 h-24 border-2 border-stone-900 overflow-hidden bg-white shrink-0 hover:opacity-90"
+                                            >
+                                                <img src={url} alt="" className="w-full h-full object-cover" />
+                                            </a>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {reportDetail.status !== 'PENDING' && reportDetail.status !== 'WITHDRAWN' && reportDetail.adminNote && (
                                 <div className={`border-2 border-stone-900 p-3 ${reportDetail.status === 'APPROVED' ? 'bg-mint-50' : 'bg-red-50'}`}>
                                     <p className="text-[10px] font-bold text-stone-500 uppercase mb-1">Quyết định của Admin</p>
                                     <p className="text-sm font-medium">{reportDetail.adminNote}</p>
@@ -780,26 +968,51 @@ export const BookingDashboardPage = () => {
                     onCancel={handleCancelBooking}
                     onBookingUpdated={fetchBookings}
                     onAddService={handleOpenAddServiceModal}
-                    onReport={() => handleOpenReportModal(selectedBooking.bookingId, selectedBooking.bookingCode)}
+                    onReport={() => handleOpenReportModal(selectedBooking)}
                 />
             )}
 
-            {/* Report Modal */}
-            {bookingToReport && (
+            {/* Report Modal (tạo mới hoặc sửa khi PENDING) */}
+            {(bookingToReport || editingReport) && (
                 <ReportBookingModal
                     isOpen={reportModalOpen}
-                    onClose={() => {
-                        setReportModalOpen(false);
-                        setBookingToReport(null);
-                    }}
+                    onClose={handleCloseReportModal}
                     onSuccess={() => {
-                        if (viewMode === 'reports') fetchReports();
+                        if (viewMode === 'reports') void fetchReports();
+                        if (editingReport && reportDetail?.id === editingReport.id) {
+                            setReportDetail(null);
+                        }
                     }}
-                    bookingId={bookingToReport.id}
-                    bookingCode={bookingToReport.code}
+                    mode={editingReport ? 'edit' : 'create'}
+                    reportId={editingReport?.id}
+                    initialReport={editingReport ?? undefined}
+                    bookingId={editingReport?.bookingId ?? bookingToReport!.id}
+                    bookingCode={editingReport?.bookingCode ?? bookingToReport!.code}
+                    clinicName={
+                        bookingToReport?.clinicName ??
+                        reportEditBookingMeta?.clinicName ??
+                        user?.workingClinicName ??
+                        ''
+                    }
+                    bookingDate={bookingToReport?.bookingDate ?? reportEditBookingMeta?.bookingDate ?? ''}
+                    bookingTime={bookingToReport?.bookingTime ?? reportEditBookingMeta?.bookingTime ?? ''}
                     reporterContext="CLINIC_MANAGER"
                 />
             )}
+
+            <ConfirmModal
+                isOpen={!!reportToWithdraw}
+                title="Hủy báo cáo"
+                message="Bạn có chắc muốn rút báo cáo này? Hành động này không thể hoàn tác."
+                confirmLabel="Rút báo cáo"
+                cancelLabel="Quay lại"
+                isDanger
+                onConfirm={confirmWithdrawReport}
+                onCancel={() => {
+                    if (withdrawingReportId) return;
+                    setReportToWithdraw(null);
+                }}
+            />
 
             {/* Staff Availability Warning Modal */}
             {
@@ -886,9 +1099,12 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
             setConfirmCheckoutModal(null);
             if (onBookingUpdated) onBookingUpdated();
             onClose();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Failed to checkout:', error);
-            const errorMessage = error.response?.data?.message || 'Không thể chốt đơn. Vui lòng thử lại.';
+            const errorMessage =
+                isAxiosError(error) && error.response?.data && typeof error.response.data === 'object' && 'message' in error.response.data
+                    ? String((error.response.data as { message?: unknown }).message)
+                    : 'Không thể chốt đơn. Vui lòng thử lại.';
             showToast('error', errorMessage);
         }
     };
@@ -901,9 +1117,12 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
             setConfirmCheckoutCashModal(null);
             if (onBookingUpdated) onBookingUpdated();
             onClose();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Failed to checkout cash:', error);
-            const errorMessage = error.response?.data?.message || 'Không thể thu tiền. Vui lòng thử lại.';
+            const errorMessage =
+                isAxiosError(error) && error.response?.data && typeof error.response.data === 'object' && 'message' in error.response.data
+                    ? String((error.response.data as { message?: unknown }).message)
+                    : 'Không thể thu tiền. Vui lòng thử lại.';
             showToast('error', errorMessage);
         }
     };

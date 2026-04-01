@@ -7,8 +7,21 @@ import { getStruckPetOwners, type UserProfile } from '../../services/api/userSer
 import type { ReportResponse, ReportStatus } from '../../types/report';
 import type { ClinicResponse } from '../../types/clinic';
 import { isAxiosError } from 'axios';
-import { Cog6ToothIcon } from '@heroicons/react/24/outline';
+import { Cog6ToothIcon, PhotoIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import '../../styles/brutalist.css';
+
+const REPORT_ROLE_LABELS: Record<string, string> = {
+    PET_OWNER: 'Chủ thú cưng',
+    CLINIC_OWNER: 'Chủ phòng khám',
+    CLINIC_MANAGER: 'Quản lý phòng khám',
+    STAFF: 'Nhân viên',
+    ADMIN: 'Quản trị viên',
+};
+
+function formatReportRole(role: string | undefined): string {
+    if (!role) return '—';
+    return REPORT_ROLE_LABELS[role] ?? role;
+}
 
 type TabType = 'reports' | 'struck';
 type StruckSubTab = 'clinics' | 'petOwners';
@@ -149,16 +162,21 @@ export const ReportsPage = () => {
         strike_window_days: 'Chỉ tính report trong X ngày gần nhất (mặc định: 90)',
     };
 
+    const attachmentList = (r: ReportResponse) =>
+        (r.attachmentUrls ?? []).filter((u) => typeof u === 'string' && u.trim().length > 0);
+
     const getStatusBadge = (status: ReportStatus) => {
         const styles = {
             PENDING: 'bg-yellow-400 text-stone-900',
             APPROVED: 'bg-mint-400 text-stone-900',
-            REJECTED: 'bg-red-500 text-white'
+            REJECTED: 'bg-red-500 text-white',
+            WITHDRAWN: 'bg-stone-300 text-stone-900',
         };
         const labels = {
             PENDING: 'Chờ xử lý',
             APPROVED: 'Đã duyệt',
-            REJECTED: 'Từ chối'
+            REJECTED: 'Từ chối',
+            WITHDRAWN: 'Đã rút',
         };
         return (
             <span className={`px-3 py-1 text-xs font-bold uppercase border-2 border-stone-900 ${styles[status]}`}>
@@ -210,7 +228,7 @@ export const ReportsPage = () => {
             {/* Filters - only for reports tab */}
             {activeTab === 'reports' && (
             <div className="mb-6 flex gap-2">
-                {(['ALL', 'PENDING', 'APPROVED', 'REJECTED'] as const).map((status) => (
+                {(['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'WITHDRAWN'] as const).map((status) => (
                     <button
                         key={status}
                         onClick={() => setFilterStatus(status)}
@@ -219,7 +237,15 @@ export const ReportsPage = () => {
                             : 'bg-white hover:bg-stone-100'
                             }`}
                     >
-                        {status === 'ALL' ? 'Tất cả' : status === 'PENDING' ? 'Chờ xử lý' : status === 'APPROVED' ? 'Đã duyệt' : 'Từ chối'}
+                        {status === 'ALL'
+                            ? 'Tất cả'
+                            : status === 'PENDING'
+                              ? 'Chờ xử lý'
+                              : status === 'APPROVED'
+                                ? 'Đã duyệt'
+                                : status === 'REJECTED'
+                                  ? 'Từ chối'
+                                  : 'Đã rút'}
                     </button>
                 ))}
             </div>
@@ -234,6 +260,7 @@ export const ReportsPage = () => {
                             <th className="p-4">Mã Booking</th>
                             <th className="p-4">Người báo cáo</th>
                             <th className="p-4">Bị báo cáo</th>
+                            <th className="p-4 w-36">Ảnh minh chứng</th>
                             <th className="p-4">Lý do</th>
                             <th className="p-4 text-center">Trạng thái</th>
                             <th className="p-4 text-center">Ngày tạo</th>
@@ -243,27 +270,72 @@ export const ReportsPage = () => {
                     <tbody>
                         {loading ? (
                             <tr>
-                                <td colSpan={7} className="p-8 text-center text-stone-600">Đang tải...</td>
+                                <td colSpan={8} className="p-8 text-center text-stone-600">Đang tải...</td>
                             </tr>
                         ) : reports.length === 0 ? (
                             <tr>
-                                <td colSpan={7} className="p-8 text-center text-stone-600">Không có báo cáo nào</td>
+                                <td colSpan={8} className="p-8 text-center text-stone-600">Không có báo cáo nào</td>
                             </tr>
                         ) : (
                             reports.map((report) => (
                                 <tr key={report.id} className="border-b-2 border-stone-200 hover:bg-amber-50">
                                     <td className="p-4 font-mono font-bold">{report.bookingCode}</td>
                                     <td className="p-4">
-                                        <div className="font-bold">{report.reporterName}</div>
-                                        <div className="text-[10px] text-stone-500 uppercase">{report.reporterRole}</div>
+                                        <div className="font-bold">{report.reporterName || '—'}</div>
+                                        <div className="text-[10px] text-stone-600 font-bold uppercase">
+                                            {formatReportRole(report.reporterRole)}
+                                        </div>
+                                        {report.reporterPhone && (
+                                            <div className="text-xs text-stone-500 mt-0.5">{report.reporterPhone}</div>
+                                        )}
                                     </td>
                                     <td className="p-4">
-                                        <div className="font-bold">
-                                            {report.reportedClinicName || report.reportedUserName}
-                                        </div>
-                                        <div className="text-[10px] text-stone-500 uppercase">
-                                            {report.reportedClinicName ? 'PHÒNG KHÁM' : 'PET OWNER'}
-                                        </div>
+                                        {report.reportedClinicName ? (
+                                            <>
+                                                <div className="font-bold">{report.reportedClinicName}</div>
+                                                <div className="text-[10px] text-stone-600 font-bold uppercase">Phòng khám</div>
+                                                {report.reportedClinicPhone && (
+                                                    <div className="text-xs text-stone-500 mt-0.5">{report.reportedClinicPhone}</div>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="font-bold">{report.reportedUserName || '—'}</div>
+                                                <div className="text-[10px] text-stone-600 font-bold uppercase">
+                                                    {formatReportRole(report.reportedUserRole)}
+                                                </div>
+                                                {report.reportedUserPhone && (
+                                                    <div className="text-xs text-stone-500 mt-0.5">{report.reportedUserPhone}</div>
+                                                )}
+                                            </>
+                                        )}
+                                    </td>
+                                    <td className="p-4 align-top">
+                                        {attachmentList(report).length === 0 ? (
+                                            <span className="text-xs text-stone-400 font-bold uppercase">Không có</span>
+                                        ) : (
+                                            <div className="flex flex-wrap gap-1">
+                                                {attachmentList(report)
+                                                    .slice(0, 3)
+                                                    .map((url) => (
+                                                        <a
+                                                            key={url}
+                                                            href={url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="block w-12 h-12 border-2 border-stone-900 bg-stone-100 overflow-hidden shrink-0 hover:opacity-90"
+                                                            title="Xem ảnh"
+                                                        >
+                                                            <img src={url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                                                        </a>
+                                                    ))}
+                                                {attachmentList(report).length > 3 && (
+                                                    <span className="text-[10px] font-bold self-center px-1">
+                                                        +{attachmentList(report).length - 3}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
                                     </td>
                                     <td className="p-4 max-w-xs">
                                         <div className="text-sm line-clamp-2" title={report.reason}>
@@ -425,24 +497,80 @@ export const ReportsPage = () => {
                     <div className="bg-white border-4 border-stone-900 shadow-[8px_8px_0_#1c1917] max-w-2xl w-full flex flex-col animate-in fade-in zoom-in duration-200">
                         <div className="bg-amber-400 border-b-4 border-stone-900 p-4 flex justify-between items-center">
                             <h2 className="text-xl font-bold uppercase">Chi tiết xử lý báo cáo</h2>
-                            <button onClick={() => setResolvingReport(null)} className="w-8 h-8 flex items-center justify-center bg-white border-2 border-stone-900 hover:bg-stone-100">✕</button>
+                            <button
+                                type="button"
+                                onClick={() => setResolvingReport(null)}
+                                className="w-8 h-8 flex items-center justify-center bg-white border-2 border-stone-900 hover:bg-stone-100"
+                                aria-label="Đóng"
+                            >
+                                <XMarkIcon className="w-5 h-5 text-stone-900" />
+                            </button>
                         </div>
 
                         <div className="p-6 space-y-4 overflow-y-auto max-h-[70vh]">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="border-2 border-stone-900 p-3 bg-stone-50">
-                                    <p className="text-[10px] font-bold text-stone-500 uppercase">Người báo cáo</p>
-                                    <p className="font-bold">{resolvingReport.reporterName} ({resolvingReport.reporterRole})</p>
+                            <div className="text-xs font-bold uppercase text-stone-500">
+                                Mã lịch hẹn:{' '}
+                                <span className="font-mono text-stone-900">{resolvingReport.bookingCode}</span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="border-2 border-stone-900 p-3 bg-stone-50 rounded-xl">
+                                    <p className="text-[10px] font-bold text-stone-500 uppercase mb-1">Người báo cáo</p>
+                                    <p className="font-bold text-stone-900">{resolvingReport.reporterName || '—'}</p>
+                                    <p className="text-xs text-stone-600 mt-0.5">{formatReportRole(resolvingReport.reporterRole)}</p>
+                                    {resolvingReport.reporterPhone && (
+                                        <p className="text-xs text-stone-500 mt-1">Số điện thoại: {resolvingReport.reporterPhone}</p>
+                                    )}
                                 </div>
-                                <div className="border-2 border-stone-900 p-3 bg-stone-50">
-                                    <p className="text-[10px] font-bold text-stone-500 uppercase">Bị báo cáo</p>
-                                    <p className="font-bold">{resolvingReport.reportedClinicName || resolvingReport.reportedUserName}</p>
+                                <div className="border-2 border-stone-900 p-3 bg-stone-50 rounded-xl">
+                                    <p className="text-[10px] font-bold text-stone-500 uppercase mb-1">Bị báo cáo</p>
+                                    {resolvingReport.reportedClinicName ? (
+                                        <>
+                                            <p className="font-bold text-stone-900">{resolvingReport.reportedClinicName}</p>
+                                            <p className="text-xs text-stone-600 mt-0.5">Phòng khám</p>
+                                            {resolvingReport.reportedClinicPhone && (
+                                                <p className="text-xs text-stone-500 mt-1">Số điện thoại: {resolvingReport.reportedClinicPhone}</p>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <>
+                                            <p className="font-bold text-stone-900">{resolvingReport.reportedUserName || '—'}</p>
+                                            <p className="text-xs text-stone-600 mt-0.5">{formatReportRole(resolvingReport.reportedUserRole)}</p>
+                                            {resolvingReport.reportedUserPhone && (
+                                                <p className="text-xs text-stone-500 mt-1">Số điện thoại: {resolvingReport.reportedUserPhone}</p>
+                                            )}
+                                        </>
+                                    )}
                                 </div>
                             </div>
 
-                            <div className="border-2 border-stone-900 p-3 bg-white">
+                            <div className="border-2 border-stone-900 p-3 bg-white rounded-xl">
                                 <p className="text-[10px] font-bold text-stone-500 uppercase mb-1">Lý do báo cáo</p>
-                                <p className="text-sm font-medium">{resolvingReport.reason}</p>
+                                <p className="text-sm font-medium text-stone-800 whitespace-pre-wrap">{resolvingReport.reason}</p>
+                            </div>
+
+                            <div className="border-2 border-stone-900 p-3 bg-stone-50 rounded-xl">
+                                <p className="text-[10px] font-bold text-stone-500 uppercase mb-2 flex items-center gap-2">
+                                    <PhotoIcon className="w-4 h-4" />
+                                    Ảnh minh chứng
+                                </p>
+                                {attachmentList(resolvingReport).length === 0 ? (
+                                    <p className="text-sm text-stone-500">Không có ảnh đính kèm.</p>
+                                ) : (
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                        {attachmentList(resolvingReport).map((url) => (
+                                            <a
+                                                key={url}
+                                                href={url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="block aspect-square border-2 border-stone-900 bg-white overflow-hidden shadow-[2px_2px_0_#1c1917] hover:opacity-95"
+                                            >
+                                                <img src={url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                                            </a>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             {resolvingReport.status !== 'PENDING' && (
@@ -502,7 +630,14 @@ export const ReportsPage = () => {
                     <div className="bg-white border-4 border-stone-900 shadow-[8px_8px_0_#1c1917] max-w-md w-full">
                         <div className="bg-amber-400 border-b-4 border-stone-900 p-4 flex justify-between items-center">
                             <h2 className="text-xl font-bold uppercase">Cấu hình ngưỡng Strike</h2>
-                            <button onClick={() => setShowStrikeConfig(false)} className="w-8 h-8 flex items-center justify-center bg-white border-2 border-stone-900 hover:bg-stone-100">✕</button>
+                            <button
+                                type="button"
+                                onClick={() => setShowStrikeConfig(false)}
+                                className="w-8 h-8 flex items-center justify-center bg-white border-2 border-stone-900 hover:bg-stone-100"
+                                aria-label="Đóng"
+                            >
+                                <XMarkIcon className="w-5 h-5 text-stone-900" />
+                            </button>
                         </div>
                         <div className="p-6 space-y-4">
                             <p className="text-sm text-stone-600">

@@ -4,6 +4,7 @@ import com.petties.petties.model.Report;
 import com.petties.petties.model.enums.ReportStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -15,7 +16,12 @@ import java.util.UUID;
 @Repository
 public interface ReportRepository extends JpaRepository<Report, UUID> {
     
-    // Find reports, optionally filter by status
+    // Admin list: load associations for mapper (reporter, reported, booking)
+    @EntityGraph(attributePaths = {"booking", "reporter", "reportedClinic", "reportedUser"})
+    @Query("SELECT r FROM Report r")
+    Page<Report> findAllPaged(Pageable pageable);
+
+    @EntityGraph(attributePaths = {"booking", "reporter", "reportedClinic", "reportedUser"})
     Page<Report> findByStatus(ReportStatus status, Pageable pageable);
 
     // Get reports created by a specific user

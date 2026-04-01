@@ -2,12 +2,7 @@
  * Report API Service
  */
 import axios from './api/client';
-import type { 
-  ReportRequest, 
-  ResolveReportRequest, 
-  ReportResponse, 
-  ReportStatus 
-} from '../types/report';
+import type { ResolveReportRequest, ReportResponse, ReportStatus } from '../types/report';
 
 // Spring Page response type
 interface PageResponse<T> {
@@ -18,14 +13,24 @@ interface PageResponse<T> {
     number: number;
 }
 
-const REPORT_API = '/v1/reports';
-const ADMIN_REPORT_API = '/v1/admin/reports';
+const REPORT_API = '/reports';
+const ADMIN_REPORT_API = '/admin/reports';
 
 /**
- * Pet Owner, Vet, Clinic Manager, or Clinic Owner create a report
+ * Tạo báo cáo (multipart): BE upload ảnh lên Cloudinary.
  */
-export const createReport = async (request: ReportRequest): Promise<ReportResponse> => {
-    const response = await axios.post(REPORT_API, request);
+export const createReport = async (
+    bookingId: string,
+    reason: string,
+    imageFiles: File[]
+): Promise<ReportResponse> => {
+    const formData = new FormData();
+    formData.append('bookingId', bookingId);
+    formData.append('reason', reason);
+    for (const file of imageFiles) {
+        formData.append('files', file);
+    }
+    const response = await axios.post<ReportResponse>(REPORT_API, formData);
     return response.data;
 };
 
@@ -88,11 +93,39 @@ export const resolveReport = async (
     return response.data;
 };
 
+/**
+ * Cập nhật báo cáo PENDING (multipart): ảnh giữ lại trong `existingAttachmentUrlsJson`, file mới trong `files`.
+ * Dùng POST .../update (PUT + multipart thường bị client/proxy làm mất body).
+ */
+export const updateReport = async (
+    reportId: string,
+    reason: string,
+    newImageFiles: File[],
+    keptAttachmentUrls: string[]
+): Promise<ReportResponse> => {
+    const formData = new FormData();
+    formData.append('reason', reason);
+    formData.append('existingAttachmentUrlsJson', JSON.stringify(keptAttachmentUrls));
+    for (const file of newImageFiles) {
+        formData.append('files', file);
+    }
+    const response = await axios.post<ReportResponse>(`${REPORT_API}/${reportId}/update`, formData);
+    return response.data;
+};
+
+/** Withdraw own pending report (sets status WITHDRAWN) */
+export const withdrawReport = async (reportId: string): Promise<ReportResponse> => {
+    const response = await axios.delete(`${REPORT_API}/${reportId}`);
+    return response.data;
+};
+
 // Named export for backwards compatibility
 export const reportService = {
     createReport,
+    updateReport,
+    withdrawReport,
     getMyReports,
     getClinicReports,
     getAllReportsForAdmin,
-    resolveReport
+    resolveReport,
 };

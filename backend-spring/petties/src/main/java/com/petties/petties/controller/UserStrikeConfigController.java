@@ -19,7 +19,7 @@ import java.util.UUID;
  * Controller cấu hình ngưỡng strike cho pet owner (Admin).
  */
 @RestController
-@RequestMapping("/v1/admin/user-strike-config")
+@RequestMapping("/admin/user-strike-config")
 @RequiredArgsConstructor
 @PreAuthorize("hasRole('ADMIN')")
 public class UserStrikeConfigController {

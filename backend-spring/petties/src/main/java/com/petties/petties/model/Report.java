@@ -9,9 +9,13 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -47,6 +51,12 @@ public class Report {
 
     @Column(name = "reason", nullable = false, columnDefinition = "TEXT")
     private String reason;
+
+    /** HTTPS URLs of images (upload via File API first); max 5 enforced in service */
+    @Builder.Default
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "attachment_urls", nullable = false, columnDefinition = "jsonb")
+    private List<String> attachmentUrls = new ArrayList<>();
 
     @Builder.Default
     @Enumerated(EnumType.STRING)
