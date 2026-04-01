@@ -11,6 +11,7 @@ import { useClinicStore } from '../store/clinicStore'
 import {
   Squares2X2Icon,
   BuildingOfficeIcon,
+  RectangleStackIcon,
   UsersIcon,
   FlagIcon,
   BookOpenIcon,
@@ -55,7 +56,14 @@ export const AdminLayout = () => {
     {
       title: 'PLATFORM MANAGEMENT',
       items: [
-        { path: '/admin/clinics', label: 'QUẢN LÝ CLINIC', icon: BuildingOfficeIcon, unreadCount: pendingCount },
+        {
+          path: '/admin/clinics',
+          label: 'QUẢN LÝ CLINIC',
+          icon: BuildingOfficeIcon,
+          unreadCount: pendingCount,
+          end: true,
+        },
+        { path: '/admin/clinics/registry', label: 'DS PHÒNG KHÁM', icon: RectangleStackIcon },
         { path: '/admin/users', label: 'USERS', icon: UsersIcon },
         { path: '/admin/reports', label: 'REPORTS', icon: FlagIcon },
         { path: '/admin/refunds', label: 'RÚT TIỀN', icon: BanknotesIcon },

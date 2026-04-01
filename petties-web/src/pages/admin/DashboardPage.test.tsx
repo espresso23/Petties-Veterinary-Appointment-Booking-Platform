@@ -134,15 +134,15 @@ describe('AdminDashboardPage', () => {
         vi.clearAllMocks()
     })
 
-    it('renders English title and health status', async () => {
+    it('renders Vietnamese title and health status', async () => {
         render(
             <MemoryRouter>
                 <AdminDashboardPage />
             </MemoryRouter>
         )
-        expect(screen.getByRole('heading', { level: 1, name: 'Admin dashboard' })).toBeInTheDocument()
+        expect(screen.getByRole('heading', { level: 1, name: 'Tổng quan quản trị' })).toBeInTheDocument()
         await waitFor(() => {
-            expect(screen.getAllByText('Up').length).toBeGreaterThanOrEqual(1)
+            expect(screen.getAllByText('Hoạt động').length).toBeGreaterThanOrEqual(1)
         })
     })
 
@@ -182,7 +182,7 @@ describe('AdminDashboardPage', () => {
         )
 
         await waitFor(() => {
-            expect(screen.getByText(/Partial data/)).toBeInTheDocument()
+            expect(screen.getByText(/Dữ liệu không đầy đủ/)).toBeInTheDocument()
         })
     })
 })

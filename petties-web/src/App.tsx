@@ -27,7 +27,7 @@ import { ToolsPage } from './pages/admin/tools'
 import { KnowledgePage } from './pages/admin/knowledge'
 import { PlaygroundPage } from './pages/admin/playground'
 import { AIInsightsPage } from './pages/admin/insights'
-import { ClinicApprovalPage } from './pages/admin/clinics'
+import { ClinicApprovalPage, ClinicRegistryPage } from './pages/admin/clinics'
 import { ReportsPage as AdminReportsPage } from './pages/admin/ReportsPage'
 import { AdminRefundApplicationsPage } from './pages/admin/refunds/AdminRefundApplicationsPage'
 import { AdminVoucherPage } from './pages/admin/vouchers/AdminVoucherPage'
@@ -116,6 +116,7 @@ function App() {
             <Route path="playground" element={<PlaygroundPage />} />
             <Route path="ai-insights" element={<AIInsightsPage />} />
             <Route path="clinics" element={<ClinicApprovalPage />} />
+            <Route path="clinics/registry" element={<ClinicRegistryPage />} />
             <Route path="reports" element={<AdminReportsPage />} />
             <Route path="refunds" element={<AdminRefundApplicationsPage />} />
             <Route path="vouchers" element={<AdminVoucherPage />} />

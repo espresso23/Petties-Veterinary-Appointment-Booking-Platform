@@ -77,14 +77,14 @@ describe('StaffDashboardPage', () => {
                 <StaffDashboardPage />
             </MemoryRouter>
         )
-        expect(screen.getByRole('heading', { level: 1, name: 'Staff dashboard' })).toBeInTheDocument()
+        expect(screen.getByRole('heading', { level: 1, name: 'Tổng quan nhân viên' })).toBeInTheDocument()
         await waitFor(() => {
             expect(screen.getByText('4')).toBeInTheDocument()
         })
         expect(screen.getByText('ST-99')).toBeInTheDocument()
     })
 
-    it('shows English error when home summary fails', async () => {
+    it('shows Vietnamese error when home summary fails', async () => {
         vi.mocked(getStaffHomeSummary).mockRejectedValueOnce(new Error('fail'))
 
         render(
@@ -94,7 +94,7 @@ describe('StaffDashboardPage', () => {
         )
 
         await waitFor(() => {
-            expect(screen.getByText(/Could not load overview/)).toBeInTheDocument()
+            expect(screen.getByText(/Không tải được tổng quan/)).toBeInTheDocument()
         })
     })
 

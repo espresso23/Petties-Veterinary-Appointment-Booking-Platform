@@ -117,13 +117,13 @@ describe('ClinicOwnerDashboardPage', () => {
             </MemoryRouter>
         )
 
-        expect(screen.getByRole('heading', { level: 1, name: 'Clinic owner dashboard' })).toBeInTheDocument()
+        expect(screen.getByRole('heading', { level: 1, name: 'Tổng quan phòng khám' })).toBeInTheDocument()
         await waitFor(() => {
             expect(screen.getByText('Demo Clinic')).toBeInTheDocument()
         })
     })
 
-    it('shows revenue after load (en-US VND)', async () => {
+    it('shows revenue after load (VND vi-VN)', async () => {
         render(
             <MemoryRouter>
                 <ClinicOwnerDashboardPage />
@@ -131,7 +131,7 @@ describe('ClinicOwnerDashboardPage', () => {
         )
 
         await waitFor(() => {
-            expect(screen.getByText(/100,000 VND/)).toBeInTheDocument()
+            expect(screen.getByText(/100\.000/)).toBeInTheDocument()
         })
     })
 

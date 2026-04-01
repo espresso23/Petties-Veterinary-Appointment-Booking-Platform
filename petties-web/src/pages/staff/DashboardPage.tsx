@@ -6,7 +6,7 @@ import { StaffWorkloadDonut } from '../../components/clinic/StaffWorkloadDonut'
 import { getStaffHomeSummary, getBookingsByStaff } from '../../services/bookingService'
 import { notificationService } from '../../services/api/notificationService'
 import { chatService } from '../../services/api/chatService'
-import { bookingStatusLabelEn } from '../../utils/bookingStatusDisplayEn'
+import { bookingStatusLabelVi } from '../../utils/bookingStatusDisplayVi'
 import type { UpcomingBookingDTO, Booking } from '../../types/booking'
 import {
     CalendarDaysIcon,
@@ -19,7 +19,7 @@ import {
 } from '@heroicons/react/24/outline'
 import '../../styles/brutalist.css'
 
-const FETCH_KEYS = ['Home summary', 'Notifications', 'Chat unread', 'Staff bookings'] as const
+const FETCH_KEYS = ['Tổng quan trang chủ', 'Thông báo', 'Chat chưa đọc', 'Lịch được giao'] as const
 
 export const StaffDashboardPage = () => {
     const { user } = useAuthStore()
@@ -78,7 +78,7 @@ export const StaffDashboardPage = () => {
             setPendingCount(0)
             setInProgressCount(0)
             setUpcoming([])
-            setError('Could not load overview. Please try again.')
+            setError('Không tải được tổng quan. Vui lòng thử lại.')
         }
 
         if (typeof notif === 'number') setUnreadNotifications(notif)
@@ -102,15 +102,15 @@ export const StaffDashboardPage = () => {
     return (
         <div className="p-6 md:p-8 bg-stone-50 min-h-screen">
             <header className="mb-8">
-                <h1 className="text-2xl font-bold text-stone-900">Staff dashboard</h1>
+                <h1 className="text-2xl font-bold text-stone-900">Tổng quan nhân viên</h1>
                 <p className="text-stone-600 mt-1">
-                    Welcome, <span className="font-bold text-amber-700">{user?.fullName || 'Staff'}</span>
+                    Xin chào, <span className="font-bold text-amber-700">{user?.fullName || 'Nhân viên'}</span>
                 </p>
                 {user?.workingClinicName && (
                     <div className="flex items-center gap-2 mt-2 text-stone-600">
                         <BuildingOfficeIcon className="w-5 h-5 text-stone-900" aria-hidden />
                         <span>
-                            Clinic: <span className="font-bold text-stone-900">{user.workingClinicName}</span>
+                            Phòng khám: <span className="font-bold text-stone-900">{user.workingClinicName}</span>
                         </span>
                     </div>
                 )}
@@ -127,34 +127,34 @@ export const StaffDashboardPage = () => {
                     className="mb-4 border-2 border-amber-800 bg-amber-50 px-4 py-3 text-sm font-bold text-stone-800 shadow-[3px_3px_0_#1c1917]"
                     role="status"
                 >
-                    Partial data: could not load {partialWarnings.join(', ')}.
+                    Dữ liệu không đầy đủ: không tải được {partialWarnings.join(', ')}.
                 </div>
             )}
 
-            <DashboardSection title="Work overview">
+            <DashboardSection title="Tổng quan công việc">
                 <DashboardStatsGrid>
                     <DashboardCard
-                        title="Today"
+                        title="Hôm nay"
                         value={loading ? '…' : todayCount}
-                        subtitle="Assigned bookings today"
+                        subtitle="Lịch được giao trong ngày"
                         icon={<CalendarDaysIcon className="w-6 h-6 text-stone-900" />}
                     />
                     <DashboardCard
-                        title="Awaiting intake"
+                        title="Chờ tiếp nhận"
                         value={loading ? '…' : pendingCount}
-                        subtitle="Confirmed, awaiting check-in"
+                        subtitle="Đã xác nhận, chờ check-in"
                         icon={<ClockIcon className="w-6 h-6 text-stone-900" />}
                     />
                     <DashboardCard
-                        title="In progress"
+                        title="Đang khám"
                         value={loading ? '…' : inProgressCount}
-                        subtitle="In session"
+                        subtitle="Đang trong phiên"
                         icon={<PlayCircleIcon className="w-6 h-6 text-stone-900" />}
                     />
                     <DashboardCard
-                        title="Upcoming"
+                        title="Sắp tới"
                         value={loading ? '…' : upcomingCount}
-                        subtitle="Slots in list"
+                        subtitle="Trong danh sách"
                         icon={<QueueListIcon className="w-6 h-6 text-stone-900" />}
                     />
                 </DashboardStatsGrid>
@@ -170,31 +170,31 @@ export const StaffDashboardPage = () => {
                 />
 
                 <div className="border-4 border-stone-900 bg-white p-6 shadow-brutal">
-                    <h2 className="text-lg font-bold text-stone-900 mb-4">Alerts</h2>
+                    <h2 className="text-lg font-bold text-stone-900 mb-4">Cảnh báo</h2>
                     <div className="space-y-4">
                         <div className="flex items-start gap-3 p-4 border-2 border-stone-900 bg-stone-50 shadow-[2px_2px_0_#1c1917]">
                             <BellAlertIcon className="w-8 h-8 text-stone-900 shrink-0" aria-hidden />
                             <div>
-                                <p className="text-xs font-bold uppercase text-stone-500">Unread notifications</p>
+                                <p className="text-xs font-bold uppercase text-stone-500">Thông báo chưa đọc</p>
                                 <p className="text-2xl font-bold text-stone-900">{loading ? '…' : unreadNotifications ?? '—'}</p>
                                 <Link
                                     to="/staff/notifications"
                                     className="text-sm font-bold text-amber-800 underline underline-offset-2 mt-1 inline-block"
                                 >
-                                    Open notifications
+                                    Mở thông báo
                                 </Link>
                             </div>
                         </div>
                         <div className="flex items-start gap-3 p-4 border-2 border-stone-900 bg-amber-50 shadow-[2px_2px_0_#1c1917]">
                             <ChatBubbleLeftRightIcon className="w-8 h-8 text-stone-900 shrink-0" aria-hidden />
                             <div>
-                                <p className="text-xs font-bold uppercase text-stone-500">Chat unread</p>
+                                <p className="text-xs font-bold uppercase text-stone-500">Tin chat chưa đọc</p>
                                 <p className="text-2xl font-bold text-stone-900">{loading ? '…' : chatUnread ?? '—'}</p>
                                 <Link
                                     to="/staff/bookings"
                                     className="text-sm font-bold text-amber-800 underline underline-offset-2 mt-1 inline-block"
                                 >
-                                    Open bookings
+                                    Mở lịch hẹn
                                 </Link>
                             </div>
                         </div>
@@ -227,14 +227,14 @@ export const StaffDashboardPage = () => {
                                     <div className="flex justify-between gap-2 flex-wrap">
                                         <span className="font-mono text-sm font-bold">{b.bookingCode}</span>
                                         <span className="text-xs font-bold uppercase bg-amber-100 border border-stone-900 px-2 py-0.5">
-                                            {bookingStatusLabelEn(b.status)}
+                                            {bookingStatusLabelVi(b.status)}
                                         </span>
                                     </div>
                                     <p className="font-bold text-stone-900 mt-1">
-                                        {b.petName || 'Pet'} — {b.ownerName || 'Owner'}
+                                        {b.petName || 'Thú cưng'} — {b.ownerName || 'Chủ nuôi'}
                                     </p>
                                     <p className="text-sm text-stone-600 mt-1">
-                                        {new Date(b.bookingDate).toLocaleDateString('en-US')} {b.bookingTime?.slice(0, 5) || ''}
+                                        {new Date(b.bookingDate).toLocaleDateString('vi-VN')} {b.bookingTime?.slice(0, 5) || ''}
                                         {b.primaryServiceName ? ` · ${b.primaryServiceName}` : ''}
                                     </p>
                                 </li>
@@ -245,24 +245,24 @@ export const StaffDashboardPage = () => {
 
                 <div className="border-4 border-stone-900 bg-white p-6 shadow-brutal">
                     <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
-                        <h2 className="text-lg font-bold text-stone-900">Your bookings (paged)</h2>
+                        <h2 className="text-lg font-bold text-stone-900">Lịch của bạn (phân trang)</h2>
                         <Link to="/staff/bookings" className="btn-brutal-sm text-xs px-3 py-2 font-bold uppercase inline-block">
-                            View all
+                            Xem tất cả
                         </Link>
                     </div>
-                    {!staffId && <p className="text-stone-600 text-sm">Sign in again to load assigned bookings list.</p>}
-                    {staffId && loading && <p className="text-stone-500">Loading…</p>}
+                    {!staffId && <p className="text-stone-600 text-sm">Đăng nhập lại để tải danh sách lịch được giao.</p>}
+                    {staffId && loading && <p className="text-stone-500">Đang tải…</p>}
                     {staffId && !loading && staffBookings.length === 0 && (
-                        <p className="text-stone-600 text-center py-6 border-2 border-dashed border-stone-300">No bookings in this list</p>
+                        <p className="text-stone-600 text-center py-6 border-2 border-dashed border-stone-300">Chưa có lịch trong danh sách</p>
                     )}
                     {staffId && !loading && staffBookings.length > 0 && (
                         <div className="overflow-x-auto">
                             <table className="w-full text-left text-sm">
                                 <thead className="border-b-2 border-stone-900 bg-stone-100">
                                     <tr>
-                                        <th className="p-2 text-xs font-bold uppercase">Code</th>
-                                        <th className="p-2 text-xs font-bold uppercase">Date</th>
-                                        <th className="p-2 text-xs font-bold uppercase">Status</th>
+                                        <th className="p-2 text-xs font-bold uppercase">Mã</th>
+                                        <th className="p-2 text-xs font-bold uppercase">Ngày</th>
+                                        <th className="p-2 text-xs font-bold uppercase">Trạng thái</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -270,9 +270,9 @@ export const StaffDashboardPage = () => {
                                         <tr key={b.bookingId} className="border-b border-stone-200">
                                             <td className="p-2 font-mono font-bold">{b.bookingCode}</td>
                                             <td className="p-2">
-                                                {new Date(b.bookingDate).toLocaleDateString('en-US')} {b.bookingTime?.slice(0, 5)}
+                                                {new Date(b.bookingDate).toLocaleDateString('vi-VN')} {b.bookingTime?.slice(0, 5)}
                                             </td>
-                                            <td className="p-2 font-bold">{bookingStatusLabelEn(b.status)}</td>
+                                            <td className="p-2 font-bold">{bookingStatusLabelVi(b.status)}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -282,25 +282,25 @@ export const StaffDashboardPage = () => {
                 </div>
             </div>
 
-            <DashboardSection title="Quick links">
+            <DashboardSection title="Liên kết nhanh">
                 <div className="flex flex-wrap gap-3">
                     <Link
                         to="/staff/schedule"
                         className="inline-block px-4 py-3 font-bold uppercase text-sm border-4 border-stone-900 bg-white shadow-[4px_4px_0_#1c1917]"
                     >
-                        Schedule
+                        Lịch làm
                     </Link>
                     <Link
                         to="/staff/patients"
                         className="inline-block px-4 py-3 font-bold uppercase text-sm border-4 border-stone-900 bg-amber-50 shadow-[4px_4px_0_#1c1917]"
                     >
-                        Patients
+                        Bệnh nhân
                     </Link>
                     <Link
                         to="/staff/ai-chat"
                         className="inline-block px-4 py-3 font-bold uppercase text-sm border-4 border-stone-900 bg-white shadow-[4px_4px_0_#1c1917]"
                     >
-                        AI assistant
+                        Trợ lý AI
                     </Link>
                 </div>
             </DashboardSection>

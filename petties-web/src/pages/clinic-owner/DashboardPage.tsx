@@ -7,8 +7,8 @@ import { ClinicDashboardCharts } from '../../components/clinic/ClinicDashboardCh
 import { getClinicRevenueSummary, getClinicPayments, type ClinicPaymentItem } from '../../services/paymentService'
 import { getBookingsByClinic } from '../../services/bookingService'
 import { subscriptionService } from '../../services/api/subscriptionService'
-import { formatVndEn } from '../../utils/formatCurrency'
-import { bookingStatusLabelEn } from '../../utils/bookingStatusDisplayEn'
+import { formatVnd } from '../../utils/formatCurrency'
+import { bookingStatusLabelVi } from '../../utils/bookingStatusDisplayVi'
 import { ROUTES } from '../../config/routes'
 import type { Booking } from '../../types/booking'
 import '../../styles/brutalist.css'
@@ -28,20 +28,20 @@ function isBookingToday(bookingDate: string, day: string): boolean {
 function aggregateBookingSegments(bookings: Booking[]): { name: string; value: number }[] {
     const map = new Map<string, number>()
     for (const b of bookings) {
-        const label = bookingStatusLabelEn(b.status)
+        const label = bookingStatusLabelVi(b.status)
         map.set(label, (map.get(label) ?? 0) + 1)
     }
     return Array.from(map.entries()).map(([name, value]) => ({ name, value }))
 }
 
 const FETCH_KEYS = [
-    'Daily revenue',
-    'Monthly revenue',
-    'Weekly revenue',
-    'Bookings',
-    'Recent payments',
-    'Pending payments',
-    'Subscription',
+    'Doanh thu ngày',
+    'Doanh thu tháng',
+    'Doanh thu tuần',
+    'Lịch hẹn',
+    'Thanh toán gần đây',
+    'Thanh toán chờ',
+    'Gói đăng ký',
 ] as const
 
 export const ClinicOwnerDashboardPage = () => {
@@ -71,13 +71,13 @@ export const ClinicOwnerDashboardPage = () => {
         if (!clinic) return '—'
         const avg = clinic.ratingAvg
         const cnt = clinic.ratingCount
-        if (!cnt) return 'None yet'
+        if (!cnt) return 'Chưa có'
         return `${avg.toFixed(1)} / 5`
     }, [clinic])
 
     const revenueLabels = revenueChartPeriod === 'WEEK' ? revenueWeekLabels : revenueMonthLabels
     const revenueValues = revenueChartPeriod === 'WEEK' ? revenueWeekValues : revenueMonthValues
-    const revenueTitle = revenueChartPeriod === 'WEEK' ? 'Revenue (week)' : 'Revenue (month)'
+    const revenueTitle = revenueChartPeriod === 'WEEK' ? 'Doanh thu (tuần)' : 'Doanh thu (tháng)'
 
     const loadMetrics = useCallback(async () => {
         if (!clinicId) return
@@ -152,10 +152,12 @@ export const ClinicOwnerDashboardPage = () => {
 
         if (subStatus) {
             if (subStatus.pending)
-                setSubscriptionSummary(`Pending payment${subStatus.pending.plan?.name ? ` — ${subStatus.pending.plan.name}` : ''}`)
+                setSubscriptionSummary(
+                    `Chờ thanh toán${subStatus.pending.plan?.name ? ` — ${subStatus.pending.plan.name}` : ''}`
+                )
             else if (subStatus.active)
-                setSubscriptionSummary(`Active — ${subStatus.active.plan?.name ?? 'plan'}`)
-            else setSubscriptionSummary('No active subscription')
+                setSubscriptionSummary(`Đang hiệu lực — ${subStatus.active.plan?.name ?? 'gói'}`)
+            else setSubscriptionSummary('Chưa có gói đang dùng')
         } else {
             setSubscriptionSummary(null)
         }
@@ -177,8 +179,8 @@ export const ClinicOwnerDashboardPage = () => {
         <div className="p-6 bg-stone-50 min-h-screen">
             <header className="mb-8 flex flex-wrap items-start justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-stone-900">Clinic owner dashboard</h1>
-                    <p className="text-stone-600 mt-1">Welcome, {user?.fullName || 'Clinic owner'}</p>
+                    <h1 className="text-2xl font-bold text-stone-900">Tổng quan phòng khám</h1>
+                    <p className="text-stone-600 mt-1">Xin chào, {user?.fullName || 'Chủ phòng khám'}</p>
                     {clinic && (
                         <p className="text-sm font-bold text-stone-800 mt-2 border-2 border-stone-900 inline-block px-3 py-1 bg-amber-100">
                             {clinic.name}
@@ -189,16 +191,16 @@ export const ClinicOwnerDashboardPage = () => {
                     to={clinicId ? `${ROUTES.clinicOwner.clinics}/${clinicId}` : ROUTES.clinicOwner.clinics}
                     className={`text-sm font-bold uppercase border-2 border-stone-900 px-4 py-2 shadow-[3px_3px_0_#1c1917] bg-white ${!clinicId ? 'pointer-events-none opacity-50' : 'hover:translate-x-[-2px] hover:translate-y-[-2px]'}`}
                 >
-                    Clinic details
+                    Chi tiết phòng khám
                 </Link>
             </header>
 
-            {clinicsLoading && <p className="text-stone-600 mb-4">Loading clinics…</p>}
+            {clinicsLoading && <p className="text-stone-600 mb-4">Đang tải phòng khám…</p>}
             {!clinicsLoading && !clinic && (
                 <div className="border-4 border-stone-900 bg-white p-6 shadow-brutal">
-                    <p className="font-bold text-stone-800">No clinic yet.</p>
+                    <p className="font-bold text-stone-800">Chưa có phòng khám.</p>
                     <Link to={ROUTES.clinicOwner.clinics} className="inline-block mt-4 btn-brutal text-sm uppercase font-bold">
-                        Register a clinic
+                        Đăng ký phòng khám
                     </Link>
                 </div>
             )}
@@ -208,38 +210,38 @@ export const ClinicOwnerDashboardPage = () => {
                     className="mb-4 border-2 border-amber-800 bg-amber-50 px-4 py-3 text-sm font-bold text-stone-800 shadow-[3px_3px_0_#1c1917]"
                     role="status"
                 >
-                    Partial data: could not load {partialWarnings.join(', ')}.
+                    Dữ liệu không đầy đủ: không tải được {partialWarnings.join(', ')}.
                 </div>
             )}
 
             {clinicId && (
                 <>
-                    <DashboardSection title="Today">
+                    <DashboardSection title="Hôm nay">
                         <DashboardStatsGrid>
                             <DashboardCard
-                                title="Revenue today"
-                                value={loading ? '…' : formatVndEn(dayRevenue ?? 0)}
-                                subtitle="Daily period"
+                                title="Doanh thu hôm nay"
+                                value={loading ? '…' : formatVnd(dayRevenue ?? 0)}
+                                subtitle="Theo ngày"
                             />
                             <DashboardCard
-                                title="Appointments today"
+                                title="Lịch hẹn hôm nay"
                                 value={loading ? '…' : bookingsToday ?? '—'}
-                                subtitle="Total for today"
+                                subtitle="Tổng trong ngày"
                             />
                             <DashboardCard
-                                title="Completed today"
+                                title="Hoàn thành hôm nay"
                                 value={loading ? '…' : completedToday ?? '—'}
-                                subtitle="Appointments"
+                                subtitle="Lịch hẹn"
                             />
                             <DashboardCard
-                                title="Pending payments"
+                                title="Thanh toán chờ"
                                 value={loading ? '…' : pendingPaymentsCount ?? '—'}
-                                subtitle="Payment records (PENDING)"
+                                subtitle="Bản ghi chờ thanh toán"
                             />
                         </DashboardStatsGrid>
                     </DashboardSection>
 
-                    <DashboardSection title="Charts">
+                    <DashboardSection title="Biểu đồ">
                         <div className="flex flex-wrap gap-2 mb-4">
                             <button
                                 type="button"
@@ -248,7 +250,7 @@ export const ClinicOwnerDashboardPage = () => {
                                     revenueChartPeriod === 'WEEK' ? 'bg-amber-200' : 'bg-white'
                                 }`}
                             >
-                                Week
+                                Tuần
                             </button>
                             <button
                                 type="button"
@@ -257,7 +259,7 @@ export const ClinicOwnerDashboardPage = () => {
                                     revenueChartPeriod === 'MONTH' ? 'bg-amber-200' : 'bg-white'
                                 }`}
                             >
-                                Month
+                                Tháng
                             </button>
                         </div>
                         <ClinicDashboardCharts
@@ -269,82 +271,86 @@ export const ClinicOwnerDashboardPage = () => {
                         />
                     </DashboardSection>
 
-                    <DashboardSection title="Clinic info">
+                    <DashboardSection title="Thông tin phòng khám">
                         <DashboardStatsGrid>
                             <DashboardCard
-                                title="Services"
+                                title="Dịch vụ"
                                 value={activeServices === null ? '—' : activeServices}
-                                subtitle="Active (from loaded data)"
-                            />
-                            <DashboardCard title="Avg. rating" value={ratingLabel} subtitle={`${clinic?.ratingCount ?? 0} reviews`} />
-                            <DashboardCard
-                                title="Monthly revenue"
-                                value={loading ? '…' : formatVndEn(monthRevenue ?? 0)}
-                                subtitle="Monthly period"
+                                subtitle="Đang hoạt động (dữ liệu đã tải)"
                             />
                             <DashboardCard
-                                title="Subscription"
+                                title="Điểm đánh giá TB"
+                                value={ratingLabel}
+                                subtitle={`${clinic?.ratingCount ?? 0} đánh giá`}
+                            />
+                            <DashboardCard
+                                title="Doanh thu tháng"
+                                value={loading ? '…' : formatVnd(monthRevenue ?? 0)}
+                                subtitle="Theo tháng"
+                            />
+                            <DashboardCard
+                                title="Gói đăng ký"
                                 value={loading ? '…' : subscriptionSummary ?? '—'}
-                                subtitle="Clinic plan"
+                                subtitle="Gói phòng khám"
                             />
                         </DashboardStatsGrid>
                     </DashboardSection>
 
                     <DashboardSection
-                        title="Monthly revenue (summary)"
+                        title="Doanh thu tháng (tóm tắt)"
                         action={
                             <Link
                                 to="/clinic-owner/revenue"
                                 className="text-sm font-bold uppercase text-amber-800 border-2 border-stone-900 px-3 py-1 bg-white shadow-[2px_2px_0_#1c1917]"
                             >
-                                Revenue details
+                                Chi tiết doanh thu
                             </Link>
                         }
                     >
                         <div className="bg-white border-4 border-stone-900 shadow-brutal p-6">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <div>
-                                    <p className="text-xs font-bold text-stone-500 uppercase tracking-wide mb-1">Total revenue (month)</p>
-                                    <p className="text-2xl font-bold text-stone-900">{loading ? '…' : formatVndEn(monthRevenue ?? 0)}</p>
+                                    <p className="text-xs font-bold text-stone-500 uppercase tracking-wide mb-1">Tổng doanh thu (tháng)</p>
+                                    <p className="text-2xl font-bold text-stone-900">{loading ? '…' : formatVnd(monthRevenue ?? 0)}</p>
                                 </div>
                                 <div>
-                                    <p className="text-xs font-bold text-stone-500 uppercase tracking-wide mb-1">Appointments today</p>
+                                    <p className="text-xs font-bold text-stone-500 uppercase tracking-wide mb-1">Lịch hẹn hôm nay</p>
                                     <p className="text-2xl font-bold text-stone-900">{loading ? '…' : bookingsToday ?? '—'}</p>
                                 </div>
                                 <div>
-                                    <p className="text-xs font-bold text-stone-500 uppercase tracking-wide mb-1">Completed today</p>
+                                    <p className="text-xs font-bold text-stone-500 uppercase tracking-wide mb-1">Hoàn thành hôm nay</p>
                                     <p className="text-2xl font-bold text-stone-900">{loading ? '…' : completedToday ?? '—'}</p>
                                 </div>
                             </div>
                         </div>
                     </DashboardSection>
 
-                    <DashboardSection title="Recent payments">
+                    <DashboardSection title="Thanh toán gần đây">
                         <div className="bg-white border-4 border-stone-900 shadow-brutal overflow-hidden">
                             <table className="w-full text-left">
                                 <thead className="border-b-4 border-stone-900 bg-stone-100">
                                     <tr>
-                                        <th className="p-3 text-xs font-bold uppercase">Code</th>
-                                        <th className="p-3 text-xs font-bold uppercase">Amount</th>
-                                        <th className="p-3 text-xs font-bold uppercase">Time</th>
+                                        <th className="p-3 text-xs font-bold uppercase">Mã</th>
+                                        <th className="p-3 text-xs font-bold uppercase">Số tiền</th>
+                                        <th className="p-3 text-xs font-bold uppercase">Thời gian</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {recentPayments.length === 0 && !loading && (
                                         <tr>
                                             <td colSpan={3} className="p-6 text-center text-stone-600">
-                                                No transactions yet
+                                                Chưa có giao dịch
                                             </td>
                                         </tr>
                                     )}
                                     {recentPayments.map((p) => (
                                         <tr key={p.paymentId} className="border-b-2 border-stone-200">
                                             <td className="p-3 font-mono text-sm">{p.bookingCode}</td>
-                                            <td className="p-3 font-bold">{formatVndEn(p.amount)}</td>
+                                            <td className="p-3 font-bold">{formatVnd(p.amount)}</td>
                                             <td className="p-3 text-sm text-stone-600">
                                                 {p.paidAt
-                                                    ? new Date(p.paidAt).toLocaleString('en-US')
-                                                    : new Date(p.createdAt).toLocaleString('en-US')}
+                                                    ? new Date(p.paidAt).toLocaleString('vi-VN')
+                                                    : new Date(p.createdAt).toLocaleString('vi-VN')}
                                             </td>
                                         </tr>
                                     ))}
@@ -353,25 +359,25 @@ export const ClinicOwnerDashboardPage = () => {
                         </div>
                     </DashboardSection>
 
-                    <DashboardSection title="Quick links">
+                    <DashboardSection title="Liên kết nhanh">
                         <div className="flex flex-wrap gap-3">
                             <Link
                                 to="/clinic-owner/services"
                                 className="inline-block px-4 py-3 font-bold uppercase text-sm border-4 border-stone-900 bg-white shadow-[4px_4px_0_#1c1917]"
                             >
-                                Services
+                                Dịch vụ
                             </Link>
                             <Link
                                 to="/clinic-owner/staff"
                                 className="inline-block px-4 py-3 font-bold uppercase text-sm border-4 border-stone-900 bg-amber-50 shadow-[4px_4px_0_#1c1917]"
                             >
-                                Staff
+                                Nhân viên
                             </Link>
                             <Link
                                 to="/clinic-owner/notifications"
                                 className="inline-block px-4 py-3 font-bold uppercase text-sm border-4 border-stone-900 bg-white shadow-[4px_4px_0_#1c1917]"
                             >
-                                Notifications
+                                Thông báo
                             </Link>
                         </div>
                     </DashboardSection>

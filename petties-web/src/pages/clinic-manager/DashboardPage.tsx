@@ -7,8 +7,8 @@ import { ClinicDashboardCharts } from '../../components/clinic/ClinicDashboardCh
 import { getBookingsByClinic, getActiveSosAlerts } from '../../services/bookingService'
 import { getClinicRevenueSummary, getClinicPayments } from '../../services/paymentService'
 import { getClinicRefundApplications } from '../../services/refundApplicationService'
-import { formatVndEn } from '../../utils/formatCurrency'
-import { bookingStatusLabelEn } from '../../utils/bookingStatusDisplayEn'
+import { formatVnd } from '../../utils/formatCurrency'
+import { bookingStatusLabelVi } from '../../utils/bookingStatusDisplayVi'
 import type { Booking } from '../../types/booking'
 import '../../styles/brutalist.css'
 
@@ -27,20 +27,20 @@ function isToday(dateStr: string, day: string): boolean {
 function aggregateBookingSegments(bookings: Booking[]): { name: string; value: number }[] {
     const map = new Map<string, number>()
     for (const b of bookings) {
-        const label = bookingStatusLabelEn(b.status)
+        const label = bookingStatusLabelVi(b.status)
         map.set(label, (map.get(label) ?? 0) + 1)
     }
     return Array.from(map.entries()).map(([name, value]) => ({ name, value }))
 }
 
 const FETCH_KEYS = [
-    'Daily revenue',
-    'Weekly revenue',
-    'Monthly revenue',
-    'Bookings',
-    'Refunds',
-    'Pending payments',
-    'SOS alerts',
+    'Doanh thu ngày',
+    'Doanh thu tuần',
+    'Doanh thu tháng',
+    'Lịch hẹn',
+    'Hoàn tiền',
+    'Thanh toán chờ',
+    'Cảnh báo SOS',
 ] as const
 
 export const ClinicManagerDashboardPage = () => {
@@ -69,7 +69,7 @@ export const ClinicManagerDashboardPage = () => {
 
     const revenueLabels = revenueChartPeriod === 'WEEK' ? revenueWeekLabels : revenueMonthLabels
     const revenueValues = revenueChartPeriod === 'WEEK' ? revenueWeekValues : revenueMonthValues
-    const revenueTitle = revenueChartPeriod === 'WEEK' ? 'Revenue (week)' : 'Revenue (month)'
+    const revenueTitle = revenueChartPeriod === 'WEEK' ? 'Doanh thu (tuần)' : 'Doanh thu (tháng)'
 
     const loadData = useCallback(async () => {
         if (!clinicId) return
@@ -181,11 +181,11 @@ export const ClinicManagerDashboardPage = () => {
                 )}
                 {isClinicsLoading && (
                     <div className="inline-flex items-center gap-2 mb-4 px-4 py-2 bg-stone-100 border-2 border-stone-400">
-                        <span className="text-sm text-stone-500">Loading…</span>
+                        <span className="text-sm text-stone-500">Đang tải…</span>
                     </div>
                 )}
-                <h1 className="text-2xl font-bold text-stone-900">Clinic manager dashboard</h1>
-                <p className="text-stone-600 mt-1">Welcome, {user?.fullName || 'Manager'}</p>
+                <h1 className="text-2xl font-bold text-stone-900">Tổng quan vận hành</h1>
+                <p className="text-stone-600 mt-1">Xin chào, {user?.fullName || 'Quản lý'}</p>
             </header>
 
             {partialWarnings.length > 0 && (
@@ -193,30 +193,30 @@ export const ClinicManagerDashboardPage = () => {
                     className="mb-4 border-2 border-amber-800 bg-amber-50 px-4 py-3 text-sm font-bold text-stone-800 shadow-[3px_3px_0_#1c1917]"
                     role="status"
                 >
-                    Partial data: could not load {partialWarnings.join(', ')}.
+                    Dữ liệu không đầy đủ: không tải được {partialWarnings.join(', ')}.
                 </div>
             )}
 
             {clinicId && (
                 <>
-                    <DashboardSection title="Today overview">
+                    <DashboardSection title="Tổng quan hôm nay">
                         <DashboardStatsGrid>
                             <DashboardCard
-                                title="Revenue today"
-                                value={loading ? '…' : formatVndEn(dayRevenue ?? 0)}
-                                subtitle="Daily period"
+                                title="Doanh thu hôm nay"
+                                value={loading ? '…' : formatVnd(dayRevenue ?? 0)}
+                                subtitle="Theo ngày"
                             />
                             <DashboardCard
-                                title="Needs action / assign"
+                                title="Cần xử lý / gán"
                                 value={loading ? '…' : pendingAssign ?? '—'}
-                                subtitle="Bookings today"
+                                subtitle="Lịch trong ngày"
                             />
-                            <DashboardCard title="In progress" value={loading ? '…' : inProgressToday ?? '—'} subtitle="Today" />
-                            <DashboardCard title="Completed" value={loading ? '…' : completedToday ?? '—'} subtitle="Today" />
+                            <DashboardCard title="Đang khám" value={loading ? '…' : inProgressToday ?? '—'} subtitle="Hôm nay" />
+                            <DashboardCard title="Hoàn thành" value={loading ? '…' : completedToday ?? '—'} subtitle="Hôm nay" />
                         </DashboardStatsGrid>
                     </DashboardSection>
 
-                    <DashboardSection title="Charts">
+                    <DashboardSection title="Biểu đồ">
                         <div className="flex flex-wrap gap-2 mb-4">
                             <button
                                 type="button"
@@ -225,7 +225,7 @@ export const ClinicManagerDashboardPage = () => {
                                     revenueChartPeriod === 'WEEK' ? 'bg-amber-200' : 'bg-white'
                                 }`}
                             >
-                                Week
+                                Tuần
                             </button>
                             <button
                                 type="button"
@@ -234,7 +234,7 @@ export const ClinicManagerDashboardPage = () => {
                                     revenueChartPeriod === 'MONTH' ? 'bg-amber-200' : 'bg-white'
                                 }`}
                             >
-                                Month
+                                Tháng
                             </button>
                         </div>
                         <ClinicDashboardCharts
@@ -246,43 +246,47 @@ export const ClinicManagerDashboardPage = () => {
                         />
                     </DashboardSection>
 
-                    <DashboardSection title="Attention">
+                    <DashboardSection title="Cần chú ý">
                         <DashboardStatsGrid>
                             <DashboardCard
-                                title="Bookings to handle"
+                                title="Lịch cần xử lý"
                                 value={loading ? '…' : pendingAssign ?? '—'}
-                                subtitle="Unassigned or pending (estimate)"
+                                subtitle="Chưa gán hoặc chờ (ước lượng)"
                             />
                             <DashboardCard
-                                title="Pending payment"
+                                title="Thanh toán chờ"
                                 value={loading ? '…' : pendingPaymentsCount ?? '—'}
-                                subtitle="Payment records (PENDING)"
+                                subtitle="Bản ghi chờ thanh toán"
                             />
-                            <DashboardCard title="Pending refunds" value={loading ? '…' : pendingRefunds ?? '—'} subtitle="Refund requests" />
                             <DashboardCard
-                                title="Active SOS"
+                                title="Hoàn tiền chờ"
+                                value={loading ? '…' : pendingRefunds ?? '—'}
+                                subtitle="Yêu cầu hoàn tiền"
+                            />
+                            <DashboardCard
+                                title="SOS đang mở"
                                 value={loading ? '…' : sosActiveCount ?? '—'}
-                                subtitle="Open bookings to review SOS queue"
+                                subtitle="Lịch cần xem trong hàng đợi SOS"
                             />
                         </DashboardStatsGrid>
                     </DashboardSection>
 
-                    <DashboardSection title="Recent bookings">
+                    <DashboardSection title="Lịch hẹn gần đây">
                         <div className="bg-white border-4 border-stone-900 shadow-brutal overflow-hidden">
                             <table className="w-full">
                                 <thead className="border-b-4 border-stone-900 bg-stone-100">
                                     <tr className="text-left">
-                                        <th className="p-4 text-xs font-bold uppercase tracking-wide">Code</th>
-                                        <th className="p-4 text-xs font-bold uppercase tracking-wide">Customer</th>
-                                        <th className="p-4 text-xs font-bold uppercase tracking-wide">Time</th>
-                                        <th className="p-4 text-xs font-bold uppercase tracking-wide">Status</th>
+                                        <th className="p-4 text-xs font-bold uppercase tracking-wide">Mã</th>
+                                        <th className="p-4 text-xs font-bold uppercase tracking-wide">Khách</th>
+                                        <th className="p-4 text-xs font-bold uppercase tracking-wide">Giờ</th>
+                                        <th className="p-4 text-xs font-bold uppercase tracking-wide">Trạng thái</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {recentBookings.length === 0 && !loading && (
                                         <tr>
                                             <td colSpan={4} className="p-6 text-center text-stone-600">
-                                                No bookings yet
+                                                Chưa có lịch
                                             </td>
                                         </tr>
                                     )}
@@ -291,9 +295,9 @@ export const ClinicManagerDashboardPage = () => {
                                             <td className="p-4 font-mono text-sm">{b.bookingCode}</td>
                                             <td className="p-4 font-bold">{b.ownerName}</td>
                                             <td className="p-4 text-sm">
-                                                {new Date(b.bookingDate).toLocaleDateString('en-US')} {b.bookingTime?.slice(0, 5)}
+                                                {new Date(b.bookingDate).toLocaleDateString('vi-VN')} {b.bookingTime?.slice(0, 5)}
                                             </td>
-                                            <td className="p-4 text-sm font-bold">{bookingStatusLabelEn(b.status)}</td>
+                                            <td className="p-4 text-sm font-bold">{bookingStatusLabelVi(b.status)}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -301,43 +305,43 @@ export const ClinicManagerDashboardPage = () => {
                         </div>
                     </DashboardSection>
 
-                    <DashboardSection title="Quick links">
+                    <DashboardSection title="Liên kết nhanh">
                         <div className="flex flex-wrap gap-4">
                             <Link
                                 to="/clinic-manager/bookings"
                                 className="btn-brutal py-3 px-6 text-sm uppercase font-bold inline-block text-center"
                             >
-                                Bookings
+                                Lịch hẹn
                             </Link>
                             <Link
                                 to="/clinic-manager/staff"
                                 className="btn-brutal-outline py-3 px-6 text-sm uppercase font-bold inline-block text-center border-2 border-stone-900 bg-white shadow-[3px_3px_0_#1c1917]"
                             >
-                                Staff
+                                Nhân viên
                             </Link>
                             <Link
                                 to="/clinic-manager/shifts"
                                 className="btn-brutal-outline py-3 px-6 text-sm uppercase font-bold inline-block text-center border-2 border-stone-900 bg-white shadow-[3px_3px_0_#1c1917]"
                             >
-                                Shifts
+                                Ca làm
                             </Link>
                             <Link
                                 to="/clinic-manager/revenue"
                                 className="btn-brutal-outline py-3 px-6 text-sm uppercase font-bold inline-block text-center border-2 border-stone-900 bg-amber-50 shadow-[3px_3px_0_#1c1917]"
                             >
-                                Revenue
+                                Doanh thu
                             </Link>
                             <Link
                                 to="/clinic-manager/clinic"
                                 className="btn-brutal-outline py-3 px-6 text-sm uppercase font-bold inline-block text-center border-2 border-stone-900 bg-white shadow-[3px_3px_0_#1c1917]"
                             >
-                                Clinic profile
+                                Hồ sơ phòng khám
                             </Link>
                             <Link
                                 to="/clinic-manager/refunds"
                                 className="btn-brutal-outline py-3 px-6 text-sm uppercase font-bold inline-block text-center border-2 border-stone-900 bg-white shadow-[3px_3px_0_#1c1917]"
                             >
-                                Refunds
+                                Hoàn tiền
                             </Link>
                         </div>
                     </DashboardSection>

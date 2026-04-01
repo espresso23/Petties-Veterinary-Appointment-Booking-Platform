@@ -380,6 +380,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ProfileInfoGroup(
                     children: [
                       ProfileActionButton(
+                        label: 'Lịch sử báo cáo',
+                        icon: Icons.report_problem_outlined,
+                        onTap: () => context.push(AppRoutes.myReports),
+                      ),
+                      Container(height: 1, color: AppColors.stone200),
+                      ProfileActionButton(
                         label: 'Chỉnh sửa thông tin',
                         icon: Icons.edit_outlined,
                         onTap: () => context.push(AppRoutes.editProfile),
@@ -480,6 +486,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const ProfileSectionHeader(title: 'Thao tác'),
         ProfileInfoGroup(
           children: [
+            ProfileActionButton(
+              label: 'Lịch sử báo cáo',
+              icon: Icons.report_problem_outlined,
+              onTap: () => context.push(AppRoutes.myReports),
+            ),
+            Container(height: 1, color: AppColors.stone200),
             ProfileActionButton(
               label: 'Chỉnh sửa thông tin',
               icon: Icons.edit_outlined,

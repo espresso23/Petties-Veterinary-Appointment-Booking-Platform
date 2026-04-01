@@ -41,7 +41,7 @@ export function AdminDashboardCharts({
                 foreColor: STONE,
                 fontFamily: 'Inter, system-ui, sans-serif',
             },
-            labels: ['Pending', 'Approved', 'Rejected'],
+            labels: ['Chờ xử lý', 'Đã duyệt', 'Từ chối'],
             colors: [AMBER, MINT, MUTED],
             legend: {
                 position: 'bottom',
@@ -55,7 +55,7 @@ export function AdminDashboardCharts({
                             show: true,
                             total: {
                                 show: true,
-                                label: 'Total',
+                                label: 'Tổng',
                                 color: STONE,
                                 formatter: () => String(reportTotal),
                             },
@@ -118,10 +118,10 @@ export function AdminDashboardCharts({
         return (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="border-4 border-stone-900 bg-white p-6 shadow-brutal min-h-[320px] flex items-center justify-center text-stone-500 text-sm font-bold">
-                    Loading charts…
+                    Đang tải biểu đồ…
                 </div>
                 <div className="border-4 border-stone-900 bg-white p-6 shadow-brutal min-h-[320px] flex items-center justify-center text-stone-500 text-sm font-bold">
-                    Loading charts…
+                    Đang tải biểu đồ…
                 </div>
             </div>
         )
@@ -130,21 +130,21 @@ export function AdminDashboardCharts({
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="border-4 border-stone-900 bg-white p-4 shadow-brutal">
-                <h3 className="text-sm font-bold text-stone-900 uppercase tracking-wide mb-2 px-2">Reports by status</h3>
+                <h3 className="text-sm font-bold text-stone-900 uppercase tracking-wide mb-2 px-2">Báo cáo theo trạng thái</h3>
                 {reportTotal === 0 ? (
-                    <p className="text-stone-600 text-sm px-2 py-12 text-center">No report data</p>
+                    <p className="text-stone-600 text-sm px-2 py-12 text-center">Chưa có dữ liệu báo cáo</p>
                 ) : (
                     <ReactApexChart options={donutOptions} series={donutSeries} type="donut" height={300} />
                 )}
             </div>
             <div className="border-4 border-stone-900 bg-white p-4 shadow-brutal">
-                <h3 className="text-sm font-bold text-stone-900 uppercase tracking-wide mb-2 px-2">Queue snapshot</h3>
+                <h3 className="text-sm font-bold text-stone-900 uppercase tracking-wide mb-2 px-2">Ảnh chụp hàng chờ</h3>
                 {queueItems.every((q) => q.value === 0) ? (
-                    <p className="text-stone-600 text-sm px-2 py-12 text-center">All queues empty</p>
+                    <p className="text-stone-600 text-sm px-2 py-12 text-center">Tất cả hàng chờ đang trống</p>
                 ) : (
                     <ReactApexChart
                         options={barOptions}
-                        series={[{ name: 'Count', data: barData }]}
+                        series={[{ name: 'Số lượng', data: barData }]}
                         type="bar"
                         height={Math.max(280, queueItems.length * 36)}
                     />

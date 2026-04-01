@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import ReactApexChart from 'react-apexcharts'
 import type { ApexOptions } from 'apexcharts'
-import { formatVndEn } from '../../utils/formatCurrency'
+import { formatVnd } from '../../utils/formatCurrency'
 
 const STONE = '#1c1917'
 const AMBER = '#d97706'
@@ -33,7 +33,7 @@ interface ClinicDashboardChartsProps {
 export function ClinicDashboardCharts({
     revenueLabels,
     revenueValues,
-    revenueTitle = 'Revenue (week)',
+    revenueTitle = 'Doanh thu (tuần)',
     bookingSegments,
     loading,
 }: ClinicDashboardChartsProps) {
@@ -81,7 +81,7 @@ export function ClinicDashboardCharts({
             },
             dataLabels: {
                 enabled: true,
-                formatter: (val: number) => formatVndEn(val),
+                formatter: (val: number) => formatVnd(val),
                 style: { colors: [STONE], fontSize: '10px', fontWeight: 600 },
             },
             grid: { borderColor: '#e7e5e4' },
@@ -92,19 +92,19 @@ export function ClinicDashboardCharts({
             yaxis: {
                 min: 0,
                 labels: {
-                    formatter: (val: number) => formatVndEn(val),
+                    formatter: (val: number) => formatVnd(val),
                     style: { colors: '#57534e', fontSize: '11px' },
                 },
             },
             tooltip: {
-                y: { formatter: (val: number) => formatVndEn(val) },
+                y: { formatter: (val: number) => formatVnd(val) },
             },
         }),
         [revenueLabelsAligned]
     )
 
     const barSeries = useMemo(
-        () => [{ name: 'Revenue', data: revenueValuesAligned }],
+        () => [{ name: 'Doanh thu', data: revenueValuesAligned }],
         [revenueValuesAligned]
     )
 
@@ -136,7 +136,7 @@ export function ClinicDashboardCharts({
                             show: true,
                             total: {
                                 show: true,
-                                label: 'Bookings',
+                                label: 'Lịch hẹn',
                                 color: STONE,
                                 formatter: () => String(donutTotal),
                             },
@@ -156,10 +156,10 @@ export function ClinicDashboardCharts({
         return (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="border-4 border-stone-900 bg-white p-6 shadow-brutal min-h-[320px] flex items-center justify-center text-stone-500 text-sm font-bold">
-                    Loading charts…
+                    Đang tải biểu đồ…
                 </div>
                 <div className="border-4 border-stone-900 bg-white p-6 shadow-brutal min-h-[320px] flex items-center justify-center text-stone-500 text-sm font-bold">
-                    Loading charts…
+                    Đang tải biểu đồ…
                 </div>
             </div>
         )
@@ -169,9 +169,9 @@ export function ClinicDashboardCharts({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="border-4 border-stone-900 bg-white p-4 shadow-brutal">
                 <h3 className="text-sm font-bold text-stone-900 uppercase tracking-wide mb-2">{revenueTitle}</h3>
-                <p className="text-xs text-stone-500 mb-2">Total: {formatVndEn(revenueTotal)}</p>
+                <p className="text-xs text-stone-500 mb-2">Tổng: {formatVnd(revenueTotal)}</p>
                 {!hasRevenueBars ? (
-                    <p className="text-stone-500 text-sm py-12 text-center">No revenue data for this period</p>
+                    <p className="text-stone-500 text-sm py-12 text-center">Chưa có doanh thu trong kỳ này</p>
                 ) : (
                     <div className="min-h-[280px] w-full">
                         <ReactApexChart
@@ -187,9 +187,9 @@ export function ClinicDashboardCharts({
             </div>
 
             <div className="border-4 border-stone-900 bg-white p-4 shadow-brutal">
-                <h3 className="text-sm font-bold text-stone-900 uppercase tracking-wide mb-2">Bookings by status</h3>
+                <h3 className="text-sm font-bold text-stone-900 uppercase tracking-wide mb-2">Lịch hẹn theo trạng thái</h3>
                 {nonZeroSegments.length === 0 ? (
-                    <p className="text-stone-500 text-sm py-12 text-center">No bookings in this sample</p>
+                    <p className="text-stone-500 text-sm py-12 text-center">Chưa có lịch trong mẫu dữ liệu</p>
                 ) : (
                     <ReactApexChart options={donutOptions} series={donutSeries} type="donut" height={320} />
                 )}

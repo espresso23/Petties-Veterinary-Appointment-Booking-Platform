@@ -94,7 +94,7 @@ describe('ClinicManagerDashboardPage', () => {
             </MemoryRouter>
         )
 
-        expect(screen.getByRole('heading', { level: 1, name: 'Clinic manager dashboard' })).toBeInTheDocument()
+        expect(screen.getByRole('heading', { level: 1, name: 'Tổng quan vận hành' })).toBeInTheDocument()
         await waitFor(() => {
             expect(screen.getByText('Managed Clinic')).toBeInTheDocument()
         })

@@ -25,8 +25,8 @@ interface ServiceHealth {
  */
 export const AdminDashboardPage = () => {
     const { user } = useAuthStore()
-    const [aiHealth, setAiHealth] = useState<ServiceHealth>({ status: 'checking', message: 'Checking…' })
-    const [springHealth, setSpringHealth] = useState<ServiceHealth>({ status: 'checking', message: 'Checking…' })
+    const [aiHealth, setAiHealth] = useState<ServiceHealth>({ status: 'checking', message: 'Đang kiểm tra…' })
+    const [springHealth, setSpringHealth] = useState<ServiceHealth>({ status: 'checking', message: 'Đang kiểm tra…' })
 
     const [pendingClinics, setPendingClinics] = useState<number | null>(null)
     const [pendingReports, setPendingReports] = useState<number | null>(null)
@@ -49,24 +49,31 @@ export const AdminDashboardPage = () => {
             const res = await fetch(`${env.AGENT_API_BASE_URL}/health`, { method: 'GET' })
             if (res.ok) {
                 const data = (await res.json()) as { service?: string; version?: string }
-                setAiHealth({ status: 'healthy', message: data.service || 'AI service', version: data.version })
+                setAiHealth({
+                    status: 'healthy',
+                    message: data.service ? `Dịch vụ: ${data.service}` : 'Dịch vụ AI',
+                    version: data.version,
+                })
             } else {
-                setAiHealth({ status: 'error', message: `HTTP ${res.status}` })
+                setAiHealth({ status: 'error', message: `Lỗi HTTP ${res.status}` })
             }
         } catch {
-            setAiHealth({ status: 'error', message: 'Connection failed' })
+            setAiHealth({ status: 'error', message: 'Không kết nối được' })
         }
 
         try {
             const res = await fetch(`${env.API_BASE_URL}/actuator/health`, { method: 'GET' })
             if (res.ok) {
                 const data = (await res.json()) as { status?: string }
-                setSpringHealth({ status: 'healthy', message: data.status || 'UP' })
+                setSpringHealth({
+                    status: 'healthy',
+                    message: data.status === 'UP' ? 'Hoạt động' : data.status || 'OK',
+                })
             } else {
-                setSpringHealth({ status: 'error', message: `HTTP ${res.status}` })
+                setSpringHealth({ status: 'error', message: `Lỗi HTTP ${res.status}` })
             }
         } catch {
-            setSpringHealth({ status: 'error', message: 'Connection error' })
+            setSpringHealth({ status: 'error', message: 'Lỗi kết nối' })
         }
     }, [])
 
@@ -75,7 +82,7 @@ export const AdminDashboardPage = () => {
         setStatsWarnings([])
 
         const warn: string[] = []
-        const mark = (label: string) => warn.push(`${label} could not be loaded`)
+        const mark = (label: string) => warn.push(`${label}: không tải được dữ liệu`)
 
         const [
             pc,
@@ -91,47 +98,47 @@ export const AdminDashboardPage = () => {
             pendingReportsPage,
         ] = await Promise.all([
             clinicService.getPendingClinicsCount().catch(() => {
-                mark('Pending clinics count')
+                mark('Số phòng khám chờ duyệt')
                 return null
             }),
             getAllReportsForAdmin('PENDING', 0, 1).catch(() => {
-                mark('Reports (pending)')
+                mark('Báo cáo chờ xử lý')
                 return null
             }),
             getAllReportsForAdmin('APPROVED', 0, 1).catch(() => {
-                mark('Reports (approved)')
+                mark('Báo cáo đã duyệt')
                 return null
             }),
             getAllReportsForAdmin('REJECTED', 0, 1).catch(() => {
-                mark('Reports (rejected)')
+                mark('Báo cáo bị từ chối')
                 return null
             }),
             getPendingForAdmin().catch(() => {
-                mark('Refund queue')
+                mark('Hàng chờ hoàn tiền')
                 return null
             }),
             clinicService.getStruckClinics(0, 1).catch(() => {
-                mark('Struck clinics')
+                mark('Phòng khám bị hạn chế')
                 return null
             }),
             getStruckPetOwners(0, 1).catch(() => {
-                mark('Struck pet owners')
+                mark('Chủ nuôi bị hạn chế')
                 return null
             }),
             clinicService.getAllClinics({ status: 'APPROVED', page: 0, size: 1 }).catch(() => {
-                mark('Approved clinics total')
+                mark('Tổng phòng khám đã duyệt')
                 return null
             }),
             subscriptionService.getAllUserSubscriptions().catch(() => {
-                mark('Subscriptions')
+                mark('Gói đăng ký')
                 return null
             }),
             clinicService.getPendingClinics(0, 5).catch(() => {
-                mark('Recent pending clinics list')
+                mark('Danh sách phòng khám chờ gần đây')
                 return null
             }),
             getAllReportsForAdmin('PENDING', 0, 5).catch(() => {
-                mark('Recent pending reports list')
+                mark('Danh sách báo cáo chờ gần đây')
                 return null
             }),
         ])
@@ -187,11 +194,11 @@ export const AdminDashboardPage = () => {
     const getStatusText = (status: ServiceHealth['status']) => {
         switch (status) {
             case 'healthy':
-                return 'Up'
+                return 'Hoạt động'
             case 'error':
-                return 'Error'
+                return 'Lỗi'
             default:
-                return 'Checking'
+                return 'Đang kiểm tra'
         }
     }
 
@@ -204,12 +211,12 @@ export const AdminDashboardPage = () => {
     const queueBarItems = useMemo(() => {
         const n = (v: number | null) => (v === null ? 0 : v)
         return [
-            { label: 'Clinics pending', value: n(pendingClinics) },
-            { label: 'Reports pending', value: n(pendingReports) },
-            { label: 'Refunds pending', value: n(pendingRefunds) },
-            { label: 'Struck clinics', value: n(struckClinics) },
-            { label: 'Sub. pending pay', value: n(pendingSubscriptionPayments) },
-            { label: 'Struck pet owners', value: n(struckPetOwners) },
+            { label: 'Clinic chờ duyệt', value: n(pendingClinics) },
+            { label: 'Báo cáo chờ', value: n(pendingReports) },
+            { label: 'Hoàn tiền chờ', value: n(pendingRefunds) },
+            { label: 'PK bị hạn chế', value: n(struckClinics) },
+            { label: 'Gói chờ thanh toán', value: n(pendingSubscriptionPayments) },
+            { label: 'Chủ nuôi bị hạn chế', value: n(struckPetOwners) },
         ]
     }, [pendingClinics, pendingReports, pendingRefunds, struckClinics, pendingSubscriptionPayments, struckPetOwners])
 
@@ -220,16 +227,16 @@ export const AdminDashboardPage = () => {
     return (
         <div className="p-6 bg-stone-50 min-h-screen">
             <header className="mb-8">
-                <h1 className="text-2xl font-bold text-stone-900">Admin dashboard</h1>
-                <p className="text-stone-600 mt-1">Welcome, {user?.username || 'Administrator'}</p>
+                <h1 className="text-2xl font-bold text-stone-900">Tổng quan quản trị</h1>
+                <p className="text-stone-600 mt-1">Xin chào, {user?.username || 'Quản trị viên'}</p>
             </header>
 
-            <DashboardSection title="Service status">
+            <DashboardSection title="Trạng thái dịch vụ">
                 <div className="flex flex-wrap gap-4 items-start">
                     <div
                         className={`border-4 border-stone-900 p-4 shadow-brutal transition-all duration-200 hover:translate-x-[-4px] hover:translate-y-[-4px] hover:shadow-[12px_12px_0_#1c1917] ${getStatusStyle(aiHealth.status)}`}
                     >
-                        <p className="text-xs font-bold uppercase tracking-wide mb-1">AI service</p>
+                        <p className="text-xs font-bold uppercase tracking-wide mb-1">Dịch vụ AI</p>
                         <p className="text-lg font-bold">{getStatusText(aiHealth.status)}</p>
                         <p className="text-sm">{aiHealth.message}</p>
                         {aiHealth.version && <p className="text-xs opacity-70">v{aiHealth.version}</p>}
@@ -242,14 +249,14 @@ export const AdminDashboardPage = () => {
                         <p className="text-sm">{springHealth.message}</p>
                     </div>
                     <button type="button" onClick={checkServices} className="btn-brutal py-2 px-4 text-sm uppercase font-bold">
-                        Refresh
+                        Làm mới
                     </button>
                 </div>
             </DashboardSection>
 
             {statsWarnings.length > 0 && (
                 <div className="mb-6 border-2 border-amber-800 bg-amber-50 px-4 py-3 text-sm text-stone-900 shadow-[3px_3px_0_#1c1917]">
-                    <p className="font-bold uppercase text-xs mb-1">Partial data</p>
+                    <p className="font-bold uppercase text-xs mb-1">Dữ liệu không đầy đủ</p>
                     <ul className="list-disc list-inside space-y-1">
                         {statsWarnings.map((w, i) => (
                             <li key={`${i}-${w}`}>{w}</li>
@@ -258,24 +265,24 @@ export const AdminDashboardPage = () => {
                 </div>
             )}
 
-            <DashboardSection title="Queues & risk">
+            <DashboardSection title="Hàng chờ & rủi ro">
                 <DashboardStatsGrid>
-                    <DashboardCard title="Clinics pending approval" value={statVal(pendingClinics)} subtitle="Needs action" />
-                    <DashboardCard title="Reports pending" value={statVal(pendingReports)} subtitle="Awaiting review" />
-                    <DashboardCard title="Refund requests pending" value={statVal(pendingRefunds)} subtitle="Clinic payouts" />
-                    <DashboardCard title="Struck clinics" value={statVal(struckClinics)} subtitle="Restricted" />
+                    <DashboardCard title="Clinic chờ duyệt" value={statVal(pendingClinics)} subtitle="Cần xử lý" />
+                    <DashboardCard title="Báo cáo chờ" value={statVal(pendingReports)} subtitle="Chờ xem xét" />
+                    <DashboardCard title="Yêu cầu hoàn tiền chờ" value={statVal(pendingRefunds)} subtitle="Chi trả cho clinic" />
+                    <DashboardCard title="Phòng khám bị hạn chế" value={statVal(struckClinics)} subtitle="Đang giới hạn" />
                 </DashboardStatsGrid>
             </DashboardSection>
 
-            <DashboardSection title="Platform totals">
+            <DashboardSection title="Tổng hệ thống">
                 <DashboardStatsGrid>
-                    <DashboardCard title="Approved clinics" value={statVal(approvedClinics)} subtitle="Registered & approved" />
-                    <DashboardCard title="Subscription pending payment" value={statVal(pendingSubscriptionPayments)} subtitle="From all clinics" />
-                    <DashboardCard title="Struck pet owners" value={statVal(struckPetOwners)} subtitle="Active strikes" />
+                    <DashboardCard title="Phòng khám đã duyệt" value={statVal(approvedClinics)} subtitle="Đã đăng ký & duyệt" />
+                    <DashboardCard title="Gói chờ thanh toán" value={statVal(pendingSubscriptionPayments)} subtitle="Tất cả clinic" />
+                    <DashboardCard title="Chủ nuôi bị hạn chế" value={statVal(struckPetOwners)} subtitle="Hạn chế đang hiệu lực" />
                 </DashboardStatsGrid>
             </DashboardSection>
 
-            <DashboardSection title="Charts">
+            <DashboardSection title="Biểu đồ">
                 <AdminDashboardCharts
                     reportPending={reportChartPending}
                     reportApproved={reportChartApproved}
@@ -285,28 +292,28 @@ export const AdminDashboardPage = () => {
                 />
             </DashboardSection>
 
-            <DashboardSection title="Recent pending clinics">
+            <DashboardSection title="Phòng khám chờ gần đây">
                 <div className="bg-white border-4 border-stone-900 shadow-brutal overflow-hidden">
                     <table className="w-full text-left">
                         <thead className="border-b-4 border-stone-900 bg-stone-100">
                             <tr>
-                                <th className="p-3 text-xs font-bold uppercase">Name</th>
-                                <th className="p-3 text-xs font-bold uppercase">Phone</th>
-                                <th className="p-3 text-xs font-bold uppercase">Submitted</th>
+                                <th className="p-3 text-xs font-bold uppercase">Tên</th>
+                                <th className="p-3 text-xs font-bold uppercase">Điện thoại</th>
+                                <th className="p-3 text-xs font-bold uppercase">Gửi lúc</th>
                             </tr>
                         </thead>
                         <tbody>
                             {statsLoading && (
                                 <tr>
                                     <td colSpan={3} className="p-6 text-stone-500">
-                                        Loading…
+                                        Đang tải…
                                     </td>
                                 </tr>
                             )}
                             {!statsLoading && recentPendingClinics.length === 0 && (
                                 <tr>
                                     <td colSpan={3} className="p-6 text-center text-stone-600">
-                                        No pending clinics
+                                        Không có phòng khám chờ duyệt
                                     </td>
                                 </tr>
                             )}
@@ -316,7 +323,7 @@ export const AdminDashboardPage = () => {
                                         <td className="p-3 font-bold text-stone-900">{c.name}</td>
                                         <td className="p-3 font-mono text-sm">{c.phone}</td>
                                         <td className="p-3 text-sm text-stone-600">
-                                            {c.createdAt ? new Date(c.createdAt).toLocaleString('en-US') : '—'}
+                                            {c.createdAt ? new Date(c.createdAt).toLocaleString('vi-VN') : '—'}
                                         </td>
                                     </tr>
                                 ))}
@@ -325,33 +332,33 @@ export const AdminDashboardPage = () => {
                 </div>
                 <p className="mt-3 text-sm">
                     <Link to="/admin/clinics" className="font-bold text-amber-800 underline underline-offset-2">
-                        Open clinic review
+                        Mở duyệt phòng khám
                     </Link>
                 </p>
             </DashboardSection>
 
-            <DashboardSection title="Recent pending reports">
+            <DashboardSection title="Báo cáo chờ gần đây">
                 <div className="bg-white border-4 border-stone-900 shadow-brutal overflow-hidden">
                     <table className="w-full text-left">
                         <thead className="border-b-4 border-stone-900 bg-stone-100">
                             <tr>
-                                <th className="p-3 text-xs font-bold uppercase">Booking</th>
-                                <th className="p-3 text-xs font-bold uppercase">Reason</th>
-                                <th className="p-3 text-xs font-bold uppercase">Created</th>
+                                <th className="p-3 text-xs font-bold uppercase">Mã lịch</th>
+                                <th className="p-3 text-xs font-bold uppercase">Lý do</th>
+                                <th className="p-3 text-xs font-bold uppercase">Tạo lúc</th>
                             </tr>
                         </thead>
                         <tbody>
                             {statsLoading && (
                                 <tr>
                                     <td colSpan={3} className="p-6 text-stone-500">
-                                        Loading…
+                                        Đang tải…
                                     </td>
                                 </tr>
                             )}
                             {!statsLoading && recentPendingReports.length === 0 && (
                                 <tr>
                                     <td colSpan={3} className="p-6 text-center text-stone-600">
-                                        No pending reports
+                                        Không có báo cáo chờ
                                     </td>
                                 </tr>
                             )}
@@ -363,7 +370,7 @@ export const AdminDashboardPage = () => {
                                             {r.reason}
                                         </td>
                                         <td className="p-3 text-sm text-stone-600">
-                                            {r.createdAt ? new Date(r.createdAt).toLocaleString('en-US') : '—'}
+                                            {r.createdAt ? new Date(r.createdAt).toLocaleString('vi-VN') : '—'}
                                         </td>
                                     </tr>
                                 ))}
@@ -372,70 +379,70 @@ export const AdminDashboardPage = () => {
                 </div>
                 <p className="mt-3 text-sm">
                     <Link to="/admin/reports" className="font-bold text-amber-800 underline underline-offset-2">
-                        Open reports
+                        Mở báo cáo
                     </Link>
                 </p>
             </DashboardSection>
 
             <DashboardSection
-                title="AI & knowledge"
+                title="AI & kiến thức"
                 action={
                     <Link
                         to={ROUTES.admin.aiInsights}
                         className="text-sm font-bold uppercase text-amber-700 border-2 border-stone-900 px-3 py-1 bg-white shadow-[3px_3px_0_#1c1917] hover:translate-x-[-2px] hover:translate-y-[-2px]"
                     >
-                        Open AI Insights
+                        Mở tổng quan AI
                     </Link>
                 }
             >
                 <p className="text-sm text-stone-600">
-                    Configure the knowledge base, tools, and response metrics from the menu. See AI Insights for a detailed overview.
+                    Cấu hình kho kiến thức, công cụ và chỉ số phản hồi từ menu. Mục tổng quan AI có thông tin chi tiết.
                 </p>
             </DashboardSection>
 
-            <DashboardSection title="Quick links">
+            <DashboardSection title="Liên kết nhanh">
                 <div className="flex flex-wrap gap-3">
                     <Link
                         to="/admin/clinics"
                         className="inline-block px-4 py-3 font-bold uppercase text-sm border-4 border-stone-900 bg-white shadow-[4px_4px_0_#1c1917] hover:translate-x-[-2px] hover:translate-y-[-2px]"
                     >
-                        Review clinics
+                        Duyệt phòng khám
                     </Link>
                     <Link
                         to="/admin/reports"
                         className="inline-block px-4 py-3 font-bold uppercase text-sm border-4 border-stone-900 bg-amber-100 shadow-[4px_4px_0_#1c1917] hover:translate-x-[-2px] hover:translate-y-[-2px]"
                     >
-                        Handle reports
+                        Xử lý báo cáo
                     </Link>
                     <Link
                         to="/admin/refunds"
                         className="inline-block px-4 py-3 font-bold uppercase text-sm border-4 border-stone-900 bg-white shadow-[4px_4px_0_#1c1917] hover:translate-x-[-2px] hover:translate-y-[-2px]"
                     >
-                        Refunds
+                        Hoàn tiền
                     </Link>
                     <Link
                         to="/admin/knowledge"
                         className="inline-block px-4 py-3 font-bold uppercase text-sm border-4 border-stone-900 bg-white shadow-[4px_4px_0_#1c1917] hover:translate-x-[-2px] hover:translate-y-[-2px]"
                     >
-                        Knowledge base
+                        Kho kiến thức
                     </Link>
                     <Link
                         to="/admin/subscriptions"
                         className="inline-block px-4 py-3 font-bold uppercase text-sm border-4 border-stone-900 bg-amber-50 shadow-[4px_4px_0_#1c1917] hover:translate-x-[-2px] hover:translate-y-[-2px]"
                     >
-                        Subscriptions
+                        Gói đăng ký
                     </Link>
                     <Link
                         to="/admin/vouchers"
                         className="inline-block px-4 py-3 font-bold uppercase text-sm border-4 border-stone-900 bg-white shadow-[4px_4px_0_#1c1917] hover:translate-x-[-2px] hover:translate-y-[-2px]"
                     >
-                        Vouchers
+                        Voucher
                     </Link>
                     <Link
                         to="/admin/notifications"
                         className="inline-block px-4 py-3 font-bold uppercase text-sm border-4 border-stone-900 bg-white shadow-[4px_4px_0_#1c1917] hover:translate-x-[-2px] hover:translate-y-[-2px]"
                     >
-                        Notifications
+                        Thông báo
                     </Link>
                 </div>
             </DashboardSection>
