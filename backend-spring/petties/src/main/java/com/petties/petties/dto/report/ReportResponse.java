@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -31,7 +32,9 @@ public class ReportResponse {
     private UUID reportedUserId;
     private String reportedUserName;
     private String reportedUserRole;
-    
+    /** SĐT chủ thú cưng khi phòng khám báo cáo khách hàng */
+    private String reportedUserPhone;
+
     // 2. If it's a Clinic reported, it'll show Clinic info
     private UUID reportedClinicId;
     private String reportedClinicName;
@@ -39,6 +42,7 @@ public class ReportResponse {
 
     // Details
     private String reason;
+    private List<String> attachmentUrls;
     private ReportStatus status;
     private String adminNote;
     private LocalDateTime createdAt;

@@ -19,7 +19,7 @@ import java.util.UUID;
  * Controller cấu hình ngưỡng strike cho Admin.
  */
 @RestController
-@RequestMapping("/v1/admin/clinic-strike-config")
+@RequestMapping("/admin/clinic-strike-config")
 @RequiredArgsConstructor
 @PreAuthorize("hasRole('ADMIN')")
 public class ClinicStrikeConfigController {

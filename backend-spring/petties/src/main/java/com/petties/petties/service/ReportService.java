@@ -1,5 +1,6 @@
 package com.petties.petties.service;
 
+import com.petties.petties.dto.file.UploadResponse;
 import com.petties.petties.dto.report.ReportRequest;
 import com.petties.petties.dto.report.ReportResponse;
 import com.petties.petties.dto.report.ResolveReportRequest;
@@ -21,13 +22,19 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class ReportService {
+
+    private static final int MAX_ATTACHMENTS = 5;
 
     private final ReportRepository reportRepository;
     private final BookingRepository bookingRepository;
@@ -36,9 +43,89 @@ public class ReportService {
     private final ReportMapper reportMapper;
     private final ClinicStrikeService strikeService;
     private final UserStrikeService userStrikeService;
+    private final CloudinaryService cloudinaryService;
 
+    /**
+     * Tạo báo cáo: ảnh gửi kèm multipart, upload Cloudinary trên BE.
+     */
     @Transactional
-    public ReportResponse createReport(ReportRequest request, UUID reporterId) {
+    public ReportResponse createReport(UUID bookingId, String reason, List<MultipartFile> imageFiles, UUID reporterId) {
+        validateReason(reason);
+        List<String> uploaded = uploadReportImages(imageFiles);
+        ReportRequest request = new ReportRequest();
+        request.setBookingId(bookingId);
+        request.setReason(reason.trim());
+        request.setAttachmentUrls(uploaded.isEmpty() ? null : uploaded);
+        return createReportFromRequest(request, reporterId);
+    }
+
+    /**
+     * Cập nhật báo cáo PENDING: file mới upload BE; ảnh giữ lại gửi JSON trong field {@code existingAttachmentUrlsJson}.
+     * {@code existingKeptUrls == null}: chỉ thêm file mới vào danh sách hiện có trên DB (không đổi ảnh cũ nếu không gửi JSON).
+     * {@code existingKeptUrls != null}: thay phần ảnh giữ lại bằng danh sách này + file mới.
+     */
+    @Transactional
+    public ReportResponse updateMyReport(
+            UUID reportId,
+            String reason,
+            List<MultipartFile> newFiles,
+            List<String> existingKeptUrls,
+            UUID reporterId) {
+        validateReason(reason);
+        Report report = reportRepository.findById(reportId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy báo cáo"));
+        if (!report.getReporter().getUserId().equals(reporterId)) {
+            throw new ForbiddenException("Bạn không phải người gửi báo cáo này");
+        }
+        if (report.getStatus() != ReportStatus.PENDING) {
+            throw new BadRequestException("Chỉ có thể sửa báo cáo đang chờ xử lý");
+        }
+
+        List<String> newUrls = uploadReportImages(newFiles);
+        List<String> merged;
+        if (existingKeptUrls == null) {
+            merged = new ArrayList<>(report.getAttachmentUrls() != null ? report.getAttachmentUrls() : List.of());
+            merged.addAll(newUrls);
+        } else {
+            merged = new ArrayList<>(existingKeptUrls);
+            merged.addAll(newUrls);
+        }
+
+        report.setReason(reason.trim());
+        report.setAttachmentUrls(normalizeAttachmentUrls(merged));
+        report = reportRepository.save(report);
+        return reportMapper.mapToResponse(report);
+    }
+
+    private void validateReason(String reason) {
+        if (reason == null || reason.isBlank()) {
+            throw new BadRequestException("Lý do báo cáo không được để trống");
+        }
+        String t = reason.trim();
+        if (t.length() < 10 || t.length() > 2000) {
+            throw new BadRequestException("Lý do báo cáo phải từ 10 đến 2000 ký tự");
+        }
+    }
+
+    private List<String> uploadReportImages(List<MultipartFile> files) {
+        if (files == null) {
+            return new ArrayList<>();
+        }
+        List<String> urls = new ArrayList<>();
+        for (MultipartFile file : files) {
+            if (file == null || file.isEmpty()) {
+                continue;
+            }
+            if (urls.size() >= MAX_ATTACHMENTS) {
+                throw new BadRequestException("Tối đa 5 ảnh đính kèm");
+            }
+            UploadResponse response = cloudinaryService.uploadFile(file, "reports");
+            urls.add(response.getUrl());
+        }
+        return urls;
+    }
+
+    private ReportResponse createReportFromRequest(ReportRequest request, UUID reporterId) {
         log.debug("createReport: bookingId={}, reporterId={}", request.getBookingId(), reporterId);
 
         Booking booking = bookingRepository.findById(request.getBookingId())
@@ -50,7 +137,6 @@ public class ReportService {
         boolean alreadyReported = reportRepository.existsByBookingBookingIdAndReporterUserId(booking.getBookingId(), reporterId);
         log.debug("createReport: alreadyReported={} for booking={}, reporter={}", alreadyReported, booking.getBookingId(), reporterId);
 
-        // Check if user has already reported this booking
         if (alreadyReported) {
             throw new BadRequestException("Bạn đã gửi báo cáo cho lịch hẹn này rồi");
         }
@@ -62,17 +148,12 @@ public class ReportService {
                 .status(ReportStatus.PENDING)
                 .build();
 
-        // Polymorphic reporting logic
-        // If reporter is PET_OWNER -> They are reporting the Clinic
-        // If reporter is CLINIC_MANAGER, CLINIC_OWNER, VET -> They are reporting the Pet Owner
         if (reporter.getRole() == Role.PET_OWNER) {
-            // Only allow pet owner of this booking to report
             if (!booking.getPetOwner().getUserId().equals(reporterId)) {
                 throw new ForbiddenException("Bạn không phải người đặt lịch hẹn này");
             }
             report.setReportedClinic(booking.getClinic());
         } else if (reporter.getRole() == Role.CLINIC_OWNER || reporter.getRole() == Role.CLINIC_MANAGER || reporter.getRole() == Role.STAFF) {
-            // Verify staff belongs to this clinic
             if (reporter.getWorkingClinic() == null || booking.getClinic() == null ||
                 !reporter.getWorkingClinic().getClinicId().equals(booking.getClinic().getClinicId())) {
                 throw new ForbiddenException("Bạn không có quyền báo cáo lịch hẹn của phòng khám khác");
@@ -82,12 +163,51 @@ public class ReportService {
             throw new ForbiddenException("Vai trò của bạn không được phép tạo báo cáo");
         }
 
+        if (request.getAttachmentUrls() != null) {
+            report.setAttachmentUrls(normalizeAttachmentUrls(request.getAttachmentUrls()));
+        }
+
         report = reportRepository.save(report);
-
-        // Notify Admin
         notificationService.sendReportCreatedNotificationToAdmin(report);
-
         return reportMapper.mapToResponse(report);
+    }
+
+    @Transactional
+    public ReportResponse withdrawMyReport(UUID reportId, UUID reporterId) {
+        Report report = reportRepository.findById(reportId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy báo cáo"));
+        if (!report.getReporter().getUserId().equals(reporterId)) {
+            throw new ForbiddenException("Bạn không phải người gửi báo cáo này");
+        }
+        if (report.getStatus() != ReportStatus.PENDING) {
+            throw new BadRequestException("Chỉ có thể rút báo cáo đang chờ xử lý");
+        }
+        report.setStatus(ReportStatus.WITHDRAWN);
+        report = reportRepository.save(report);
+        return reportMapper.mapToResponse(report);
+    }
+
+    private static List<String> normalizeAttachmentUrls(List<String> urls) {
+        if (urls == null || urls.isEmpty()) {
+            return new ArrayList<>();
+        }
+        validateAttachmentUrls(urls);
+        return urls.stream().map(String::trim).collect(Collectors.toList());
+    }
+
+    private static void validateAttachmentUrls(List<String> urls) {
+        if (urls.size() > MAX_ATTACHMENTS) {
+            throw new BadRequestException("Tối đa 5 ảnh đính kèm");
+        }
+        for (String url : urls) {
+            if (url == null || url.isBlank()) {
+                throw new BadRequestException("URL ảnh không hợp lệ");
+            }
+            String t = url.trim();
+            if (!t.startsWith("https://")) {
+                throw new BadRequestException("Chỉ chấp nhận URL ảnh bắt đầu bằng https://");
+            }
+        }
     }
 
     @Transactional(readOnly = true)
@@ -96,7 +216,7 @@ public class ReportService {
         if (status != null) {
             reports = reportRepository.findByStatus(status, pageable);
         } else {
-            reports = reportRepository.findAll(pageable);
+            reports = reportRepository.findAllPaged(pageable);
         }
         return reports.map(reportMapper::mapToResponse);
     }
@@ -122,7 +242,7 @@ public class ReportService {
             throw new BadRequestException("Báo cáo này đã được xử lý trước đó rồi");
         }
 
-        if (request.getStatus() == ReportStatus.PENDING) {
+        if (request.getStatus() == ReportStatus.PENDING || request.getStatus() == ReportStatus.WITHDRAWN) {
             throw new BadRequestException("Trạng thái giải quyết không hợp lệ");
         }
 
@@ -131,16 +251,13 @@ public class ReportService {
 
         report = reportRepository.save(report);
 
-        // Khi approve report về clinic → kiểm tra clinic strike
         if (request.getStatus() == ReportStatus.APPROVED && report.getReportedClinic() != null) {
             strikeService.checkAndApplyStrike(report);
         }
-        // Khi approve report về pet owner → kiểm tra user strike
         if (request.getStatus() == ReportStatus.APPROVED && report.getReportedUser() != null) {
             userStrikeService.checkAndApplyStrike(report);
         }
 
-        // Send notifications to Reporter and Reported
         notificationService.sendReportResolvedNotification(report);
 
         return reportMapper.mapToResponse(report);

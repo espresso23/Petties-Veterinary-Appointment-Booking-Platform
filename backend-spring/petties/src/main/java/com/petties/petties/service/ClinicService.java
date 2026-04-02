@@ -402,6 +402,60 @@ public class ClinicService {
                 return mapToResponsePage(clinics);
         }
 
+        /** Admin: danh sách phòng khám (theo chủ sở hữu), lọc trạng thái / tên */
+        @Transactional(readOnly = true)
+        public Page<ClinicResponse> getAdminClinicRegistry(ClinicStatus status, String name, Pageable pageable) {
+                return getAllClinics(status, name, pageable);
+        }
+
+        private static final LocalDateTime PERMANENT_STRIKE_UNTIL = LocalDateTime.of(9999, 12, 31, 23, 59);
+
+        /**
+         * Admin hạn chế vĩnh viễn (giống strike vĩnh viễn): không nhận booking, không hiển thị tìm kiếm.
+         */
+        @Transactional
+        public ClinicResponse adminBanClinic(UUID clinicId, String reason) {
+                Clinic clinic = clinicRepository.findByIdAndNotDeleted(clinicId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
+                if (clinic.getStatus() != ClinicStatus.APPROVED) {
+                        throw new BadRequestException("Chỉ có thể hạn chế phòng khám đã được duyệt");
+                }
+                if (PERMANENT_STRIKE_UNTIL.equals(clinic.getStrikeUntil())) {
+                        throw new BadRequestException("Phòng khám này đã đang bị hạn chế vĩnh viễn");
+                }
+                clinic.setStrikeUntil(PERMANENT_STRIKE_UNTIL);
+                clinic = clinicRepository.save(clinic);
+                log.info("Admin banned clinic {} permanently", clinicId);
+                try {
+                        String msg = "Phòng khám bị quản trị viên hạn chế nhận đặt lịch và tìm kiếm vĩnh viễn. Lý do: "
+                                        + reason.trim();
+                        notificationService.createClinicNotification(clinic, NotificationType.CLINIC_STRIKE, msg);
+                } catch (Exception e) {
+                        log.error("Failed to notify clinic {} after admin ban", clinicId, e);
+                }
+                return mapToResponse(clinic);
+        }
+
+        /** Admin gỡ hạn chế strike (kể cả hạn chế tạm hoặc vĩnh viễn). */
+        @Transactional
+        public ClinicResponse adminLiftClinicStrike(UUID clinicId) {
+                Clinic clinic = clinicRepository.findByIdAndNotDeleted(clinicId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
+                if (clinic.getStrikeUntil() == null) {
+                        throw new BadRequestException("Phòng khám không đang bị hạn chế do strike");
+                }
+                clinic.setStrikeUntil(null);
+                clinic = clinicRepository.save(clinic);
+                log.info("Admin lifted strike for clinic {}", clinicId);
+                try {
+                        notificationService.createClinicNotification(clinic, NotificationType.CLINIC_VERIFIED,
+                                        "Quản trị viên đã gỡ hạn chế đặt lịch và tìm kiếm đối với phòng khám của bạn.");
+                } catch (Exception e) {
+                        log.error("Failed to notify clinic {} after lift strike", clinicId, e);
+                }
+                return mapToResponse(clinic);
+        }
+
         @Transactional
         public ClinicResponse approveClinic(UUID clinicId, String reason) {
                 Clinic clinic = clinicRepository.findByIdAndNotDeleted(clinicId)

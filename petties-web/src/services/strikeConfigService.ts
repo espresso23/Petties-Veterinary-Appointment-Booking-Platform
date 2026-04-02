@@ -1,6 +1,6 @@
 import axios from './api/client';
 
-const STRIKE_CONFIG_API = '/v1/admin/clinic-strike-config';
+const STRIKE_CONFIG_API = '/admin/clinic-strike-config';
 
 export interface StrikeConfigResponse {
   configs: Record<string, string>;

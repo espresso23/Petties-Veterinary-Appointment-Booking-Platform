@@ -265,3 +265,23 @@ export interface ConfirmBookingWithOptionsRequest {
     allowPartial?: boolean;
     removeUnavailableServices?: boolean;
 }
+
+/** GET /bookings/staff/home-summary — lịch sắp tới */
+export interface UpcomingBookingDTO {
+    bookingId: string;
+    bookingCode: string;
+    petName?: string;
+    ownerName?: string;
+    bookingDate: string;
+    bookingTime: string;
+    status: BookingStatus;
+    primaryServiceName?: string;
+}
+
+/** GET /bookings/staff/home-summary */
+export interface StaffHomeSummaryResponse {
+    todayBookingsCount: number;
+    pendingCount: number;
+    inProgressCount: number;
+    upcomingBookings: UpcomingBookingDTO[];
+}

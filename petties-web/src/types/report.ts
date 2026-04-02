@@ -1,8 +1,15 @@
-export type ReportStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type ReportStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN';
 
+/** Legacy JSON shape; create/update reports use multipart in reportService. */
 export interface ReportRequest {
   bookingId: string;
   reason: string;
+  attachmentUrls?: string[];
+}
+
+export interface UpdateReportRequest {
+  reason: string;
+  attachmentUrls?: string[];
 }
 
 export interface ResolveReportRequest {
@@ -27,7 +34,8 @@ export interface ReportResponse {
   reportedUserId?: string;
   reportedUserName?: string;
   reportedUserRole?: string;
-  
+  reportedUserPhone?: string;
+
   // Reported Clinic Info (if Clinic is reported)
   reportedClinicId?: string;
   reportedClinicName?: string;
@@ -35,6 +43,7 @@ export interface ReportResponse {
 
   // Report details
   reason: string;
+  attachmentUrls?: string[];
   status: ReportStatus;
   adminNote?: string;
   createdAt: string;

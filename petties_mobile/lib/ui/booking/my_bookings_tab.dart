@@ -10,6 +10,7 @@ import '../../data/services/sos_matching_service.dart';
 import '../../routing/app_routes.dart';
 import '../../utils/format_utils.dart';
 import 'write_review_screen.dart';
+import 'report_booking_dialog.dart';
 
 /// Tab hiển thị lịch sử đặt lịch của Pet Owner
 class MyBookingsTab extends StatefulWidget {
@@ -731,6 +732,17 @@ class _MyBookingsTabState extends State<MyBookingsTab>
                           color: Colors.red.shade700,
                           isOutlined: true,
                           onTap: () => _showSosCancelDialog(context, booking),
+                        ),
+                      if (booking.status == 'COMPLETED')
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          child: _buildActionButton(
+                            label: 'BÁO CÁO',
+                            color: AppColors.error,
+                            isOutlined: true,
+                            onTap: () =>
+                                showReportBookingDialog(context, booking),
+                          ),
                         ),
                       if (['CANCELLED', 'REJECTED', 'NO_SHOW', 'COMPLETED', 'IN_PROGRESS']
                           .contains(booking.status))

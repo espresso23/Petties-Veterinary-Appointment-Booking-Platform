@@ -59,6 +59,8 @@ class AppRoutes {
   static const String notifications = '/notifications';
   static const String paymentMethods = '/payment-methods';
   static const String bookingHistory = '/booking-history';
+  static const String myReports = '/reports';
+  static const String reportDetail = '/reports/detail';
 
   // Pet Management
   static const String myPets = '/pets';

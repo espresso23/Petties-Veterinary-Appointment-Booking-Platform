@@ -4,6 +4,9 @@ import com.petties.petties.dto.report.ReportResponse;
 import com.petties.petties.model.Report;
 import org.springframework.stereotype.Component;
 
+import java.util.Collections;
+import java.util.List;
+
 @Component
 public class ReportMapper {
 
@@ -12,17 +15,23 @@ public class ReportMapper {
             return null;
         }
 
+        var reporter = report.getReporter();
+        String reporterDisplayName = reporter.getFullName() != null && !reporter.getFullName().isBlank()
+                ? reporter.getFullName().trim()
+                : reporter.getUsername();
+
         ReportResponse.ReportResponseBuilder builder = ReportResponse.builder()
                 .id(report.getId())
                 .bookingId(report.getBooking().getBookingId())
                 .bookingCode(report.getBooking().getBookingCode())
                 
-                .reporterId(report.getReporter().getUserId())
-                .reporterName(report.getReporter().getFullName())
-                .reporterRole(report.getReporter().getRole().name())
-                .reporterPhone(report.getReporter().getPhone())
+                .reporterId(reporter.getUserId())
+                .reporterName(reporterDisplayName)
+                .reporterRole(reporter.getRole().name())
+                .reporterPhone(reporter.getPhone())
                 
                 .reason(report.getReason())
+                .attachmentUrls(attachmentList(report.getAttachmentUrls()))
                 .status(report.getStatus())
                 .adminNote(report.getAdminNote())
                 .createdAt(report.getCreatedAt())
@@ -37,12 +46,20 @@ public class ReportMapper {
         if (report.getReportedUser() != null) {
             var u = report.getReportedUser();
             String displayName = u.getFullName() != null && !u.getFullName().isBlank()
-                    ? u.getFullName() : u.getUsername();
+                    ? u.getFullName().trim() : u.getUsername();
             builder.reportedUserId(u.getUserId())
                    .reportedUserName(displayName)
-                   .reportedUserRole(u.getRole().name());
+                   .reportedUserRole(u.getRole().name())
+                   .reportedUserPhone(u.getPhone());
         }
 
         return builder.build();
+    }
+
+    private static List<String> attachmentList(List<String> urls) {
+        if (urls == null || urls.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return List.copyOf(urls);
     }
 }

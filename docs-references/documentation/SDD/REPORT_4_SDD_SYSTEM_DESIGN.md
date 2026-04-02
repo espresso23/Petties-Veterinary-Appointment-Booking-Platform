@@ -2654,7 +2654,7 @@ Use separate vectors for text and image retrieval:
 | Voucher Management | `/vouchers` | Admin voucher CRUD, clinic voucher application, pet owner voucher discovery and discount calculation | Admin + Clinic Manager + Auth |
 | Refund Application Management | `/refund-applications` | Create refund records, clinic history, admin pending/all, status updates | Clinic Owner + Admin |
 | Withdrawal Management | `/withdrawals` | Clinic withdrawal request list/detail and admin review decisions | Clinic Owner + Admin |
-| Governance Report & Strike Config | `/v1/reports`, `/v1/admin/reports`, `/v1/admin/clinic-strike-config`, `/v1/admin/user-strike-config` | Report moderation plus clinic/user strike threshold configuration | Auth + Admin |
+| Governance Report & Strike Config | `/reports`, `/reports/{id}` (PUT/DELETE for reporter), `/admin/reports`, `/admin/clinic-strike-config`, `/admin/user-strike-config` | Reports: create with optional `attachmentUrls` (HTTPS), reporter update/withdraw (`WITHDRAWN`), admin resolve; strike thresholds (no `/v1` prefix; base path `/api`) | Auth + Admin |
 | SePay Webhook Integration | `/api/webhooks/sepay` | Payment callback ingestion and downstream booking/payment reconciliation | System |
 
 #### 3.1.6 Clinic Services (`/services`)

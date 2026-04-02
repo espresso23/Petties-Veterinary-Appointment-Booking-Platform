@@ -21,6 +21,8 @@ import '../ui/staff/ai_chat/staff_ai_chat_screen.dart';
 import '../ui/screens/profile/profile_screen.dart';
 import '../ui/screens/profile/edit_profile_screen.dart';
 import '../ui/screens/profile/change_password_screen.dart';
+import '../ui/reports/report_list_screen.dart';
+import '../ui/reports/report_detail_screen.dart';
 import '../ui/pet/pet_list_screen.dart';
 import '../ui/pet/add_edit_pet_screen.dart';
 import '../ui/pet/pet_detail_screen.dart';
@@ -413,6 +415,19 @@ class AppRouterConfig {
         GoRoute(
           path: AppRoutes.changePassword,
           builder: (context, state) => const ChangePasswordScreen(),
+        ),
+
+        // Reports
+        GoRoute(
+          path: AppRoutes.myReports,
+          builder: (context, state) => const ReportListScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.reportDetail,
+          builder: (context, state) {
+            final report = state.extra; // Dữ liệu mock truyền qua extra
+            return ReportDetailScreen(report: report);
+          },
         ),
 
         // Pet Management Routes
