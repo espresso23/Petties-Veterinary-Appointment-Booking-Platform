@@ -18,6 +18,7 @@ from app.db.postgres.models import (
     SystemSetting,
     DEFAULT_SETTINGS,
     SettingCategory,
+    normalize_setting_category,
 )
 from app.api.middleware.auth import get_admin_user
 
@@ -89,7 +90,7 @@ async def init_default_settings(db: AsyncSession):
             setting = SystemSetting(
                 key=setting_data["key"],
                 value=setting_data["value"],
-                category=setting_data["category"],  # Simple string now
+                category=normalize_setting_category(setting_data["category"]),
                 is_sensitive=setting_data["is_sensitive"],
                 description=setting_data.get("description"),
             )
@@ -109,7 +110,9 @@ async def list_settings(
     """List all settings (admin only). Sensitive values are masked."""
     query = select(SystemSetting)
     if category:
-        query = query.where(SystemSetting.category == category)
+        query = query.where(
+            SystemSetting.category == normalize_setting_category(category)
+        )
 
     result = await db.execute(query)
     settings = result.scalars().all()

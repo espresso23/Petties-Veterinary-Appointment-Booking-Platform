@@ -62,7 +62,7 @@ export default function CheckoutModal({ bookingId, bookingCode, totalPrice, isOp
     const handleCheckout = async () => {
         try {
             setIsCheckingOut(true);
-            const payload: any = {};
+            const payload: { voucherId?: string; removeVoucher?: boolean } = {};
             if (selectedVoucherId) {
                 if (selectedVoucherId === 'remove') {
                     payload.removeVoucher = true;
@@ -74,8 +74,9 @@ export default function CheckoutModal({ bookingId, bookingCode, totalPrice, isOp
             showToast('success', 'Thanh toán tiền mặt thành công!');
             onSuccess();
             onClose();
-        } catch (e: any) {
-            showToast('error', e.response?.data?.message || 'Lỗi thanh toán');
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : (e as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Lỗi thanh toán'
+            showToast('error', msg);
         } finally {
             setIsCheckingOut(false);
         }

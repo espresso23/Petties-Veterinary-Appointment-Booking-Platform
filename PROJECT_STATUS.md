@@ -1,7 +1,7 @@
 # 🐾 PETTIES Project Status
 
-> **Last Updated:** 2026-03-10
-> **Current Sprint:** Sprint 13 (04/03 - 11/03/2026) - Stabilization & Documentation Alignment
+> **Last Updated:** 2026-04-03
+> **Current Sprint:** Post Sprint 13 - Production Hardening & Audit Closure
 > **Overall Progress:** 85.2% (theo SRS mục 2.3)
 
 ---
@@ -15,12 +15,12 @@
 | Clinic System | ✅ Done | 100% |
 | Staff Scheduling | ✅ Done | 100% |
 | Notifications | ✅ Done | 100% |
-| AI Assistant | 🔄 Active | 85% |
+| AI Assistant | 🔄 Active | 92% |
 | Booking Flow | ✅ Done | 100% |
 | EMR (Medical Records) | ✅ Done | 100% |
 | Vaccination System | ✅ Done | 100% |
-| Payment System | ✅ Done | 90% |
-| SOS Emergency | 🔄 Active | 85% |
+| Payment System | 🔄 Active | 90% |
+| SOS Emergency | ✅ Done | 100% |
 
 ---
 
@@ -61,6 +61,7 @@
 - **Payment System (SePay QR Integration)** ✅ NEW
 - **Vaccination System** ✅ NEW
 - **EMR SOAP Notes (MongoDB)** ✅ NEW
+- **Staff Diagnosis AI (LLM Synthesis)** ✅ NEW
 
 ### Web (React 19 + Vite)
 - Admin Dashboard
@@ -74,7 +75,8 @@
 - **Booking Management Dashboard** ✅ NEW
 - **Patient Management Dashboard** ✅ NEW
 - **EMR Creation/Edit Forms** ✅ NEW
-- **SSE Notification dedupe bằng silent page subscriptions** ✅ NEW (giảm duplicate toast)
+- **SSE Notification dedupe bằng silent page subscriptions** ✅ NEW
+- **Lint/TypeScript Cleanup (Apr 2026)** ✅ NEW
 
 ### Mobile (Flutter)
 - Google Sign-In
@@ -86,7 +88,16 @@
 - **Booking Flow (Multi-step)** ✅ NEW
 - **EMR Viewer** ✅ NEW
 - **Vaccination Records** ✅ NEW
-- **Staff Booking Action label chuẩn hóa “BẮT ĐẦU THỰC HIỆN DỊCH VỤ”** ✅ NEW
+- **Staff Booking Action label chuẩn hóa "BẮT ĐẦU THỰC HIỆN DỊCH VỤ"** ✅ NEW
+- **AI Chat with Booking Tools** ✅ NEW
+
+### AI Service (FastAPI)
+- Single Agent với ReAct pattern
+- LangGraph State Management
+- Tool Policy với 21 tools
+- **Staff Diagnosis LLM Synthesis** ✅ NEW
+- **Knowledge Graph Optimization** ✅ NEW
+- **Entity Normalization (exact + fuzzy + synonym)** ✅ NEW
 
 ---
 
@@ -95,32 +106,56 @@
 - [x] Chuẩn hóa booking status theo code: bỏ `ASSIGNED`/`CHECK_IN`/`CHECK_OUT`
 - [x] Đồng bộ `Booking Workflow` theo flow `PENDING → CONFIRMED → IN_PROGRESS → COMPLETED`
 - [x] Home Visit không tracking realtime (chỉ SOS tracking)
-- [x] Đồng bộ nhãn action staff web/mobile: “BẮT ĐẦU THỰC HIỆN DỊCH VỤ”
+- [x] Đồng bộ nhãn action staff web/mobile: "BẮT ĐẦU THỰC HIỆN DỊCH VỤ"
 - [x] Fix duplicate toast SSE trên web bằng `silent` mode ở page-level subscriptions
 - [x] Cập nhật SRS theo endpoint/status hiện tại
 - [x] Cập nhật SDD theo endpoint/status/schema hiện tại
 
+## ✅ Lint/TypeScript Cleanup (2026-04-03)
+
+- [x] Fix `vite.config.ts` - bỏ unnecessary escape `\@`
+- [x] Fix `VaccinationPage.tsx` - eslint-disable useEffect dependencies
+- [x] Fix `StaffSchedulePage.tsx` - eslint-disable useEffect dependencies
+- [x] Fix `MySubscriptionPage.tsx` - eslint-disable useEffect dependencies
+- [x] Fix `GraphVisualizer.tsx` - d3 drag typing with proper types
+- [x] Fix `StaffVipDisplay.test.tsx` - thay `any` bằng proper function types
+- [x] Fix `subscriptionService.ts` - thêm `PaymentStatusResponse` interface
+- [x] Fix `PaymentModal.tsx`, `BookingDashboardPage.tsx`, `RevenuePage.tsx`, `MySubscriptionPage.tsx`, `ClinicManagerVoucherPage.tsx` - thay `catch(error: any)` bằng `catch(error: unknown)` với proper type guards
+
+**Remaining:** 6 `any` types trong React components (acceptable for prototype code)
+
 ---
 
-## 🔄 In Progress (Sprint 13)
+## 🔄 In Progress (Post Sprint 13)
 
-### Current Focus: Stabilization + Consistency
-1. **Payment Flow Completion**
+### Current Focus: Production Hardening + Consistency
+1. **Knowledge Graph Optimization** (2026-04-02)
+   - ✅ Increased `MAX_TRIPLETS_PER_CHUNK`: 50 → 300
+   - ✅ Increased `MAX_TOTAL_TRIPLETS`: 1000 → 5000
+   - ✅ Extended chunk processing: 15 → 200 chunks (full 300+ pages coverage)
+   - ✅ Relaxed validation thresholds for medical terminology
+   - ✅ Implemented entity normalization: exact + fuzzy + synonym matching
+   - ✅ Added `/kg/normalize-entities` endpoint
+   - **Expected**: 22 → 1000+ triplets, edge density 0.51 → 0.88 (1.7x denser)
+
+2. **Staff Diagnosis - Plan Draft Fix** (2026-04-03)
+   - ✅ Prompt synthesis rule: "plan_draft KHÔNG được nhắc tên thuốc..."
+   - ✅ `_build_plan_draft` chỉ build từ protocol.cautions và missing_inputs
+   - ✅ Unit test `test_build_plan_draft_does_not_append_allergy_or_weight_tail` passed
+   - ⏳ Verify bằng endpoint thật (cần auth token)
+
+3. **Payment Flow Completion**
    - [x] SePay QR Backend API
    - [x] Payment Controller
    - [ ] Mobile Payment Screen
    - [ ] Webhook handling production verification
 
-2. **Manager Refund/Cancel Ops**
+4. **Manager Refund/Cancel Ops**
    - [x] View request cancel booking
    - [ ] Approve/Reject request (end-to-end UI + API)
    - [ ] Process refund flow hoàn chỉnh
 
-3. **SOS & Tracking Hardening**
-   - [x] SOS booking + matching + tracking cơ bản
-   - [ ] Track staff location stabilization (in-progress theo SRS)
-
-4. **AI Booking via Chat Validation**
+5. **AI Booking via Chat Validation**
    - [x] Business chat session + WebSocket streaming
    - [x] Role/context isolation + tool runtime context
    - [x] Booking tools nối Spring backend (`get_user_pets`, `search_clinics_nearby`, `get_clinic_services`, `check_available_slots`, `create_booking_for_user`)
@@ -130,6 +165,15 @@
    - [ ] E2E test kịch bản khám tại nhà
    - [ ] Giảm phụ thuộc heuristic parsing ở mobile confirmation
    - [ ] Chốt acceptance checklist trước khi đánh dấu hoàn thành
+
+6. **AI Chatbot Production Hardening (theo audit 2026-03-30/31)**
+   - [x] Chuẩn hóa structured error contract cho các tool chính
+   - [x] Bổ sung guard xác nhận booking theo confirmation snapshot
+   - [x] Tăng coverage regression focused suite (79 passed)
+   - [ ] Hoàn tất enum coverage cho business error code ở toàn bộ flow phụ
+   - [ ] Chốt source of truth lưu user message giữa REST và WebSocket
+   - [ ] Quyết định chiến lược persistent checkpointer thay cho MemorySaver
+   - [ ] Đóng toàn bộ pass/fail mapping theo AI service audit checklist
 
 ---
 
@@ -157,7 +201,9 @@
 - Payment webhook cần verify kỹ trước khi production
 - Cross-clinic EMR cần test với nhiều clinic data
 - Booking via AI hiện vẫn phụ thuộc một phần vào heuristic parsing ở mobile để nhận diện bước xác nhận booking
-- Một số tài liệu lịch sử còn thuật ngữ `vet`/flow cũ ngoài phạm vi Booking module (cần dọn đồng bộ toàn cục)
+- AI chatbot hiện chưa chốt source of truth duy nhất cho luồng lưu user message giữa REST và WebSocket
+- Persistent checkpointer cho graph state vẫn đang deferred theo quyết định kiến trúc hiện tại
+- Business error-code parity ở các flow phụ chưa hoàn tất, có thể gây lệch UI error handling
 
 ---
 

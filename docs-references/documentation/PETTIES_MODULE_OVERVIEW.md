@@ -49,7 +49,7 @@
 | 09 | **AI Vision Analysis** | Image-based pet health analysis & alerts | ✅ In Scope |
 | 10 | **Query Expander** | LLM-based short query expansion trước khi search RAG | ✅ Done |
 | 11 | **Knowledge Graph** | LlamaIndex KGIndex + SimpleGraphStore, trích xuất quan hệ từ tài liệu | ✅ Done |
-| 12 | **Case Memory** | Confirmed case storage trong Qdrant với feedback-weighted re-ranking | ✅ Done |
+| 12 | **Case Memory** | Confirmed case storage trong Qdrant với quality-gated re-ranking và disease support metrics | ✅ Done |
 | 13 | **Feedback Service** | Thu thập feedback, auto-classify, auto-embed positive cases | ✅ Done |
 | 14 | **Hybrid RAG Engine** | Tổng hợp RAG + KG + Case Memory với parallel search | ✅ Done |
 

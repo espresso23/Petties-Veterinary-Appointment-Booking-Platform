@@ -127,95 +127,102 @@ class LlamaIndexRAGEngine:
             from llama_index.vector_stores.qdrant import QdrantVectorStore
             from llama_index.llms.openrouter import OpenRouter
 
-        async with AsyncSessionLocal() as db:
-            # Get API keys from database
-            cohere_api_key = await get_setting("COHERE_API_KEY", db)
-            cohere_model = (
-                await get_setting("COHERE_EMBEDDING_MODEL", db)
-                or "embed-multilingual-v3.0"
-            )
-            qdrant_url = await get_setting("QDRANT_URL", db) or settings.QDRANT_URL
-            qdrant_api_key = (
-                await get_setting("QDRANT_API_KEY", db) or settings.QDRANT_API_KEY
-            )
-            self._collection_name = (
-                await get_setting("QDRANT_COLLECTION_NAME", db)
-                or "petties_knowledge_base"
-            )
-            openrouter_api_key = await get_setting("OPENROUTER_API_KEY", db)
-        llm_model = (
-            await get_setting("RAG_LLM_MODEL", db) or "google/gemini-2.5-flash-lite"
-        )
+            async with AsyncSessionLocal() as db:
+                # Get API keys from database
+                cohere_api_key = await get_setting("COHERE_API_KEY", db)
+                cohere_model = (
+                    await get_setting("COHERE_EMBEDDING_MODEL", db)
+                    or "embed-multilingual-v3.0"
+                )
+                qdrant_url = await get_setting("QDRANT_URL", db) or settings.QDRANT_URL
+                qdrant_api_key = (
+                    await get_setting("QDRANT_API_KEY", db) or settings.QDRANT_API_KEY
+                )
+                self._collection_name = (
+                    await get_setting("QDRANT_COLLECTION_NAME", db)
+                    or "petties_knowledge_base"
+                )
+                openrouter_api_key = await get_setting("OPENROUTER_API_KEY", db)
+                llm_model = (
+                    await get_setting("RAG_LLM_MODEL", db)
+                    or "google/gemini-2.5-flash-lite"
+                )
 
-        if not cohere_api_key:
-            logger.warning(
-                "COHERE_API_KEY not configured. RAG search will be unavailable. Please set it in Settings."
-            )
-            return
+            if not cohere_api_key:
+                logger.warning(
+                    "COHERE_API_KEY not configured. RAG search will be unavailable. Please set it in Settings."
+                )
+                return
 
-        # Configure LlamaIndex Settings (global)
-        Settings.embed_model = CohereEmbedding(
-            api_key=cohere_api_key,
-            model_name=cohere_model,
-            input_type="search_document",  # For indexing
-        )
-
-        # Configure LLM (OpenRouter)
-        if openrouter_api_key:
-            Settings.llm = OpenRouter(
-                api_key=openrouter_api_key,
-                model=llm_model,
-                temperature=0.1,
-            )
-        else:
-            logger.warning(
-                "OPENROUTER_API_KEY not configured. RAG synthesis may fail if LLM is needed."
+            # Configure LlamaIndex Settings (global)
+            Settings.embed_model = CohereEmbedding(
+                api_key=cohere_api_key,
+                model_name=cohere_model,
+                input_type="search_document",  # For indexing
             )
 
-        # Configure chunking
-        Settings.node_parser = SentenceSplitter(chunk_size=512, chunk_overlap=50)
-
-        # Initialize Qdrant client
-        if qdrant_url and qdrant_api_key:
-            logger.info(f"Connecting to Qdrant Cloud: {qdrant_url}")
-            self.qdrant_client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
-        else:
-            logger.info("Using local Qdrant")
-            self.qdrant_client = QdrantClient(host="localhost", port=6333)
-
-        # Create vector store
-        self.vector_store = QdrantVectorStore(
-            client=self.qdrant_client,
-            collection_name=self._collection_name,
-            enable_hybrid=False,  # Can enable for BM25 + Vector
-        )
-
-        # Create or load index
-        storage_context = StorageContext.from_defaults(vector_store=self.vector_store)
-
-        # Check if collection exists with data
-        try:
-            collection_info = self.qdrant_client.get_collection(self._collection_name)
-            points_count = collection_info.points_count
-
-            if points_count > 0:
-                logger.info(f"Loading existing index with {points_count} vectors")
-                self.index = VectorStoreIndex.from_vector_store(
-                    self.vector_store, storage_context=storage_context
+            # Configure LLM (OpenRouter)
+            if openrouter_api_key:
+                Settings.llm = OpenRouter(
+                    api_key=openrouter_api_key,
+                    model=llm_model,
+                    temperature=0.1,
                 )
             else:
-                logger.info("Creating new empty index")
+                logger.warning(
+                    "OPENROUTER_API_KEY not configured. RAG synthesis may fail if LLM is needed."
+                )
+
+            # Configure chunking
+            Settings.node_parser = SentenceSplitter(chunk_size=512, chunk_overlap=50)
+
+            # Initialize Qdrant client
+            if qdrant_url and qdrant_api_key:
+                logger.info(f"Connecting to Qdrant Cloud: {qdrant_url}")
+                self.qdrant_client = QdrantClient(
+                    url=qdrant_url, api_key=qdrant_api_key
+                )
+            else:
+                logger.info("Using local Qdrant")
+                self.qdrant_client = QdrantClient(host="localhost", port=6333)
+
+            # Create vector store
+            self.vector_store = QdrantVectorStore(
+                client=self.qdrant_client,
+                collection_name=self._collection_name,
+                enable_hybrid=False,  # Can enable for BM25 + Vector
+            )
+
+            # Create or load index
+            storage_context = StorageContext.from_defaults(
+                vector_store=self.vector_store
+            )
+
+            # Check if collection exists with data
+            try:
+                collection_info = self.qdrant_client.get_collection(
+                    self._collection_name
+                )
+                points_count = collection_info.points_count
+
+                if points_count > 0:
+                    logger.info(f"Loading existing index with {points_count} vectors")
+                    self.index = VectorStoreIndex.from_vector_store(
+                        self.vector_store, storage_context=storage_context
+                    )
+                else:
+                    logger.info("Creating new empty index")
+                    self.index = VectorStoreIndex.from_documents(
+                        [], storage_context=storage_context
+                    )
+            except Exception as e:
+                logger.warning(f"Collection not found, creating new: {e}")
                 self.index = VectorStoreIndex.from_documents(
                     [], storage_context=storage_context
                 )
-        except Exception as e:
-            logger.warning(f"Collection not found, creating new: {e}")
-            self.index = VectorStoreIndex.from_documents(
-                [], storage_context=storage_context
-            )
 
-        self._initialized = True
-        logger.info("LlamaIndex RAG Engine initialized successfully")
+            self._initialized = True
+            logger.info("LlamaIndex RAG Engine initialized successfully")
 
     async def index_document(
         self,

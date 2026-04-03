@@ -43,6 +43,7 @@ class ToolRuntimeContext:
     clinic_id: Optional[str] = None
     session_id: Optional[str] = None
     context_type: Optional[str] = None
+    booking_state: Optional[Dict[str, Any]] = None
 
 
 @dataclass
@@ -218,16 +219,6 @@ def get_booking_context_cache() -> BookingContextCache:
         cache = BookingContextCache()
         _booking_context_cache_var.set(cache)
     return cache
-
-
-def set_booking_context_cache(cache: BookingContextCache) -> Token:
-    """Set booking context cache (legacy function)."""
-    return _booking_context_cache_var.set(cache)
-
-
-def reset_booking_context_cache(token: Token) -> None:
-    """Reset booking context cache (legacy function)."""
-    _booking_context_cache_var.reset(token)
 
 
 # ============================================================================

@@ -517,9 +517,9 @@ Danh sách chi tiết các công nghệ được sử dụng để xây dựng h
     * Example: "Dry cough + runny nose" → KG infers "Upper respiratory infection" → "Antibiotics + keep warm"
 
 * **Case Memory từ EMR xác nhận:**
-    * Vision LLM describes the image, then embeds the **textual description** (visual_description + diagnosis + symptoms) with Cohere and stores it together with metadata (species, disease, feedback, image_url, etc.)
+    * Vision LLM describes the image, then embeds the **textual description** actually used by retrieval together with metadata (species, canonical disease mapping, quality gate, image_url, etc.)
     * On similar future images, retrieves confirmed cases to increase accuracy and provide explanations such as "based on a previous case confirmed by Staff/Vet"
-    * Feedback-weighted retrieval: cases confirmed many times are boosted in ranking
+    * Quality-gated retrieval: ranking is boosted by `quality_gate.score` and by support metrics aggregated from multiple confirmed EMRs of the same disease/species
     * **Phase 2 (Done):** Add a layer of **CLIP-style image embeddings** in a dedicated Qdrant collection (`petties_kb_images`) for images extracted from PDFs, combined with text embeddings to better capture purely visual patterns. Implemented with Jina CLIP v2 (1024 dim) for image vectors and Cohere for text vectors. Supports hybrid search (text + image similarity).
 
   * **Query Expansion:**

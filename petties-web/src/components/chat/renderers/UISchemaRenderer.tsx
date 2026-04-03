@@ -211,6 +211,17 @@ function renderText(component: UIComponent) {
   )
 }
 
+function renderBadge(component: UIComponent) {
+  return (
+    <div
+      key={component.id}
+      className="mt-3 px-3 py-2 bg-amber-50 border-2 border-stone-900 rounded-lg text-xs text-stone-700"
+    >
+      {renderSimpleValue(component.data['content'])}
+    </div>
+  )
+}
+
 function renderComponent(
   component: UIComponent,
   onAction?: (action: UIAction, component: UIComponent) => void,
@@ -235,6 +246,8 @@ function renderComponent(
       return renderEmptyState(component)
     case 'text':
       return renderText(component)
+    case 'badge':
+      return renderBadge(component)
     default:
       return (
         <pre key={component.id} className="text-xs whitespace-pre-wrap break-words bg-stone-100 border-2 border-stone-900 rounded-xl p-3">

@@ -123,7 +123,7 @@ This document tracks the generation of black & white wireframes for the Petties 
   - *UI Description: Floating button bottom-right trên Staff Home Screen. Icon auto_awesome (amber), text "AI Hỗ trợ". Neobrutalism style với offset shadow. Tap → navigate to /staff/ai-chat.*
 
 - [x] **AI Staff Chat Screen (Mobile)** (UC-AI-020)
-  - Code: `lib/ui/staff/ai_chat/staff_ai_chat_screen.dart` (wraps `AiChatScreen` with `isStaffContext: true`)
+  - Code: `lib/ui/staff/ai_chat/staff_ai_chat_screen.dart` (wraps shared `AiChatScreen`)
   - Stitch ID: `396aa0772a8f444298a54ccacad46ed9` (reused from web slide-in)
   - *UI Description: Fullscreen dialog. Chat interface với AI Agent cho Staff - context-aware với tools (get_staff_petients, search_clinics, etc.). Role-based system prompt từ AI Service.*
 
@@ -252,9 +252,10 @@ This document tracks the generation of black & white wireframes for the Petties 
 - [x] **Staff Update Booking Progress** (UC-BOOK-08)
   - Code: `lib/ui/staff/staff_booking_detail_screen.dart`
   - Stitch ID: `23bac76ebe5e435485519123fd7fe483`
-- [x] **Staff Create EMR** (UC-VT-06)
+- [x] **Staff Create EMR (Refactored V2 - Clinical-first)** (UC-VT-06)
   - Code: `lib/ui/staff/create_emr_screen.dart`
-  - Stitch ID: `6e7c15796b784e82b1248c78e43b6e51`
+  - Wireframe Stitch ID: `3fa05b8b34f24ee9b8ea309f93943355`
+  - Design Stitch ID: `b212918d3fdd40148e4bf9b90cc67eae`
 - [x] **Staff EMR Detail** (UC-VT-06)
   - Code: `lib/ui/staff/emr_detail_screen.dart`
   - Stitch ID: `948ceaa48762498c87ace145227ba51e`
@@ -304,9 +305,11 @@ This document tracks the generation of black & white wireframes for the Petties 
 - [x] **EMR Detail** (UC-VT-06)
   - Code: `staff/emr/EmrDetailPage.tsx`
   - Stitch ID: `2d10d23ef25c460e8f3aa2940b83dd60`
-- [x] **Create EMR** (UC-VT-06)
+- [x] **Create EMR (Refactored V2 - Clinical-first)** (UC-VT-06)
   - Code: `staff/emr/CreateEmrPage.tsx`
-  - Stitch ID: `11e29c25c0524dc6bf0808a6c2615e47`
+  - Wireframe Stitch ID: `6e7af7a0a4ca4081b9d7d8c22e537a7a`
+  - Design Stitch ID (3-Column Desktop): `b60dc32804b44b0b903e5e5ab9233aee`
+  - Design Stitch ID (Mobile Vertical V2): `b212918d3fdd40148e4bf9b90cc67eae`
 - [x] **Notifications**
   - Code: `staff/NotificationsPage.tsx`
   - Stitch ID: `64bb7b67d4044632b23c2ce59b17f51b`

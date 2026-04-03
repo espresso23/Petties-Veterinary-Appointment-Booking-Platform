@@ -39,8 +39,14 @@ def test_resolve_intent_mapping():
         )
         == "show_empty"
     )
-    assert resolve_intent("any_tool", {"success": False, "error": {"message": "Fail"}}) == "show_error"
-    assert resolve_intent("unknown_utility_tool", {"success": True, "data": {}}) == "show_text"
+    assert (
+        resolve_intent("any_tool", {"success": False, "error": {"message": "Fail"}})
+        == "show_error"
+    )
+    assert (
+        resolve_intent("unknown_utility_tool", {"success": True, "data": {}})
+        == "show_text"
+    )
 
 
 def test_build_ui_schema_single_clinic():
@@ -50,7 +56,11 @@ def test_build_ui_schema_single_clinic():
             "success": True,
             "data": {
                 "clinics": [
-                    {"id": "c1", "name": "Petties Clinic A", "address": "123 District 1"}
+                    {
+                        "id": "c1",
+                        "name": "Petties Clinic A",
+                        "address": "123 District 1",
+                    }
                 ]
             },
         }
@@ -103,6 +113,8 @@ def test_build_ui_schema_service_group_supports_multi_select():
     assert len(group_ids) == 1
     assert schema.components[2].actions[0].type == ActionType.SELECT_SERVICES
     assert schema.components[2].actions[0].payload["clinic_id"] == "clinic-1"
+    assert schema.components[0].actions[0].label == "Chọn"
+    assert schema.components[2].actions[0].label == "Tiếp tục"
 
 
 def test_build_ui_schema_available_slots_include_booking_context():
@@ -178,6 +190,64 @@ def test_build_ui_schema_error_state_fallback_retry_label_when_suggestion_null()
     assert actions is not None
     assert actions[0].type == ActionType.RETRY_WITH_CHANGE
     assert actions[0].label == "Thử lại"
+
+
+def test_build_ui_schema_error_state_uses_business_title():
+    tool_results = [
+        {
+            "tool_name": "create_booking_for_user",
+            "success": False,
+            "error": {
+                "error_code": "CONFIRMATION_REQUIRED",
+                "message": "Cần xác nhận lại trước khi tạo booking.",
+                "recoverable": True,
+                "suggestion": "Xác nhận lại booking",
+            },
+        }
+    ]
+
+    schema = build_ui_schema(tool_results)
+
+    assert schema is not None
+    assert schema.components[0].data["title"] == "Cần xác nhận lại booking"
+
+
+def test_build_ui_schema_empty_state_has_retry_action_and_suggestion_action():
+    tool_results = [
+        {
+            "tool_name": "search_clinics_nearby",
+            "success": True,
+            "data": {"clinics": [], "message": "Không tìm thấy phòng khám phù hợp."},
+        }
+    ]
+
+    schema = build_ui_schema(tool_results)
+
+    assert schema is not None
+    component = schema.components[0]
+    assert component.type == ComponentType.EMPTY_STATE
+    assert component.data["suggestion_action"]["type"] == "retry_with_change"
+    assert component.actions is not None
+    assert component.actions[0].type == ActionType.RETRY_WITH_CHANGE
+
+
+def test_build_ui_schema_not_empty_when_one_list_has_data():
+    tool_results = [
+        {
+            "tool_name": "check_vaccination_status",
+            "success": True,
+            "data": {
+                "pet_id": "pet-1",
+                "history": [{"name": "Dại"}],
+                "upcoming": [],
+            },
+        }
+    ]
+
+    schema = build_ui_schema(tool_results)
+
+    assert schema is not None
+    assert schema.components[0].type == ComponentType.VACCINATION_CARD
 
 
 def test_booking_preview_maps_to_native_confirm_not_chat_confirm():

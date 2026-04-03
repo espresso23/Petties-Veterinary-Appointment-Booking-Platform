@@ -16,13 +16,14 @@ import asyncio
 import json
 import logging
 import re
+import time
 import unicodedata
 import uuid
 from datetime import datetime, timezone
 from contextlib import suppress
 from typing import Any, Dict, List, NamedTuple, Optional
 
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.websockets import WebSocketState
 
 from app.api.middleware.auth import CurrentUser, decode_jwt_token
@@ -35,11 +36,12 @@ from app.api.websocket.chat_constants import (
 )
 from app.api.middleware.subscription_guard import verify_subscription_logic
 from app.core.agents.factory import AgentFactory
+from app.core.agents.state import map_booking_status_to_stage
 from app.core.agents.thinking_formatter import (
     format_thinking_for_stream,
-    get_thinking_summary,
 )
 from app.core.presentation.builder import build_ui_schema
+from app.core.presentation.ui_schema import ActionType
 from app.core.chat_context import (
     BUSINESS_CHAT,
     PLAYGROUND_TEST,
@@ -47,6 +49,7 @@ from app.core.chat_context import (
     normalize_context_type,
 )
 from app.core.database.mongodb import (
+    expire_chat_session_state_if_needed,
     get_chat_history,
     get_chat_session,
     save_chat_message,
@@ -57,11 +60,163 @@ from app.core.tool_runtime_context import (
     ToolRuntimeContext,
     reset_tool_runtime_context,
     set_tool_runtime_context,
+    get_tool_runtime_context,
 )
 from app.db.postgres.session import AsyncSessionLocal
 from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
+
+_TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+_UI_ACTION_SPECS: Dict[str, Dict[str, Any]] = {
+    "start_booking": {"allowed": set()},
+    "select_pet": {
+        "allowed": {"pet_id", "pet_name"},
+        "required_any": [{"pet_id"}],
+    },
+    "select_booking_type": {
+        "allowed": {"booking_type"},
+        "required": {"booking_type"},
+    },
+    "select_service_category": {
+        "allowed": {"category"},
+        "required": {"category"},
+    },
+    "select_clinic": {
+        "allowed": {"clinic_id", "clinic_name", "clinic_address"},
+        "required_any": [{"clinic_id"}, {"clinic_name"}],
+    },
+    "select_services": {
+        "allowed": {"service_ids", "service_names", "clinic_id"},
+        "required": {"service_ids"},
+    },
+    "select_date": {
+        "allowed": {"booking_date"},
+        "required": {"booking_date"},
+    },
+    "select_slot": {
+        "allowed": {"clinic_id", "booking_date", "start_time", "service_ids", "pet_id"},
+        "required": {"booking_date", "start_time"},
+    },
+    "confirm_booking": {
+        "allowed": {
+            "pet_id",
+            "clinic_id",
+            "booking_date",
+            "start_time",
+            "service_ids",
+            "booking_type",
+        },
+        "required_any": [
+            {"pet_id"},
+            {"clinic_id"},
+            {"service_ids"},
+            {"booking_date", "start_time"},
+        ],
+    },
+    "cancel_or_change": {"allowed": {"change_target", "reason"}},
+    "change_pet": {
+        "allowed": {
+            "pet_id",
+            "pet_name",
+            "clinic_id",
+            "clinic_name",
+            "booking_date",
+            "start_time",
+            "booking_type",
+            "service_ids",
+            "service_names",
+        }
+    },
+    "change_clinic": {
+        "allowed": {
+            "pet_id",
+            "pet_name",
+            "clinic_id",
+            "clinic_name",
+            "booking_date",
+            "start_time",
+            "booking_type",
+            "service_ids",
+            "service_names",
+        }
+    },
+    "change_service": {
+        "allowed": {
+            "pet_id",
+            "pet_name",
+            "clinic_id",
+            "clinic_name",
+            "booking_date",
+            "start_time",
+            "booking_type",
+            "service_ids",
+            "service_names",
+        }
+    },
+    "change_date": {
+        "allowed": {
+            "pet_id",
+            "pet_name",
+            "clinic_id",
+            "clinic_name",
+            "booking_date",
+            "start_time",
+            "booking_type",
+            "service_ids",
+            "service_names",
+        }
+    },
+    "change_time": {
+        "allowed": {
+            "pet_id",
+            "pet_name",
+            "clinic_id",
+            "clinic_name",
+            "booking_date",
+            "start_time",
+            "booking_type",
+            "service_ids",
+            "service_names",
+        }
+    },
+    "request_booking_revision": {
+        "allowed": {
+            "pet_id",
+            "clinic_id",
+            "booking_date",
+            "start_time",
+            "service_ids",
+            "service_names",
+            "booking_type",
+        }
+    },
+    ActionType.RETRY_WITH_CHANGE.value: {"allowed": {"change_target", "reason"}},
+    ActionType.CANCEL_FLOW.value: {"allowed": {"reason"}},
+    ActionType.OPEN_NATIVE_CONFIRM.value: {"allowed": {"confirm_target"}},
+    ActionType.OPEN_DETAIL.value: {"allowed": {"target_id", "target_type"}},
+    ActionType.DISMISS.value: {"allowed": {"reason"}},
+    "select_item": {
+        "allowed": {
+            "item_id",
+            "item_type",
+            "source",
+            "clinic_id",
+            "clinic_name",
+            "service_id",
+            "service_name",
+            "service_ids",
+            "service_names",
+            "slot_date",
+            "slot_time",
+            "pet_id",
+            "pet_name",
+        },
+        "required_any": [{"item_id"}],
+    },
+}
 
 
 class StreamTerminated(Exception):
@@ -78,11 +233,11 @@ def _truncate(text: str, max_len: int = 160) -> str:
 def summarize_thought(text: Any) -> str:
     """Return a safe, short, user-facing reasoning summary."""
     if not isinstance(text, str):
-        return "Đang phân tích yêu cầu..."
+        return "Đang suy luận: mình đang phân tích yêu cầu của bạn."
 
     s = text.strip()
     if not s:
-        return "Đang phân tích yêu cầu..."
+        return "Đang suy luận: mình đang phân tích yêu cầu của bạn."
 
     # Strip common prefixes.
     s = re.sub(r"^\s*thought\s*:\s*", "", s, flags=re.IGNORECASE).strip()
@@ -96,7 +251,34 @@ def summarize_thought(text: Any) -> str:
     s = re.split(r"\btool\s*input\s*:\b", s, maxsplit=1, flags=re.IGNORECASE)[0].strip()
 
     s = strip_redundant_greeting(s)
-    return _truncate(s, 160) if s else "Đang phân tích yêu cầu..."
+    if not s:
+        return "Đang suy luận: mình đang phân tích yêu cầu của bạn."
+    if not s.lower().startswith("đang suy luận:"):
+        s = f"Đang suy luận: {s}"
+    return _truncate(s, 180)
+
+
+def _collect_tool_timing_summary(react_trace: List[Dict[str, Any]]) -> Dict[str, Any]:
+    tools: List[Dict[str, Any]] = []
+    for step in react_trace:
+        if not isinstance(step, dict):
+            continue
+        if str(step.get("step_type") or "").strip().lower() != "observation":
+            continue
+        tool_name = str(step.get("tool_name") or "").strip()
+        tool_result = step.get("tool_result")
+        if not tool_name or not isinstance(tool_result, dict):
+            continue
+        metadata = (
+            tool_result.get("metadata")
+            if isinstance(tool_result.get("metadata"), dict)
+            else {}
+        )
+        timing_ms = metadata.get("timing_ms") if isinstance(metadata, dict) else None
+        if not isinstance(timing_ms, dict) or not timing_ms:
+            continue
+        tools.append({"tool_name": tool_name, "timing_ms": timing_ms})
+    return {"tools": tools}
 
 
 class ConnectionManager:
@@ -189,23 +371,31 @@ def map_react_step_to_message(step: Dict[str, Any], step_index: int) -> Dict[str
             "timestamp": now_iso,
         }
     elif step_type == "action":
+        streamed = format_thinking_for_stream([step])
+        action_content = streamed[0] if streamed else step.get("content", "")
+        enriched_step = dict(step) if isinstance(step, dict) else {}
+        enriched_step["content"] = action_content
         return {
             "type": "tool_call",
             "step_index": step_index,
             "tool_name": step.get("tool_name", "unknown"),
             "tool_params": step.get("tool_params", {}),
-            "content": step.get("content", ""),
-            "react_step": normalize_react_step(step),
+            "content": action_content,
+            "react_step": normalize_react_step(enriched_step),
             "timestamp": now_iso,
         }
     elif step_type == "observation":
+        streamed = format_thinking_for_stream([step])
+        observation_content = streamed[0] if streamed else step.get("content", "")
+        enriched_step = dict(step) if isinstance(step, dict) else {}
+        enriched_step["content"] = observation_content
         return {
             "type": "tool_result",
             "step_index": step_index,
             "tool_name": step.get("tool_name"),
             "result": step.get("tool_result"),
-            "content": step.get("content", ""),
-            "react_step": normalize_react_step(step),
+            "content": observation_content,
+            "react_step": normalize_react_step(enriched_step),
             "timestamp": now_iso,
         }
     else:
@@ -330,6 +520,15 @@ def sanitize_assistant_response(
     if starts_with_intro and (has_prior_assistant_message or not user_is_greeting):
         normalized = stripped
 
+    normalized = re.sub(r"\*\*(.*?)\*\*", r"\1", normalized)
+    normalized = re.sub(r"__[ \t]*(.*?)[ \t]*__", r"\1", normalized)
+    normalized = re.sub(r"[ \t]+\n", "\n", normalized)
+    normalized = re.sub(r"\n{3,}", "\n\n", normalized)
+    normalized = re.sub(r"^(\d+)\.\s+", r"\1. ", normalized, flags=re.MULTILINE)
+    normalized = re.sub(r"^\*\s+", "- ", normalized, flags=re.MULTILINE)
+    normalized = re.sub(r"^-{2,}\s*", "- ", normalized, flags=re.MULTILINE)
+    normalized = re.sub(r"\n([\-\*]\s)", r"\n\1", normalized)
+
     return normalized
 
 
@@ -351,10 +550,22 @@ def _unwrap_tool_result_for_schema(
     # Executor wraps MCP result as {"success": bool, "data": {...}, "tool_name": "..."}.
     # The presentation layer needs the tool-level contract, not the executor wrapper.
     inner_data = normalized.get("data")
+    inner_success = inner_data.get("success") if isinstance(inner_data, dict) else None
+    inner_is_standardized = isinstance(inner_success, bool) and (
+        (inner_success is True and "data" in inner_data)
+        or (
+            inner_success is False
+            and (
+                "message" in inner_data
+                or "error_code" in inner_data
+                or isinstance(inner_data.get("error"), dict)
+            )
+        )
+    )
     if (
         normalized.get("tool_name") == tool_name
         and isinstance(inner_data, dict)
-        and "success" in inner_data
+        and inner_is_standardized
     ):
         normalized = dict(inner_data)
 
@@ -374,12 +585,20 @@ def infer_stage_from_schema(step: Dict[str, Any], ui_schema: Dict[str, Any]) -> 
     tool_name = str(step.get("tool_name") or "")
     components = ui_schema.get("components", [])
     component_types = {
-        str(component.get("type") or "") for component in components if isinstance(component, dict)
+        str(component.get("type") or "")
+        for component in components
+        if isinstance(component, dict)
     }
 
     if "booking_summary" in component_types:
-        tool_result = _unwrap_tool_result_for_schema(tool_name, step.get("tool_result")) or {}
-        data = tool_result.get("data", {}) if isinstance(tool_result.get("data"), dict) else {}
+        tool_result = (
+            _unwrap_tool_result_for_schema(tool_name, step.get("tool_result")) or {}
+        )
+        data = (
+            tool_result.get("data", {})
+            if isinstance(tool_result.get("data"), dict)
+            else {}
+        )
         booking_payload = {}
         if isinstance(data.get("booking"), dict):
             booking_payload = data.get("booking") or {}
@@ -408,6 +627,19 @@ def infer_stage_from_schema(step: Dict[str, Any], ui_schema: Dict[str, Any]) -> 
         return "PRESENTING"
 
     return "IDLE"
+
+
+def infer_stage_from_booking_state(
+    booking_state: Optional[Dict[str, Any]],
+) -> Optional[str]:
+    if not isinstance(booking_state, dict) or not booking_state:
+        return None
+    if booking_state.get("stage"):
+        return str(booking_state.get("stage"))
+    return map_booking_status_to_stage(
+        booking_state.get("status"),
+        active=bool(booking_state.get("active")),
+    )
 
 
 def build_ui_schema_for_step(step: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -489,19 +721,122 @@ def _compact_metadata_value(value: Any) -> Any:
 
 
 def _normalize_ui_action_payload(raw_ui_action: Any) -> Optional[Dict[str, Any]]:
-    if not isinstance(raw_ui_action, dict):
+    normalized, _ = _validate_ui_action_payload(raw_ui_action)
+    return normalized
+
+
+def _normalize_string_list(value: Any, *, max_items: int = 20) -> Optional[List[str]]:
+    if not isinstance(value, list):
         return None
+    normalized: List[str] = []
+    for item in value[:max_items]:
+        if not isinstance(item, str):
+            continue
+        trimmed = item.strip()
+        if trimmed:
+            normalized.append(trimmed)
+    return normalized or None
+
+
+def _normalize_ui_action_field(key: str, value: Any) -> Any:
+    if key in {
+        "clinic_id",
+        "clinic_name",
+        "clinic_address",
+        "pet_id",
+        "pet_name",
+        "change_target",
+        "reason",
+        "target_id",
+        "target_type",
+        "confirm_target",
+    }:
+        if not isinstance(value, str):
+            return None
+        trimmed = value.strip()
+        return trimmed[:200] if trimmed else None
+    if key == "booking_type":
+        normalized = str(value or "").strip().upper()
+        return normalized if normalized in {"IN_CLINIC", "HOME_VISIT"} else None
+    if key == "category":
+        normalized = str(value or "").strip().upper()
+        return (
+            normalized if normalized in {"CONSULT", "VACCINATION", "GROOMING"} else None
+        )
+    if key == "booking_date":
+        normalized = str(value or "").strip()
+        return normalized if _DATE_RE.match(normalized) else None
+    if key == "start_time":
+        normalized = str(value or "").strip()
+        return normalized if _TIME_RE.match(normalized) else None
+    if key in {"service_ids", "service_names"}:
+        return _normalize_string_list(value)
+    return None
+
+
+def _validate_ui_action_payload(
+    raw_ui_action: Any,
+) -> tuple[Optional[Dict[str, Any]], Optional[str]]:
+    if raw_ui_action is None:
+        return None, None
+    if not isinstance(raw_ui_action, dict):
+        return None, "`ui_action` phải là object hợp lệ."
 
     action_type = str(raw_ui_action.get("type") or "").strip().lower()
     if not action_type:
-        return None
+        return None, "`ui_action.type` không được để trống."
 
-    payload: Dict[str, Any] = {"type": action_type}
+    spec = _UI_ACTION_SPECS.get(action_type)
+    if spec is None:
+        return None, f"`ui_action.type` không được hỗ trợ: `{action_type}`."
+
+    allowed_fields = set(spec.get("allowed", set()))
+    sanitized: Dict[str, Any] = {"type": action_type}
+
     for key, value in raw_ui_action.items():
         if key == "type" or value in (None, "", [], {}):
             continue
-        payload[str(key)] = _compact_metadata_value(value)
-    return payload
+        key_str = str(key)
+        if key_str not in allowed_fields:
+            return None, f"`ui_action` chứa trường không hợp lệ: `{key_str}`."
+        normalized_value = _normalize_ui_action_field(key_str, value)
+        if normalized_value is None:
+            return (
+                None,
+                f"Giá trị của `{key_str}` không hợp lệ cho `ui_action.type={action_type}`.",
+            )
+        sanitized[key_str] = normalized_value
+
+    required_fields = set(spec.get("required", set()))
+    missing_required = [field for field in required_fields if field not in sanitized]
+    if missing_required:
+        return (
+            None,
+            f"Thiếu trường bắt buộc cho `ui_action.type={action_type}`: {', '.join(missing_required)}.",
+        )
+
+    required_any_groups = spec.get("required_any", [])
+    if required_any_groups and not any(
+        all(field in sanitized for field in group) for group in required_any_groups
+    ):
+        expected = [" + ".join(sorted(group)) for group in required_any_groups]
+        return (
+            None,
+            f"`ui_action.type={action_type}` cần ít nhất một nhóm trường: {'; '.join(expected)}.",
+        )
+
+    return sanitized, None
+
+
+def _build_ui_action_validation_error(message: str) -> Dict[str, Any]:
+    return {
+        "type": "error",
+        "error": message,
+        "error_code": "INVALID_UI_ACTION",
+        "recoverable": True,
+        "suggestion": "Vui lòng cập nhật ứng dụng hoặc thử lại thao tác với dữ liệu hợp lệ.",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 def _augment_content_with_metadata(content: str, metadata: Dict[str, Any]) -> str:
@@ -530,12 +865,14 @@ def _augment_content_with_metadata(content: str, metadata: Dict[str, Any]) -> st
 
 class ParsedMessage(NamedTuple):
     user_message: str
+    display_message: Optional[str]
     agent_id: Optional[int]
     provider_override: Optional[str]
     model_override: Optional[str]
     image_urls: List[str]
     location: Optional[Dict[str, Any]]
     ui_action: Optional[Dict[str, Any]]
+    ui_action_error: Optional[str]
     raw_message: str
 
 
@@ -546,16 +883,23 @@ def _parse_raw_message(
     model_override: Optional[str],
     images: Optional[List[str]],
 ) -> ParsedMessage:
+    ui_action_error: Optional[str] = None
+    ui_action: Optional[Dict[str, Any]] = None
+    location: Optional[Dict[str, Any]] = None
+    display_message: Optional[str] = None
     try:
         data = json.loads(message)
         user_message = data.get("message", message)
+        raw_display_message = data.get("display_message")
+        if isinstance(raw_display_message, str):
+            display_message = raw_display_message.strip() or None
         agent_id = data.get("agent_id", agent_id)
         provider_override = data.get("provider", provider_override)
         model_override = data.get("model", model_override)
         images = data.get("images", [])
 
         raw_ui_action = data.get("ui_action")
-        ui_action = raw_ui_action if isinstance(raw_ui_action, dict) else None
+        ui_action, ui_action_error = _validate_ui_action_payload(raw_ui_action)
 
         raw_location = data.get("location")
         lat = data.get("latitude")
@@ -607,12 +951,14 @@ def _parse_raw_message(
 
     return ParsedMessage(
         user_message=user_message,
+        display_message=display_message,
         agent_id=agent_id,
         provider_override=provider_override,
         model_override=model_override,
         image_urls=image_urls,
         location=location,
         ui_action=ui_action,
+        ui_action_error=ui_action_error,
         raw_message=message,
     )
 
@@ -640,15 +986,18 @@ async def _save_user_message(
     session_id: str,
     user_id: int,
     user_message: str,
+    display_message: Optional[str],
     session_context: str,
     images: List[str],
     location: Optional[Dict[str, Any]],
     ui_action: Optional[Dict[str, Any]],
 ) -> None:
+    persisted_content = (display_message or user_message or "").strip()
     metadata = {
         "images": images,
         "location": location,
         "ui_action": ui_action,
+        "display_message": display_message,
     }
     await save_chat_message(
         {
@@ -656,7 +1005,7 @@ async def _save_user_message(
             "session_id": session_id,
             "user_id": user_id,
             "role": "user",
-            "content": user_message,
+            "content": persisted_content,
             "context_type": session_context,
             "metadata": metadata,
             "timestamp": datetime.now(timezone.utc),
@@ -673,6 +1022,7 @@ async def _setup_agent(
     provider_override: Optional[str],
     model_override: Optional[str],
     session_context: str,
+    booking_state: Optional[Dict[str, Any]] = None,
 ) -> tuple:
     if agent_id:
         agent = await AgentFactory.get_agent_by_id(
@@ -724,6 +1074,7 @@ async def _setup_agent(
             clinic_id=user.clinic_id,
             session_id=session_id,
             context_type=session_context,
+            booking_state=booking_state,
         )
     )
     return agent, runtime_token
@@ -764,6 +1115,28 @@ def _build_chat_context(
     return chat_history, has_prior_assistant_message, location
 
 
+async def _emit_safe_thinking_stream(
+    session_id: str,
+    step: Dict[str, Any],
+    *,
+    step_index: int,
+) -> None:
+    thinking_texts = format_thinking_for_stream([step])
+    for text in thinking_texts:
+        cleaned = str(text or "").strip()
+        if not cleaned:
+            continue
+        await manager.send_message(
+            session_id,
+            {
+                "type": "thinking_stream",
+                "content": cleaned,
+                "step_index": step_index,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+
+
 async def _stream_and_collect(
     agent: Any,
     enriched_message: str,
@@ -777,6 +1150,7 @@ async def _stream_and_collect(
     step_index = 0
     full_response = ""
     ui_tool_results: List[Dict[str, Any]] = []
+    persisted_ui_schema: Optional[Dict[str, Any]] = None
     sent_ui_schema = False
     streamed_final_answer = False
 
@@ -824,52 +1198,21 @@ async def _stream_and_collect(
                 step_type = str(safe_step.get("step_type") or "").strip().lower()
 
                 if step_type == "thought":
-                    # Stream thought content directly
-                    thought_content = safe_step.get("content", "")
-                    if thought_content:
-                        # Send thinking_stream event for real-time display
-                        await manager.send_message(
-                            session_id,
-                            {
-                                "type": "thinking_stream",
-                                "content": thought_content,
-                                "timestamp": datetime.now(timezone.utc).isoformat(),
-                            },
-                        )
+                    await _emit_safe_thinking_stream(
+                        session_id, safe_step, step_index=step_index
+                    )
                     # Keep empty content in react_trace for backward compatibility
                     safe_step["content"] = ""
 
                 elif step_type == "action":
-                    # Stream tool call info
-                    tool_name = safe_step.get("tool_name", "")
-                    tool_params = safe_step.get("tool_params", {})
-                    thinking_texts = format_thinking_for_stream([safe_step])
-                    for text in thinking_texts:
-                        await manager.send_message(
-                            session_id,
-                            {
-                                "type": "thinking_stream",
-                                "content": text,
-                                "timestamp": datetime.now(timezone.utc).isoformat(),
-                            },
-                        )
+                    await _emit_safe_thinking_stream(
+                        session_id, safe_step, step_index=step_index
+                    )
 
                 elif step_type == "observation":
-                    # Stream observation summary
-                    observation_content = safe_step.get("content", "")
-                    if observation_content:
-                        # Truncate long observations for display
-                        display_content = observation_content[:200]
-                        if len(observation_content) > 200:
-                            display_content += "..."
-                        await manager.send_message(
-                            session_id,
-                            {
-                                "type": "thinking_stream",
-                                "content": f"📋 {display_content}",
-                                "timestamp": datetime.now(timezone.utc).isoformat(),
-                            },
-                        )
+                    await _emit_safe_thinking_stream(
+                        session_id, safe_step, step_index=step_index
+                    )
 
                     normalized_ui_result = _unwrap_tool_result_for_schema(
                         str(safe_step.get("tool_name") or ""),
@@ -887,11 +1230,19 @@ async def _stream_and_collect(
 
             elif event_type == "final_answer":
                 full_response = event.get("content", full_response) or ""
+
+                # Retrieve updated state
+                ctx = get_tool_runtime_context()
+                current_booking_state = ctx.booking_state if ctx else None
+
                 if not sent_ui_schema and ui_tool_results:
                     schema = build_ui_schema(ui_tool_results)
                     if schema:
                         schema_payload = schema.model_dump()
-                        stage = infer_stage_from_schema(
+                        persisted_ui_schema = schema_payload
+                        stage = infer_stage_from_booking_state(
+                            current_booking_state
+                        ) or infer_stage_from_schema(
                             {
                                 "tool_name": ui_tool_results[-1].get("tool_name"),
                                 "tool_result": ui_tool_results[-1],
@@ -904,6 +1255,7 @@ async def _stream_and_collect(
                                 "type": "ui_schema",
                                 "ui_schema": schema_payload,
                                 "stage": stage,
+                                "booking_state": current_booking_state,
                                 "timestamp": datetime.now(timezone.utc).isoformat(),
                             },
                         )
@@ -941,14 +1293,21 @@ async def _stream_and_collect(
                 "error": "Quá thời gian phản hồi của trợ lý. Vui lòng thử lại.",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             },
-                )
+        )
         raise StreamTerminated("Agent stream timeout")
+
+    # Retrieve updated state
+    ctx = get_tool_runtime_context()
+    current_booking_state = ctx.booking_state if ctx else None
 
     if not sent_ui_schema and ui_tool_results:
         schema = build_ui_schema(ui_tool_results)
         if schema:
             schema_payload = schema.model_dump()
-            stage = infer_stage_from_schema(
+            persisted_ui_schema = schema_payload
+            stage = infer_stage_from_booking_state(
+                current_booking_state
+            ) or infer_stage_from_schema(
                 {
                     "tool_name": ui_tool_results[-1].get("tool_name"),
                     "tool_result": ui_tool_results[-1],
@@ -961,11 +1320,25 @@ async def _stream_and_collect(
                     "type": "ui_schema",
                     "ui_schema": schema_payload,
                     "stage": stage,
+                    "booking_state": current_booking_state,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 },
             )
 
-    return full_response, react_trace, step_index
+    # Always try to send booking_state at the end if not sent through ui_schema
+    if current_booking_state:
+        final_stage = infer_stage_from_booking_state(current_booking_state)
+        await manager.send_message(
+            session_id,
+            {
+                "type": "booking_state_update",
+                "booking_state": current_booking_state,
+                "stage": final_stage,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+
+    return full_response, react_trace, step_index, persisted_ui_schema
 
 
 async def _finalize_and_persist(
@@ -975,8 +1348,10 @@ async def _finalize_and_persist(
     agent_id: Optional[int],
     full_response: str,
     react_trace: List[Dict[str, Any]],
+    persisted_ui_schema: Optional[Dict[str, Any]],
     user_message: str,
     has_prior_assistant_message: bool,
+    performance: Optional[Dict[str, Any]] = None,
 ) -> None:
     if not full_response.strip():
         full_response = (
@@ -1000,6 +1375,12 @@ async def _finalize_and_persist(
         if step.get("tool_name")
     ]
 
+    assistant_metadata: Dict[str, Any] = {}
+    if persisted_ui_schema:
+        assistant_metadata["ui_schema"] = persisted_ui_schema
+    if performance:
+        assistant_metadata["performance"] = performance
+
     await save_chat_message(
         {
             "message_id": str(uuid.uuid4()),
@@ -1010,6 +1391,7 @@ async def _finalize_and_persist(
             "context_type": session_context,
             "react_trace": react_trace,
             "tool_calls": assistant_tool_calls,
+            "metadata": assistant_metadata,
             "timestamp": datetime.now(timezone.utc),
         }
     )
@@ -1023,12 +1405,18 @@ async def _finalize_and_persist(
             "full_response": full_response,
             "react_trace": react_trace,
             "agent_id": agent_id,
+            "performance": performance or {},
             "total_steps": len(react_trace),
             "timestamp": datetime.now(timezone.utc).isoformat(),
         },
     )
 
-    logger.info(f"Chat stream completed: {session_id} ({len(react_trace)} steps)")
+    logger.info(
+        "Chat stream completed: {} ({} steps, performance={})",
+        session_id,
+        len(react_trace),
+        performance or {},
+    )
 
 
 async def handle_chat_message(
@@ -1049,6 +1437,26 @@ async def handle_chat_message(
     """
     react_trace: List[Dict[str, Any]] = []
     full_response = ""
+    persisted_ui_schema: Optional[Dict[str, Any]] = None
+    request_started = time.perf_counter()
+
+    # Rate limiting check
+    from app.core.middleware.rate_limiter import get_rate_limiter
+
+    limiter = get_rate_limiter()
+    rate_result = await limiter.check_request(str(user.user_id), session_id)
+    if not rate_result.allowed:
+        await manager.send_message(
+            session_id,
+            {
+                "type": "error",
+                "error": "Bạn đã gửi quá nhiều tin nhắn. Vui lòng chờ trước khi gửi tiếp.",
+                "error_code": "RATE_LIMITED",
+                "retry_after_seconds": rate_result.retry_after_seconds,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+        return
 
     try:
         # 1. Parse message
@@ -1063,12 +1471,14 @@ async def handle_chat_message(
         if session_context != PLAYGROUND_TEST:
             parsed = ParsedMessage(
                 user_message=parsed.user_message,
+                display_message=parsed.display_message,
                 agent_id=parsed.agent_id,
                 provider_override=None,
                 model_override=None,
                 image_urls=parsed.image_urls,
                 location=parsed.location,
                 ui_action=parsed.ui_action,
+                ui_action_error=parsed.ui_action_error,
                 raw_message=parsed.raw_message,
             )
 
@@ -1078,6 +1488,20 @@ async def handle_chat_message(
             parsed.provider_override,
             parsed.model_override,
         )
+
+        if parsed.ui_action_error:
+            await manager.send_message(
+                session_id,
+                _build_ui_action_validation_error(parsed.ui_action_error),
+            )
+            return
+
+        # Load/expire booking state before touching session timestamp so stale sessions can reset cleanly
+        session_data = await get_chat_session(session_id)
+        session_data = await expire_chat_session_state_if_needed(
+            session_id, session_data
+        )
+        booking_state = session_data.get("booking_state") if session_data else None
 
         if (
             str(parsed.user_message or "").strip()
@@ -1089,6 +1513,7 @@ async def handle_chat_message(
                 session_id,
                 user.user_id,
                 parsed.user_message,
+                parsed.display_message,
                 session_context,
                 parsed.image_urls,
                 parsed.location,
@@ -1109,6 +1534,7 @@ async def handle_chat_message(
                     parsed.provider_override,
                     parsed.model_override,
                     session_context,
+                    booking_state=booking_state,
                 )
             except ValueError:
                 return
@@ -1132,7 +1558,12 @@ async def handle_chat_message(
 
             # 4. Stream
             try:
-                full_response, react_trace, _ = await _stream_and_collect(
+                (
+                    full_response,
+                    react_trace,
+                    _,
+                    persisted_ui_schema,
+                ) = await _stream_and_collect(
                     agent,
                     enriched_message,
                     session_id,
@@ -1147,6 +1578,11 @@ async def handle_chat_message(
                 reset_tool_runtime_context(runtime_token)
 
         # 5. Finalize (outside DB session — no agent/runtime context needed)
+        performance = _collect_tool_timing_summary(react_trace)
+        performance["total_response_ms"] = int(
+            (time.perf_counter() - request_started) * 1000
+        )
+        performance["steps"] = len(react_trace)
         await _finalize_and_persist(
             session_id,
             user,
@@ -1154,8 +1590,10 @@ async def handle_chat_message(
             parsed.agent_id,
             full_response,
             react_trace,
+            persisted_ui_schema,
             parsed.user_message,
             has_prior,
+            performance,
         )
 
     except Exception as e:
@@ -1238,6 +1676,8 @@ async def websocket_chat_endpoint(websocket: WebSocket, session_id: str = "defau
                 await websocket.close(code=1008, reason=WS_REASON_SESSION_FORBIDDEN)
                 return
 
+            session = await expire_chat_session_state_if_needed(session_id, session)
+
             context_type = normalize_context_type(
                 session.get("context_type"), BUSINESS_CHAT
             )
@@ -1249,7 +1689,7 @@ async def websocket_chat_endpoint(websocket: WebSocket, session_id: str = "defau
         try:
             # 4. History Restore
             restore_history_limit = max(
-                1, min(int(getattr(settings, "CHAT_HISTORY_RESTORE_LIMIT", 50)), 200)
+                1, min(int(getattr(settings, "CHAT_HISTORY_RESTORE_LIMIT", 100)), 200)
             )
             history = await get_chat_history(session_id, limit=restore_history_limit)
             now_iso = datetime.now(timezone.utc).isoformat()
@@ -1261,6 +1701,7 @@ async def websocket_chat_endpoint(websocket: WebSocket, session_id: str = "defau
                     "session_id": session_id,
                     "user": user.username,
                     "context_type": context_type,
+                    "booking_state": session.get("booking_state"),
                     "timestamp": now_iso,
                 },
             )
@@ -1271,6 +1712,7 @@ async def websocket_chat_endpoint(websocket: WebSocket, session_id: str = "defau
                     {
                         "type": "history",
                         "session_id": session_id,
+                        "booking_state": session.get("booking_state"),
                         "messages": [
                             {
                                 "message_id": item.get("message_id"),
@@ -1280,9 +1722,24 @@ async def websocket_chat_endpoint(websocket: WebSocket, session_id: str = "defau
                                 if hasattr(item.get("timestamp"), "isoformat")
                                 else str(item.get("timestamp")),
                                 "react_trace": item.get("react_trace"),
+                                "metadata": item.get("metadata") or {},
                             }
                             for item in history
                         ],
+                        "timestamp": now_iso,
+                    },
+                )
+
+            if session.get("booking_state"):
+                restored_stage = infer_stage_from_booking_state(
+                    session.get("booking_state")
+                )
+                await manager.send_message(
+                    session_id,
+                    {
+                        "type": "booking_state_update",
+                        "booking_state": session.get("booking_state"),
+                        "stage": restored_stage,
                         "timestamp": now_iso,
                     },
                 )

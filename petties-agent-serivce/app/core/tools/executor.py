@@ -4,17 +4,24 @@ Execute code-based tools via FastMCP server
 
 Package: app.core.tools
 Purpose: Execute tools for LangGraph agents
-Version: v0.0.2 - Simplified for code-based tools
+Version: v0.0.3 - Enhanced logging for debugging
 """
 
 from typing import Dict, List, Any, Optional
 from sqlalchemy import select
 from loguru import logger
+import json
 
 from app.db.postgres.models import Tool
 from app.db.postgres.session import AsyncSessionLocal
 from app.core.tool_runtime_context import get_tool_runtime_context
-from app.core.tools.contracts import normalize_tool_input, normalize_tool_output
+from app.core.tools.contracts import (
+    build_tool_error_response,
+    build_tool_success_response,
+    classify_error_code,
+    normalize_tool_input,
+    normalize_tool_output,
+)
 
 
 class ToolExecutor:
@@ -28,9 +35,31 @@ class ToolExecutor:
         - validate_parameters(): Validate parameters against schema
     """
 
+    # Cache: tool_name -> Tool ORM object
+    _tool_cache: dict[str, Any] = {}
+    _cache_loaded = False
+
     def __init__(self):
         """Initialize Tool Executor"""
         pass
+
+    async def _load_tool_cache(self) -> None:
+        """Load all enabled tools into cache."""
+        if ToolExecutor._cache_loaded:
+            return
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(select(Tool).where(Tool.enabled == True))
+            tools = result.scalars().all()
+            ToolExecutor._tool_cache = {tool.name: tool for tool in tools}
+            ToolExecutor._cache_loaded = True
+            logger.info(f"Tool cache loaded: {len(ToolExecutor._tool_cache)} tools")
+
+    @classmethod
+    def invalidate_tool_cache(cls) -> None:
+        """Invalidate tool cache. Call when tools are added/removed/enabled/disabled."""
+        cls._tool_cache.clear()
+        cls._cache_loaded = False
+        logger.info("Tool cache invalidated")
 
     async def execute(
         self, tool_name: str, parameters: Dict[str, Any] = None
@@ -60,23 +89,43 @@ class ToolExecutor:
         if parameters is None:
             parameters = {}
 
+        logger.info(f"🔧 [EXECUTOR] ===== START: {tool_name} =====")
+        logger.info(
+            f"  ├─ Raw parameters: {json.dumps(parameters, ensure_ascii=False)[:500]}"
+        )
+
         # Step 1: Load tool from database
         tool = await self._load_tool(tool_name)
 
         if not tool:
+            logger.error(f"  └─ ❌ Tool '{tool_name}' not found in database")
             raise Exception(f"Tool '{tool_name}' not found in database")
 
         if not tool.enabled:
+            logger.error(f"  └─ ❌ Tool '{tool_name}' is not enabled")
             raise Exception(f"Tool '{tool_name}' is not enabled")
+
+        logger.info(f"  ├─ Tool loaded: enabled={tool.enabled}")
+        if tool.input_schema:
+            schema_keys = list(tool.input_schema.get("properties", {}).keys())
+            logger.info(f"  ├─ Schema keys: {schema_keys}")
+        else:
+            logger.info(f"  ├─ No input schema")
 
         # Normalize parameter keys: strip whitespace from keys
         # LLM sometimes outputs { "query ": "..." } with trailing space in key names
         if parameters and isinstance(parameters, dict):
             parameters = {k.strip(): v for k, v in parameters.items()}
+            logger.info(
+                f"  ├─ After key strip: {json.dumps(parameters, ensure_ascii=False)[:500]}"
+            )
 
         # Normalize aliases/coercions BEFORE schema filtering so we do not drop
         # clinicId/serviceIds/lat keys that the LLM may output.
         parameters = normalize_tool_input(tool_name, parameters)
+        logger.info(
+            f"  ├─ After normalize: {json.dumps(parameters, ensure_ascii=False)[:500]}"
+        )
 
         # Track dropped parameters for better error reporting
         # Instead of silent drop, we return error info so LLM can recover
@@ -95,10 +144,13 @@ class ToolExecutor:
                 dropped = {k: v for k, v in parameters.items() if k not in allowed_keys}
                 if dropped:
                     logger.warning(
-                        f"Params not in schema for '{tool_name}': {list(dropped.keys())}"
+                        f"  ├─ ⚠️ Dropped params for '{tool_name}': {list(dropped.keys())}"
                     )
                     dropped_params = dropped
                 parameters = filtered_parameters
+                logger.info(
+                    f"  ├─ After schema filter: {json.dumps(parameters, ensure_ascii=False)[:500]} (dropped: {list(dropped_params.keys())})"
+                )
 
         # Store dropped params in result for LLM to see (via async context)
         # This allows LLM to understand what was dropped and potentially retry
@@ -106,11 +158,12 @@ class ToolExecutor:
 
         executor_state.set_dropped_params(dropped_params)
 
-        logger.info(f"Executing tool: {tool_name} with params: {parameters}")
-
         # Context injection happens after the first schema filter, so normalize
         # and filter once more before calling FastMCP.
         parameters = self._inject_contextual_parameters(tool_name, parameters)
+        logger.info(
+            f"  ├─ After context injection: {json.dumps(parameters, ensure_ascii=False)[:500]}"
+        )
         parameters = normalize_tool_input(tool_name, parameters)
         if tool.input_schema and isinstance(tool.input_schema, dict):
             properties = tool.input_schema.get("properties")
@@ -124,6 +177,9 @@ class ToolExecutor:
 
         # Step 2: Filter out None/null values to prevent Pydantic validation errors
         parameters = {k: v for k, v in parameters.items() if v is not None}
+        logger.info(
+            f"  ├─ Final params: {json.dumps(parameters, ensure_ascii=False)[:500]}"
+        )
 
         # Step 3: Validate parameters
         self._validate_parameters(tool, parameters)
@@ -132,27 +188,20 @@ class ToolExecutor:
         result = await self._execute_mcp_tool(tool_name, parameters)
 
         if result.get("success"):
-            logger.info(f"Tool executed successfully: {tool_name}")
+            logger.info(f"  └─ ✅ Tool executed successfully: {tool_name}")
         else:
             logger.warning(
-                f"Tool execution returned error payload: {tool_name} -> {result.get('error')}"
+                f"  └─ ⚠️ Tool returned error: {tool_name} -> {result.get('error_code')} - {result.get('message')}"
             )
 
         return result
 
     async def _load_tool(self, tool_name: str) -> Optional[Tool]:
         """
-        Load tool from database
-
-        Args:
-            tool_name: Tool name
-
-        Returns:
-            Tool object or None
+        Load tool from cache (populated from database on first use)
         """
-        async with AsyncSessionLocal() as session:
-            result = await session.execute(select(Tool).where(Tool.name == tool_name))
-            return result.scalar_one_or_none()
+        await self._load_tool_cache()
+        return ToolExecutor._tool_cache.get(tool_name)
 
     def _validate_parameters(self, tool: Tool, parameters: Dict[str, Any]):
         """
@@ -230,11 +279,23 @@ class ToolExecutor:
 
             # Include dropped params warning if any
             dropped = executor_state.get_dropped_params()
-            response: Dict[str, Any] = {
-                "success": True,
-                "data": result,
-                "tool_name": tool_name,
-            }
+            is_standard_success = (
+                isinstance(result, dict)
+                and result.get("success") is True
+                and "data" in result
+            )
+            is_standard_error = (
+                isinstance(result, dict)
+                and result.get("success") is False
+                and ("message" in result or "error_code" in result)
+            )
+
+            if is_standard_success or is_standard_error:
+                response = dict(result)
+                response.setdefault("tool_name", tool_name)
+                response.setdefault("metadata", {})
+            else:
+                response = build_tool_success_response(result, tool_name=tool_name)
             if dropped:
                 response["_warning"] = (
                     f"Các tham số không được chấp nhận (đã bị loại): {list(dropped.keys())}. "
@@ -244,6 +305,11 @@ class ToolExecutor:
                 logger.info(
                     f"Tool '{tool_name}' executed with dropped params warning: {list(dropped.keys())}"
                 )
+
+            if isinstance(response, dict):
+                logger.info(f"  ├─ Response keys: {list(response.keys())}")
+                if isinstance(response.get("data"), dict):
+                    logger.info(f"  ├─ Data keys: {list(response['data'].keys())}")
 
             # Clear dropped params after use
             executor_state.clear_dropped_params()
@@ -255,11 +321,14 @@ class ToolExecutor:
 
             dropped = executor_state.get_dropped_params()
             executor_state.clear_dropped_params()
-            response: Dict[str, Any] = {
-                "success": False,
-                "error": str(e),
-                "tool_name": tool_name,
-            }
+            response = build_tool_error_response(
+                error_code=classify_error_code(str(e)),
+                message=f"Không thể thực thi công cụ `{tool_name}` lúc này.",
+                recoverable=True,
+                suggestion="Vui lòng kiểm tra lại dữ liệu đầu vào hoặc thử lại sau ít phút.",
+                tool_name=tool_name,
+                metadata={"root_error": str(e)},
+            )
             if dropped:
                 response["_dropped_params"] = list(dropped.keys())
                 response["_warning"] = (
@@ -298,7 +367,13 @@ class ToolExecutor:
         return [
             result
             if not isinstance(result, Exception)
-            else {"success": False, "error": str(result)}
+            else build_tool_error_response(
+                error_code=classify_error_code(str(result)),
+                message="Không thể thực thi một hoặc nhiều công cụ trong batch.",
+                recoverable=True,
+                suggestion="Vui lòng thử lại với dữ liệu đầu vào rõ ràng hơn.",
+                metadata={"root_error": str(result)},
+            )
             for result in results
         ]
 

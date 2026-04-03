@@ -13,6 +13,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -63,6 +64,8 @@ public class EmrRecord {
 
     @Builder.Default
     private List<com.petties.petties.model.Prescription> prescriptions = List.of();
+
+    private Map<String, Object> aiDiagnosisContext;
 
     private LocalDateTime examinationDate;
     private LocalDateTime reExaminationDate;

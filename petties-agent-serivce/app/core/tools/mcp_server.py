@@ -78,11 +78,11 @@ async def get_mcp_tools_metadata() -> List[Dict[str, Any]]:
         tool_name = tool.name
         # Extract input schema from tool parameters
         input_schema = None
-        if hasattr(tool, 'parameters') and tool.parameters:
+        if hasattr(tool, "parameters") and tool.parameters:
             input_schema = tool.parameters
-        elif hasattr(tool, 'inputSchema'):
+        elif hasattr(tool, "inputSchema"):
             input_schema = tool.inputSchema
-        elif hasattr(tool, 'input_schema'):
+        elif hasattr(tool, "input_schema"):
             input_schema = tool.input_schema
 
         metadata = {
@@ -108,6 +108,7 @@ def get_mcp_tools_metadata_sync() -> List[Dict[str, Any]]:
         if loop.is_running():
             # If we're in an async context, create a new task
             import concurrent.futures
+
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(asyncio.run, get_mcp_tools_metadata())
                 return future.result()
@@ -212,6 +213,9 @@ async def call_mcp_tool(tool_name: str, parameters: Dict[str, Any] = None) -> An
     available_tools = [tool.name for tool in registered_tools]
 
     if tool_name not in available_tools:
+        logger.error(
+            f"❌ [MCP] Tool '{tool_name}' not found. Available: {available_tools}"
+        )
         raise ValueError(
             f"Tool '{tool_name}' not found. Available tools: {available_tools}"
         )
@@ -219,22 +223,31 @@ async def call_mcp_tool(tool_name: str, parameters: Dict[str, Any] = None) -> An
     # Get the tool metadata
     tool = await mcp_server.get_tool(tool_name)
 
-    logger.info(f"🔧 Executing MCP tool: {tool_name} with params: {parameters}")
+    logger.info(f"🔧 [MCP] ===== CALLING: {tool_name} =====")
+    logger.info(f"  ├─ Parameters: {json.dumps(parameters, ensure_ascii=False)[:500]}")
 
     try:
         # Execute the tool - FastMCP hiện tại expose call_tool trực tiếp
         result = await mcp_server.call_tool(tool_name, parameters)
+        logger.info(f"  ├─ Raw result type: {type(result).__name__}")
+
         normalized_result = _normalize_mcp_result(result)
-        
-        logger.info(f"✅ Tool '{tool_name}' executed successfully")
+        logger.info(
+            f"  ├─ Normalized result: {json.dumps(normalized_result, ensure_ascii=False)[:1000]}"
+        )
+
+        logger.info(f"  └─ ✅ Tool '{tool_name}' executed successfully")
         return normalized_result
 
     except TypeError as e:
-        logger.error(f"❌ Parameter error for tool '{tool_name}': {e}")
+        logger.error(f"  └─ ❌ Parameter error for '{tool_name}': {e}")
         raise ValueError(f"Invalid parameters for tool '{tool_name}': {e}")
 
     except Exception as e:
-        logger.error(f"❌ Error executing tool '{tool_name}': {e}")
+        logger.error(f"  └─ ❌ Execution error for '{tool_name}': {e}")
+        import traceback
+
+        logger.error(f"  └─ Traceback: {traceback.format_exc()}")
         raise
 
 
@@ -275,6 +288,7 @@ def get_server_info() -> Dict[str, Any]:
 # Import mcp_tools package to trigger @mcp_server.tool decorators
 try:
     from app.core.tools import mcp_tools
+
     logger.info(f"🚀 MCP tools module imported successfully")
 except Exception as e:
     logger.error(f"❌ Failed to import mcp_tools: {e}")
@@ -283,16 +297,21 @@ except Exception as e:
 if __name__ == "__main__":
     # Standard FastMCP 2.0 execution
     import sys
-    
+
     if len(sys.argv) > 1 and sys.argv[1] == "info":
+
         async def show_info():
             print("🔧 FastMCP Server Info:")
             print(await get_server_info_async())
             print("\n📋 Available Tools:")
             for tool in await get_mcp_tools_metadata():
-                desc = tool['description'][:50] if tool['description'] else 'No description'
+                desc = (
+                    tool["description"][:50]
+                    if tool["description"]
+                    else "No description"
+                )
                 print(f"  - {tool['name']}: {desc}...")
-        
+
         asyncio.run(show_info())
     else:
         # Defaults to stdio mode for standard MCP clients

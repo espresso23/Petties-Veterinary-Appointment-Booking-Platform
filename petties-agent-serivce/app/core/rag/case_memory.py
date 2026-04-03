@@ -17,12 +17,12 @@ Flow:
     4. Staff diagnosis flow query case tương tự -> hybrid search
 
 Lưu ý: Nguồn dữ liệu duy nhất là EMR confirmed. Thumbs-up feedback đã bị loại bỏ.
-confirmation_count tăng mỗi khi một case trùng lặp (similarity >= DEDUP_THRESHOLD)
-được upsert lại từ EMR - phản ánh số lần case được bác sĩ xác nhận.
 
-Công thức tính điểm:
-    final_score = cosine_similarity
-                  + min(confirmation_count / 100, 0.3)
+Công thức điểm runtime:
+    final_score = base_similarity
+
+Case confirmed được xem là dữ liệu học tương đương nhau; runtime không còn dùng
+quality gate để ưu tiên hoặc giảm điểm case.
 """
 
 from __future__ import annotations
@@ -53,13 +53,6 @@ CASE_MEMORY_IMAGE_DIMENSION = 1024
 
 DEFAULT_SEARCH_LIMIT = 5
 DEFAULT_MIN_SCORE = 0.7
-
-# Confirmation-weighted re-ranking constants
-CONFIRMATION_COUNT_DIVISOR = 100
-"""confirmation_boost = min(confirmation_count / CONFIRMATION_COUNT_DIVISOR, MAX_CONFIRMATION_BOOST)"""
-
-MAX_CONFIRMATION_BOOST = 0.3
-"""Điểm cộng tối đa từ số lần case được EMR xác nhận."""
 
 DEDUP_THRESHOLD = 0.95
 """Ngưỡng cosine similarity để coi hai case là trùng lặp."""
@@ -93,9 +86,8 @@ class CaseMemoryService:
     Trách nhiệm:
         - Khởi tạo Qdrant collection (tạo nếu chưa tồn tại)
         - Upsert case đã xác nhận với embeddings
-        - Tìm kiếm case tương tự với re-ranking theo confirmation_count
-        - Cập nhật confirmation_count cho case hiện có
-        - Dọn dẹp case ít được xác nhận
+        - Tìm kiếm case tương tự với re-ranking theo similarity thuần
+        - Dọn dẹp case cũ theo tuổi dữ liệu
         - Cung cấp thống kê
 
     Cách dùng:
@@ -278,7 +270,7 @@ class CaseMemoryService:
         Embed và upsert case đã xác nhận vào Qdrant.
 
         Nếu tồn tại case gần trùng (similarity >= DEDUP_THRESHOLD),
-        feedback_count của case hiện có sẽ được tăng thay vì tạo mới.
+        hệ thống sẽ tái sử dụng case hiện có thay vì tạo mới.
 
         Args:
             text_to_embed: Nội dung text để embed (visual_desc + chẩn đoán + triệ).
@@ -329,9 +321,8 @@ class CaseMemoryService:
                 existing_id = payload.get("case_id", str(hit.id))
                 logger.info(
                     f"Near-duplicate found via vector check (score={hit.score:.3f}), "
-                    f"incrementing confirmation_count for case {existing_id}"
+                    f"reuse existing case {existing_id}"
                 )
-                await self.update_confirmation_count(existing_id)
                 return existing_id
 
         image_vector: Optional[List[float]] = None
@@ -374,21 +365,12 @@ class CaseMemoryService:
             except Exception as e:
                 logger.error(f"Failed to generate image embedding from base64: {e}")
 
-        # Prepare payload
-        now = datetime.now(timezone.utc).isoformat()
         case_id = case_id or str(uuid.uuid4())
         point_id = self._to_point_id(case_id)
 
         full_payload = {
             "case_id": case_id,
             "text_content": text_to_embed,
-            "confirmation_count": payload.get("confirmation_count", 1),
-            "created_at": now,
-            "last_confirmed_at": now,
-            "image_urls": image_urls_clean,
-            "image_embedding_provider": "jina-clip-v2"
-            if image_vector is not None
-            else None,
             **payload,
         }
 
@@ -420,11 +402,10 @@ class CaseMemoryService:
         image_urls: Optional[List[str]] = None,
     ) -> List[CaseResult]:
         """
-        Tìm kiếm case tương tự với re-ranking theo confirmation_count.
+        Tìm kiếm case tương tự với similarity thuần.
 
         Công thức tính điểm:
             final_score = cosine_similarity
-                          + min(confirmation_count / 100, 0.3)
 
         Args:
             query: Câu truy vấn tìm kiếm.
@@ -506,7 +487,7 @@ class CaseMemoryService:
             if not merged:
                 return []
 
-            # 4) Re-rank with hybrid score + feedback boosts
+            # 4) Re-rank with hybrid score only
             has_image_query = len(image_hits) > 0
             w_text = 0.3 if has_image_query else 1.0
             w_image = 0.7 if has_image_query else 0.0
@@ -516,19 +497,12 @@ class CaseMemoryService:
                 payload = row["payload"]
                 base_score = w_text * row["text_score"] + w_image * row["image_score"]
 
-                confirmation_count = payload.get("confirmation_count", 0)
-                confirmation_boost = min(
-                    confirmation_count / CONFIRMATION_COUNT_DIVISOR,
-                    MAX_CONFIRMATION_BOOST,
-                )
-                final_score = base_score + confirmation_boost
-
                 case_results.append(
                     CaseResult(
                         case_id=cid,
                         content=payload.get("text_content", ""),
                         score=base_score,
-                        final_score=final_score,
+                        final_score=base_score,
                         payload=payload,
                     )
                 )
@@ -545,75 +519,6 @@ class CaseMemoryService:
         except Exception as e:
             logger.error(f"CaseMemory search failed: {e}")
             return []
-
-    async def update_confirmation_count(self, case_id: str) -> bool:
-        """
-        Tăng confirmation_count và cập nhật last_confirmed_at cho một case.
-
-        Gọi khi EMR upsert phát hiện case gần trùng lặp (similarity >= DEDUP_THRESHOLD),
-        phản ánh số lần case được bác sĩ xác nhận qua EMR.
-
-        Args:
-            case_id: UUID của case cần cập nhật.
-
-        Returns:
-            True nếu cập nhật thành công.
-        """
-        await self.initialize()
-
-        if self._qdrant_client is None:
-            return False
-
-        try:
-            # Retrieve point directly by ID (case_id is the point ID)
-            try:
-                points = self._qdrant_client.retrieve(
-                    collection_name=self._collection_name,
-                    ids=[self._to_point_id(case_id)],
-                    with_payload=True,
-                    with_vectors=False,
-                )
-            except Exception:
-                # Fallback to scroll if ID is not direct UUID/integer
-                from qdrant_client.models import Filter, FieldCondition, MatchValue
-
-                scroll_results = self._qdrant_client.scroll(
-                    collection_name=self._collection_name,
-                    scroll_filter=Filter(
-                        must=[
-                            FieldCondition(
-                                key="case_id", match=MatchValue(value=case_id)
-                            )
-                        ]
-                    ),
-                    limit=1,
-                    with_payload=True,
-                )
-                points = scroll_results[0] if scroll_results else []
-
-            if not points:
-                logger.warning(f"Case {case_id} not found for confirmation update")
-                return False
-
-            point = points[0]
-            payload = point.payload or {}
-            new_count = payload.get("confirmation_count", 0) + 1
-
-            self._qdrant_client.set_payload(
-                collection_name=self._collection_name,
-                payload={
-                    "confirmation_count": new_count,
-                    "last_confirmed_at": datetime.now(timezone.utc).isoformat(),
-                },
-                points=[point.id],
-            )
-
-            logger.info(f"Updated case {case_id} confirmation_count -> {new_count}")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to update confirmation count for {case_id}: {e}")
-            return False
 
     async def delete_case(self, case_id: str) -> bool:
         """
@@ -680,16 +585,14 @@ class CaseMemoryService:
 
     async def prune_low_score_cases(
         self,
-        max_confirmations_below: int = 0,
         older_than_days: int = 90,
     ) -> int:
         """
-        Xóa các case có ít lần xác nhận và đã cũ hơn ngưỡng thời gian.
+        Xóa các case đã cũ hơn ngưỡng thời gian.
 
         Dùng cho bảo trì định kỳ, giữ collection sạch.
 
         Args:
-            max_feedback_below: Xóa case có feedback_count <= giá trị này.
             older_than_days: Chỉ xóa case cũ hơn số ngày này.
 
         Returns:
@@ -701,7 +604,7 @@ class CaseMemoryService:
             return 0
 
         try:
-            from qdrant_client.models import Filter, FieldCondition, MatchValue, Range
+            from qdrant_client.models import Filter
             from datetime import timedelta
 
             cutoff = (
@@ -714,14 +617,7 @@ class CaseMemoryService:
             while True:
                 points, next_offset = self._qdrant_client.scroll(
                     collection_name=self._collection_name,
-                    scroll_filter=Filter(
-                        must=[
-                            FieldCondition(
-                                key="confirmation_count",
-                                range=Range(lte=max_confirmations_below),
-                            ),
-                        ]
-                    ),
+                    scroll_filter=Filter(must=[]),
                     limit=100,
                     with_payload=True,
                     with_vectors=False,
@@ -735,7 +631,8 @@ class CaseMemoryService:
                 offset = next_offset
             ids_to_delete = []
             for point in all_points:
-                created = point.payload.get("created_at", "")
+                payload = point.payload or {}
+                created = payload.get("created_at", "")
                 if created and created < cutoff:
                     ids_to_delete.append(point.id)
 
@@ -744,7 +641,7 @@ class CaseMemoryService:
                     collection_name=self._collection_name,
                     points_selector=ids_to_delete,
                 )
-                logger.info(f"Pruned {len(ids_to_delete)} low-score cases")
+                logger.info(f"Pruned {len(ids_to_delete)} stale cases")
 
             return len(ids_to_delete)
 
@@ -835,58 +732,85 @@ class CaseMemoryService:
 
             filter_obj = Filter(must=must_conditions) if must_conditions else None
 
-            # Calculate offset
-            offset_val = (page - 1) * page_size
+            # Determine if we need text filtering (requires in-memory filtering)
+            needs_text_filter = bool(query or diagnosis)
 
-            # Scroll to get all points, then filter by query if needed
-            all_items = []
-            offset = None
-            while True:
+            if needs_text_filter:
+                # Text filtering requires scanning — but limit to avoid OOM
+                # Fetch in batches, stopping once we have enough for the requested page
+                all_items = []
+                offset = None
+                max_scan_pages = 50  # Safety limit: max 5000 items scanned
+                scan_count = 0
+
+                while scan_count < max_scan_pages:
+                    points, next_offset = self._qdrant_client.scroll(
+                        collection_name=self._collection_name,
+                        scroll_filter=filter_obj,
+                        limit=100,
+                        with_payload=True,
+                        with_vectors=False,
+                        offset=offset,
+                    )
+                    if not points:
+                        break
+                    all_items.extend(points)
+                    scan_count += 1
+                    if next_offset is None:
+                        break
+                    offset = next_offset
+
+                # Filter by query text if provided
+                if query:
+                    query_lower = query.lower()
+                    all_items = [
+                        p
+                        for p in all_items
+                        if query_lower
+                        in (p.payload.get("text_content", "") or "").lower()
+                        or query_lower
+                        in (p.payload.get("chief_complaint", "") or "").lower()
+                        or query_lower
+                        in (p.payload.get("final_diagnosis_text", "") or "").lower()
+                    ]
+
+                if diagnosis:
+                    diagnosis_lower = diagnosis.lower()
+                    all_items = [
+                        p
+                        for p in all_items
+                        if diagnosis_lower
+                        in (p.payload.get("final_diagnosis_text", "") or "").lower()
+                    ]
+
+                # Sort by exam_at descending
+                all_items.sort(key=lambda p: p.payload.get("exam_at", ""), reverse=True)
+
+                # Paginate
+                total = len(all_items)
+                start_idx = (page - 1) * page_size
+                end_idx = start_idx + page_size
+                page_items = all_items[start_idx:end_idx]
+
+            else:
+                # No text filter — use native Qdrant pagination with offset
+                offset_val = (page - 1) * page_size
                 points, next_offset = self._qdrant_client.scroll(
                     collection_name=self._collection_name,
                     scroll_filter=filter_obj,
-                    limit=100,
+                    limit=page_size,
                     with_payload=True,
                     with_vectors=False,
-                    offset=offset,
+                    offset=offset_val if offset_val > 0 else None,
                 )
-                if not points:
-                    break
-                all_items.extend(points)
-                if next_offset is None:
-                    break
-                offset = next_offset
+                page_items = points or []
 
-            # Filter by query text if provided
-            if query:
-                query_lower = query.lower()
-                all_items = [
-                    p
-                    for p in all_items
-                    if query_lower in (p.payload.get("text_content", "") or "").lower()
-                    or query_lower
-                    in (p.payload.get("chief_complaint", "") or "").lower()
-                    or query_lower
-                    in (p.payload.get("final_diagnosis_text", "") or "").lower()
-                ]
-
-            if diagnosis:
-                diagnosis_lower = diagnosis.lower()
-                all_items = [
-                    p
-                    for p in all_items
-                    if diagnosis_lower
-                    in (p.payload.get("final_diagnosis_text", "") or "").lower()
-                ]
-
-            # Sort by created_at descending
-            all_items.sort(key=lambda p: p.payload.get("created_at", ""), reverse=True)
-
-            # Paginate
-            total = len(all_items)
-            start_idx = (page - 1) * page_size
-            end_idx = start_idx + page_size
-            page_items = all_items[start_idx:end_idx]
+                # Get total count from collection info
+                try:
+                    info = self._qdrant_client.get_collection(self._collection_name)
+                    total = info.points_count
+                except Exception:
+                    total = len(page_items)
 
             # Format response
             items = []
@@ -895,20 +819,13 @@ class CaseMemoryService:
                 items.append(
                     {
                         "case_id": payload.get("case_id", str(point.id)),
-                        "text_content": payload.get("text_content", ""),
                         "species": payload.get("species", "unknown"),
-                        "breed": payload.get("breed"),
                         "chief_complaint": payload.get("chief_complaint", ""),
-                        "symptoms": payload.get("symptoms", []),
+                        "display_name_vi": payload.get("display_name_vi"),
                         "final_diagnosis_text": payload.get("final_diagnosis_text", ""),
                         "canonical_code": payload.get("canonical_code"),
-                        "confirmation_count": payload.get("confirmation_count", 0),
-                        "created_at": payload.get("created_at"),
-                        "last_confirmed_at": payload.get("last_confirmed_at"),
-                        "image_urls": payload.get("image_urls", []),
-                        "image_descriptions": payload.get("image_descriptions", []),
-                        "emr_id": payload.get("emr_id"),
-                        "clinic_id": payload.get("clinic_id"),
+                        "mapping_status": payload.get("mapping_status"),
+                        "exam_at": payload.get("exam_at"),
                     }
                 )
 
@@ -981,177 +898,19 @@ class CaseMemoryService:
                 "case_id": payload.get("case_id", str(point.id)),
                 "text_content": payload.get("text_content", ""),
                 "species": payload.get("species", "unknown"),
-                "breed": payload.get("breed"),
                 "chief_complaint": payload.get("chief_complaint", ""),
-                "symptoms": payload.get("symptoms", []),
+                "display_name_vi": payload.get("display_name_vi"),
+                "clinical_notes": payload.get("clinical_notes"),
                 "final_diagnosis_text": payload.get("final_diagnosis_text", ""),
                 "canonical_code": payload.get("canonical_code"),
                 "mapping_status": payload.get("mapping_status"),
-                "confirmation_count": payload.get("confirmation_count", 0),
-                "created_at": payload.get("created_at"),
-                "last_confirmed_at": payload.get("last_confirmed_at"),
-                "image_urls": payload.get("image_urls", []),
-                "image_descriptions": payload.get("image_descriptions", []),
-                "emr_id": payload.get("emr_id"),
-                "clinic_id": payload.get("clinic_id"),
+                "exam_at": payload.get("exam_at"),
                 "protocol_pattern": payload.get("protocol_pattern"),
             }
 
         except Exception as e:
             logger.error(f"Failed to get case {case_id}: {e}")
             return None
-
-    async def update_case(
-        self,
-        case_id: str,
-        diagnosis: Optional[str] = None,
-        symptoms: Optional[List[str]] = None,
-        confirmation_count: Optional[int] = None,
-    ) -> bool:
-        """
-        Cập nhật metadata của một case.
-
-        Args:
-            case_id: UUID của case cần cập nhật
-            diagnosis: Chẩn đoán mới
-            symptoms: Danh sách triệu chứng mới
-            confirmation_count: Số lần xác nhận mới
-
-        Returns:
-            True nếu cập nhật thành công
-        """
-        await self.initialize()
-
-        if self._qdrant_client is None:
-            return False
-
-        try:
-            from qdrant_client.models import (
-                Filter,
-                FieldCondition,
-                MatchValue,
-                PointStruct,
-            )
-
-            # Find point
-            try:
-                points = self._qdrant_client.retrieve(
-                    collection_name=self._collection_name,
-                    ids=[self._to_point_id(case_id)],
-                    with_payload=True,
-                    with_vectors=True,
-                )
-            except Exception:
-                scroll_results = self._qdrant_client.scroll(
-                    collection_name=self._collection_name,
-                    scroll_filter=Filter(
-                        must=[
-                            FieldCondition(
-                                key="case_id", match=MatchValue(value=case_id)
-                            )
-                        ]
-                    ),
-                    limit=1,
-                    with_payload=True,
-                    with_vectors=True,
-                )
-                points = scroll_results[0] if scroll_results else []
-
-            if not points:
-                logger.warning(f"Case {case_id} not found for update")
-                return False
-
-            point = points[0]
-            updated_payload = dict(point.payload or {})
-
-            if diagnosis is not None:
-                updated_payload["final_diagnosis_text"] = diagnosis
-            if symptoms is not None:
-                updated_payload["symptoms"] = symptoms
-            if confirmation_count is not None:
-                updated_payload["confirmation_count"] = confirmation_count
-
-            changed_textual_fields = diagnosis is not None or symptoms is not None
-            if changed_textual_fields:
-                updated_payload["text_content"] = self._build_text_content(updated_payload)
-                text_vector = await self._embed_text(
-                    updated_payload["text_content"],
-                    input_type="search_document",
-                )
-                if not text_vector:
-                    logger.warning(f"Failed to re-embed case {case_id} after update")
-                    return False
-
-                vectors: Dict[str, Any] = {"text": text_vector}
-                current_vectors = getattr(point, "vector", None) or {}
-                if isinstance(current_vectors, dict):
-                    image_vector = current_vectors.get("image")
-                    if image_vector is not None:
-                        vectors["image"] = image_vector
-
-                self._qdrant_client.upsert(
-                    collection_name=self._collection_name,
-                    points=[
-                        PointStruct(
-                            id=point.id,
-                            vector=vectors,
-                            payload=updated_payload,
-                        )
-                    ],
-                )
-            elif confirmation_count is not None:
-                self._qdrant_client.set_payload(
-                    collection_name=self._collection_name,
-                    payload={"confirmation_count": confirmation_count},
-                    points=[point.id],
-                )
-
-            logger.info(f"Updated case {case_id}: {list(updated_payload.keys())}")
-
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to update case {case_id}: {e}")
-            return False
-
-    def _build_text_content(self, payload: Dict[str, Any]) -> str:
-        """Rebuild searchable text when diagnosis metadata changes."""
-        parts: List[str] = []
-
-        for key in ("species", "breed", "chief_complaint", "clinical_notes"):
-            value = payload.get(key)
-            if value:
-                parts.append(str(value))
-
-        symptoms = payload.get("symptoms", []) or []
-        if isinstance(symptoms, list):
-            clean_symptoms = [str(item).strip() for item in symptoms if str(item).strip()]
-            if clean_symptoms:
-                parts.append("Symptoms: " + ", ".join(clean_symptoms))
-
-        physical_exam = payload.get("physical_exam", []) or []
-        if isinstance(physical_exam, list):
-            clean_physical_exam = [
-                str(item).strip() for item in physical_exam if str(item).strip()
-            ]
-            if clean_physical_exam:
-                parts.append("Physical exam: " + ", ".join(clean_physical_exam))
-
-        diagnosis_text = (
-            payload.get("display_name_vi")
-            or payload.get("final_diagnosis_text")
-            or payload.get("canonical_code")
-        )
-        if diagnosis_text:
-            prefix = (
-                "Provisional diagnosis"
-                if payload.get("mapping_status") == "provisional"
-                else "Diagnosis"
-            )
-            parts.append(f"{prefix}: {diagnosis_text}")
-
-        rebuilt_text = "\n".join(parts).strip()
-        return rebuilt_text or str(payload.get("text_content") or "").strip()
 
     def _to_point_id(self, case_id: str) -> str:
         """Map logical case_id to a deterministic UUID accepted by Qdrant."""

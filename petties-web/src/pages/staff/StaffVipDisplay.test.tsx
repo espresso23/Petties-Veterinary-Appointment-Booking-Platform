@@ -14,7 +14,7 @@ const mockMembership = {
     fetchMembershipStatus: vi.fn()
 }
 vi.mock('../../store/membershipStore', () => ({
-    useMembershipStore: (fn: any) => fn(mockMembership)
+    useMembershipStore: (fn: (state: typeof mockMembership) => void) => fn(mockMembership)
 }))
 
 // Mock useAuthStore 
@@ -23,15 +23,15 @@ const mockUser = {
     clearAuth: vi.fn()
 }
 vi.mock('../../store/authStore', () => ({
-    useAuthStore: (fn: any) => fn(mockUser)
+    useAuthStore: (fn: (state: typeof mockUser) => void) => fn(mockUser)
 }))
 
 // Mock other stores
 vi.mock('../../store/notificationStore', () => ({
-    useNotificationStore: (fn: any) => fn({ unreadCount: 0, refreshUnreadCount: vi.fn() })
+    useNotificationStore: (fn: (state: { unreadCount: number; refreshUnreadCount: () => Promise<void> }) => void) => fn({ unreadCount: 0, refreshUnreadCount: vi.fn() })
 }))
 vi.mock('../../store/bookingStore', () => ({
-    useBookingStore: (fn: any) => fn({
+    useBookingStore: (fn: (state: { assignedBookingCount: number; refreshAssignedBookingCount: () => Promise<void>; pendingBookingCount: number; refreshPendingBookingCount: () => Promise<void>; incrementPendingBookingCount: () => void }) => void) => fn({
         assignedBookingCount: 0,
         refreshAssignedBookingCount: vi.fn(),
         pendingBookingCount: 0,
@@ -40,11 +40,11 @@ vi.mock('../../store/bookingStore', () => ({
     })
 }))
 vi.mock('../../store/chatStore', () => ({
-    useChatStore: (fn: any) => fn({ unreadCount: 0, refreshUnreadCount: vi.fn(), incrementUnreadCount: vi.fn() }),
+    useChatStore: (fn: (state: { unreadCount: number; refreshUnreadCount: () => Promise<void>; incrementUnreadCount: () => void }) => void) => fn({ unreadCount: 0, refreshUnreadCount: vi.fn(), incrementUnreadCount: vi.fn() }),
     useChatStoreState: { getState: () => ({ activeConversationId: null }) }
 }))
 vi.mock('../../store/aiChatStore', () => ({
-    useAIChatStore: (fn: any) => {
+    useAIChatStore: (fn: (state: { sessionId: string | null; messages: unknown[]; setSessionId: (id: string) => void; setMessages: (msgs: unknown[]) => void; addMessage: (msg: unknown) => void; updateLastMessage: (msg: unknown) => void; setConnectionStatus: (status: string) => void }) => void) => {
         const state = {
             sessionId: null,
             messages: [],
@@ -68,15 +68,12 @@ vi.mock('../../hooks/useSseNotification', () => ({
 vi.mock('../../hooks/useSyncProfile', () => ({
     useSyncProfile: vi.fn()
 }))
-vi.mock('../../hooks/useChatSidebar', () => ({
-    useChatSidebar: () => ({ isOpen: true, toggle: vi.fn(), close: vi.fn() })
-}))
 vi.mock('../../hooks/useToast', () => ({
     useToast: () => ({ showToast: vi.fn() })
 }))
 vi.mock('../../components/Toast', () => ({
     useToast: () => ({ showToast: vi.fn() }),
-    ToastProvider: ({ children }: any) => <>{children}</>
+    ToastProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>
 }))
 
 describe('Staff VIP Display Logic', () => {

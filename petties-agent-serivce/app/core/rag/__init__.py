@@ -6,7 +6,7 @@ Components:
 - Cohere embed-multilingual-v3.0 for Vietnamese embeddings
 - Qdrant Cloud for vector storage
 - QueryExpander: LLM-based short query expansion for better recall
-- CaseMemoryService: Confirmed case storage with feedback-weighted re-ranking
+- CaseMemoryService: Confirmed case storage with quality-gated re-ranking
 - KnowledgeGraphService: Triplet-based KG with LlamaIndex SimpleGraphStore
 - HybridRAGEngine: Combines RAG + KG + Case Memory with parallel search
 

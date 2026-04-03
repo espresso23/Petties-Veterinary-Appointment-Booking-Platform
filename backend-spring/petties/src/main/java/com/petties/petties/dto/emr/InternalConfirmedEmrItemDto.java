@@ -32,10 +32,16 @@ public class InternalConfirmedEmrItemDto {
     private List<String> physicalExam;
     private String clinicalNotes;
     private String finalDiagnosisText;
+    private Map<String, Object> soap;
+    private Map<String, Object> vitals;
+    private List<Map<String, Object>> prescriptions;
+    private Map<String, Object> aiDiagnosisContext;
     private boolean verified;
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime examAt;
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime updatedAt;
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    private LocalDateTime reExaminationDate;
     private Map<String, Object> attachments;
 }

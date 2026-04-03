@@ -1,6 +1,6 @@
 ﻿# PETTIES MVP - Happy Flows
 
-> Lưu ý cập nhật ngày 2026-03-17: các happy flow cũ liên quan `analyze_pet_image` hoặc AI Diagnose admin flow không còn là luồng runtime hiện hành. Chỉ dùng tài liệu này như tư liệu lịch sử; luồng AI hiện tại được mô tả trong [AI_SERVICE_TECHNICAL_SPECIFICATION.md](D:/SEP490/petties/docs-references/documentation/AI_SERVICE_TECHNICAL_SPECIFICATION.md) và [AI_DIAGNOSIS_FEATURE_PLAN.md](D:/SEP490/petties/docs-references/documentation/AI_DIAGNOSIS_FEATURE_PLAN.md).
+> Lưu ý cập nhật ngày 2026-04-01: các happy flow cũ liên quan `analyze_pet_image` hoặc AI Diagnose admin flow không còn là luồng runtime hiện hành. Chỉ dùng tài liệu này như tư liệu lịch sử; luồng AI hiện tại được mô tả trong [AI_SERVICE_TECHNICAL_SPECIFICATION.md](D:/SEP490/petties/docs-references/documentation/AI_SERVICE_TECHNICAL_SPECIFICATION.md) và [ai_diagnose_service/](D:/SEP490/petties/docs-references/ai_diagnose_service/).
 
 **Version:** 1.4.0
 **Last Updated:** 2026-01-22  

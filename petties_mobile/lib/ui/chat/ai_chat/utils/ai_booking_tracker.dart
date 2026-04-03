@@ -10,6 +10,9 @@ class AiBookingTrackerSnapshot {
   final List<String> serviceIds;
   final List<String> serviceNames;
   final String? bookingType;
+  final String? status;
+  final String? notes;
+  final Map<String, dynamic> metadata;
 
   const AiBookingTrackerSnapshot({
     this.petId,
@@ -21,6 +24,9 @@ class AiBookingTrackerSnapshot {
     this.serviceIds = const <String>[],
     this.serviceNames = const <String>[],
     this.bookingType,
+    this.status,
+    this.notes,
+    this.metadata = const <String, dynamic>{},
   });
 
   static const empty = AiBookingTrackerSnapshot();
@@ -43,6 +49,9 @@ class AiBookingTrackerSnapshot {
     List<String>? serviceIds,
     List<String>? serviceNames,
     String? bookingType,
+    String? status,
+    String? notes,
+    Map<String, dynamic>? metadata,
   }) {
     return AiBookingTrackerSnapshot(
       petId: petId ?? this.petId,
@@ -54,6 +63,9 @@ class AiBookingTrackerSnapshot {
       serviceIds: serviceIds ?? this.serviceIds,
       serviceNames: serviceNames ?? this.serviceNames,
       bookingType: bookingType ?? this.bookingType,
+      status: status ?? this.status,
+      notes: notes ?? this.notes,
+      metadata: metadata ?? this.metadata,
     );
   }
 
@@ -67,19 +79,42 @@ class AiBookingTrackerSnapshot {
         'service_ids': serviceIds,
         'service_names': serviceNames,
         'booking_type': bookingType,
+        'status': status,
+        'notes': notes,
+        'metadata': metadata,
       };
 
   factory AiBookingTrackerSnapshot.fromJson(Map<String, dynamic> json) {
+    final draft = json['draft'] is Map<String, dynamic>
+        ? Map<String, dynamic>.from(json['draft'] as Map)
+        : json['draft'] is Map
+            ? Map<String, dynamic>.from(json['draft'] as Map)
+            : json;
+    final rootMetadata = json['metadata'] is Map
+        ? Map<String, dynamic>.from(json['metadata'] as Map)
+        : const <String, dynamic>{};
+    final trackerMetadata = <String, dynamic>{
+      ...rootMetadata,
+      if (json['active'] != null) 'active': json['active'],
+      if (json['intent'] != null) 'intent': json['intent'],
+      if (json['interruption_reason'] != null)
+        'interruption_reason': json['interruption_reason'],
+      if (json['updated_at'] != null) 'updated_at': json['updated_at'],
+    };
+
     return AiBookingTrackerSnapshot(
-      petId: json['pet_id']?.toString(),
-      petName: json['pet_name']?.toString(),
-      clinicId: json['clinic_id']?.toString(),
-      clinicName: json['clinic_name']?.toString(),
-      bookingDate: json['booking_date']?.toString(),
-      startTime: json['start_time']?.toString(),
-      serviceIds: _normalizeList(json['service_ids']),
-      serviceNames: _normalizeList(json['service_names']),
-      bookingType: json['booking_type']?.toString(),
+      petId: draft['pet_id']?.toString(),
+      petName: draft['pet_name']?.toString(),
+      clinicId: draft['clinic_id']?.toString(),
+      clinicName: draft['clinic_name']?.toString(),
+      bookingDate: draft['booking_date']?.toString(),
+      startTime: draft['start_time']?.toString(),
+      serviceIds: _normalizeList(draft['service_ids']),
+      serviceNames: _normalizeList(draft['service_names']),
+      bookingType: draft['booking_type']?.toString(),
+      status: json['status']?.toString(),
+      notes: draft['notes']?.toString() ?? json['notes']?.toString(),
+      metadata: trackerMetadata,
     );
   }
 
@@ -104,7 +139,8 @@ class AiBookingTrackerSnapshot {
     );
   }
 
-  AiBookingTrackerSnapshot mergeServices(List<AiBookingServiceOption> services) {
+  AiBookingTrackerSnapshot mergeServices(
+      List<AiBookingServiceOption> services) {
     final ids = services
         .map((service) => service.id.trim())
         .where((value) => value.isNotEmpty)
@@ -197,6 +233,11 @@ class AiBookingTrackerSnapshot {
       bookingType: _pick(data['booking_type']?.toString(), bookingType),
       serviceIds: _mergeList(_normalizeList(data['service_ids']), serviceIds),
       serviceNames: _mergeList(summaryServiceNames, serviceNames),
+      status: _pick(data['status']?.toString(), status),
+      notes: _pick(data['notes']?.toString(), notes),
+      metadata: data['metadata'] is Map
+          ? Map<String, dynamic>.from(data['metadata'] as Map)
+          : metadata,
     );
   }
 
@@ -239,7 +280,8 @@ class AiBookingTrackerSnapshot {
     if (action.type == 'select_services') {
       return mergeServiceSelection(
         clinicId: payload['clinic_id']?.toString(),
-        serviceIds: selectedServiceIds ?? _normalizeList(payload['service_ids']),
+        serviceIds:
+            selectedServiceIds ?? _normalizeList(payload['service_ids']),
         serviceNames:
             selectedServiceNames ?? _normalizeList(payload['service_names']),
       );
@@ -265,12 +307,14 @@ class AiBookingTrackerSnapshot {
 
     if (action.type == 'select_item' && itemType == 'slot') {
       return mergeSlotSelection(
-        clinicId: payload['clinic_id']?.toString() ?? data['clinic_id']?.toString(),
-        bookingDate:
-            payload['booking_date']?.toString() ?? data['booking_date']?.toString(),
+        clinicId:
+            payload['clinic_id']?.toString() ?? data['clinic_id']?.toString(),
+        bookingDate: payload['booking_date']?.toString() ??
+            data['booking_date']?.toString(),
         startTime:
             payload['start_time']?.toString() ?? data['start_time']?.toString(),
-        serviceIds: _normalizeList(payload['service_ids'] ?? data['service_ids']),
+        serviceIds:
+            _normalizeList(payload['service_ids'] ?? data['service_ids']),
         serviceNames:
             _normalizeList(payload['service_names'] ?? data['service_names']),
       );

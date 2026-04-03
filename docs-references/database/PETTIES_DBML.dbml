@@ -213,7 +213,6 @@ TableGroup ai_runtime_config {
 TableGroup ai_disease_mapping {
   disease_catalog
   disease_aliases
-  disease_mapping_review_items
 }
 
 // =============================================================================
@@ -718,8 +717,6 @@ Table disease_catalog {
   canonical_code varchar(100) [not null, unique]
   display_name_vi varchar(255) [not null]
   species varchar(50) [not null, default: "all"]
-  body_system varchar(100)
-  protocol_key varchar(100)
   is_active boolean [not null, default: true]
   notes text
   created_at timestamptz
@@ -733,30 +730,12 @@ Table disease_aliases {
   alias_text varchar(255) [not null]
   normalized_alias varchar(255) [not null]
   species varchar(50) [not null, default: "all"]
-  review_status varchar(50) [not null, default: "approved"]
   is_active boolean [not null, default: true]
   created_at timestamptz
   updated_at timestamptz
 
   indexes {
     (source_type, normalized_alias, species) [unique]
-  }
-}
-
-Table disease_mapping_review_items {
-  id int [pk, increment]
-  raw_label varchar(255) [not null]
-  normalized_label varchar(255) [not null]
-  source_type varchar(50) [not null]
-  species varchar(50) [not null, default: "all"]
-  status varchar(50) [not null, default: "pending"]
-  hit_count int [not null, default: 1]
-  sample_payload json
-  first_seen_at timestamptz
-  last_seen_at timestamptz
-
-  indexes {
-    (source_type, normalized_label, species) [unique]
   }
 }
 

@@ -18,7 +18,11 @@ from app.core.agents.text_utils import (
     build_recent_dialogue,
     extract_latest_user_message,
 )
-from app.core.agents.booking_flow import build_booking_prompt_guidance
+from app.core.agents.booking_flow import (
+    build_booking_prompt_guidance,
+    has_booking_tools_enabled,
+)
+from app.core.tool_runtime_context import get_tool_runtime_context
 
 # Hardcoded defaults - only change via code
 MAX_CONTEXT_STEPS = 5
@@ -103,6 +107,100 @@ def create_think_prompt(
 ) -> str:
     user_message = extract_latest_user_message(messages)
     recent_dialogue = build_recent_dialogue(messages, limit=10) or "(không có)"
+    booking_state_json = "Trống (Không có phiên đặt lịch active)"
+    current_stage = "IDLE"
+    collected_params_json = "{}"
+    missing_fields_json = "[]"
+
+    # Load booking state before rendering f-string template.
+    ctx = get_tool_runtime_context()
+    if ctx and ctx.booking_state:
+        booking_state_json = json.dumps(ctx.booking_state, ensure_ascii=False, indent=2)
+        current_stage = str(
+            ctx.booking_state.get("stage") or ctx.booking_state.get("status") or "IDLE"
+        )
+        collected_params_json = json.dumps(
+            ctx.booking_state.get("draft") or {}, ensure_ascii=False, indent=2
+        )
+        missing_fields_json = json.dumps(
+            ctx.booking_state.get("missing_fields") or [], ensure_ascii=False, indent=2
+        )
+
+    booking_section = ""
+    if has_booking_tools_enabled(enabled_tools_lower):
+        booking_section = f"""
+=== TRẠNG THÁI BOOKING DRAFT (BẢN NHÁP HIỆN TẠI) ===
+[SYSTEM STATE OVERRIDE]
+Current Stage: {current_stage}
+Collected Params: {collected_params_json}
+Missing Fields: {missing_fields_json}
+Luôn đọc thông tin trong Bản Nháp Đặt Lịch (Booking Draft) bên dưới để biết đã gom được những gì. Chỉ hỏi những thông tin CÒN THIẾU. Điền \"Chưa có\" nếu dữ liệu trống. Nếu có `update_booking_draft` thì dùng tool này khi cần thay đổi draft.
+Current Draft: {booking_state_json}
+[END SYSTEM STATE]
+
+=== QUY TẮC BOOKING SESSION ===
+- Nếu người dùng bắt đầu ý định đặt lịch rõ ràng và có tool session thì ưu tiên khởi tạo hoặc tiếp tục booking session trước khi hỏi sâu hơn.
+- Nếu booking đang active thì ưu tiên đọc lại draft hiện tại thay vì hỏi lại thông tin cũ.
+- Nếu người dùng thay đổi pet, phòng khám, dịch vụ, ngày, giờ, loại booking hoặc địa chỉ, hãy cập nhật draft thay vì hỏi lại từ đầu.
+- Nếu người dùng xác nhận hủy đặt lịch, hãy kết thúc booking session với lý do phù hợp.
+- Nếu booking đã được tạo thành công, phiên booking phải được đánh dấu hoàn tất.
+
+=== XÁC ĐỊNH PET CỤ THỂ ===
+- Khi người dùng nói \"bé nhà tôi\", \"thú cưng của tôi\" mà không nêu rõ tên, hãy gọi `get_user_pets` trước nếu tool này có sẵn.
+- Nếu kết quả trả về chỉ có 1 pet thì tự động dùng pet đó, không cần hỏi lại.
+- Nếu có nhiều pet thì hỏi người dùng cụ thể bé nào trước khi tra cứu hoặc đặt lịch tiếp.
+- Nếu câu hỏi phụ thuộc vào hồ sơ hoặc lịch sử của một pet cụ thể thì ưu tiên xác định pet trước, không nhảy thẳng sang `pet_knowledge_search` hoặc `web_search`.
+
+=== XÁC ĐỊNH PHÒNG KHÁM VÀ SLOT ===
+- `search_clinics_nearby` là tool chuẩn để tìm hoặc resolve phòng khám trong business chat.
+- Nếu người dùng cung cấp tên phòng khám cụ thể, vẫn dùng `search_clinics_nearby` nhưng truyền `clinic_hint` thay vì đổi sang tool clinic khác.
+- Chỉ phụ thuộc GPS khi người dùng thật sự hỏi theo khoảng cách như \"gần tôi\", \"gần đây\" hoặc khi cần sắp xếp theo vị trí.
+- `check_available_slots` là tool chuẩn để kiểm tra slot thật cho một phòng khám đã biết hoặc đã resolve được.
+- Không dùng `search_clinics_nearby` để kết luận slot chính xác nếu chưa có kết quả từ `check_available_slots`.
+- Chỉ hỏi lại vị trí khi thiếu dữ liệu thật sự cần thiết để tìm phòng khám gần.
+
+=== PHÂN BIỆT INTENT: KHÁM PHÁ (EXPLORE) vs ĐẶT LỊCH (BOOKING) ===
+QUAN TRỌNG: Phân biệt rõ 2 intent để không hỏi thừa thông tin.
+
+1. INTENT: KHÁM PHÁ (Xem gợi ý, tìm kiếm phòng khám)
+   Keywords: \"gợi ý\", \"tìm\", \"xem\", \"có phòng khám nào\", \"gần tôi\", \"gần đây\", \"còn slot\", \"còn trống\", \"lịch trống\"
+   KHÔNG có keywords đặt lịch: \"đặt\", \"book\", \"hẹn\", \"tôi muốn đặt\"
+
+   Action:
+   - KHÔNG hỏi pet info chỉ để gợi ý phòng khám.
+   - Dùng `search_clinics_nearby` để tìm hoặc resolve phòng khám.
+   - Nếu user hỏi slot thật cho một phòng khám đã rõ, hoặc sau khi đã resolve được một phòng khám cụ thể, dùng thêm `check_available_slots`.
+   - Nếu chưa xác định được phòng khám cụ thể thì trả danh sách gợi ý trước, rồi hỏi user muốn kiểm tra slot ở phòng khám nào.
+
+   Ví dụ đúng:
+   User: \"gợi ý phòng khám gần tôi còn lịch trống hôm nay\"
+   AI: Thought: Người dùng muốn xem gợi ý phòng khám trước, chưa xác nhận đặt lịch
+   Tool: search_clinics_nearby với lat/lng hiện có
+
+   User: \"PetCare còn lịch trống hôm nay không\"
+   AI: Thought: Người dùng hỏi slot thật cho một phòng khám cụ thể
+   Tool: check_available_slots với clinic_hint hoặc clinic_id đã resolve
+
+2. INTENT: ĐẶT LỊCH (Booking)
+   Keywords: \"đặt lịch\", \"book\", \"tôi muốn đặt\", \"hẹn khám\", \"đặt khám\", \"đặt cho bé\"
+
+   Action:
+   - Hỏi pet info → dịch vụ → phòng khám → giờ → xác nhận
+   - Dùng booking session flow nếu các tool session có sẵn
+
+   Ví dụ đúng:
+   User: \"đặt lịch khám cho bé Mèo\"
+   AI: Thought: Người dùng muốn đặt lịch, cần hỏi dịch vụ
+   Tool: (hỏi dịch vụ trước) hoặc gọi get_user_pets để xác định pet
+
+3. INTENT: KHÔNG RÕ
+   Action: Hỏi lại intent
+   \"Bạn muốn xem gợi ý phòng khám hay đặt lịch ngay?\"
+
+Lưu ý:
+- Nếu user chỉ hỏi \"phòng khám gần tôi\" hoặc \"gợi ý phòng khám\" thì không hỏi pet.
+- Chỉ hỏi pet khi user nói rõ \"đặt lịch cho bé X\" hoặc câu hỏi thực sự phụ thuộc vào hồ sơ của pet đó.
+"""
 
     prompt_parts = [
         f"""Hệ thống: {agent_name} ({agent_type})
@@ -140,17 +238,7 @@ Final Answer: [Câu trả lời đầy đủ, tự nhiên, bằng tiếng Việt
 - Không reset hội thoại, không chào lại, không tự coi đây là phiên mới nếu lịch sử cho thấy đang tiếp tục cùng một yêu cầu.
 - Chọn tool dựa trên ý nghĩa yêu cầu, mô tả tool và input schema; không chọn theo kiểu khớp từ khóa máy móc.
 - Với ngày giờ tự nhiên như `thứ bảy này`, `cuối tuần này`, `sáng mai`, ưu tiên truyền cho tool bằng các trường semantic như `date_expression`, `time_preference` nếu schema có hỗ trợ.
-
-=== XÁC ĐỊNH PET CỤ THỂ ===
-- Khi người dùng nói "bé nhà tôi", "thú cưng của tôi" mà không nêu rõ tên, hãy gọi `get_user_pets` trước.
-- Nếu kết quả trả về chỉ có 1 pet thì tự động dùng pet đó, không cần hỏi lại.
-- Nếu có nhiều pet thì hỏi người dùng cụ thể bé nào trước khi tra cứu tiếp.
-- Khi đã xác định được pet thì chỉ gọi tool với pet_id của bé đó.
-
-=== XÁC ĐỊNH VỊ TRÍ ===
-- Khi người dùng muốn tìm phòng khám gần, ưu tiên dùng tọa độ hiện có.
-- Nếu chưa có tọa độ nhưng người dùng đã nêu rõ tên phòng khám hoặc địa chỉ text, hãy ưu tiên resolve từ ngữ cảnh đó trước.
-- Chỉ hỏi lại vị trí khi thiếu dữ liệu thật sự cần thiết để tìm phòng khám gần.
+{booking_section}
 
 Lưu ý:
 - Đọc kỹ MÔ TẢ TOOL bên dưới để chọn đúng tool cho mỗi tình huống

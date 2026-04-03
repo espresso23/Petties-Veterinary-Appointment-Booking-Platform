@@ -20,8 +20,15 @@ from typing import Dict, Any, List, Optional
 from loguru import logger
 import re
 import asyncio
+import time
+import unicodedata
 
 from app.config.settings import settings
+from app.core.tools.contracts import (
+    build_tool_error_response,
+    build_tool_success_response,
+    classify_error_code,
+)
 
 try:
     from tavily import TavilyClient as TavilyClientType
@@ -99,12 +106,88 @@ GENERIC_CONTENT_PATTERNS = [
     re.compile(r"(most popular|phổ biến nhất|nổi tiếng nhất)", re.IGNORECASE),
 ]
 
+PET_TYPE_TERMS = {
+    "dog": {"cho", "chó", "dog", "dogs", "canine", "puppy", "puppies"},
+    "cat": {"meo", "mèo", "cat", "cats", "feline", "kitten", "kittens"},
+}
+
+SYMPTOM_HINTS = {
+    "non",
+    "non mua",
+    "vomit",
+    "vomiting",
+    "emesis",
+    "tieu chay",
+    "diarrhea",
+    "bo an",
+    "an kem",
+    "fever",
+    "sot",
+    "ho",
+    "cough",
+}
+
+VET_CONTEXT_TERMS = {
+    "thu y",
+    "veterinary",
+    "vet",
+    "pet",
+    "animal",
+    "clinic",
+    "hospital",
+}
+
 
 def _clean_rag_text(text: str) -> str:
     cleaned = text.replace("", " ").replace("•", " ").replace("□", " ")
     cleaned = re.sub(r"\s+", " ", cleaned)
     cleaned = re.sub(r"\s+([,.;:!?])", r"\1", cleaned)
     return cleaned.strip()
+
+
+def _normalize_text(text: str) -> str:
+    value = str(text or "").strip().lower().replace("đ", "d")
+    value = unicodedata.normalize("NFD", value)
+    value = "".join(ch for ch in value if unicodedata.category(ch) != "Mn")
+    value = re.sub(r"[^a-z0-9\s:/._-]", " ", value)
+    value = re.sub(r"\s+", " ", value).strip()
+    return value
+
+
+def _infer_query_pet_types(query: str) -> List[str]:
+    normalized = _normalize_text(query)
+    detected: List[str] = []
+    for pet_type, terms in PET_TYPE_TERMS.items():
+        if any(term in normalized for term in terms):
+            detected.append(pet_type)
+    return detected
+
+
+def _has_symptom_signal(query: str) -> bool:
+    normalized = _normalize_text(query)
+    return any(token in normalized for token in SYMPTOM_HINTS)
+
+
+def _result_has_pet_relevance(query: str, title: str, snippet: str, url: str) -> bool:
+    combined_text = _normalize_text(f"{title} {snippet} {url}")
+    if any(keyword in combined_text for keyword in PET_GUARD_KEYWORDS):
+        return True
+
+    query_pet_types = _infer_query_pet_types(query)
+    if query_pet_types:
+        for pet_type in query_pet_types:
+            if any(
+                term in combined_text for term in PET_TYPE_TERMS.get(pet_type, set())
+            ):
+                return True
+
+    if _has_symptom_signal(query):
+        has_symptom_overlap = any(token in combined_text for token in SYMPTOM_HINTS)
+        has_vet_context = any(token in combined_text for token in VET_CONTEXT_TERMS)
+        if has_symptom_overlap and has_vet_context:
+            return True
+
+    return False
 
 
 def _tokenize(text: str) -> List[str]:
@@ -148,8 +231,31 @@ def _score_web_result(query: str, title: str, snippet: str, url: str) -> int:
 
 
 def _build_search_query(query: str) -> str:
-    """Trả về query nguyên gốc — không thêm context."""
-    return query.strip()
+    """Enrich pet-health queries nhẹ để Tavily bám đúng domain thú y hơn."""
+    base = query.strip()
+    normalized = _normalize_text(base)
+    if not base:
+        return base
+
+    extras: List[str] = []
+    pet_types = _infer_query_pet_types(base)
+    if "dog" in pet_types:
+        extras.append("dog canine chó")
+    if "cat" in pet_types:
+        extras.append("cat feline mèo")
+
+    if _has_symptom_signal(base):
+        extras.append("thú y veterinary pet health first aid when to see vet")
+    elif any(
+        keyword in normalized
+        for keyword in ["cham soc", "dinh duong", "nutrition", "care"]
+    ):
+        extras.append("thú y pet care veterinary")
+
+    if not extras:
+        return base
+
+    return f"{base} {' '.join(extras)}".strip()
 
 
 def _deduplicate_scored_results(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -236,6 +342,18 @@ async def _perform_tavily_search(
         # Process images - filter for pet-related images
         processed_images: List[Dict[str, Any]] = []
         for img in raw_images[:6]:  # Limit to 6 images
+            if isinstance(img, str):
+                processed_images.append(
+                    {
+                        "url": img,
+                        "title": "",
+                        "description": "",
+                    }
+                )
+                continue
+            if not isinstance(img, dict):
+                continue
+
             img_title = str(img.get("title", "")).lower()
             img_desc = str(img.get("description", "")).lower()
             combined = f"{img_title} {img_desc}"
@@ -259,7 +377,7 @@ async def _perform_tavily_search(
             url = str(item.get("url", ""))
             combined_text = f"{title} {snippet}".lower()
 
-            if not any(keyword in combined_text for keyword in PET_GUARD_KEYWORDS):
+            if not _result_has_pet_relevance(query, title, snippet, url):
                 logger.debug(f"web_search: SKIP (no pet keyword): {title[:60]}")
                 continue
 
@@ -341,25 +459,25 @@ async def web_search(
     effective_max_results = max_results or settings.TAVILY_MAX_RESULTS
 
     if not _is_pet_related_query(query):
-        return {
-            "query": query,
-            "results": [],
-            "images": [],
-            "answer": None,
-            "follow_up_questions": [],
-            "sources_used": 0,
-            "search_source": "web_search",
-            "error": "Query ngoài phạm vi thú cưng/thú y",
-        }
+        return build_tool_error_response(
+            error_code="OUT_OF_SCOPE",
+            message="Câu hỏi không thuộc phạm vi thú cưng/thú y.",
+            recoverable=True,
+            suggestion="Vui lòng đặt câu hỏi liên quan đến thú cưng hoặc chăm sóc thú y.",
+            metadata={"query": query, "search_source": "web_search"},
+        )
 
     try:
+        started = time.perf_counter()
         from app.db.postgres.session import AsyncSessionLocal
 
         async with AsyncSessionLocal() as session:
+            tavily_started = time.perf_counter()
             search_data = await asyncio.wait_for(
                 _perform_tavily_search(query, effective_max_results, session),
                 timeout=20.0,
             )
+            tavily_ms = int((time.perf_counter() - tavily_started) * 1000)
 
         # Extract data from new dict format
         results = search_data.get("results", [])
@@ -368,42 +486,50 @@ async def web_search(
         follow_up_questions = search_data.get("follow_up_questions", [])
 
         logger.info(
-            f"web_search: Found {len(results)} results, {len(images)} images for query: {query[:50]}..."
+            f"web_search: Found {len(results)} results, {len(images)} images for query: {query[:50]}... "
+            f"in {int((time.perf_counter() - started) * 1000)}ms"
         )
 
-        return {
-            "query": query,
-            "results": results,
-            "images": images,
-            "answer": answer,
-            "follow_up_questions": follow_up_questions,
-            "sources_used": len(results),
-            "search_source": "web_search",
-        }
+        return build_tool_success_response(
+            {
+                "query": query,
+                "results": results,
+                "images": images,
+                "answer": answer,
+                "follow_up_questions": follow_up_questions,
+                "sources_used": len(results),
+                "search_source": "web_search",
+            },
+            metadata={
+                "timing_ms": {
+                    "tavily": tavily_ms,
+                    "total": int((time.perf_counter() - started) * 1000),
+                },
+                "max_results": effective_max_results,
+            },
+        )
     except asyncio.TimeoutError:
         logger.warning("web_search: Tavily timed out after 20s")
-        return {
-            "query": query,
-            "results": [],
-            "images": [],
-            "answer": None,
-            "follow_up_questions": [],
-            "sources_used": 0,
-            "search_source": "web_search",
-            "error": "Tìm kiếm web bị timeout sau 20 giây",
-        }
+        return build_tool_error_response(
+            error_code="RATE_LIMITED",
+            message="Tìm kiếm web bị timeout sau 20 giây.",
+            recoverable=True,
+            suggestion="Vui lòng thử lại sau ít phút hoặc rút gọn câu hỏi.",
+            metadata={"query": query, "search_source": "web_search"},
+        )
     except Exception as e:
         logger.error(f"Lỗi trong web_search: {e}")
-        return {
-            "query": query,
-            "results": [],
-            "images": [],
-            "answer": None,
-            "follow_up_questions": [],
-            "sources_used": 0,
-            "search_source": "web_search",
-            "error": str(e),
-        }
+        return build_tool_error_response(
+            error_code=classify_error_code(str(e)),
+            message="Không thể tìm kiếm thông tin web lúc này.",
+            recoverable=True,
+            suggestion="Vui lòng thử lại sau ít phút.",
+            metadata={
+                "query": query,
+                "search_source": "web_search",
+                "root_error": str(e),
+            },
+        )
 
 
 # ===== TOOL METADATA =====

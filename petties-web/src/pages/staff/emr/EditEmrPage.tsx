@@ -7,10 +7,12 @@ import {
     CalendarDaysIcon,
     CalendarIcon,
     PhotoIcon,
-    XMarkIcon
+    XMarkIcon,
+    SparklesIcon
 } from '@heroicons/react/24/outline'
 import { useToast } from '../../../components/Toast'
 import { ConfirmModal } from '../../../components/ConfirmModal'
+import { Modal } from '../../../components/Modal'
 import { emrService } from '../../../services/emrService'
 import { petService } from '../../../services/api/petService'
 import { tokenStorage } from '../../../services/authService'
@@ -19,6 +21,10 @@ import "react-datepicker/dist/react-datepicker.css";
 import { vi } from 'date-fns/locale';
 import Select from 'react-select';
 import type { CreateEmrRequest, EmrImage, Prescription } from '../../../services/emrService'
+import { AIDiagnosisPanel } from '../../../components/emr/AIDiagnosisPanel'
+import type { StaffDiagnosisResponse } from '../../../services/agentService'
+import { useMembershipStore } from '../../../store/membershipStore'
+import { buildEmrAiDiagnosisContext } from '../../../utils/emrAiDiagnosisContext'
 
 registerLocale('vi', vi);
 
@@ -84,6 +90,40 @@ export const EditEmrPage = () => {
     const [reExamUnit, setReExamUnit] = useState('Tuần')
     const [hasReExam, setHasReExam] = useState(false)
     const [medicalHistory, setMedicalHistory] = useState<{ date: string; diagnosis: string }[]>([])
+    const [bookingId, setBookingId] = useState<string>('')
+    const [aiDiagnosisResult, setAiDiagnosisResult] = useState<StaffDiagnosisResponse | null>(null)
+    const [selectedAiDiagnosis, setSelectedAiDiagnosis] = useState<{ displayName: string; canonicalCode?: string | null } | null>(null)
+    const [isAiAnalyzing, setIsAiAnalyzing] = useState(false)
+    const [isAiModalOpen, setIsAiModalOpen] = useState(false)
+    const [aiAnalyzeSignal, setAiAnalyzeSignal] = useState(0)
+    const [currentStep, setCurrentStep] = useState<1 | 2>(1)
+
+    const isVipClinic = useMembershipStore((state) => state.isVIP())
+
+    const handleOpenAiModal = () => {
+        if (aiDiagnosisResult) {
+            setIsAiModalOpen(true)
+        } else {
+            setIsAiModalOpen(true)
+            setAiAnalyzeSignal((prev) => prev + 1)
+        }
+    }
+
+    const handleCloseAiModal = () => {
+        if (isAiAnalyzing) {
+            showToast('info', 'AI đang xử lý dữ liệu. Vui lòng chờ hoàn tất trước khi đóng.')
+            return
+        }
+        setIsAiModalOpen(false)
+    }
+
+    const stepItems = [
+        { id: 1 as const, title: 'Bước 1', label: 'Khám lâm sàng' },
+        { id: 2 as const, title: 'Bước 2', label: 'Kết luận & Điều trị' },
+    ]
+
+    const goToNextStep = () => setCurrentStep((prev) => (prev < 2 ? ((prev + 1) as 1 | 2) : prev))
+    const goToPreviousStep = () => setCurrentStep((prev) => (prev > 1 ? ((prev - 1) as 1 | 2) : prev))
 
     // Prescription modal (already added showPrescriptionModal above)
 
@@ -142,6 +182,7 @@ export const EditEmrPage = () => {
                     setReExaminationDate(emr.reExaminationDate.split('T')[0])
                     setHasReExam(true)
                 }
+                setBookingId(emr.bookingId || '')
 
                 // Check if >24 hours since creation
                 if (emr.createdAt) {
@@ -263,6 +304,32 @@ export const EditEmrPage = () => {
         return Object.keys(newErrors).length === 0
     }
 
+    const handleApplyAiDraft = (
+        field: 'subjective' | 'objective' | 'assessment' | 'plan',
+        value: string
+    ) => {
+        if (!value.trim()) return
+        if (field === 'subjective') setSubjective(value)
+        if (field === 'objective') setObjective(prev => ({ ...prev, notes: value }))
+        if (field === 'assessment') setAssessment(value)
+        if (field === 'plan') setPlan(value)
+    }
+
+    const handleSelectAiDiagnosis = (diagnosis: { displayName: string; canonicalCode?: string | null }) => {
+        if (!diagnosis.displayName.trim()) return
+        setSelectedAiDiagnosis(diagnosis)
+        setAssessment(diagnosis.displayName)
+        if (errors.assessment) {
+            setErrors(prev => {
+                const next = { ...prev }
+                delete next.assessment
+                return next
+            })
+        }
+        setIsAiModalOpen(false)
+        showToast('success', 'Đã chọn chẩn đoán từ AI.')
+    }
+
     const handleSubmit = async () => {
         if (!validateForm() || !trimmedEmrId || !petInfo) return
 
@@ -281,7 +348,8 @@ export const EditEmrPage = () => {
                 bcs: objective.bcs || undefined,
                 images,
                 prescriptions: prescriptions.length > 0 ? prescriptions : undefined,
-                reExaminationDate: hasReExam && reExaminationDate ? `${reExaminationDate}T00:00:00` : undefined
+                reExaminationDate: hasReExam && reExaminationDate ? `${reExaminationDate}T00:00:00` : undefined,
+                aiDiagnosisContext: buildEmrAiDiagnosisContext(aiDiagnosisResult, selectedAiDiagnosis),
             }
 
             await emrService.updateEmr(trimmedEmrId, request)
@@ -324,7 +392,7 @@ export const EditEmrPage = () => {
     }
 
     return (
-        <div className="min-h-screen bg-stone-100 p-6">
+        <div className="min-h-screen bg-stone-100 p-6 pr-14 sm:pr-16 lg:pr-20">
             <div className="max-w-7xl mx-auto">
                 {/* Header */}
                 <div className="flex items-center justify-between mb-6">
@@ -351,6 +419,71 @@ export const EditEmrPage = () => {
                         </p>
                     </div>
                 )}
+
+                <div className="mb-4 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+                    <div className="mb-4 flex items-center justify-between gap-4">
+                        <div>
+                            <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-stone-400">Edit EMR</p>
+                            <h2 className="mt-0.5 text-lg font-black text-stone-800">Luồng chỉnh sửa bệnh án</h2>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={goToPreviousStep}
+                                disabled={currentStep === 1}
+                                className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] font-bold text-stone-600 transition-all hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                Quay lại
+                            </button>
+                            {currentStep < 2 && (
+                                <button
+                                    type="button"
+                                    onClick={goToNextStep}
+                                    className="rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1 text-[11px] font-bold text-orange-700 transition-all hover:bg-orange-100"
+                                >
+                                    Tiếp theo
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                        {stepItems.map((step) => {
+                            const isActive = currentStep === step.id
+                            const isDone = currentStep > step.id
+
+                            return (
+                                <button
+                                    key={step.id}
+                                    type="button"
+                                    onClick={() => setCurrentStep(step.id)}
+                                    className={`relative flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition-all ${isActive
+                                        ? 'border-amber-300 bg-amber-50 shadow-sm'
+                                        : isDone
+                                            ? 'border-green-200 bg-green-50'
+                                            : 'border-stone-200 bg-stone-50 hover:border-stone-300'
+                                        }`}
+                                >
+                                    {step.id < 2 && (
+                                        <span className={`absolute -right-2 top-1/2 hidden h-[1px] w-4 -translate-y-1/2 xl:block ${currentStep > step.id ? 'bg-green-500' : 'bg-stone-200'}`}></span>
+                                    )}
+                                    <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-black ${isActive
+                                        ? 'bg-amber-500 text-white'
+                                        : isDone
+                                            ? 'bg-green-600 text-white'
+                                            : 'bg-white text-stone-500 border border-stone-200'
+                                        }`}>
+                                        {isDone ? '✓' : step.id}
+                                    </span>
+                                    <div>
+                                        <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400">{step.title}</p>
+                                        <p className="text-xs font-semibold text-stone-700">{step.label}</p>
+                                    </div>
+                                </button>
+                            )
+                        })}
+                    </div>
+                </div>
 
 
                 {/* Main Grid - Matching CreateEmrPage Layout */}
@@ -446,9 +579,10 @@ export const EditEmrPage = () => {
                     {/* ========== CENTER: SOAP Form (S, A, Rx, Images) [Col-5] ========== */}
                     <div className="col-span-12 lg:col-span-5 space-y-4">
                         <div className="bg-white rounded-2xl p-6 shadow-sm">
-                            <h2 className="text-xl font-black text-stone-800 mb-6">Biểu mẫu SOAP</h2>
+                            <h2 className="text-xl font-black text-stone-800 mb-6">{stepItems.find((item) => item.id === currentStep)?.label}</h2>
 
                             {/* S - Subjective */}
+                            {currentStep === 1 && (
                             <div className="mb-6">
                                 <div className="flex items-center gap-3 mb-2">
                                     <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
@@ -464,8 +598,41 @@ export const EditEmrPage = () => {
                                     rows={3}
                                 />
                             </div>
+                            )}
+
+                            {currentStep === 1 && isVipClinic && !isExpired && (
+                                <div className="mb-6 rounded-2xl border border-amber-100 bg-amber-50/50 p-4">
+                                    <div className="mb-3 flex items-center justify-between gap-3">
+                                        <p className="text-xs font-bold uppercase tracking-wide text-amber-800">Hỗ trợ AI chẩn đoán</p>
+                                        {bookingId && (
+                                            <span className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-bold text-blue-700">
+                                                Booking #{bookingId}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleOpenAiModal}
+                                        disabled={isAiAnalyzing}
+                                        className="flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-xs font-extrabold text-white shadow-md shadow-orange-100 transition-all hover:bg-orange-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        <SparklesIcon className="h-4 w-4" />
+                                        {isAiAnalyzing ? 'Đang phân tích...' : 'Mở AI chẩn đoán'}
+                                    </button>
+                                    {!selectedAiDiagnosis ? (
+                                        <p className="mt-2 text-xs font-semibold text-blue-700">
+                                            Chọn một chẩn đoán trong Top 3 để mở gợi ý AI cho phần khách quan và kế hoạch điều trị.
+                                        </p>
+                                    ) : (
+                                        <p className="mt-2 text-xs font-semibold text-green-700">
+                                            Đã chọn: {selectedAiDiagnosis.displayName}. AI đang đồng bộ gợi ý theo chẩn đoán đã chọn.
+                                        </p>
+                                    )}
+                                </div>
+                            )}
 
                             {/* A - Assessment */}
+                            {currentStep === 2 && (
                             <div className="mb-6">
                                 <div className="flex items-center gap-3 mb-2">
                                     <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
@@ -481,73 +648,6 @@ export const EditEmrPage = () => {
                                 />
                                 {errors.assessment && <p className="text-red-500 text-xs mt-1">{errors.assessment}</p>}
                             </div>
-                        </div>
-
-                        {/* Prescription Section */}
-                        <div className="bg-white rounded-2xl p-6 shadow-sm relative overflow-hidden">
-                            <div className="flex items-center justify-between mb-8">
-                                <div className="flex items-center gap-3">
-                                    <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
-                                    <div>
-                                        <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">ĐƠN THUỐC ĐIỀU TRỊ</h2>
-                                        <p className="text-stone-400 text-xs mt-1 font-medium uppercase tracking-widest">Danh mục thuốc được chỉ định</p>
-                                    </div>
-                                </div>
-                                {!isExpired && (
-                                    <button
-                                        onClick={handleOpenPrescriptionModal}
-                                        className="px-6 py-2 bg-orange-50 text-orange-700 font-bold border border-orange-200 rounded-xl hover:bg-orange-100 transition-all flex items-center gap-2 text-sm active:scale-95"
-                                    >
-                                        <PlusIcon className="w-4 h-4" />
-                                        {prescriptions.length > 0 ? 'CHỈNH SỬA ĐƠN' : 'KÊ ĐƠN NGAY'}
-                                    </button>
-                                )}
-                            </div>
-
-                            {prescriptions.length > 0 ? (
-                                <div className="space-y-4">
-                                    {prescriptions.map((p, i) => (
-                                        <div key={i} className="group p-4 bg-white rounded-2xl border border-stone-100 flex flex-col md:flex-row gap-4 items-start md:items-center relative overflow-hidden">
-                                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-orange-500/30"></div>
-                                            <div className="pl-3 flex-1 min-w-0">
-                                                <div className="font-bold text-stone-800 text-sm tracking-tight">{p.medicineName}</div>
-                                                <div className="mt-1 flex flex-wrap items-center gap-3 text-[10px] text-stone-400 font-medium uppercase tracking-widest">
-                                                    <span className="flex items-center gap-1.5 whitespace-nowrap">
-                                                        <span className="w-1 h-1 rounded-full bg-stone-200"></span>
-                                                        {(p.dosage ?? '').toLowerCase().includes('viên') ? (p.dosage ?? '') : `${p.dosage ?? ''} viên/lần`}
-                                                    </span>
-                                                    <span className="flex items-center gap-1.5 whitespace-nowrap">
-                                                        <span className="w-1 h-1 rounded-full bg-stone-200"></span>
-                                                        {(p.frequency ?? '').toLowerCase().includes('lần') ? (p.frequency ?? '') : `${p.frequency ?? ''} lần/ngày`}
-                                                    </span>
-                                                    <span className="flex items-center gap-1.5 text-orange-600 font-bold whitespace-nowrap">
-                                                        <span className="w-1 h-1 rounded-full bg-orange-500"></span>
-                                                        {p.durationDays} NGÀY
-                                                    </span>
-                                                </div>
-                                            </div>
-
-                                            {p.instructions && (
-                                                <div className="md:w-1/3 p-3 bg-stone-50/50 rounded-xl border border-stone-100 text-[11px] text-stone-500 italic">
-                                                    <span className="block not-italic font-bold text-stone-400 text-[9px] uppercase mb-1 tracking-tighter opacity-50">Hướng dẫn sử dụng</span>
-                                                    {p.instructions}
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div
-                                    onClick={!isExpired ? handleOpenPrescriptionModal : undefined}
-                                    className={`group py-12 bg-stone-50 rounded-3xl border-2 border-dashed border-stone-200 flex flex-col items-center justify-center transition-all ${!isExpired ? 'cursor-pointer hover:bg-amber-50/30 hover:border-amber-200' : 'cursor-default'}`}
-                                >
-                                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm mb-4 transition-all border border-stone-100">
-                                        <PlusIcon className={`w-6 h-6 text-stone-400 ${!isExpired ? 'group-hover:text-amber-600 group-hover:scale-105' : ''}`} />
-                                    </div>
-                                    <p className="text-stone-400 text-xs font-semibold tracking-widest uppercase">
-                                        {isExpired ? 'CHƯA CÓ THUỐC ĐƯỢC KÊ' : 'BẤM ĐỂ BẮT ĐẦU KÊ ĐƠN'}
-                                    </p>
-                                </div>
                             )}
                         </div>
 
@@ -709,6 +809,7 @@ export const EditEmrPage = () => {
                         )}
 
                         {/* Images & Documents */}
+                        {currentStep === 1 && (
                         <div className="bg-white rounded-2xl p-6 shadow-sm">
                             <h3 className="font-bold text-stone-700 mb-4">Hình ảnh & Tài liệu</h3>
 
@@ -756,18 +857,29 @@ export const EditEmrPage = () => {
                                 ))}
                             </div>
                         </div>
+                        )}
 
                     </div>
 
                     {/* ========== RIGHT SIDEBAR (O, P, Notes, ReExam) [Col-4] ========== */}
                     <div className="col-span-12 lg:col-span-4 space-y-4">
                         {/* O - Objective */}
+                        {currentStep === 1 && (
                         <div className="bg-white rounded-2xl p-6 shadow-sm">
                             <div className="flex items-center gap-3 mb-2">
                                 <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
                                 <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">O - KHÁCH QUAN (Objective)</h2>
                             </div>
                             <p className="text-xs text-stone-400 mb-4">Kết quả khám lâm sàng, chỉ số sinh tồn</p>
+                            {isVipClinic && (
+                                <p className="mb-3 text-xs font-semibold text-stone-600">
+                                    {isAiAnalyzing
+                                        ? 'AI đang cập nhật gợi ý theo dữ liệu mới...'
+                                        : aiDiagnosisResult?.soap_suggestions.objective_draft
+                                            ? 'Đã có gợi ý AI cho phần khách quan. Bác sĩ có thể điều chỉnh thủ công trước khi lưu.'
+                                            : 'Gợi ý AI cho khách quan sẽ xuất hiện sau khi chọn chẩn đoán ở Top 3.'}
+                                </p>
+                            )}
 
                             <div className="grid grid-cols-2 gap-3 mb-4">
                                 <div>
@@ -824,13 +936,22 @@ export const EditEmrPage = () => {
                                 className="w-full border border-stone-300 rounded-lg p-3 text-sm focus:outline-none focus:border-amber-500 disabled:bg-stone-50"
                             />
                         </div>
+                        )}
 
                         {/* P - Plan */}
+                        {currentStep === 2 && (
                         <div className="bg-white rounded-2xl p-6 shadow-sm">
                             <div className="flex items-center gap-3 mb-4">
                                 <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
                                 <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">P - KẾ HOẠCH (Plan) <span className="text-red-500">*</span></h2>
                             </div>
+                            {isVipClinic && (
+                                <p className="mb-3 text-xs font-semibold text-stone-600">
+                                    {selectedAiDiagnosis
+                                        ? 'Kế hoạch điều trị được đồng bộ theo chẩn đoán đã chọn, bác sĩ xác nhận trước khi lưu.'
+                                        : 'Kế hoạch điều trị được bác sĩ nhập theo đánh giá lâm sàng hiện có.'}
+                                </p>
+                            )}
                             <textarea
                                 value={plan}
                                 onChange={e => setPlan(e.target.value)}
@@ -841,8 +962,59 @@ export const EditEmrPage = () => {
                             />
                             {errors.plan && <p className="text-red-500 text-xs mt-1">{errors.plan}</p>}
                         </div>
+                        )}
+
+                        {/* Prescription */}
+                        {currentStep === 2 && (
+                        <div className="relative overflow-hidden rounded-2xl bg-white p-4 shadow-sm">
+                            <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    <span className="h-6 w-1 rounded-full bg-orange-600"></span>
+                                    <div>
+                                        <h2 className="text-base font-bold uppercase tracking-tight text-orange-800">ĐƠN THUỐC ĐIỀU TRỊ</h2>
+                                        <p className="mt-0.5 text-[10px] font-medium uppercase tracking-widest text-stone-400">Danh mục thuốc được chỉ định</p>
+                                    </div>
+                                </div>
+                                {!isExpired && (
+                                    <button
+                                        onClick={handleOpenPrescriptionModal}
+                                        className="w-full rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-[11px] font-bold text-orange-700 transition-all hover:bg-orange-100 active:scale-95 sm:w-auto"
+                                    >
+                                        {prescriptions.length > 0 ? 'CHỈNH SỬA ĐƠN' : 'KÊ ĐƠN NGAY'}
+                                    </button>
+                                )}
+                            </div>
+
+                            {prescriptions.length > 0 ? (
+                                <div className="space-y-2.5">
+                                    {prescriptions.map((p, i) => (
+                                        <div key={i} className="relative overflow-hidden rounded-2xl border border-stone-100 bg-white p-2.5">
+                                            <div className="absolute bottom-0 left-0 top-0 w-1 bg-orange-500/30"></div>
+                                            <div className="min-w-0 pl-2">
+                                                <div className="text-sm font-bold text-stone-800">{p.medicineName}</div>
+                                                <div className="mt-1 break-words text-[10px] font-medium uppercase tracking-wide text-stone-500">
+                                                    {p.dosage || 'Theo chỉ định'} | {p.frequency || 'Theo chỉ định'} | {p.durationDays} ngày
+                                                </div>
+                                                {p.instructions && <p className="mt-1 line-clamp-2 text-[11px] text-stone-600">{p.instructions}</p>}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div
+                                    onClick={!isExpired ? handleOpenPrescriptionModal : undefined}
+                                    className={`rounded-2xl border-2 border-dashed border-stone-200 bg-stone-50 py-8 text-center transition-all ${!isExpired ? 'cursor-pointer hover:border-amber-200 hover:bg-amber-50/30' : 'cursor-default'}`}
+                                >
+                                    <p className="text-xs font-semibold uppercase tracking-widest text-stone-500">
+                                        {isExpired ? 'CHƯA CÓ THUỐC ĐƯỢC KÊ' : 'BẤM ĐỂ BẮT ĐẦU KÊ ĐƠN'}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                        )}
 
                         {/* Notes */}
+                        {currentStep === 2 && (
                         <div className="bg-white rounded-2xl p-6 shadow-sm">
                             <h3 className="font-bold text-stone-700 mb-2">Ghi chú</h3>
                             <textarea
@@ -854,8 +1026,10 @@ export const EditEmrPage = () => {
                                 className="w-full border border-stone-300 rounded-lg p-3 text-sm focus:outline-none focus:border-amber-500 disabled:bg-stone-50"
                             />
                         </div>
+                        )}
 
                         {/* Re-examination Date */}
+                        {currentStep === 2 && (
                         <div className="bg-white rounded-2xl p-6 shadow-sm">
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="font-bold text-stone-700 flex items-center gap-2">
@@ -936,6 +1110,7 @@ export const EditEmrPage = () => {
                                 </div>
                             )}
                         </div>
+                        )}
                     </div>
                 </div >
 
@@ -995,6 +1170,43 @@ export const EditEmrPage = () => {
                     isDanger={true}
                 />
             </div>
+
+            {/* AI Diagnosis Modal */}
+            <Modal
+                isOpen={isAiModalOpen}
+                onClose={handleCloseAiModal}
+                title="Hỗ trợ AI chẩn đoán"
+                size="xl"
+            >
+                <AIDiagnosisPanel
+                    isModal
+                    autoAnalyzeSignal={aiAnalyzeSignal}
+                    initialResult={aiDiagnosisResult}
+                    initialSelectedDiagnosis={selectedAiDiagnosis}
+                    hideNarrativeInput
+                    externalNarrative={subjective}
+                    petId={petInfo.id}
+                    bookingId={bookingId || undefined}
+                    species={petInfo.species}
+                    breed={petInfo.breed}
+                    weightKg={objective.weight ? Number(objective.weight) : undefined}
+                    subjective={subjective}
+                    objective={objective.notes}
+                    assessment={assessment}
+                    plan={plan}
+                    imageUrls={images.map(img => img.url)}
+                    onDiagnosisResult={(result) => {
+                        setAiDiagnosisResult(result)
+                        if (!result) setSelectedAiDiagnosis(null)
+                    }}
+                    onApplyDraft={(draft) => {
+                        handleApplyAiDraft('objective', draft.objective_draft)
+                        handleApplyAiDraft('plan', draft.plan_draft)
+                    }}
+                    onSelectDiagnosis={handleSelectAiDiagnosis}
+                    onLoadingChange={setIsAiAnalyzing}
+                />
+            </Modal>
         </div>
     )
 }

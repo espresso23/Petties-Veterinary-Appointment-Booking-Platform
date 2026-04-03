@@ -356,8 +356,8 @@ export const ClinicManagerVoucherPage = () => {
             await apiClient.post(`/vouchers/clinic-manager/apply/${voucherId}`)
             showToast('success', 'Đã áp dụng voucher vào phòng khám!')
             loadMyVouchers()
-        } catch (err: any) {
-            const msg = err?.response?.data?.message || 'Áp dụng thất bại'
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Áp dụng thất bại'
             showToast('error', msg)
         } finally {
             setIsSubmitting(false)
@@ -372,8 +372,8 @@ export const ClinicManagerVoucherPage = () => {
             showToast('success', 'Đã gỡ voucher khỏi phòng khám')
             setConfirmRemove(null)
             loadMyVouchers()
-        } catch (err: any) {
-            const msg = err?.response?.data?.message || 'Gỡ voucher thất bại'
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Gỡ voucher thất bại'
             showToast('error', msg)
         } finally {
             setIsSubmitting(false)

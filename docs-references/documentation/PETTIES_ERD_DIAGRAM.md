@@ -56,7 +56,7 @@ Use this document together with:
 | Domain | Tables |
 |---|---|
 | Runtime configuration | `agents`, `tools`, `knowledge_documents`, `system_settings` |
-| Disease normalization | `disease_catalog`, `disease_aliases`, `disease_mapping_review_items` |
+| Disease normalization | `disease_catalog`, `disease_aliases` |
 
 ### 2.3 Relational ERD
 

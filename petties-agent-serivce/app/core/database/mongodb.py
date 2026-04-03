@@ -22,13 +22,96 @@ Usage:
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from typing import Optional
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from loguru import logger
 from app.config.settings import settings
 
 
 # ===== GLOBAL MONGODB CLIENT (Singleton) =====
 _mongodb_client: Optional[AsyncIOMotorClient] = None
+DEFAULT_SESSION_IDLE_TIMEOUT_MINUTES = 30
+
+
+def get_session_idle_timeout_minutes() -> int:
+    raw_value = getattr(settings, "CHAT_SESSION_IDLE_TIMEOUT_MINUTES", None)
+    try:
+        parsed = (
+            int(raw_value)
+            if raw_value is not None
+            else DEFAULT_SESSION_IDLE_TIMEOUT_MINUTES
+        )
+    except (TypeError, ValueError):
+        parsed = DEFAULT_SESSION_IDLE_TIMEOUT_MINUTES
+    return max(1, parsed)
+
+
+def _coerce_datetime(value) -> Optional[datetime]:
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    if isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+        except ValueError:
+            return None
+    return None
+
+
+def is_chat_session_idle_expired(
+    session_data: Optional[dict],
+    *,
+    now: Optional[datetime] = None,
+    timeout_minutes: Optional[int] = None,
+) -> bool:
+    if not session_data:
+        return False
+    updated_at = _coerce_datetime(session_data.get("updated_at"))
+    if updated_at is None:
+        return False
+    now_utc = now or datetime.now(timezone.utc)
+    timeout = timeout_minutes or get_session_idle_timeout_minutes()
+    return updated_at <= now_utc - timedelta(minutes=timeout)
+
+
+async def expire_chat_session_state_if_needed(
+    session_id: str,
+    session_data: Optional[dict],
+    *,
+    now: Optional[datetime] = None,
+    timeout_minutes: Optional[int] = None,
+) -> Optional[dict]:
+    if not session_data or not is_chat_session_idle_expired(
+        session_data, now=now, timeout_minutes=timeout_minutes
+    ):
+        return session_data
+
+    if not session_data.get("booking_state"):
+        return session_data
+
+    expired_at = now or datetime.now(timezone.utc)
+    updated_session = dict(session_data)
+    updated_session["booking_state"] = None
+    updated_session["updated_at"] = expired_at
+    updated_session["booking_state_expired_at"] = expired_at
+
+    try:
+        db = await get_mongodb_database()
+        sessions = db[settings.MONGODB_CHAT_SESSIONS_COLLECTION]
+        await sessions.update_one(
+            {"session_id": session_id},
+            {
+                "$set": {
+                    "booking_state": None,
+                    "updated_at": expired_at,
+                    "booking_state_expired_at": expired_at,
+                }
+            },
+        )
+        logger.info(f"Expired stale booking_state for session {session_id}")
+    except Exception as e:
+        logger.error(f"❌ Failed to expire stale booking state: {e}")
+
+    return updated_session
 
 
 async def get_mongodb_client() -> AsyncIOMotorClient:
@@ -45,7 +128,12 @@ async def get_mongodb_client() -> AsyncIOMotorClient:
 
     if _mongodb_client is None:
         try:
-            logger.info(f"🔌 Connecting to MongoDB: {settings.MONGODB_URL}")
+            safe_url = (
+                settings.MONGODB_URL.split("@")[-1]
+                if "@" in settings.MONGODB_URL
+                else settings.MONGODB_URL
+            )
+            logger.info(f"🔌 Connecting to MongoDB: {safe_url}")
 
             _mongodb_client = AsyncIOMotorClient(
                 settings.MONGODB_URL,
@@ -55,9 +143,11 @@ async def get_mongodb_client() -> AsyncIOMotorClient:
             )
 
             # Test connection bằng ping
-            await _mongodb_client.admin.command('ping')
+            await _mongodb_client.admin.command("ping")
 
-            logger.success(f"✅ MongoDB connected successfully: {settings.MONGODB_DATABASE}")
+            logger.success(
+                f"✅ MongoDB connected successfully: {settings.MONGODB_DATABASE}"
+            )
 
         except Exception as e:
             logger.error(f"❌ MongoDB connection failed: {e}")
@@ -108,7 +198,7 @@ async def mongodb_health_check() -> dict:
         db = client[settings.MONGODB_DATABASE]
 
         # Ping to test connection
-        await client.admin.command('ping')
+        await client.admin.command("ping")
 
         # List collections
         collections = await db.list_collection_names()
@@ -117,8 +207,10 @@ async def mongodb_health_check() -> dict:
             "status": "healthy",
             "database": settings.MONGODB_DATABASE,
             "collections": collections,
-            "url": settings.MONGODB_URL.split('@')[-1] if '@' in settings.MONGODB_URL else settings.MONGODB_URL,  # Hide credentials
-            "error": None
+            "url": settings.MONGODB_URL.split("@")[-1]
+            if "@" in settings.MONGODB_URL
+            else settings.MONGODB_URL,  # Hide credentials
+            "error": None,
         }
 
     except Exception as e:
@@ -127,8 +219,10 @@ async def mongodb_health_check() -> dict:
             "status": "unhealthy",
             "database": settings.MONGODB_DATABASE,
             "collections": [],
-            "url": settings.MONGODB_URL.split('@')[-1] if '@' in settings.MONGODB_URL else settings.MONGODB_URL,
-            "error": str(e)
+            "url": settings.MONGODB_URL.split("@")[-1]
+            if "@" in settings.MONGODB_URL
+            else settings.MONGODB_URL,
+            "error": str(e),
         }
 
 
@@ -150,8 +244,12 @@ async def create_mongodb_indexes():
         await sessions_collection.create_index("user_id")
         await sessions_collection.create_index("context_type")
         await sessions_collection.create_index("updated_at")
-        await sessions_collection.create_index([("user_id", 1), ("context_type", 1), ("updated_at", -1)])
-        logger.success(f"✅ Created indexes for {settings.MONGODB_CHAT_SESSIONS_COLLECTION}")
+        await sessions_collection.create_index(
+            [("user_id", 1), ("context_type", 1), ("updated_at", -1)]
+        )
+        logger.success(
+            f"✅ Created indexes for {settings.MONGODB_CHAT_SESSIONS_COLLECTION}"
+        )
 
         # ===== ai_chat_messages indexes =====
         messages_collection = db[settings.MONGODB_CHAT_MESSAGES_COLLECTION]
@@ -160,18 +258,28 @@ async def create_mongodb_indexes():
         await messages_collection.create_index("timestamp")
         await messages_collection.create_index("user_id")
         await messages_collection.create_index("context_type")
-        await messages_collection.create_index([("session_id", 1), ("timestamp", 1)])  # Compound index
+        await messages_collection.create_index(
+            [("session_id", 1), ("timestamp", 1)]
+        )  # Compound index
         await messages_collection.create_index([("user_id", 1), ("context_type", 1)])
         await messages_collection.create_index("tool_calls.tool_name")
-        logger.success(f"✅ Created indexes for {settings.MONGODB_CHAT_MESSAGES_COLLECTION}")
+        logger.success(
+            f"✅ Created indexes for {settings.MONGODB_CHAT_MESSAGES_COLLECTION}"
+        )
 
         # ===== ai_proactive_notifications indexes =====
-        notifications_collection = db[settings.MONGODB_PROACTIVE_NOTIFICATIONS_COLLECTION]
+        notifications_collection = db[
+            settings.MONGODB_PROACTIVE_NOTIFICATIONS_COLLECTION
+        ]
         await notifications_collection.create_index("user_id")
         await notifications_collection.create_index("timestamp")
         await notifications_collection.create_index("read_status")
-        await notifications_collection.create_index([("user_id", 1), ("read_status", 1)])  # Unread notifications
-        logger.success(f"✅ Created indexes for {settings.MONGODB_PROACTIVE_NOTIFICATIONS_COLLECTION}")
+        await notifications_collection.create_index(
+            [("user_id", 1), ("read_status", 1)]
+        )  # Unread notifications
+        logger.success(
+            f"✅ Created indexes for {settings.MONGODB_PROACTIVE_NOTIFICATIONS_COLLECTION}"
+        )
 
         # ===== chat_feedback indexes =====
         feedback_collection = db[settings.MONGODB_FEEDBACK_COLLECTION]
@@ -182,11 +290,10 @@ async def create_mongodb_indexes():
 
         # ===== knowledge_graph_triplets indexes =====
         kg_collection = db[settings.MONGODB_KG_TRIPLETS_COLLECTION]
-        
+
         # Unique index on (subject, predicate, object) exactly
         await kg_collection.create_index(
-            [("subject", 1), ("predicate", 1), ("object", 1)],
-            unique=True
+            [("subject", 1), ("predicate", 1), ("object", 1)], unique=True
         )
         # Indexes for graph traversal operations
         await kg_collection.create_index([("subject", 1), ("predicate", 1)])
@@ -194,11 +301,13 @@ async def create_mongodb_indexes():
         # Text index for keyword search logic on entities
         await kg_collection.create_index(
             [("subject", "text"), ("object", "text")],
-            weights={"subject": 2, "object": 1}
+            weights={"subject": 2, "object": 1},
         )
         await kg_collection.create_index("source")
-        
-        logger.success(f"✅ Created indexes for {settings.MONGODB_KG_TRIPLETS_COLLECTION}")
+
+        logger.success(
+            f"✅ Created indexes for {settings.MONGODB_KG_TRIPLETS_COLLECTION}"
+        )
 
         logger.success("✅ All MongoDB indexes created successfully!")
 
@@ -208,6 +317,7 @@ async def create_mongodb_indexes():
 
 
 # ===== UTILITY FUNCTIONS =====
+
 
 async def save_chat_session(session_data: dict) -> str:
     """
@@ -226,7 +336,7 @@ async def save_chat_session(session_data: dict) -> str:
         result = await sessions.insert_one(session_data)
         logger.info(f"💾 Saved chat session: {session_data.get('session_id')}")
 
-        return session_data.get('session_id')
+        return session_data.get("session_id")
 
     except Exception as e:
         logger.error(f"❌ Failed to save chat session: {e}")
@@ -250,7 +360,7 @@ async def save_chat_message(message_data: dict) -> str:
         result = await messages.insert_one(message_data)
         logger.info(f"💾 Saved chat message: {message_data.get('message_id')}")
 
-        return message_data.get('message_id')
+        return message_data.get("message_id")
 
     except Exception as e:
         logger.error(f"❌ Failed to save chat message: {e}")
@@ -272,9 +382,9 @@ async def get_chat_history(session_id: str, limit: int = 50) -> list:
         db = await get_mongodb_database()
         messages = db[settings.MONGODB_CHAT_MESSAGES_COLLECTION]
 
-        cursor = messages.find(
-            {"session_id": session_id}
-        ).sort("timestamp", 1).limit(limit)
+        cursor = (
+            messages.find({"session_id": session_id}).sort("timestamp", 1).limit(limit)
+        )
 
         history = await cursor.to_list(length=limit)
         logger.info(f"📜 Retrieved {len(history)} messages for session {session_id}")
@@ -301,7 +411,30 @@ async def get_chat_session(session_id: str) -> Optional[dict]:
         return None
 
 
-async def list_chat_sessions_by_owner(user_id: str, context_type: Optional[str] = None, limit: int = 20) -> list:
+async def update_booking_state_in_db(session_id: str, booking_state_dict: dict) -> bool:
+    """Cập nhật booking_state cho một session."""
+    try:
+        db = await get_mongodb_database()
+        sessions = db[settings.MONGODB_CHAT_SESSIONS_COLLECTION]
+
+        result = await sessions.update_one(
+            {"session_id": session_id},
+            {
+                "$set": {
+                    "booking_state": booking_state_dict,
+                    "updated_at": datetime.now(timezone.utc),
+                }
+            },
+        )
+        return result.matched_count > 0
+    except Exception as e:
+        logger.error(f"❌ Failed to update booking state: {e}")
+        return False
+
+
+async def list_chat_sessions_by_owner(
+    user_id: str, context_type: Optional[str] = None, limit: int = 20
+) -> list:
     """Lấy danh sách sessions theo owner và context."""
     try:
         db = await get_mongodb_database()
@@ -319,19 +452,21 @@ async def list_chat_sessions_by_owner(user_id: str, context_type: Optional[str] 
         return []
 
 
-async def touch_chat_session(session_id: str, extra_updates: Optional[dict] = None) -> bool:
+async def touch_chat_session(
+    session_id: str, extra_updates: Optional[dict] = None
+) -> bool:
     """Cập nhật updated_at của session sau mỗi message."""
     try:
         db = await get_mongodb_database()
         sessions = db[settings.MONGODB_CHAT_SESSIONS_COLLECTION]
 
-        updates = {
-            "updated_at": datetime.now(timezone.utc)
-        }
+        updates = {"updated_at": datetime.now(timezone.utc)}
         if extra_updates:
             updates.update(extra_updates)
 
-        result = await sessions.update_one({"session_id": session_id}, {"$set": updates})
+        result = await sessions.update_one(
+            {"session_id": session_id}, {"$set": updates}
+        )
         return result.matched_count > 0
     except Exception as e:
         logger.error(f"❌ Failed to touch chat session: {e}")
@@ -377,11 +512,11 @@ if __name__ == "__main__":
         print(f"  Database: {health['database']}")
         print(f"  URL: {health['url']}")
         print(f"  Collections: {health['collections']}")
-        if health['error']:
+        if health["error"]:
             print(f"  ❌ Error: {health['error']}")
 
         # Create indexes nếu connection healthy
-        if health['status'] == 'healthy':
+        if health["status"] == "healthy":
             print("\n🔧 Creating indexes...")
             await create_mongodb_indexes()
 

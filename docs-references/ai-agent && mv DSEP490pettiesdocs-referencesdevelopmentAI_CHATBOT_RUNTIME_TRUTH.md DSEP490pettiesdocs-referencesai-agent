@@ -1,0 +1,472 @@
+# AI Service Chatbot Audit Status And Plan
+
+Last updated: 2026-04-02
+
+## Scope
+
+This document summarizes the current backend audit status of the Petties AI chatbot in `petties-agent-serivce/`, groups the remaining backlog by priority, and defines the next implementation batches.
+
+Primary code areas reviewed:
+
+- `petties-agent-serivce/app/core/agents/`
+- `petties-agent-serivce/app/api/websocket/chat.py`
+- `petties-agent-serivce/app/api/routes/chat.py`
+- `petties-agent-serivce/app/core/database/mongodb.py`
+- `petties-agent-serivce/app/core/tools/`
+- `petties-agent-serivce/app/core/presentation/`
+- `petties-agent-serivce/app/api/schemas/websocket_schemas.py`
+- `petties-agent-serivce/tests/`
+
+Reference documents:
+
+- `docs-references/development/AI_SERVICE_CHATBOT_CHECKLIST.md`
+- `docs-references/documentation/AI_SERVICE_AUDIT_CHECKLIST.md`
+
+## Status Legend
+
+- `PASS` = implemented and reasonably covered by current code/tests
+- `PARTIAL` = implemented partially, or implemented without enough rigor / test coverage
+- `FAIL` = not implemented yet or currently below minimum audit expectation
+
+## Overall Assessment
+
+- Estimated completion: `94%`
+- Current quality level: `usable and fairly stable for main flows, with clearer runtime truth for booking/search behavior, safer transport path, and stronger regression coverage, but still not fully hardened for production-grade audit readiness`
+- Strongest areas: booking session state, WebSocket hydration, prompt enrichment, clinic/slot routing guidance, idle-expiration reset, transport validation, focused regression tests
+- Weakest areas: duplicated save-path semantics between REST and WebSocket, error-code coverage, observability, and broader conversation-policy hardening
+
+## Audit Matrix
+
+### Layer 1 - Agent Layer
+
+| ID | Item | Status | Notes |
+|---|---|---|---|
+| AG-STATE-01 | Exactly 5 canonical stages | PASS | Canonical stages exist in `petties-agent-serivce/app/core/agents/state.py` |
+| AG-STATE-02 | Valid transitions, no orphan states | PARTIAL | Booking session transitions are cleaner now, but global transition table is still implicit |
+| AG-STATE-03 | Persisted via LangGraph checkpointer, not memory only | FAIL | Intentionally deferred; current direction keeps `MemorySaver` to avoid new DB artifacts |
+| AG-STATE-04 | Reconnect resumes correct stage by `session_id` | PARTIAL | Reconnect restores `booking_state` well, but not full graph checkpoint state |
+| AG-STATE-05 | Auto-expire to `IDLE` after 30 minutes inactive | PASS | Simple TTL reset now clears stale `booking_state` during restore/load paths |
+| AG-STATE-06 | `max_iterations` bounded 5-7 | PASS | Default is now `7` |
+| AG-PROMPT-01 | Prompt clearly describes tool usage boundaries | PASS | Prompt guidance and booking guidance are strong |
+| AG-PROMPT-02 | Prompt injects `current_stage` and `collected_params` | PASS | Injected in `prompt_builder.py` |
+| AG-PROMPT-03 | Prompt defines refusal / redirect boundaries | PARTIAL | Some policy exists, but not fully audited against all unsafe/out-of-scope cases |
+| AG-PROMPT-04 | Prompt does not ask LLM to generate `ui_schema` | PASS | `ui_schema` remains backend-owned |
+| AG-BEH-01 | Intent is backend-derived, not emitted by LLM | PASS | Presentation uses deterministic mapping |
+| AG-BEH-02 | Agent calls tools in parallel when possible | PARTIAL | Some batching exists in executor, but orchestration is not broadly parallelized |
+| AG-BEH-03 | Agent asks only for missing params | PARTIAL | Booking create path now has deterministic confirmation snapshot gate, but broader multi-flow behavior is still not guaranteed |
+| AG-BEH-04 | Out-of-flow questions handled safely | PARTIAL | Prompt guidance exists, deterministic policy still incomplete |
+| AG-BEH-05 | Agent does not guess ambiguous input | PARTIAL | Booking ambiguity handling exists for some cases, not fully systematic |
+
+### Layer 2 - Tool Layer
+
+| ID | Item | Status | Notes |
+|---|---|---|---|
+| TOOL-ERR-01 | All tools catch internal exceptions safely | PASS | Major MCP tool modules now normalized and covered by focused regression suites |
+| TOOL-ERR-02 | Error response contains `success/error_code/message/recoverable` | PASS | Contracts standardized across tool modules, including `booking_tools.py` compatibility adapter |
+| TOOL-ERR-03 | Error response contains `suggestion` | PASS | Suggestion field is now consistently populated for recoverable error branches |
+| TOOL-ERR-04 | Recoverable error keeps stage and allows retry | PARTIAL | Works in some flows, not fully enforced end-to-end |
+| TOOL-ERR-05 | Non-recoverable error resets flow to `IDLE` | FAIL | No unified policy branch yet |
+| TOOL-ERR-06 | `error_code` values come from defined enum | FAIL | Classification helper exists, but no complete enum coverage |
+| TOOL-CODE-01 | `NO_SLOTS_AVAILABLE` covered | PARTIAL | Booking slot flows now emit it in main paths; broader FE policy/use still needs full audit |
+| TOOL-CODE-02 | `CLINIC_NOT_FOUND` covered | PARTIAL | Main booking/search/service flows now emit it; not yet universal across every clinic-related branch |
+| TOOL-CODE-03 | `SERVICE_NOT_FOUND` covered | PARTIAL | Main booking/service flows now emit it; secondary branches still need sweep |
+| TOOL-CODE-04 | `INVALID_DATE` covered | PARTIAL | Main slot/date resolution path now emits it; not universal yet |
+| TOOL-CODE-05 | `BOOKING_CONFLICT` covered | FAIL | Not standardized end-to-end |
+| TOOL-CODE-06 | `PET_NOT_FOUND` covered | FAIL | Not standardized end-to-end |
+| TOOL-CODE-07 | `UNAUTHORIZED` covered | PARTIAL | Present in several booking/medical branches, not universal |
+| TOOL-CODE-08 | `RATE_LIMITED` covered with retry hint | PARTIAL | Helper exists, not consistently surfaced by all tools |
+| TOOL-CODE-09 | `INTERNAL_ERROR` handled as non-recoverable | FAIL | Still too generic / recoverable in several places |
+| TOOL-RES-01 | Exponential backoff on transient errors | PARTIAL | Exists in some subsystems, not consistently in chatbot tool path |
+| TOOL-RES-02 | Business validation errors are not retried automatically | PARTIAL | Mostly true, not explicitly standardized |
+| TOOL-RES-03 | Circuit breaker exists | FAIL | No chatbot-level circuit breaker found |
+| TOOL-RES-04 | Tool descriptions state prerequisites clearly | PARTIAL | Better for booking tools, uneven elsewhere |
+| TOOL-OK-01 | Success response contains `success`, `data`, `metadata` | PARTIAL | Executor wraps success well, inner tool payloads still vary |
+| TOOL-OK-02 | Empty result returns success, not error | PARTIAL | Many paths okay, not audited for every major tool |
+| TOOL-OK-03 | Pagination metadata contract for `has_more` | FAIL | Not implemented as shared standard |
+| TOOL-OK-04 | Terminal results set `is_final: true` | PARTIAL | Booking create path improved, not universal |
+
+### Layer 3 - Presentation Layer
+
+| ID | Item | Status | Notes |
+|---|---|---|---|
+| PRE-INT-01 | `INTENT_MAP` covers all important v1 tools | PARTIAL | Core booking/medical tools mapped, many others fallback to `show_text` |
+| PRE-INT-02 | Unknown tool falls back safely to `show_text` | PASS | Current fallback is safe |
+| PRE-INT-03 | Empty data resolves to `show_empty` | PASS | Empty logic improved |
+| PRE-INT-04 | Error resolves to `show_error` | PASS | Presentation error path exists |
+| PRE-LAYOUT-01 | Single clinic uses `card` layout | PASS | Covered in builder |
+| PRE-LAYOUT-02 | Many clinics use `grid` layout | PASS | Covered in builder |
+| PRE-LAYOUT-03 | Multi-tool turn becomes composite `list` with headers | PASS | Composite builder exists |
+| PRE-LAYOUT-04 | Single tool keeps native layout | PASS | Builder respects native layout rules |
+| PRE-STATE-01 | Every intent has empty-state handler | PARTIAL | Main intents do, not comprehensively audited |
+| PRE-STATE-02 | Every `error_code` has corresponding error-card builder | FAIL | Error card is generic, not code-specific |
+| PRE-STATE-03 | Recoverable error card has retry + cancel | PASS | Builder supports this |
+| PRE-STATE-04 | Non-recoverable error card only has dismiss | PARTIAL | Branch exists, coverage still thin |
+| PRE-STATE-05 | `empty_state` contains `suggestion_action` | PASS | Added recently |
+| PRE-SCHEMA-01 | Every actionable component has non-empty `id` | PASS | Current builder generally enforces IDs |
+| PRE-SCHEMA-02 | `version: 1.0` always present | PASS | `UISchemaV1` enforces version |
+| PRE-SCHEMA-03 | Schema contains no extra fields outside spec | PARTIAL | Reasonably clean, not fully diff-audited |
+| PRE-SCHEMA-04 | LLM cannot write `ui_schema` directly | PASS | Backend still owns schema building |
+
+### Transport / Render-Contract Facing Backend Items
+
+| ID | Item | Status | Notes |
+|---|---|---|---|
+| WS-01 | `connected` includes needed session metadata | PASS | Schema now covers core runtime metadata for main client flow |
+| WS-02 | `history` includes `booking_state` restore payload | PASS | Implemented |
+| WS-03 | `booking_state_update` includes authoritative stage | PASS | Implemented |
+| WS-04 | `thinking_stream` event modeled and emitted | PASS | Schema exists and client payload now uses safer formatted summaries |
+| WS-05 | `ui_schema` event has explicit schema model | PASS | Explicit schema message exists |
+| WS-06 | Inbound `ui_action` is validated and sanitized strictly | PASS | Whitelist + field-level validation added before persistence/runtime injection |
+
+### Tests And Verification
+
+| ID | Item | Status | Notes |
+|---|---|---|---|
+| TEST-01 | Booking session reducer tests | PASS | Strong focused coverage |
+| TEST-02 | WebSocket booking hydrate tests | PASS | Good coverage for reconnect/restore |
+| TEST-03 | Presentation builder empty/error tests | PASS | Main cases covered |
+| TEST-04 | Tool contract helper tests | PASS | Added and passing |
+| TEST-05 | Chat route ownership/access tests | PASS | Basic access control covered |
+| TEST-06 | Full audit checklist coverage | FAIL | Still far from complete |
+| TEST-07 | Persistent checkpoint tests | FAIL | Deferred with current simplified direction |
+| TEST-08 | Idle TTL tests | PASS | Focused persistence tests exist for stale-session expiration |
+
+## Progress By Area
+
+| Area | Estimated Progress | Quality | Notes |
+|---|---:|---|---|
+| Agent state and booking state | 84% | Good | Strong recent progress, simple TTL reset is in place; full graph persistence remains deferred |
+| Prompt and orchestration | 82% | Good | Prompt/runtime truth is clearer now, but deterministic orchestration is still partial |
+| Tool layer contracts | 91% | Good | Business taxonomy is improving on booking path; full enum coverage across all flows still pending |
+| Booking logic | 88% | Good | Confirmation safety gate and clinic/slot routing are clearer; multi-pet and interruption edge cases still partial |
+| WebSocket transport | 76% | Medium-Good | Hydration is strong, schema/runtime parity still incomplete |
+| Presentation layer | 76% | Good | Error cards now derive business titles from `error_code`; broader contract parity still partial |
+| Tests | 84% | Good | Focused regression expanded to booking, prompt/context policy, and websocket taxonomy paths |
+
+## Backlog
+
+### Critical
+
+| Priority | Item | Why It Matters | Main Files |
+|---|---|---|---|
+| Critical | Standardize structured error contract across all MCP tools | Current contract inconsistency creates schema drift, UI inconsistency, and fragile retries | `petties-agent-serivce/app/core/tools/mcp_tools/common_tools.py`, `petties-agent-serivce/app/core/tools/mcp_tools/medical_tools.py`, `petties-agent-serivce/app/core/tools/mcp_tools/booking_tools.py`, `petties-agent-serivce/app/core/tools/mcp_tools/booking_session_tools.py`, `petties-agent-serivce/app/core/tools/mcp_tools/utility_tools.py` |
+| Critical | Clarify one source of truth for saving user messages | REST and WebSocket both persist user messages, creating duplicate-risk if client flow is wrong | `petties-agent-serivce/app/api/routes/chat.py`, `petties-agent-serivce/app/api/websocket/chat.py` |
+| Critical | Complete error-code enum coverage for business cases | Needed for reliable error UI and audit checklist pass | `petties-agent-serivce/app/core/tools/contracts.py`, tool modules, presentation builder |
+
+### Important
+
+| Priority | Item | Why It Matters | Main Files |
+|---|---|---|---|
+| Important | Remove nested executor/tool payload mismatch | Avoids unwrap hacks and simplifies presentation flow | `petties-agent-serivce/app/core/tools/executor.py`, `petties-agent-serivce/app/api/websocket/chat.py` |
+| Important | Strengthen interruption/takeover policy | Current booking session guidance still depends too much on prompt compliance | `petties-agent-serivce/app/core/agents/single_agent.py`, `petties-agent-serivce/app/core/agents/prompt_builder.py`, `petties-agent-serivce/app/core/tools/mcp_tools/booking_session_tools.py` |
+| Important | Expand regression tests to match audit checklist | Current tests are good but still narrow | `petties-agent-serivce/tests/` |
+| Important | Review `thinking_stream` wording quality for UX, not only safety | Transport is safer now, but wording may still be dry or repetitive | `petties-agent-serivce/app/core/agents/thinking_formatter.py`, `petties-agent-serivce/app/api/websocket/chat.py` |
+
+### Cleanup
+
+| Priority | Item | Why It Matters | Main Files |
+|---|---|---|---|
+| Cleanup | Review multi-tab / multi-device behavior for `session_id` WebSocket connection manager | Avoid future race conditions | `petties-agent-serivce/app/api/websocket/chat.py` |
+| Cleanup | Review all presentation fallback paths for secondary tools | Improves UX consistency | `petties-agent-serivce/app/core/presentation/builder.py` |
+| Cleanup | Normalize stale / drifting tests outside focused regression suite | Keeps future audit trustworthy | `petties-agent-serivce/tests/` |
+| Cleanup | Revisit persistent checkpointer only if product direction changes | Currently deferred intentionally to avoid new DB artifacts | `petties-agent-serivce/app/core/agents/single_agent.py` |
+
+## Implementation Plan
+
+### Completed In Simpler Direction - Idle Expiration / TTL Reset
+
+Goal: keep persistence simple while preventing stale booking state from reviving forever.
+
+Files:
+
+- `petties-agent-serivce/app/core/database/mongodb.py`
+- `petties-agent-serivce/app/api/websocket/chat.py`
+- `petties-agent-serivce/app/api/routes/chat.py`
+
+Completed work:
+
+- Define simple inactivity threshold logic
+- On session restore/load, compare `updated_at` to timeout window
+- If expired, clear stale `booking_state`
+- Keep `MemorySaver` unchanged to avoid adding new database artifacts
+- Add focused tests for stale-session expiration
+
+### Completed - Batch 1 Transport Hardening
+
+Goal: make WebSocket input/output contracts safer without adding new persistence complexity.
+
+Completed work:
+
+- Added whitelist and field-level validation for inbound `ui_action`
+- Rejected malformed `ui_action` before persistence/runtime context injection
+- Extended `websocket_schemas.py` for `connected`, `ack`, `agent_info`, and `ui_schema`
+- Reworked `thinking_stream` to send safer formatted summaries instead of raw thought text
+- Added transport-focused regression tests
+
+### Batch 2 - Tool Contract Standardization (Completed)
+
+Goal: make WebSocket input/output contracts safer without adding new persistence complexity.
+
+#### 4. Standardize all MCP tools to shared contract
+
+Files:
+
+- `petties-agent-serivce/app/core/tools/mcp_tools/common_tools.py`
+- `petties-agent-serivce/app/core/tools/mcp_tools/medical_tools.py`
+- `petties-agent-serivce/app/core/tools/mcp_tools/booking_tools.py`
+- `petties-agent-serivce/app/core/tools/mcp_tools/booking_session_tools.py`
+- `petties-agent-serivce/app/core/tools/mcp_tools/utility_tools.py`
+
+Tasks:
+
+- Ensure success payloads consistently use `success`, `data`, `metadata`
+- Ensure error payloads consistently use `success`, `error_code`, `message`, `recoverable`, `suggestion`
+- Remove ad hoc `error` string-only returns
+- Audit terminal results to set `is_final: true` where appropriate
+
+Completed in current pass:
+
+- Standardized contract usage in `common_tools.py` and `medical_tools.py`
+- Standardized contract usage in `utility_tools.py` and `booking_session_tools.py`
+- Standardized booking tool payload contracts in `booking_tools.py` with backward-compatible normalization
+- Updated `normalize_tool_output()` to support already-standardized tool payloads and normalize nested `data`
+- Reduced executor nested-wrap mismatch when tools already return structured contract
+- Fixed prompt-builder state placeholder NameError in `prompt_builder.py`
+- Added end-to-end booking journey regression (`normal chat -> booking -> cancel -> booking again`) in `tests/test_websocket_chat.py`
+- Added/updated focused tests in `tests/test_booking_tools.py`, `tests/test_tool_contracts.py`, `tests/test_booking_session.py`, `tests/test_medical_tools.py`, and `tests/test_websocket_chat.py` (`66 passed` locally)
+
+### Completed - Phase 1.1 Booking Action Safety Gate
+
+Goal: make booking creation deterministic and prevent stale or ambiguous confirmations from mutating data.
+
+Completed work:
+
+- Added confirmation snapshot persistence into booking session state before final booking confirmation
+- Added deterministic confirmation guard in `create_booking_for_user`
+- Reject booking creation when confirmation context is missing, stale, or already completed
+- Kept conditional auto-create path but now validate that a real conditional create intent exists
+- Added regression tests for missing confirmation context and stale confirmation snapshot
+- Latest focused regression suite now passes: `68 passed`
+
+### Completed - Phase 1.2 Business Error Taxonomy (Booking-First Pass)
+
+Goal: make major booking/search/service/date/confirmation failures emit meaningful business `error_code` values and render better in UI.
+
+Completed work:
+
+- Added shared business error catalog and title mapping in `contracts.py`
+- Extended classifier coverage for clinic/service/pet/slot/date/conflict semantics
+- Added booking-path business codes in `booking_tools.py` for main clarification/failure branches
+- Updated presentation error cards to derive title from `error_code`
+- Added tests for classifier/title behavior and booking confirmation error codes
+- Latest focused regression suite now passes: `79 passed`
+
+Verification:
+
+- Expand tool contract tests for representative tool outputs across modules
+
+#### 5. Reduce executor/tool nested wrapper mismatch
+
+Files:
+
+- `petties-agent-serivce/app/core/tools/executor.py`
+- `petties-agent-serivce/app/api/websocket/chat.py`
+
+Tasks:
+
+- Decide canonical outer contract vs inner contract strategy
+- Prefer one stable shape instead of executor wrapping already-structured tool payloads awkwardly
+- Minimize reliance on `_unwrap_tool_result_for_schema()` special logic
+
+Verification:
+
+- Re-run presentation/websocket regression tests
+
+### Batch 3 - Error Code Coverage And Presentation Parity
+
+Goal: make error rendering predictable across all major business failures.
+
+#### 6. Define error-code coverage
+
+Files:
+
+- `petties-agent-serivce/app/core/tools/contracts.py`
+- relevant MCP tool modules
+- `petties-agent-serivce/app/core/presentation/builder.py`
+
+Tasks:
+
+- Add explicit coverage for:
+  - `NO_SLOTS_AVAILABLE`
+  - `CLINIC_NOT_FOUND`
+  - `SERVICE_NOT_FOUND`
+  - `INVALID_DATE`
+  - `BOOKING_CONFLICT`
+  - `PET_NOT_FOUND`
+  - `UNAUTHORIZED`
+  - `RATE_LIMITED`
+  - `INTERNAL_ERROR`
+- Decide which are recoverable vs non-recoverable
+- Improve error-card behavior per code category if needed
+
+Verification:
+
+- Add presentation tests for recoverable and non-recoverable error variants
+
+### Completed - Phase 1.3 Runtime Truth, Routing Harmonization, And Cleanup Alignment
+
+Goal: reduce contradictions between prompt wording, role whitelist, booking tools, web/mobile integration, and presentation materials.
+
+Completed work:
+
+- Enabled booking-session support tools in role whitelist for booking-capable business-chat roles
+- Updated prompt guidance so booking-specific instructions appear only when booking tools are actually enabled
+- Harmonized clinic routing so explicit clinic names stay on `search_clinics_nearby` via `clinic_hint`
+- Clarified that exact slot confirmation must come from `check_available_slots`
+- Tightened `check_available_slots` service-signal detection so generic transcript text no longer bypasses service clarification
+- Added compatibility input normalization for `search_clinics_by_name`
+- Reused `createChatWebSocket()` in web staff chat to remove duplicated WebSocket URL composition
+- Removed unused mobile `isStaffContext` prop from shared chat screen
+- Removed unused backend booking helper methods and unused tool-policy validator/wrapper helpers
+- Published `AI_CHATBOT_RUNTIME_TRUTH.md` and `AI_CHATBOT_COUNCIL_FAQ.md`
+
+Verification:
+
+- `python -m pytest tests/test_context_policy.py tests/test_booking_context_prompt.py tests/test_tool_contracts.py tests/test_booking_tools.py` → `47 passed`
+- `python -m py_compile app/core/context_policy.py app/core/agents/__init__.py app/core/agents/booking_flow.py app/core/agents/prompt_builder.py app/core/tools/contracts.py app/core/tools/mcp_tools/booking_tools.py`
+
+### Completed - Phase 1.4 Simple Symptom Fast Path
+
+Goal: reduce latency and visible ReAct steps for straightforward PET_OWNER symptom/care questions.
+
+Completed work:
+
+- Added conservative fast-path heuristics for simple symptom/care questions with explicit pet type
+- Bypassed the initial full LLM tool-selection loop when the request clearly matches low-risk pet-care lookup
+- Fast-finalized successful `pet_knowledge_search` results for this narrow query class
+- Added deterministic KB-empty fallback to `web_search` for the same query class when web search is enabled
+- Kept final answer synthesis on the LLM side so the response still follows the user's question instead of dumping raw tool output
+- Added focused regression tests for fast-path routing and finalize behavior
+
+Verification:
+
+- `python -m pytest tests/test_fast_path.py tests/test_context_policy.py tests/test_booking_context_prompt.py tests/test_tool_contracts.py tests/test_booking_tools.py` → `59 passed`
+
+### Completed - Phase 1.5 Reasoning UX Refresh
+
+Goal: make the chatbot feel like it is reasoning step by step instead of only showing generic tool/loading states.
+
+Completed work:
+
+- Rephrased thinking/action/observation stream text into short Vietnamese reasoning narratives
+- Updated WebSocket step mapping so action/observation payloads also carry user-friendly reasoning content
+- Updated mobile chat to prefer reasoning text over generic tool status when available
+- Updated web staff chat live bubble to show reasoning text before final token streaming starts
+- Updated admin playground live bubble to show the same reasoning UX and reuse the shared WebSocket helper
+- Deduplicated `thinking_stream` from client-side trace counting so the visible step count is closer to real ReAct steps
+
+Verification:
+
+- `python -m pytest tests/test_websocket_chat.py -k "client_safe_thinking_stream or formats_action_as_reasoning or formats_observation_as_reasoning"` → `3 passed`
+- `npx eslint src/pages/staff/StaffAIChatPage.tsx src/services/agentService.ts` in `petties-web` (pass; baseline-browser-mapping notice only)
+- `flutter analyze lib/ui/chat/ai_chat/ai_chat_screen.dart lib/ui/chat/ai_chat/utils/ai_chat_widgets.dart lib/ui/staff/ai_chat/staff_ai_chat_screen.dart` in `petties_mobile` (no errors; 2 existing info-level lints remain in `ai_chat_screen.dart`)
+
+### Completed - Phase 1.6 Latency Telemetry And Fast Retrieval Profile
+
+Goal: reduce real response time for simple symptom Q&A and expose stage-level timings for diagnosis.
+
+Completed work:
+
+- Enabled fast-path retrieval profile for simple symptom/care queries: RAG only, no KG, no Case Memory, no query expansion, lower `top_k`
+- Extended the same fast-path behavior to `ADMIN` playground usage so testing no longer misses the optimization
+- Added timing metadata to `pet_knowledge_search` and `web_search`
+- Added WebSocket completion performance summary with total response time and tool timing snapshots
+- Reduced finalizer cost for fast symptom answers with lower token budget and lower timeout
+
+Verification:
+
+- `python -m pytest tests/test_fast_path.py -k "admin or pet_owner or uses_fast_path"` → `4 passed`
+- Existing focused chatbot backend tests remain green after telemetry changes
+
+### Completed - Phase 1.7 Softer Simple-Symptom Answering
+
+Goal: avoid rigid clarification-first replies for simple pet-care symptom questions.
+
+Completed work:
+
+- Updated final synthesis prompt so simple symptom/care queries answer `nên làm gì ngay` first
+- Added conversation-aware detection so generic follow-up turns can retain prior simple symptom intent
+- Prevented fast symptom finalizer from opening with a clarification question unless absolutely necessary
+
+Verification:
+
+- `python -m pytest tests/test_fast_path.py` → `16 passed`
+
+### Batch 4 - Conversation Flow Safety And Consistency
+
+Goal: reduce runtime ambiguity without adding new persistence storage.
+
+#### 7. Clarify interruption/takeover and save-path behavior
+
+Files:
+
+- `petties-agent-serivce/app/core/agents/single_agent.py`
+- `petties-agent-serivce/app/core/agents/prompt_builder.py`
+- `petties-agent-serivce/app/core/tools/mcp_tools/booking_session_tools.py`
+- `petties-agent-serivce/app/api/routes/chat.py`
+- `petties-agent-serivce/app/api/websocket/chat.py`
+
+Tasks:
+
+- Strengthen interruption/takeover policy with minimal additional logic
+- Decide whether REST send-message remains supported or becomes explicitly secondary to WebSocket path
+- Prevent accidental duplicate user-message persistence across REST and WebSocket flows
+
+Verification:
+
+- Add tests for interruption/resume behavior
+- Add tests or docs guardrails for one supported save flow
+
+### Batch 5 - Final Audit Mapping And Test Expansion
+
+Goal: make progress measurable against audit IDs.
+
+#### 8. Expand regression suite to checklist coverage
+
+Files:
+
+- `petties-agent-serivce/tests/`
+
+Tasks:
+
+- Add tests for:
+  - strict `ui_action` validation
+  - websocket schema parity
+  - client-safe `thinking_stream`
+  - contract shape for common/medical tools
+  - non-recoverable error card behavior
+  - duplicate-save prevention or documented chosen flow
+- Create pass/fail mapping against `AI_SERVICE_AUDIT_CHECKLIST.md`
+
+Verification:
+
+- Update `docs-references/development/AI_SERVICE_CHATBOT_CHECKLIST.md`
+- Update this file after each batch
+
+## Suggested Execution Order
+
+1. Batch 2 - Tool Contract Standardization
+2. Batch 3 - Error Code Coverage And Presentation Parity
+3. Batch 4 - Conversation Flow Safety And Consistency
+4. Batch 5 - Final Audit Mapping And Test Expansion
+
+## Definition Of Done For The Next Milestone
+
+The next milestone is complete when:
+
+- 30-minute idle expiration remains stable and tested
+- inbound `ui_action` payloads remain strictly validated
+- websocket schema models remain aligned for main events
+- all major MCP tool modules use the shared structured error contract
+- `thinking_stream` remains client-safe by default
+- regression tests expand to cover the new safety features

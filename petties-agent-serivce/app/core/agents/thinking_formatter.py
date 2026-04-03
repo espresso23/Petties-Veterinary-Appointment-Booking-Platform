@@ -38,6 +38,16 @@ def get_tool_readable_name(tool_name: str) -> str:
     return TOOL_READABLE_NAMES.get(tool_name, f"sử dụng tool {tool_name}")
 
 
+def _with_reasoning_prefix(text: str) -> str:
+    cleaned = str(text or "").strip()
+    if not cleaned:
+        return "Đang suy luận: mình đang phân tích yêu cầu của bạn."
+    lowered = cleaned.lower()
+    if lowered.startswith("đang suy luận:"):
+        return cleaned
+    return f"Đang suy luận: {cleaned}"
+
+
 def clean_thought(text: str) -> str:
     """
     Clean thought text - remove prefixes and normalize.
@@ -49,7 +59,7 @@ def clean_thought(text: str) -> str:
         Cleaned, user-friendly thought text
     """
     if not text:
-        return "Đang suy nghĩ..."
+        return "mình đang phân tích yêu cầu của bạn."
 
     text = text.strip()
 
@@ -76,7 +86,17 @@ def clean_thought(text: str) -> str:
     if len(text) > max_length:
         text = text[:max_length].rstrip() + "..."
 
-    return text if text else "Đang suy nghĩ..."
+    if not text:
+        return "mình đang phân tích yêu cầu của bạn."
+
+    first_char = text[:1]
+    if first_char and first_char.isalpha():
+        text = first_char.lower() + text[1:]
+
+    if not re.match(r"^(mình|toi|tôi|co ve|người dùng|user)\b", text, re.IGNORECASE):
+        text = f"mình thấy {text}"
+
+    return text if text else "mình đang phân tích yêu cầu của bạn."
 
 
 def format_tool_call(tool_name: str, params: Dict[str, Any]) -> str:
@@ -112,7 +132,10 @@ def format_tool_call(tool_name: str, params: Dict[str, Any]) -> str:
 
     context = f" với {', '.join(key_info)}" if key_info else ""
 
-    return f"Tra cứu: {tool_readable}{context}"
+    return (
+        f"mình thấy cần thêm dữ liệu nên sẽ {tool_readable}{context} "
+        "rồi tổng hợp lại đúng ý bạn hỏi."
+    )
 
 
 def summarize_observation(observation: str, max_length: int = 150) -> str:
@@ -155,6 +178,17 @@ def summarize_observation(observation: str, max_length: int = 150) -> str:
     return summary
 
 
+def format_observation_reasoning(tool_name: str, observation: str) -> str:
+    tool_readable = get_tool_readable_name(tool_name or "")
+    summarized = summarize_observation(observation)
+    if summarized and len(summarized) > 10:
+        return (
+            f"mình đã có dữ liệu từ bước {tool_readable}. "
+            f"{summarized}. Giờ mình đang rút ý chính để trả lời ngắn gọn cho bạn."
+        )
+    return f"mình đã có dữ liệu từ bước {tool_readable} và đang tổng hợp lại để trả lời đúng câu hỏi của bạn."
+
+
 def format_thinking_stream(
     react_steps: List[Dict[str, Any]],
     include_tool_details: bool = True,
@@ -186,7 +220,7 @@ def format_thinking_stream(
                 thinking_segments.append(
                     {
                         "type": "thought",
-                        "content": cleaned,
+                        "content": _with_reasoning_prefix(cleaned),
                         "step_index": str(i),
                     }
                 )
@@ -196,23 +230,21 @@ def format_thinking_stream(
             thinking_segments.append(
                 {
                     "type": "tool_call",
-                    "content": tool_text,
+                    "content": _with_reasoning_prefix(tool_text),
                     "tool_name": tool_name,
                     "step_index": str(i),
                 }
             )
 
         elif step_type == "observation":
-            # Only include significant observations
-            summarized = summarize_observation(content)
-            if summarized and len(summarized) > 10:
-                thinking_segments.append(
-                    {
-                        "type": "observation",
-                        "content": summarized,
-                        "step_index": str(i),
-                    }
-                )
+            observation_text = format_observation_reasoning(tool_name, content)
+            thinking_segments.append(
+                {
+                    "type": "observation",
+                    "content": _with_reasoning_prefix(observation_text),
+                    "step_index": str(i),
+                }
+            )
 
     return thinking_segments
 
@@ -286,11 +318,10 @@ def format_thinking_for_stream(react_steps: List[Dict[str, Any]]) -> List[str]:
         content = seg["content"]
 
         if seg["type"] == "thought":
-            # Add emoji prefix
-            streaming_texts.append(f"🧠 {content}")
+            streaming_texts.append(content)
         elif seg["type"] == "tool_call":
-            streaming_texts.append(f"🔍 {content}")
+            streaming_texts.append(content)
         elif seg["type"] == "observation":
-            streaming_texts.append(f"📋 {content}")
+            streaming_texts.append(content)
 
     return streaming_texts

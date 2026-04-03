@@ -40,6 +40,32 @@ BOOKING_TOOL_PARAM_ALLOWLIST: Dict[str, set[str]] = {
         "transcript",
         "latest_message",
     },
+    # Booking State Tools
+    "start_booking_session": set(),
+    "get_booking_session": set(),
+    "end_booking_session": {"reason"},
+    "update_booking_draft": {
+        "pet_id",
+        "pet_name",
+        "clinic_id",
+        "clinic_hint",
+        "clinic_name",
+        "service_ids",
+        "service_names",
+        "booking_date",
+        "start_time",
+        "time_preference",
+        "booking_type",
+        "home_address",
+        "home_lat",
+        "home_long",
+    },
+    "get_booking_draft_summary": set(),
+    "suspend_booking_session": {"reason"},
+    "resume_booking_session": set(),
+    # Utility Tools
+    "resolve_date_time": {"time_expression", "reference_date_iso"},
+    "resolve_booking_context": set(),
     "search_clinics_nearby": {
         "latitude",
         "longitude",
@@ -197,7 +223,9 @@ def _extract_last_booking_identity(
             if isinstance(payload, dict):
                 if not last_clinic_id:
                     candidate = str(
-                        payload.get("resolved_clinic_id") or payload.get("clinic_id") or ""
+                        payload.get("resolved_clinic_id")
+                        or payload.get("clinic_id")
+                        or ""
                     ).strip()
                     if candidate:
                         last_clinic_id = candidate

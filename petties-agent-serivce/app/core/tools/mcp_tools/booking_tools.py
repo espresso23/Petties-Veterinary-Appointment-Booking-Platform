@@ -3,13 +3,20 @@
 from __future__ import annotations
 
 import re
+from functools import wraps
 from datetime import date as date_cls, datetime, time, timedelta
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
 from app.core.agents.booking_context import (
+    parse_conditional_intent,
     resolve_booking_datetime_inputs as _shared_resolve_booking_datetime_inputs,
+)
+from app.core.agents.booking_session import (
+    BookingSessionState,
+    STATUS_COMPLETED,
+    mark_booking_session_confirming,
 )
 from app.core.agents.text_utils import normalize_vietnamese_text
 from app.core.tool_runtime_context import (
@@ -17,8 +24,14 @@ from app.core.tool_runtime_context import (
     require_tool_runtime_context,
     get_booking_context_cache,
 )
+from app.core.tools.contracts import (
+    build_tool_error_response,
+    classify_error_code,
+    get_error_title,
+)
 from app.core.tools.mcp_server import mcp_server
 from app.services.backend_client import BackendClientError, get_backend_client
+from app.core.database.mongodb import update_booking_state_in_db
 
 
 def _normalize_booking_type(
@@ -63,10 +76,331 @@ def _normalize_pet_species_enum(pet_species: Optional[str]) -> Optional[str]:
     return upper_text if upper_text in allowed else text
 
 
+def _has_meaningful_service_signal(
+    service_ids: List[str],
+    service_hint: Optional[str],
+    latest_message: Optional[str],
+    transcript: Optional[str],
+) -> bool:
+    if service_ids:
+        return True
+
+    if str(service_hint or "").strip():
+        return True
+
+    combined_text = normalize_vietnamese_text(
+        " ".join(
+            part.strip()
+            for part in [str(latest_message or ""), str(transcript or "")]
+            if str(part or "").strip()
+        )
+    )
+    if not combined_text:
+        return False
+
+    service_keywords = {
+        "kham",
+        "kham tong quat",
+        "tiem",
+        "tiem phong",
+        "vac xin",
+        "vaccine",
+        "xet nghiem",
+        "sieu am",
+        "triet san",
+        "phau thuat",
+        "spa",
+        "grooming",
+        "cat tia",
+        "tam",
+        "dich vu",
+    }
+    return any(keyword in combined_text for keyword in service_keywords)
+
+
 class AuthenticationRequiredError(RuntimeError):
     """Raised when JWT token is required but not available."""
 
     pass
+
+
+def _booking_retry_error(
+    message: str, *, error_code: str = "INTERNAL_ERROR"
+) -> Dict[str, Any]:
+    return build_tool_error_response(
+        error_code=error_code,
+        message=message,
+        recoverable=True,
+        suggestion="Vui lòng kiểm tra lại dữ liệu đặt lịch hoặc thử lại sau ít phút.",
+    )
+
+
+def _attach_booking_error_metadata(
+    payload: Dict[str, Any],
+    *,
+    error_code: str,
+    suggestion: Optional[str] = None,
+    recoverable: Optional[bool] = None,
+) -> Dict[str, Any]:
+    enriched = dict(payload)
+    if not str(error_code or "").strip():
+        return enriched
+    enriched["error_code"] = error_code
+    enriched.setdefault("title", get_error_title(error_code))
+    if suggestion is not None:
+        enriched.setdefault("suggestion", suggestion)
+    if recoverable is not None:
+        enriched.setdefault("recoverable", recoverable)
+    return enriched
+
+
+def _normalize_booking_tool_payload(payload: Any) -> Dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {
+            "success": True,
+            "data": payload,
+            "metadata": {},
+        }
+
+    normalized = dict(payload)
+    message = str(normalized.get("message") or "").strip()
+
+    # CRITICAL: If there are actual data fields (pets, clinics, services, etc.)
+    # → Never mark as error, regardless of message content
+    has_data_fields = any(
+        [
+            normalized.get("pets"),
+            normalized.get("total_pets", 0) > 0,
+            normalized.get("clinics"),
+            normalized.get("total_found", 0) > 0,
+            normalized.get("services"),
+            normalized.get("slots"),
+            normalized.get("total_slots", 0) > 0,
+        ]
+    )
+    if has_data_fields:
+        normalized["success"] = True
+
+    if normalized.get("success") is True:
+        return normalized
+
+    needs_clarification = bool(normalized.get("needs_clarification"))
+    is_auth_error = bool(normalized.get("requires_auth"))
+
+    if normalized.get("success") is False or is_auth_error:
+        normalized["success"] = False
+        if not normalized.get("error_code"):
+            if is_auth_error:
+                normalized["error_code"] = "UNAUTHORIZED"
+            elif needs_clarification:
+                normalized["error_code"] = "INVALID_INPUT"
+            else:
+                normalized["error_code"] = classify_error_code(message)
+        normalized["recoverable"] = bool(normalized.get("recoverable", True))
+        if "suggestion" not in normalized:
+            if is_auth_error:
+                normalized["suggestion"] = "Vui lòng đăng nhập lại để tiếp tục."
+            elif needs_clarification:
+                normalized["suggestion"] = "Vui lòng cung cấp thêm thông tin còn thiếu."
+            else:
+                normalized["suggestion"] = (
+                    "Vui lòng kiểm tra lại dữ liệu hoặc thử lại sau ít phút."
+                )
+        if not message:
+            normalized["message"] = "Không thể xử lý yêu cầu đặt lịch lúc này."
+        return normalized
+
+    # No explicit success field: infer from payload intent.
+    if message:
+        lowered = normalize_vietnamese_text(message)
+        likely_error = any(
+            token in lowered
+            for token in [
+                "khong the",
+                "khong tim thay",
+                "khong hop le",
+                "loi",
+            ]
+        )
+        if likely_error and not needs_clarification:
+            normalized["success"] = False
+            normalized["error_code"] = normalized.get(
+                "error_code"
+            ) or classify_error_code(message)
+            normalized["recoverable"] = bool(normalized.get("recoverable", True))
+            normalized.setdefault(
+                "suggestion",
+                "Vui lòng kiểm tra lại dữ liệu hoặc thử lại sau ít phút.",
+            )
+            return normalized
+
+    normalized["success"] = True
+    return normalized
+
+
+def _standardize_booking_tool_response(func):
+    @wraps(func)
+    async def _wrapper(*args, **kwargs):
+        payload = await func(*args, **kwargs)
+        return _normalize_booking_tool_payload(payload)
+
+    return _wrapper
+
+
+def _build_booking_confirmation_snapshot(
+    *,
+    pet_id: Optional[str],
+    clinic_id: Optional[str],
+    clinic_name: Optional[str],
+    booking_date: Optional[str],
+    start_time: Optional[str],
+    service_ids: Optional[List[str]],
+    booking_type: Optional[str],
+    notes: Optional[str],
+    home_address: Optional[str],
+    distance_km: Optional[float],
+    items: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    snapshot = {
+        "pet_id": str(pet_id or "").strip() or None,
+        "clinic_id": str(clinic_id or "").strip() or None,
+        "clinic_name": str(clinic_name or "").strip() or None,
+        "booking_date": str(booking_date or "").strip() or None,
+        "start_time": str(start_time or "").strip() or None,
+        "service_ids": [
+            str(service_id).strip()
+            for service_id in (service_ids or [])
+            if str(service_id).strip()
+        ],
+        "booking_type": str(booking_type or "").strip() or None,
+        "notes": str(notes or "").strip() or None,
+        "home_address": str(home_address or "").strip() or None,
+        "distance_km": float(distance_km) if distance_km is not None else None,
+        "items": [
+            {
+                "pet_id": str(item.get("pet_id") or "").strip() or None,
+                "service_ids": [
+                    str(service_id).strip()
+                    for service_id in (item.get("service_ids") or [])
+                    if str(service_id).strip()
+                ],
+            }
+            for item in (items or [])
+            if isinstance(item, dict)
+        ],
+    }
+    return snapshot
+
+
+async def _persist_confirmation_snapshot_if_possible(
+    snapshot: Dict[str, Any],
+) -> None:
+    ctx = get_tool_runtime_context()
+    if not ctx or not ctx.booking_state:
+        return
+
+    try:
+        state = BookingSessionState.model_validate(ctx.booking_state)
+    except Exception as exc:
+        logger.warning(f"Cannot parse booking session for confirmation snapshot: {exc}")
+        return
+
+    if not state.active:
+        return
+
+    updated_state = mark_booking_session_confirming(state, snapshot)
+    payload = updated_state.model_dump(mode="json")
+    ctx.booking_state = payload
+    if ctx.session_id:
+        await update_booking_state_in_db(ctx.session_id, payload)
+
+
+def _evaluate_booking_confirmation_guard(
+    *,
+    confirmation_snapshot: Dict[str, Any],
+    confirmed: bool,
+    auto_create_if_available: bool,
+    latest_message: Optional[str],
+    transcript: Optional[str],
+) -> Optional[Dict[str, Any]]:
+    ctx = get_tool_runtime_context()
+    state: Optional[BookingSessionState] = None
+    if ctx and ctx.booking_state:
+        try:
+            state = BookingSessionState.model_validate(ctx.booking_state)
+        except Exception as exc:
+            logger.warning(
+                f"Cannot parse booking session for confirmation guard: {exc}"
+            )
+
+    if state and state.status == STATUS_COMPLETED:
+        if state.last_confirmed_snapshot == confirmation_snapshot:
+            return build_tool_error_response(
+                error_code="BOOKING_ALREADY_COMPLETED",
+                message="Phiên đặt lịch này đã được tạo trước đó. Không tạo lại để tránh trùng lặp.",
+                recoverable=False,
+                suggestion="Nếu bạn muốn tạo lịch mới, hãy bắt đầu một phiên đặt lịch khác.",
+                metadata={"duplicate_confirmation": True},
+            )
+
+    conditional = None
+    if auto_create_if_available:
+        conditional = parse_conditional_intent(latest_message or "", transcript)
+        if not conditional or conditional.get("action") != "create_booking":
+            return build_tool_error_response(
+                error_code="INVALID_CONFIRMATION",
+                message="Yêu cầu tự tạo booking chỉ hợp lệ khi người dùng xác nhận theo điều kiện rõ ràng.",
+                recoverable=True,
+                suggestion="Vui lòng xác nhận rõ ràng lại trước khi tạo booking.",
+            )
+
+    if not confirmed and not auto_create_if_available:
+        return None
+
+    if state:
+        if not state.active:
+            return build_tool_error_response(
+                error_code="BOOKING_SESSION_INACTIVE",
+                message="Phiên đặt lịch hiện tại không còn hoạt động nên chưa thể xác nhận tạo booking.",
+                recoverable=True,
+                suggestion="Hãy bắt đầu hoặc khôi phục phiên đặt lịch trước khi xác nhận.",
+            )
+
+        if state.missing_fields:
+            return build_tool_error_response(
+                error_code="INVALID_CONFIRMATION",
+                message="Không thể xác nhận tạo booking khi vẫn còn thiếu dữ liệu bắt buộc.",
+                recoverable=True,
+                suggestion="Vui lòng bổ sung đầy đủ thông tin còn thiếu rồi xác nhận lại.",
+                metadata={"missing_fields": state.missing_fields},
+            )
+
+        if not state.last_confirmed_snapshot:
+            return build_tool_error_response(
+                error_code="CONFIRMATION_EXPIRED",
+                message="Bạn chưa có bản tóm tắt xác nhận hiện hành cho booking này.",
+                recoverable=True,
+                suggestion="Vui lòng xem lại tóm tắt booking rồi xác nhận lại.",
+            )
+
+        if state.last_confirmed_snapshot != confirmation_snapshot:
+            return build_tool_error_response(
+                error_code="CONFIRMATION_MISMATCH",
+                message="Thông tin booking đã thay đổi sau lần tóm tắt gần nhất nên không thể tạo ngay.",
+                recoverable=True,
+                suggestion="Vui lòng xem lại bản tóm tắt mới và xác nhận lại để tiếp tục.",
+                metadata={"requires_reconfirmation": True},
+            )
+
+    elif confirmed:
+        return build_tool_error_response(
+            error_code="CONFIRMATION_CONTEXT_MISSING",
+            message="Không tìm thấy ngữ cảnh xác nhận booking hiện tại.",
+            recoverable=True,
+            suggestion="Vui lòng yêu cầu bot tóm tắt lại booking rồi xác nhận lại.",
+        )
+
+    return None
 
 
 def _require_auth_token() -> str:
@@ -271,6 +605,31 @@ def _filter_clinics_by_hint(
         )
         if all(token in haystack for token in hint_tokens):
             matched.append(clinic)
+
+    if not matched and len(hint_tokens) == 1:
+        token = hint_tokens[0]
+        for clinic in clinics:
+            haystack = normalize_vietnamese_text(
+                " ".join(
+                    str(clinic.get(key) or "")
+                    for key in ("name", "address", "reason_matched", "match_mode")
+                )
+            )
+            if token in haystack or haystack in token:
+                matched.append(clinic)
+
+    if not matched and len(hint_tokens) >= 2:
+        for clinic in clinics:
+            haystack = normalize_vietnamese_text(
+                " ".join(
+                    str(clinic.get(key) or "")
+                    for key in ("name", "address", "reason_matched", "match_mode")
+                )
+            )
+            match_count = sum(1 for token in hint_tokens if token in haystack)
+            if match_count >= len(hint_tokens) - 1:
+                matched.append(clinic)
+
     return matched
 
 
@@ -698,6 +1057,7 @@ def _format_vaccination_record(record: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @mcp_server.tool
+@_standardize_booking_tool_response
 async def get_user_pets(
     user_id: Optional[str] = None,
     pet_hint: Optional[str] = None,
@@ -726,6 +1086,7 @@ async def get_user_pets(
     from app.core.agents.booking_context import fuzzy_match_pet_name
 
     resolved_user_id = _resolve_user_id(user_id)
+
     try:
         token = _require_auth_token()
     except AuthenticationRequiredError as e:
@@ -749,6 +1110,10 @@ async def get_user_pets(
             "total_pets": 0,
             "message": f"Khong the tai danh sach thu cung luc nay: {exc}",
         }
+
+    logger.info(
+        f"get_user_pets loaded {len(pets) if isinstance(pets, list) else 0} pets for user {resolved_user_id}"
+    )
 
     formatted_pets = [
         {
@@ -800,6 +1165,7 @@ async def get_user_pets(
 
 
 @mcp_server.tool
+@_standardize_booking_tool_response
 async def get_clinic_services(
     clinic_id: str,
     pet_species: Optional[str] = None,
@@ -850,20 +1216,25 @@ async def get_clinic_services(
     resolved_clinic_id = str(clinic_resolution.get("clinic_id") or "").strip()
     normalized_pet_species = _normalize_pet_species_enum(pet_species)
     if clinic_resolution.get("needs_clarification") and not resolved_clinic_id:
-        return {
-            "clinic_id": clinic_id,
-            "resolved_clinic_id": None,
-            "resolved_clinic": clinic_resolution.get("clinic"),
-            "clinic_options": clinic_resolution.get("clinics") or [],
-            "services": [],
-            "matched_services": [],
-            "resolved_service_ids": [],
-            "suggested_service_options": [],
-            "needs_clarification": True,
-            "total_services": 0,
-            "message": clinic_resolution.get("message")
-            or "Minh can xac nhan phong kham truoc khi tai danh sach dich vu.",
-        }
+        return _attach_booking_error_metadata(
+            {
+                "clinic_id": clinic_id,
+                "resolved_clinic_id": None,
+                "resolved_clinic": clinic_resolution.get("clinic"),
+                "clinic_options": clinic_resolution.get("clinics") or [],
+                "services": [],
+                "matched_services": [],
+                "resolved_service_ids": [],
+                "suggested_service_options": [],
+                "needs_clarification": True,
+                "total_services": 0,
+                "message": clinic_resolution.get("message")
+                or "Minh can xac nhan phong kham truoc khi tai danh sach dich vu.",
+            },
+            error_code="CLINIC_NOT_FOUND",
+            suggestion="Vui lòng chọn đúng phòng khám trước khi tiếp tục.",
+            recoverable=True,
+        )
 
     client = get_backend_client()
     try:
@@ -874,18 +1245,23 @@ async def get_clinic_services(
         )
     except BackendClientError as exc:
         logger.error(f"get_clinic_services failed: {exc}")
-        return {
-            "clinic_id": resolved_clinic_id or clinic_id,
-            "resolved_clinic_id": resolved_clinic_id or clinic_id,
-            "resolved_clinic": clinic_resolution.get("clinic"),
-            "services": [],
-            "matched_services": [],
-            "resolved_service_ids": [],
-            "suggested_service_options": [],
-            "needs_clarification": False,
-            "total_services": 0,
-            "message": f"Khong the tai dich vu phong kham luc nay: {exc}",
-        }
+        return _attach_booking_error_metadata(
+            {
+                "clinic_id": resolved_clinic_id or clinic_id,
+                "resolved_clinic_id": resolved_clinic_id or clinic_id,
+                "resolved_clinic": clinic_resolution.get("clinic"),
+                "services": [],
+                "matched_services": [],
+                "resolved_service_ids": [],
+                "suggested_service_options": [],
+                "needs_clarification": False,
+                "total_services": 0,
+                "message": f"Khong the tai dich vu phong kham luc nay: {exc}",
+            },
+            error_code="INTERNAL_ERROR",
+            suggestion="Vui lòng thử tải lại dịch vụ sau ít phút.",
+            recoverable=True,
+        )
 
     formatted_services = [
         {
@@ -945,29 +1321,39 @@ async def get_clinic_services(
     ]
     needs_clarification = bool(service_hint and not matched_services)
 
-    return {
-        "clinic_id": resolved_clinic_id or clinic_id,
-        "resolved_clinic_id": resolved_clinic_id or clinic_id,
-        "resolved_clinic": clinic_resolution.get("clinic"),
-        "filters": {
-            "pet_species": normalized_pet_species or pet_species,
-            "is_home_visit": is_home_visit,
-            "booking_type": booking_type,
+    return _attach_booking_error_metadata(
+        {
+            "clinic_id": resolved_clinic_id or clinic_id,
+            "resolved_clinic_id": resolved_clinic_id or clinic_id,
+            "resolved_clinic": clinic_resolution.get("clinic"),
+            "filters": {
+                "pet_species": normalized_pet_species or pet_species,
+                "is_home_visit": is_home_visit,
+                "booking_type": booking_type,
+            },
+            "services": formatted_services,
+            "matched_services": matched_services,
+            "resolved_service_ids": resolved_service_ids,
+            "suggested_service_options": suggested_service_options,
+            "needs_clarification": needs_clarification,
+            "match_hint": service_hint,
+            "total_services": len(formatted_services),
+            "message": None
+            if formatted_services
+            else "Phong kham hien chua co du lieu dich vu kha dung.",
         },
-        "services": formatted_services,
-        "matched_services": matched_services,
-        "resolved_service_ids": resolved_service_ids,
-        "suggested_service_options": suggested_service_options,
-        "needs_clarification": needs_clarification,
-        "match_hint": service_hint,
-        "total_services": len(formatted_services),
-        "message": None
-        if formatted_services
-        else "Phong kham hien chua co du lieu dich vu kha dung.",
-    }
+        error_code="SERVICE_NOT_FOUND"
+        if needs_clarification or not formatted_services
+        else "",
+        suggestion="Vui lòng chọn dịch vụ khác hoặc kiểm tra lại từ khóa dịch vụ."
+        if (needs_clarification or not formatted_services)
+        else None,
+        recoverable=True if (needs_clarification or not formatted_services) else None,
+    )
 
 
 @mcp_server.tool
+@_standardize_booking_tool_response
 async def check_vaccination_status(
     pet_id: str,
     vaccine_template_id: Optional[str] = None,
@@ -1052,10 +1438,11 @@ async def check_vaccination_status(
 
 
 @mcp_server.tool
+@_standardize_booking_tool_response
 async def search_clinics_nearby(
     latitude: Optional[float] = None,
     longitude: Optional[float] = None,
-    radius_km: float = 5.0,
+    radius_km: float = 10.0,
     top_k: int = 5,
     address: Optional[str] = None,
     clinic_hint: Optional[str] = None,
@@ -1066,24 +1453,25 @@ async def search_clinics_nearby(
     transcript: Optional[str] = None,
     latest_message: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Tìm kiếm phòng khám thú y.
+    """Tìm kiếm hoặc resolve phòng khám thú y cho business chat.
 
     Sử dụng khi:
     - User hỏi "tìm phòng khám", "phòng khám ở đâu"
-    - User muốn đặt lịch tại phòng khám cụ thể (truyền tên phòng khám bằng clinic_hint)
+    - User nêu tên phòng khám cụ thể và cần resolve đúng clinic (truyền tên bằng clinic_hint)
     - User muốn tìm phòng khám gần vị trí hiện tại (truyền lat/lng)
+    - Đây là tool clinic discovery chuẩn trong runtime business chat
 
     Params quan trọng:
-    - clinic_hint: Tìm phòng khám theo TÊN. Không cần GPS. Tìm khắp nơi.
-    - latitude + longitude: Tìm phòng khám GẦN vị trí. Cần cả 2 giá trị.
+    - clinic_hint: Resolve phòng khám theo TÊN. Có thể dùng cùng GPS hoặc địa chỉ text để tăng độ chính xác.
+    - latitude + longitude: Tìm phòng khám GẦN vị trí. Chỉ cần khi user hỏi theo khoảng cách.
     - address: Tìm theo địa chỉ text (thay thế cho lat/lng)
-    - radius_km: Bán kính tìm (mặc định 5km)
+    - radius_km: Bán kính tìm (mặc định 10km)
     - top_k: Số lượng kết quả trả về (mặc định 5)
     - service_hint: Lọc phòng khám theo dịch vụ cung cấp
     - pet_species: Lọc phòng khám theo loại thú cưng được phục vụ
 
     Examples:
-        search_clinics_nearby(clinic_hint="PetCare")  # Tim theo ten
+        search_clinics_nearby(clinic_hint="PetCare")  # Resolve theo ten clinic
         search_clinics_nearby(latitude=10.76, longitude=106.69)  # Tim gan vi tri
         search_clinics_nearby(lat, lng, radius_km=10)  # Tim gan + ban kinh lon hon
         search_clinics_nearby(address="Quận 1, TP.HCM")  # Tim theo dia chi text
@@ -1128,14 +1516,15 @@ async def search_clinics_nearby(
     )
     address = address or resolved_location.get("address")
     pet_id = pet_id or resolved_pet.get("petId")
-    pet_species = _normalize_pet_species_enum(pet_species or resolved_pet.get("species"))
+    pet_species = _normalize_pet_species_enum(
+        pet_species or resolved_pet.get("species")
+    )
     booking_type = booking_type or resolved_booking_type
     effective_clinic_hint = effective_clinic_hint or resolved_clinic_hint
     service_hint = service_hint or resolved_service_hint
 
     if effective_clinic_hint and optional_token:
-        effective_radius = None
-
+        effective_radius = radius_km  # Dùng bán kính thực thay vì None
         payload = {
             "latitude": latitude,
             "longitude": longitude,
@@ -1154,21 +1543,26 @@ async def search_clinics_nearby(
             response = await client.get_booking_clinic_options(optional_token, payload)
         except BackendClientError as exc:
             logger.warning(f"search_clinics_nearby clinic-options failed: {exc}")
-            return {
-                "query_location": {
-                    "lat": latitude,
-                    "lng": longitude,
-                    "address": address,
+            return _attach_booking_error_metadata(
+                {
+                    "query_location": {
+                        "lat": latitude,
+                        "lng": longitude,
+                        "address": address,
+                    },
+                    "radius_km": radius_km,
+                    "clinic_hint": effective_clinic_hint,
+                    "service_hint": service_hint,
+                    "clinics": [],
+                    "matched_clinic": None,
+                    "total_found": 0,
+                    "needs_clarification": True,
+                    "message": "Mình chưa thể tìm phòng khám lúc này. Bạn thử lại sau nhé.",
                 },
-                "radius_km": radius_km,
-                "clinic_hint": effective_clinic_hint,
-                "service_hint": service_hint,
-                "clinics": [],
-                "matched_clinic": None,
-                "total_found": 0,
-                "needs_clarification": True,
-                "message": "Mình chưa thể tìm phòng khám lúc này. Bạn thử lại sau nhé.",
-            }
+                error_code="INTERNAL_ERROR",
+                suggestion="Vui lòng thử lại sau ít phút.",
+                recoverable=True,
+            )
         else:
             if isinstance(response, dict):
                 raw_clinics = response.get("clinics") or response.get("content") or []
@@ -1194,24 +1588,29 @@ async def search_clinics_nearby(
                     effective_clinic_hint and resolved_clinic and len(clinics) == 1
                 )
                 if effective_clinic_hint and not clinics:
-                    return {
-                        "query_location": {
-                            "lat": latitude,
-                            "lng": longitude,
-                            "address": address,
+                    return _attach_booking_error_metadata(
+                        {
+                            "query_location": {
+                                "lat": latitude,
+                                "lng": longitude,
+                                "address": address,
+                            },
+                            "radius_km": radius_km,
+                            "clinic_hint": effective_clinic_hint,
+                            "service_hint": service_hint,
+                            "clinics": [],
+                            "matched_clinic": None,
+                            "resolved_clinic": None,
+                            "total_found": 0,
+                            "match_mode": "explicit_name",
+                            "auto_select_clinic": False,
+                            "needs_clarification": True,
+                            "message": "Mình chưa tìm thấy phòng khám khớp với tên bạn vừa nêu. Có thể tên phòng khám hơi khác, bạn kiểm tra lại giúp mình nhé.",
                         },
-                        "radius_km": radius_km,
-                        "clinic_hint": effective_clinic_hint,
-                        "service_hint": service_hint,
-                        "clinics": [],
-                        "matched_clinic": None,
-                        "resolved_clinic": None,
-                        "total_found": 0,
-                        "match_mode": "explicit_name",
-                        "auto_select_clinic": False,
-                        "needs_clarification": True,
-                        "message": "Mình chưa tìm thấy phòng khám khớp với tên bạn vừa nêu. Có thể tên phòng khám hơi khác, bạn kiểm tra lại giúp mình nhé.",
-                    }
+                        error_code="CLINIC_NOT_FOUND",
+                        suggestion="Vui lòng kiểm tra lại tên phòng khám hoặc chọn từ danh sách gợi ý.",
+                        recoverable=True,
+                    )
                 return {
                     "query_location": {
                         "lat": latitude,
@@ -1240,18 +1639,130 @@ async def search_clinics_nearby(
                     ),
                 }
 
+    if effective_clinic_hint and not optional_token:
+        logger.info(
+            f"Searching clinics by name (no auth): hint={effective_clinic_hint}"
+        )
+        try:
+            response = await client.search_clinics_by_name(
+                name=effective_clinic_hint,
+                size=top_k,
+            )
+        except BackendClientError as exc:
+            logger.warning(f"search_clinics_by_name failed: {exc}")
+            return _attach_booking_error_metadata(
+                {
+                    "query_location": {
+                        "lat": latitude,
+                        "lng": longitude,
+                        "address": address,
+                    },
+                    "radius_km": radius_km,
+                    "clinic_hint": effective_clinic_hint,
+                    "service_hint": service_hint,
+                    "clinics": [],
+                    "matched_clinic": None,
+                    "total_found": 0,
+                    "needs_clarification": True,
+                    "message": "Mình chưa thể tìm phòng khám lúc này. Bạn thử lại sau nhé.",
+                },
+                error_code="INTERNAL_ERROR",
+                suggestion="Vui lòng thử lại sau ít phút.",
+                recoverable=True,
+            )
+        else:
+            raw_clinics = (
+                response.get("content") or response
+                if isinstance(response, list)
+                else []
+            )
+            clinics = [
+                clinic
+                for clinic in (
+                    _map_backend_clinic_option(
+                        raw_clinic, default_match_mode="name_search"
+                    )
+                    for raw_clinic in raw_clinics
+                )
+                if clinic
+            ]
+            clinics = _filter_clinics_by_hint(clinics, effective_clinic_hint)
+            resolved_clinic = _select_resolved_clinic(clinics, effective_clinic_hint)
+            auto_select_clinic = bool(
+                effective_clinic_hint and resolved_clinic and len(clinics) == 1
+            )
+            if effective_clinic_hint and not clinics:
+                return _attach_booking_error_metadata(
+                    {
+                        "query_location": {
+                            "lat": latitude,
+                            "lng": longitude,
+                            "address": address,
+                        },
+                        "radius_km": radius_km,
+                        "clinic_hint": effective_clinic_hint,
+                        "service_hint": service_hint,
+                        "clinics": [],
+                        "matched_clinic": None,
+                        "resolved_clinic": None,
+                        "total_found": 0,
+                        "match_mode": "name_search",
+                        "auto_select_clinic": False,
+                        "needs_clarification": True,
+                        "message": "Mình chưa tìm thấy phòng khám khớp với tên bạn vừa nêu. Có thể tên phòng khám hơi khác, bạn kiểm tra lại giúp mình nhé.",
+                    },
+                    error_code="CLINIC_NOT_FOUND",
+                    suggestion="Vui lòng kiểm tra lại tên phòng khám hoặc chọn từ danh sách gợi ý.",
+                    recoverable=True,
+                )
+            return {
+                "query_location": {
+                    "lat": latitude,
+                    "lng": longitude,
+                    "address": address,
+                },
+                "radius_km": radius_km,
+                "clinic_hint": effective_clinic_hint,
+                "service_hint": service_hint,
+                "clinics": clinics[:top_k],
+                "matched_clinic": resolved_clinic or (clinics[0] if clinics else None),
+                "resolved_clinic": resolved_clinic,
+                "total_found": int(response.get("totalElements") or len(clinics)),
+                "match_mode": "name_search",
+                "auto_select_clinic": auto_select_clinic,
+                "needs_clarification": bool(
+                    effective_clinic_hint
+                    and len(clinics) > 1
+                    and not auto_select_clinic
+                ),
+                "message": (
+                    "Mình đã xác định được phòng khám bạn vừa nêu và sẽ tiếp tục booking."
+                    if auto_select_clinic
+                    else None
+                ),
+            }
+
     if latitude is None or longitude is None:
-        return {
-            "query_location": {"lat": latitude, "lng": longitude, "address": address},
-            "radius_km": radius_km,
-            "clinic_hint": effective_clinic_hint,
-            "service_hint": service_hint,
-            "clinics": [],
-            "matched_clinic": None,
-            "total_found": 0,
-            "needs_clarification": True,
-            "message": "Mình cần vị trí hiện tại hoặc địa chỉ cụ thể để tìm phòng khám gần bạn.",
-        }
+        return _attach_booking_error_metadata(
+            {
+                "query_location": {
+                    "lat": latitude,
+                    "lng": longitude,
+                    "address": address,
+                },
+                "radius_km": radius_km,
+                "clinic_hint": effective_clinic_hint,
+                "service_hint": service_hint,
+                "clinics": [],
+                "matched_clinic": None,
+                "total_found": 0,
+                "needs_clarification": True,
+                "message": "Mình cần vị trí hiện tại hoặc địa chỉ cụ thể để tìm phòng khám gần bạn.",
+            },
+            error_code="INVALID_INPUT",
+            suggestion="Vui lòng chia sẻ vị trí hoặc nhập địa chỉ cụ thể.",
+            recoverable=True,
+        )
 
     try:
         response = await client.find_nearby_clinics(
@@ -1259,16 +1770,25 @@ async def search_clinics_nearby(
         )
     except BackendClientError as exc:
         logger.error(f"search_clinics_nearby failed: {exc}")
-        return {
-            "query_location": {"lat": latitude, "lng": longitude, "address": address},
-            "radius_km": radius_km,
-            "clinic_hint": effective_clinic_hint,
-            "service_hint": service_hint,
-            "clinics": [],
-            "matched_clinic": None,
-            "total_found": 0,
-            "message": f"Khong the tim phong kham gan day: {exc}",
-        }
+        return _attach_booking_error_metadata(
+            {
+                "query_location": {
+                    "lat": latitude,
+                    "lng": longitude,
+                    "address": address,
+                },
+                "radius_km": radius_km,
+                "clinic_hint": effective_clinic_hint,
+                "service_hint": service_hint,
+                "clinics": [],
+                "matched_clinic": None,
+                "total_found": 0,
+                "message": f"Khong the tim phong kham gan day: {exc}",
+            },
+            error_code="INTERNAL_ERROR",
+            suggestion="Vui lòng thử lại sau ít phút.",
+            recoverable=True,
+        )
 
     raw_clinics = response.get(
         "content", response if isinstance(response, list) else []
@@ -1317,6 +1837,435 @@ async def search_clinics_nearby(
 
 
 @mcp_server.tool
+@_standardize_booking_tool_response
+async def get_my_booking_info(
+    booking_id: Optional[str] = None,
+    booking_code: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Lấy thông tin chi tiết một booking cụ thể.
+
+    Sử dụng khi:
+    - User hỏi "lịch khám của tôi ngày mai thế nào?"
+    - User muốn kiểm tra trạng thái booking
+    - User hỏi về chi tiết lịch đặt
+
+    Params:
+        booking_id: ID của booking (UUID)
+        booking_code: Mã booking (VD: "BK-123456")
+
+    Examples:
+        get_my_booking_info(booking_id="uuid-here")
+        get_my_booking_info(booking_code="BK-123456")
+
+    Returns:
+        booking: Thông tin chi tiết booking
+        status: Trạng thái (PENDING, CONFIRMED, IN_PROGRESS, COMPLETED, CANCELLED)
+        pet_name: Tên thú cưng
+        clinic_name: Tên phòng khám
+        date: Ngày khám
+        time: Giờ khám
+        services: Danh sách dịch vụ
+    """
+    logger.info(f"🔧 [TOOL] ===== get_my_booking_info =====")
+    logger.info(f"  ├─ Input: booking_id={booking_id}, booking_code={booking_code}")
+
+    try:
+        token = _require_auth_token()
+        logger.info(f"  ├─ Auth token: {token[:10]}...")
+    except AuthenticationRequiredError as e:
+        logger.warning(f"  └─ ❌ Auth required: {e}")
+        return {
+            "booking_id": booking_id,
+            "booking_code": booking_code,
+            "booking": None,
+            "message": str(e),
+            "requires_auth": True,
+        }
+
+    if not booking_id and not booking_code:
+        logger.warning(f"  └─ ❌ Missing booking_id and booking_code")
+        return _attach_booking_error_metadata(
+            {
+                "booking_id": booking_id,
+                "booking_code": booking_code,
+                "booking": None,
+                "message": "Vui lòng cung cấp booking_id hoặc booking_code để tra cứu.",
+                "needs_clarification": True,
+            },
+            error_code="INVALID_INPUT",
+            suggestion="Vui lòng cung cấp mã booking hoặc ID booking.",
+            recoverable=True,
+        )
+
+    client = get_backend_client()
+    lookup_id = booking_id or booking_code
+    logger.info(f"  ├─ Backend call: GET /bookings/{lookup_id}")
+
+    try:
+        booking = await client.get_booking(token, lookup_id)
+        logger.info(
+            f"  ├─ Backend response: {json.dumps(booking, ensure_ascii=False)[:500]}"
+        )
+    except BackendClientError as exc:
+        logger.error(f"  └─ ❌ Backend error: {exc}")
+        return _attach_booking_error_metadata(
+            {
+                "booking_id": booking_id,
+                "booking_code": booking_code,
+                "booking": None,
+                "message": f"Không thể tra cứu booking lúc này: {exc}",
+            },
+            error_code="BOOKING_NOT_FOUND",
+            suggestion="Vui lòng kiểm tra lại mã booking hoặc thử lại sau.",
+            recoverable=True,
+        )
+
+    if not booking:
+        logger.warning(f"  └─ ❌ Booking not found: {lookup_id}")
+        return _attach_booking_error_metadata(
+            {
+                "booking_id": booking_id,
+                "booking_code": booking_code,
+                "booking": None,
+                "message": "Không tìm thấy booking với thông tin cung cấp.",
+            },
+            error_code="BOOKING_NOT_FOUND",
+            suggestion="Vui lòng kiểm tra lại mã booking.",
+            recoverable=True,
+        )
+
+    booking_detail = {
+        "id": booking.get("id") or booking.get("bookingId"),
+        "booking_code": booking.get("bookingCode"),
+        "status": booking.get("status"),
+        "pet_name": booking.get("petName"),
+        "pet_id": booking.get("petId"),
+        "clinic_name": booking.get("clinicName"),
+        "clinic_id": booking.get("clinicId"),
+        "date": booking.get("bookingDate"),
+        "time": booking.get("bookingTime"),
+        "booking_type": booking.get("type") or booking.get("bookingType"),
+        "services": booking.get("services", []),
+        "total_price": booking.get("totalPrice"),
+        "notes": booking.get("notes"),
+        "created_at": booking.get("createdAt"),
+        "manager_will_confirm": booking.get("managerWillConfirm"),
+    }
+
+    result = {
+        "booking_id": booking_id,
+        "booking_code": booking_code,
+        "booking": booking_detail,
+        "message": None,
+    }
+    logger.info(f"  └─ ✅ Returning: {json.dumps(result, ensure_ascii=False)[:500]}")
+    return result
+
+
+@mcp_server.tool
+@_standardize_booking_tool_response
+async def list_my_bookings(
+    status: Optional[str] = "upcoming",
+    limit: int = 10,
+) -> Dict[str, Any]:
+    """Lấy danh sách booking của user hiện tại.
+
+    Sử dụng khi:
+    - User hỏi "các lịch khám sắp tới của tôi"
+    - User muốn xem lịch sử đặt lịch
+    - User hỏi "tôi có lịch khám nào không?"
+
+    Params:
+        status: Lọc theo trạng thái
+            - "upcoming": Sắp tới (PENDING, CONFIRMED)
+            - "past": Quá khứ (COMPLETED, CANCELLED)
+            - "all": Tất cả
+        limit: Số lượng kết quả (mặc định: 10)
+
+    Examples:
+        list_my_bookings()  # Lấy lịch sắp tới
+        list_my_bookings(status="past")  # Lấy lịch sử
+        list_my_bookings(status="all", limit=20)  # Lấy tất cả
+
+    Returns:
+        bookings: Danh sách booking
+        total: Tổng số booking
+        upcoming_count: Số lịch sắp tới
+    """
+    logger.info(f"🔧 [TOOL] ===== list_my_bookings =====")
+    logger.info(f"  ├─ Input: status={status}, limit={limit}")
+
+    try:
+        token = _require_auth_token()
+        logger.info(f"  ├─ Auth token: {token[:10]}...")
+    except AuthenticationRequiredError as e:
+        logger.warning(f"  └─ ❌ Auth required: {e}")
+        return {
+            "bookings": [],
+            "total": 0,
+            "upcoming_count": 0,
+            "message": str(e),
+            "requires_auth": True,
+        }
+
+    client = get_backend_client()
+    logger.info(
+        f"  ├─ Backend call: GET /bookings/my-bookings?status={status}&size={limit}"
+    )
+
+    try:
+        response = await client.get_my_bookings(
+            token=token,
+            status=status,
+            size=limit,
+        )
+        logger.info(
+            f"  ├─ Backend response: {json.dumps(response, ensure_ascii=False)[:500]}"
+        )
+    except BackendClientError as exc:
+        logger.error(f"  └─ ❌ Backend error: {exc}")
+        return _attach_booking_error_metadata(
+            {
+                "bookings": [],
+                "total": 0,
+                "upcoming_count": 0,
+                "message": f"Không thể tải danh sách booking lúc này: {exc}",
+            },
+            error_code="INTERNAL_ERROR",
+            suggestion="Vui lòng thử lại sau ít phút.",
+            recoverable=True,
+        )
+
+    raw_bookings = response.get("content") or []
+    total = response.get("totalElements") or len(raw_bookings)
+    logger.info(f"  ├─ Raw bookings count: {len(raw_bookings)}, total: {total}")
+
+    formatted_bookings = []
+    upcoming_count = 0
+    for b in raw_bookings:
+        if not isinstance(b, dict):
+            continue
+        status_val = b.get("status", "")
+        if status_val in {"PENDING", "CONFIRMED"}:
+            upcoming_count += 1
+        formatted_bookings.append(
+            {
+                "id": b.get("id") or b.get("bookingId"),
+                "booking_code": b.get("bookingCode"),
+                "status": status_val,
+                "pet_name": b.get("petName"),
+                "clinic_name": b.get("clinicName"),
+                "date": b.get("bookingDate"),
+                "time": b.get("bookingTime"),
+                "booking_type": b.get("type") or b.get("bookingType"),
+                "services": b.get("services", []),
+                "total_price": b.get("totalPrice"),
+            }
+        )
+
+    logger.info(
+        f"  ├─ Formatted bookings: {len(formatted_bookings)}, upcoming: {upcoming_count}"
+    )
+    result = {
+        "bookings": formatted_bookings,
+        "total": total,
+        "upcoming_count": upcoming_count,
+        "status_filter": status,
+        "message": None if formatted_bookings else "Bạn chưa có lịch khám nào.",
+    }
+    logger.info(f"  └─ ✅ Returning: {json.dumps(result, ensure_ascii=False)[:500]}")
+    return result
+
+
+@mcp_server.tool
+@_standardize_booking_tool_response
+async def search_clinics_by_name(
+    name: str,
+    limit: int = 10,
+) -> Dict[str, Any]:
+    """Tìm phòng khám theo tên trực tiếp.
+
+    Đây là tool tương thích cho direct name-search.
+    Trong runtime business chat tiêu chuẩn, agent nên ưu tiên `search_clinics_nearby`
+    với `clinic_hint` để thống nhất flow clinic discovery và booking.
+
+    Params:
+        name: Tên phòng khám cần tìm (bắt buộc)
+        limit: Số lượng kết quả (mặc định: 10)
+
+    Returns:
+        clinics: Danh sách phòng khám khớp tên
+        total_found: Tổng số kết quả
+    """
+    logger.info(f"🔧 [TOOL] ===== search_clinics_by_name =====")
+    logger.info(f"  ├─ Input: name={name}, limit={limit}")
+
+    client = get_backend_client()
+    logger.info(f"  ├─ Backend call: GET /clinics/search?query={name}&size={limit}")
+
+    try:
+        response = await client.search_clinics_by_name(
+            name=name,
+            size=limit,
+        )
+        logger.info(
+            f"  ├─ Backend response: {json.dumps(response, ensure_ascii=False)[:500]}"
+        )
+    except BackendClientError as exc:
+        logger.error(f"  └─ ❌ Backend error: {exc}")
+        return _attach_booking_error_metadata(
+            {
+                "clinics": [],
+                "matched_clinic": None,
+                "total_found": 0,
+                "message": f"Không thể tìm phòng khám lúc này: {exc}",
+            },
+            error_code="INTERNAL_ERROR",
+            suggestion="Vui lòng thử lại sau ít phút.",
+            recoverable=True,
+        )
+
+    raw_clinics = response.get("content") or []
+    clinics = [
+        clinic
+        for clinic in (
+            _map_backend_clinic_option(raw_clinic, default_match_mode="name_search")
+            for raw_clinic in raw_clinics
+        )
+        if clinic
+    ]
+
+    clinics = _filter_clinics_by_hint(clinics, name)
+    resolved_clinic = _select_resolved_clinic(clinics, name)
+    auto_select_clinic = bool(name and resolved_clinic and len(clinics) == 1)
+
+    if name and not clinics:
+        logger.warning(f"  └─ ❌ No clinics found matching: {name}")
+        return _attach_booking_error_metadata(
+            {
+                "clinics": [],
+                "matched_clinic": None,
+                "resolved_clinic": None,
+                "total_found": 0,
+                "match_mode": "name_search",
+                "auto_select_clinic": False,
+                "needs_clarification": True,
+                "message": f"Không tìm thấy phòng khám nào có tên '{name}'. Bạn kiểm tra lại tên phòng khám nhé.",
+            },
+            error_code="CLINIC_NOT_FOUND",
+            suggestion="Vui lòng kiểm tra lại tên phòng khám hoặc chọn từ danh sách gợi ý.",
+            recoverable=True,
+        )
+
+    result = {
+        "query_name": name,
+        "clinics": clinics[:limit],
+        "matched_clinic": resolved_clinic or (clinics[0] if clinics else None),
+        "resolved_clinic": resolved_clinic,
+        "total_found": int(response.get("totalElements") or len(clinics)),
+        "match_mode": "name_search",
+        "auto_select_clinic": auto_select_clinic,
+        "needs_clarification": bool(
+            name and len(clinics) > 1 and not auto_select_clinic
+        ),
+        "message": (
+            f"Tìm thấy {len(clinics)} phòng khám khớp với '{name}'."
+            if clinics
+            else None
+        ),
+    }
+    logger.info(f"  └─ ✅ Returning: {json.dumps(result, ensure_ascii=False)[:500]}")
+    return result
+
+
+@mcp_server.tool
+@_standardize_booking_tool_response
+async def get_clinic_detail(
+    clinic_id: str,
+) -> Dict[str, Any]:
+    """Lấy thông tin chi tiết phòng khám theo ID.
+
+    Sử dụng khi user muốn xem chi tiết:
+    - "Xem chi tiết phòng khám này"
+    - "Phòng khám này có dịch vụ gì"
+    - "Thông tin phòng khám {id}"
+
+    Params:
+        clinic_id: ID của phòng khám (UUID)
+
+    Returns:
+        clinic: Thông tin chi tiết phòng khám
+        services: Danh sách dịch vụ
+    """
+    logger.info(f"🔧 [TOOL] ===== get_clinic_detail =====")
+    logger.info(f"  ├─ Input: clinic_id={clinic_id}")
+
+    client = get_backend_client()
+    logger.info(f"  ├─ Backend call: GET /clinics/{clinic_id}")
+
+    try:
+        clinic = await client.get_clinic_by_id(clinic_id)
+        logger.info(
+            f"  ├─ Backend response: {json.dumps(clinic, ensure_ascii=False)[:500]}"
+        )
+    except BackendClientError as exc:
+        logger.error(f"  └─ ❌ Backend error: {exc}")
+        return _attach_booking_error_metadata(
+            {
+                "clinic_id": clinic_id,
+                "clinic": None,
+                "message": f"Không thể lấy thông tin phòng khám lúc này: {exc}",
+            },
+            error_code="CLINIC_NOT_FOUND",
+            suggestion="Vui lòng kiểm tra lại ID phòng khám.",
+            recoverable=True,
+        )
+
+    if not clinic:
+        logger.warning(f"  └─ ❌ Clinic not found: {clinic_id}")
+        return _attach_booking_error_metadata(
+            {
+                "clinic_id": clinic_id,
+                "clinic": None,
+                "message": "Không tìm thấy phòng khám với ID cung cấp.",
+            },
+            error_code="CLINIC_NOT_FOUND",
+            suggestion="Vui lòng kiểm tra lại ID phòng khám.",
+            recoverable=True,
+        )
+
+    clinic_detail = {
+        "id": clinic.get("id"),
+        "name": clinic.get("name"),
+        "address": clinic.get("address"),
+        "phone": clinic.get("phone"),
+        "email": clinic.get("email"),
+        "province": clinic.get("province"),
+        "district": clinic.get("district"),
+        "ward": clinic.get("ward"),
+        "latitude": clinic.get("latitude"),
+        "longitude": clinic.get("longitude"),
+        "status": clinic.get("status"),
+        "rating": clinic.get("rating"),
+        "total_reviews": clinic.get("totalReviews"),
+        "description": clinic.get("description"),
+        "logo_url": clinic.get("logoUrl"),
+        "primary_image_url": clinic.get("primaryImageUrl"),
+        "opening_hours": clinic.get("openingHours"),
+        "services_count": clinic.get("servicesCount"),
+    }
+
+    result = {
+        "clinic_id": clinic_id,
+        "clinic": clinic_detail,
+        "message": None,
+    }
+    logger.info(f"  └─ ✅ Returning: {json.dumps(result, ensure_ascii=False)[:500]}")
+    return result
+
+
+@mcp_server.tool
+@_standardize_booking_tool_response
 async def check_available_slots(
     clinic_id: str,
     date: Optional[str] = None,
@@ -1418,11 +2367,11 @@ async def check_available_slots(
         for service_id in (service_ids or [])
         if str(service_id).strip()
     ]
-    has_service_signal = bool(
-        normalized_service_ids
-        or str(service_hint or "").strip()
-        or str(latest_message or "").strip()
-        or str(transcript or "").strip()
+    has_service_signal = _has_meaningful_service_signal(
+        normalized_service_ids,
+        service_hint,
+        latest_message,
+        transcript,
     )
 
     def _format_slots(slots: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -1445,44 +2394,54 @@ async def check_available_slots(
         return formatted
 
     if not resolved_date:
-        return {
-            "clinic_id": clinic_id,
-            "resolved_clinic_id": resolved_clinic_id or clinic_id,
-            "resolved_clinic": clinic_resolution.get("clinic"),
-            "date": None,
-            "services": normalized_service_ids,
-            "resolved_service_ids": normalized_service_ids,
-            "resolved_service_names": [],
-            "recommended_slots": [],
-            "alternative_slots": [],
-            "available_slots": [],
-            "total_slots": 0,
-            "exact_match": False,
-            "preferred_unavailable": False,
-            "needs_clarification": True,
-            "next_best_action": "provide_date",
-            "message": "Minh chua xac dinh duoc ngay kham cu the. Ban co the noi theo dang nhu `thu bay nay`, `ngay mai` hoac `2026-03-21`.",
-        }
+        return _attach_booking_error_metadata(
+            {
+                "clinic_id": clinic_id,
+                "resolved_clinic_id": resolved_clinic_id or clinic_id,
+                "resolved_clinic": clinic_resolution.get("clinic"),
+                "date": None,
+                "services": normalized_service_ids,
+                "resolved_service_ids": normalized_service_ids,
+                "resolved_service_names": [],
+                "recommended_slots": [],
+                "alternative_slots": [],
+                "available_slots": [],
+                "total_slots": 0,
+                "exact_match": False,
+                "preferred_unavailable": False,
+                "needs_clarification": True,
+                "next_best_action": "provide_date",
+                "message": "Minh chua xac dinh duoc ngay kham cu the. Ban co the noi theo dang nhu `thu bay nay`, `ngay mai` hoac `2026-03-21`.",
+            },
+            error_code="INVALID_DATE",
+            suggestion="Vui lòng nói rõ ngày khám mong muốn.",
+            recoverable=True,
+        )
 
     if not has_service_signal:
-        return {
-            "clinic_id": clinic_id,
-            "resolved_clinic_id": resolved_clinic_id or clinic_id,
-            "resolved_clinic": clinic_resolution.get("clinic"),
-            "date": resolved_date,
-            "services": [],
-            "resolved_service_ids": [],
-            "resolved_service_names": [],
-            "recommended_slots": [],
-            "alternative_slots": [],
-            "available_slots": [],
-            "total_slots": 0,
-            "exact_match": False,
-            "preferred_unavailable": False,
-            "needs_clarification": True,
-            "next_best_action": "choose_service",
-            "message": "Minh chua xac dinh duoc dich vu can kiem tra slot. Ban muon kham benh, tiem phong hay dich vu nao cho be?",
-        }
+        return _attach_booking_error_metadata(
+            {
+                "clinic_id": clinic_id,
+                "resolved_clinic_id": resolved_clinic_id or clinic_id,
+                "resolved_clinic": clinic_resolution.get("clinic"),
+                "date": resolved_date,
+                "services": [],
+                "resolved_service_ids": [],
+                "resolved_service_names": [],
+                "recommended_slots": [],
+                "alternative_slots": [],
+                "available_slots": [],
+                "total_slots": 0,
+                "exact_match": False,
+                "preferred_unavailable": False,
+                "needs_clarification": True,
+                "next_best_action": "choose_service",
+                "message": "Minh chua xac dinh duoc dich vu can kiem tra slot. Ban muon kham benh, tiem phong hay dich vu nao cho be?",
+            },
+            error_code="SERVICE_NOT_FOUND",
+            suggestion="Vui lòng nói rõ dịch vụ cần đặt lịch.",
+            recoverable=True,
+        )
 
     if optional_token:
         payload = {
@@ -1505,19 +2464,24 @@ async def check_available_slots(
             )
         except BackendClientError as exc:
             logger.error(f"check_available_slots failed: {exc}")
-            return {
-                "clinic_id": clinic_id,
-                "resolved_clinic_id": resolved_clinic_id or clinic_id,
-                "date": resolved_date,
-                "services": normalized_service_ids,
-                "available_slots": [],
-                "total_slots": 0,
-                "exact_match": False,
-                "preferred_unavailable": False,
-                "message": f"Khong the kiem tra slot luc nay: {exc}",
-                "needs_clarification": False,
-                "next_best_action": "retry",
-            }
+            return _attach_booking_error_metadata(
+                {
+                    "clinic_id": clinic_id,
+                    "resolved_clinic_id": resolved_clinic_id or clinic_id,
+                    "date": resolved_date,
+                    "services": normalized_service_ids,
+                    "available_slots": [],
+                    "total_slots": 0,
+                    "exact_match": False,
+                    "preferred_unavailable": False,
+                    "message": f"Khong the kiem tra slot luc nay: {exc}",
+                    "needs_clarification": False,
+                    "next_best_action": "retry",
+                },
+                error_code="INTERNAL_ERROR",
+                suggestion="Vui lòng thử kiểm tra slot lại sau ít phút.",
+                recoverable=True,
+            )
         else:
             if isinstance(slot_response, dict):
                 recommended_slots = _format_slots(
@@ -1534,50 +2498,62 @@ async def check_available_slots(
                 no_slots = not available_slots
                 has_alternatives = bool(alternative_slots)
                 preferred_unavailable = bool(not recommended_slots and has_alternatives)
-                return {
-                    "clinic_id": clinic_id,
-                    "resolved_clinic_id": resolved_clinic_id or clinic_id,
-                    "resolved_clinic": clinic_resolution.get("clinic"),
-                    "date": resolved_date,
-                    "services": resolved_service_names
-                    or resolved_service_ids_from_backend,
-                    "resolved_service_ids": resolved_service_ids_from_backend,
-                    "resolved_service_names": resolved_service_names,
-                    "recommended_slots": recommended_slots,
-                    "alternative_slots": alternative_slots,
-                    "available_slots": available_slots,
-                    "total_slots": int(
-                        slot_response.get("totalAvailable") or len(available_slots)
-                    ),
-                    "exact_match": bool(slot_response.get("exactMatch")),
-                    "preferred_unavailable": preferred_unavailable,
-                    "message": slot_response.get("message"),
-                    "resolved_time_preference": resolved_time_preference,
-                    "needs_clarification": no_slots,
-                    "next_best_action": "choose_alternative"
-                    if preferred_unavailable
-                    else "choose_another_time"
+                return _attach_booking_error_metadata(
+                    {
+                        "clinic_id": clinic_id,
+                        "resolved_clinic_id": resolved_clinic_id or clinic_id,
+                        "resolved_clinic": clinic_resolution.get("clinic"),
+                        "date": resolved_date,
+                        "services": resolved_service_names
+                        or resolved_service_ids_from_backend,
+                        "resolved_service_ids": resolved_service_ids_from_backend,
+                        "resolved_service_names": resolved_service_names,
+                        "recommended_slots": recommended_slots,
+                        "alternative_slots": alternative_slots,
+                        "available_slots": available_slots,
+                        "total_slots": int(
+                            slot_response.get("totalAvailable") or len(available_slots)
+                        ),
+                        "exact_match": bool(slot_response.get("exactMatch")),
+                        "preferred_unavailable": preferred_unavailable,
+                        "message": slot_response.get("message"),
+                        "resolved_time_preference": resolved_time_preference,
+                        "needs_clarification": no_slots,
+                        "next_best_action": "choose_alternative"
+                        if preferred_unavailable
+                        else "choose_another_time"
+                        if no_slots
+                        else "select_slot",
+                    },
+                    error_code="NO_SLOTS_AVAILABLE" if no_slots else "",
+                    suggestion="Vui lòng chọn khung giờ hoặc ngày khác phù hợp hơn."
                     if no_slots
-                    else "select_slot",
-                }
+                    else None,
+                    recoverable=True if no_slots else None,
+                )
 
     if not normalized_service_ids:
-        return {
-            "clinic_id": clinic_id,
-            "resolved_clinic_id": resolved_clinic_id or clinic_id,
-            "resolved_clinic": clinic_resolution.get("clinic"),
-            "date": resolved_date,
-            "services": [],
-            "resolved_service_ids": [],
-            "resolved_service_names": [],
-            "recommended_slots": [],
-            "alternative_slots": [],
-            "available_slots": [],
-            "total_slots": 0,
-            "needs_clarification": True,
-            "next_best_action": "choose_service",
-            "message": "Minh can xac dinh ro dich vu truoc khi kiem tra slot bang API cong khai.",
-        }
+        return _attach_booking_error_metadata(
+            {
+                "clinic_id": clinic_id,
+                "resolved_clinic_id": resolved_clinic_id or clinic_id,
+                "resolved_clinic": clinic_resolution.get("clinic"),
+                "date": resolved_date,
+                "services": [],
+                "resolved_service_ids": [],
+                "resolved_service_names": [],
+                "recommended_slots": [],
+                "alternative_slots": [],
+                "available_slots": [],
+                "total_slots": 0,
+                "needs_clarification": True,
+                "next_best_action": "choose_service",
+                "message": "Minh can xac dinh ro dich vu truoc khi kiem tra slot bang API cong khai.",
+            },
+            error_code="SERVICE_NOT_FOUND",
+            suggestion="Vui lòng chọn dịch vụ trước khi kiểm tra slot.",
+            recoverable=True,
+        )
 
     try:
         slots_response = await client.get_available_slots(
@@ -1588,22 +2564,27 @@ async def check_available_slots(
         )
     except BackendClientError as exc:
         logger.error(f"check_available_slots failed: {exc}")
-        return {
-            "clinic_id": clinic_id,
-            "resolved_clinic_id": resolved_clinic_id or clinic_id,
-            "resolved_clinic": clinic_resolution.get("clinic"),
-            "date": resolved_date,
-            "services": normalized_service_ids,
-            "resolved_service_ids": normalized_service_ids,
-            "resolved_service_names": [],
-            "recommended_slots": [],
-            "alternative_slots": [],
-            "available_slots": [],
-            "total_slots": 0,
-            "needs_clarification": False,
-            "next_best_action": "retry",
-            "message": f"Khong the kiem tra slot luc nay: {exc}",
-        }
+        return _attach_booking_error_metadata(
+            {
+                "clinic_id": clinic_id,
+                "resolved_clinic_id": resolved_clinic_id or clinic_id,
+                "resolved_clinic": clinic_resolution.get("clinic"),
+                "date": resolved_date,
+                "services": normalized_service_ids,
+                "resolved_service_ids": normalized_service_ids,
+                "resolved_service_names": [],
+                "recommended_slots": [],
+                "alternative_slots": [],
+                "available_slots": [],
+                "total_slots": 0,
+                "needs_clarification": False,
+                "next_best_action": "retry",
+                "message": f"Khong the kiem tra slot luc nay: {exc}",
+            },
+            error_code="INTERNAL_ERROR",
+            suggestion="Vui lòng thử kiểm tra slot lại sau ít phút.",
+            recoverable=True,
+        )
 
     service_duration_values = [
         int(service.get("durationTime") or 0)
@@ -1657,32 +2638,40 @@ async def check_available_slots(
             }
         )
 
-    return {
-        "clinic_id": clinic_id,
-        "resolved_clinic_id": resolved_clinic_id or clinic_id,
-        "resolved_clinic": clinic_resolution.get("clinic"),
-        "date": resolved_date,
-        "services": service_names or normalized_service_ids,
-        "resolved_service_ids": normalized_service_ids,
-        "resolved_service_names": service_names,
-        "recommended_slots": formatted_slots,
-        "alternative_slots": [],
-        "available_slots": formatted_slots,
-        "total_slots": len(formatted_slots),
-        "message": None
-        if formatted_slots
-        else "Khong con slot phu hop trong ngay nay. Ban co the thu buoi khac hoac ngay khac gan nhat.",
-        "resolved_time_preference": resolved_time_preference,
-        "exact_match": bool(resolved_exact_time and formatted_slots),
-        "preferred_unavailable": False,
-        "needs_clarification": not bool(formatted_slots),
-        "next_best_action": "choose_another_time"
+    return _attach_booking_error_metadata(
+        {
+            "clinic_id": clinic_id,
+            "resolved_clinic_id": resolved_clinic_id or clinic_id,
+            "resolved_clinic": clinic_resolution.get("clinic"),
+            "date": resolved_date,
+            "services": service_names or normalized_service_ids,
+            "resolved_service_ids": normalized_service_ids,
+            "resolved_service_names": service_names,
+            "recommended_slots": formatted_slots,
+            "alternative_slots": [],
+            "available_slots": formatted_slots,
+            "total_slots": len(formatted_slots),
+            "message": None
+            if formatted_slots
+            else "Khong con slot phu hop trong ngay nay. Ban co the thu buoi khac hoac ngay khac gan nhat.",
+            "resolved_time_preference": resolved_time_preference,
+            "exact_match": bool(resolved_exact_time and formatted_slots),
+            "preferred_unavailable": False,
+            "needs_clarification": not bool(formatted_slots),
+            "next_best_action": "choose_another_time"
+            if not formatted_slots
+            else "select_slot",
+        },
+        error_code="NO_SLOTS_AVAILABLE" if not formatted_slots else "",
+        suggestion="Vui lòng chọn ngày hoặc khung giờ khác."
         if not formatted_slots
-        else "select_slot",
-    }
+        else None,
+        recoverable=True if not formatted_slots else None,
+    )
 
 
 @mcp_server.tool
+@_standardize_booking_tool_response
 async def create_booking_for_user(
     pet_id: Optional[str] = None,
     clinic_id: Optional[str] = None,
@@ -1722,12 +2711,16 @@ async def create_booking_for_user(
     try:
         token = _require_auth_token()
     except AuthenticationRequiredError as e:
-        return {
-            "success": False,
-            "ready_to_create": False,
-            "requires_auth": True,
-            "message": str(e),
-        }
+        response = build_tool_error_response(
+            error_code="UNAUTHORIZED",
+            message=str(e),
+            recoverable=True,
+            suggestion="Vui lòng đăng nhập lại để tiếp tục đặt lịch.",
+            metadata={"requires_auth": True},
+        )
+        response["ready_to_create"] = False
+        response["requires_auth"] = True
+        return response
 
     client = get_backend_client()
     clinic_resolution = await _resolve_clinic_reference(
@@ -1740,16 +2733,21 @@ async def create_booking_for_user(
     )
     resolved_clinic_id = str(clinic_resolution.get("clinic_id") or "").strip()
     if clinic_resolution.get("needs_clarification") and not resolved_clinic_id:
-        return {
-            "success": False,
-            "ready_to_create": False,
-            "missing_fields": [],
-            "clinic_options": clinic_resolution.get("clinics") or [],
-            "needs_clarification": True,
-            "next_best_action": "choose_clinic",
-            "message": clinic_resolution.get("message")
-            or "Minh can xac nhan phong kham truoc khi tao yeu cau booking.",
-        }
+        return _attach_booking_error_metadata(
+            {
+                "success": False,
+                "ready_to_create": False,
+                "missing_fields": [],
+                "clinic_options": clinic_resolution.get("clinics") or [],
+                "needs_clarification": True,
+                "next_best_action": "choose_clinic",
+                "message": clinic_resolution.get("message")
+                or "Minh can xac nhan phong kham truoc khi tao yeu cau booking.",
+            },
+            error_code="CLINIC_NOT_FOUND",
+            suggestion="Vui lòng chọn đúng phòng khám trước khi tạo booking.",
+            recoverable=True,
+        )
 
     normalized_service_ids = [
         str(service_id).strip()
@@ -1789,6 +2787,10 @@ async def create_booking_for_user(
                     "needs_clarification": True,
                     "next_best_action": "collect_missing_fields",
                     "message": f"Thu cung #{i + 1} can co pet_id hoac pet_hint.",
+                    "error_code": "PET_NOT_FOUND",
+                    "title": get_error_title("PET_NOT_FOUND"),
+                    "recoverable": True,
+                    "suggestion": "Vui lòng chọn đúng thú cưng cho từng mục booking.",
                 }
             if not item.get("service_ids"):
                 return {
@@ -1798,6 +2800,10 @@ async def create_booking_for_user(
                     "needs_clarification": True,
                     "next_best_action": "collect_missing_fields",
                     "message": f"Thu cung #{i + 1} can co it nhat mot dich vu.",
+                    "error_code": "SERVICE_NOT_FOUND",
+                    "title": get_error_title("SERVICE_NOT_FOUND"),
+                    "recoverable": True,
+                    "suggestion": "Vui lòng chọn ít nhất một dịch vụ cho từng thú cưng.",
                 }
 
     # For multi-pet, we don't need single pet validation
@@ -1808,12 +2814,6 @@ async def create_booking_for_user(
     if not resolved_booking_date:
         missing_fields.append("ngay kham")
     if not is_multi_pet and not normalized_service_ids:
-        missing_fields.append("dich vu")
-    if not resolved_start_time:
-        missing_fields.append("gio kham")
-    if not resolved_booking_date:
-        missing_fields.append("ngay kham")
-    if not normalized_service_ids:
         missing_fields.append("dich vu")
     if not resolved_start_time:
         missing_fields.append("gio kham")
@@ -1829,57 +2829,68 @@ async def create_booking_for_user(
             missing_fields.append("khoang cach di chuyen")
 
     if missing_fields:
-        return {
-            "success": False,
-            "ready_to_create": False,
-            "missing_fields": missing_fields,
-            "needs_clarification": True,
-            "next_best_action": "collect_missing_fields",
-            "message": f"Chua the tao yeu cau booking vi con thieu: {', '.join(missing_fields)}.",
-        }
+        return _attach_booking_error_metadata(
+            {
+                "success": False,
+                "ready_to_create": False,
+                "missing_fields": missing_fields,
+                "needs_clarification": True,
+                "next_best_action": "collect_missing_fields",
+                "message": f"Chua the tao yeu cau booking vi con thieu: {', '.join(missing_fields)}.",
+            },
+            error_code="INVALID_INPUT",
+            suggestion="Vui lòng bổ sung đầy đủ thông tin còn thiếu trước khi tạo booking.",
+            recoverable=True,
+        )
+
+    confirmation_snapshot = _build_booking_confirmation_snapshot(
+        pet_id=pet_id,
+        clinic_id=resolved_clinic_id or clinic_id,
+        clinic_name=(clinic_resolution.get("clinic") or {}).get("name"),
+        booking_date=resolved_booking_date,
+        start_time=resolved_start_time,
+        service_ids=normalized_service_ids,
+        booking_type=normalized_booking_type,
+        notes=notes,
+        home_address=home_address,
+        distance_km=distance_km,
+        items=items,
+    )
 
     effective_confirmed = confirmed or auto_create_if_available
     if not effective_confirmed:
-        return {
-            "success": False,
-            "ready_to_create": False,
-            "missing_fields": [],
-            "needs_clarification": True,
-            "next_best_action": "confirm_booking",
-            "message": "Minh da co du du lieu co ban nhung chua co xac nhan cuoi tu ban. Hay xac nhan ro rang truoc khi minh tao yeu cau booking.",
-            "booking_preview": {
-                "pet_id": pet_id,
-                "clinic_id": resolved_clinic_id or clinic_id,
-                "clinic_name": (clinic_resolution.get("clinic") or {}).get("name"),
-                "booking_date": resolved_booking_date,
-                "start_time": resolved_start_time,
-                "service_ids": normalized_service_ids,
-                "booking_type": normalized_booking_type,
-                "notes": notes,
-                "home_address": home_address,
+        await _persist_confirmation_snapshot_if_possible(confirmation_snapshot)
+        return _attach_booking_error_metadata(
+            {
+                "success": False,
+                "ready_to_create": False,
+                "missing_fields": [],
+                "needs_clarification": True,
+                "next_best_action": "confirm_booking",
+                "message": "Minh da co du du lieu co ban nhung chua co xac nhan cuoi tu ban. Hay xac nhan ro rang truoc khi minh tao yeu cau booking.",
+                "booking_preview": confirmation_snapshot,
             },
-        }
+            error_code="CONFIRMATION_REQUIRED",
+            suggestion="Vui lòng xác nhận lại bản tóm tắt booking trước khi tạo lịch.",
+            recoverable=True,
+        )
 
-    if not confirmed:
-        return {
-            "success": False,
-            "ready_to_create": False,
-            "missing_fields": [],
-            "needs_clarification": True,
-            "next_best_action": "confirm_booking",
-            "message": "Minh da co du du lieu co ban nhung chua co xac nhan cuoi tu ban. Hay xac nhan ro rang truoc khi minh tao yeu cau booking.",
-            "booking_preview": {
-                "pet_id": pet_id,
-                "clinic_id": resolved_clinic_id or clinic_id,
-                "clinic_name": (clinic_resolution.get("clinic") or {}).get("name"),
-                "booking_date": resolved_booking_date,
-                "start_time": resolved_start_time,
-                "service_ids": normalized_service_ids,
-                "booking_type": normalized_booking_type,
-                "notes": notes,
-                "home_address": home_address,
-            },
-        }
+    guard_error = _evaluate_booking_confirmation_guard(
+        confirmation_snapshot=confirmation_snapshot,
+        confirmed=confirmed,
+        auto_create_if_available=auto_create_if_available,
+        latest_message=latest_message,
+        transcript=transcript,
+    )
+    if guard_error:
+        response = dict(guard_error)
+        response["ready_to_create"] = False
+        response["needs_clarification"] = response.get("recoverable", True)
+        response.setdefault("next_best_action", "confirm_booking")
+        response.setdefault("booking_preview", confirmation_snapshot)
+        if state_meta := response.get("metadata"):
+            response["metadata"] = state_meta
+        return response
 
     if is_multi_pet:
         # Multi-pet mode: format items for backend
@@ -1932,13 +2943,15 @@ async def create_booking_for_user(
         booking = await client.create_ai_booking(token, create_payload)
     except BackendClientError as exc:
         logger.error(f"create_booking_for_user failed: {exc}")
-        return {
-            "success": False,
-            "ready_to_create": False,
-            "needs_clarification": False,
-            "next_best_action": "retry",
-            "message": f"Khong the tao yeu cau booking luc nay: {exc}",
-        }
+        response = _booking_retry_error(
+            "Không thể tạo yêu cầu đặt lịch lúc này.",
+            error_code="BOOKING_CREATE_FAILED",
+        )
+        response["ready_to_create"] = False
+        response["needs_clarification"] = False
+        response["next_best_action"] = "retry"
+        response["metadata"] = {"root_error": str(exc)}
+        return response
 
     # Handle multi-pet response
     if is_multi_pet and booking.get("bookings"):
@@ -1965,6 +2978,7 @@ async def create_booking_for_user(
         return {
             "success": booking.get("success", True),
             "ready_to_create": True,
+            "is_final": True,
             "needs_clarification": False,
             "next_best_action": "await_manager_confirmation",
             "bookings": bookings_list,
@@ -1999,6 +3013,7 @@ async def create_booking_for_user(
     return {
         "success": True,
         "ready_to_create": True,
+        "is_final": True,
         "needs_clarification": False,
         "next_best_action": "await_manager_confirmation",
         "booking": {
@@ -2047,3 +3062,215 @@ async def create_booking_for_user(
             f"{booking.get('clinicName') or 'phong kham da chon'}. Clinic manager se xac nhan sau."
         ),
     }
+
+
+@mcp_server.tool
+@_standardize_booking_tool_response
+async def quick_booking_search(
+    user_message: str,
+    pet_id: Optional[str] = None,
+    pet_name: Optional[str] = None,
+    service_hint: Optional[str] = None,
+    date_hint: Optional[str] = None,
+    clinic_hint: Optional[str] = None,
+    latitude: Optional[float] = None,
+    longitude: Optional[float] = None,
+) -> Dict[str, Any]:
+    """Fast Booking Search - Tim clinic + service + slot trong 1 lan goi.
+
+    Su dung khi:
+    - User muon dat lich nhanh nhat co the
+    - User mô ta nhu "tim phòng khám có dịch vụ tiêm phòng, ngày mai còn slot không?"
+    - AI can tra ve ket qua tot nhat co the voi uu tien:
+      1. Clinic co service_hint + con slot trong
+      2. Sap xep theo khoang cach (neu co location)
+      3. Sap xep theo rating
+
+    Params:
+        user_message: Tin nhan cua user (de AI phan tich intent)
+        pet_id: UUID cua pet (neu biet)
+        pet_name: Ten pet (neu biet)
+        service_hint: Dịch vụ can tim (vd: "tiêm phòng", "khám tổng quát", "triệt sản")
+        date_hint: Ngày can dat (vd: "ngày mai", "thứ 7", "01/04/2026")
+        clinic_hint: Ten clinic cu the (neu biet)
+        latitude, longitude: Vi tri user (neu co)
+
+    Returns:
+        Ket qua gom:
+        - clinics_with_slots: Danh sach clinic + slot trong (da sort theo uu tien)
+        - suggested_clinic: Clinic tot nhat
+        - suggested_slot: Slot tot nhat
+        - missing_info: Thong tin can them them
+    """
+    logger.info(
+        f"quick_booking_search called: service_hint={service_hint}, date_hint={date_hint}, clinic_hint={clinic_hint}"
+    )
+
+    client = get_backend_client()
+
+    try:
+        token = _require_auth_token()
+    except AuthenticationRequiredError:
+        token = None
+
+    resolved_pet_id = pet_id
+    if not resolved_pet_id and pet_name:
+        try:
+            pets_response = await client.get_user_pets(token or "")
+            if pets_response and pets_response.get("pets"):
+                for p in pets_response["pets"]:
+                    if p.get("name", "").lower() == pet_name.lower():
+                        resolved_pet_id = p.get("id")
+                        break
+        except Exception as e:
+            logger.warning(f"Could not resolve pet_id: {e}")
+
+    resolved_date = date_hint
+    if date_hint:
+        from app.core.agents.booking_context import resolve_booking_datetime_inputs
+
+        dt_result = resolve_booking_datetime_inputs(
+            date_expression=date_hint,
+            latest_message=user_message,
+            transcript=user_message,
+        )
+        resolved_date = dt_result.get("booking_date") or dt_result.get("date")
+
+    clinics_with_slots = []
+    suggested_clinic = None
+    suggested_slot = None
+
+    if clinic_hint:
+        try:
+            clinic_result = await client.search_clinics_by_name(
+                name=clinic_hint, size=5
+            )
+            clinics = clinic_result.get("clinics", []) or []
+            if clinics:
+                clinic = clinics[0]
+                clinic_id = clinic.get("id")
+                services_result = await client.get_clinic_services(
+                    token or "", clinic_id
+                )
+                services = services_result.get("services", []) or []
+                if service_hint:
+                    services = [
+                        s
+                        for s in services
+                        if service_hint.lower() in s.get("name", "").lower()
+                    ]
+                if services and resolved_date:
+                    slots_result = await client.get_available_slots(
+                        token or "", clinic_id, resolved_date
+                    )
+                    slots = (
+                        slots_result.get("availableSlots", [])
+                        or slots_result.get("slots", [])
+                        or []
+                    )
+                    if slots:
+                        clinics_with_slots.append(
+                            {
+                                "clinic": clinic,
+                                "services": services[:3],
+                                "available_date": resolved_date,
+                                "slots": slots[:5],
+                                "match_score": 100,
+                            }
+                        )
+                        suggested_clinic = clinic
+                        suggested_slot = slots[0] if slots else None
+        except Exception as e:
+            logger.warning(f"Error searching by name: {e}")
+
+    if not clinics_with_slots and (latitude and longitude or service_hint):
+        try:
+            search_params = {"latitude": latitude, "longitude": longitude, "top_k": 10}
+            if service_hint:
+                search_params["service_hint"] = service_hint
+            nearby_result = await client.find_nearby_clinics(
+                token or "", **search_params
+            )
+            clinics = nearby_result.get("clinics", []) or []
+            for clinic in clinics:
+                clinic_id = clinic.get("id")
+                try:
+                    services_result = await client.get_clinic_services(
+                        token or "", clinic_id
+                    )
+                    services = services_result.get("services", []) or []
+                    if service_hint:
+                        services = [
+                            s
+                            for s in services
+                            if service_hint.lower() in s.get("name", "").lower()
+                        ]
+                    if services and resolved_date:
+                        slots_result = await client.get_available_slots(
+                            token or "", clinic_id, resolved_date
+                        )
+                        slots = (
+                            slots_result.get("availableSlots", [])
+                            or slots_result.get("slots", [])
+                            or []
+                        )
+                        if slots:
+                            clinics_with_slots.append(
+                                {
+                                    "clinic": clinic,
+                                    "services": services[:3],
+                                    "available_date": resolved_date,
+                                    "slots": slots[:5],
+                                    "match_score": clinic.get("rating", 0) * 10,
+                                }
+                            )
+                            if not suggested_clinic:
+                                suggested_clinic = clinic
+                                suggested_slot = slots[0]
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.warning(f"Error searching nearby: {e}")
+
+    clinics_with_slots.sort(key=lambda x: x.get("match_score", 0), reverse=True)
+
+    missing_info = []
+    if not resolved_pet_id:
+        missing_info.append("pet")
+    if not service_hint and not clinics_with_slots:
+        missing_info.append("service")
+    if not resolved_date and not clinics_with_slots:
+        missing_info.append("date")
+    if not clinics_with_slots:
+        missing_info.append("clinic")
+
+    return build_tool_success_response(
+        {
+            "clinics_with_slots": clinics_with_slots[:5],
+            "suggested_clinic": {
+                "id": suggested_clinic.get("id") if suggested_clinic else None,
+                "name": suggested_clinic.get("name") if suggested_clinic else None,
+                "address": suggested_clinic.get("address")
+                if suggested_clinic
+                else None,
+                "rating": suggested_clinic.get("rating") if suggested_clinic else None,
+            }
+            if suggested_clinic
+            else None,
+            "suggested_slot": {
+                "date": suggested_slot.get("date") if suggested_slot else None,
+                "time": suggested_slot.get("startTime") or suggested_slot.get("time")
+                if suggested_slot
+                else None,
+            }
+            if suggested_slot
+            else None,
+            "resolved_pet_id": resolved_pet_id,
+            "resolved_date": resolved_date,
+            "missing_info": missing_info,
+            "has_results": len(clinics_with_slots) > 0,
+            "message": f"Tìm được {len(clinics_with_slots)} phòng khám phù hợp"
+            if clinics_with_slots
+            else "Không tìm được phòng khám phù hợp",
+        }
+    )

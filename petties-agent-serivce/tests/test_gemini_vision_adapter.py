@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.api.schemas.diagnosis_contracts import (
+from app.ai_diagnose.schemas import (
     DiagnosisClinicalContext,
     GeminiVisionDiagnosisRequest,
     Species,
@@ -57,15 +57,19 @@ class GeminiVisionAdapterTests(unittest.IsolatedAsyncioTestCase):
             clinical_context=DiagnosisClinicalContext(symptoms=["đỏ mắt", "mắt có mủ"]),
         )
 
-        with patch(
-            "app.core.vision.gemini_vision_adapter.AsyncSessionLocal",
-            return_value=_FakeDbContext(),
-        ), patch(
-            "app.core.vision.gemini_vision_adapter.get_llm_client_from_db",
-            AsyncMock(side_effect=ValueError("db config missing")),
-        ), patch(
-            "app.core.vision.gemini_vision_adapter.get_llm_client",
-            return_value=fake_client,
+        with (
+            patch(
+                "app.core.vision.gemini_vision_adapter.AsyncSessionLocal",
+                return_value=_FakeDbContext(),
+            ),
+            patch(
+                "app.core.vision.gemini_vision_adapter.get_llm_client_from_db",
+                AsyncMock(side_effect=ValueError("db config missing")),
+            ),
+            patch(
+                "app.core.vision.gemini_vision_adapter.get_llm_client",
+                return_value=fake_client,
+            ),
         ):
             response = await adapter.analyze(request)
 

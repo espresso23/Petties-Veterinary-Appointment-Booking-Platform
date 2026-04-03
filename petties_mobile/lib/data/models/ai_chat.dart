@@ -6,6 +6,8 @@ class AiChatMessage {
   final String content;
   final DateTime? timestamp;
   final List<dynamic>? reactTrace;
+  final Map<String, dynamic>? metadata;
+  final UiSchemaV1? uiSchema;
 
   const AiChatMessage({
     this.messageId,
@@ -13,9 +15,24 @@ class AiChatMessage {
     required this.content,
     this.timestamp,
     this.reactTrace,
+    this.metadata,
+    this.uiSchema,
   });
 
   factory AiChatMessage.fromJson(Map<String, dynamic> json) {
+    final metadata = json['metadata'] is Map
+        ? Map<String, dynamic>.from(json['metadata'] as Map)
+        : null;
+    final uiSchemaJson = json['ui_schema'] is Map<String, dynamic>
+        ? json['ui_schema'] as Map<String, dynamic>
+        : (json['ui_schema'] is Map
+            ? Map<String, dynamic>.from(json['ui_schema'] as Map)
+            : (metadata?['ui_schema'] is Map<String, dynamic>
+                ? metadata!['ui_schema'] as Map<String, dynamic>
+                : (metadata?['ui_schema'] is Map
+                    ? Map<String, dynamic>.from(metadata!['ui_schema'] as Map)
+                    : null)));
+
     return AiChatMessage(
       messageId: json['message_id']?.toString(),
       role: json['role']?.toString() ?? 'assistant',
@@ -24,6 +41,8 @@ class AiChatMessage {
           ? DateTime.tryParse(json['timestamp'].toString())
           : null,
       reactTrace: json['react_trace'] as List<dynamic>?,
+      metadata: metadata,
+      uiSchema: uiSchemaJson != null ? UiSchemaV1.fromJson(uiSchemaJson) : null,
     );
   }
 }
@@ -71,8 +90,7 @@ class AiClinic {
       distanceKm: json['distance_km'] is num
           ? (json['distance_km'] as num).toDouble()
           : null,
-      rating:
-          json['rating'] is num ? (json['rating'] as num).toDouble() : null,
+      rating: json['rating'] is num ? (json['rating'] as num).toDouble() : null,
       totalReviews: json['total_reviews'] is num
           ? (json['total_reviews'] as num).toInt()
           : null,
@@ -128,6 +146,7 @@ class AiChatSession {
   final String contextType;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final Map<String, dynamic>? bookingState;
   final List<AiChatMessage> messages;
 
   const AiChatSession({
@@ -136,6 +155,7 @@ class AiChatSession {
     required this.contextType,
     this.createdAt,
     this.updatedAt,
+    this.bookingState,
     this.messages = const [],
   });
 
@@ -150,6 +170,9 @@ class AiChatSession {
       updatedAt: json['updated_at'] != null
           ? DateTime.tryParse(json['updated_at'].toString())
           : null,
+      bookingState: json['booking_state'] is Map
+          ? Map<String, dynamic>.from(json['booking_state'] as Map)
+          : null,
       messages: (json['messages'] as List<dynamic>? ?? const [])
           .whereType<Map<String, dynamic>>()
           .map(AiChatMessage.fromJson)
@@ -163,6 +186,7 @@ enum AiChatSocketEventType {
   history,
   ack,
   thinking,
+  thinkingStream,
   toolCall,
   toolResult,
   stream,
@@ -180,6 +204,7 @@ enum AiChatSocketEventType {
   bookingSummary,
   bookingCreated,
   uiSchema,
+  bookingStateUpdate,
   unknown;
 
   static AiChatSocketEventType fromString(String? value) {
@@ -192,6 +217,8 @@ enum AiChatSocketEventType {
         return AiChatSocketEventType.ack;
       case 'thinking':
         return AiChatSocketEventType.thinking;
+      case 'thinking_stream':
+        return AiChatSocketEventType.thinkingStream;
       case 'tool_call':
         return AiChatSocketEventType.toolCall;
       case 'tool_result':
@@ -226,6 +253,8 @@ enum AiChatSocketEventType {
         return AiChatSocketEventType.bookingCreated;
       case 'ui_schema':
         return AiChatSocketEventType.uiSchema;
+      case 'booking_state_update':
+        return AiChatSocketEventType.bookingStateUpdate;
       default:
         return AiChatSocketEventType.unknown;
     }
@@ -256,9 +285,8 @@ class AiClinicSuggestion {
           json['total_found'] is num ? (json['total_found'] as num).toInt() : 0,
       latitude:
           location?['lat'] is num ? (location!['lat'] as num).toDouble() : null,
-      longitude: location?['lng'] is num
-          ? (location!['lng'] as num).toDouble()
-          : null,
+      longitude:
+          location?['lng'] is num ? (location!['lng'] as num).toDouble() : null,
     );
   }
 }
@@ -281,8 +309,9 @@ class AiBookingServiceOption {
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
       category: json['category']?.toString(),
-      basePrice:
-          json['base_price'] is num ? (json['base_price'] as num).toDouble() : null,
+      basePrice: json['base_price'] is num
+          ? (json['base_price'] as num).toDouble()
+          : null,
     );
   }
 }
@@ -345,14 +374,16 @@ class AiSlotGridPayload {
       serviceNames: (json['service_names'] as List<dynamic>? ?? const [])
           .map((item) => item.toString())
           .toList(),
-      recommendedSlots: (json['recommended_slots'] as List<dynamic>? ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .map(AiBookingSlotOption.fromJson)
-          .toList(),
-      alternativeSlots: (json['alternative_slots'] as List<dynamic>? ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .map(AiBookingSlotOption.fromJson)
-          .toList(),
+      recommendedSlots:
+          (json['recommended_slots'] as List<dynamic>? ?? const [])
+              .whereType<Map<String, dynamic>>()
+              .map(AiBookingSlotOption.fromJson)
+              .toList(),
+      alternativeSlots:
+          (json['alternative_slots'] as List<dynamic>? ?? const [])
+              .whereType<Map<String, dynamic>>()
+              .map(AiBookingSlotOption.fromJson)
+              .toList(),
       totalSlots:
           json['total_slots'] is num ? (json['total_slots'] as num).toInt() : 0,
       message: json['message']?.toString(),
@@ -372,6 +403,8 @@ class AiBookingSummaryPayload {
   final String? bookingType;
   final String? notes;
   final String? homeAddress;
+  final double? homeLat;
+  final double? homeLong;
   final String? message;
 
   const AiBookingSummaryPayload({
@@ -386,6 +419,8 @@ class AiBookingSummaryPayload {
     this.bookingType,
     this.notes,
     this.homeAddress,
+    this.homeLat,
+    this.homeLong,
     this.message,
   });
 
@@ -406,6 +441,11 @@ class AiBookingSummaryPayload {
       bookingType: json['booking_type']?.toString(),
       notes: json['notes']?.toString(),
       homeAddress: json['home_address']?.toString(),
+      homeLat:
+          json['home_lat'] is num ? (json['home_lat'] as num).toDouble() : null,
+      homeLong: json['home_long'] is num
+          ? (json['home_long'] as num).toDouble()
+          : null,
       message: json['message']?.toString(),
     );
   }
@@ -581,6 +621,9 @@ class AiChatSocketEvent {
   final String? content;
   final String? fullResponse;
   final String? error;
+  final String? errorCode;
+  final bool? recoverable;
+  final String? suggestion;
   final String? stage;
   final UiSchemaV1? uiSchema;
   final List<AiChatMessage> messages;
@@ -595,6 +638,7 @@ class AiChatSocketEvent {
   final AiSlotGridPayload? slotGrid;
   final AiBookingSummaryPayload? bookingSummary;
   final AiBookingCreatedPayload? bookingCreated;
+  final Map<String, dynamic>? bookingState;
   final Map<String, dynamic> raw;
 
   const AiChatSocketEvent({
@@ -603,6 +647,9 @@ class AiChatSocketEvent {
     this.content,
     this.fullResponse,
     this.error,
+    this.errorCode,
+    this.recoverable,
+    this.suggestion,
     this.stage,
     this.uiSchema,
     this.messages = const [],
@@ -617,6 +664,7 @@ class AiChatSocketEvent {
     this.slotGrid,
     this.bookingSummary,
     this.bookingCreated,
+    this.bookingState,
     this.raw = const {},
   });
 
@@ -628,7 +676,7 @@ class AiChatSocketEvent {
             ? UiSchemaV1.fromJson(
                 Map<String, dynamic>.from(json['ui_schema'] as Map),
               )
-              : null);
+            : null);
     AiClinicSuggestion? clinicSuggestion;
     if (json['clinics'] != null || json['total_found'] != null) {
       clinicSuggestion = AiClinicSuggestion.fromJson(json);
@@ -639,8 +687,9 @@ class AiChatSocketEvent {
             .map(AiBookingServiceOption.fromJson)
             .toList()
         : const <AiBookingServiceOption>[];
-    final slotGrid =
-        type == AiChatSocketEventType.slotGrid ? AiSlotGridPayload.fromJson(json) : null;
+    final slotGrid = type == AiChatSocketEventType.slotGrid
+        ? AiSlotGridPayload.fromJson(json)
+        : null;
     final bookingSummary =
         type == AiChatSocketEventType.bookingSummary && json['summary'] is Map
             ? AiBookingSummaryPayload.fromJson(
@@ -657,11 +706,16 @@ class AiChatSocketEvent {
       content: json['content']?.toString(),
       fullResponse: json['full_response']?.toString(),
       error: json['error']?.toString(),
+      errorCode: json['error_code']?.toString(),
+      recoverable:
+          json['recoverable'] is bool ? json['recoverable'] as bool : null,
+      suggestion: json['suggestion']?.toString(),
       stage: json['stage']?.toString(),
       uiSchema: uiSchema,
       toolName: json['tool_name']?.toString(),
-      stepIndex:
-          json['step_index'] is num ? (json['step_index'] as num).toInt() : null,
+      stepIndex: json['step_index'] is num
+          ? (json['step_index'] as num).toInt()
+          : null,
       reactStep: json['react_step'] is Map
           ? Map<String, dynamic>.from(json['react_step'] as Map)
           : null,
@@ -679,6 +733,9 @@ class AiChatSocketEvent {
       slotGrid: slotGrid,
       bookingSummary: bookingSummary,
       bookingCreated: bookingCreated,
+      bookingState: json['booking_state'] is Map
+          ? Map<String, dynamic>.from(json['booking_state'] as Map)
+          : null,
       raw: json.map((key, value) => MapEntry(key.toString(), value)),
     );
   }

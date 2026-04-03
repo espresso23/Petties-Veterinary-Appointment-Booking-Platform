@@ -1,0 +1,22 @@
+# Source code - UTF-8, LF line endings
+*.py    text eol=lf encoding=utf-8
+*.java  text eol=lf encoding=utf-8
+*.ts    text eol=lf encoding=utf-8
+*.tsx   text eol=lf encoding=utf-8
+*.dart  text eol=lf encoding=utf-8
+
+# Documentation - UTF-8
+*.md    text eol=lf encoding=utf-8
+*.txt   text eol=lf encoding=utf-8
+
+# Config files - UTF-8
+*.json  text eol=lf encoding=utf-8
+*.yml   text eol=lf encoding=utf-8
+*.yaml  text eol=lf encoding=utf-8
+*.toml  text eol=lf encoding=utf-8
+*.env   text eol=lf encoding=utf-8
+
+# Binary files - no conversion
+*.png   binary
+*.jpg   binary
+*.ico   binary

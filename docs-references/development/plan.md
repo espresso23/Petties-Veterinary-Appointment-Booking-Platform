@@ -1,275 +1,393 @@
-# Booking Stateful Flow Plan
+# AI Chatbot Production Readiness Plan
 
-Last Updated: 2026-03-27
+Last Updated: 2026-03-31
 
-## Problem Statement
+## Objective
 
-The current AI booking flow can detect booking intent and call booking-related tools, but it does not maintain a durable booking state across turns.
+Bring the Petties AI chatbot to production-ready quality as a domain-specific agentic chatbot that can:
 
-As a result:
+- understand user intent reliably
+- call tools correctly
+- manage multi-turn conversation and booking state
+- return structured response and `ui_schema`
+- fail safely with predictable recovery behavior
+- support search, consultation, booking, confirmation, cancel, and retry flows
 
-- The assistant may ask again for information the user already provided in the same prompt or earlier turns.
-- Booking data is spread across prompt context, ReAct trace, temporary tool cache, UI schema, and mobile-side tracker.
-- If the user changes clinic, date, time, or service mid-flow, the system has no authoritative reducer to update dependent fields safely.
-- If the user interrupts the flow with a different request, the assistant may lose booking progress or restart the flow incorrectly.
+This plan is based on current code behavior, not architecture documents only.
 
-## Expected Behavior
+## Scope
 
-Once the assistant has strong evidence that the user wants to make a booking, it should enter a booking state and remain in that state until one of the following happens:
+### In scope
 
-- booking is completed successfully
-- user explicitly cancels booking
-- booking is suspended because the user temporarily switches to another request
-
-While in booking state, the assistant should:
-
-- keep a booking draft across turns
-- know which fields are already collected
-- know which fields are still missing
-- update the draft when the user changes requirements
-- avoid asking again for fields already resolved
-- resume the booking flow after interruptions when appropriate
-
-## Relevant Code Areas
-
-- `petties-agent-serivce/app/core/agents/single_agent.py`
-- `petties-agent-serivce/app/core/agents/state.py`
-- `petties-agent-serivce/app/core/agents/tool_routing.py`
-- `petties-agent-serivce/app/core/agents/booking_flow.py`
-- `petties-agent-serivce/app/core/agents/booking_context.py`
-- `petties-agent-serivce/app/core/tool_runtime_context.py`
+- `petties-agent-serivce/app/core/agents/`
+- `petties-agent-serivce/app/core/tools/`
 - `petties-agent-serivce/app/api/websocket/chat.py`
-- `petties-agent-serivce/app/core/database/mongodb.py`
+- `petties-agent-serivce/app/api/routes/chat.py`
+- `petties-agent-serivce/app/core/presentation/`
+- `petties-web/src/components/spotlight/SpotlightProvider.tsx`
+- `petties-web/src/pages/staff/StaffAIChatPage.tsx`
+- `petties_mobile/lib/data/models/ai_chat.dart`
 - `petties_mobile/lib/ui/chat/ai_chat/ai_chat_screen.dart`
-- `petties_mobile/lib/ui/chat/ai_chat/utils/ai_booking_tracker.dart`
 
-## Current Gaps
+### Out of scope
 
-### 1. No authoritative booking session state
+- diagnosis service redesign
+- EMR UI refactor unrelated to chatbot contract
+- database schema expansion for new persistent graph artifacts
 
-The codebase has partial state mechanisms, but not a true booking session:
+## Current Assessment Summary
 
-- `ReActState.stage` exists, but it is not the business source of truth.
-- WebSocket currently infers `stage` from `ui_schema`, which is presentation-derived, not workflow-derived.
-- `BookingContextCache` only stores clinic resolution and conditional intent.
-- Mobile `AiBookingTrackerSnapshot` is client-side only and is not authoritative.
+- Chatbot is usable for dev/test/UAT and core business flows.
+- Backend regression for core chatbot flow is currently strong (`79 passed`).
+- Main gaps before production are:
+- action safety gate has started to move into backend-deterministic guard logic, but broader mutation/refusal coverage is still incomplete
+  - business error taxonomy is incomplete
+  - observability/redaction is below production standard
+  - state recovery is only partially durable (`MemorySaver` + Mongo `booking_state`)
+  - frontend/backend contract conformance is improved but not fully locked down
 
-### 2. No reducer for booking draft updates
-
-There is no central rule set to handle changes such as:
-
-- changing clinic should invalidate selected services and slot
-- changing date should invalidate slot
-- changing pet may invalidate services depending on species
-- switching booking type may invalidate address or clinic requirements
-
-### 3. No interruption model
-
-The current system does not clearly separate:
-
-- booking continuation
-- booking update
-- temporary interruption
-- cancellation
-- complete intent takeover by another task
-
-### 4. No persisted booking draft in session storage
-
-MongoDB chat session data stores chat history and metadata, but not a structured booking draft that can be restored as the source of truth on the next turn.
-
-## Target Architecture
-
-Introduce a server-side `BookingSessionState` persisted per chat session.
-
-Suggested state shape:
-
-```json
-{
-  "active": true,
-  "status": "COLLECTING",
-  "intent": "create_booking",
-  "draft": {
-    "pet_id": null,
-    "pet_name": null,
-    "clinic_id": null,
-    "clinic_hint": null,
-    "clinic_name": null,
-    "service_ids": [],
-    "service_names": [],
-    "booking_date": null,
-    "start_time": null,
-    "time_preference": null,
-    "booking_type": null,
-    "home_address": null,
-    "home_lat": null,
-    "home_long": null
-  },
-  "missing_fields": [],
-  "last_confirmed_snapshot": null,
-  "interruption_state": null,
-  "updated_at": "2026-03-27T00:00:00Z"
-}
-```
-
-## Desired State Machine
+## Delivery Strategy
 
 ```mermaid
-stateDiagram-v2
-    [*] --> IDLE
-    IDLE --> COLLECTING: booking intent detected
-    COLLECTING --> REVIEWING: enough fields collected
-    REVIEWING --> CONFIRMING: user confirms summary
-    CONFIRMING --> COMPLETED: booking created
-    COLLECTING --> SUSPENDED: user interrupts with another request
-    REVIEWING --> SUSPENDED: user interrupts with another request
-    SUSPENDED --> COLLECTING: resume booking
-    COLLECTING --> CANCELLED: user cancels
-    REVIEWING --> CANCELLED: user cancels
-    COMPLETED --> IDLE
-    CANCELLED --> IDLE
+flowchart TD
+    A[Phase 1: Must Fix Before Production] --> B[Phase 2: Stabilize And Harden]
+    B --> C[Phase 3: Optimize And Simplify]
+    C --> D[Production Sign-off]
 ```
 
-## Implementation Plan
+## Phase 1 - Must Fix Before Production
 
-### Phase 1. Define booking session model
+Goal: eliminate blockers that can cause unsafe actions, broken recovery, poor supportability, or production debugging failure.
 
-Create a dedicated module for booking workflow state, for example:
+### 1. Action Safety Gate
 
-- `petties-agent-serivce/app/core/agents/booking_session.py`
+Problem:
 
-Responsibilities:
+- Booking creation still relies too much on prompt compliance.
+- Confirmation can still be interpreted too loosely in ambiguous turns.
 
-- define `BookingSessionState`
-- define draft merge rules
-- define invalidation rules
-- define transition rules
-- expose helpers such as:
-  - `start_booking_session()`
-  - `merge_user_booking_input()`
-  - `apply_tool_result_to_booking_state()`
-  - `suspend_booking_session()`
-  - `cancel_booking_session()`
-  - `complete_booking_session()`
+Tasks:
 
-### Phase 2. Persist booking state per chat session
+- Add deterministic backend gate before `create_booking_for_user`.
+- Require explicit validated confirmation state before mutation tools run.
+- Reject or clarify on ambiguous confirmation such as `ừ`, `ok`, `đúng rồi` when summary state is incomplete.
+- Re-check ownership and required fields before final mutation.
 
-Store booking state in MongoDB session metadata so it survives across turns and reconnects.
+Target files:
 
-Required areas:
+- `petties-agent-serivce/app/core/agents/single_agent.py`
+- `petties-agent-serivce/app/core/agents/prompt_builder.py`
+- `petties-agent-serivce/app/core/tools/mcp_tools/booking_tools.py`
+- `petties-agent-serivce/app/core/tools/mcp_tools/booking_session_tools.py`
 
+Acceptance criteria:
+
+- Booking is never created unless backend-deterministic conditions are satisfied.
+- Ambiguous confirmation triggers clarification, not mutation.
+- Duplicate confirm click or repeated confirm message is idempotent or safely rejected.
+
+### 2. Business Error Taxonomy
+
+Problem:
+
+- Error contract is better, but business coverage is still incomplete.
+- UI cannot render consistent recovery behavior without stable business codes.
+
+Tasks:
+
+- Define shared business error code set.
+- Map all major booking and medical failures to explicit codes.
+- Separate recoverable vs non-recoverable behavior.
+- Ensure `tool -> websocket -> frontend` preserves the same code.
+
+Minimum required codes:
+
+- `NO_SLOTS_AVAILABLE`
+- `BOOKING_CONFLICT`
+- `PET_NOT_FOUND`
+- `CLINIC_NOT_FOUND`
+- `SERVICE_NOT_FOUND`
+- `INVALID_DATE`
+- `UNAUTHORIZED`
+- `FORBIDDEN`
+- `RATE_LIMITED`
+- `INTERNAL_ERROR`
+
+Target files:
+
+- `petties-agent-serivce/app/core/tools/contracts.py`
+- `petties-agent-serivce/app/core/tools/mcp_tools/*.py`
+- `petties-agent-serivce/app/core/presentation/builder.py`
+- `petties-agent-serivce/app/api/websocket/chat.py`
+- web/mobile chatbot FE models and renderers
+
+Acceptance criteria:
+
+- Each required failure scenario emits a deterministic `error_code`.
+- FE renders recoverable/non-recoverable errors differently and correctly.
+
+### 3. Logging, Redaction, Observability
+
+Problem:
+
+- Current logs are useful for debugging but too close to user/tool payloads.
+- There is no production-grade metrics layer for tool latency and error funnels.
+
+Tasks:
+
+- Redact PII/PHI from logs (`pet_id`, `user_id`, address, medical details where needed).
+- Add correlation id per session/turn.
+- Add structured metrics/logs for:
+  - tool latency
+  - tool error counts by `error_code`
+  - timeout counts
+  - reconnect counts
+  - booking funnel (`started`, `reviewed`, `confirmed`, `created`, `cancelled`)
+- Distinguish debug logging from production logging.
+
+Target files:
+
+- `petties-agent-serivce/app/core/tools/executor.py`
+- `petties-agent-serivce/app/api/websocket/chat.py`
+- `petties-agent-serivce/app/core/agents/single_agent.py`
+- relevant logging helpers/config
+
+Acceptance criteria:
+
+- No sensitive raw payload is logged at info/warning/error level.
+- A failed turn can be traced end-to-end by correlation id.
+- Production support can answer: which tool failed, how often, how long, and in which session bucket.
+
+### 4. State and Recovery Policy
+
+Problem:
+
+- `booking_state` survives reconnect, but full graph state does not.
+- Behavior across restart, multi-tab, or multi-device is not explicitly locked down.
+
+Tasks:
+
+- Document and implement session recovery policy.
+- Decide behavior for:
+  - service restart
+  - multi-tab same session
+  - multi-device same session
+  - reconnect while stream/tool is mid-flight
+- Add explicit conflict handling or last-connection-wins policy.
+
+Target files:
+
+- `petties-agent-serivce/app/api/websocket/chat.py`
 - `petties-agent-serivce/app/core/database/mongodb.py`
-- `petties-agent-serivce/app/api/routes/chat.py`
+- `petties-agent-serivce/app/core/agents/single_agent.py`
+
+Acceptance criteria:
+
+- Session behavior is deterministic for reconnect and concurrent connections.
+- No silent state corruption when two sockets share one session.
+
+### 5. Contract Conformance Between Backend And Frontend
+
+Problem:
+
+- FE has caught up to the current contract, but there is no strong conformance barrier.
+- New tool/schema changes can still silently break rendering.
+
+Tasks:
+
+- Add contract tests for WS events and `ui_schema` payloads.
+- Verify FE handling for:
+  - `thinking_stream`
+  - `tool_call`
+  - `tool_result`
+  - `ui_schema`
+  - `booking_state_update`
+  - structured `error`
+- Add safe fallback for unknown component/action where missing.
+
+Target files:
+
+- `petties-agent-serivce/app/api/schemas/websocket_schemas.py`
+- `petties-agent-serivce/tests/test_websocket_chat.py`
+- `petties-web/src/components/spotlight/SpotlightProvider.tsx`
+- `petties-web/src/pages/staff/StaffAIChatPage.tsx`
+- `petties_mobile/lib/data/models/ai_chat.dart`
+- `petties_mobile/lib/ui/chat/ai_chat/ai_chat_screen.dart`
+
+Acceptance criteria:
+
+- All emitted core events are parseable by web and mobile clients.
+- Unknown/unsupported schema pieces degrade safely, not catastrophically.
+
+## Phase 2 - Stabilize And Harden
+
+Goal: reduce production ambiguity, improve trustworthiness, and increase audit completeness.
+
+### 6. Deterministic Safety And Refusal Behavior
+
+Tasks:
+
+- Add explicit refusal and clarification policy for high-risk questions.
+- Prevent staff clinical flows from using external web sources when not allowed.
+- Add hard guard for unsupported actions or unsafe scope expansion.
+- Distinguish informational answer vs transactional answer vs medical caution answer.
+
+Target files:
+
+- `petties-agent-serivce/app/core/context_policy.py`
+- `petties-agent-serivce/app/core/agents/prompt_builder.py`
+- `petties-agent-serivce/app/core/agents/tool_routing.py`
+- `petties-agent-serivce/app/core/agents/single_agent.py`
+
+Acceptance criteria:
+
+- High-risk prompts result in refusal/clarification when required.
+- Staff clinical answers do not silently drift to public web fallback.
+
+### 7. Expanded Regression And Scenario Coverage
+
+Tasks:
+
+- Add end-to-end tests for:
+  - long multi-turn booking
+  - repeated confirmation
+  - off-topic interruption and resume
+  - reconnect during booking
+  - rate limited tool response
+  - no-slot and conflict scenarios
+  - unauthorized/ownership mismatch
+
+Target files:
+
+- `petties-agent-serivce/tests/`
+- web/mobile chatbot tests where applicable
+
+Acceptance criteria:
+
+- Core user journeys and major failure journeys are covered by automated tests.
+
+### 8. Presentation And UI Contract Refinement
+
+Tasks:
+
+- Audit `INTENT_MAP` and empty/error fallback per tool.
+- Add error-card behavior by error class, not only generic error card.
+- Validate action payloads against FE-supported render contract.
+- Reduce legacy event branches when safe.
+
+Target files:
+
+- `petties-agent-serivce/app/core/presentation/builder.py`
+- web/mobile chatbot renderers and model parsers
+
+Acceptance criteria:
+
+- UI responses are predictable, actionable, and do not depend on hidden FE assumptions.
+
+## Phase 3 - Optimize And Simplify
+
+Goal: reduce cost/latency, simplify extension, and prepare sustainable maintenance.
+
+### 9. Latency And Throughput Optimization
+
+Tasks:
+
+- Cache tool schemas / enabled tool lookups where safe.
+- Reduce prompt bloat from long history and repeated state injection.
+- Benchmark latency by intent type.
+- Measure timeout hotspots and cut avoidable DB or normalization overhead.
+
+Target files:
+
+- `petties-agent-serivce/app/core/tools/executor.py`
+- `petties-agent-serivce/app/core/agents/prompt_builder.py`
 - `petties-agent-serivce/app/api/websocket/chat.py`
 
-Required behavior:
+Acceptance criteria:
 
-- load booking state at the beginning of each message handling cycle
-- update it after every meaningful user action or tool result
-- clear or archive it when booking is completed or cancelled
+- Latency budget is known and measured for knowledge, booking, and staff flows.
 
-### Phase 3. Drive the agent with booking state
+### 10. Extensibility And Change Safety
 
-Inject booking state into the think step before tool selection.
+Tasks:
 
-Required changes:
+- Create checklist/template for adding a new tool:
+  - tool contract
+  - policy/whitelist
+  - presentation mapping
+  - websocket schema impact
+  - FE parser/render support
+  - tests
+- Add golden/schema-based tests for representative `ui_schema` payloads.
+- Reduce unnecessary compat layers after contract becomes stable.
 
-- `single_agent.py` should receive active booking draft and missing fields
-- prompt construction should explicitly tell the model:
-  - continue existing booking if active
-  - do not ask again for resolved fields
-  - treat contradictory user input as draft updates
-  - treat off-topic user requests as interruption or takeover depending on intent strength
+Acceptance criteria:
 
-### Phase 4. Add booking reducer logic
+- Adding a new tool no longer relies on tribal knowledge.
 
-Build deterministic merge and invalidation rules.
+## Priority Order
 
-Examples:
+Implementation order must be:
 
-- update clinic:
-  - keep pet
-  - clear services
-  - clear slot
-- update date:
-  - keep clinic and services
-  - clear slot
-- update booking type to `HOME_VISIT`:
-  - require address and coordinates
-- update pet:
-  - re-check service compatibility
+1. Action safety gate
+2. Business error taxonomy
+3. Logging, redaction, observability
+4. State and recovery policy
+5. Backend/Frontend contract conformance
+6. Deterministic refusal and safety hardening
+7. Expanded regression coverage
+8. Presentation refinement
+9. Latency optimization
+10. Extensibility hardening
 
-### Phase 5. Add interruption and resume handling
+## Verification Commands
 
-Introduce explicit interruption handling rules:
+Backend:
 
-- If the user asks a short side question while booking is active, answer it and keep booking state as `SUSPENDED`.
-- If the user clearly updates booking details, keep the same booking session and patch the draft.
-- If the user clearly cancels, move to `CANCELLED`.
-- If the user starts a stronger unrelated intent, close or suspend booking based on policy.
+- `python -m pytest tests/test_booking_tools.py tests/test_booking_session.py tests/test_tool_contracts.py tests/test_medical_tools.py tests/test_websocket_chat.py`
+- `python -m py_compile app/api/websocket/chat.py app/core/agents/prompt_builder.py app/core/agents/single_agent.py app/core/tools/executor.py`
 
-### Phase 6. Make WebSocket and mobile consume booking state
+Web:
 
-The server should send structured booking state events instead of relying only on inferred `stage`.
+- `npm run build`
+- `npx eslint src/components/spotlight/SpotlightProvider.tsx src/pages/staff/StaffAIChatPage.tsx`
 
-Suggested additions:
+Mobile:
 
-- WebSocket event with `booking_state`
-- optional `draft_summary`
-- optional `missing_fields`
+- `flutter analyze lib/data/models/ai_chat.dart lib/ui/chat/ai_chat/ai_chat_screen.dart`
+- `flutter test`
 
-Mobile responsibilities:
+## Production Exit Criteria
 
-- render booking progress from server state
-- use local tracker only as temporary UI cache
-- stop treating client-side tracker as the source of truth
+The chatbot can be considered production-ready only when all of the following are true:
 
-### Phase 7. Add test coverage
+- booking mutation is gated deterministically
+- required business error codes are fully mapped end-to-end
+- logging is redacted and correlation-aware
+- reconnect and concurrent session behavior is deterministic
+- WS and UI schema contracts are covered by automated conformance tests
+- high-risk safety/refusal behavior is explicitly enforced
+- core regression suite is green and representative
 
-Required tests:
+## Deliverables
 
-- booking starts when intent is detected
-- complete one-prompt booking does not ask again for the same field
-- clinic change invalidates service and slot
-- date change invalidates slot only
-- interruption preserves draft
-- resume continues previous draft
-- cancel clears active booking state
-- completed booking exits booking mode
+- updated backend safety gates
+- finalized business error taxonomy
+- observability and redaction baseline
+- contract conformance tests
+- expanded scenario tests
+- updated audit/checklist documents
 
-## Before vs After
+## Tracking Checklist
 
-### Before
-
-- booking flow depends heavily on prompt interpretation and recent trace
-- state is fragmented across multiple layers
-- asking again for already provided information is common
-- mid-flow requirement changes are not handled systematically
-- interruptions can break the flow
-
-### After
-
-- booking flow is driven by a persisted server-side state
-- every turn reads and updates the same booking draft
-- the assistant knows what is collected and what is missing
-- user changes are treated as draft updates
-- interruptions are handled without losing progress
-
-## Acceptance Criteria
-
-- The assistant does not ask again for clinic, pet, date, time, or services if they are already resolved in the active booking session.
-- A single prompt containing enough booking information can move directly to review or confirmation without unnecessary clarification.
-- A user can change clinic, date, time, or service in later turns and the draft updates predictably.
-- A user can interrupt booking with another question and later resume without re-entering already known details.
-- Booking state is persisted per session and restored after reconnect or history reload.
-
-## Recommended First Deliverable
-
-The first implementation slice should focus on backend and AI service only:
-
-1. Add `BookingSessionState`
-2. Persist it in MongoDB session metadata
-3. Inject it into `single_agent.py`
-4. Add reducer rules for clinic/date/service updates
-5. Add multi-turn regression tests
-
-Only after that should mobile be updated to consume server-driven booking state.
+- [x] Phase 1.1 Action safety gate
+- [x] Phase 1.2 Business error taxonomy
+- [ ] Phase 1.3 Logging, redaction, observability
+- [ ] Phase 1.4 State and recovery policy
+- [ ] Phase 1.5 Contract conformance
+- [ ] Phase 2.6 Safety and refusal hardening
+- [ ] Phase 2.7 Expanded regression coverage
+- [ ] Phase 2.8 Presentation refinement
+- [ ] Phase 3.9 Latency optimization
+- [ ] Phase 3.10 Extensibility hardening
+- [ ] Final production sign-off

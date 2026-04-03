@@ -1,4 +1,4 @@
-﻿"""
+"""
 Presentation Layer Builder
 Converts raw tool data into UISchemaV1.
 """
@@ -14,6 +14,7 @@ from .ui_schema import (
     UIComponent,
     UISchemaV1,
 )
+from app.core.tools.contracts import get_error_title
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ INTENT_MAP: Dict[str, str] = {
     "create_booking_for_user": "show_booking_summary",
     "get_patient_summary": "show_emr_summary",
     "check_vaccination_status": "show_vaccination_status",
+    "quick_booking_search": "show_quick_booking",
 }
 
 
@@ -36,6 +38,7 @@ def _is_empty_result(data: Dict[str, Any]) -> bool:
     if not data:
         return True
 
+    has_non_empty_signal = False
     for key in (
         "pets",
         "clinics",
@@ -45,8 +48,26 @@ def _is_empty_result(data: Dict[str, Any]) -> bool:
         "upcoming",
         "recent_exams",
     ):
-        if key in data and isinstance(data[key], list) and len(data[key]) == 0:
-            return True
+        if key in data and isinstance(data[key], list):
+            if len(data[key]) > 0:
+                has_non_empty_signal = True
+            elif not has_non_empty_signal:
+                continue
+
+    if has_non_empty_signal:
+        return False
+
+    for key in (
+        "pets",
+        "clinics",
+        "services",
+        "available_slots",
+        "history",
+        "upcoming",
+        "recent_exams",
+    ):
+        if key in data and isinstance(data[key], list):
+            return len(data[key]) == 0
 
     return False
 
@@ -122,7 +143,7 @@ def build_error_card(error: Dict[str, Any]) -> UIComponent:
         id=f"err_{error.get('error_code', 'unknown')}",
         data={
             "error_code": error.get("error_code", "UNKNOWN_ERROR"),
-            "title": error.get("title", "Lỗi"),
+            "title": error.get("title") or get_error_title(error.get("error_code")),
             "message": error.get("message", "Đã có lỗi xảy ra"),
             "recoverable": error.get("recoverable", True),
         },
@@ -137,14 +158,26 @@ def _build_empty_state(intent: str, data: Dict[str, Any]) -> UIComponent:
         data={
             "icon": "search_off",
             "title": "Không tìm thấy dữ liệu",
-            "message": data.get("message")
-            or "Vui lòng thử lại với thông tin khác.",
+            "message": data.get("message") or "Vui lòng thử lại với thông tin khác.",
+            "suggestion_action": {
+                "type": ActionType.RETRY_WITH_CHANGE.value,
+                "label": "Thử lại với thông tin khác",
+            },
         },
+        actions=[
+            UIAction(
+                type=ActionType.RETRY_WITH_CHANGE,
+                label="Thử lại với thông tin khác",
+                payload={"change_target": intent},
+            )
+        ],
     )
 
 
 def _build_service_selection_components(data: Dict[str, Any]) -> List[UIComponent]:
-    clinic_id = str(data.get("resolved_clinic_id") or data.get("clinic_id") or "").strip()
+    clinic_id = str(
+        data.get("resolved_clinic_id") or data.get("clinic_id") or ""
+    ).strip()
     pet_id = str(data.get("resolved_pet_id") or data.get("pet_id") or "").strip()
     services = data.get("matched_services") or data.get("services") or []
     ordered_services = _dedupe_services(
@@ -175,7 +208,7 @@ def _build_service_selection_components(data: Dict[str, Any]) -> List[UIComponen
                 actions=[
                     UIAction(
                         type=ActionType.SELECT_ITEM,
-                        label="Chá»n",
+                        label="Chọn",
                         payload={
                             "item_id": service.get("id"),
                             "item_type": "service",
@@ -194,13 +227,13 @@ def _build_service_selection_components(data: Dict[str, Any]) -> List[UIComponen
             id=f"{group_id}_continue",
             data={
                 "group_id": group_id,
-                "label": "Tiáº¿p tá»¥c",
+                "label": "Tiếp tục",
                 "variant": "primary",
             },
             actions=[
                 UIAction(
                     type=ActionType.SELECT_SERVICES,
-                    label="Tiáº¿p tá»¥c",
+                    label="Tiếp tục",
                     payload={
                         "group_id": group_id,
                         "clinic_id": clinic_id,
@@ -216,9 +249,13 @@ def _build_service_selection_components(data: Dict[str, Any]) -> List[UIComponen
 
 def _build_slot_components(data: Dict[str, Any]) -> List[UIComponent]:
     slots = data.get("available_slots") or data.get("recommended_slots") or []
-    clinic_id = str(data.get("resolved_clinic_id") or data.get("clinic_id") or "").strip()
+    clinic_id = str(
+        data.get("resolved_clinic_id") or data.get("clinic_id") or ""
+    ).strip()
     booking_date = str(data.get("date") or "").strip()
-    service_ids = _normalize_list(data.get("resolved_service_ids") or data.get("services"))
+    service_ids = _normalize_list(
+        data.get("resolved_service_ids") or data.get("services")
+    )
     service_names = _normalize_list(
         data.get("resolved_service_names") or data.get("services")
     )
@@ -244,7 +281,7 @@ def _build_slot_components(data: Dict[str, Any]) -> List[UIComponent]:
                 actions=[
                     UIAction(
                         type=ActionType.SELECT_ITEM,
-                        label="Chá»n",
+                        label="Chọn",
                         payload={
                             "item_id": slot_id,
                             "item_type": "slot",
@@ -290,17 +327,17 @@ def _build_booking_summary_component(data: Dict[str, Any]) -> UIComponent:
         actions = [
             UIAction(
                 type=ActionType.OPEN_NATIVE_CONFIRM,
-                label="Má»Ÿ mÃ n xÃ¡c nháº­n",
+                label="Mở màn xác nhận",
                 payload=_build_booking_handoff_payload(data),
             ),
             UIAction(
                 type=ActionType.RETRY_WITH_CHANGE,
-                label="Chá»‰nh láº¡i",
+                label="Chỉnh lại",
                 payload={"change_target": "booking_details"},
             ),
             UIAction(
                 type=ActionType.CANCEL_FLOW,
-                label="Há»§y",
+                label="Hủy",
                 payload={},
             ),
         ]
@@ -308,7 +345,7 @@ def _build_booking_summary_component(data: Dict[str, Any]) -> UIComponent:
         actions = [
             UIAction(
                 type=ActionType.OPEN_DETAIL,
-                label="Xem chi tiáº¿t",
+                label="Xem chi tiết",
                 payload={
                     "route": "booking_detail",
                     "id": booking_payload.get("id"),
@@ -338,6 +375,157 @@ def _build_booking_summary_component(data: Dict[str, Any]) -> UIComponent:
     )
 
 
+def _build_quick_booking_components(data: Dict[str, Any]) -> List[UIComponent]:
+    """Build all-in-one quick booking UI: clinic + services + slots in one go."""
+    components: List[UIComponent] = []
+
+    clinics_with_slots = data.get("clinics_with_slots", [])
+    has_results = data.get("has_results", False)
+
+    if not has_results or not clinics_with_slots:
+        missing_info = data.get("missing_info", [])
+        message = data.get("message", "Không tìm được phòng khám phù hợp")
+        components.append(
+            UIComponent(
+                type=ComponentType.EMPTY_STATE,
+                id="quick_booking_empty",
+                data={
+                    "icon": "search_off",
+                    "title": "Không tìm được lịch hẹn",
+                    "message": message,
+                    "missing_info": missing_info,
+                    "suggestion": "Bạn thử điều chỉnh yêu cầu: ngày khác, dịch vụ khác, hoặc địa điểm khác xem sao?",
+                },
+                actions=[
+                    UIAction(
+                        type=ActionType.RETRY_WITH_CHANGE,
+                        label="Thử yêu cầu khác",
+                        payload={"intent": "quick_booking"},
+                    )
+                ],
+            )
+        )
+        return components
+
+    components.append(
+        UIComponent(
+            type=ComponentType.TEXT,
+            id="quick_booking_header",
+            data={
+                "content": "Dưới đây là các lịch hẹn phù hợp với yêu cầu của bạn. Chọn phòng khám, dịch vụ và khung giờ bạn muốn:"
+            },
+        )
+    )
+
+    for idx, clinic_data in enumerate(clinics_with_slots):
+        clinic = clinic_data.get("clinic", {})
+        services = clinic_data.get("services", [])
+        slots = clinic_data.get("slots", [])
+        available_date = clinic_data.get("available_date")
+
+        clinic_with_details = dict(clinic)
+        clinic_with_details["services"] = services
+        clinic_with_details["available_slots"] = slots
+        clinic_with_details["available_date"] = available_date
+        clinic_with_details["match_score"] = clinic_data.get("match_score", 0)
+
+        components.append(
+            UIComponent(
+                type=ComponentType.CLINIC_CARD,
+                id=f"quick_clinic_{clinic.get('id', idx)}",
+                data=clinic_with_details,
+                actions=[
+                    UIAction(
+                        type=ActionType.SELECT_ITEM,
+                        label="Chọn phòng khám này",
+                        payload={
+                            "item_id": clinic.get("id"),
+                            "item_type": "clinic",
+                            "source": "quick_booking",
+                        },
+                    )
+                ],
+            )
+        )
+
+        if services:
+            for s_idx, service in enumerate(services):
+                service_data = dict(service)
+                service_data["clinic_id"] = clinic.get("id")
+                service_data["clinic_name"] = clinic.get("name")
+                service_data["available_date"] = available_date
+                service_data["available_slots"] = slots
+
+                components.append(
+                    UIComponent(
+                        type=ComponentType.SERVICE_CHIP,
+                        id=f"quick_service_{clinic.get('id')}_{service.get('id', s_idx)}",
+                        data=service_data,
+                        actions=[
+                            UIAction(
+                                type=ActionType.SELECT_SERVICES,
+                                label="Chọn",
+                                payload={
+                                    "service_id": service.get("id"),
+                                    "service_name": service.get("name"),
+                                    "clinic_id": clinic.get("id"),
+                                    "clinic_name": clinic.get("name"),
+                                    "available_date": available_date,
+                                    "slots": slots,
+                                    "source": "quick_booking",
+                                },
+                            )
+                        ],
+                    )
+                )
+
+        if slots:
+            for s_idx, slot in enumerate(slots):
+                slot_data = dict(slot)
+                slot_data["clinic_id"] = clinic.get("id")
+                slot_data["clinic_name"] = clinic.get("name")
+                slot_data["service_ids"] = [s.get("id") for s in services]
+                slot_data["service_names"] = [s.get("name") for s in services]
+                slot_data["available_date"] = available_date
+                slot_data["source"] = "quick_booking"
+
+                components.append(
+                    UIComponent(
+                        type=ComponentType.SLOT_BUTTON,
+                        id=f"quick_slot_{clinic.get('id')}_{slot.get('date')}_{s_idx}",
+                        data=slot_data,
+                        actions=[
+                            UIAction(
+                                type=ActionType.SELECT_ITEM,
+                                label=f"{slot.get('startTime') or slot.get('time')} - {slot.get('endTime', '')}",
+                                payload={
+                                    "slot_date": slot.get("date"),
+                                    "slot_time": slot.get("startTime")
+                                    or slot.get("time"),
+                                    "clinic_id": clinic.get("id"),
+                                    "clinic_name": clinic.get("name"),
+                                    "service_ids": [s.get("id") for s in services],
+                                    "service_names": [s.get("name") for s in services],
+                                    "source": "quick_booking",
+                                },
+                            )
+                        ],
+                    )
+                )
+
+    components.append(
+        UIComponent(
+            type=ComponentType.BADGE,
+            id="quick_booking_hint",
+            data={
+                "content": "Tip: Bạn có thể chọn phòng khám → dịch vụ → giờ trong 1 lần. Khi đã chọn đủ, hệ thống sẽ hiển thị nút xác nhận đặt lịch.",
+            },
+        )
+    )
+
+    return components
+
+
 def _build_components_for_intent(
     intent: str, tool_name: str, data: Dict[str, Any]
 ) -> List[UIComponent]:
@@ -353,7 +541,7 @@ def _build_components_for_intent(
                     actions=[
                         UIAction(
                             type=ActionType.SELECT_ITEM,
-                            label="Chá»n",
+                            label="Chọn",
                             payload={
                                 "item_id": pet.get("id"),
                                 "item_type": "pet",
@@ -373,7 +561,7 @@ def _build_components_for_intent(
                     actions=[
                         UIAction(
                             type=ActionType.SELECT_ITEM,
-                            label="Chá»n",
+                            label="Chọn",
                             payload={
                                 "item_id": clinic.get("id"),
                                 "item_type": "clinic",
@@ -412,6 +600,9 @@ def _build_components_for_intent(
             )
         )
 
+    elif intent == "show_quick_booking":
+        components.extend(_build_quick_booking_components(data))
+
     elif intent == "show_text":
         content = (
             data.get("message")
@@ -441,8 +632,10 @@ def build_ui_schema(tool_results: List[Dict[str, Any]]) -> Optional[UISchemaV1]:
     for index, tool_result in enumerate(tool_results):
         tool_name = str(tool_result.get("tool_name", "") or "")
         success = tool_result.get("success", True)
-        data = tool_result.get("data", tool_result) if success else tool_result.get(
-            "error", tool_result
+        data = (
+            tool_result.get("data", tool_result)
+            if success
+            else tool_result.get("error", tool_result)
         )
 
         std_result: Dict[str, Any] = {"success": success, "data": data}
@@ -457,7 +650,7 @@ def build_ui_schema(tool_results: List[Dict[str, Any]]) -> Optional[UISchemaV1]:
         if is_composite:
             title_text = tool_name.replace("_", " ").title()
             if intent == "show_error":
-                title_text = f"Lá»—i: {title_text}"
+                title_text = f"Lỗi: {title_text}"
             all_components.append(
                 UIComponent(
                     type=ComponentType.TEXT,
@@ -481,7 +674,9 @@ def build_ui_schema(tool_results: List[Dict[str, Any]]) -> Optional[UISchemaV1]:
 
         if not is_composite:
             if intent == "show_clinic_list":
-                final_layout = LayoutType.CARD if len(components) == 1 else LayoutType.GRID
+                final_layout = (
+                    LayoutType.CARD if len(components) == 1 else LayoutType.GRID
+                )
             elif intent == "show_available_slots":
                 final_layout = LayoutType.SLOT_GRID
             elif intent in (

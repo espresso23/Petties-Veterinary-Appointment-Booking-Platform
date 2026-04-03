@@ -88,6 +88,8 @@ class ToolResponse(BaseModel):
     input_schema: Optional[Dict[str, Any]] = None
     output_schema: Optional[Dict[str, Any]] = None
     enabled: bool
+    is_system_managed: bool = False  # True if tool is in SYSTEM_MANAGED_TOOLS
+    is_admin_configurable: bool = False  # True if tool is in ADMIN_CONFIGURABLE_TOOLS
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

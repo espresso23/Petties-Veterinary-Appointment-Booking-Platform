@@ -301,10 +301,22 @@ class AiBookingTrackerCard extends StatelessWidget {
           icon: Icons.schedule,
           label: tracker.startTime ?? '',
         ),
+      if ((tracker.status ?? '').trim().isNotEmpty)
+        _AiTrackerChip(
+          icon: Icons.info_outline,
+          label: _mapStatusToVietnamese(tracker.status!),
+          backgroundColor: _getStatusColor(tracker.status!),
+        ),
       if (tracker.serviceNames.isNotEmpty)
         _AiTrackerChip(
           icon: Icons.medical_services_outlined,
           label: tracker.serviceNames.join(', '),
+        ),
+      if ((tracker.notes ?? '').trim().isNotEmpty)
+        _AiTrackerChip(
+          icon: Icons.note_alt_outlined,
+          label: tracker.notes!,
+          backgroundColor: AppColors.infoLight,
         ),
     ];
 
@@ -352,36 +364,44 @@ class AiChatComposerSuggestions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: suggestions
-            .map(
-              (suggestion) => GestureDetector(
-                onTap: () => onSuggestionTap(suggestion),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: AppColors.primarySurface,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: AppColors.stone900, width: 1.5),
-                  ),
-                  child: Text(
-                    suggestion,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.stone900,
-                    ),
+    final screenWidth = MediaQuery.of(context).size.width;
+    final maxChipWidth = screenWidth * 0.65;
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 72),
+      child: SingleChildScrollView(
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: suggestions.map((suggestion) {
+            final displayText = suggestion.length > 55
+                ? '${suggestion.substring(0, 55)}...'
+                : suggestion;
+            return GestureDetector(
+              onTap: () => onSuggestionTap(suggestion),
+              child: Container(
+                constraints: BoxConstraints(maxWidth: maxChipWidth),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.primarySurface,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: AppColors.stone900, width: 1.5),
+                ),
+                child: Text(
+                  displayText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.stone900,
                   ),
                 ),
               ),
-            )
-            .toList(),
+            );
+          }).toList(),
+        ),
       ),
     );
   }
@@ -417,23 +437,23 @@ class AiChatComposer extends StatelessWidget {
 
   Future<void> _pickImages(BuildContext context) async {
     if (onImagesSelected == null) return;
-    
+
     final picker = ImagePicker();
     final pickedFiles = await picker.pickMultiImage(
       maxWidth: 1024,
       maxHeight: 1024,
       imageQuality: 85,
     );
-    
+
     if (pickedFiles.isEmpty) return;
-    
+
     final imagePaths = <String>[];
     for (final file in pickedFiles) {
       final bytes = await File(file.path).readAsBytes();
       final base64 = base64Encode(bytes);
       imagePaths.add('data:image/jpeg;base64,$base64');
     }
-    
+
     onImagesSelected!(imagePaths);
   }
 
@@ -446,7 +466,7 @@ class AiChatComposer extends StatelessWidget {
     final shouldShowTracker = tracker.hasData && !isKeyboardVisible;
     final shouldShowError = errorText != null && !isKeyboardVisible;
     final shouldShowImages = hasImages && !isKeyboardVisible;
-    final composerMaxLines = isKeyboardVisible ? 2 : 3;
+    final composerMaxLines = isKeyboardVisible ? 8 : 10;
     final verticalPadding = isKeyboardVisible ? 6.0 : 8.0;
 
     return Container(
@@ -463,131 +483,109 @@ class AiChatComposer extends StatelessWidget {
         ),
       ),
       child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (shouldShowTracker) AiBookingTrackerCard(tracker: tracker),
-            if (shouldShowSuggestions)
-              AiChatComposerSuggestions(
-                suggestions: suggestions,
-                onSuggestionTap: onSuggestionTap,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (shouldShowTracker) AiBookingTrackerCard(tracker: tracker),
+          if (shouldShowSuggestions)
+            AiChatComposerSuggestions(
+              suggestions: suggestions,
+              onSuggestionTap: onSuggestionTap,
+            ),
+          if (shouldShowError) ...[
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.errorLight,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.error, width: 1.5),
               ),
-            if (shouldShowError) ...[
-              Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(bottom: 8),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppColors.errorLight,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.error, width: 1.5),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.warning_amber_rounded,
-                      color: AppColors.error,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        errorText!,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.errorDark,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            if (shouldShowImages) ...[
-              SizedBox(
-                height: 80,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: selectedImages!.length,
-                  itemBuilder: (context, index) {
-                    final imageData = selectedImages![index];
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: Stack(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.memory(
-                              Uri.parse(imageData).data!.contentAsBytes(),
-                              width: 60,
-                              height: 60,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                          Positioned(
-                            top: 0,
-                            right: 0,
-                            child: GestureDetector(
-                              onTap: () {
-                                final newList = List<String>.from(selectedImages!)..removeAt(index);
-                                onImagesSelected!(newList);
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.all(2),
-                                decoration: const BoxDecoration(
-                                  color: AppColors.error,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.close,
-                                  size: 14,
-                                  color: AppColors.white,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 8),
-            ],
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                if (onImagesSelected != null)
-                  GestureDetector(
-                    onTap: isBusy ? null : () => _pickImages(context),
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: AppColors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.stone900, width: 2),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: AppColors.stone900,
-                            offset: Offset(2, 2),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.add_photo_alternate_outlined,
-                        color: AppColors.stone900,
-                        size: 20,
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.warning_amber_rounded,
+                    color: AppColors.error,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      errorText!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.errorDark,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
-                if (onImagesSelected != null) const SizedBox(width: 8),
-                Expanded(
+                ],
+              ),
+            ),
+          ],
+          if (shouldShowImages) ...[
+            SizedBox(
+              height: 80,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: selectedImages!.length,
+                itemBuilder: (context, index) {
+                  final imageData = selectedImages![index];
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.memory(
+                            Uri.parse(imageData).data!.contentAsBytes(),
+                            width: 60,
+                            height: 60,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        Positioned(
+                          top: 0,
+                          right: 0,
+                          child: GestureDetector(
+                            onTap: () {
+                              final newList = List<String>.from(selectedImages!)
+                                ..removeAt(index);
+                              onImagesSelected!(newList);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: const BoxDecoration(
+                                color: AppColors.error,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.close,
+                                size: 14,
+                                color: AppColors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (onImagesSelected != null)
+                GestureDetector(
+                  onTap: isBusy ? null : () => _pickImages(context),
                   child: Container(
-                    constraints: const BoxConstraints(maxHeight: 100),
+                    width: 40,
+                    height: 40,
                     decoration: BoxDecoration(
                       color: AppColors.white,
                       borderRadius: BorderRadius.circular(8),
@@ -599,12 +597,37 @@ class AiChatComposer extends StatelessWidget {
                         ),
                       ],
                     ),
+                    child: const Icon(
+                      Icons.add_photo_alternate_outlined,
+                      color: AppColors.stone900,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              if (onImagesSelected != null) const SizedBox(width: 8),
+              Expanded(
+                child: Container(
+                  constraints: const BoxConstraints(maxHeight: 200),
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.stone900, width: 2),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: AppColors.stone900,
+                        offset: Offset(2, 2),
+                      ),
+                    ],
+                  ),
+                  child: Scrollbar(
                     child: TextField(
                       controller: controller,
+                      keyboardType: TextInputType.multiline,
+                      textCapitalization: TextCapitalization.sentences,
                       minLines: 1,
                       maxLines: composerMaxLines,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => onSend(),
+                      scrollPadding: const EdgeInsets.symmetric(vertical: 8),
+                      textInputAction: TextInputAction.newline,
                       style: const TextStyle(fontSize: 14),
                       decoration: const InputDecoration(
                         hintText: 'Nhập câu hỏi cho trợ lý AI...',
@@ -620,41 +643,42 @@ class AiChatComposer extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: isBusy ? null : onSend,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: isBusy ? AppColors.stone300 : AppColors.primary,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.stone900, width: 2),
-                      boxShadow: isSending
-                          ? null
-                          : const [
-                              BoxShadow(
-                                color: AppColors.stone900,
-                                offset: Offset(2, 2),
-                              ),
-                            ],
-                    ),
-                    child: Icon(
-                      isReconnecting
-                          ? Icons.sync
-                          : isSending
-                              ? Icons.hourglass_top
-                              : Icons.send_rounded,
-                      color: AppColors.white,
-                      size: 20,
-                    ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: isBusy ? null : onSend,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: isBusy ? AppColors.stone300 : AppColors.primary,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.stone900, width: 2),
+                    boxShadow: isSending
+                        ? null
+                        : const [
+                            BoxShadow(
+                              color: AppColors.stone900,
+                              offset: Offset(2, 2),
+                            ),
+                          ],
+                  ),
+                  child: Icon(
+                    isReconnecting
+                        ? Icons.sync
+                        : isSending
+                            ? Icons.hourglass_top
+                            : Icons.send_rounded,
+                    color: AppColors.white,
+                    size: 20,
                   ),
                 ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -662,10 +686,12 @@ class AiChatComposer extends StatelessWidget {
 class _AiTrackerChip extends StatelessWidget {
   final IconData icon;
   final String label;
+  final Color? backgroundColor;
 
   const _AiTrackerChip({
     required this.icon,
     required this.label,
+    this.backgroundColor,
   });
 
   @override
@@ -673,7 +699,7 @@ class _AiTrackerChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.white,
+        color: backgroundColor ?? AppColors.white,
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: AppColors.stone900, width: 1.5),
       ),
@@ -711,4 +737,38 @@ String _formatBookingDateLabel(String? value) {
   }
 
   return value;
+}
+
+String _mapStatusToVietnamese(String status) {
+  switch (status.toUpperCase()) {
+    case 'DRAFT':
+      return 'Đang dự thảo';
+    case 'PENDING':
+      return 'Chờ xác nhận';
+    case 'SUSPENDED':
+      return 'Chờ thêm thông tin';
+    case 'COMPLETED':
+      return 'Hoàn tất';
+    case 'CANCELLED':
+      return 'Đã hủy';
+    default:
+      return status;
+  }
+}
+
+Color _getStatusColor(String status) {
+  switch (status.toUpperCase()) {
+    case 'DRAFT':
+      return AppColors.primarySurface;
+    case 'PENDING':
+      return AppColors.successLight;
+    case 'SUSPENDED':
+      return AppColors.infoLight;
+    case 'COMPLETED':
+      return AppColors.success;
+    case 'CANCELLED':
+      return AppColors.errorLight;
+    default:
+      return AppColors.white;
+  }
 }

@@ -14,6 +14,160 @@ import re
 
 _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
+BUSINESS_ERROR_CODES = {
+    "BOOKING_ALREADY_COMPLETED",
+    "BOOKING_CONFLICT",
+    "BOOKING_CREATE_FAILED",
+    "BOOKING_SESSION_INACTIVE",
+    "CLINIC_NOT_FOUND",
+    "CONFIRMATION_CONTEXT_MISSING",
+    "CONFIRMATION_EXPIRED",
+    "CONFIRMATION_MISMATCH",
+    "CONFIRMATION_REQUIRED",
+    "FORBIDDEN",
+    "INTERNAL_ERROR",
+    "INVALID_CONFIRMATION",
+    "INVALID_DATE",
+    "INVALID_INPUT",
+    "NO_SLOTS_AVAILABLE",
+    "PET_NOT_FOUND",
+    "RATE_LIMITED",
+    "SERVICE_NOT_FOUND",
+    "TOOL_NOT_AVAILABLE",
+    "UNAUTHORIZED",
+}
+
+BUSINESS_ERROR_TITLES = {
+    "BOOKING_ALREADY_COMPLETED": "Booking đã hoàn tất",
+    "BOOKING_CONFLICT": "Xung đột booking",
+    "BOOKING_CREATE_FAILED": "Không thể tạo booking",
+    "BOOKING_SESSION_INACTIVE": "Phiên đặt lịch không còn hoạt động",
+    "CLINIC_NOT_FOUND": "Không tìm thấy phòng khám",
+    "CONFIRMATION_CONTEXT_MISSING": "Thiếu ngữ cảnh xác nhận",
+    "CONFIRMATION_EXPIRED": "Xác nhận đã hết hiệu lực",
+    "CONFIRMATION_MISMATCH": "Thông tin booking đã thay đổi",
+    "CONFIRMATION_REQUIRED": "Cần xác nhận lại booking",
+    "FORBIDDEN": "Không có quyền truy cập",
+    "INTERNAL_ERROR": "Lỗi hệ thống",
+    "INVALID_CONFIRMATION": "Xác nhận không hợp lệ",
+    "INVALID_DATE": "Ngày giờ không hợp lệ",
+    "INVALID_INPUT": "Dữ liệu chưa hợp lệ",
+    "NO_SLOTS_AVAILABLE": "Không còn slot phù hợp",
+    "PET_NOT_FOUND": "Không tìm thấy thú cưng",
+    "RATE_LIMITED": "Hệ thống đang bận",
+    "SERVICE_NOT_FOUND": "Không tìm thấy dịch vụ phù hợp",
+    "TOOL_NOT_AVAILABLE": "Công cụ không khả dụng",
+    "UNAUTHORIZED": "Cần đăng nhập lại",
+}
+
+
+def build_tool_success_response(
+    data: Any,
+    *,
+    tool_name: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+    is_final: bool = False,
+) -> Dict[str, Any]:
+    response: Dict[str, Any] = {
+        "success": True,
+        "data": data,
+        "metadata": metadata or {},
+    }
+    if tool_name:
+        response["tool_name"] = tool_name
+    if is_final:
+        response["is_final"] = True
+    return response
+
+
+def build_tool_error_response(
+    *,
+    error_code: str,
+    message: str,
+    recoverable: bool,
+    suggestion: Optional[str] = None,
+    tool_name: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    response: Dict[str, Any] = {
+        "success": False,
+        "error_code": error_code,
+        "message": message,
+        "recoverable": recoverable,
+        "suggestion": suggestion,
+        "metadata": metadata or {},
+    }
+    if tool_name:
+        response["tool_name"] = tool_name
+    return response
+
+
+def get_error_title(error_code: Optional[str]) -> str:
+    normalized = str(error_code or "INTERNAL_ERROR").strip().upper()
+    return BUSINESS_ERROR_TITLES.get(normalized, "Lỗi")
+
+
+def classify_error_code(message: str, *, default: str = "INTERNAL_ERROR") -> str:
+    normalized = str(message or "").strip().lower()
+    if any(
+        token in normalized
+        for token in [
+            "khong duoc enabled",
+            "not enabled",
+            "not found in database",
+            "not found",
+        ]
+    ):
+        return "TOOL_NOT_AVAILABLE"
+    if any(
+        token in normalized
+        for token in ["auth", "token", "dang nhap", "đăng nhập", "unauthorized"]
+    ):
+        return "UNAUTHORIZED"
+    if any(
+        token in normalized
+        for token in ["missing required parameter", "validation", "tham so", "tham số"]
+    ):
+        return "INVALID_INPUT"
+    if (
+        any(
+            token in normalized
+            for token in ["khong tim thay phong kham", "clinic not found", "phong kham"]
+        )
+        and "slot" not in normalized
+    ):
+        return "CLINIC_NOT_FOUND"
+    if any(
+        token in normalized
+        for token in ["khong tim thay dich vu", "service not found", "dich vu"]
+    ):
+        return "SERVICE_NOT_FOUND"
+    if any(
+        token in normalized
+        for token in ["khong tim thay thu cung", "pet not found", "thu cung"]
+    ):
+        return "PET_NOT_FOUND"
+    if any(
+        token in normalized
+        for token in ["khong con slot", "no slots", "het slot", "slot unavailable"]
+    ):
+        return "NO_SLOTS_AVAILABLE"
+    if any(
+        token in normalized
+        for token in ["ngay khong hop le", "invalid date", "gio khong hop le"]
+    ):
+        return "INVALID_DATE"
+    if any(
+        token in normalized for token in ["conflict", "trung lich", "booking conflict"]
+    ):
+        return "BOOKING_CONFLICT"
+    if any(
+        token in normalized
+        for token in ["timeout", "too many requests", "rate limit", "429"]
+    ):
+        return "RATE_LIMITED"
+    return default
+
 
 def _as_list(value: Any) -> List[Any]:
     if value is None:
@@ -73,6 +227,20 @@ def normalize_tool_input(tool_name: str, parameters: Dict[str, Any]) -> Dict[str
             p["radius_km"] = _to_float(p.get("radius_km"))
         if p.get("top_k") is not None:
             p["top_k"] = _to_int(p.get("top_k"))
+
+    if name == "search_clinics_by_name":
+        if p.get("name") is None and p.get("clinic_hint") is not None:
+            p["name"] = p.get("clinic_hint")
+        if p.get("name") is None and p.get("clinic_name") is not None:
+            p["name"] = p.get("clinic_name")
+        if p.get("limit") is None and p.get("top_k") is not None:
+            p["limit"] = p.get("top_k")
+        if p.get("limit") is None and p.get("size") is not None:
+            p["limit"] = p.get("size")
+        if p.get("name") is not None:
+            p["name"] = str(p.get("name")).strip()
+        if p.get("limit") is not None:
+            p["limit"] = _to_int(p.get("limit"))
 
     if name == "get_clinic_services":
         if p.get("clinic_id") is None and p.get("clinicId") is not None:
@@ -202,12 +370,130 @@ def normalize_tool_input(tool_name: str, parameters: Dict[str, Any]) -> Dict[str
         if "user_id" in p and p["user_id"] is not None:
             p["user_id"] = str(p["user_id"]).strip()
 
+    # list_my_bookings
+    if name == "list_my_bookings":
+        if p.get("limit") is not None:
+            p["limit"] = _to_int(p.get("limit"))
+        if "status" in p and p["status"] is not None:
+            p["status"] = str(p["status"]).strip().lower()
+
+    # get_my_booking_info
+    if name == "get_my_booking_info":
+        if "booking_id" in p and p["booking_id"] is not None:
+            p["booking_id"] = str(p["booking_id"]).strip()
+        if "booking_code" in p and p["booking_code"] is not None:
+            p["booking_code"] = str(p["booking_code"]).strip()
+
     return p
 
 
 def normalize_tool_output(tool_name: str, result: Any) -> Any:
     """Soft-normalize tool output so downstream code can rely on consistent shapes."""
     name = (tool_name or "").strip().lower()
+    success_envelope_keys = {
+        "success",
+        "data",
+        "metadata",
+        "tool_name",
+        "is_final",
+        "_warning",
+        "_dropped_params",
+    }
+
+    def _normalize_raw_data(out: Dict[str, Any]) -> Dict[str, Any]:
+        data = dict(out)
+
+        if name == "get_user_pets":
+            data["pets"] = [
+                p for p in _as_list(data.get("pets")) if isinstance(p, dict)
+            ]
+            data["total_pets"] = _to_int(data.get("total_pets")) or len(data["pets"])
+
+        if name == "search_clinics_nearby":
+            data["clinics"] = [
+                c for c in _as_list(data.get("clinics")) if isinstance(c, dict)
+            ]
+            data["total_found"] = _to_int(data.get("total_found")) or len(
+                data["clinics"]
+            )
+
+        if name == "get_clinic_services":
+            data["services"] = [
+                s for s in _as_list(data.get("services")) if isinstance(s, dict)
+            ]
+            data["total_services"] = _to_int(data.get("total_services")) or len(
+                data["services"]
+            )
+
+        if name == "check_available_slots":
+            data["available_slots"] = [
+                s for s in _as_list(data.get("available_slots")) if isinstance(s, dict)
+            ]
+            data["total_slots"] = _to_int(data.get("total_slots")) or len(
+                data["available_slots"]
+            )
+
+        if name == "create_booking_for_user":
+            if data.get("booking") is not None and not isinstance(
+                data.get("booking"), dict
+            ):
+                data["booking"] = {"value": data.get("booking")}
+
+        if name in {"pet_knowledge_search", "web_search"}:
+            data["results"] = [
+                r for r in _as_list(data.get("results")) if isinstance(r, dict)
+            ]
+            if data.get("sources_used") is not None:
+                data["sources_used"] = _to_int(data.get("sources_used")) or 0
+
+        if name == "get_staff_patients":
+            data["pets"] = [
+                p for p in _as_list(data.get("pets")) if isinstance(p, dict)
+            ]
+            data["total"] = _to_int(data.get("total")) or len(data["pets"])
+
+        if name == "get_patient_summary":
+            data["recent_exams"] = [
+                exam
+                for exam in _as_list(data.get("recent_exams"))
+                if isinstance(exam, dict)
+            ]
+            data["total_exams"] = _to_int(data.get("total_exams")) or len(
+                data["recent_exams"]
+            )
+
+        if name == "get_emr_history":
+            data["emr_history"] = [
+                emr
+                for emr in _as_list(data.get("emr_history"))
+                if isinstance(emr, dict)
+            ]
+            data["total"] = _to_int(data.get("total")) or len(data["emr_history"])
+
+        if name == "get_pet_health_summary":
+            data["pet_id"] = (
+                str(data.get("pet_id", "")).strip() if data.get("pet_id") else None
+            )
+
+        if name == "list_my_bookings":
+            data["bookings"] = [
+                b for b in _as_list(data.get("bookings")) if isinstance(b, dict)
+            ]
+            data["total"] = _to_int(data.get("total")) or len(data["bookings"])
+            data["upcoming_count"] = _to_int(data.get("upcoming_count")) or 0
+
+        if name == "get_my_booking_info":
+            if data.get("booking") is not None and not isinstance(
+                data.get("booking"), dict
+            ):
+                data["booking"] = {"value": data.get("booking")}
+
+        for k in ("date", "booking_date"):
+            if isinstance(data.get(k), str):
+                v = data[k].strip()
+                data[k] = v if _ISO_DATE_RE.match(v) else data[k]
+
+        return data
 
     # Keep primitives as-is.
     if result is None or isinstance(result, (str, int, float, bool)):
@@ -222,76 +508,48 @@ def normalize_tool_output(tool_name: str, result: Any) -> Any:
 
     out = dict(result)
 
-    if name == "get_user_pets":
-        out["pets"] = [p for p in _as_list(out.get("pets")) if isinstance(p, dict)]
-        out["total_pets"] = _to_int(out.get("total_pets")) or len(out["pets"])
+    # Standardized tool contract already exists from tool implementation.
+    if isinstance(out.get("success"), bool):
+        if out.get("success"):
+            payload = out.get("data")
+            if isinstance(payload, dict):
+                out["data"] = _normalize_raw_data(payload)
+            elif payload is None or payload == {}:
+                derived_payload = {
+                    key: value
+                    for key, value in out.items()
+                    if key not in success_envelope_keys
+                }
+                out["data"] = (
+                    _normalize_raw_data(derived_payload) if derived_payload else {}
+                )
+        else:
+            out["error_code"] = str(out.get("error_code") or "INTERNAL_ERROR")
+            out["message"] = str(
+                out.get("message") or "Đã xảy ra lỗi khi thực thi công cụ."
+            )
+            out["recoverable"] = bool(out.get("recoverable", True))
+            if "suggestion" not in out:
+                out["suggestion"] = None
+        return out
 
-    if name == "search_clinics_nearby":
-        out["clinics"] = [
-            c for c in _as_list(out.get("clinics")) if isinstance(c, dict)
-        ]
-        out["total_found"] = _to_int(out.get("total_found")) or len(out["clinics"])
-
-    if name == "get_clinic_services":
-        out["services"] = [
-            s for s in _as_list(out.get("services")) if isinstance(s, dict)
-        ]
-        out["total_services"] = _to_int(out.get("total_services")) or len(
-            out["services"]
-        )
-
-    if name == "check_available_slots":
-        out["available_slots"] = [
-            s for s in _as_list(out.get("available_slots")) if isinstance(s, dict)
-        ]
-        out["total_slots"] = _to_int(out.get("total_slots")) or len(
-            out["available_slots"]
-        )
-
-    if name == "create_booking_for_user":
-        # booking may be missing or a single dict; keep as dict.
-        if out.get("booking") is not None and not isinstance(out.get("booking"), dict):
-            out["booking"] = {"value": out.get("booking")}
-
-    if name in {"pet_knowledge_search", "web_search"}:
-        out["results"] = [
-            r for r in _as_list(out.get("results")) if isinstance(r, dict)
-        ]
-        if out.get("sources_used") is not None:
-            out["sources_used"] = _to_int(out.get("sources_used")) or 0
-
-    if name == "get_staff_patients":
-        out["pets"] = [p for p in _as_list(out.get("pets")) if isinstance(p, dict)]
-        out["total"] = _to_int(out.get("total")) or len(out["pets"])
-
-    if name == "get_patient_summary":
-        out["recent_exams"] = [
-            exam for exam in _as_list(out.get("recent_exams")) if isinstance(exam, dict)
-        ]
-        out["total_exams"] = _to_int(out.get("total_exams")) or len(out["recent_exams"])
-
-    if name == "get_emr_history":
-        out["emr_history"] = [
-            emr for emr in _as_list(out.get("emr_history")) if isinstance(emr, dict)
-        ]
-        out["total"] = _to_int(out.get("total")) or len(out["emr_history"])
-
-    # Generic: normalize common date field if present.
-    for k in ("date", "booking_date"):
-        if isinstance(out.get(k), str):
-            v = out[k].strip()
-            out[k] = v if _ISO_DATE_RE.match(v) else out[k]
+    out = _normalize_raw_data(out)
 
     # Normalize error vs success state based on PLAN.md without changing LLM data schema wrappers
     if "success" not in out:
         is_error = False
         error_code = "INTERNAL_ERROR"
-        
+
         # Simple heuristic to identify explicit error returns from tools
         msg_str = str(out.get("message", "")).lower()
-        if "khong the" in msg_str or "không thể" in msg_str or "chua xac dinh duoc" in msg_str or "chua the" in msg_str:
+        if (
+            "khong the" in msg_str
+            or "không thể" in msg_str
+            or "chua xac dinh duoc" in msg_str
+            or "chua the" in msg_str
+        ):
             is_error = True
-        
+
         if "auth" in msg_str or "token" in msg_str or out.get("requires_auth"):
             is_error = True
             error_code = "UNAUTHORIZED"

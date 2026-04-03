@@ -12,10 +12,16 @@ vi.mock('../../../services/agentService', () => ({
 
 const mockResponse: StaffDiagnosisResponse = {
     request_id: 'req-1',
+    evidence_mode: 'internal_grounded',
+    evidence_banner: 'Đã đối chiếu dữ liệu nội bộ',
+    score_label: 'Độ tự tin (%)',
     top_differentials: [
         {
+            rank: 1,
+            score_percent: 78,
+            score_basis: 'matching_internal',
             display_name_vi: 'Viêm kết mạc',
-            confidence_note: 'Mức gợi ý: trung bình',
+            confidence_note: 'Độ tự tin: 78%',
             supporting_reasons: ['Có dấu hiệu đỏ mắt'],
         },
     ],
@@ -65,7 +71,7 @@ describe('AIDiagnosisPanel', () => {
         })
     })
 
-    it('uses full mode and applies SOAP draft on full analysis', async () => {
+    it('uses full mode and waits for diagnosis selection before applying SOAP draft', async () => {
         const onApplyDraft = vi.fn()
         vi.mocked(diagnosisApi.analyzeCase).mockResolvedValue(mockResponse)
 
@@ -104,8 +110,150 @@ describe('AIDiagnosisPanel', () => {
             },
         })
 
+        expect(onApplyDraft).not.toHaveBeenCalled()
+    })
+
+    it('disables analyze button when loading in modal mode', async () => {
+        vi.mocked(diagnosisApi.analyzeCase).mockResolvedValue(mockResponse)
+
+        render(
+            <AIDiagnosisPanel
+                isModal
+                species="dog"
+                subjective="Triệu chứng bệnh đầy đủ để AI phân tích"
+                objective=""
+                assessment=""
+                plan=""
+                imageUrls={[]}
+                onSelectDiagnosis={vi.fn()}
+            />
+        )
+
+        // Trigger analyze
+        const analyzeButton = screen.getByRole('button', { name: /phân tích/i })
+        fireEvent.click(analyzeButton)
+
+        // Button should be disabled during loading
         await waitFor(() => {
-            expect(onApplyDraft).toHaveBeenCalledWith(mockResponse.soap_suggestions)
+            expect(analyzeButton).toBeDisabled()
         })
+    })
+
+    it('shows "Đang xử lý" badge during full analysis in modal', async () => {
+        let resolvePromise: (value: StaffDiagnosisResponse) => void
+        const delayedResponse = new Promise<StaffDiagnosisResponse>(resolve => {
+            resolvePromise = resolve
+        })
+        vi.mocked(diagnosisApi.analyzeCase).mockReturnValue(delayedResponse)
+
+        render(
+            <AIDiagnosisPanel
+                isModal
+                species="dog"
+                subjective="Triệu chứng bệnh đầy đủ để AI phân tích case này"
+                objective=""
+                assessment=""
+                plan=""
+                imageUrls={['https://example.com/image.jpg']}
+                onSelectDiagnosis={vi.fn()}
+            />
+        )
+
+        // Trigger analyze
+        const analyzeButton = screen.getByRole('button', { name: /phân tích/i })
+        fireEvent.click(analyzeButton)
+
+        // Check for "Đang xử lý" badge appears during loading
+        const processingBadge = await screen.findByText('Đang xử lý')
+        expect(processingBadge).toBeInTheDocument()
+
+        // Resolve the promise to clean up
+        resolvePromise!(mockResponse)
+    })
+
+    it('sets isSelectingDiagnosis flag when selecting a diagnosis', async () => {
+        let resolvePromise: (value: StaffDiagnosisResponse) => void
+        const delayedResponse = new Promise<StaffDiagnosisResponse>(resolve => {
+            resolvePromise = resolve
+        })
+        vi.mocked(diagnosisApi.analyzeCase).mockReturnValue(delayedResponse)
+
+        const onSelectDiagnosis = vi.fn()
+
+        render(
+            <AIDiagnosisPanel
+                isModal
+                species="dog"
+                subjective="Triệu chứng bệnh đầy đủ để AI phân tích case này"
+                objective=""
+                assessment=""
+                plan=""
+                imageUrls={['https://example.com/image.jpg']}
+                onSelectDiagnosis={onSelectDiagnosis}
+                initialResult={mockResponse}
+            />
+        )
+
+        // Wait for initial render with results
+        await screen.findByText(/kết quả AI đã sẵn sàng/i)
+
+        // Click on diagnosis selection button
+        const selectButton = screen.getByRole('button', { name: /đã chọn/i })
+        fireEvent.click(selectButton)
+
+        // The API should be called again for selected_only synthesis
+        await waitFor(() => {
+            expect(diagnosisApi.analyzeCase).toHaveBeenCalledTimes(1)
+        })
+
+        // Resolve to clean up
+        resolvePromise!(mockResponse)
+    })
+
+    it('highlights provisional differentials clearly in the UI', async () => {
+        vi.mocked(diagnosisApi.analyzeCase).mockResolvedValue({
+            ...mockResponse,
+            top_differentials: [
+                {
+                    rank: 1,
+                    score_percent: 40,
+                    score_basis: 'matching_internal',
+                    display_name_vi: 'okla',
+                    canonical_code: null,
+                    confidence_note: 'Độ tự tin: 40%',
+                    supporting_reasons: ['Ca tạm gán nhãn từ Case Memory.'],
+                },
+                {
+                    rank: 2,
+                    score_percent: 39,
+                    score_basis: 'matching_internal',
+                    display_name_vi: 'Viêm da do vi khuẩn',
+                    canonical_code: 'bacterial_dermatosis',
+                    confidence_note: 'Độ tự tin: 39%',
+                    supporting_reasons: ['Khớp với chẩn đoán đã chuẩn hóa.'],
+                },
+            ],
+        })
+
+        render(
+            <AIDiagnosisPanel
+                species="dog"
+                subjective="S"
+                objective="O"
+                assessment="A"
+                plan="P"
+                imageUrls={[]}
+            />
+        )
+
+        fireEvent.change(screen.getByRole('textbox'), {
+            target: { value: 'Bé bị tổn thương da và rụng lông' },
+        })
+        fireEvent.click(screen.getByRole('button'))
+
+        expect(await screen.findByText(/có 1 nhãn tạm chưa chuẩn hóa/i)).toBeInTheDocument()
+        fireEvent.click(await screen.findByRole('button', { name: /xem chi tiết ai/i }))
+        expect(await screen.findByText('Tạm gán nhãn')).toBeInTheDocument()
+        expect(await screen.findByText('Đã chuẩn hóa')).toBeInTheDocument()
     })
 })

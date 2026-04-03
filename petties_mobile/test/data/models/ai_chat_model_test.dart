@@ -142,7 +142,7 @@ void main() {
       );
     });
 
-    test('legacy service_chips event falls back to unknown', () {
+    test('legacy service_chips event is parsed correctly', () {
       final event = AiChatSocketEvent.fromJson({
         'type': 'service_chips',
         'services': [
@@ -150,7 +150,7 @@ void main() {
         ],
       });
 
-      expect(event.type, AiChatSocketEventType.unknown);
+      expect(event.type, AiChatSocketEventType.serviceChips);
       expect(event.uiSchema, isNull);
     });
   });

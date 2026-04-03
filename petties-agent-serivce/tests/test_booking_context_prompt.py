@@ -6,22 +6,37 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.core.agents.single_agent import SingleAgent
 from app.core.agents.prompt_builder import build_context, create_think_prompt
 from app.core.agents.tool_routing import apply_booking_tool_routing
 
 
 class TestBookingContextPrompt:
-    def test_create_think_prompt_includes_semantic_booking_guidance(self):
-        agent = SingleAgent(
-            llm_client=None,
-            enabled_tools=[
-                "get_user_pets",
-                "search_clinics_nearby",
-                "check_available_slots",
-                "create_booking_for_user",
-            ],
+    def test_create_think_prompt_omits_booking_block_when_no_booking_tools(self):
+        enabled_tools = {"pet_knowledge_search", "get_patient_summary"}
+
+        prompt = create_think_prompt(
+            messages=[{"role": "user", "content": "Tom tat benh an cho pet nay"}],
+            context="",
+            agent_name="petties_agent",
+            agent_type="single_agent",
+            system_prompt="Base prompt",
+            tool_schemas=[],
+            enabled_tools_lower=enabled_tools,
         )
+
+        assert "TRẠNG THÁI BOOKING DRAFT" not in prompt
+        assert "QUY TẮC BOOKING SESSION" not in prompt
+
+    def test_create_think_prompt_includes_semantic_booking_guidance(self):
+        enabled_tools = {
+            "get_user_pets",
+            "start_booking_session",
+            "get_booking_session",
+            "update_booking_draft",
+            "search_clinics_nearby",
+            "check_available_slots",
+            "create_booking_for_user",
+        }
 
         prompt = create_think_prompt(
             messages=[
@@ -31,17 +46,19 @@ class TestBookingContextPrompt:
                 }
             ],
             context="Runtime location: latitude=15.9575, longitude=108.2575, address=Ngu Hanh Son, Da Nang",
-            agent_name=agent.name,
-            agent_type=agent.agent_type,
-            system_prompt=agent.system_prompt,
-            tool_schemas=agent.tool_schemas,
-            enabled_tools_lower=agent._enabled_tools_lower,
+            agent_name="petties_agent",
+            agent_type="single_agent",
+            system_prompt="Base prompt",
+            tool_schemas=[],
+            enabled_tools_lower=enabled_tools,
         )
 
         assert "BOOKING TOOLS" in prompt
         assert "semantic params" in prompt
         assert "create_booking" in prompt
         assert "conditional booking" in prompt.lower()
+        assert "clinic_hint" in prompt
+        assert "search_clinics_by_name" not in prompt
 
     def test_booking_validator_does_not_rewrite_create_booking_flow(self):
         parsed = {

@@ -63,21 +63,22 @@ class WebSearchResultsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasContent = results.isNotEmpty || images.isNotEmpty || (answer != null && answer!.isNotEmpty);
-    
+    final hasContent = results.isNotEmpty ||
+        images.isNotEmpty ||
+        (answer != null && answer!.isNotEmpty);
+
     if (!hasContent) return const SizedBox.shrink();
 
     return Container(
       margin: const EdgeInsets.only(top: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE7E5E4)),
-        boxShadow: [
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF1C1917), width: 2),
+        boxShadow: const [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Color(0xFF1C1917),
+            offset: Offset(3, 3),
           ),
         ],
       ),
@@ -163,7 +164,8 @@ class WebSearchResultsCard extends StatelessWidget {
                             margin: const EdgeInsets.only(right: 8),
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: const Color(0xFFE7E5E4)),
+                              border:
+                                  Border.all(color: const Color(0xFFE7E5E4)),
                             ),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(7),
@@ -210,9 +212,9 @@ class WebSearchResultsCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   ...results.take(5).map((result) => _SourceItem(
-                    result: result,
-                    onTap: () => _openUrl(result.url),
-                  )),
+                        result: result,
+                        onTap: () => _openUrl(result.url),
+                      )),
                 ],
               ),
             ),
@@ -242,8 +244,8 @@ class WebSearchResultsCard extends StatelessWidget {
                     runSpacing: 8,
                     children: followUpQuestions.take(3).map((question) {
                       return InkWell(
-                        onTap: onFollowUpTap != null 
-                            ? () => onFollowUpTap!(question) 
+                        onTap: onFollowUpTap != null
+                            ? () => onFollowUpTap!(question)
                             : null,
                         borderRadius: BorderRadius.circular(20),
                         child: Container(

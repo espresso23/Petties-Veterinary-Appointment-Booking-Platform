@@ -58,6 +58,9 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
   final Map<String, TextEditingController> _imageDescriptionControllers = {};
   bool _isSubmitting = false;
   bool _isEditingPrescription = false;
+  StaffDiagnosisResponse? _aiDiagnosisResult;
+  String? _selectedAiDiagnosisLabel;
+  String? _selectedAiDiagnosisCode;
 
   // List of common medicines for autocomplete
   final List<String> _medicineSuggestions = [
@@ -132,16 +135,6 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
       _notesController.text = emr.notes ?? '';
       _allergiesController.text = pet.allergies ?? '';
 
-      const List<String> _medicineSuggestions = [
-        'Amoxicillin 500mg',
-        'Amoxicillin 250mg',
-        'Metronidazole 250mg',
-        'Doxycycline 100mg',
-        'Prednisone 5mg',
-        'Cephalexin 500mg',
-        'Enrofloxacin 50mg',
-      ];
-
       // Prescription Form State
       // Prescriptions
       _prescriptions = List.from(emr.prescriptions);
@@ -196,6 +189,7 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
 
   void _openAiDiagnosis() {
     String? speciesStr;
+    final dateOfBirth = _petInfo?.dateOfBirth;
     if (_petInfo?.species != null) {
       speciesStr = _petInfo!.species.value;
     }
@@ -206,18 +200,52 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
       bookingId: _originalEmr?.bookingId,
       species: speciesStr,
       breed: _petInfo?.breed,
-      ageMonths: _petInfo?.dateOfBirth != null
-          ? DateTime.now().difference(_petInfo!.dateOfBirth!).inDays ~/ 30
-          : null,
+      ageMonths:
+          dateOfBirth != null ? DateTime.now().difference(dateOfBirth).inDays ~/ 30 : null,
       weightKg: _petInfo?.weight,
       allergies: _petInfo?.allergies?.split(',').map((e) => e.trim()).toList(),
-      initialSubjective: _subjectiveController.text.isNotEmpty ? _subjectiveController.text : null,
-      initialObjective: _objectiveController.text.isNotEmpty ? _objectiveController.text : null,
-      initialAssessment: _assessmentController.text.isNotEmpty ? _assessmentController.text : null,
-      initialPlan: _planController.text.isNotEmpty ? _planController.text : null,
+      initialSubjective: _subjectiveController.text.isNotEmpty
+          ? _subjectiveController.text
+          : null,
+      initialObjective: _objectiveController.text.isNotEmpty
+          ? _objectiveController.text
+          : null,
+      initialAssessment: _assessmentController.text.isNotEmpty
+          ? _assessmentController.text
+          : null,
+      initialPlan:
+          _planController.text.isNotEmpty ? _planController.text : null,
       imageUrls: _images.map((image) => image.url).toList(),
+      initialResult: _aiDiagnosisResult,
+      initialSelectedDiagnosisLabel: _selectedAiDiagnosisLabel,
+      initialSelectedDiagnosisCode: _selectedAiDiagnosisCode,
+      onDiagnosisResult: (result) {
+        if (!mounted) return;
+        setState(() {
+          _aiDiagnosisResult = result;
+          if (result == null) {
+            _selectedAiDiagnosisLabel = null;
+            _selectedAiDiagnosisCode = null;
+          }
+        });
+      },
       onApplyDiagnosis: (result, diagnosisImageUrls) {
         _applyDiagnosisResult(result, diagnosisImageUrls);
+      },
+      onDiagnosisLocked: (result, diagnosisImageUrls, label, code) {
+        if (!mounted) return;
+        setState(() {
+          _aiDiagnosisResult = result;
+          _selectedAiDiagnosisLabel = label;
+          _selectedAiDiagnosisCode = code;
+        });
+
+        _applyDiagnosisResult(
+          result,
+          diagnosisImageUrls,
+          applySubjectiveAssessment: false,
+          selectedDiagnosisLabel: label,
+        );
       },
     );
   }
@@ -225,20 +253,27 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
   void _applyDiagnosisResult(
     StaffDiagnosisResponse result,
     List<String> diagnosisImageUrls,
-  ) {
+    {
+    bool applySubjectiveAssessment = true,
+    String? selectedDiagnosisLabel,
+  }) {
     final addedPrescriptions =
         _mergePrescriptionSuggestions(result.prescriptionSuggestions);
     final addedImages =
         _mergeDiagnosisImages(diagnosisImageUrls, result.imageAnalysis);
 
     setState(() {
-      if (result.soapSuggestions.subjectiveDraft.isNotEmpty) {
+      if (applySubjectiveAssessment &&
+          result.soapSuggestions.subjectiveDraft.isNotEmpty) {
         _subjectiveController.text = result.soapSuggestions.subjectiveDraft;
       }
       if (result.soapSuggestions.objectiveDraft.isNotEmpty) {
         _objectiveController.text = result.soapSuggestions.objectiveDraft;
       }
-      if (result.soapSuggestions.assessmentDraft.isNotEmpty) {
+      if (selectedDiagnosisLabel != null && selectedDiagnosisLabel.isNotEmpty) {
+        _assessmentController.text = selectedDiagnosisLabel;
+      } else if (applySubjectiveAssessment &&
+          result.soapSuggestions.assessmentDraft.isNotEmpty) {
         _assessmentController.text = result.soapSuggestions.assessmentDraft;
       }
       if (result.soapSuggestions.planDraft.isNotEmpty) {
@@ -311,14 +346,16 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
     };
 
     for (final imageUrl in diagnosisImageUrls) {
-      final existingIndex = _images.indexWhere((image) => image.url == imageUrl);
+      final existingIndex =
+          _images.indexWhere((image) => image.url == imageUrl);
       final aiDescription = descriptionsByUrl[imageUrl];
 
       if (existingIndex >= 0) {
         final current = _images[existingIndex];
-        final nextDescription = (current.description?.trim().isNotEmpty ?? false)
-            ? current.description
-            : aiDescription;
+        final nextDescription =
+            (current.description?.trim().isNotEmpty ?? false)
+                ? current.description
+                : aiDescription;
         _images[existingIndex] = EmrImage(
           url: current.url,
           description: nextDescription,
@@ -356,7 +393,8 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
         }
         finalUrl = await _emrService.uploadImageBytes(
           bytes,
-          fileName: 'emr-image-${DateTime.now().millisecondsSinceEpoch}-$index.jpg',
+          fileName:
+              'emr-image-${DateTime.now().millisecondsSinceEpoch}-$index.jpg',
         );
       }
 
@@ -909,11 +947,11 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Biểu mẫu SOAP (Chỉnh sửa)',
+          const Text('Biểu mẫu bệnh án (Chỉnh sửa)',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 20),
 
-          _buildSectionHeader('S - Chủ quan', Colors.blue),
+          _buildSectionHeader('Triệu chứng', Colors.blue),
           TextFormField(
             controller: _subjectiveController,
             maxLines: 3,
@@ -922,7 +960,7 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
           ),
           const SizedBox(height: 16),
 
-          _buildSectionHeader('O - Khách quan', Colors.teal),
+          _buildSectionHeader('Khách quan / Chỉ số sinh tồn', Colors.teal),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -954,7 +992,7 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
           ),
           const SizedBox(height: 16),
 
-          _buildSectionHeader('A - Đánh giá *', Colors.purple),
+          _buildSectionHeader('Chẩn đoán *', Colors.purple),
           TextFormField(
             controller: _assessmentController,
             maxLines: 3,
@@ -964,7 +1002,7 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
           ),
           const SizedBox(height: 16),
 
-          _buildSectionHeader('P - Kế hoạch *', Colors.orange),
+          _buildSectionHeader('Kế hoạch điều trị *', Colors.orange),
           TextFormField(
             controller: _planController,
             maxLines: 3,
@@ -2053,7 +2091,8 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
                     ),
                     style: const TextStyle(fontSize: 11),
                     onChanged: (value) {
-                      _images[index] = EmrImage(url: img.url, description: value);
+                      _images[index] =
+                          EmrImage(url: img.url, description: value);
                     },
                   ),
                 ],

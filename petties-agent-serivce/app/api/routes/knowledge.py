@@ -21,12 +21,11 @@ from fastapi import (
     UploadFile,
     File,
     Form,
-    Body,
 )
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from loguru import logger
 from pathlib import Path
 import asyncio
@@ -34,6 +33,7 @@ import os
 import shutil
 import tempfile
 from datetime import datetime
+import uuid
 from app.api.middleware.auth import get_admin_user
 from app.api.middleware.subscription_guard import check_active_subscription
 from app.config.settings import settings
@@ -59,10 +59,215 @@ from app.api.schemas.knowledge_schemas import (
     ImageSearchResult,
 )
 from app.db.postgres.models import KnowledgeDocument
-from app.db.postgres.session import get_db
+from app.db.postgres.session import get_db, AsyncSessionLocal
 
 # Initialize router - no global auth, add individually per endpoint
 router = APIRouter(prefix="/knowledge", tags=["Knowledge Base"])
+
+# In-memory trạng thái build job (đủ dùng cho single-instance server)
+KG_BUILD_JOBS: Dict[str, Dict[str, Any]] = {}
+
+
+async def _execute_kg_build(
+    document_ids: Optional[List[int]],
+    max_triplets: int,
+) -> Dict[str, Any]:
+    """Thực thi toàn bộ luồng build KG và trả kết quả đồng bộ."""
+    import time
+
+    start_time = time.time()
+
+    async with AsyncSessionLocal() as db:
+        # Query documents
+        query = select(KnowledgeDocument).where(KnowledgeDocument.processed == True)
+        if document_ids:
+            query = query.where(KnowledgeDocument.id.in_(document_ids))
+
+        result = await db.execute(query)
+        documents = result.scalars().all()
+
+        # Check if there are documents but none are processed
+        all_docs_query = select(KnowledgeDocument)
+        all_result = await db.execute(all_docs_query)
+        all_docs = all_result.scalars().all()
+
+        if not documents:
+            if all_docs:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Tìm thấy {len(all_docs)} tài liệu nhưng không có tài liệu nào được xử lý (processed). "
+                    f"Để xử lý tài liệu, bạn cần: "
+                    f"(1) Cấu hình COHERE_API_KEY và QDRANT_URL trong trang Knowledge, "
+                    f"(2) Upload lại tài liệu (quá trình xử lý sẽ tự động chạy).",
+                )
+            raise HTTPException(
+                status_code=404,
+                detail="Không tìm thấy tài liệu nào trong hệ thống. Vui lòng upload tài liệu trước.",
+            )
+
+        # Read file contents and create LlamaIndex Documents
+        from llama_index.core import Document as LlamaDocument
+        import unicodedata
+
+        def _normalize_text(text: str) -> str:
+            text = unicodedata.normalize("NFC", text or "")
+            cleaned = []
+            for ch in text:
+                cat = unicodedata.category(ch)
+                if cat.startswith("C") and ch not in ("\n", "\r", "\t"):
+                    continue
+                cleaned.append(ch)
+            return "".join(cleaned).strip()
+
+        def _extract_text_from_file(path: Path, file_type: Optional[str]) -> str:
+            ft = (file_type or "").lower().strip()
+
+            if ft in ("txt", "md"):
+                return path.read_text(encoding="utf-8", errors="replace")
+
+            if ft == "docx":
+                from docx import Document as DocxDocument
+
+                docx = DocxDocument(str(path))
+                return "\n".join(p.text for p in docx.paragraphs if p.text)
+
+            if ft == "pdf":
+                text_parts: List[str] = []
+                try:
+                    import fitz  # PyMuPDF
+
+                    with fitz.open(str(path)) as pdf:
+                        for page in pdf:
+                            t = page.get_text("text") or ""
+                            if t.strip():
+                                text_parts.append(t)
+                    return "\n".join(text_parts)
+                except Exception:
+                    from PyPDF2 import PdfReader
+
+                    reader = PdfReader(str(path))
+                    for page in reader.pages:
+                        t = page.extract_text() or ""
+                        if t.strip():
+                            text_parts.append(t)
+                    return "\n".join(text_parts)
+
+            return path.read_text(encoding="utf-8", errors="replace")
+
+        storage_dir = get_storage_dir()
+        logger.info(f"Build KG using storage_dir: {storage_dir}")
+
+        llama_docs: List[LlamaDocument] = []
+        skipped: List[int] = []
+        skipped_reasons: Dict[int, str] = {}
+        for doc in documents:
+            doc_path = None
+            if Path(doc.file_path).is_absolute():
+                doc_path = Path(doc.file_path)
+            if not doc_path or not doc_path.exists():
+                doc_path = storage_dir / doc.file_path
+            if not doc_path or not doc_path.exists():
+                doc_path = storage_dir / Path(doc.file_path).name
+
+            if not doc_path or not doc_path.exists():
+                skipped.append(doc.id)
+                skipped_reasons[doc.id] = "Không tìm thấy file trên ổ đĩa"
+                continue
+
+            try:
+                raw_text = await asyncio.to_thread(
+                    _extract_text_from_file, doc_path, doc.file_type
+                )
+                text = _normalize_text(raw_text)
+                if len(text) < 200:
+                    skipped.append(doc.id)
+                    skipped_reasons[doc.id] = (
+                        "Tài liệu quá ít chữ (có thể là PDF dạng hình ảnh). "
+                        "Vui lòng dùng tài liệu có text hoặc bổ sung OCR."
+                    )
+                    continue
+
+                llama_docs.append(
+                    LlamaDocument(
+                        text=text,
+                        metadata={
+                            "document_id": doc.id,
+                            "filename": doc.filename,
+                            "file_type": doc.file_type,
+                        },
+                    )
+                )
+            except Exception as e:
+                skipped.append(doc.id)
+                skipped_reasons[doc.id] = f"Lỗi đọc nội dung: {e}"
+
+        if not llama_docs:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Không thể đọc nội dung từ tài liệu. "
+                f"Đã kiểm tra {len(documents)} tài liệu, {len(skipped)} bị bỏ qua do lỗi đọc file. "
+                f"Vui lòng kiểm tra: (1) File có tồn tại trong thư mục uploads/documents? (2) Thư mục lưu trữ có đúng không?",
+            )
+
+        kg = get_kg_service()
+        triplet_count = await kg.build_from_documents(
+            llama_docs, max_triplets_per_chunk=max_triplets
+        )
+
+        processing_time = int((time.time() - start_time) * 1000)
+        return {
+            "success": True,
+            "message": "Knowledge Graph đã xây dựng thành công",
+            "documents_processed": len(llama_docs),
+            "documents_skipped": skipped,
+            "documents_skipped_reasons": skipped_reasons,
+            "triplets_extracted": triplet_count,
+            "processing_time_ms": processing_time,
+        }
+
+
+async def _run_kg_build_job(
+    job_id: str,
+    document_ids: Optional[List[int]],
+    max_triplets: int,
+) -> None:
+    """Worker chạy build KG ở background."""
+    KG_BUILD_JOBS[job_id].update(
+        {
+            "status": "running",
+            "started_at": datetime.utcnow().isoformat(),
+        }
+    )
+    try:
+        result = await _execute_kg_build(
+            document_ids=document_ids, max_triplets=max_triplets
+        )
+        kg = get_kg_service()
+        normalize_result = await kg.normalize_entities()
+        result["normalize_result"] = normalize_result
+        KG_BUILD_JOBS[job_id].update(
+            {
+                "status": "completed",
+                "result": result,
+                "finished_at": datetime.utcnow().isoformat(),
+            }
+        )
+    except HTTPException as e:
+        KG_BUILD_JOBS[job_id].update(
+            {
+                "status": "failed",
+                "error": str(e.detail),
+                "finished_at": datetime.utcnow().isoformat(),
+            }
+        )
+    except Exception as e:
+        KG_BUILD_JOBS[job_id].update(
+            {
+                "status": "failed",
+                "error": str(e),
+                "finished_at": datetime.utcnow().isoformat(),
+            }
+        )
 
 
 # Storage configuration
@@ -1057,201 +1262,71 @@ async def build_knowledge_graph(
         None, description="IDs tài liệu cụ thể. Để trống = tất cả đã processed."
     ),
     max_triplets: int = Query(
-        default=200,
+        default=2000,
         ge=1,
-        le=1000,
+        le=5000,
         description="Số triplets tối đa tổng cộng sau deduplication",
+    ),
+    async_mode: bool = Query(
+        default=False,
+        description="true = chạy ngầm, trả về job_id ngay; false = chờ build xong",
     ),
     db: AsyncSession = Depends(get_db),
 ):
     """Build/extend Knowledge Graph từ processed documents."""
-    import time
-
-    start_time = time.time()
-
     try:
-        # Query documents
-        query = select(KnowledgeDocument).where(KnowledgeDocument.processed == True)
-        if document_ids:
-            query = query.where(KnowledgeDocument.id.in_(document_ids))
-
-        result = await db.execute(query)
-        documents = result.scalars().all()
-
-        # Check if there are documents but none are processed
-        all_docs_query = select(KnowledgeDocument)
-        all_result = await db.execute(all_docs_query)
-        all_docs = all_result.scalars().all()
-
-        if not documents:
-            if all_docs:
-                # Documents exist but none are processed
-                processed_count = sum(1 for d in all_docs if d.processed)
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Tìm thấy {len(all_docs)} tài liệu nhưng không có tài liệu nào được xử lý (processed). "
-                    f"Để xử lý tài liệu, bạn cần: "
-                    f"(1) Cấu hình COHERE_API_KEY và QDRANT_URL trong trang Knowledge, "
-                    f"(2) Upload lại tài liệu (quá trình xử lý sẽ tự động chạy).",
+        if async_mode:
+            job_id = uuid.uuid4().hex
+            KG_BUILD_JOBS[job_id] = {
+                "job_id": job_id,
+                "status": "queued",
+                "created_at": datetime.utcnow().isoformat(),
+                "async_mode": True,
+                "params": {
+                    "document_ids": document_ids or [],
+                    "max_triplets": max_triplets,
+                },
+            }
+            asyncio.create_task(
+                _run_kg_build_job(
+                    job_id=job_id,
+                    document_ids=document_ids,
+                    max_triplets=max_triplets,
                 )
-            else:
-                raise HTTPException(
-                    status_code=404,
-                    detail="Không tìm thấy tài liệu nào trong hệ thống. Vui lòng upload tài liệu trước.",
-                )
-
-        # Read file contents and create LlamaIndex Documents
-        from llama_index.core import Document as LlamaDocument
-        import unicodedata
-
-        def _normalize_text(text: str) -> str:
-            text = unicodedata.normalize("NFC", text or "")
-            cleaned = []
-            for ch in text:
-                cat = unicodedata.category(ch)
-                if cat.startswith("C") and ch not in ("\n", "\r", "\t"):
-                    continue
-                cleaned.append(ch)
-            return "".join(cleaned).strip()
-
-        def _extract_text_from_file(path: Path, file_type: Optional[str]) -> str:
-            ft = (file_type or "").lower().strip()
-
-            if ft in ("txt", "md"):
-                return path.read_text(encoding="utf-8", errors="replace")
-
-            if ft == "docx":
-                from docx import Document as DocxDocument
-
-                docx = DocxDocument(str(path))
-                return "\n".join(p.text for p in docx.paragraphs if p.text)
-
-            if ft == "pdf":
-                text_parts: List[str] = []
-                # Prefer PyMuPDF if available
-                try:
-                    import fitz  # PyMuPDF
-
-                    with fitz.open(str(path)) as pdf:
-                        for page in pdf:
-                            t = page.get_text("text") or ""
-                            if t.strip():
-                                text_parts.append(t)
-                    return "\n".join(text_parts)
-                except Exception:
-                    from PyPDF2 import PdfReader
-
-                    reader = PdfReader(str(path))
-                    for page in reader.pages:
-                        t = page.extract_text() or ""
-                        if t.strip():
-                            text_parts.append(t)
-                    return "\n".join(text_parts)
-
-            return path.read_text(encoding="utf-8", errors="replace")
-
-        # Get storage directory for resolving relative paths
-        storage_dir = get_storage_dir()
-        logger.info(f"Build KG using storage_dir: {storage_dir}")
-
-        llama_docs: List[LlamaDocument] = []
-        skipped: List[int] = []
-        skipped_reasons: Dict[int, str] = {}
-        for doc in documents:
-            # Resolve file path - try multiple approaches
-            doc_path = None
-
-            # 1. Try as absolute path first
-            if Path(doc.file_path).is_absolute():
-                doc_path = Path(doc.file_path)
-
-            # 2. Try relative to storage_dir
-            if not doc_path or not doc_path.exists():
-                doc_path = storage_dir / doc.file_path
-
-            # 3. Try just the filename in storage_dir
-            if not doc_path or not doc_path.exists():
-                doc_path = storage_dir / Path(doc.file_path).name
-
-            logger.info(
-                f"Document {doc.id} ({doc.filename}): stored_path='{doc.file_path}', resolved='{doc_path}', exists={doc_path.exists() if doc_path else False}"
             )
+            return {
+                "success": True,
+                "async_mode": True,
+                "job_id": job_id,
+                "status": "queued",
+                "message": "Đã đưa tác vụ xây dựng KG vào background. Dùng endpoint job status để theo dõi.",
+            }
 
-            if not doc_path or not doc_path.exists():
-                logger.warning(
-                    f"Document {doc.id} file not found after trying all paths"
-                )
-                skipped.append(doc.id)
-                skipped_reasons[doc.id] = "Không tìm thấy file trên ổ đĩa"
-                continue
-            try:
-                # Use asyncio.to_thread for blocking file IO
-                raw_text = await asyncio.to_thread(
-                    _extract_text_from_file, doc_path, doc.file_type
-                )
-                text = _normalize_text(raw_text)
-
-                # PDF scan/image-only thường gần như không có text -> KG không thể extract
-                if len(text) < 200:
-                    logger.warning(
-                        f"Document {doc.id} has too little text for KG extraction (len={len(text)})."
-                    )
-                    skipped.append(doc.id)
-                    skipped_reasons[doc.id] = (
-                        "Tài liệu quá ít chữ (có thể là PDF dạng hình ảnh). "
-                        "Vui lòng dùng tài liệu có text hoặc bổ sung OCR."
-                    )
-                    continue
-
-                logger.info(
-                    f"Document {doc.id} loaded successfully for KG, text length: {len(text)}"
-                )
-                llama_docs.append(
-                    LlamaDocument(
-                        text=text,
-                        metadata={
-                            "document_id": doc.id,
-                            "filename": doc.filename,
-                            "file_type": doc.file_type,
-                        },
-                    )
-                )
-            except Exception as e:
-                logger.warning(f"Could not read document {doc.id}: {e}")
-                skipped.append(doc.id)
-                skipped_reasons[doc.id] = f"Lỗi đọc nội dung: {e}"
-
-        if not llama_docs:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Không thể đọc nội dung từ tài liệu. "
-                f"Đã kiểm tra {len(documents)} tài liệu, {len(skipped)} bị bỏ qua do lỗi đọc file. "
-                f"Vui lòng kiểm tra: (1) File có tồn tại trong thư mục uploads/documents? (2) Thư mục lưu trữ có đúng không?",
-            )
-
-        # Build KG
-        kg = get_kg_service()
-        triplet_count = await kg.build_from_documents(
-            llama_docs, max_triplets_per_chunk=max_triplets
+        # sync mode (legacy)
+        result = await _execute_kg_build(
+            document_ids=document_ids,
+            max_triplets=max_triplets,
         )
-
-        processing_time = int((time.time() - start_time) * 1000)
-
-        return {
-            "success": True,
-            "message": f"Knowledge Graph đã xây dựng thành công",
-            "documents_processed": len(llama_docs),
-            "documents_skipped": skipped,
-            "documents_skipped_reasons": skipped_reasons,
-            "triplets_extracted": triplet_count,
-            "processing_time_ms": processing_time,
-        }
+        return {**result, "async_mode": False}
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error building Knowledge Graph: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/build-kg/jobs/{job_id}",
+    summary="[KB-04] Kiểm tra trạng thái job build KG",
+    description="Lấy trạng thái tác vụ build KG chạy ngầm.",
+    dependencies=[Depends(get_admin_user)],
+)
+async def get_build_kg_job_status(job_id: str):
+    job = KG_BUILD_JOBS.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Không tìm thấy job_id")
+    return {"success": True, **job}
 
 
 # =============================================================
@@ -1346,6 +1421,55 @@ async def query_knowledge_graph(request: KGQueryRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post(
+    "/kg/normalize-entities",
+    summary="[KB-04] Normalize Knowledge Graph Entities",
+    description="""
+    Post-processing: Merge duplicate/synonym entities into canonical forms.
+    
+    Strategy:
+    1. Exact matching: "Viêm tai" == "Viêm tai"
+    2. Fuzzy matching: "Viem tai" ≈ "Viêm tai" (Levenshtein distance < 3)
+    3. Medical synonym mapping: Veterinary knowledge base
+    
+    Result: Increases edge density without new LLM extraction.
+    Example: 43 entities → 300-400 canonical with 1000+ triplets preserved
+    """,
+)
+async def normalize_kg_entities(db: AsyncSession = Depends(get_db)):
+    """
+    Normalize Knowledge Graph by merging synonym entities.
+
+    This endpoint triggers entity normalization post-processing to increase
+    graph density without requiring new document extraction.
+    """
+    try:
+        kg = get_kg_service()
+        result = await kg.normalize_entities()
+
+        if result.get("success"):
+            logger.info(f"KG Entity Normalization: {result}")
+            return {
+                "success": True,
+                "message": result.get("message", "Normalization completed"),
+                "stats": {
+                    "entities_merged": result.get("entities_merged", 0),
+                    "triplets_retained": result.get("triplets_retained", 0),
+                    "unique_entities_before": result.get("unique_entities_before", 0),
+                    "unique_entities_after": result.get("unique_entities_after", 0),
+                    "edge_density_new": result.get("edge_density_new", 0.0),
+                },
+            }
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Normalization failed: {result.get('error', 'Unknown error')}",
+            )
+    except Exception as e:
+        logger.error(f"Error normalizing KG entities: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # =============================================================
 # CASE MEMORY ENDPOINTS  [KB-05]
 # =============================================================
@@ -1378,7 +1502,7 @@ async def get_case_memory_stats():
     "/case-memory/prune",
     summary="[KB-05] Dọn dẹp Case Memory",
     description="""
-    Xóa các cases cũ không có feedback (feedback_count = 0) để giữ collection sạch.
+    Xóa các cases cũ theo tuổi dữ liệu để giữ collection sạch.
 
     Chỉ xóa cases cũ hơn `older_than_days` ngày.
     """,
@@ -1387,23 +1511,16 @@ async def prune_case_memory(
     older_than_days: int = Query(
         default=90, ge=1, le=365, description="Chỉ xóa cases cũ hơn X ngày"
     ),
-    max_feedback_below: int = Query(
-        default=0, ge=0, le=5, description="Xóa cases có feedback_count <= X"
-    ),
 ):
-    """Prune low-score / stale cases from Case Memory."""
+    """Prune stale cases from Case Memory."""
     try:
         cm = get_cm_service()
-        pruned_count = await cm.prune_low_score_cases(
-            max_feedback_below=max_feedback_below,
-            older_than_days=older_than_days,
-        )
+        pruned_count = await cm.prune_low_score_cases(older_than_days=older_than_days)
         return {
             "success": True,
-            "message": f"Đã xóa {pruned_count} cases không có feedback",
+            "message": f"Đã xóa {pruned_count} cases cũ",
             "pruned_count": pruned_count,
             "criteria": {
-                "max_feedback_below": max_feedback_below,
                 "older_than_days": older_than_days,
             },
         }
@@ -1467,39 +1584,6 @@ async def get_case_memory(
         raise
     except Exception as e:
         logger.error(f"Error getting Case Memory {case_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.patch(
-    "/case-memory/{case_id}",
-    summary="[KB-05] Cập nhật Case",
-    description="Cập nhật metadata của một case (diagnosis, symptoms)",
-)
-async def update_case_memory(
-    case_id: str,
-    diagnosis: Optional[str] = Body(default=None, description="Chẩn đoán mới"),
-    symptoms: Optional[List[str]] = Body(
-        default=None, description="Danh sách triệu chứng mới"
-    ),
-    _: dict = Depends(get_admin_user),
-):
-    """Update case metadata."""
-    try:
-        cm = get_cm_service()
-        success = await cm.update_case(
-            case_id=case_id,
-            diagnosis=diagnosis,
-            symptoms=symptoms,
-        )
-        if not success:
-            raise HTTPException(
-                status_code=404, detail="Không tìm thấy case hoặc cập nhật thất bại"
-            )
-        return {"success": True, "message": "Cập nhật case thành công"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error updating Case Memory {case_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

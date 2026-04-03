@@ -1,15 +1,23 @@
 import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:provider/provider.dart';
 
 import '../../../config/constants/app_colors.dart';
 import '../../../data/models/ai_chat.dart';
+import '../../../data/models/clinic.dart';
+import '../../../data/models/clinic_service.dart';
+import '../../../data/models/pet.dart';
 import '../../../data/services/ai_chat_service.dart';
 import '../../../data/services/booking_service.dart';
+import '../../../data/services/booking_wizard_service.dart';
+import '../../../data/services/clinic_service.dart';
+import '../../../data/services/pet_service.dart';
+import '../../../providers/booking_wizard_provider.dart';
 import '../../../routing/app_routes.dart';
 import 'utils/ai_booking_tracker.dart';
 import 'utils/ai_chat_autocomplete.dart';
@@ -21,12 +29,7 @@ import 'utils/ai_chat_widgets.dart';
 import 'widgets/web_search_results_card.dart';
 
 class AiChatScreen extends StatefulWidget {
-  final bool isStaffContext;
-
-  const AiChatScreen({
-    super.key,
-    this.isStaffContext = false,
-  });
+  const AiChatScreen({super.key});
 
   @override
   State<AiChatScreen> createState() => _AiChatScreenState();
@@ -38,6 +41,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   final AiChatService _aiChatService = AiChatService();
   final BookingService _bookingService = BookingService();
+  final BookingWizardService _bookingWizardService = BookingWizardService();
+  final ClinicService _clinicService = ClinicService();
+  final PetService _petService = PetService();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final List<String> _quickPrompts = const [
@@ -54,6 +60,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   String _streamBuffer = '';
   Timer? _streamFlushTimer;
   Timer? _sendWatchdogTimer;
+  Completer<void>? _socketReadyCompleter;
   int _sendWatchdogToken = 0;
   List<_UiChatMessage> _messages = [];
   String? _sessionId;
@@ -63,9 +70,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
   bool _isSending = false;
   bool _isRefreshingSession = false;
   bool _shouldIgnoreSocketClose = false;
+  bool _isSocketConnected = false;
   bool _isReconnecting = false;
   int _reconnectAttempts = 0;
-  final Set<String> _confirmedMessageIds = <String>{};
+  final Set<String> _handoffMessageIds = <String>{};
   final Map<String, Set<String>> _selectedServiceIdsByMessage =
       <String, Set<String>>{};
   AiBookingTrackerSnapshot _bookingTracker = AiBookingTrackerSnapshot.empty;
@@ -75,7 +83,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
   Map<String, dynamic>? _lastLocationPayload;
   bool _isFetchingLocation = false;
   final List<Map<String, dynamic>> _liveReactTrace = <Map<String, dynamic>>[];
-  List<dynamic>? _lastCompletedReactTrace;
   bool _thinkingDetailsExpanded = false;
   List<String> _selectedChatImages = [];
   bool _didAutoNavigateToMyBookings = false;
@@ -91,6 +98,15 @@ class _AiChatScreenState extends State<AiChatScreen> {
   void dispose() {
     _streamFlushTimer?.cancel();
     _sendWatchdogTimer?.cancel();
+    if (_socketReadyCompleter != null && !_socketReadyCompleter!.isCompleted) {
+      _socketReadyCompleter!.completeError(
+        const AiChatException(
+          type: AiChatErrorType.network,
+          message: 'Màn hình chat đã được đóng.',
+        ),
+      );
+    }
+    _isSocketConnected = false;
     _socketSubscription?.cancel();
     _channel?.sink.close();
     _messageController.removeListener(_handleComposerChanged);
@@ -108,7 +124,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
     try {
       final session = await _aiChatService.getOrCreateSession();
-      _replaceMessages(session.messages);
+      _replaceMessages(session.messages, bookingState: session.bookingState);
       _sessionId = session.sessionId;
       await _loadRecentSessions();
       await _connectToSession(session.sessionId);
@@ -142,7 +158,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     try {
       final session = await _aiChatService.createFreshSession();
       if (!mounted) return;
-      _replaceMessages(session.messages);
+      _replaceMessages(session.messages, bookingState: session.bookingState);
       _sessionId = session.sessionId;
       await _loadRecentSessions();
       await _connectToSession(session.sessionId);
@@ -223,12 +239,24 @@ class _AiChatScreenState extends State<AiChatScreen> {
     await _channel?.sink.close();
     _shouldIgnoreSocketClose = false;
 
+    _isSocketConnected = false;
+    _socketReadyCompleter = Completer<void>();
+
     final channel = await _aiChatService.connectToSession(sessionId);
     _channel = channel;
 
     _socketSubscription = channel.stream.listen(
       (payload) => _handleSocketEvent(_aiChatService.parseSocketEvent(payload)),
       onError: (_) {
+        if (_socketReadyCompleter != null &&
+            !_socketReadyCompleter!.isCompleted) {
+          _socketReadyCompleter!.completeError(
+            const AiChatException(
+              type: AiChatErrorType.network,
+              message: 'Không thể kết nối realtime tới trợ lý AI.',
+            ),
+          );
+        }
         _handleConnectionInterrupted();
       },
       onDone: () {
@@ -236,6 +264,15 @@ class _AiChatScreenState extends State<AiChatScreen> {
         if (_shouldIgnoreSocketClose) {
           _shouldIgnoreSocketClose = false;
           return;
+        }
+        if (_socketReadyCompleter != null &&
+            !_socketReadyCompleter!.isCompleted) {
+          _socketReadyCompleter!.completeError(
+            AiChatException.fromWebSocket(
+              closeCode: _channel?.closeCode,
+              closeReason: _channel?.closeReason,
+            ),
+          );
         }
         _handleConnectionInterrupted(
           reason: AiChatException.fromWebSocket(
@@ -246,11 +283,40 @@ class _AiChatScreenState extends State<AiChatScreen> {
       },
       cancelOnError: false,
     );
+
+    try {
+      await _socketReadyCompleter!.future.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => throw const AiChatException(
+          type: AiChatErrorType.network,
+          message: 'Không thể thiết lập kết nối realtime tới trợ lý AI.',
+        ),
+      );
+    } finally {
+      _socketReadyCompleter = null;
+    }
+  }
+
+  void _markSocketReady() {
+    _isSocketConnected = true;
+    if (_socketReadyCompleter != null && !_socketReadyCompleter!.isCompleted) {
+      _socketReadyCompleter!.complete();
+    }
   }
 
   Future<void> _handleConnectionInterrupted({String? reason}) async {
     if (!mounted || _sessionId == null) {
       return;
+    }
+
+    _isSocketConnected = false;
+    if (_socketReadyCompleter != null && !_socketReadyCompleter!.isCompleted) {
+      _socketReadyCompleter!.completeError(
+        AiChatException.fromWebSocket(
+          closeCode: _channel?.closeCode,
+          closeReason: _channel?.closeReason,
+        ),
+      );
     }
 
     if (_reconnectAttempts >= _maxReconnectAttempts) {
@@ -334,6 +400,28 @@ class _AiChatScreenState extends State<AiChatScreen> {
     }
   }
 
+  String _resolveAgentReasoningStatus(
+    String? explicitContent,
+    String? toolName, {
+    bool prefersSynthesis = false,
+  }) {
+    final content = (explicitContent ?? '').trim();
+    if (content.isNotEmpty) {
+      return content;
+    }
+
+    final fallback = _mapToolStatus(toolName);
+    if (fallback != null && fallback.trim().isNotEmpty) {
+      return 'Đang suy luận: ${fallback.trim()}';
+    }
+
+    if (prefersSynthesis) {
+      return 'Đang suy luận: mình đã có thêm dữ liệu và đang tổng hợp lại để trả lời đúng câu hỏi của bạn.';
+    }
+
+    return 'Đang suy luận: mình đang xử lý yêu cầu của bạn.';
+  }
+
   void _startSendWatchdog() {
     _sendWatchdogTimer?.cancel();
     final token = ++_sendWatchdogToken;
@@ -382,20 +470,31 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
     switch (event.type) {
       case AiChatSocketEventType.connected:
+        _markSocketReady();
         setState(() {
           _error = null;
           _isReconnecting = false;
           _reconnectAttempts = 0;
           _agentStatus = 'Đã kết nối trợ lý AI';
         });
+        if (event.bookingState != null) {
+          _applyServerBookingState(event.bookingState!);
+        }
         break;
       case AiChatSocketEventType.history:
-        _replaceMessages(event.messages);
+        _markSocketReady();
+        _replaceMessages(event.messages, bookingState: event.bookingState);
         break;
       case AiChatSocketEventType.ack:
         setState(() {
           // ACK là tín hiệu hệ thống; không dùng để hiển thị lại nội dung user.
           _agentStatus = 'Đã nhận yêu cầu.';
+        });
+        break;
+      case AiChatSocketEventType.thinkingStream:
+        setState(() {
+          _isSending = true;
+          _agentStatus = event.content ?? 'Trợ lý đang suy luận...';
         });
         break;
       case AiChatSocketEventType.thinking:
@@ -409,15 +508,21 @@ class _AiChatScreenState extends State<AiChatScreen> {
         _captureReactStep(event);
         setState(() {
           _isSending = true;
-          _agentStatus = _mapToolStatus(event.toolName) ??
-              (event.toolName != null ? 'Đang xử lý...' : 'Đang xử lý...');
+          _agentStatus = _resolveAgentReasoningStatus(
+            event.content,
+            event.toolName,
+          );
         });
         break;
       case AiChatSocketEventType.toolResult:
         _captureReactStep(event);
         setState(() {
           _isSending = true;
-          _agentStatus = 'Đang tổng hợp phản hồi...';
+          _agentStatus = _resolveAgentReasoningStatus(
+            event.content,
+            event.toolName,
+            prefersSynthesis: true,
+          );
         });
         break;
       case AiChatSocketEventType.stream:
@@ -428,8 +533,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
         _sendWatchdogTimer?.cancel();
         _sendWatchdogToken++;
         setState(() {
-          _lastCompletedReactTrace =
-              event.reactTrace ?? List<dynamic>.from(_liveReactTrace);
           _liveReactTrace.clear();
         });
 
@@ -453,6 +556,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
           event.uiSchema,
           leadText: event.message ?? event.content,
         );
+        if (event.bookingState != null) {
+          _applyServerBookingState(event.bookingState!);
+        }
         if (_isTerminalUiSchema(event)) {
           _settleSendingState();
         }
@@ -461,7 +567,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
         _sendWatchdogTimer?.cancel();
         _sendWatchdogToken++;
         setState(() {
-          _error = _mapAgentErrorMessage(event.error);
+          _error = _mapAgentErrorMessage(
+            event.error,
+            errorCode: event.errorCode,
+            suggestion: event.suggestion,
+          );
           _agentStatus = null;
           _isSending = false;
         });
@@ -505,33 +615,272 @@ class _AiChatScreenState extends State<AiChatScreen> {
           _addBookingCreated(event.bookingCreated!);
         }
         break;
+      case AiChatSocketEventType.bookingStateUpdate:
+        if (event.bookingState != null) {
+          _applyServerBookingState(event.bookingState!);
+        }
+        break;
       case AiChatSocketEventType.unknown:
         break;
     }
   }
 
-  void _replaceMessages(List<AiChatMessage> source) {
+  void _replaceMessages(
+    List<AiChatMessage> source, {
+    Map<String, dynamic>? bookingState,
+  }) {
+    final restoredMessages = source
+        .where(
+            (message) => message.role == 'user' || message.role == 'assistant')
+        .map(_restoreMessageFromHistory)
+        .toList();
+
     setState(() {
       _didAutoNavigateToMyBookings = false;
-      _bookingTracker = AiBookingTrackerSnapshot.empty;
-      _messages = source
-          .where((message) =>
-              message.role == 'user' || message.role == 'assistant')
-          .map(
-            (message) => _UiChatMessage(
-              id: message.messageId ?? UniqueKey().toString(),
-              messageId: message.messageId,
-              role: message.role,
-              content: message.content,
-              timestamp: message.timestamp,
-              reactTrace: message.reactTrace,
-              slotGrid: _extractSlotGridFromReactTrace(message.reactTrace),
-            ),
-          )
-          .toList();
+      _messages = restoredMessages;
+      if (bookingState != null) {
+        _bookingTracker = AiBookingTrackerSnapshot.fromJson(bookingState);
+      } else {
+        _bookingTracker = AiBookingTrackerSnapshot.empty;
+      }
     });
     _refreshComposerSuggestions();
     _scrollToBottom();
+  }
+
+  _UiChatMessage _restoreMessageFromHistory(AiChatMessage message) {
+    final uiSchema = message.role == 'assistant' ? message.uiSchema : null;
+    return _UiChatMessage(
+      id: message.messageId ?? UniqueKey().toString(),
+      messageId: message.messageId,
+      role: message.role,
+      content: message.content,
+      timestamp: message.timestamp,
+      reactTrace: message.reactTrace,
+      clinicSuggestions: _extractClinicSuggestionsFromUiSchema(uiSchema) ??
+          _extractClinicSuggestionsFromReactTrace(message.reactTrace),
+      serviceOptions: _extractServiceOptionsFromUiSchema(uiSchema) ??
+          _extractServiceOptionsFromReactTrace(message.reactTrace),
+      serviceClinicId: _extractServiceClinicIdFromUiSchema(uiSchema) ??
+          _extractServiceClinicIdFromReactTrace(message.reactTrace),
+      slotGrid:
+          _buildSlotGridFromUiSchema(uiSchema, leadText: message.content) ??
+              _extractSlotGridFromReactTrace(message.reactTrace),
+      bookingSummary: _extractBookingSummaryFromUiSchema(uiSchema,
+          leadText: message.content),
+      bookingCreated: _extractBookingCreatedFromUiSchema(uiSchema,
+          leadText: message.content),
+    );
+  }
+
+  List<AiClinic>? _extractClinicSuggestionsFromUiSchema(UiSchemaV1? schema) {
+    if (schema == null) {
+      return null;
+    }
+
+    final clinics = schema.components
+        .where(
+          (component) => component.type.trim().toLowerCase() == 'clinic_card',
+        )
+        .map((component) => AiClinic.fromJson(component.data))
+        .where((clinic) => clinic.id.trim().isNotEmpty)
+        .toList();
+
+    return clinics.isEmpty ? null : clinics;
+  }
+
+  List<AiClinic>? _extractClinicSuggestionsFromReactTrace(
+    List<dynamic>? reactTrace,
+  ) {
+    for (final step in (reactTrace ?? const <dynamic>[]).reversed) {
+      if (step is! Map) {
+        continue;
+      }
+      final toolName =
+          (step['tool_name'] ?? '').toString().trim().toLowerCase();
+      if (toolName != 'search_clinics_nearby') {
+        continue;
+      }
+      final rawResult = step['tool_result'];
+      if (rawResult is! Map) {
+        continue;
+      }
+
+      final wrapped = Map<String, dynamic>.from(rawResult);
+      final data = wrapped['data'] is Map
+          ? Map<String, dynamic>.from(wrapped['data'] as Map)
+          : wrapped;
+      final clinics = AiClinicSuggestion.fromJson(data).clinics;
+      if (clinics.isNotEmpty) {
+        return clinics;
+      }
+    }
+
+    return null;
+  }
+
+  List<AiBookingServiceOption>? _extractServiceOptionsFromUiSchema(
+    UiSchemaV1? schema,
+  ) {
+    if (schema == null) {
+      return null;
+    }
+
+    final services = schema.components
+        .where(
+          (component) => component.type.trim().toLowerCase() == 'service_chip',
+        )
+        .map((component) => AiBookingServiceOption.fromJson(component.data))
+        .where((service) => service.id.trim().isNotEmpty)
+        .toList();
+
+    return services.isEmpty ? null : services;
+  }
+
+  List<AiBookingServiceOption>? _extractServiceOptionsFromReactTrace(
+    List<dynamic>? reactTrace,
+  ) {
+    for (final step in (reactTrace ?? const <dynamic>[]).reversed) {
+      if (step is! Map) {
+        continue;
+      }
+      final toolName =
+          (step['tool_name'] ?? '').toString().trim().toLowerCase();
+      if (toolName != 'get_clinic_services') {
+        continue;
+      }
+      final rawResult = step['tool_result'];
+      if (rawResult is! Map) {
+        continue;
+      }
+
+      final wrapped = Map<String, dynamic>.from(rawResult);
+      final data = wrapped['data'] is Map
+          ? Map<String, dynamic>.from(wrapped['data'] as Map)
+          : wrapped;
+      final services = (data['matched_services'] as List<dynamic>? ??
+              data['services'] as List<dynamic>? ??
+              const [])
+          .whereType<Map>()
+          .map((service) => AiBookingServiceOption.fromJson(
+              Map<String, dynamic>.from(service)))
+          .where((service) => service.id.trim().isNotEmpty)
+          .toList();
+      if (services.isNotEmpty) {
+        return services;
+      }
+    }
+
+    return null;
+  }
+
+  String? _extractServiceClinicIdFromUiSchema(UiSchemaV1? schema) {
+    if (schema == null) {
+      return null;
+    }
+
+    for (final component in schema.components) {
+      if (component.type.trim().toLowerCase() != 'service_chip') {
+        continue;
+      }
+      final clinicId = component.data['clinic_id']?.toString().trim();
+      if (clinicId != null && clinicId.isNotEmpty) {
+        return clinicId;
+      }
+    }
+
+    return null;
+  }
+
+  String? _extractServiceClinicIdFromReactTrace(List<dynamic>? reactTrace) {
+    for (final step in (reactTrace ?? const <dynamic>[]).reversed) {
+      if (step is! Map) {
+        continue;
+      }
+      final toolName =
+          (step['tool_name'] ?? '').toString().trim().toLowerCase();
+      if (toolName != 'get_clinic_services') {
+        continue;
+      }
+      final rawResult = step['tool_result'];
+      if (rawResult is! Map) {
+        continue;
+      }
+
+      final wrapped = Map<String, dynamic>.from(rawResult);
+      final data = wrapped['data'] is Map
+          ? Map<String, dynamic>.from(wrapped['data'] as Map)
+          : wrapped;
+      final clinicId =
+          (data['clinic_id'] ?? data['resolved_clinic_id'])?.toString().trim();
+      if (clinicId != null && clinicId.isNotEmpty) {
+        return clinicId;
+      }
+    }
+
+    return null;
+  }
+
+  UiComponentV1? _findUiSchemaComponent(UiSchemaV1? schema, String type) {
+    if (schema == null) {
+      return null;
+    }
+
+    for (final component in schema.components) {
+      if (component.type.trim().toLowerCase() == type) {
+        return component;
+      }
+    }
+
+    return null;
+  }
+
+  bool _hasCreatedBookingPayload(Map<String, dynamic> payload) {
+    return ((payload['id'] ?? payload['booking_id'] ?? payload['booking_code'])
+            ?.toString()
+            .trim()
+            .isNotEmpty ??
+        false);
+  }
+
+  AiBookingSummaryPayload? _extractBookingSummaryFromUiSchema(
+    UiSchemaV1? schema, {
+    String? leadText,
+  }) {
+    final component = _findUiSchemaComponent(schema, 'booking_summary');
+    if (component == null || _hasCreatedBookingPayload(component.data)) {
+      return null;
+    }
+
+    return AiBookingSummaryPayload.fromJson(
+      <String, dynamic>{
+        ...component.data,
+        'message': leadText ?? component.data['message']?.toString(),
+      },
+    );
+  }
+
+  AiBookingCreatedPayload? _extractBookingCreatedFromUiSchema(
+    UiSchemaV1? schema, {
+    String? leadText,
+  }) {
+    final component = _findUiSchemaComponent(schema, 'booking_summary');
+    if (component == null || !_hasCreatedBookingPayload(component.data)) {
+      return null;
+    }
+
+    return AiBookingCreatedPayload.fromJson(
+      <String, dynamic>{
+        'message': leadText ?? component.data['message']?.toString(),
+        'booking': component.data,
+      },
+    );
+  }
+
+  void _applyServerBookingState(Map<String, dynamic> bookingState) {
+    _updateBookingTracker(
+      (_) => AiBookingTrackerSnapshot.fromJson(bookingState),
+    );
   }
 
   void _handleComposerChanged() {
@@ -600,6 +949,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
     }
 
     switch (event.type) {
+      case AiChatSocketEventType.thinkingStream:
+        return null;
       case AiChatSocketEventType.thinking:
         return {
           'step_index': event.stepIndex,
@@ -935,7 +1286,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
     setState(() {
       _isSending = false;
       _agentStatus = null;
-      _bookingTracker = _bookingTracker.mergeSlot(slotGrid, null);
       _upsertAssistantMessage(
         content: (slotGrid.message ??
                 'Mình đã tìm được một số khung giờ phù hợp. Bạn chọn khung giờ để tiếp tục nhé.')
@@ -952,7 +1302,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
     setState(() {
       _isSending = false;
       _agentStatus = null;
-      _bookingTracker = _bookingTracker.mergeSummary(summary);
       _upsertAssistantMessage(
         content: (summary.message ??
                 'Mình đã tổng hợp đủ thông tin cơ bản. Bạn xác nhận để mình tạo yêu cầu đặt lịch nhé.')
@@ -984,8 +1333,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
     if (schema == null || schema.components.isEmpty) {
       return;
     }
-
-    _updateBookingTracker((current) => current.mergeUiSchema(schema));
 
     final serviceComponents = schema.components
         .where((component) =>
@@ -1049,9 +1396,13 @@ class _AiChatScreenState extends State<AiChatScreen> {
   }
 
   AiSlotGridPayload? _buildSlotGridFromUiSchema(
-    UiSchemaV1 schema, {
+    UiSchemaV1? schema, {
     String? leadText,
   }) {
+    if (schema == null) {
+      return null;
+    }
+
     final slotComponents = schema.components
         .where(
             (component) => component.type.trim().toLowerCase() == 'slot_button')
@@ -1210,7 +1561,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
         .where((name) => name.isNotEmpty)
         .toList();
 
-    _updateBookingTracker((current) => current.mergeServices(selectedServices));
     await _sendStructuredBookingAction(
       userMessage:
           selectedNames.length == 1 ? 'Chọn dịch vụ' : 'Chọn các dịch vụ',
@@ -1228,9 +1578,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
     AiSlotGridPayload slotGrid,
     AiBookingSlotOption slot,
   ) async {
-    _updateBookingTracker((current) => current.mergeSlot(slotGrid, slot));
     await _sendStructuredBookingAction(
-      userMessage: 'Ch?n khung gi? ${slot.startTime}',
+      userMessage: 'Chọn khung giờ ${slot.startTime}',
       uiAction: <String, dynamic>{
         'type': 'select_slot',
         if ((slotGrid.clinicId ?? '').trim().isNotEmpty)
@@ -1250,26 +1599,19 @@ class _AiChatScreenState extends State<AiChatScreen> {
     AiBookingSummaryPayload summary,
     String messageId,
   ) async {
-    setState(() {
-      _confirmedMessageIds.add(messageId);
-    });
-
-    await _sendStructuredBookingAction(
-      userMessage: 'Xác nhận đặt lịch',
-      uiAction: <String, dynamic>{
-        'type': 'confirm_booking',
-        if ((summary.petId ?? '').trim().isNotEmpty)
-          'pet_id': summary.petId!.trim(),
-        if ((summary.clinicId ?? '').trim().isNotEmpty)
-          'clinic_id': summary.clinicId!.trim(),
-        if ((summary.bookingDate ?? '').trim().isNotEmpty)
-          'booking_date': summary.bookingDate!.trim(),
-        if ((summary.startTime ?? '').trim().isNotEmpty)
-          'start_time': summary.startTime!.trim(),
-        if (summary.serviceIds.isNotEmpty) 'service_ids': summary.serviceIds,
-        if ((summary.bookingType ?? '').trim().isNotEmpty)
-          'booking_type': summary.bookingType!.trim(),
-      },
+    await _openNativeBookingConfirm(
+      messageId: messageId,
+      clinicId: summary.clinicId,
+      petId: summary.petId,
+      bookingType: summary.bookingType,
+      bookingDate: summary.bookingDate,
+      startTime: summary.startTime,
+      serviceIds: summary.serviceIds,
+      serviceNames: summary.serviceNames,
+      notes: summary.notes,
+      homeAddress: summary.homeAddress,
+      homeLat: summary.homeLat,
+      homeLong: summary.homeLong,
     );
   }
 
@@ -1313,7 +1655,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       return payload;
     }
 
-    String? _pickField(String key, String? fallback) {
+    String? pickField(String key, String? fallback) {
       final current = payload[key]?.toString().trim();
       if (current != null && current.isNotEmpty) {
         return current;
@@ -1322,10 +1664,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
       return (next == null || next.isEmpty) ? null : next;
     }
 
-    final clinicId = _pickField('clinic_id', _bookingTracker.clinicId);
-    final petId = _pickField('pet_id', _bookingTracker.petId);
-    final bookingDate = _pickField('booking_date', _bookingTracker.bookingDate);
-    final startTime = _pickField('start_time', _bookingTracker.startTime);
+    final clinicId = pickField('clinic_id', _bookingTracker.clinicId);
+    final petId = pickField('pet_id', _bookingTracker.petId);
+    final bookingDate = pickField('booking_date', _bookingTracker.bookingDate);
+    final startTime = pickField('start_time', _bookingTracker.startTime);
 
     if (clinicId != null) payload['clinic_id'] = clinicId;
     if (petId != null) payload['pet_id'] = petId;
@@ -1361,7 +1703,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
     final clinicId = clinic.id.trim();
     final clinicAddress = clinic.address.trim();
 
-    _updateBookingTracker((current) => current.mergeClinic(clinic));
     await _sendStructuredBookingAction(
       userMessage:
           clinicName.isNotEmpty ? 'Chọn $clinicName' : 'Chọn phòng khám',
@@ -1523,8 +1864,51 @@ class _AiChatScreenState extends State<AiChatScreen> {
     if ((safeMessage.isEmpty && uiAction == null) ||
         bubbleMessage.isEmpty ||
         _sessionId == null ||
-        _channel == null ||
+        _isInitializing ||
         _isReconnecting) {
+      return;
+    }
+
+    try {
+      final shouldReconnect = _channel == null ||
+          _channel!.closeCode != null ||
+          !_isSocketConnected;
+      if (shouldReconnect) {
+        if (mounted) {
+          setState(() {
+            _error = null;
+            _agentStatus = 'Đang kết nối lại trợ lý AI...';
+          });
+        }
+        await _connectToSession(_sessionId!);
+      }
+    } on AiChatException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.message;
+        _agentStatus = null;
+        _isSending = false;
+      });
+      return;
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Không thể kết nối lại trợ lý AI để gửi tin nhắn';
+        _agentStatus = null;
+        _isSending = false;
+      });
+      return;
+    }
+
+    if (_channel == null ||
+        _channel!.closeCode != null ||
+        !_isSocketConnected) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Kết nối trợ lý AI chưa sẵn sàng. Vui lòng thử lại.';
+        _agentStatus = null;
+        _isSending = false;
+      });
       return;
     }
 
@@ -1558,6 +1942,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       _channel!.sink.add(
         _aiChatService.encodeOutgoingPayload(
           message: safeMessage,
+          displayMessage: bubbleMessage,
           uiAction: uiAction,
           location: location,
           images: sentImages.isNotEmpty ? sentImages : null,
@@ -1624,7 +2009,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       final loaded = await _aiChatService.getSession(session.sessionId);
       if (!mounted) return;
       _sessionId = loaded.sessionId;
-      _replaceMessages(loaded.messages);
+      _replaceMessages(loaded.messages, bookingState: loaded.bookingState);
       await _connectToSession(loaded.sessionId);
       _ensureLocationCached();
       await _loadRecentSessions();
@@ -1665,11 +2050,13 @@ class _AiChatScreenState extends State<AiChatScreen> {
       final loaded = await _aiChatService.getSession(_sessionId!);
       if (!mounted) return;
 
-      _replaceMessages(loaded.messages);
+      _replaceMessages(loaded.messages, bookingState: loaded.bookingState);
       _sessionId = loaded.sessionId;
 
-      final shouldReconnect =
-          _channel == null || _channel!.closeCode != null || _isReconnecting;
+      final shouldReconnect = _channel == null ||
+          _channel!.closeCode != null ||
+          _isReconnecting ||
+          !_isSocketConnected;
       if (shouldReconnect) {
         await _connectToSession(loaded.sessionId);
       }
@@ -1854,6 +2241,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     final composerReservedHeight = isKeyboardVisible ? 78.0 : 94.0;
 
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: AppColors.primaryBackground,
       appBar: AppBar(
         backgroundColor: AppColors.primary,
@@ -1985,7 +2373,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const AiChatLoadingHero(),
+            AiChatLoadingHero(),
             SizedBox(height: 12),
             Text(
               'Đang chuẩn bị trợ lý AI...',
@@ -2229,15 +2617,20 @@ class _AiChatScreenState extends State<AiChatScreen> {
         !isUser && message.content.isEmpty && message.isStreaming
             ? 'Trợ lý đang suy luận...'
             : message.content;
+    final hasBookingFlowError =
+        !isUser && _looksLikeBookingFlowError(displayContent);
     final structuredBookingSummary = !isUser ? message.bookingSummary : null;
-    final bookingDraft = !isUser && structuredBookingSummary == null
-        ? extractBookingConfirmationDraft(
-            content: displayContent,
-            reactTrace: message.reactTrace,
-          )
-        : null;
-    final isBookingReady =
-        !isUser && (structuredBookingSummary != null || bookingDraft != null);
+    final bookingDraft =
+        !isUser && !hasBookingFlowError && structuredBookingSummary == null
+            ? extractBookingConfirmationDraft(
+                content: displayContent,
+                reactTrace: message.reactTrace,
+              )
+            : null;
+    final isBookingReady = !isUser &&
+        !hasBookingFlowError &&
+        (structuredBookingSummary != null || bookingDraft != null);
+    final isHandoffInProgress = _handoffMessageIds.contains(message.id);
     final trace =
         !isUser ? (message.reactTrace ?? const <dynamic>[]) : const <dynamic>[];
     final showFallbackViewBookingButton = !isUser &&
@@ -2286,254 +2679,303 @@ class _AiChatScreenState extends State<AiChatScreen> {
                       ? MediaQuery.of(context).size.width * 0.76
                       : MediaQuery.of(context).size.width * 0.8,
                 ),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: isUser ? AppColors.primary : AppColors.white,
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(14),
-                      topRight: const Radius.circular(14),
-                      bottomLeft: Radius.circular(isUser ? 14 : 4),
-                      bottomRight: Radius.circular(isUser ? 4 : 14),
-                    ),
-                    border: Border.all(
-                      color: isBookingReady
-                          ? AppColors.successDark
-                          : AppColors.stone900,
-                      width: 2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
+                child: GestureDetector(
+                  onLongPress: () => _showMessageOptions(message),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isUser ? AppColors.primary : AppColors.white,
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(14),
+                        topRight: const Radius.circular(14),
+                        bottomLeft: Radius.circular(isUser ? 14 : 4),
+                        bottomRight: Radius.circular(isUser ? 4 : 14),
+                      ),
+                      border: Border.all(
                         color: isBookingReady
                             ? AppColors.successDark
                             : AppColors.stone900,
-                        offset: const Offset(2, 2),
+                        width: 2,
                       ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: isUser
-                        ? CrossAxisAlignment.end
-                        : CrossAxisAlignment.start,
-                    children: [
-                      if (isBookingReady) ...[
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            AiBookingReadyBadge(),
-                          ],
+                      boxShadow: [
+                        BoxShadow(
+                          color: isBookingReady
+                              ? AppColors.successDark
+                              : AppColors.stone900,
+                          offset: const Offset(2, 2),
                         ),
-                        const SizedBox(height: 8),
-                        const AiBookingReadyBanner(),
-                        const SizedBox(height: 8),
                       ],
-                      if (displayContent.trim().isNotEmpty)
-                        Text(
-                          displayContent,
-                          style: TextStyle(
-                            fontSize: 13,
-                            height: 1.55,
-                            color:
-                                isUser ? AppColors.white : AppColors.stone900,
-                            fontWeight: FontWeight.w500,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: isUser
+                          ? CrossAxisAlignment.end
+                          : CrossAxisAlignment.start,
+                      children: [
+                        if (isBookingReady) ...[
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              AiBookingReadyBadge(),
+                            ],
                           ),
-                        ),
-                      if (message.clinicSuggestions != null &&
-                          message.clinicSuggestions!.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        ...message.clinicSuggestions!.map(
-                          (clinic) => AiClinicSuggestionCard(
-                            clinic: clinic,
+                          const SizedBox(height: 8),
+                          const AiBookingReadyBanner(),
+                          const SizedBox(height: 8),
+                        ],
+                        if (displayContent.trim().isNotEmpty)
+                          Text(
+                            displayContent,
+                            style: TextStyle(
+                              fontSize: 13,
+                              height: 1.55,
+                              color:
+                                  isUser ? AppColors.white : AppColors.stone900,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        if (message.clinicSuggestions != null &&
+                            message.clinicSuggestions!.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          ...message.clinicSuggestions!.map(
+                            (clinic) => AiClinicSuggestionCard(
+                              clinic: clinic,
+                              isBusy: _isSending || _isReconnecting,
+                              onBookingTap: () =>
+                                  _handleClinicBookingTap(clinic),
+                            ),
+                          ),
+                        ],
+                        if (message.serviceOptions != null &&
+                            message.serviceOptions!.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          AiServiceOptionCard(
+                            services: message.serviceOptions ??
+                                const <AiBookingServiceOption>[],
+                            selectedIds:
+                                _selectedServiceIdsByMessage[message.id] ??
+                                    const <String>{},
                             isBusy: _isSending || _isReconnecting,
-                            onBookingTap: () => _handleClinicBookingTap(clinic),
+                            onToggleService: (service) =>
+                                _handleServiceSelection(message, service),
+                            onContinue: () => _submitSelectedServices(message),
                           ),
-                        ),
-                      ],
-                      if (message.serviceOptions != null &&
-                          message.serviceOptions!.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        AiServiceOptionCard(
-                          services: message.serviceOptions ??
-                              const <AiBookingServiceOption>[],
-                          selectedIds:
-                              _selectedServiceIdsByMessage[message.id] ??
-                                  const <String>{},
-                          isBusy: _isSending || _isReconnecting,
-                          onToggleService: (service) =>
-                              _handleServiceSelection(message, service),
-                          onContinue: () => _submitSelectedServices(message),
-                        ),
-                      ],
-                      if (message.slotGrid != null) ...[
-                        const SizedBox(height: 12),
-                        AiSlotGridCard(
-                          slotGrid: message.slotGrid!,
-                          isBusy: _isSending || _isReconnecting,
-                          formatBookingDate: _formatBookingDate,
-                          onSelectSlot: (slot) =>
-                              _handleSlotSelection(message.slotGrid!, slot),
-                        ),
-                      ],
-                      if (message.isStreaming) ...[
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const AiChatTypingDots(),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Đang trả lời...',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: isUser
-                                    ? AppColors.white.withValues(alpha: 0.7)
-                                    : AppColors.stone500,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                      if (!isUser && structuredBookingSummary != null) ...[
-                        const SizedBox(height: 10),
-                        AiStructuredBookingSummaryCard(
-                          summary: structuredBookingSummary,
-                          isConfirmed:
-                              _confirmedMessageIds.contains(message.id),
-                          isBusy: _isSending || _isReconnecting,
-                          quickActions: buildBookingSummaryQuickActions(
-                            structuredBookingSummary,
+                        ],
+                        if (message.slotGrid != null) ...[
+                          const SizedBox(height: 12),
+                          AiSlotGridCard(
+                            slotGrid: message.slotGrid!,
+                            isBusy: _isSending || _isReconnecting,
+                            formatBookingDate: _formatBookingDate,
+                            onSelectSlot: (slot) =>
+                                _handleSlotSelection(message.slotGrid!, slot),
                           ),
-                          formatBookingDate: _formatBookingDate,
-                          onQuickAction: _handleBookingQuickAction,
-                          onConfirm: () => _confirmBookingSummary(
-                            structuredBookingSummary,
-                            message.id,
-                          ),
-                        ),
-                      ],
-                      if (!isUser && message.bookingCreated != null) ...[
-                        const SizedBox(height: 10),
-                        AiBookingCreatedCard(
-                          bookingCreated: message.bookingCreated!,
-                          formatBookingDate: _formatBookingDate,
-                          onViewBooking: () =>
-                              _openBookingCreated(message.bookingCreated!),
-                        ),
-                      ],
-                      if (showFallbackViewBookingButton) ...[
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 42,
-                          child: ElevatedButton(
-                            onPressed: _goToMyBookings,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.successLight,
-                              foregroundColor: AppColors.successDark,
-                              elevation: 0,
-                              shadowColor: AppColors.transparent,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                side: const BorderSide(
-                                  color: AppColors.successDark,
-                                  width: 2,
-                                ),
-                              ),
-                            ),
-                            child: const Text(
-                              'Xem lịch hẹn của tôi',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                      if (!isUser && bookingDraft != null) ...[
-                        const SizedBox(height: 10),
-                        AiBookingConfirmationCard(
-                          draft: bookingDraft,
-                          isConfirmed:
-                              _confirmedMessageIds.contains(message.id),
-                          isBusy: _isSending || _isReconnecting,
-                          formatBookingDate: _formatBookingDate,
-                          onConfirm: () =>
-                              _confirmBookingDraft(message.id, bookingDraft),
-                          onRequestChanges: () =>
-                              _requestBookingDraftChanges(bookingDraft),
-                        ),
-                      ],
-                      if (!isUser && kDebugMode && trace.isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        AiChatTracePanel(trace: trace),
-                      ],
-                      // Web Search Results Card
-                      if (!isUser &&
-                              (message.webSearchResults?.isNotEmpty ?? false) ||
-                          (message.webSearchImages?.isNotEmpty ?? false) ||
-                          (message.webSearchAnswer != null &&
-                              message.webSearchAnswer!.isNotEmpty) ||
-                          (message.webSearchFollowUpQuestions?.isNotEmpty ??
-                              false)) ...[
-                        const SizedBox(height: 10),
-                        WebSearchResultsCard(
-                          results: message.webSearchResults != null
-                              ? List<WebSearchResult>.from(
-                                  message.webSearchResults!)
-                              : <WebSearchResult>[],
-                          images: message.webSearchImages != null
-                              ? List<WebSearchImage>.from(
-                                  message.webSearchImages!)
-                              : <WebSearchImage>[],
-                          answer: message.webSearchAnswer,
-                          followUpQuestions:
-                              message.webSearchFollowUpQuestions != null
-                                  ? List<String>.from(
-                                      message.webSearchFollowUpQuestions!)
-                                  : <String>[],
-                          onFollowUpTap: (question) =>
-                              _sendMessage(preset: question),
-                        ),
-                      ],
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: isUser
-                            ? MainAxisAlignment.end
-                            : MainAxisAlignment.spaceBetween,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (!isUser && message.messageId != null)
-                            _buildFeedbackButtons(message),
+                        ],
+                        if (message.isStreaming) ...[
+                          const SizedBox(height: 8),
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(
-                                Icons.access_time,
-                                size: 12,
-                                color: isUser
-                                    ? AppColors.white.withValues(alpha: 0.82)
-                                    : AppColors.stone500,
-                              ),
-                              const SizedBox(width: 4),
+                              const AiChatTypingDots(),
+                              const SizedBox(width: 8),
                               Text(
-                                _formatTime(message.timestamp),
+                                'Đang trả lời...',
                                 style: TextStyle(
-                                  fontSize: 10,
+                                  fontSize: 11,
                                   color: isUser
-                                      ? AppColors.white.withValues(alpha: 0.82)
+                                      ? AppColors.white.withValues(alpha: 0.7)
                                       : AppColors.stone500,
-                                  fontWeight: FontWeight.w700,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ],
                           ),
                         ],
-                      ),
-                    ],
+                        if (!isUser && structuredBookingSummary != null) ...[
+                          const SizedBox(height: 10),
+                          AiStructuredBookingSummaryCard(
+                            summary: structuredBookingSummary,
+                            isConfirmed: false,
+                            isBusy: _isSending ||
+                                _isReconnecting ||
+                                isHandoffInProgress,
+                            quickActions: buildBookingSummaryQuickActions(
+                              structuredBookingSummary,
+                            ),
+                            formatBookingDate: _formatBookingDate,
+                            onQuickAction: _handleBookingQuickAction,
+                            onConfirm: () => _confirmBookingSummary(
+                              structuredBookingSummary,
+                              message.id,
+                            ),
+                          ),
+                        ],
+                        if (!isUser && message.bookingCreated != null) ...[
+                          const SizedBox(height: 10),
+                          AiBookingCreatedCard(
+                            bookingCreated: message.bookingCreated!,
+                            formatBookingDate: _formatBookingDate,
+                            onViewBooking: () =>
+                                _openBookingCreated(message.bookingCreated!),
+                          ),
+                        ],
+                        if (showFallbackViewBookingButton) ...[
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 42,
+                            child: ElevatedButton(
+                              onPressed: _goToMyBookings,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.successLight,
+                                foregroundColor: AppColors.successDark,
+                                elevation: 0,
+                                shadowColor: AppColors.transparent,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  side: const BorderSide(
+                                    color: AppColors.successDark,
+                                    width: 2,
+                                  ),
+                                ),
+                              ),
+                              child: const Text(
+                                'Xem lịch hẹn của tôi',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                        if (!isUser && bookingDraft != null) ...[
+                          const SizedBox(height: 10),
+                          AiBookingConfirmationCard(
+                            draft: bookingDraft,
+                            isConfirmed: false,
+                            isBusy: _isSending ||
+                                _isReconnecting ||
+                                isHandoffInProgress,
+                            formatBookingDate: _formatBookingDate,
+                            onConfirm: () =>
+                                _confirmBookingDraft(message.id, bookingDraft),
+                            onRequestChanges: () =>
+                                _requestBookingDraftChanges(bookingDraft),
+                          ),
+                        ],
+                        if (!isUser && kDebugMode && trace.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          AiChatTracePanel(trace: trace),
+                        ],
+                        // Web Search Results Card
+                        if (!isUser &&
+                                (message.webSearchResults?.isNotEmpty ??
+                                    false) ||
+                            (message.webSearchImages?.isNotEmpty ?? false) ||
+                            (message.webSearchAnswer != null &&
+                                message.webSearchAnswer!.isNotEmpty) ||
+                            (message.webSearchFollowUpQuestions?.isNotEmpty ??
+                                false)) ...[
+                          const SizedBox(height: 10),
+                          WebSearchResultsCard(
+                            results: message.webSearchResults != null
+                                ? List<WebSearchResult>.from(
+                                    message.webSearchResults!)
+                                : <WebSearchResult>[],
+                            images: message.webSearchImages != null
+                                ? List<WebSearchImage>.from(
+                                    message.webSearchImages!)
+                                : <WebSearchImage>[],
+                            answer: message.webSearchAnswer,
+                            followUpQuestions:
+                                message.webSearchFollowUpQuestions != null
+                                    ? List<String>.from(
+                                        message.webSearchFollowUpQuestions!)
+                                    : <String>[],
+                            onFollowUpTap: (question) =>
+                                _sendMessage(preset: question),
+                          ),
+                        ],
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: isUser
+                              ? MainAxisAlignment.end
+                              : MainAxisAlignment.spaceBetween,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (!isUser && message.messageId != null)
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _buildFeedbackButtons(message),
+                                  if (!message.isStreaming &&
+                                      message.content.isNotEmpty) ...[
+                                    const SizedBox(width: 6),
+                                    GestureDetector(
+                                      onTap: () => _regenerateResponse(message),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.white,
+                                          borderRadius:
+                                              BorderRadius.circular(6),
+                                          border: Border.all(
+                                              color: AppColors.stone300,
+                                              width: 1),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.refresh_rounded,
+                                                size: 14,
+                                                color: AppColors.stone600),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              'Tạo lại',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w700,
+                                                color: AppColors.stone600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.access_time,
+                                  size: 12,
+                                  color: isUser
+                                      ? AppColors.white.withValues(alpha: 0.82)
+                                      : AppColors.stone500,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _formatTime(message.timestamp),
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: isUser
+                                        ? AppColors.white
+                                            .withValues(alpha: 0.82)
+                                        : AppColors.stone500,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -2552,26 +2994,324 @@ class _AiChatScreenState extends State<AiChatScreen> {
     );
   }
 
+  bool _looksLikeBookingFlowError(String? rawContent) {
+    final text = (rawContent ?? '').trim().toLowerCase();
+    if (text.isEmpty) {
+      return false;
+    }
+
+    return text.contains('không tìm thấy ngữ cảnh xác nhận booking') ||
+        text.contains('tôi chưa thể hoàn tất tra cứu do lỗi công cụ') ||
+        text.contains('không thể hoàn tất tra cứu do lỗi công cụ') ||
+        text.contains('trợ lý ai gặp lỗi');
+  }
+
+  void _showMessageOptions(_UiChatMessage message) {
+    if (message.content.isEmpty) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return SafeArea(
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.stone900, width: 2),
+              boxShadow: const [
+                BoxShadow(
+                  color: AppColors.stone900,
+                  offset: Offset(3, 3),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    'Tùy chọn tin nhắn',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.stone900,
+                    ),
+                  ),
+                ),
+                const Divider(height: 1, color: AppColors.stone200),
+                ListTile(
+                  leading: const Icon(Icons.copy_outlined,
+                      color: AppColors.stone700),
+                  title: const Text('Sao chép tin nhắn',
+                      style: TextStyle(fontSize: 14)),
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: message.content));
+                    Navigator.pop(context);
+                  },
+                ),
+                if (message.content.length > 50)
+                  ListTile(
+                    leading: const Icon(Icons.share_outlined,
+                        color: AppColors.stone700),
+                    title: const Text('Chia sẻ tin nhắn',
+                        style: TextStyle(fontSize: 14)),
+                    onTap: () {
+                      Navigator.pop(context);
+                      // TODO: Implement share functionality
+                    },
+                  ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _regenerateResponse(_UiChatMessage message) async {
+    final messageIndex = _messages.indexOf(message);
+    if (messageIndex <= 0) return;
+
+    String? userContent;
+    for (var i = messageIndex - 1; i >= 0; i--) {
+      if (_messages[i].role == 'user') {
+        userContent = _messages[i].content;
+        break;
+      }
+    }
+    if (userContent == null || userContent.isEmpty) return;
+
+    setState(() {
+      _messages.removeRange(messageIndex, _messages.length);
+      _isSending = true;
+    });
+
+    await _sendMessage(preset: userContent);
+  }
+
   Future<void> _confirmBookingDraft(
     String messageId,
     AiBookingConfirmationDraft draft,
   ) async {
+    await _openNativeBookingConfirm(
+      messageId: messageId,
+      clinicId: draft.clinicId,
+      petId: _bookingTracker.petId,
+      bookingType: _bookingTracker.bookingType,
+      bookingDate: draft.bookingDate,
+      startTime: draft.startTime,
+      serviceIds: draft.serviceIds,
+      serviceNames: draft.services,
+    );
+  }
+
+  Future<void> _openNativeBookingConfirm({
+    required String messageId,
+    String? clinicId,
+    String? petId,
+    String? bookingType,
+    String? bookingDate,
+    String? startTime,
+    List<String> serviceIds = const <String>[],
+    List<String> serviceNames = const <String>[],
+    String? notes,
+    String? homeAddress,
+    double? homeLat,
+    double? homeLong,
+  }) async {
+    final resolvedClinicId = _firstNonEmpty(clinicId, _bookingTracker.clinicId);
+    final resolvedPetId = _firstNonEmpty(petId, _bookingTracker.petId);
+    final resolvedBookingType =
+        _firstNonEmpty(bookingType, _bookingTracker.bookingType);
+    final resolvedBookingDate =
+        _firstNonEmpty(bookingDate, _bookingTracker.bookingDate);
+    final resolvedStartTime =
+        _firstNonEmpty(startTime, _bookingTracker.startTime);
+    final resolvedServiceIds =
+        serviceIds.isNotEmpty ? serviceIds : _bookingTracker.serviceIds;
+    final resolvedServiceNames =
+        serviceNames.isNotEmpty ? serviceNames : _bookingTracker.serviceNames;
+    final parsedBookingDate = _parseBookingDate(resolvedBookingDate);
+
+    if (resolvedClinicId == null ||
+        resolvedPetId == null ||
+        parsedBookingDate == null ||
+        resolvedStartTime == null ||
+        (resolvedServiceIds.isEmpty && resolvedServiceNames.isEmpty)) {
+      _showChatSnackBar(
+        'Chưa đủ dữ liệu để mở màn xác nhận đặt lịch. Bạn hãy yêu cầu AI tóm tắt lại booking rồi thử lại.',
+      );
+      return;
+    }
+
     setState(() {
-      _confirmedMessageIds.add(messageId);
+      _handoffMessageIds.add(messageId);
     });
 
-    await _sendStructuredBookingAction(
-      userMessage: 'Xác nhận đặt lịch',
-      uiAction: <String, dynamic>{
-        'type': 'confirm_booking',
-        if ((draft.clinicId ?? '').trim().isNotEmpty)
-          'clinic_id': draft.clinicId!.trim(),
-        if ((draft.bookingDate ?? '').trim().isNotEmpty)
-          'booking_date': draft.bookingDate!.trim(),
-        if ((draft.startTime ?? '').trim().isNotEmpty)
-          'start_time': draft.startTime!.trim(),
-        if (draft.serviceIds.isNotEmpty) 'service_ids': draft.serviceIds,
-      },
+    try {
+      final results = await Future.wait<dynamic>([
+        _clinicService.getClinicById(resolvedClinicId),
+        _petService.getPetById(resolvedPetId),
+        _bookingWizardService.getClinicServices(resolvedClinicId),
+      ]);
+
+      final clinic = results[0] as Clinic;
+      final pet = results[1] as Pet;
+      final availableServices =
+          List<ClinicServiceModel>.from(results[2] as List<ClinicServiceModel>);
+      final selectedServices = _resolveSelectedServices(
+        availableServices,
+        serviceIds: resolvedServiceIds,
+        serviceNames: resolvedServiceNames,
+      );
+
+      if (selectedServices.isEmpty) {
+        _showChatSnackBar(
+          'Không tải được dịch vụ đã chọn để mở màn xác nhận. Bạn thử chọn lại dịch vụ giúp mình.',
+        );
+        return;
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      context.read<BookingWizardProvider>().hydrateFromAiChat(
+            clinic: clinic,
+            pet: pet,
+            availableServices: availableServices,
+            selectedServices: selectedServices,
+            bookingType: _mapBookingType(resolvedBookingType),
+            userAddress: homeAddress,
+            userLatitude: homeLat,
+            userLongitude: homeLong,
+            notes: notes,
+            bookingDate: parsedBookingDate,
+            selectedTime: resolvedStartTime,
+          );
+
+      await context.push(AppRoutes.bookingConfirm);
+    } catch (_) {
+      _showChatSnackBar(
+        'Không mở được màn xác nhận đặt lịch. Bạn vui lòng thử lại sau.',
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _handoffMessageIds.remove(messageId);
+        });
+      }
+    }
+  }
+
+  List<ClinicServiceModel> _resolveSelectedServices(
+    List<ClinicServiceModel> availableServices, {
+    required List<String> serviceIds,
+    required List<String> serviceNames,
+  }) {
+    final normalizedIds = serviceIds
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toList();
+    final normalizedNames = serviceNames
+        .map((value) => value.trim().toLowerCase())
+        .where((value) => value.isNotEmpty)
+        .toList();
+
+    final servicesById = <String, ClinicServiceModel>{
+      for (final service in availableServices)
+        service.serviceId.trim(): service,
+    };
+    final orderedMatches = <ClinicServiceModel>[];
+
+    for (final serviceId in normalizedIds) {
+      final service = servicesById[serviceId];
+      if (service != null) {
+        orderedMatches.add(service);
+      }
+    }
+
+    if (orderedMatches.isNotEmpty) {
+      return orderedMatches;
+    }
+
+    final exactNameMatches = availableServices.where((service) {
+      final normalizedServiceName = service.name.trim().toLowerCase();
+      return normalizedNames.contains(normalizedServiceName);
+    }).toList();
+    if (exactNameMatches.isNotEmpty) {
+      return exactNameMatches;
+    }
+
+    return availableServices.where((service) {
+      final normalizedServiceName = service.name.trim().toLowerCase();
+      return normalizedNames.any(
+        (name) =>
+            normalizedServiceName.contains(name) ||
+            name.contains(normalizedServiceName),
+      );
+    }).toList();
+  }
+
+  BookingType _mapBookingType(String? rawBookingType) {
+    final normalized = (rawBookingType ?? '').trim().toUpperCase();
+    return normalized == 'HOME_VISIT'
+        ? BookingType.homeVisit
+        : BookingType.atClinic;
+  }
+
+  DateTime? _parseBookingDate(String? rawBookingDate) {
+    final trimmed = (rawBookingDate ?? '').trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+
+    final parsed = DateTime.tryParse(trimmed);
+    if (parsed != null) {
+      return DateTime(parsed.year, parsed.month, parsed.day);
+    }
+
+    final parts = trimmed.split('/');
+    if (parts.length != 3) {
+      return null;
+    }
+
+    final day = int.tryParse(parts[0]);
+    final month = int.tryParse(parts[1]);
+    final year = int.tryParse(parts[2]);
+    if (day == null || month == null || year == null) {
+      return null;
+    }
+
+    return DateTime(year, month, day);
+  }
+
+  String? _firstNonEmpty(String? primary, String? fallback) {
+    final primaryTrimmed = primary?.trim();
+    if (primaryTrimmed != null && primaryTrimmed.isNotEmpty) {
+      return primaryTrimmed;
+    }
+    final fallbackTrimmed = fallback?.trim();
+    if (fallbackTrimmed == null || fallbackTrimmed.isEmpty) {
+      return null;
+    }
+    return fallbackTrimmed;
+  }
+
+  void _showChatSnackBar(String message) {
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppColors.error,
+      ),
     );
   }
 
@@ -2623,7 +3363,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'KhÃ´ng táº£i Ä‘Æ°á»£c chi tiáº¿t lá»‹ch háº¹n. Má»Ÿ danh sÃ¡ch lá»‹ch háº¹n cá»§a báº¡n thay tháº¿.',
+              'Không tải được chi tiết lịch hẹn. Mở danh sách lịch hẹn của bạn thay thế.',
             ),
             backgroundColor: AppColors.error,
           ),
@@ -2691,9 +3431,19 @@ class _AiChatScreenState extends State<AiChatScreen> {
     return '$hour:$minute';
   }
 
-  String _mapAgentErrorMessage(String? rawError) {
+  String _mapAgentErrorMessage(
+    String? rawError, {
+    String? errorCode,
+    String? suggestion,
+  }) {
     final message = (rawError ?? '').trim();
+    final normalizedCode = (errorCode ?? '').trim();
     if (message.isEmpty) {
+      if (normalizedCode.isNotEmpty &&
+          suggestion != null &&
+          suggestion.isNotEmpty) {
+        return 'Trợ lý AI gặp lỗi ($normalizedCode). $suggestion';
+      }
       return 'Trợ lý AI gặp lỗi';
     }
 
@@ -2706,7 +3456,14 @@ class _AiChatScreenState extends State<AiChatScreen> {
       return 'Phiên chat AI không còn hợp lệ với tài khoản hiện tại.';
     }
 
-    return message;
+    final parts = <String>[message];
+    if (normalizedCode.isNotEmpty) {
+      parts.add('($normalizedCode)');
+    }
+    if (suggestion != null && suggestion.isNotEmpty) {
+      parts.add(suggestion);
+    }
+    return parts.join(' ').trim();
   }
 
   String _friendlyErrorMessage(String message) {

@@ -36,6 +36,7 @@ class DiagnosisService {
 
   Future<StaffDiagnosisResponse> analyzeCase({
     required DiagnosisSpecies species,
+    String? previousRequestId,
     String? petId,
     String? bookingId,
     String? breed,
@@ -49,9 +50,13 @@ class DiagnosisService {
     List<String>? imageUrls,
     DiagnosisImageAnalysisMode imageAnalysisMode =
         DiagnosisImageAnalysisMode.full,
+    String? synthesisMode,
+    String? selectedDiagnosisCode,
+    String? selectedDiagnosisLabel,
     SoapDraft? soapDraft,
   }) async {
     final request = StaffDiagnosisRequest(
+      previousRequestId: previousRequestId,
       petId: petId,
       bookingId: bookingId,
       species: species,
@@ -65,6 +70,9 @@ class DiagnosisService {
       symptoms: symptoms,
       imageUrls: imageUrls,
       imageAnalysisMode: imageAnalysisMode,
+      synthesisMode: synthesisMode,
+      selectedDiagnosisCode: selectedDiagnosisCode,
+      selectedDiagnosisLabel: selectedDiagnosisLabel,
       soapDraft: soapDraft,
     );
 
@@ -109,11 +117,11 @@ class DiagnosisService {
         final statusCode = e.response?.statusCode;
         final data = e.response?.data;
         String message = 'Đã xảy ra lỗi.';
-        
+
         if (data is Map<String, dynamic>) {
           message = data['detail'] ?? data['message'] ?? message;
         }
-        
+
         return DiagnosisException(
           message: message,
           statusCode: statusCode,

@@ -57,7 +57,6 @@ The AI service PostgreSQL schema is now focused on runtime governance, not chat 
 | `system_settings` | Runtime API keys and provider settings |
 | `disease_catalog` | Canonical disease codes |
 | `disease_aliases` | Approved aliases mapped to canonical disease codes |
-| `disease_mapping_review_items` | Review queue for unmapped labels |
 
 ### 2.4 Important AI schema decisions
 
@@ -65,6 +64,7 @@ The AI service PostgreSQL schema is now focused on runtime governance, not chat 
 - The current single-agent design keeps the system prompt in code, while runtime tuning remains in `agents` and `system_settings`.
 - `tools` are not assigned to agents by relational foreign keys.
 - `disease_aliases.canonical_code -> disease_catalog.canonical_code` is the primary active AI foreign-key relationship in the migration-backed schema.
+- Legacy `disease_mapping_review_items` has been removed from the active AI-diagnose schema and current DBML baseline.
 
 ## 3. MongoDB Schema
 

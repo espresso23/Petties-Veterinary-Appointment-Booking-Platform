@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { SimulationNodeDatum } from 'd3'
 import type { KGVisualizeResponse } from '../../services/agentService'
 
 interface GraphVisualizerProps {
@@ -7,7 +8,7 @@ interface GraphVisualizerProps {
   height?: number
 }
 
-interface D3Node extends d3.SimulationNodeDatum {
+interface GraphNode extends SimulationNodeDatum {
   id: string
   label: string
   type: string
@@ -15,9 +16,9 @@ interface D3Node extends d3.SimulationNodeDatum {
 
 interface D3Link {
   label: string
-  // d3 will mutate these to D3Node references; keep broad typing
-  source: string | D3Node
-  target: string | D3Node
+  // d3 will mutate these to GraphNode references; keep broad typing
+  source: string | GraphNode
+  target: string | GraphNode
 }
 
 export const GraphVisualizer = ({ data, height = 500 }: GraphVisualizerProps) => {
@@ -67,7 +68,7 @@ export const GraphVisualizer = ({ data, height = 500 }: GraphVisualizerProps) =>
         ; (svg as d3.Selection<SVGSVGElement, unknown, null, undefined>).call(zoomBehavior)
 
       // Prepare data
-      const nodes: D3Node[] = data.nodes.map((n) => ({ ...n }))
+      const nodes: GraphNode[] = data.nodes.map((n) => ({ ...n }))
       const links: D3Link[] = data.edges.map((e) => ({
         label: e.label,
         source: e.source,
@@ -93,8 +94,8 @@ export const GraphVisualizer = ({ data, height = 500 }: GraphVisualizerProps) =>
         .attr('fill', '#64748b')
 
       // Simulation
-      const simulation = d3.forceSimulation<D3Node>(nodes)
-        .force('link', d3.forceLink<D3Node, D3Link>(links).id((d) => d.id).distance(150))
+      const simulation = d3.forceSimulation<GraphNode>(nodes)
+        .force('link', d3.forceLink<GraphNode, D3Link>(links).id((d) => d.id).distance(150))
         .force('charge', d3.forceManyBody().strength(-400))
         .force('center', d3.forceCenter(actualWidth / 2, height / 2))
         .force('collide', d3.forceCollide(40))
@@ -147,19 +148,19 @@ export const GraphVisualizer = ({ data, height = 500 }: GraphVisualizerProps) =>
         .data(nodes)
         .join('g')
 
-      const dragBehavior = d3.drag<any, any>()
-        .on('start', (event: any, d: any) => {
+      const dragBehavior = d3.drag<SVGGElement, GraphNode>()
+        .on('start', (event: d3.D3DragEvent<SVGGElement, GraphNode, GraphNode>) => {
           if (!event.active) simulation.alphaTarget(0.3).restart()
-          d.fx = d.x
-          d.fy = d.y
+          event.subject.fx = event.subject.x
+          event.subject.fy = event.subject.y
         })
-        .on('end', (event: any, d: any) => {
+        .on('end', (event: d3.D3DragEvent<SVGGElement, GraphNode, GraphNode>) => {
           if (!event.active) simulation.alphaTarget(0)
-          d.fx = null
-          d.fy = null
+          event.subject.fx = null
+          event.subject.fy = null
         })
 
-        ; (node as any).call(dragBehavior as any)
+        ; (node as unknown as Selection<SVGGElement, GraphNode, null, undefined>).call(dragBehavior)
 
       // Node circles
       node.append('circle')
@@ -185,15 +186,15 @@ export const GraphVisualizer = ({ data, height = 500 }: GraphVisualizerProps) =>
       // Update positions
       simulation.on('tick', () => {
         link
-          .attr('x1', (d) => ((d.source as unknown) as D3Node).x!)
-          .attr('y1', (d) => ((d.source as unknown) as D3Node).y!)
-          .attr('x2', (d) => ((d.target as unknown) as D3Node).x!)
-          .attr('y2', (d) => ((d.target as unknown) as D3Node).y!)
+          .attr('x1', (d) => ((d.source as unknown) as GraphNode).x!)
+          .attr('y1', (d) => ((d.source as unknown) as GraphNode).y!)
+          .attr('x2', (d) => ((d.target as unknown) as GraphNode).x!)
+          .attr('y2', (d) => ((d.target as unknown) as GraphNode).y!)
 
         linkLabelGroup
           .attr('transform', (d) => {
-            const sourceNode = (d.source as unknown) as D3Node
-            const targetNode = (d.target as unknown) as D3Node
+            const sourceNode = (d.source as unknown) as GraphNode
+            const targetNode = (d.target as unknown) as GraphNode
             const x = ((sourceNode.x || 0) + (targetNode.x || 0)) / 2
             const y = ((sourceNode.y || 0) + (targetNode.y || 0)) / 2
             return `translate(${x},${y})`

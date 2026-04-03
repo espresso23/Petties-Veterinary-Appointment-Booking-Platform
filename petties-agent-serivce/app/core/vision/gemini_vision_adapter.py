@@ -15,14 +15,14 @@ from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
-from app.api.schemas.diagnosis_contracts import (
+from app.ai_diagnose.schemas import (
     GeminiVisionDiagnosisRequest,
     GeminiVisionDiagnosisResponse,
     VisionTopCondition,
 )
 from app.core.services.disease_mapping_service import get_disease_mapping_service
 from app.db.postgres.session import AsyncSessionLocal
-from app.services.llm_client import get_llm_client_from_db
+from app.services.llm_client import get_llm_client, get_llm_client_from_db
 
 
 class GeminiVisionAdapter:
@@ -49,15 +49,22 @@ class GeminiVisionAdapter:
             logger.info(
                 f"Vision analyze: {len(request.image_urls)} images for request {request.request_id}"
             )
-            async with AsyncSessionLocal() as db:
-                llm_client = await get_llm_client_from_db(db)
+            try:
+                async with AsyncSessionLocal() as db:
+                    llm_client = await get_llm_client_from_db(db)
+            except Exception as exc:
+                logger.warning(
+                    f"DB-backed LLM config unavailable, fallback to env client: {exc}"
+                )
+                llm_client = get_llm_client()
             llm_response = await llm_client.generate(
                 prompt=prompt,
                 images=request.image_urls,
                 temperature=0.1,
             )
+            model_name = getattr(llm_response, "model", "unknown")
             logger.info(
-                f"Vision LLM response length: {len(llm_response.content)} chars, model: {llm_response.model}"
+                f"Vision LLM response length: {len(llm_response.content)} chars, model: {model_name}"
             )
             parsed = self._parse_response_content(llm_response.content)
             response = self._to_contract_response(request.request_id, parsed)

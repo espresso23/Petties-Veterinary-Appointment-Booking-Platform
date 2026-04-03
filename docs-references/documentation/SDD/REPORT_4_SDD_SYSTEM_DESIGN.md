@@ -1,10 +1,10 @@
 # II. Software Design Document
 
-> Update note dated 2026-03-17: older sections describing `analyze_pet_image`, Visual Case Memory from image feedback, Label Studio, or the previous feedback loop are no longer the deployed architecture. The current AI diagnosis technical reference is defined in [AI_SERVICE_TECHNICAL_SPECIFICATION.md](D:/SEP490/petties/docs-references/documentation/AI_SERVICE_TECHNICAL_SPECIFICATION.md) and [AI_DIAGNOSIS_FEATURE_PLAN.md](D:/SEP490/petties/docs-references/documentation/AI_DIAGNOSIS_FEATURE_PLAN.md).
+> Update note dated 2026-04-01: older sections describing `analyze_pet_image`, legacy feedback-driven Case Memory, polling-based confirmed EMR sync, or the previous feedback loop are no longer the deployed architecture. The active AI diagnosis runtime reference is defined in [ai_diagnose_service/01_RUNTIME_FLOW.md](D:/SEP490/petties/docs-references/ai_diagnose_service/01_RUNTIME_FLOW.md), the active requirements are in [PETTIES_SRS.md](D:/SEP490/petties/docs-references/documentation/SRS/PETTIES_SRS.md) section `3.11.11`, and the trust-boundary rules are in [AI_SERVICE_TECHNICAL_SPECIFICATION.md](D:/SEP490/petties/docs-references/documentation/AI_SERVICE_TECHNICAL_SPECIFICATION.md).
 
 **Project:** Petties - Veterinary Appointment Booking Platform
-**Version:** 3.3.8 (Aligned API coverage with merged commercial and AI runtime modules)
-**Last Updated:** 2026-03-25
+**Version:** 3.3.10 (Grounded SOAP synthesis with KB and Case Memory evidence)
+**Last Updated:** 2026-04-02
 **Document Status:** In Progress
 
 ## TABLE OF CONTENTS
@@ -24,7 +24,9 @@
     - [4.2 User Profile Management](#42-user-profile-management)
     - [4.20 AI Tool Booking Orchestration APIs](#420-ai-tool-booking-orchestration-apis)
     - [4.21 Staff AI Diagnosis in EMR Workspace](#421-staff-ai-diagnosis-in-emr-workspace)
+    - [4.22 AI Health Summary for Pet Owner](#422-ai-health-summary-for-pet-owner)
     - [4.23 Staff AI Chat Panel](#423-staff-ai-chat-panel)
+    - [4.24 Historical Resolution Note for Confirmed EMR Sync](#424-historical-resolution-note-for-confirmed-emr-sync)
 ### 4.3 Staff and Scheduling Management
 
 This module covers clinic roster management and staff shift scheduling. The current design is centered around two controllers and two services: one pair manages clinic staff assignment by email and roster removal, while the other pair manages shift creation, schedule viewing, shift detail lookup, and shift deletion.
@@ -1435,7 +1437,7 @@ erDiagram
 |-------|--------|-------------|
 | **Agent Runtime** | agents, tools | Single-agent runtime parameters and tool registry |
 | **Knowledge Base** | knowledge_documents | RAG document metadata |
-| **Diagnosis Normalization** | disease_catalog, disease_aliases, disease_mapping_review_items | Canonical disease taxonomy and review queue |
+| **Diagnosis Normalization** | disease_catalog, disease_aliases | Canonical disease taxonomy and active alias registry |
 | **Settings** | system_settings | API keys and runtime/provider configuration |
 
 ##### AI Agent Service Relationship Notes
@@ -1922,8 +1924,6 @@ Alternative persisted paths: CANCELLED, NO_SHOW
 | canonical_code | VARCHAR(100) | UNIQUE, NOT NULL | Canonical disease code shared across diagnosis flows |
 | display_name_vi | VARCHAR(255) | NOT NULL | Vietnamese display name for staff-facing diagnosis flows |
 | species | VARCHAR(50) | DEFAULT `all` | Species scoping |
-| body_system | VARCHAR(100) | | Body-system grouping |
-| protocol_key | VARCHAR(100) | | Key into downstream diagnosis/support protocol |
 | is_active | BOOLEAN | DEFAULT true | Canonical disease activation flag |
 | notes | TEXT | | Clinical note or mapping note |
 | created_at | TIMESTAMPTZ | DEFAULT now() | Creation timestamp |
@@ -1941,27 +1941,9 @@ Alternative persisted paths: CANCELLED, NO_SHOW
 | alias_text | VARCHAR(255) | NOT NULL | Original alias text |
 | normalized_alias | VARCHAR(255) | NOT NULL | Normalized lookup value |
 | species | VARCHAR(50) | DEFAULT `all` | Species scoping |
-| review_status | VARCHAR(50) | DEFAULT `approved` | Review state of the alias |
 | is_active | BOOLEAN | DEFAULT true | Alias activation flag |
 | created_at | TIMESTAMPTZ | DEFAULT now() | Creation timestamp |
 | updated_at | TIMESTAMPTZ | onupdate=now() | Last modification timestamp |
-
-###### Table: disease_mapping_review_items
-
-**Purpose:** Queues unmapped labels that need manual review so diagnosis normalization does not silently discard unknown terms.
-
-| Column | Type | Constraints | Purpose & Business Context |
-|--------|------|-------------|---------------------------|
-| id | INT | PK, AUTO_INCREMENT | Internal primary key |
-| raw_label | VARCHAR(255) | NOT NULL | Original unmapped label |
-| normalized_label | VARCHAR(255) | NOT NULL | Normalized comparison value |
-| source_type | VARCHAR(50) | NOT NULL | Upstream source such as EMR or vision |
-| species | VARCHAR(50) | DEFAULT `all` | Species scoping |
-| status | VARCHAR(50) | DEFAULT `pending` | Review queue status |
-| hit_count | INT | DEFAULT 1 | Number of times the label was observed |
-| sample_payload | JSON | | Example payload captured for review |
-| first_seen_at | TIMESTAMPTZ | DEFAULT now() | First observation timestamp |
-| last_seen_at | TIMESTAMPTZ | onupdate=now() | Most recent observation timestamp |
 
 ###### Table: system_settings
 
@@ -1991,7 +1973,7 @@ Alternative persisted paths: CANCELLED, NO_SHOW
 **Decision:** AI governance state stays in PostgreSQL, conversational runtime state stays in MongoDB, and retrieval/case-memory vectors stay in Qdrant.
 
 **Active storage split:**
-- PostgreSQL: `agents`, `tools`, `knowledge_documents`, `disease_catalog`, `disease_aliases`, `disease_mapping_review_items`, `system_settings`
+- PostgreSQL: `agents`, `tools`, `knowledge_documents`, `disease_catalog`, `disease_aliases`, `system_settings`
 - MongoDB: `ai_chat_sessions`, `ai_chat_messages`, `ai_proactive_notifications`, `chat_feedback`, `knowledge_graph_triplets`
 - Qdrant: `petties_knowledge_base`, `petties_case_memory_v2`, `petties_kb_images`
 
@@ -2003,7 +1985,6 @@ Alternative persisted paths: CANCELLED, NO_SHOW
 | `agents` | - | Standalone | Yes | Single runtime agent row with independent parameters |
 | `tools` | - | Standalone | Yes | Tool registry governed by runtime policy |
 | `knowledge_documents` | - | Standalone | Yes | RAG metadata table |
-| `disease_mapping_review_items` | - | Standalone | Yes | Review queue for unmapped labels |
 | `system_settings` | - | Standalone | Yes | Runtime configuration store |
 
 ###### AI Table Description Summary
@@ -2015,7 +1996,6 @@ Alternative persisted paths: CANCELLED, NO_SHOW
 | `knowledge_documents` | RAG document metadata | Tracks upload and indexing lifecycle | Admin, AI service |
 | `disease_catalog` | Canonical diagnosis dictionary | Normalizes diagnosis outputs across sources | Staff AI diagnosis, AI service |
 | `disease_aliases` | Alias normalization layer | Maps free-text disease labels to canonical codes | Staff AI diagnosis, AI service |
-| `disease_mapping_review_items` | Review backlog | Prevents silent loss of unknown diagnosis labels | Admin, AI service |
 | `system_settings` | Runtime secrets and provider configs | Centralized operational configuration | Admin, AI service |
 
 #### 2.1.4 Enum Types Summary
@@ -9805,7 +9785,6 @@ classDiagram
         -collection_name: str = "petties_case_memory"
         +upsert_case(case: ConfirmedCase) str
         +search_similar(query: str, threshold: float) List~CaseResult~
-        +update_confirmation_count(case_id: str) void
         +prune_low_score_cases(min_score: float) int
         +get_stats() CaseMemoryStats
     }
@@ -9831,7 +9810,7 @@ classDiagram
         +treatment: str
         +tool_used: str
         +image_urls: List~str~
-        +confirmation_count: int
+        +diagnosis_support_count: int
         +confidence_score: float
 
         +created_at: datetime
@@ -9848,7 +9827,7 @@ classDiagram
         +medical_cases: int
         +booking_cases: int
         +clinic_ops_cases: int
-        +avg_confirmation_count: float
+        +avg_quality_score: float
 
     }
 
@@ -10000,10 +9979,9 @@ classDiagram
 | Method | Description |
 |--------|-------------|
 | `upsert_case(case)` | Embed text description + metadata vao Qdrant `petties_case_memory`. Tra ve case_id. Nguon: EMR confirmed (thay vi feedback). |
-| `search_similar(query, threshold)` | Tim cases tuong tu, re-rank theo confirmation_count. |
-| `update_confirmation_count(case_id)` | Tang confirmation_count +1 khi co EMR confirmed cho case da ton tai. |
-| `prune_low_score_cases(min_score)` | Xoa cases co score thap va confirmation_count = 0. Tra ve so cases da xoa. |
-| `get_stats()` | Thong ke: total cases, phan loai theo category, avg feedback, vet verified count. |
+| `search_similar(query, threshold)` | Tim cases tuong tu theo similarity thuần; disease support metrics duoc tinh downstream trong staff diagnosis service. |
+| `prune_low_score_cases(min_score)` | Xoa cases cu co quality gate thap hoac stale support score thap. Tra ve so cases da xoa. |
+| `get_stats()` | Thong ke: total cases, avg quality score, image support, va trang thai collection. |
 
 **4. FeedbackService** *(Deprecated - se duoc remove)*
 
@@ -10037,7 +10015,7 @@ classDiagram
 | Method | Description |
 |--------|-------------|
 | `query(user_query, pet_type)` | Pipeline: expand query -> search RAG + KG + Case Memory song song -> merge & re-rank -> tra ve HybridResult |
-| `_merge_and_rerank(rag, kg, cases)` | Ket hop ket qua tu 3 nguon, tinh final_score dua tren relevance + confirmation_count |
+| `_merge_and_rerank(rag, kg, cases)` | Ket hop ket qua tu 3 nguon, tinh final_score dua tren relevance + quality boost |
 
 #### 4.20.3 Sequence Diagram: Query Expansion Flow
 
@@ -10186,7 +10164,7 @@ sequenceDiagram
 
     Agent->>CaseMem: 16. search_similar("tai meo chat nau den viem")
     activate CaseMem
-    CaseMem-->>Agent: 17. Case #1: Ran tai, score 0.92,<br/>confirmation_count=1
+    CaseMem-->>Agent: 17. Case #1: Ran tai, score 0.92
     deactivate CaseMem
 
     Agent->>RAG: 18. Bo sung thong tin tu KB
@@ -10242,7 +10220,7 @@ sequenceDiagram
             Qdrant-->>CaseMem: 14. OK
             CaseMem->>CaseMem: 15. Check existing similar (threshold 0.95)
             alt Case tuong tu da ton tai
-                CaseMem->>Qdrant: 16. update_confirmation_count(existing_id)
+                CaseMem->>Qdrant: 16. upsert latest payload
             end
             CaseMem-->>FBS: 17. case_id
             deactivate CaseMem
@@ -10295,12 +10273,12 @@ sequenceDiagram
     and
         Hybrid->>CaseMem: 5c. search_similar(expanded_query)
         activate CaseMem
-        CaseMem-->>Hybrid: 6c. Similar cases:<br/>Case #12: Meo ho + chay mui -> Viem duong ho hap<br/>(confirmation_count=23)
+        CaseMem-->>Hybrid: 6c. Similar cases:<br/>Case #12: Meo ho + chay mui -> Viem duong ho hap<br/>(similarity=0.94)
         deactivate CaseMem
     end
 
     Hybrid->>Hybrid: 7. _merge_and_rerank(rag, kg, cases)
-    Note right of Hybrid: Final score = relevance_score<br/>+ confirmation_boost (min(count/100, 0.3))
+    Note right of Hybrid: Hybrid layer merges relevance from KB/KG/Case Memory;<br/>disease support metrics are applied downstream in staff diagnosis service
 
     Hybrid-->>Agent: 8. HybridResult {answer, sources, reasoning, cases, confidence: 0.89}
     deactivate Hybrid
@@ -10388,7 +10366,7 @@ flowchart TB
     "symptoms": "keyword[] (array)",
     "treatment": "text",
     "tool_used": "keyword",
-    "confirmation_count": "integer",
+    "diagnosis_support_count": "integer",
     "confidence_score": "float",
     "created_at": "datetime",
     "last_confirmed_at": "datetime"
@@ -10396,11 +10374,10 @@ flowchart TB
 }
 ```
 
-**Feedback-weighted retrieval formula:**
+**Case retrieval formula:**
 
 ```
 final_score = cosine_similarity
-            + min(confirmation_count / 100, 0.3)    -- confirmation boost (cap 0.3)
 
 ```
 
@@ -10454,7 +10431,7 @@ flowchart LR
 | Hang ngay | Auto-classify implicit feedback (booking success, EMR lookup success) | Thu thap feedback tu dong | Auto (Scheduler) |
 | Hang tuan | Review cases bi thumbs_down - phan loai theo category va role | Phat hien van de cu the tung tool/role | Admin review |
 | Hang tuan | Phan tich `wrong_tool` feedback -> dieu chinh tool routing | Tool routing chinh xac hon | Admin + Auto |
-| Hang thang | Prune cases co score thap + confirmation_count = 0 | Tranh nhieu vector store | Auto (Scheduler) |
+| Hang thang | Prune cases co quality gate thap hoac stale support score thap | Tranh nhieu vector store | Auto (Scheduler) |
 | Hang thang | Thong ke feedback theo role -> dieu chinh role-specific prompts | Prompt tot hon cho tung role | Admin review |
 | Hang quy | Re-rank toan bo case memory | Dam bao case tot nhat duoc uu tien | Admin + Auto |
 
@@ -10986,6 +10963,8 @@ classDiagram
     class StaffDiagnosisService {
         +analyzeCase(request)
         +buildGroundedResponse()
+        +buildSoapGroundingBundle()
+        +buildGroundedSoapSuggestions()
     }
 
     class GeminiVisionAdapter {
@@ -11030,7 +11009,7 @@ classDiagram
 > - Nguồn dữ liệu: EMR confirmed (Case Memory), Knowledge Base, Knowledge Graph
 > - Case Memory: EMR-driven từ confirmed diagnoses
 > - Evidence display: `supporting_evidence_from_kb`, `similar_confirmed_cases`
-> - Technical documentation: [AI_DIAGNOSIS_COMPLETE.md](./AI_DIAGNOSIS_COMPLETE.md)
+> - Technical documentation: [ai_diagnose_service/](D:/SEP490/petties/docs-references/ai_diagnose_service/)
 
 **1. CreateEmrPage**
 - **Responsibility:** Trang staff nhập SOAP notes, ảnh lâm sàng và hiển thị panel AI chẩn đoán ngay cạnh form bệnh án.
@@ -11066,6 +11045,9 @@ classDiagram
 - **Responsibility:** Điều phối toàn bộ pipeline chẩn đoán mới.
 - **Key Methods:**
   - `analyzeCase(request)`: chuẩn hóa input, gọi vision nếu có ảnh, query KB và case memory.
+  - `_buildSelectedOnlyResponse(requestId, request)`: tái sử dụng cached context khi bác sĩ đã chọn chẩn đoán; ưu tiên `common_prescriptions` từ EMR confirmed và fallback LLM cho `prescription_suggestions` nếu Case Memory chưa có thuốc.
+  - `buildSoapGroundingBundle()`: gom bằng chứng theo từng phần SOAP từ request, KB chunks, Case Memory, protocol decision, và vision findings.
+  - `buildGroundedSoapSuggestions()`: sinh SOAP draft dựa trên grounding bundle, giữ ràng buộc section-level để tránh hallucination.
   - `buildGroundedResponse()`: tổng hợp kết quả cuối cùng kèm nguồn bằng chứng và disclaimer.
 
 **7. GeminiVisionAdapter**
@@ -11079,17 +11061,64 @@ classDiagram
   - `mapRawLabel(text)`: chuẩn hóa alias và map sang disease catalog.
 
 **9. EmrCaseMemorySyncService**
-- **Responsibility:** Đồng bộ EMR đã xác nhận từ Spring Boot sang case memory để phục vụ truy xuất ca tương tự.
+- **Responsibility:** Synchronize confirmed EMR records from Spring Boot into Case Memory for future similar-case retrieval.
 - **Key Methods:**
-  - `fetchConfirmedEmrs()`: lấy batch EMR đã xác nhận.
-  - `syncBatch()`: chuẩn hóa, embed và upsert vào vector store.
+  - `sync_record(emr_record)`: receive one confirmed EMR payload pushed directly from Spring Boot and upsert it into Case Memory.
+  - `_extract_protocol_pattern(emr_record, mapping_result)`: derive runtime protocol only from real EMR fields such as SOAP, `plan` or `notes`, and final prescriptions.
+
+> **2026-04-02 Update:** The active Case Memory schema is reduced to a runtime-only projection. The service now keeps only the fields actually consumed by retrieval and grounded SOAP synthesis (`text_content`, diagnosis identity, chief complaint, clinical notes, `exam_at`, and runtime protocol pattern fields).
 
 **10. Disease Catalog Persistence**
-- **Responsibility:** Lưu canonical disease, alias theo nguồn và hàng đợi review cho nhãn chưa map được.
+- **Responsibility:** Lưu canonical disease, alias theo nguồn, và thực thi autonomous canonicalization không cần daily manual review.
 - **Key Methods:**
   - `refresh_from_db()`: load snapshot mapping từ PostgreSQL.
   - `map_label()`: map nhãn EMR/vision/KB về `canonical_code`.
-  - `record_unmapped_label()`: ghi nhãn chưa map được vào review queue.
+  - `resolve_label()`: resolve unmatched labels through exact alias lookup plus autonomous canonicalization.
+  - `map_with_llm()`: resolve unmatched labels against existing canonical diseases.
+  - `auto_upsert_alias()`: persist learned aliases into `disease_aliases`.
+  - `auto_create_canonical()`: create a new `disease_catalog` entry when no safe existing canonical match is found.
+
+> **2026-04-02 Update:** autonomous canonicalization now reuses only `disease_catalog` and `disease_aliases`, without adding new PostgreSQL tables and without requiring daily admin alias maintenance.
+
+#### 4.21.3A Sequence Diagram: Planned Autonomous Canonicalization (Pending Implementation)
+
+```mermaid
+sequenceDiagram
+    actor Staff as Staff
+    participant UI as EMR Screen
+    participant Spring as EmrService
+    participant Sync as EmrCaseMemorySyncService
+    participant Map as DiseaseMappingService
+    participant DB as Database
+
+    Staff->>UI: 1. Save confirmed EMR
+    UI->>Spring: 2. POST/PUT EMR
+    Spring->>DB: 3. Save confirmed EMR
+    DB-->>Spring: 4. Persisted EMR
+    Spring->>Sync: 5. Push internal confirmed EMR payload
+    Sync->>Map: 6. map_label(raw diagnosis)
+    alt Existing alias matched
+        Map-->>Sync: 7. Existing canonical_code
+    else No exact alias match
+        Map->>Map: 7. Retrieve nearest canonical candidates
+        Map->>Map: 8. Resolve with LLM
+        alt Map to existing canonical
+            Map->>DB: 9. Insert learned alias into disease_aliases
+            DB-->>Map: 10. Alias saved
+            Map-->>Sync: 11. Canonical_code from existing disease
+        else Create new canonical
+            Map->>DB: 9. Insert row into disease_catalog
+            DB-->>Map: 10. Canonical saved
+            Map->>DB: 11. Insert first alias into disease_aliases
+            DB-->>Map: 12. Alias saved
+            Map-->>Sync: 13. New canonical_code
+        else Keep provisional
+            Map-->>Sync: 9. Provisional mapping result
+        end
+    end
+    Sync->>Sync: 14. Build protocol_pattern and Case Memory payload
+    Sync-->>Spring: 15. Sync result
+```
 
 #### 4.21.4 Sequence Diagram: Staff phân tích ca bệnh từ EMR hoặc side panel chat
 
@@ -11133,6 +11162,7 @@ sequenceDiagram
     CM-->>Orchestrator: matchedCases
     Orchestrator->>Map: mapRawLabel(...)
     Map-->>Orchestrator: canonicalCodes
+    Orchestrator->>Orchestrator: Build section-level grounding bundle for S/O/A/P
     Orchestrator-->>AIAPI: grounded diagnosis response
     AIAPI-->>Panel: topDifferentials, evidence, soapSuggestions
     AIAPI-->>Side: topDifferentials, evidence, soapSuggestions
@@ -11142,31 +11172,33 @@ sequenceDiagram
     Side->>EMR: Cập nhật form bệnh án qua shared state
 ```
 
-#### 4.21.5 Sequence Diagram: EMR confirmed đồng bộ sang case memory
+#### 4.21.5 Sequence Diagram: Confirmed EMR Sync into Case Memory
 
 ```mermaid
 sequenceDiagram
-    participant Spring as InternalAiEmrController
+    participant Spring as EmrService / AiCaseMemorySyncService
+    participant Route as Internal Case Memory Route
     participant Sync as EmrCaseMemorySyncService
     participant Map as DiseaseMappingService
     participant CaseMemory as CaseMemoryService
     participant DB as Database
 
-    Sync->>Spring: GET /internal/ai/emrs/confirmed
-    Spring->>DB: Query confirmed EMR batch
-    DB-->>Spring: Confirmed EMR documents
-    Spring-->>Sync: Confirmed EMR DTO batch
-    loop Với mỗi EMR đủ điều kiện
-        Sync->>Map: mapRawLabel(finalDiagnosisText)
-        Map-->>Sync: canonicalCode
-        Sync->>CaseMemory: upsertCase(normalizedCase)
-        CaseMemory->>DB: Upsert payload + text/image vectors
-        DB-->>CaseMemory: success
-        CaseMemory-->>Sync: success
-    end
+    Spring->>DB: Save EMR confirmed
+    DB-->>Spring: Persisted EMR
+    Spring->>Route: POST /api/v1/internal/case-memory/emr-sync
+    Route->>Sync: sync_record(emr_payload)
+    Sync->>Map: mapRawLabel(finalDiagnosisText)
+    Map-->>Sync: canonicalCode
+    Sync->>Sync: extract protocol_pattern from SOAP, plan/notes, and prescriptions
+    Sync->>CaseMemory: upsertCase(normalizedCase)
+    CaseMemory->>DB: Upsert payload + text/image vectors
+    DB-->>CaseMemory: success
+    CaseMemory-->>Sync: success
+    Sync-->>Route: success
+    Route-->>Spring: success
 ```
 
-#### 4.21.6 Sequence Diagram: Full flow từ AI diagnosis đến lưu case memory
+#### 4.21.6 Sequence Diagram: Full Flow from AI Diagnosis to Case Memory Persistence
 
 ```mermaid
 sequenceDiagram
@@ -11177,50 +11209,86 @@ sequenceDiagram
     participant Vision as GeminiVisionAdapter
     participant KB as HybridRAGEngine
     participant CM as CaseMemoryService
-    participant Map as DiseaseMappingService
     participant Spring as EmrController
+    participant Route as Internal Case Memory Route
     participant Sync as EmrCaseMemorySyncService
     participant DB as Database
 
-    Staff->>UI: Nhập SOAP, mô tả lâm sàng, cân nặng, dị ứng và ảnh
-    Staff->>UI: Bấm phân tích AI
+    Staff->>UI: Enter SOAP, clinical narrative, weight, allergy context, and images
+    Staff->>UI: Run AI diagnosis
     UI->>AIAPI: POST /api/v1/staff-diagnosis/analyze
     AIAPI->>Service: analyzeCase(request)
-    alt Có ảnh lâm sàng
+    alt Clinical images are available
         Service->>Vision: analyze(imageUrls, doctorDescription, species)
         Vision-->>Service: visualFindings, topConditions, imageDescriptions
     end
     Service->>KB: query(query, RAG + KG)
-    KB->>DB: Query knowledge chunks và graph facts
+    KB->>DB: Query knowledge chunks and graph facts
     DB-->>KB: Knowledge evidence
     KB-->>Service: HybridResult
     Service->>CM: searchSimilarCases(query, imageUrls)
     CM->>DB: Search similar confirmed EMR vectors
     DB-->>CM: matched case payloads
     CM-->>Service: matchedCases
-    Service->>Map: map labels về canonical_code
-    Map-->>Service: canonical disease mapping
+    Service->>Service: Build SOAP grounding bundle from request + KB + Case Memory + protocol
     Service-->>AIAPI: grounded diagnosis response
-    AIAPI-->>UI: topDifferentials, evidence, SOAP, prescription protocol
-    Staff->>UI: Chấp nhận hoặc chỉnh tay SOAP và đơn thuốc
-    Staff->>UI: Lưu EMR
+    AIAPI-->>UI: topDifferentials, evidence, SOAP, and prescription protocol
+    Staff->>UI: Accept or manually edit SOAP and prescriptions
+    Staff->>UI: Save EMR
     UI->>Spring: POST/PUT EMR
     Spring->>DB: Save EMR record
     DB-->>Spring: Saved EMR
+    Spring->>Route: POST /api/v1/internal/case-memory/emr-sync
+    Route->>Sync: sync_record(emr_payload)
+    Sync->>Sync: map final diagnosis and build protocol_pattern
+    Sync->>CM: upsertCase(normalizedCase)
+    CM->>DB: Upsert payload + text/image vectors
+    DB-->>CM: success
+    CM-->>Sync: success
+    Sync-->>Route: success or error
+    Route-->>Spring: success or error
     Spring-->>UI: EMR saved
-    Sync->>Spring: GET /internal/ai/emrs/confirmed
-    Spring->>DB: Query confirmed EMR batch
-    DB-->>Spring: Confirmed EMR DTO batch
-    Spring-->>Sync: Confirmed EMR DTO batch
-    loop Với mỗi EMR đủ điều kiện
-        Sync->>Map: mapRawLabel(finalDiagnosisText)
-        Map-->>Sync: canonicalCode
-        Sync->>CM: upsertCase(normalizedCase)
-        CM->>DB: Upsert payload + text/image vectors
-        DB-->>CM: success
-        CM-->>Sync: success
-    end
 ```
+
+#### 4.21.7 Sequence Diagram: Selected diagnosis fallback prescription trong EMR
+
+```mermaid
+sequenceDiagram
+    actor Staff as Staff
+    participant UI as CreateEmrPage
+    participant Panel as AIDiagnosisPanel
+    participant C as StaffDiagnosisController
+    participant S as StaffDiagnosisService
+    participant KB as KnowledgeSearchService
+    participant CM as CaseMemoryService
+    participant DB as Database
+
+    Staff->>UI: 1. Chọn một chẩn đoán trong Top 3
+    UI->>Panel: 2. Gửi selectedDiagnosisCode và previousRequestId
+    Panel->>C: 3. POST analyze (synthesis_mode=selected_only)
+    C->>S: 4. analyzeCase(request)
+    S->>S: 5. Load cached context theo previousRequestId
+    S->>S: 6. Build protocol decision theo chẩn đoán đã chọn
+    alt Case Memory đã có common_prescriptions hợp lệ
+        S-->>C: 7. Trả SOAP + prescription_suggestions từ EMR confirmed pattern
+    else Case Memory chưa có common_prescriptions hợp lệ
+        S->>KB: 7. Reuse evidence đã có trong context
+        S->>CM: 8. Reuse matched confirmed EMR cases
+        S->>S: 9. Gọi LLM synthesis chỉ để fallback đơn thuốc
+        S-->>C: 10. Trả SOAP + prescription_suggestions từ AI fallback + disclaimer
+    end
+    C-->>Panel: 11. Selected diagnosis response
+    Panel-->>UI: 12. Hiển thị plan và đơn thuốc nháp để staff nhận hoặc chỉnh tay
+```
+
+#### 4.21.8 Design Notes: Continuous data-driven diagnosis
+
+- AI Diagnose must support both image and non-image clinical cases; image analysis is optional enrichment, not a required gate.
+- Medication suggests remain source-restricted: `emr_pattern` first, `llm_fallback` only when EMR patterns are unavailable.
+- `DiagnosisProtocolService` serves as safety/orchestration validation layer with generic safety checks only (weight, allergy). All disease-specific hardcoded rules have been removed (2026-04-01).
+- LLM synthesis may generate `safety_suggestions` for wording flexibility, but final safety outputs must pass deterministic sanitization before returning to UI.
+- As confirmed EMR data grows, retrieval quality and suggestion quality are expected to improve through data updates, not through source-code drug templates.
+- Quality gate is passively computed by system during confirmed EMR sync using AI suggestion context versus final EMR prescriptions; no additional doctor interaction is required.
 
 #### 4.21.7 Swimlane Diagram: Full workflow
 
@@ -11361,7 +11429,7 @@ flowchart LR
 - Nếu diagnosis chưa map được catalog, payload vẫn được ingest với:
   - `mapping_status = provisional`
   - `provisional_label = final_diagnosis_text`
-- Nhãn chưa map được đồng thời được ghi vào `disease_mapping_review_items` để mở rộng catalog sau đó.
+- Nếu confidence của autonomous canonicalization vẫn thấp, payload có thể tiếp tục với `mapping_status = provisional` mà không phụ thuộc vào review queue runtime.
 
 #### 4.21.8 Cross-Reference to SRS
 
@@ -11697,33 +11765,22 @@ sequenceDiagram
   - `petties-agent-serivce/app/core/tools/mcp_tools/medical_tools.py`
   - `backend-spring/petties/src/main/java/com/petties/petties/controller/PetController.java`
 
-### 4.23 Simplified EMR Case Memory Sync
+### 4.24 Historical Resolution Note for Confirmed EMR Sync
 
-Từ ngày 2026-03-19, nhánh đồng bộ `EMR confirmed -> Case Memory` được rút gọn sang cơ chế push trực tiếp từ Spring Boot sang AI service.
+This section records the architecture decision that resolved earlier documentation drift.
 
-#### 4.23.1 Sequence Diagram
-```mermaid
-sequenceDiagram
-    participant Staff as Bác sĩ
-    participant Spring as Spring Boot
-    participant AI as AI Service
-    participant DB as Database
+Since 2026-03-19, the deployed confirmed EMR sync path is direct push from Spring Boot to the AI service.
 
-    Staff->>Spring: Tạo hoặc cập nhật EMR
-    Spring->>DB: Lưu EMR
-    alt EMR có chẩn đoán cuối
-        Spring->>AI: POST /api/v1/internal/case-memory/emr-sync
-        Note over Spring,AI: Header X-Internal-AI-Key
-        AI->>DB: Map disease và upsert case memory
-        AI-->>Spring: success hoặc lỗi
-    end
-    Spring-->>Staff: Trả kết quả lưu EMR
-```
+The canonical active sequences are now documented in:
 
-#### 4.23.2 Design Notes
+- `4.21.5 Sequence Diagram: Confirmed EMR Sync into Case Memory`
+- `4.21.6 Sequence Diagram: Full Flow from AI Diagnosis to Case Memory Persistence`
 
-- Không còn polling worker.
-- Không còn feed nội bộ batch/cursor.
-- Nếu AI service lỗi, Spring chỉ log cảnh báo và không rollback EMR.
-- `case_id` luôn là `emr:{emr_id}`.
+Historical conclusions:
+
+- Polling workers are not part of the deployed sync design.
+- Batch or cursor-based pull feeds are not part of the deployed sync design.
+- If the AI service fails during sync, Spring Boot logs a warning and must not roll back the already-saved EMR.
+- `case_id` remains `emr:{emr_id}` for overwrite-safe updates.
+- Legacy documents that still mention `GET /internal/ai/emrs/confirmed` or auto-sync polling should be treated as historical only.
 

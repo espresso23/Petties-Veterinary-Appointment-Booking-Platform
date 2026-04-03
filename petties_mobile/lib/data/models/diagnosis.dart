@@ -17,6 +17,7 @@ enum DiagnosisImageAnalysisMode {
 
 class StaffDiagnosisRequest {
   final String? requestId;
+  final String? previousRequestId;
   final String? petId;
   final String? bookingId;
   final DiagnosisSpecies species;
@@ -30,10 +31,14 @@ class StaffDiagnosisRequest {
   final List<String>? symptoms;
   final List<String>? imageUrls;
   final DiagnosisImageAnalysisMode? imageAnalysisMode;
+  final String? synthesisMode;
+  final String? selectedDiagnosisCode;
+  final String? selectedDiagnosisLabel;
   final SoapDraft? soapDraft;
 
   StaffDiagnosisRequest({
     this.requestId,
+    this.previousRequestId,
     this.petId,
     this.bookingId,
     required this.species,
@@ -47,12 +52,16 @@ class StaffDiagnosisRequest {
     this.symptoms,
     this.imageUrls,
     this.imageAnalysisMode,
+    this.synthesisMode,
+    this.selectedDiagnosisCode,
+    this.selectedDiagnosisLabel,
     this.soapDraft,
   });
 
   Map<String, dynamic> toJson() {
     return {
       if (requestId != null) 'request_id': requestId,
+      if (previousRequestId != null) 'previous_request_id': previousRequestId,
       if (petId != null) 'pet_id': petId,
       if (bookingId != null) 'booking_id': bookingId,
       'species': species.name,
@@ -70,6 +79,11 @@ class StaffDiagnosisRequest {
             imageAnalysisMode == DiagnosisImageAnalysisMode.describeOnly
                 ? 'describe_only'
                 : 'full',
+      if (synthesisMode != null) 'synthesis_mode': synthesisMode,
+      if (selectedDiagnosisCode != null)
+        'selected_diagnosis_code': selectedDiagnosisCode,
+      if (selectedDiagnosisLabel != null)
+        'selected_diagnosis_label': selectedDiagnosisLabel,
       if (soapDraft != null) 'soap_draft': soapDraft!.toJson(),
     };
   }
@@ -101,12 +115,18 @@ class SoapDraft {
 class StaffDiagnosisSuggestion {
   final String? canonicalCode;
   final String displayNameVi;
+  final int rank;
+  final int scorePercent;
+  final String scoreBasis;
   final String confidenceNote;
   final List<String> supportingReasons;
 
   StaffDiagnosisSuggestion({
     this.canonicalCode,
     required this.displayNameVi,
+    required this.rank,
+    required this.scorePercent,
+    required this.scoreBasis,
     required this.confidenceNote,
     required this.supportingReasons,
   });
@@ -115,6 +135,9 @@ class StaffDiagnosisSuggestion {
     return StaffDiagnosisSuggestion(
       canonicalCode: json['canonical_code'] as String?,
       displayNameVi: json['display_name_vi'] as String,
+      rank: json['rank'] as int? ?? 0,
+      scorePercent: json['score_percent'] as int? ?? 0,
+      scoreBasis: json['score_basis'] as String? ?? '',
       confidenceNote: json['confidence_note'] as String,
       supportingReasons: (json['supporting_reasons'] as List<dynamic>?)
               ?.map((e) => e as String)
@@ -199,6 +222,9 @@ class SoapSuggestions {
 
 class StaffDiagnosisResponse {
   final String requestId;
+  final String evidenceMode;
+  final String evidenceBanner;
+  final String scoreLabel;
   final List<StaffDiagnosisSuggestion> topDifferentials;
   final List<String> supportingEvidenceFromKb;
   final List<String> similarConfirmedCases;
@@ -212,6 +238,9 @@ class StaffDiagnosisResponse {
 
   StaffDiagnosisResponse({
     required this.requestId,
+    required this.evidenceMode,
+    required this.evidenceBanner,
+    required this.scoreLabel,
     required this.topDifferentials,
     required this.supportingEvidenceFromKb,
     required this.similarConfirmedCases,
@@ -227,19 +256,22 @@ class StaffDiagnosisResponse {
   factory StaffDiagnosisResponse.fromJson(Map<String, dynamic> json) {
     return StaffDiagnosisResponse(
       requestId: json['request_id'] as String,
+      evidenceMode: json['evidence_mode'] as String? ?? 'internal_grounded',
+      evidenceBanner: json['evidence_banner'] as String? ?? '',
+      scoreLabel: json['score_label'] as String? ?? 'Độ tự tin (%)',
       topDifferentials: (json['top_differentials'] as List<dynamic>?)
               ?.map((e) =>
                   StaffDiagnosisSuggestion.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
-      supportingEvidenceFromKb: (json['supporting_evidence_from_kb']
-              as List<dynamic>?)
-          ?.map((e) => e as String)
-          .toList() ??
-          [],
+      supportingEvidenceFromKb:
+          (json['supporting_evidence_from_kb'] as List<dynamic>?)
+                  ?.map((e) => e as String)
+                  .toList() ??
+              [],
       similarConfirmedCases: (json['similar_confirmed_cases'] as List<dynamic>?)
-          ?.map((e) => e as String)
-          .toList() ??
+              ?.map((e) => e as String)
+              .toList() ??
           [],
       visionFindings: (json['vision_findings'] as List<dynamic>?)
               ?.map((e) => e as String)
@@ -267,12 +299,12 @@ class StaffDiagnosisResponse {
               assessmentDraft: '',
               planDraft: '',
             ),
-      prescriptionSuggestions: (json['prescription_suggestions']
-              as List<dynamic>?)
-          ?.map((e) => StaffDiagnosisPrescriptionSuggestion.fromJson(
-              e as Map<String, dynamic>))
-          .toList() ??
-          [],
+      prescriptionSuggestions:
+          (json['prescription_suggestions'] as List<dynamic>?)
+                  ?.map((e) => StaffDiagnosisPrescriptionSuggestion.fromJson(
+                      e as Map<String, dynamic>))
+                  .toList() ??
+              [],
       disclaimer: json['disclaimer'] as String? ?? '',
     );
   }

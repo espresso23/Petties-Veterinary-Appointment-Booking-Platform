@@ -60,6 +60,33 @@ export interface CreateEmrRequest {
     images?: EmrImage[]
     reExaminationDate?: string
     examinationDate?: string
+    aiDiagnosisContext?: AiDiagnosisContext
+}
+
+export interface AiDiagnosisContextPrescription {
+    medicine_name?: string
+    medicineName?: string
+    dosage?: string
+    frequency?: string
+    duration_days?: number
+    durationDays?: number
+    instructions?: string
+    source?: string
+    source_detail?: string
+    sourceDetail?: string
+}
+
+export interface AiDiagnosisContext {
+    request_id?: string
+    requestId?: string
+    selected_diagnosis_code?: string
+    selectedDiagnosisCode?: string
+    selected_diagnosis_label?: string
+    selectedDiagnosisLabel?: string
+    suggested_prescriptions?: AiDiagnosisContextPrescription[]
+    suggestedPrescriptions?: AiDiagnosisContextPrescription[]
+    generated_at?: string
+    generatedAt?: string
 }
 
 export interface UploadResponse {

@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+import types
 import unittest
 from datetime import date, timedelta
 from unittest.mock import AsyncMock, patch
@@ -9,10 +10,22 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+motor_module = types.ModuleType("motor")
+motor_asyncio_module = types.ModuleType("motor.motor_asyncio")
+motor_asyncio_module.AsyncIOMotorClient = object
+motor_asyncio_module.AsyncIOMotorDatabase = object
+sys.modules.setdefault("motor", motor_module)
+sys.modules.setdefault("motor.motor_asyncio", motor_asyncio_module)
+
 from app.core.tool_runtime_context import (
     ToolRuntimeContext,
     reset_tool_runtime_context,
     set_tool_runtime_context,
+)
+from app.core.agents.booking_session import (
+    BookingDraft,
+    BookingSessionState,
+    STATUS_CONFIRMING,
 )
 from app.core.tools.mcp_tools.booking_tools import (
     _resolve_booking_datetime_inputs,
@@ -26,6 +39,53 @@ from app.core.tools.mcp_tools.booking_tools import (
 
 
 class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
+    def _build_confirmation_booking_state(
+        self,
+        *,
+        pet_id: str = "pet-1",
+        clinic_id: str = "550e8400-e29b-41d4-a716-446655440001",
+        booking_date: str = "2026-12-25",
+        start_time: str = "09:00",
+        service_ids: list[str] | None = None,
+        booking_type: str = "IN_CLINIC",
+        home_address: str | None = None,
+        home_lat: float | None = None,
+        home_long: float | None = None,
+        distance_km: float | None = None,
+    ) -> dict:
+        normalized_service_ids = service_ids or ["service-1"]
+        snapshot = {
+            "pet_id": pet_id,
+            "clinic_id": clinic_id,
+            "clinic_name": None,
+            "booking_date": booking_date,
+            "start_time": start_time,
+            "service_ids": normalized_service_ids,
+            "booking_type": booking_type,
+            "notes": None,
+            "home_address": home_address,
+            "distance_km": distance_km,
+            "items": [],
+        }
+        state = BookingSessionState(
+            active=True,
+            status=STATUS_CONFIRMING,
+            intent="create_booking",
+            draft=BookingDraft(
+                pet_id=pet_id,
+                clinic_id=clinic_id,
+                service_ids=normalized_service_ids,
+                booking_date=booking_date,
+                start_time=start_time,
+                booking_type=booking_type,
+                home_address=home_address,
+                home_lat=home_lat,
+                home_long=home_long,
+            ),
+            last_confirmed_snapshot=snapshot,
+        )
+        return state.model_dump(mode="json")
+
     async def test_get_user_pets_uses_runtime_context(self):
         runtime_token = set_tool_runtime_context(
             ToolRuntimeContext(
@@ -430,6 +490,37 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
         sent_payload = client.get_booking_slot_options.await_args.args[1]
         self.assertEqual(sent_payload["petSpecies"], "DOG")
 
+    async def test_check_available_slots_requests_service_when_text_has_no_service_signal(
+        self,
+    ):
+        runtime_token = set_tool_runtime_context(
+            ToolRuntimeContext(
+                user_id="user-1", role="PET_OWNER", auth_token="jwt-token"
+            )
+        )
+
+        client = AsyncMock()
+
+        try:
+            with patch(
+                "app.core.tools.mcp_tools.booking_tools.get_backend_client",
+                return_value=client,
+            ):
+                result = await check_available_slots(
+                    clinic_id="clinic-1",
+                    date_expression="thu bay nay",
+                    latest_message="Dat lich cho be nha toi thu bay nay",
+                    transcript="Dat lich cho be nha toi thu bay nay",
+                )
+        finally:
+            reset_tool_runtime_context(runtime_token)
+
+        client.get_booking_slot_options.assert_not_called()
+        self.assertTrue(result["success"])
+        self.assertEqual(result["error_code"], "SERVICE_NOT_FOUND")
+        self.assertTrue(result["needs_clarification"])
+        self.assertEqual(result["next_best_action"], "choose_service")
+
     async def test_create_booking_reports_missing_fields_before_confirmation(self):
         runtime_token = set_tool_runtime_context(
             ToolRuntimeContext(
@@ -449,6 +540,7 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(result["success"])
         self.assertEqual(result["next_best_action"], "collect_missing_fields")
+        self.assertEqual(result["error_code"], "INVALID_INPUT")
         self.assertIn("dich vu", result["missing_fields"])
         self.assertIn("gio kham", result["missing_fields"])
 
@@ -490,12 +582,22 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(result["success"])
         self.assertEqual(result["next_best_action"], "confirm_booking")
+        self.assertEqual(result["error_code"], "CONFIRMATION_REQUIRED")
         self.assertEqual(result["booking_preview"]["service_ids"], ["svc-1"])
 
     async def test_create_home_visit_booking_calls_ai_booking_endpoint(self):
         runtime_token = set_tool_runtime_context(
             ToolRuntimeContext(
-                user_id="user-1", role="PET_OWNER", auth_token="jwt-token"
+                user_id="user-1",
+                role="PET_OWNER",
+                auth_token="jwt-token",
+                booking_state=self._build_confirmation_booking_state(
+                    booking_type="HOME_VISIT",
+                    home_address="123 Duong ABC, Da Nang",
+                    home_lat=16.0544,
+                    home_long=108.2022,
+                    distance_km=4.2,
+                ),
             )
         )
 
@@ -550,6 +652,57 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(sent_payload["homeAddress"], "123 Duong ABC, Da Nang")
         self.assertTrue(result["success"])
         self.assertEqual(result["booking"]["type"], "HOME_VISIT")
+
+    async def test_create_booking_rejects_confirm_without_confirmation_context(self):
+        runtime_token = set_tool_runtime_context(
+            ToolRuntimeContext(
+                user_id="user-1",
+                role="PET_OWNER",
+                auth_token="jwt-token",
+            )
+        )
+
+        try:
+            result = await create_booking_for_user(
+                pet_id="pet-1",
+                clinic_id="550e8400-e29b-41d4-a716-446655440000",
+                booking_date="2026-12-25",
+                start_time="09:00",
+                service_ids=["svc-1"],
+                confirmed=True,
+            )
+        finally:
+            reset_tool_runtime_context(runtime_token)
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error_code"], "CONFIRMATION_CONTEXT_MISSING")
+
+    async def test_create_booking_rejects_stale_confirmation_snapshot(self):
+        runtime_token = set_tool_runtime_context(
+            ToolRuntimeContext(
+                user_id="user-1",
+                role="PET_OWNER",
+                auth_token="jwt-token",
+                booking_state=self._build_confirmation_booking_state(
+                    service_ids=["svc-1"]
+                ),
+            )
+        )
+
+        try:
+            result = await create_booking_for_user(
+                pet_id="pet-1",
+                clinic_id="550e8400-e29b-41d4-a716-446655440001",
+                booking_date="2026-12-25",
+                start_time="09:00",
+                service_ids=["svc-2"],
+                confirmed=True,
+            )
+        finally:
+            reset_tool_runtime_context(runtime_token)
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error_code"], "CONFIRMATION_MISMATCH")
 
     async def test_get_clinic_services_includes_vaccination_metadata(self):
         client = AsyncMock()

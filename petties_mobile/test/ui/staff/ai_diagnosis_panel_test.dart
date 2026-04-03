@@ -16,13 +16,17 @@ class FakeDiagnosisService extends DiagnosisService {
     required String doctorDescription,
     List<String>? imageUrls,
     SoapDraft? soapDraft,
+    String? synthesisMode,
+    String? selectedDiagnosisLabel,
   }) handler;
 
   final List<DiagnosisImageAnalysisMode> modes = [];
+  final List<String?> synthesisModes = [];
 
   @override
   Future<StaffDiagnosisResponse> analyzeCase({
     required DiagnosisSpecies species,
+    String? previousRequestId,
     String? petId,
     String? bookingId,
     String? breed,
@@ -36,14 +40,20 @@ class FakeDiagnosisService extends DiagnosisService {
     List<String>? imageUrls,
     DiagnosisImageAnalysisMode imageAnalysisMode =
         DiagnosisImageAnalysisMode.full,
+    String? synthesisMode,
+    String? selectedDiagnosisCode,
+    String? selectedDiagnosisLabel,
     SoapDraft? soapDraft,
   }) async {
     modes.add(imageAnalysisMode);
+    synthesisModes.add(synthesisMode);
     return handler(
       imageAnalysisMode: imageAnalysisMode,
       doctorDescription: doctorDescription,
       imageUrls: imageUrls,
       soapDraft: soapDraft,
+      synthesisMode: synthesisMode,
+      selectedDiagnosisLabel: selectedDiagnosisLabel,
     );
   }
 }
@@ -55,10 +65,17 @@ StaffDiagnosisResponse _buildResponse({
 }) {
   return StaffDiagnosisResponse(
     requestId: 'req-1',
+    evidenceMode: 'internal_grounded',
+    evidenceBanner: 'Chỉ dùng dữ liệu nội bộ',
+    scoreLabel: 'Độ tự tin (%)',
     topDifferentials: [
       StaffDiagnosisSuggestion(
+        canonicalCode: 'DX-001',
         displayNameVi: diagnosis,
-        confidenceNote: 'Mức gợi ý: trung bình',
+        rank: 1,
+        scorePercent: 72,
+        scoreBasis: 'normalized',
+        confidenceNote: 'Độ tự tin tương đối theo dữ liệu nội bộ',
         supportingReasons: const ['Có dấu hiệu đỏ mắt'],
       ),
     ],
@@ -91,8 +108,8 @@ void main() {
   );
 
   group('AiDiagnosisPanel Widget', () {
-    const analyzeLabel = 'PHÃ‚N TÃCH TÃŒNH TRáº NG';
-    const addImageLabel = '+ ThÃªm áº£nh';
+    const analyzeLabel = 'PHÂN TÍCH TÌNH TRẠNG';
+    const addImageLabel = '+ Thêm ảnh';
 
     testWidgets('renders header and analyze button', (tester) async {
       await tester.pumpWidget(
@@ -112,6 +129,8 @@ void main() {
           required doctorDescription,
           List<String>? imageUrls,
           SoapDraft? soapDraft,
+          String? synthesisMode,
+          String? selectedDiagnosisLabel,
         }) async {
           return _buildResponse(
             imageDescriptions: const ['Mô tả ảnh preview'],
@@ -149,6 +168,8 @@ void main() {
           required doctorDescription,
           List<String>? imageUrls,
           SoapDraft? soapDraft,
+          String? synthesisMode,
+          String? selectedDiagnosisLabel,
         }) async {
           return _buildResponse();
         },
@@ -171,8 +192,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(fakeService.modes.last, DiagnosisImageAnalysisMode.full);
-      expect(find.text('Viêm kết mạc'), findsOneWidget);
+      expect(find.textContaining('Viêm kết mạc'), findsOneWidget);
 
+      await tester.ensureVisible(find.textContaining('EMR'));
       await tester.tap(find.textContaining('EMR'));
       await tester.pumpAndSettle();
 
@@ -188,6 +210,8 @@ void main() {
           required doctorDescription,
           List<String>? imageUrls,
           SoapDraft? soapDraft,
+          String? synthesisMode,
+          String? selectedDiagnosisLabel,
         }) async {
           throw DiagnosisException(message: 'Không thể phân tích ca bệnh');
         },

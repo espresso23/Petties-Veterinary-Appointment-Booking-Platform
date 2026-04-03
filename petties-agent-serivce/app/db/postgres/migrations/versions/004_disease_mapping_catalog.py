@@ -33,12 +33,16 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("canonical_code", sa.String(length=100), nullable=False),
         sa.Column("display_name_vi", sa.String(length=255), nullable=False),
-        sa.Column("species", sa.String(length=50), nullable=False, server_default="all"),
+        sa.Column(
+            "species", sa.String(length=50), nullable=False, server_default="all"
+        ),
         sa.Column("body_system", sa.String(length=100), nullable=True),
         sa.Column("protocol_key", sa.String(length=100), nullable=True),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column("notes", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now()
+        ),
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
@@ -62,10 +66,19 @@ def upgrade() -> None:
         sa.Column("source_type", sa.String(length=50), nullable=False),
         sa.Column("alias_text", sa.String(length=255), nullable=False),
         sa.Column("normalized_alias", sa.String(length=255), nullable=False),
-        sa.Column("species", sa.String(length=50), nullable=False, server_default="all"),
-        sa.Column("review_status", sa.String(length=50), nullable=False, server_default="approved"),
+        sa.Column(
+            "species", sa.String(length=50), nullable=False, server_default="all"
+        ),
+        sa.Column(
+            "review_status",
+            sa.String(length=50),
+            nullable=False,
+            server_default="approved",
+        ),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now()
+        ),
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
@@ -85,8 +98,18 @@ def upgrade() -> None:
             name="uq_disease_alias_source_normalized_species",
         ),
     )
-    op.create_index("ix_disease_aliases_canonical_code", "disease_aliases", ["canonical_code"], unique=False)
-    op.create_index("ix_disease_aliases_source_type", "disease_aliases", ["source_type"], unique=False)
+    op.create_index(
+        "ix_disease_aliases_canonical_code",
+        "disease_aliases",
+        ["canonical_code"],
+        unique=False,
+    )
+    op.create_index(
+        "ix_disease_aliases_source_type",
+        "disease_aliases",
+        ["source_type"],
+        unique=False,
+    )
     op.create_index(
         "ix_disease_aliases_normalized_alias",
         "disease_aliases",
@@ -100,11 +123,17 @@ def upgrade() -> None:
         sa.Column("raw_label", sa.String(length=255), nullable=False),
         sa.Column("normalized_label", sa.String(length=255), nullable=False),
         sa.Column("source_type", sa.String(length=50), nullable=False),
-        sa.Column("species", sa.String(length=50), nullable=False, server_default="all"),
-        sa.Column("status", sa.String(length=50), nullable=False, server_default="pending"),
+        sa.Column(
+            "species", sa.String(length=50), nullable=False, server_default="all"
+        ),
+        sa.Column(
+            "status", sa.String(length=50), nullable=False, server_default="pending"
+        ),
         sa.Column("hit_count", sa.Integer(), nullable=False, server_default="1"),
         sa.Column("sample_payload", sa.JSON(), nullable=True),
-        sa.Column("first_seen_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column(
+            "first_seen_at", sa.DateTime(timezone=True), server_default=sa.func.now()
+        ),
         sa.Column(
             "last_seen_at",
             sa.DateTime(timezone=True),
@@ -195,6 +224,7 @@ def upgrade() -> None:
         sa.column("is_active", sa.Boolean()),
     )
     alias_rows = []
+    seen_alias_keys = set()
     for source_type, alias_text, canonical_code, species in [
         ("emr", "viem da do vi khuan", "bacterial_dermatosis", "all"),
         ("vision", "bacterial dermatitis", "bacterial_dermatosis", "all"),
@@ -211,8 +241,18 @@ def upgrade() -> None:
         ("emr", "ghe tai", "otitis_or_ear_parasites", "all"),
         ("vision", "otitis externa", "otitis_or_ear_parasites", "all"),
         ("vision", "ear mites", "otitis_or_ear_parasites", "all"),
-        ("kb", "viem tai ngoai hoac benh tai ky sinh trung", "otitis_or_ear_parasites", "all"),
-        ("kb", "viêm tai ngoài hoặc bệnh tai ký sinh trùng", "otitis_or_ear_parasites", "all"),
+        (
+            "kb",
+            "viem tai ngoai hoac benh tai ky sinh trung",
+            "otitis_or_ear_parasites",
+            "all",
+        ),
+        (
+            "kb",
+            "viêm tai ngoài hoặc bệnh tai ký sinh trùng",
+            "otitis_or_ear_parasites",
+            "all",
+        ),
         ("emr", "viem da", "dermatosis_or_ectoparasites", "all"),
         ("emr", "ghe", "dermatosis_or_ectoparasites", "all"),
         ("emr", "demodex", "dermatosis_or_ectoparasites", "all"),
@@ -220,16 +260,32 @@ def upgrade() -> None:
         ("vision", "dermatitis", "dermatosis_or_ectoparasites", "all"),
         ("vision", "demodicosis", "dermatosis_or_ectoparasites", "all"),
         ("vision", "sarcoptic mange", "dermatosis_or_ectoparasites", "all"),
-        ("kb", "viem da hoac benh da ky sinh trung", "dermatosis_or_ectoparasites", "all"),
-        ("kb", "viêm da hoặc bệnh da ký sinh trùng", "dermatosis_or_ectoparasites", "all"),
+        (
+            "kb",
+            "viem da hoac benh da ky sinh trung",
+            "dermatosis_or_ectoparasites",
+            "all",
+        ),
+        (
+            "kb",
+            "viêm da hoặc bệnh da ký sinh trùng",
+            "dermatosis_or_ectoparasites",
+            "all",
+        ),
         ("kb", "benh da", "dermatosis_or_ectoparasites", "all"),
     ]:
+        normalized_alias = _normalize_text(alias_text)
+        alias_key = (source_type, normalized_alias, species)
+        if alias_key in seen_alias_keys:
+            continue
+
+        seen_alias_keys.add(alias_key)
         alias_rows.append(
             {
                 "canonical_code": canonical_code,
                 "source_type": source_type,
                 "alias_text": alias_text,
-                "normalized_alias": _normalize_text(alias_text),
+                "normalized_alias": normalized_alias,
                 "species": species,
                 "review_status": "approved",
                 "is_active": True,

@@ -19,9 +19,14 @@ class ConfirmedEmrSyncRequest(BaseModel):
     physical_exam: List[str] = Field(default_factory=list)
     clinical_notes: Optional[str] = None
     final_diagnosis_text: str
+    soap: Dict[str, Any] = Field(default_factory=dict)
+    vitals: Dict[str, Any] = Field(default_factory=dict)
+    prescriptions: List[Dict[str, Any]] = Field(default_factory=list)
+    ai_diagnosis_context: Optional[Dict[str, Any]] = None
     verified: bool = True
     exam_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    re_examination_date: Optional[datetime] = None
     attachments: Dict[str, Any] = Field(default_factory=dict)
 
 

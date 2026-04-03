@@ -23,6 +23,7 @@ Flow:
 from __future__ import annotations
 
 import asyncio
+import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -65,6 +66,7 @@ class HybridResult:
     expanded_query: str
     original_query: str
     sources_used: Dict[str, int]  # {"rag": 3, "kg": 1, "case_memory": 2}
+    timings_ms: Dict[str, int] = field(default_factory=dict)
 
 
 # ============================================================
@@ -112,6 +114,7 @@ class HybridRAGEngine:
         enable_rag: bool = True,
         enable_kg: bool = True,
         enable_case_memory: bool = True,
+        enable_query_expansion: bool = True,
     ) -> HybridResult:
         """
         Thực hiện truy vấn hybrid qua tất cả các nguồn tri thức.
@@ -129,26 +132,48 @@ class HybridRAGEngine:
             HybridResult với các chunks đã gộp & sắp xếp lại.
         """
         original_query = query.strip()
+        total_started = time.perf_counter()
+        timings_ms: Dict[str, int] = {}
 
         # Step 1: Query Expansion
-        expanded_query = await self._expand(original_query, pet_type)
+        expand_started = time.perf_counter()
+        if enable_query_expansion:
+            expanded_query = await self._expand(original_query, pet_type)
+        else:
+            expanded_query = original_query
+        timings_ms["query_expansion"] = int(
+            (time.perf_counter() - expand_started) * 1000
+        )
 
         # Step 2: Parallel search across sources
         tasks = []
         source_labels = []
 
         if enable_rag:
-            tasks.append(self._search_rag(expanded_query, top_k, min_score))
+            tasks.append(
+                self._timed_source_call(
+                    "rag",
+                    self._search_rag(expanded_query, top_k, min_score),
+                )
+            )
             source_labels.append("rag")
 
         if enable_kg:
-            tasks.append(self._search_kg(expanded_query, top_k))
+            tasks.append(
+                self._timed_source_call(
+                    "kg",
+                    self._search_kg(expanded_query, top_k),
+                )
+            )
             source_labels.append("kg")
 
         if enable_case_memory:
             tasks.append(
-                self._search_case_memory(
-                    expanded_query, top_k, min_score, image_urls=image_urls
+                self._timed_source_call(
+                    "case_memory",
+                    self._search_case_memory(
+                        expanded_query, top_k, min_score, image_urls=image_urls
+                    ),
                 )
             )
             source_labels.append("case_memory")
@@ -159,6 +184,7 @@ class HybridRAGEngine:
                 expanded_query=expanded_query,
                 original_query=original_query,
                 sources_used={},
+                timings_ms=timings_ms,
             )
 
         # Execute in parallel
@@ -173,9 +199,15 @@ class HybridRAGEngine:
                 logger.warning(f"Hybrid search source '{label}' failed: {result}")
                 sources_used[label] = 0
                 continue
-            if isinstance(result, list):
-                sources_used[label] = len(result)
-                all_chunks.extend(result)
+            if isinstance(result, tuple) and len(result) == 2:
+                raw_items, duration_ms = result
+                timings_ms[label] = int(duration_ms)
+            else:
+                raw_items = result
+
+            if isinstance(raw_items, list):
+                sources_used[label] = len(raw_items)
+                all_chunks.extend(raw_items)
             else:
                 sources_used[label] = 0
 
@@ -197,15 +229,28 @@ class HybridRAGEngine:
 
         logger.info(
             f"Hybrid query '{original_query[:50]}...' "
-            f"-> {len(unique_chunks)} results from {sources_used}"
+            f"-> {len(unique_chunks)} results from {sources_used} in "
+            f"{int((time.perf_counter() - total_started) * 1000)}ms"
         )
+
+        timings_ms["total"] = int((time.perf_counter() - total_started) * 1000)
 
         return HybridResult(
             chunks=unique_chunks,
             expanded_query=expanded_query,
             original_query=original_query,
             sources_used=sources_used,
+            timings_ms=timings_ms,
         )
+
+    async def _timed_source_call(
+        self, label: str, coro
+    ) -> tuple[List[HybridChunk], int]:
+        started = time.perf_counter()
+        result = await coro
+        duration_ms = int((time.perf_counter() - started) * 1000)
+        logger.info("Hybrid source '{}' completed in {}ms", label, duration_ms)
+        return result, duration_ms
 
     # ----------------------------------------------------------
     # Nội bộ: Mở rộng truy vấn
@@ -294,7 +339,7 @@ class HybridRAGEngine:
         min_score: float,
         image_urls: Optional[List[str]] = None,
     ) -> List[HybridChunk]:
-        """Tìm kiếm Case Memory cho các case đã xác nhận với feedback-weighted scoring."""
+        """Tìm kiếm Case Memory cho các case đã xác nhận với quality-gated scoring."""
         try:
             from app.core.rag.case_memory import get_case_memory_service
 
@@ -313,7 +358,6 @@ class HybridRAGEngine:
                     source="case_memory",
                     metadata={
                         "case_id": r.case_id,
-                        "confirmation_count": r.payload.get("confirmation_count", 0),
                         "species": r.payload.get("species", ""),
                     },
                 )

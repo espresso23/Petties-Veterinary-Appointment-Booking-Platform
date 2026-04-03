@@ -54,7 +54,7 @@ export const MySubscriptionPage = () => {
         if (selectedClinicId) {
             fetchData()
         }
-    }, [selectedClinicId])
+    }, [selectedClinicId, fetchData]) // eslint-disable-line react-hooks/exhaustive-deps
 
     const fetchData = async () => {
         if (!selectedClinicId) return
@@ -96,9 +96,10 @@ export const MySubscriptionPage = () => {
             showToast('success', 'Đã cập nhật trạng thái gói dịch vụ thành công.')
             setShowCancelConfirm(false)
             await fetchData()
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Failed to cancel subscription:', error)
-            showToast('error', error.response?.data?.message || 'Có lỗi xảy ra khi xử lý')
+            const msg = error instanceof Error ? error.message : (error as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Có lỗi xảy ra khi xử lý'
+            showToast('error', msg)
         } finally {
             setIsLoading(false)
         }
@@ -309,7 +310,10 @@ export const MySubscriptionPage = () => {
                                                                         } else {
                                                                             showToast('info', 'Chưa nhận được thanh toán.');
                                                                         }
-                                                                    } catch (e: any) { showToast('error', e.response?.data?.message || 'Lỗi kiểm tra'); } finally { setIsLoading(false); }
+                                                                    } catch (e: unknown) { 
+                                                                        const msg = e instanceof Error ? e.message : (e as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Lỗi kiểm tra'
+                                                                        showToast('error', msg)
+                                                                    } finally { setIsLoading(false); }
                                                                 }}
                                                                 className="w-full h-10 bg-amber-500 text-white text-xs font-black uppercase rounded-lg hover:bg-amber-600 transition-all shadow-lg shadow-amber-200"
                                                             >

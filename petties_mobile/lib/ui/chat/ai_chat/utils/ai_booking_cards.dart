@@ -173,10 +173,9 @@ class AiSlotGridCard extends StatelessWidget {
             runSpacing: 8,
             children: slots.map((slot) {
               final endTime = slot.endTime?.trim();
-              final label =
-                  endTime != null && endTime.isNotEmpty
-                      ? '${slot.startTime} - $endTime'
-                      : slot.startTime;
+              final label = endTime != null && endTime.isNotEmpty
+                  ? '${slot.startTime} - $endTime'
+                  : slot.startTime;
 
               return ActionChip(
                 onPressed: isBusy ? null : () => onSelectSlot(slot),
@@ -314,7 +313,7 @@ class AiStructuredBookingSummaryCard extends StatelessWidget {
                 ),
               ),
               child: Text(
-                isConfirmed ? 'ĐÃ GỬI XÁC NHẬN' : 'XÁC NHẬN ĐẶT LỊCH',
+                isConfirmed ? 'ĐANG MỞ MÀN XÁC NHẬN' : 'MỞ MÀN XÁC NHẬN',
                 style: const TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
@@ -543,7 +542,7 @@ class AiBookingConfirmationCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           const Text(
-            'Nhấn xác nhận để AI tiếp tục tạo booking thật. Nếu chưa đúng, bạn có thể yêu cầu chỉnh lại thông tin.',
+            'Nhấn để mở màn xác nhận đặt lịch chuẩn. Nếu chưa đúng, bạn có thể yêu cầu chỉnh lại thông tin.',
             style: TextStyle(
               fontSize: 11,
               height: 1.4,
@@ -574,7 +573,7 @@ class AiBookingConfirmationCard extends StatelessWidget {
                     ),
                   ),
                   child: Text(
-                    isConfirmed ? 'ĐÃ GỬI XÁC NHẬN' : 'XÁC NHẬN ĐẶT LỊCH',
+                    isConfirmed ? 'ĐANG MỞ MÀN XÁC NHẬN' : 'MỞ MÀN XÁC NHẬN',
                     style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,

@@ -126,7 +126,7 @@ export const ChatbotUI = ({
             newImages.push({
                 file,
                 preview: URL.createObjectURL(file),
-                base64: base64.split(',')[1],
+                base64,
                 progress: 0,
                 uploading: true
             })
@@ -164,7 +164,7 @@ export const ChatbotUI = ({
             newImages.push({
                 file,
                 preview: URL.createObjectURL(file),
-                base64: base64.split(',')[1],
+                base64,
                 progress: 0,
                 uploading: true
             })
@@ -393,7 +393,7 @@ export const ChatbotUI = ({
                                     {message.images.map((img, idx) => (
                                         <div key={idx} className="relative">
                                             <img 
-                                                src={`data:image/jpeg;base64,${img}`} 
+                                                src={img.startsWith('data:') ? img : `data:image/jpeg;base64,${img}`} 
                                                 alt={`Ảnh ${idx + 1}`}
                                                 className="w-20 h-20 object-cover rounded-lg border border-stone-300"
                                             />

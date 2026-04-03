@@ -10,10 +10,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from app.api.middleware.auth import CurrentUser
-from app.api.schemas.diagnosis_contracts import Species, StaffDiagnosisRequest
-from app.core.services.staff_diagnosis_context_service import (
+from app.ai_diagnose.context_service import (
     StaffDiagnosisContextService,
 )
+from app.ai_diagnose.schemas import Species, StaffDiagnosisRequest
 
 
 class StaffDiagnosisContextServiceTests(unittest.IsolatedAsyncioTestCase):
@@ -35,7 +35,7 @@ class StaffDiagnosisContextServiceTests(unittest.IsolatedAsyncioTestCase):
         )
 
         with patch(
-            "app.core.services.staff_diagnosis_context_service.get_backend_client"
+            "app.ai_diagnose.context_service.get_backend_client"
         ) as backend_factory:
             backend = backend_factory.return_value
             backend.get_booking = AsyncMock(
@@ -96,7 +96,7 @@ class StaffDiagnosisContextServiceTests(unittest.IsolatedAsyncioTestCase):
         )
 
         with patch(
-            "app.core.services.staff_diagnosis_context_service.get_backend_client"
+            "app.ai_diagnose.context_service.get_backend_client"
         ) as backend_factory:
             backend = backend_factory.return_value
             backend.get_booking = AsyncMock(
@@ -132,7 +132,7 @@ class StaffDiagnosisContextServiceTests(unittest.IsolatedAsyncioTestCase):
         )
 
         with patch(
-            "app.core.services.staff_diagnosis_context_service.get_backend_client"
+            "app.ai_diagnose.context_service.get_backend_client"
         ) as backend_factory:
             backend = backend_factory.return_value
             backend.get_booking = AsyncMock(
@@ -166,7 +166,7 @@ class StaffDiagnosisContextServiceTests(unittest.IsolatedAsyncioTestCase):
         )
 
         with patch(
-            "app.core.services.staff_diagnosis_context_service.get_backend_client"
+            "app.ai_diagnose.context_service.get_backend_client"
         ) as backend_factory:
             backend = backend_factory.return_value
             backend.get_pet = AsyncMock(return_value={})

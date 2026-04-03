@@ -98,6 +98,29 @@ class ContextPolicyTests(unittest.TestCase):
 
         self.assertEqual(allowed, ["get_clinic_services", "check_vaccination_status"])
 
+    def test_pet_owner_business_chat_allows_booking_session_tools(self):
+        allowed = ContextPolicyService.get_allowed_tools(
+            user_role="PET_OWNER",
+            context_type=BUSINESS_CHAT,
+            available_tools=[
+                "start_booking_session",
+                "get_booking_session",
+                "update_booking_draft",
+                "end_booking_session",
+                "get_patient_summary",
+            ],
+        )
+
+        self.assertEqual(
+            allowed,
+            [
+                "start_booking_session",
+                "get_booking_session",
+                "update_booking_draft",
+                "end_booking_session",
+            ],
+        )
+
     def test_clinic_manager_no_phantom_tools(self):
         """Phantom tools not in MCP registry must NOT appear in CLINIC_MANAGER whitelist."""
         phantom_tools = [
@@ -139,4 +162,3 @@ class ContextPolicyTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -157,7 +157,7 @@
 - 🤖 Hỗ trợ tra cứu triệu chứng qua knowledge base ✅
 - 🤖 **AI Vision Analysis - Phân tích hình ảnh sức khỏe thú cưng** ✅
 - 🤖 RAG Engine - Tra cứu kiến thức y tế thú y (LlamaIndex + Qdrant) ✅
-- 🤖 Booking via Chat - Đặt lịch qua hội thoại 🔄 (đã có tool + mobile confirmation, đang chờ E2E validation)
+- 🤖 Booking via Chat - Đặt lịch qua hội thoại ✅ (main WebSocket flow + booking confirmation gate đã hoạt động; vẫn đang tiếp tục hardening edge cases)
 - 🤖 Citation & Attribution - Trích dẫn nguồn
 - 🤖 Web Search - Tìm kiếm realtime 🔄
 - 🤖 EMR Integration - Xem bệnh án điện tử ✅ (FE/BE)
@@ -194,13 +194,13 @@
 │  ├── KB Images: Extract images from PDF + Jina CLIP embeddings      │
 │  ├── Query Expander: LLM-based short query expansion               │
 │  ├── Knowledge Graph: LlamaIndex KGIndex + SimpleGraphStore        │
-│  ├── Case Memory: Confirmed cases + feedback-weighted re-ranking    │
+│  ├── Case Memory: Confirmed cases + quality-gated re-ranking        │
 │  └── Parallel Search: RAG + KG + KB Images + Case Memory         │
 │                                                                     │
-│  💬 Feedback Loop                                                    │
+│  💬 Feedback & Analytics                                             │
 │  ├── User Feedback Collection (1-5 rating per message)             │
-│  ├── Auto-embed positive cases into Case Memory                    │
-│  └── Role-based feedback weights (STAFF=1.0, PET_OWNER=0.6)       │
+│  ├── Analytics / monitoring only                                    │
+│  └── Case Memory is enriched from confirmed EMR, not chat feedback │
 │                                                                     │
 │  ⚙️ Admin Config                                                    │
 │  ├── Enable/Disable Agent                                           │
@@ -264,10 +264,10 @@
 - 🧠 File: `app/core/rag/knowledge_graph.py`
 
 #### Case Memory từ EMR xác nhận (thay cho hướng cũ)
-- 📋 **Confirmed Case Storage** - Lưu các ca bệnh đã xác nhận từ feedback tích cực vào Qdrant
-- 📋 **Confirmation-weighted Re-ranking** - Score = cosine_similarity + min(confirmation_count/100, 0.3)
-- 📋 **Role-based Weights** - STAFF=1.0, CLINIC_MANAGER/OWNER=0.7, PET_OWNER=0.6
-- 📋 Auto-embed khi nhận feedback tích cực (rating >= 4)
+- 📋 **Confirmed Case Storage** - Lưu các ca bệnh đã xác nhận từ EMR confirmed vào Qdrant
+- 📋 **Quality-gated Re-ranking** - Score = cosine_similarity + quality_boost, ưu tiên case có quality gate tốt
+- 📋 **Disease Support Metrics** - Tăng độ tin cậy khi nhiều EMR confirmed cùng `(canonical_code, species)`
+- 📋 Đồng bộ tự động sau khi EMR được xác nhận, không phụ thuộc thumbs-up feedback
 - 📋 Admin prune endpoint (`POST /knowledge/case-memory/prune`)
 - 📋 File: `app/core/rag/case_memory.py`
 
@@ -394,7 +394,7 @@
 ✅ **Knowledge Base RAG** (LlamaIndex + Qdrant Cloud)  
 ✅ **Query Expansion** (LLM-based short query expansion)  
 ✅ **Knowledge Graph** (LlamaIndex KGIndex + SimpleGraphStore)  
-✅ **Case Memory** (Confirmed cases + feedback-weighted re-ranking)  
+✅ **Case Memory** (Confirmed cases + quality-gated re-ranking)
 ✅ **Feedback Loop** (User feedback → auto-embed positive cases)
 
 ### ❌ DEFERRED (Phase 2)

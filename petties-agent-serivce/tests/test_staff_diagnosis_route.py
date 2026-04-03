@@ -10,8 +10,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from app.api.middleware.auth import CurrentUser
-from app.api.routes.staff_diagnosis import analyze_staff_case
-from app.api.schemas.diagnosis_contracts import (
+from app.ai_diagnose.routes import analyze_staff_case
+from app.ai_diagnose.schemas import (
     DoctorDiagnosisSynthesisResponse,
     Species,
     StaffDiagnosisRequest,
@@ -49,10 +49,10 @@ class StaffDiagnosisRouteTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "app.api.routes.staff_diagnosis.get_staff_diagnosis_context_service"
+                "app.ai_diagnose.routes.get_staff_diagnosis_context_service"
             ) as resolver_factory,
             patch(
-                "app.api.routes.staff_diagnosis.get_staff_diagnosis_service"
+                "app.ai_diagnose.routes.get_staff_diagnosis_service"
             ) as service_factory,
         ):
             resolver_factory.return_value.resolve_request = AsyncMock(

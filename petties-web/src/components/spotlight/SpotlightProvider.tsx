@@ -28,11 +28,15 @@ export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {
         setMessages,
         addMessage,
         updateLastMessage,
+        appendThinkingToLastMessage,
+        appendToolCallToLastMessage,
+        attachToolResultToLastMessage,
         setConnectionStatus,
         setIsOpen: setStoreIsOpen
     } = useAIChatStore()
 
     const wsRef = useRef<WebSocket | null>(null)
+    const streamBufferRef = useRef('')
     const AGENT_WS_BASE_URL = import.meta.env.VITE_AGENT_WS_BASE_URL || 'ws://localhost:8000'
 
     // Connect to WebSocket
@@ -50,6 +54,7 @@ export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {
         ws.onopen = () => {
             console.log('[Spotlight] WebSocket connected')
             setConnectionStatus('connected')
+            streamBufferRef.current = ''
         }
 
         ws.onmessage = (event) => {
@@ -57,70 +62,63 @@ export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {
                 const data = JSON.parse(event.data)
                 console.log('[Spotlight] WebSocket message:', data)
 
-                if (data.type === 'session_established' || data.type === 'ack' || data.type === 'agent_info') {
+                if (data.type === 'connected' || data.type === 'history' || data.type === 'agent_info') {
                     return
                 }
 
-                if (data.type === 'react_step') {
-                    const step = data.step || {}
-                    const thought = step.thought || step.action || step.observation || ''
-                    if (thought) {
-                        addMessage({
-                            id: `step-${Date.now()}`,
-                            role: 'assistant',
-                            content: thought,
-                            timestamp: new Date()
-                        })
+                if (data.type === 'ack') {
+                    streamBufferRef.current = ''
+                    return
+                }
+
+                if (data.type === 'thinking' || data.type === 'thinking_stream') {
+                    const content = (data.content || '').toString().trim()
+                    if (content) {
+                        appendThinkingToLastMessage(content)
                     }
                     return
                 }
 
-                if (data.type === 'stream' || data.type === 'final' || data.type === 'complete') {
-                    // Handle different response formats
-                    const content = data.content || data.full_response || ''
+                if (data.type === 'tool_call') {
+                    appendToolCallToLastMessage(
+                        (data.tool_name || 'unknown').toString(),
+                        data.tool_params || {}
+                    )
+                    return
+                }
+
+                if (data.type === 'tool_result') {
+                    attachToolResultToLastMessage(data.tool_name, data.result)
+                    return
+                }
+
+                if (data.type === 'stream') {
+                    const chunk = (data.content || '').toString()
+                    if (!chunk) {
+                        return
+                    }
+                    streamBufferRef.current += chunk
+                    updateLastMessage(streamBufferRef.current, true)
+                    return
+                }
+
+                if (data.type === 'complete') {
+                    const content = (data.full_response || streamBufferRef.current || '').toString()
                     if (content) {
                         updateLastMessage(content, false)
                     }
-
-                    // Also handle thinking/reasoning content
-                    if (data.thinking || data.reasoning) {
-                        const thoughtContent = data.thinking || data.reasoning
-                        addMessage({
-                            id: `thinking-${Date.now()}`,
-                            role: 'assistant',
-                            content: thoughtContent,
-                            timestamp: new Date()
-                        })
-                    }
-                    return
-                }
-
-                // Handle thinking type (for reasoning display)
-                if (data.type === 'thinking') {
-                    const step = data.step || {}
-                    const content = data.content || step.thought || step.content || ''
-
-                    // Update existing loading message instead of adding new one
-                    if (content) {
-                        updateLastMessage(content, true) // true = still loading/thinking
-                    }
-                    return
-                }
-
-                // Handle complete/final response
-                if (data.type === 'complete') {
-                    const content = data.full_response || data.content || ''
-                    if (content) {
-                        updateLastMessage(content, false) // false = done loading
-                    }
+                    streamBufferRef.current = ''
                     return
                 }
 
                 if (data.type === 'error') {
+                    const reason = (data.error || 'Lỗi không xác định').toString()
+                    const code = data.error_code ? ` (${data.error_code})` : ''
+                    const suggestion = data.suggestion ? ` ${data.suggestion}` : ''
                     addMessage({
                         id: `error-${Date.now()}`,
                         role: 'assistant',
-                        content: `Lỗi: ${data.error}`,
+                        content: `Lỗi${code}: ${reason}${suggestion}`,
                         timestamp: new Date()
                     })
                 }
@@ -137,6 +135,7 @@ export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {
         ws.onclose = () => {
             console.log('[Spotlight] WebSocket closed')
             setConnectionStatus('disconnected')
+            streamBufferRef.current = ''
         }
 
         wsRef.current = ws
@@ -291,7 +290,7 @@ export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {
             isLoading: true
         })
 
-        // Send via WebSocket - use existing connection if available
+        // Send via WebSocket only to avoid duplicated persistence paths.
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({
                 message,
@@ -299,24 +298,8 @@ export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {
             }))
             console.log('[Spotlight] Sent via existing WebSocket')
         } else {
-            // If no WebSocket, try REST as fallback (won't trigger AI but will save message)
-            console.log('[Spotlight] No WebSocket, trying REST...')
-            try {
-                const baseUrl = import.meta.env.VITE_AGENT_API_BASE_URL || 'http://localhost:8000'
-                await fetch(`${baseUrl}/api/v1/chat/sessions/${sessionId}/messages`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${accessToken}`
-                    },
-                    body: JSON.stringify({
-                        message,
-                        ...additionalContext
-                    })
-                })
-            } catch (error) {
-                console.error('[Spotlight] Failed to send message:', error)
-            }
+            updateLastMessage('Kết nối chưa sẵn sàng. Vui lòng thử lại sau vài giây.', false)
+            showToast('error', 'Kết nối trợ lý AI chưa sẵn sàng. Vui lòng thử lại.')
         }
 
         return {

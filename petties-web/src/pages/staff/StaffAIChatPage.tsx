@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuthStore } from '../../store/authStore'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useToast, type ToastType } from '../../components/Toast'
-import { chatApi, feedbackApi, type ChatContextType, type ChatSessionMessage, type ChatSessionSummary } from '../../services/agentService'
+import { chatApi, createChatWebSocket, feedbackApi, type ChatContextType, type ChatSessionMessage, type ChatSessionSummary } from '../../services/agentService'
 import { ChatMessage } from '../../components/admin/ChatMessage'
 import { AIDiagnosisPanel } from '../../components/emr/AIDiagnosisPanel'
 import {
@@ -24,9 +24,8 @@ import {
   ShieldCheckIcon,
 } from '@heroicons/react/24/outline'
 import { useMembershipStore } from '../../store/membershipStore'
-import type { ChatStage, UIAction, UIComponent, UISchemaV1 } from '../../types/chat'
+import type { ChatStage, UIAction, UISchemaV1 } from '../../types/chat'
 
-const AI_WS_BASE_URL = import.meta.env.VITE_AGENT_WS_BASE_URL || 'ws://localhost:8000'
 const MAX_IMAGES = 3
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024 // 5MB
 
@@ -45,6 +44,9 @@ interface Message {
 }
 
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
+
+const MAX_RECONNECT_ATTEMPTS = 3
+const RECONNECT_INTERVAL_MS = 2000
 
 interface SessionInfo {
   sessionId: string
@@ -82,6 +84,8 @@ export const StaffAIChatPage = () => {
   // WebSocket state
   const wsRef = useRef<WebSocket | null>(null)
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected')
+  const [reconnectAttempts, setReconnectAttempts] = useState(0)
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null)
   const [creatingSession, setCreatingSession] = useState(false)
   const [loadingSessions, setLoadingSessions] = useState(false)
@@ -92,6 +96,7 @@ export const StaffAIChatPage = () => {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
+  const [liveReasoning, setLiveReasoning] = useState('')
   const [, setReactSteps] = useState<Array<{
     step_index: number
     step_type: 'thought' | 'action' | 'observation'
@@ -204,11 +209,16 @@ export const StaffAIChatPage = () => {
   // ==================== SESSION MANAGEMENT ====================
 
   const disconnectWebSocket = useCallback(() => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current)
+      reconnectTimeoutRef.current = null
+    }
     if (wsRef.current) {
       wsRef.current.close()
       wsRef.current = null
     }
     setConnectionStatus('disconnected')
+    setReconnectAttempts(0)
   }, [])
 
   const loadSessions = useCallback(async () => {
@@ -328,38 +338,6 @@ export const StaffAIChatPage = () => {
 
   // ==================== WEBSOCKET ====================
 
-  const connectWebSocket = useCallback(() => {
-    if (!sessionInfo?.sessionId) return
-    if (
-      wsRef.current?.readyState === WebSocket.OPEN ||
-      wsRef.current?.readyState === WebSocket.CONNECTING
-    ) return
-
-    setConnectionStatus('connecting')
-    const token = useAuthStore.getState().accessToken
-
-    const fullWsUrl = `${AI_WS_BASE_URL}/ws/chat/${sessionInfo.sessionId}?token=${token}&context_type=${sessionInfo.contextType}`
-
-    const ws = new WebSocket(fullWsUrl)
-
-    ws.onopen = () => setConnectionStatus('connected')
-    ws.onclose = () => {
-      setConnectionStatus('disconnected')
-      if (wsRef.current === ws) wsRef.current = null
-    }
-    ws.onerror = () => setConnectionStatus('error')
-
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        handleWebSocketMessage(data)
-      } catch (err) {
-        console.error('Failed to parse WebSocket message:', err)
-      }
-    }
-    wsRef.current = ws
-  }, [sessionInfo?.contextType, sessionInfo?.sessionId, isVIP])
-
   const handleWebSocketMessage = useCallback((data: {
     type: string
     session_id?: string
@@ -380,6 +358,9 @@ export const StaffAIChatPage = () => {
       tool_result?: unknown
     }>
     error?: string
+    error_code?: string
+    recoverable?: boolean
+    suggestion?: string
     ui_schema?: UISchemaV1
     stage?: ChatStage
   }) => {
@@ -398,26 +379,38 @@ export const StaffAIChatPage = () => {
           return prev
         })
         setStreamingContent('')
+        setLiveReasoning('')
         setSending(false)
         break
       }
       case 'ack':
         setStreamingContent('')
+        setLiveReasoning('Đang suy luận: mình đã nhận yêu cầu và bắt đầu xử lý.')
         setReactSteps([])
         break
       case 'agent_info':
         break
+      case 'thinking_stream':
+        setSending(true)
+        setLiveReasoning(data.content ?? 'Đang suy luận: mình đang phân tích yêu cầu của bạn.')
+        break
       case 'thinking':
+        setSending(true)
+        setLiveReasoning(data.content ?? 'Đang suy luận: mình đang phân tích yêu cầu của bạn.')
         setReactSteps(prev => [...prev, {
           step_index: data.step_index ?? prev.length,
           step_type: 'thought',
-          content: data.content ?? '',
-          tool_name: data.tool_name,
+            content: data.content ?? '',
+            tool_name: data.tool_name,
           tool_params: data.tool_params,
           timestamp: new Date().toISOString()
         }])
         break
       case 'tool_call':
+        setSending(true)
+        if (data.content?.trim()) {
+          setLiveReasoning(data.content)
+        }
         setReactSteps(prev => [...prev, {
           step_index: data.step_index ?? prev.length,
           step_type: 'action',
@@ -428,6 +421,10 @@ export const StaffAIChatPage = () => {
         }])
         break
       case 'tool_result':
+        setSending(true)
+        if (data.content?.trim()) {
+          setLiveReasoning(data.content)
+        }
         setReactSteps(prev => [...prev, {
           step_index: data.step_index ?? prev.length,
           step_type: 'observation',
@@ -448,11 +445,13 @@ export const StaffAIChatPage = () => {
         }])
         break
       case 'stream':
+        setLiveReasoning('')
         setStreamingContent(prev => prev + (data.content ?? ''))
         break
       case 'complete': {
         setSending(false)
         setStreamingContent('')
+        setLiveReasoning('')
         const thinkingProcess: string[] = []
         const toolCalls: Array<{ tool: string; input: unknown; output?: unknown }> = []
 
@@ -491,21 +490,68 @@ export const StaffAIChatPage = () => {
             toolCalls
           }]
         })
-        // Removed: void loadSessions() - Not needed on every complete message
         break
       }
       case 'error':
         setSending(false)
         setStreamingContent('')
+        setLiveReasoning('')
+        {
+          const errorCode = data.error_code ? ` (${data.error_code})` : ''
+          const suggestion = data.suggestion ? ` ${data.suggestion}` : ''
+          const recoverable = data.recoverable === false ? ' Không thể tự khôi phục.' : ''
+          const errorMessage = `[Lỗi${errorCode}] ${data.error ?? 'Unknown error'}${suggestion}${recoverable}`
         setMessages(prev => [...prev, {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
-          content: `[Lỗi] ${data.error ?? 'Unknown error'}`,
+          content: errorMessage,
           timestamp: new Date()
         }])
+        }
         break
     }
-  }, [loadSessions, mapHistoryMessage])
+  }, [mapHistoryMessage])
+
+  const connectWebSocket = useCallback(() => {
+    if (!sessionInfo?.sessionId) return
+    if (
+      wsRef.current?.readyState === WebSocket.OPEN ||
+      wsRef.current?.readyState === WebSocket.CONNECTING
+    ) return
+
+    setConnectionStatus('connecting')
+    const ws = createChatWebSocket(sessionInfo.sessionId, sessionInfo.contextType)
+
+    ws.onopen = () => {
+      setConnectionStatus('connected')
+      setReconnectAttempts(0)
+    }
+    ws.onclose = () => {
+      setConnectionStatus('disconnected')
+      if (wsRef.current === ws) wsRef.current = null
+      
+      // Auto-reconnect if within retry limit
+      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        const nextAttempt = reconnectAttempts + 1
+        setReconnectAttempts(nextAttempt)
+        console.log(`WebSocket closed, auto-reconnecting (${nextAttempt}/${MAX_RECONNECT_ATTEMPTS})...`)
+        reconnectTimeoutRef.current = setTimeout(() => {
+          connectWebSocket()
+        }, RECONNECT_INTERVAL_MS)
+      }
+    }
+    ws.onerror = () => setConnectionStatus('error')
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        handleWebSocketMessage(data)
+      } catch (err) {
+        console.error('Failed to parse WebSocket message:', err)
+      }
+    }
+    wsRef.current = ws
+  }, [handleWebSocketMessage, sessionInfo?.contextType, sessionInfo?.sessionId, reconnectAttempts])
 
   useEffect(() => {
     if (!sessionInfo?.sessionId) {
@@ -614,7 +660,7 @@ export const StaffAIChatPage = () => {
       newImages.push({
         file,
         preview: URL.createObjectURL(file),
-        base64: base64.split(',')[1],
+        base64,
       })
     }
 
@@ -672,9 +718,9 @@ export const StaffAIChatPage = () => {
                 <h1 className="text-xl font-black text-stone-900 uppercase tracking-tight">Trợ lý AI</h1>
                 <p className="text-[10px] text-stone-600 font-bold uppercase tracking-wide">Tư vấn thú y cho Staff</p>
               </div>
-              <div className={`flex items-center gap-1.5 px-2 py-1 border-2 border-stone-900 transition-colors shadow-[1px_1px_0_#1c1917] ${connectionStatus === 'connected' ? 'bg-green-100' :
-                connectionStatus === 'connecting' ? 'bg-yellow-100' :
-                  connectionStatus === 'error' ? 'bg-red-100' : 'bg-stone-50'
+                <div className={`flex items-center gap-1.5 px-2 py-1 border-2 border-stone-900 transition-colors shadow-[1px_1px_0_#1c1917] ${connectionStatus === 'connected' ? 'bg-green-100' :
+                  connectionStatus === 'connecting' ? 'bg-yellow-100' :
+                    connectionStatus === 'error' ? 'bg-red-100' : 'bg-stone-50'
                 }`}>
                 {connectionStatus === 'connected' ? (
                   <SparklesIcon className="w-3 h-3 text-green-700" />
@@ -682,7 +728,9 @@ export const StaffAIChatPage = () => {
                   <ChatBubbleLeftRightIcon className="w-3 h-3 text-stone-400" />
                 )}
                 <span className="text-[9px] font-black uppercase text-stone-900 tracking-tighter">
-                  {connectionStatus}
+                  {connectionStatus === 'connecting' && reconnectAttempts > 0 
+                    ? `ket noi lai (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`
+                    : connectionStatus}
                 </span>
               </div>
             </div>
@@ -821,10 +869,10 @@ export const StaffAIChatPage = () => {
                     onFeedback={(feedback) => handleFeedback(msg.id, feedback)}
                     uiSchema={msg.uiSchema}
                     stage={msg.stage}
-                    onUiAction={(action: UIAction, _component: UIComponent) => sendUiAction(action)}
+                    onUiAction={(action: UIAction) => sendUiAction(action)}
                   />
                 ))}
-                {(sending || streamingContent) && (
+                {(sending || streamingContent || liveReasoning) && (
                   <div className="flex gap-3">
                     <div className="flex-shrink-0 w-8 h-8 border-2 border-stone-900 shadow-[2px_2px_0_#1c1917] flex items-center justify-center bg-amber-400">
                       <SparklesIcon className="w-4 h-4 text-stone-900 animate-pulse" />
@@ -832,7 +880,7 @@ export const StaffAIChatPage = () => {
                     <div className="flex flex-col items-start max-w-[80%]">
                       <div className="border-2 border-stone-900 p-3 bg-white text-stone-900 shadow-[3px_3px_0_#1c1917]">
                         <div className="text-sm font-bold whitespace-pre-wrap">
-                          {streamingContent || 'Đang suy nghĩ...'}
+                          {streamingContent || liveReasoning || 'Đang suy luận: mình đang phân tích yêu cầu của bạn.'}
                         </div>
                       </div>
                     </div>

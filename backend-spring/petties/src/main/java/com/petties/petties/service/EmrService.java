@@ -16,6 +16,7 @@ import com.petties.petties.exception.ResourceNotFoundException;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -124,6 +125,7 @@ public class EmrService {
                                 .heartRate(request.getHeartRate())
                                 .bcs(request.getBcs())
                                 .prescriptions(prescriptions)
+                                .aiDiagnosisContext(request.getAiDiagnosisContext())
                                 .images(images)
                                 .examinationDate(request.getExaminationDate() != null
                                                 ? request.getExaminationDate()
@@ -179,6 +181,7 @@ public class EmrService {
                 emr.setBcs(request.getBcs());
                 emr.setReExaminationDate(request.getReExaminationDate());
                 emr.setUpdatedAt(LocalDateTime.now());
+                emr.setAiDiagnosisContext(request.getAiDiagnosisContext());
 
                 // Update prescriptions if provided
                 if (request.getPrescriptions() != null) {
@@ -218,6 +221,49 @@ public class EmrService {
                 syncConfirmedCase(saved);
 
                 return mapToResponse(saved, pet);
+        }
+
+        @org.springframework.transaction.annotation.Transactional(readOnly = true)
+        public CaseMemoryResyncResponse resyncConfirmedCaseMemory(int limit) {
+                if (limit < 1 || limit > 2000) {
+                        throw new BadRequestException("Giới hạn đồng bộ phải từ 1 đến 2000 bệnh án");
+                }
+
+                List<EmrRecord> eligibleRecords = emrRecordRepository.findAll().stream()
+                                .filter(this::isEligibleForCaseMemorySync)
+                                .sorted(Comparator.comparing(
+                                                this::resolveCaseMemorySortTime,
+                                                Comparator.nullsLast(Comparator.naturalOrder()))
+                                                .reversed())
+                                .collect(Collectors.toList());
+
+                int totalEligible = eligibleRecords.size();
+                int processedCount = 0;
+                int syncedCount = 0;
+
+                for (EmrRecord emr : eligibleRecords.stream().limit(limit).toList()) {
+                        processedCount++;
+                        try {
+                                if (aiCaseMemorySyncService.syncConfirmedEmr(mapToInternalConfirmedItem(emr))) {
+                                        syncedCount++;
+                                }
+                        } catch (Exception ex) {
+                                log.warn("Failed to resync EMR {} to AI case memory: {}", emr.getId(), ex.getMessage());
+                        }
+                }
+
+                int failedCount = processedCount - syncedCount;
+                return CaseMemoryResyncResponse.builder()
+                                .success(failedCount == 0)
+                                .totalEligible(totalEligible)
+                                .processedCount(processedCount)
+                                .syncedCount(syncedCount)
+                                .failedCount(failedCount)
+                                .message(String.format(
+                                                "Đã đồng bộ %d/%d bệnh án đủ điều kiện vào Case Memory",
+                                                syncedCount,
+                                                processedCount))
+                                .build();
         }
 
         /**
@@ -353,6 +399,34 @@ public class EmrService {
                 attachments.put("image_urls", imageUrls);
                 attachments.put("image_descriptions", imageDescriptions);
 
+                Map<String, Object> soap = new LinkedHashMap<>();
+                soap.put("subjective", emr.getSubjective());
+                soap.put("objective", emr.getObjective());
+                soap.put("assessment", emr.getAssessment());
+                soap.put("plan", emr.getPlan());
+                soap.put("notes", emr.getNotes());
+
+                Map<String, Object> vitals = new LinkedHashMap<>();
+                vitals.put("weight_kg", emr.getWeightKg());
+                vitals.put("temperature_c", emr.getTemperatureC());
+                vitals.put("heart_rate", emr.getHeartRate());
+                vitals.put("bcs", emr.getBcs());
+
+                List<Map<String, Object>> prescriptions = emr.getPrescriptions() != null
+                                ? emr.getPrescriptions().stream()
+                                                .filter(prescription -> prescription != null)
+                                                .map(prescription -> {
+                                                        Map<String, Object> rx = new LinkedHashMap<>();
+                                                        rx.put("medicine_name", prescription.getMedicineName());
+                                                        rx.put("dosage", prescription.getDosage());
+                                                        rx.put("frequency", prescription.getFrequency());
+                                                        rx.put("duration_days", prescription.getDurationDays());
+                                                        rx.put("instructions", prescription.getInstructions());
+                                                        return rx;
+                                                })
+                                                .collect(Collectors.toList())
+                                : List.of();
+
                 return InternalConfirmedEmrItemDto.builder()
                                 .emrId(emr.getId())
                                 .petId(emr.getPetId())
@@ -366,9 +440,14 @@ public class EmrService {
                                 .physicalExam(toSignalList(emr.getObjective()))
                                 .clinicalNotes(firstNonBlank(emr.getNotes(), emr.getPlan(), emr.getObjective()))
                                 .finalDiagnosisText(emr.getAssessment())
+                                .soap(soap)
+                                .vitals(vitals)
+                                .prescriptions(prescriptions)
+                                .aiDiagnosisContext(emr.getAiDiagnosisContext() != null ? emr.getAiDiagnosisContext() : Map.of())
                                 .verified(true)
                                 .examAt(emr.getExaminationDate())
                                 .updatedAt(emr.getUpdatedAt() != null ? emr.getUpdatedAt() : emr.getCreatedAt())
+                                .reExaminationDate(emr.getReExaminationDate())
                                 .attachments(attachments)
                                 .build();
         }
@@ -383,6 +462,25 @@ public class EmrService {
                 } catch (Exception ex) {
                         log.warn("Failed to trigger AI case memory sync for EMR {}: {}", emr.getId(), ex.getMessage());
                 }
+        }
+
+        private boolean isEligibleForCaseMemorySync(EmrRecord emr) {
+                return emr != null
+                                && emr.getAssessment() != null
+                                && !emr.getAssessment().isBlank();
+        }
+
+        private LocalDateTime resolveCaseMemorySortTime(EmrRecord emr) {
+                if (emr == null) {
+                        return null;
+                }
+                if (emr.getUpdatedAt() != null) {
+                        return emr.getUpdatedAt();
+                }
+                if (emr.getExaminationDate() != null) {
+                        return emr.getExaminationDate();
+                }
+                return emr.getCreatedAt();
         }
 
         private String resolvePetSpecies(Pet pet) {

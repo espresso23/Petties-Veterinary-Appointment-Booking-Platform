@@ -129,7 +129,7 @@ export const StaffSchedulePage = () => {
 
     useEffect(() => {
         setWeekDates(getWeekDates(new Date(currentWeek)))
-    }, [currentWeek.getTime()])
+    }, [currentWeek.getTime()]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Sync selectedDay when switching to Day view
     useEffect(() => {
@@ -141,11 +141,11 @@ export const StaffSchedulePage = () => {
                 setSelectedDay(weekDates[0])
             }
         }
-    }, [viewMode, weekDates])
+    }, [viewMode, weekDates]) // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         if (weekDates.length > 0) fetchShifts()
-    }, [weekDates])
+    }, [weekDates, fetchShifts]) // eslint-disable-line react-hooks/exhaustive-deps
 
     const fetchShifts = useCallback(async () => {
         if (!staffId || weekDates.length === 0) return

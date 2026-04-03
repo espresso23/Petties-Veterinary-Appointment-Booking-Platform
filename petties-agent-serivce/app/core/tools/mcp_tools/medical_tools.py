@@ -23,8 +23,14 @@ from app.core.tools.mcp_server import mcp_server
 from typing import Dict, Any, List, Optional
 from loguru import logger
 import re
+import time
 
 from app.config.settings import settings
+from app.core.tools.contracts import (
+    build_tool_error_response,
+    build_tool_success_response,
+    classify_error_code,
+)
 
 
 def _clean_rag_text(text: str) -> str:
@@ -100,6 +106,15 @@ def _map_emr_prescriptions(prescriptions: Any) -> List[Dict[str, Any]]:
     return mapped
 
 
+def _build_auth_error_response(message: str) -> Dict[str, Any]:
+    return build_tool_error_response(
+        error_code="UNAUTHORIZED",
+        message=message,
+        recoverable=True,
+        suggestion="Vui lòng đăng nhập lại rồi thử lại.",
+    )
+
+
 # ===== RAG TOOLS =====
 
 
@@ -109,6 +124,9 @@ async def pet_knowledge_search(
     pet_type: str = "dog",
     top_k: int = 5,
     min_score: float = 0.4,
+    enable_kg: bool = True,
+    enable_case_memory: bool = True,
+    enable_query_expansion: bool = True,
 ) -> Dict[str, Any]:
     """
     Tìm kiếm kiến thức chăm sóc thú cưng từ Knowledge Base (RAG).
@@ -140,6 +158,7 @@ async def pet_knowledge_search(
         from app.core.rag.hybrid_engine import get_hybrid_rag_engine
 
         hybrid = get_hybrid_rag_engine()
+        started = time.perf_counter()
 
         # Hybrid query (RAG + KG + Case Memory)
         # NOTE: hybrid.query() đã gọi QueryExpander bên trong,
@@ -150,8 +169,9 @@ async def pet_knowledge_search(
             min_score=min_score,
             pet_type=pet_type,
             enable_rag=True,
-            enable_kg=True,
-            enable_case_memory=True,
+            enable_kg=enable_kg,
+            enable_case_memory=enable_case_memory,
+            enable_query_expansion=enable_query_expansion,
         )
         query_expanded = hybrid_result.expanded_query != hybrid_result.original_query
 
@@ -183,28 +203,55 @@ async def pet_knowledge_search(
 
         logger.info(
             f"pet_knowledge_search: Found {len(formatted_results)} results "
-            f"(expanded={query_expanded}) for query: {query[:50]}..."
+            f"(expanded={query_expanded}, kg={enable_kg}, case_memory={enable_case_memory}) "
+            f"for query: {query[:50]}... in {int((time.perf_counter() - started) * 1000)}ms"
         )
 
-        return {
-            "query": query,
-            "expanded_query": hybrid_result.expanded_query if query_expanded else None,
-            "pet_type": pet_type,
-            "results": formatted_results,
-            "sources_used": len(formatted_results),
-            "search_source": "knowledge_base",
-        }
+        total_ms = int((time.perf_counter() - started) * 1000)
+        hybrid_timings = dict(hybrid_result.timings_ms or {})
+        hybrid_timings["total"] = max(int(hybrid_timings.get("total", 0)), total_ms)
+
+        return build_tool_success_response(
+            {
+                "query": query,
+                "expanded_query": (
+                    hybrid_result.expanded_query if query_expanded else None
+                ),
+                "pet_type": pet_type,
+                "results": formatted_results,
+                "sources_used": len(formatted_results),
+                "search_source": "knowledge_base",
+            },
+            metadata={
+                "timing_ms": {
+                    **hybrid_timings,
+                },
+                "retrieval_profile": {
+                    "enable_rag": True,
+                    "enable_kg": enable_kg,
+                    "enable_case_memory": enable_case_memory,
+                    "enable_query_expansion": enable_query_expansion,
+                    "top_k": top_k,
+                    "min_score": min_score,
+                },
+                "sources_used": hybrid_result.sources_used,
+            },
+        )
 
     except Exception as e:
         logger.error(f"Lỗi trong pet_knowledge_search: {e}")
-        return {
-            "query": query,
-            "pet_type": pet_type,
-            "results": [],
-            "sources_used": 0,
-            "search_source": "knowledge_base",
-            "error": str(e),
-        }
+        return build_tool_error_response(
+            error_code=classify_error_code(str(e)),
+            message="Không thể tra cứu kiến thức thú cưng lúc này.",
+            recoverable=True,
+            suggestion="Vui lòng thử lại sau ít phút.",
+            metadata={
+                "query": query,
+                "pet_type": pet_type,
+                "search_source": "knowledge_base",
+                "root_error": str(e),
+            },
+        )
 
 
 # ===== STAFF DIAGNOSTIC SUPPORT TOOLS =====
@@ -243,22 +290,21 @@ async def get_staff_patients(
         # Lấy context từ tool execution
         context = get_tool_runtime_context()
         if not context:
-            return {
-                "error": "Không thể xác định thông tin staff. Vui lòng đăng nhập lại.",
-                "pets": [],
-                "total": 0,
-            }
+            return _build_auth_error_response(
+                "Không thể xác định thông tin staff. Vui lòng đăng nhập lại."
+            )
 
         user_id = context.user_id  # Staff ID
         clinic_id = context.clinic_id
         token = context.auth_token
 
         if not user_id or not clinic_id or not token:
-            return {
-                "error": "Thiếu thông tin staff hoặc clinic. Vui lòng liên hệ admin.",
-                "pets": [],
-                "total": 0,
-            }
+            return build_tool_error_response(
+                error_code="INVALID_CONTEXT",
+                message="Thiếu thông tin staff hoặc clinic. Vui lòng liên hệ admin.",
+                recoverable=False,
+                suggestion="Vui lòng kiểm tra cấu hình tài khoản và quyền truy cập.",
+            )
 
         backend_client = get_backend_client()
         raw_patients = await backend_client.get_staff_patients(
@@ -300,15 +346,17 @@ async def get_staff_patients(
             )
 
         patients = patients[:limit]
-        return {"pets": patients, "total": len(patients)}
+        return build_tool_success_response({"pets": patients, "total": len(patients)})
 
     except Exception as e:
         logger.error(f"Lỗi trong get_staff_patients: {e}")
-        return {
-            "error": f"Không thể lấy danh sách bệnh nhân: {str(e)}",
-            "pets": [],
-            "total": 0,
-        }
+        return build_tool_error_response(
+            error_code=classify_error_code(str(e)),
+            message="Không thể lấy danh sách bệnh nhân lúc này.",
+            recoverable=True,
+            suggestion="Vui lòng thử lại sau ít phút.",
+            metadata={"root_error": str(e)},
+        )
 
 
 @mcp_server.tool
@@ -350,24 +398,21 @@ async def get_patient_summary(
         # Lấy context từ tool execution
         context = get_tool_runtime_context()
         if not context:
-            return {
-                "error": "Không thể xác định thông tin staff. Vui lòng đăng nhập lại.",
-                "pet_info": {},
-                "recent_exams": [],
-                "total_exams": 0,
-            }
+            return _build_auth_error_response(
+                "Không thể xác định thông tin staff. Vui lòng đăng nhập lại."
+            )
 
         user_id = context.user_id  # Staff ID
         clinic_id = context.clinic_id
         token = context.auth_token
 
         if not user_id or not clinic_id or not token:
-            return {
-                "error": "Thiếu thông tin staff hoặc clinic. Vui lòng liên hệ admin.",
-                "pet_info": {},
-                "recent_exams": [],
-                "total_exams": 0,
-            }
+            return build_tool_error_response(
+                error_code="INVALID_CONTEXT",
+                message="Thiếu thông tin staff hoặc clinic. Vui lòng liên hệ admin.",
+                recoverable=False,
+                suggestion="Vui lòng kiểm tra cấu hình tài khoản và quyền truy cập.",
+            )
 
         backend_client = get_backend_client()
         pet = await backend_client.get_pet(token, pet_id)
@@ -410,20 +455,23 @@ async def get_patient_summary(
                 }
             )
 
-        return {
-            "pet_info": pet_info,
-            "recent_exams": recent_exams,
-            "total_exams": len(recent_exams),
-        }
+        return build_tool_success_response(
+            {
+                "pet_info": pet_info,
+                "recent_exams": recent_exams,
+                "total_exams": len(recent_exams),
+            }
+        )
 
     except Exception as e:
         logger.error(f"Lỗi trong get_patient_summary: {e}")
-        return {
-            "error": f"Không thể lấy tóm tắt bệnh nhân: {str(e)}",
-            "pet_info": {},
-            "recent_exams": [],
-            "total_exams": 0,
-        }
+        return build_tool_error_response(
+            error_code=classify_error_code(str(e)),
+            message="Không thể lấy tóm tắt bệnh nhân lúc này.",
+            recoverable=True,
+            suggestion="Vui lòng thử lại sau ít phút.",
+            metadata={"pet_id": pet_id, "root_error": str(e)},
+        )
 
 
 @mcp_server.tool
@@ -462,22 +510,21 @@ async def get_emr_history(
         # Lấy context từ tool execution
         context = get_tool_runtime_context()
         if not context:
-            return {
-                "error": "Không thể xác định thông tin staff. Vui lòng đăng nhập lại.",
-                "emr_history": [],
-                "total": 0,
-            }
+            return _build_auth_error_response(
+                "Không thể xác định thông tin staff. Vui lòng đăng nhập lại."
+            )
 
         user_id = context.user_id  # Staff ID
         clinic_id = context.clinic_id
         token = context.auth_token
 
         if not user_id or not clinic_id or not token:
-            return {
-                "error": "Thiếu thông tin staff hoặc clinic. Vui lòng liên hệ admin.",
-                "emr_history": [],
-                "total": 0,
-            }
+            return build_tool_error_response(
+                error_code="INVALID_CONTEXT",
+                message="Thiếu thông tin staff hoặc clinic. Vui lòng liên hệ admin.",
+                recoverable=False,
+                suggestion="Vui lòng kiểm tra cấu hình tài khoản và quyền truy cập.",
+            )
 
         backend_client = get_backend_client()
         raw_history = await backend_client.get_pet_emr_history(
@@ -510,15 +557,19 @@ async def get_emr_history(
                 }
             )
 
-        return {"emr_history": emr_history, "total": len(emr_history)}
+        return build_tool_success_response(
+            {"emr_history": emr_history, "total": len(emr_history)}
+        )
 
     except Exception as e:
         logger.error(f"Lỗi trong get_emr_history: {e}")
-        return {
-            "error": f"Không thể lấy lịch sử bệnh án: {str(e)}",
-            "emr_history": [],
-            "total": 0,
-        }
+        return build_tool_error_response(
+            error_code=classify_error_code(str(e)),
+            message="Không thể lấy lịch sử bệnh án lúc này.",
+            recoverable=True,
+            suggestion="Vui lòng thử lại sau ít phút.",
+            metadata={"pet_id": pet_id, "root_error": str(e)},
+        )
 
 
 @mcp_server.tool
@@ -562,32 +613,23 @@ async def get_pet_health_summary(
     try:
         context = get_tool_runtime_context()
         if not context:
-            return {
-                "error": "Không thể xác định thông tin người dùng. Vui lòng đăng nhập lại.",
-                "pet_info": None,
-                "latest_emr": None,
-            }
+            return _build_auth_error_response(
+                "Không thể xác định thông tin người dùng. Vui lòng đăng nhập lại."
+            )
 
         token = context.auth_token
         if not token:
-            return {
-                "error": "Không thể xác định phiên đăng nhập. Vui lòng đăng nhập lại.",
-                "pet_info": None,
-                "latest_emr": None,
-                "health_warnings": [],
-                "medication_reminders": [],
-                "suggested_actions": [],
-            }
+            return _build_auth_error_response(
+                "Không thể xác định phiên đăng nhập. Vui lòng đăng nhập lại."
+            )
 
         if context.user_id != user_id:
-            return {
-                "error": "Bạn không có quyền xem thông tin sức khỏe của thú cưng này.",
-                "pet_info": None,
-                "latest_emr": None,
-                "health_warnings": [],
-                "medication_reminders": [],
-                "suggested_actions": [],
-            }
+            return build_tool_error_response(
+                error_code="FORBIDDEN",
+                message="Bạn không có quyền xem thông tin sức khỏe của thú cưng này.",
+                recoverable=False,
+                suggestion="Vui lòng kiểm tra tài khoản hoặc chọn thú cưng thuộc hồ sơ của bạn.",
+            )
 
         backend = get_backend_client()
         pet_data = await backend.get_pet(token, pet_id)
@@ -691,25 +733,26 @@ async def get_pet_health_summary(
                 ),
             }
 
-        return {
-            "pet_info": pet_info,
-            "latest_emr": latest_emr_summary,
-            "health_warnings": warnings,
-            "medication_reminders": medication_reminders,
-            "suggested_actions": suggested_actions,
-            "disclaimer": "Thông tin chỉ mang tính tham khảo. Vui lòng consult bác sĩ để được tư vấn chính xác.",
-        }
+        return build_tool_success_response(
+            {
+                "pet_info": pet_info,
+                "latest_emr": latest_emr_summary,
+                "health_warnings": warnings,
+                "medication_reminders": medication_reminders,
+                "suggested_actions": suggested_actions,
+                "disclaimer": "Thông tin chỉ mang tính tham khảo. Vui lòng tham vấn bác sĩ để được tư vấn chính xác.",
+            }
+        )
 
     except Exception as e:
         logger.error(f"Lỗi trong get_pet_health_summary: {e}")
-        return {
-            "error": f"Không thể lấy thông tin sức khỏe: {str(e)}",
-            "pet_info": None,
-            "latest_emr": None,
-            "health_warnings": [],
-            "medication_reminders": [],
-            "suggested_actions": [],
-        }
+        return build_tool_error_response(
+            error_code=classify_error_code(str(e)),
+            message="Không thể lấy thông tin sức khỏe thú cưng lúc này.",
+            recoverable=True,
+            suggestion="Vui lòng thử lại sau ít phút.",
+            metadata={"pet_id": pet_id, "root_error": str(e)},
+        )
 
 
 # ===== TOOL METADATA =====

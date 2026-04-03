@@ -66,7 +66,11 @@ class SpringBackendClient:
                 status_code = exc.response.status_code
                 try:
                     error_payload = exc.response.json()
-                    detail = error_payload.get("message") or error_payload.get("detail") or exc.response.text
+                    detail = (
+                        error_payload.get("message")
+                        or error_payload.get("detail")
+                        or exc.response.text
+                    )
                 except Exception:
                     detail = exc.response.text
 
@@ -92,7 +96,9 @@ class SpringBackendClient:
                     await asyncio.sleep(delay_seconds)
                     delay_seconds *= 2
                     continue
-                raise BackendClientError(f"Khong the ket noi backend booking: {exc}") from exc
+                raise BackendClientError(
+                    f"Khong the ket noi backend booking: {exc}"
+                ) from exc
 
         raise BackendClientError(last_error or "Khong the goi Spring backend")
 
@@ -108,11 +114,17 @@ class SpringBackendClient:
         """
         return await self.get_my_pets(token)
 
-    async def get_vaccinations_by_pet(self, token: str, pet_id: str) -> List[Dict[str, Any]]:
+    async def get_vaccinations_by_pet(
+        self, token: str, pet_id: str
+    ) -> List[Dict[str, Any]]:
         return await self._request("GET", f"/vaccinations/pet/{pet_id}", token=token)
 
-    async def get_upcoming_vaccinations(self, token: str, pet_id: str) -> List[Dict[str, Any]]:
-        return await self._request("GET", f"/vaccinations/pet/{pet_id}/upcoming", token=token)
+    async def get_upcoming_vaccinations(
+        self, token: str, pet_id: str
+    ) -> List[Dict[str, Any]]:
+        return await self._request(
+            "GET", f"/vaccinations/pet/{pet_id}/upcoming", token=token
+        )
 
     async def get_pet(self, token: str, pet_id: str) -> Any:
         return await self._request("GET", f"/pets/{pet_id}", token=token)
@@ -193,25 +205,59 @@ class SpringBackendClient:
             ("date", date),
         ]
         params.extend(("serviceIds", service_id) for service_id in service_ids)
-        return await self._request("GET", "/bookings/public/available-slots", params=params)
+        return await self._request(
+            "GET", "/bookings/public/available-slots", params=params
+        )
 
     async def resolve_booking_context(self, token: str, payload: Dict[str, Any]) -> Any:
-        return await self._request("POST", "/ai-tools/booking/context", token=token, json_body=payload)
+        return await self._request(
+            "POST", "/ai-tools/booking/context", token=token, json_body=payload
+        )
 
-    async def get_booking_clinic_options(self, token: str, payload: Dict[str, Any]) -> Any:
-        return await self._request("POST", "/ai-tools/booking/clinic-options", token=token, json_body=payload)
+    async def get_booking_clinic_options(
+        self, token: str, payload: Dict[str, Any]
+    ) -> Any:
+        return await self._request(
+            "POST", "/ai-tools/booking/clinic-options", token=token, json_body=payload
+        )
 
-    async def get_booking_slot_options(self, token: str, payload: Dict[str, Any]) -> Any:
-        return await self._request("POST", "/ai-tools/booking/slot-options", token=token, json_body=payload)
-
-    async def build_booking_draft(self, token: str, payload: Dict[str, Any]) -> Any:
-        return await self._request("POST", "/ai-tools/booking/draft", token=token, json_body=payload)
+    async def get_booking_slot_options(
+        self, token: str, payload: Dict[str, Any]
+    ) -> Any:
+        return await self._request(
+            "POST", "/ai-tools/booking/slot-options", token=token, json_body=payload
+        )
 
     async def create_ai_booking(self, token: str, payload: Dict[str, Any]) -> Any:
-        return await self._request("POST", "/ai-tools/booking/create", token=token, json_body=payload)
+        return await self._request(
+            "POST", "/ai-tools/booking/create", token=token, json_body=payload
+        )
 
-    async def create_booking(self, token: str, payload: Dict[str, Any]) -> Any:
-        return await self._request("POST", "/bookings", token=token, json_body=payload)
+    async def get_my_bookings(
+        self,
+        token: str,
+        status: Optional[str] = None,
+        page: int = 0,
+        size: int = 10,
+    ) -> Dict[str, Any]:
+        params: Dict[str, Any] = {"page": page, "size": size}
+        if status:
+            params["status"] = status
+        return await self._request(
+            "GET", "/bookings/my-bookings", token=token, params=params
+        )
+
+    async def search_clinics_by_name(
+        self,
+        name: str,
+        page: int = 0,
+        size: int = 10,
+    ) -> Dict[str, Any]:
+        return await self._request(
+            "GET",
+            "/clinics/search",
+            params={"query": name, "page": page, "size": size},
+        )
 
 
 _backend_client = SpringBackendClient()

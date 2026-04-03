@@ -1,12 +1,20 @@
 from pathlib import Path
 import asyncio
 import sys
-from unittest.mock import patch
+import types
+from unittest.mock import AsyncMock, Mock, patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+motor_module = types.ModuleType("motor")
+motor_asyncio_module = types.ModuleType("motor.motor_asyncio")
+motor_asyncio_module.AsyncIOMotorClient = object
+motor_asyncio_module.AsyncIOMotorDatabase = object
+sys.modules.setdefault("motor", motor_module)
+sys.modules.setdefault("motor.motor_asyncio", motor_asyncio_module)
 
 from app.core.agents.single_agent import SingleAgent
 from app.core.agents.enrichment_strategy import build_final_answer_from_tool_result
@@ -35,6 +43,7 @@ class FakeHybridResult:
         self.expanded_query = expanded_query
         self.original_query = original_query
         self.sources_used = {"rag": len(chunks)}
+        self.timings_ms = {"rag": 12, "total": 12}
 
 
 class FakeHybridEngine:
@@ -48,22 +57,26 @@ class FakeHybridEngine:
 def test_web_search_rejects_non_pet_query():
     result = asyncio.run(web_search("thời tiết Hà Nội hôm nay", max_results=3))
 
-    assert result["sources_used"] == 0
-    assert result["search_source"] == "web_search"
-    assert result["results"] == []
-    assert result["error"] == "Query ngoai pham vi thu cung/thu y"
-    assert "answer" not in result
+    assert result["success"] is False
+    assert result["error_code"] == "OUT_OF_SCOPE"
+    assert "thú cưng" in result["message"].lower()
 
 
 def test_web_search_formats_pet_results():
-    mocked_results = [
-        {
-            "title": "Chó bị tiêu chảy nên ăn gì?",
-            "snippet": "Ưu tiên thức ăn mềm, dễ tiêu và bổ sung nước điện giải.",
-            "url": "https://example.com/dog-diarrhea-diet",
-            "source": "https://example.com/dog-diarrhea-diet",
-        },
-    ]
+    mocked_results = {
+        "results": [
+            {
+                "title": "Chó bị tiêu chảy nên ăn gì?",
+                "snippet": "Ưu tiên thức ăn mềm, dễ tiêu và bổ sung nước điện giải.",
+                "url": "https://example.com/dog-diarrhea-diet",
+                "source": "https://example.com/dog-diarrhea-diet",
+                "score": 5,
+            },
+        ],
+        "images": [],
+        "answer": None,
+        "follow_up_questions": [],
+    }
 
     with patch(
         "app.core.tools.mcp_tools.common_tools._perform_tavily_search",
@@ -71,10 +84,11 @@ def test_web_search_formats_pet_results():
     ):
         result = asyncio.run(web_search("chó bị tiêu chảy nên ăn gì", max_results=3))
 
-    assert result["sources_used"] == 1
-    assert result["search_source"] == "web_search"
-    assert "answer" not in result
-    assert len(result["results"]) == 1
+    assert result["success"] is True
+    assert result["data"]["sources_used"] == 1
+    assert result["data"]["search_source"] == "web_search"
+    assert "answer" in result["data"]
+    assert len(result["data"]["results"]) == 1
 
 
 def test_pet_knowledge_search_returns_raw_results():
@@ -102,18 +116,20 @@ def test_pet_knowledge_search_returns_raw_results():
             )
         )
 
-    assert result["search_source"] == "knowledge_base"
-    assert result["sources_used"] == 1
-    assert len(result["results"]) == 1
-    assert result["results"][0]["source"] == "petcare-guide.pdf"
-    assert result["results"][0]["score"] == 0.85
-    assert "tắm" in result["results"][0]["content"]
+    assert result["success"] is True
+    assert result["data"]["search_source"] == "knowledge_base"
+    assert result["data"]["sources_used"] == 1
+    assert len(result["data"]["results"]) == 1
+    assert result["data"]["results"][0]["source"] == "petcare-guide.pdf"
+    assert result["data"]["results"][0]["score"] == 0.85
+    assert "tắm" in result["data"]["results"][0]["content"]
+    assert result["metadata"]["timing_ms"]["total"] == 12
     # Should NOT have old classification fields
-    assert "possible_conditions" not in result
-    assert "urgent" not in result
-    assert "answer" not in result
-    assert "recommendations" not in result
-    assert "disclaimer" not in result
+    assert "possible_conditions" not in result["data"]
+    assert "urgent" not in result["data"]
+    assert "answer" not in result["data"]
+    assert "recommendations" not in result["data"]
+    assert "disclaimer" not in result["data"]
 
 
 def test_pet_knowledge_search_returns_empty_when_no_match():
@@ -132,12 +148,14 @@ def test_pet_knowledge_search_returns_empty_when_no_match():
             pet_knowledge_search("rụng lông nhẹ ở mèo", pet_type="cat", top_k=3)
         )
 
-    assert result["sources_used"] == 0
-    assert result["results"] == []
-    assert result["search_source"] == "knowledge_base"
+    assert result["success"] is True
+    assert result["data"]["sources_used"] == 0
+    assert result["data"]["results"] == []
+    assert result["data"]["search_source"] == "knowledge_base"
+    assert result["metadata"]["timing_ms"]["rag"] == 12
     # Should NOT have old classification fields
-    assert "possible_conditions" not in result
-    assert "urgent" not in result
+    assert "possible_conditions" not in result["data"]
+    assert "urgent" not in result["data"]
 
 
 def test_pet_knowledge_search_symptom_query_returns_raw_data():
@@ -163,51 +181,21 @@ def test_pet_knowledge_search_symptom_query_returns_raw_data():
             pet_knowledge_search("chó bị tiêu chảy và nôn", pet_type="dog", top_k=3)
         )
 
-    assert result["search_source"] == "knowledge_base"
-    assert result["sources_used"] == 1
-    assert len(result["results"]) == 1
-    assert "parvo" in result["results"][0]["content"].lower()
+    assert result["success"] is True
+    assert result["data"]["search_source"] == "knowledge_base"
+    assert result["data"]["sources_used"] == 1
+    assert len(result["data"]["results"]) == 1
+    assert "parvo" in result["data"]["results"][0]["content"].lower()
     # Pure data — no classification
-    assert "possible_conditions" not in result
-    assert "urgent" not in result
+    assert "possible_conditions" not in result["data"]
+    assert "urgent" not in result["data"]
 
 
-def test_single_agent_falls_back_to_web_search_when_kb_empty():
-    """Khi pet_knowledge_search trả về 0 results, agent fallback sang web_search."""
-    agent = SingleAgent(
-        llm_client=None,
-        enabled_tools=["pet_knowledge_search", "web_search"],
-    )
-
-    state = {
-        "iteration": 1,
-        "react_steps": [
-            {
-                "step_type": "action",
-                "content": "Called pet_knowledge_search",
-                "tool_name": "pet_knowledge_search",
-                "tool_params": {"query": "mèo anh lông ngắn có đặc điểm gì"},
-                "tool_result": {
-                    "success": True,
-                    "data": {
-                        "query": "mèo anh lông ngắn có đặc điểm gì",
-                        "pet_type": "cat",
-                        "results": [],
-                        "sources_used": 0,
-                        "search_source": "knowledge_base",
-                    },
-                },
-            }
-        ],
-        "messages": [
-            {
-                "role": "user",
-                "content": "mèo anh lông ngắn có đặc điểm gì",
-                "name": None,
-                "tool_call_id": None,
-            }
-        ],
-        "last_tool_result": {
+def test_no_auto_web_fallback_when_kb_empty():
+    """Policy mới: không auto fallback sang web_search khi KB rỗng."""
+    answer = build_final_answer_from_tool_result(
+        tool_name="pet_knowledge_search",
+        tool_result={
             "success": True,
             "data": {
                 "query": "mèo anh lông ngắn có đặc điểm gì",
@@ -217,16 +205,13 @@ def test_single_agent_falls_back_to_web_search_when_kb_empty():
                 "search_source": "knowledge_base",
             },
         },
-    }
+        react_steps=[],
+        messages=[],
+        llm_client=object(),
+        enabled_tools_lower={"pet_knowledge_search", "web_search"},
+    )
 
-    result = asyncio.run(agent._think_node(state))
-
-    assert result["should_end"] is False
-    assert result["pending_tool_call"]["name"] == "web_search"
-    assert result["pending_tool_call"]["arguments"] == {
-        "query": "mèo anh lông ngắn có đặc điểm gì",
-        "max_results": 5,
-    }
+    assert answer is None
 
 
 def test_build_final_answer_returns_none_when_llm_client_present():
@@ -294,7 +279,7 @@ def test_build_final_answer_returns_none_when_llm_client_present():
     # Error result → SHOULD auto-finalize even with LLM
     answer_err = build_final_answer_from_tool_result(
         tool_name="pet_knowledge_search",
-        tool_result={"success": False, "error": "Qdrant connection timeout"},
+        tool_result={"success": False, "message": "Qdrant connection timeout"},
         react_steps=[],
         messages=[],
         llm_client=agent.llm_client,
@@ -305,7 +290,7 @@ def test_build_final_answer_returns_none_when_llm_client_present():
 
 
 def test_format_tool_observation_kb_results():
-    """format_tool_observation formats KB raw results correctly."""
+    """format_tool_observation trả về JSON compact chứa đầy đủ dữ liệu KB."""
 
     obs_kb = format_tool_observation(
         {
@@ -321,14 +306,14 @@ def test_format_tool_observation_kb_results():
             "search_source": "knowledge_base",
         }
     )
-    assert "TÀI LIỆU TỪ KNOWLEDGE BASE" in obs_kb
+    assert '"search_source":"knowledge_base"' in obs_kb
     assert "petcare.pdf" in obs_kb
     assert "0.85" in obs_kb
     assert "cháo loãng" in obs_kb
 
 
 def test_format_tool_observation_web_results():
-    """format_tool_observation formats web search results correctly (pure data, no answer)."""
+    """format_tool_observation trả về JSON compact cho kết quả web."""
 
     obs_web = format_tool_observation(
         {
@@ -343,7 +328,7 @@ def test_format_tool_observation_web_results():
             ],
         }
     )
-    assert "KẾT QUẢ WEB:" in obs_web
+    assert '"search_source":"web_search"' in obs_web
     assert "Chó bị tiêu chảy" in obs_web
     assert "thức ăn mềm" in obs_web
     assert "example.com" in obs_web
@@ -451,7 +436,7 @@ def test_single_agent_returns_web_search_answer_as_final_answer():
 
 
 def test_single_agent_omits_empty_web_message_when_kb_has_results():
-    """Fallback mode (llm_client=None): khi web_search trả 0 results nhưng KB có, chỉ dùng KB."""
+    """Fallback mode: web_search rỗng không tự sinh câu trả lời."""
     agent = SingleAgent(
         llm_client=None, enabled_tools=["pet_knowledge_search", "web_search"]
     )
@@ -502,8 +487,7 @@ def test_single_agent_omits_empty_web_message_when_kb_has_results():
         enabled_tools_lower=agent._enabled_tools_lower,
     )
 
-    assert answer is not None
-    assert "cháo loãng" in answer
+    assert answer is None
 
 
 def test_perform_duckduckgo_search_relaxed_fallback_works():
@@ -521,37 +505,98 @@ def test_perform_duckduckgo_search_relaxed_fallback_works():
 
     with patch.object(common_tools, "TAVILY_AVAILABLE", True):
         with patch(
-            "app.core.tools.mcp_tools.common_tools._get_tavily_client"
+            "app.core.tools.mcp_tools.common_tools._get_tavily_client",
+            new_callable=AsyncMock,
         ) as mock_client:
-            mock_instance = mock_client.return_value
+            mock_instance = Mock()
             mock_instance.search.return_value = {"results": fake_raw_results}
+            mock_client.return_value = mock_instance
 
             with patch(
                 "app.core.tools.mcp_tools.common_tools._score_web_result",
                 return_value=2,
             ):
-                results = _perform_tavily_search(
-                    "chó bị tiêu chảy nên ăn gì", max_results=3
+                search_data = asyncio.run(
+                    _perform_tavily_search("chó bị tiêu chảy nên ăn gì", max_results=3)
                 )
 
-    assert len(results) == 1
-    assert results[0]["score"] == 2
+    assert len(search_data["results"]) == 1
+    assert search_data["results"][0]["score"] == 2
 
 
 def test_build_search_query_returns_original():
-    """Query được trả về nguyên gốc — không thêm context, để LLM tự xử lý."""
+    """Pet-health query được enrich nhẹ để Tavily bám đúng domain hơn."""
     from app.core.tools.mcp_tools.common_tools import _build_search_query
 
-    # Query có pet term hay không đều trả về nguyên gốc
-    assert (
-        _build_search_query("chó bị tiêu chảy nên ăn gì")
-        == "chó bị tiêu chảy nên ăn gì"
-    )
-    assert _build_search_query("tiêu chảy nên ăn gì") == "tiêu chảy nên ăn gì"
-    assert (
-        _build_search_query("dog diarrhea what to feed") == "dog diarrhea what to feed"
-    )
-    assert _build_search_query("diarrhea treatment") == "diarrhea treatment"
+    dog_query = _build_search_query("chó bị tiêu chảy nên ăn gì")
+    assert "chó bị tiêu chảy nên ăn gì" in dog_query
+    assert "veterinary" in dog_query
+    assert "dog canine" in dog_query
+
+    symptom_query = _build_search_query("tiêu chảy nên ăn gì")
+    assert "tiêu chảy nên ăn gì" in symptom_query
+    assert "veterinary" in symptom_query
+    assert "veterinary" in _build_search_query("dog diarrhea what to feed")
+    assert "veterinary" in _build_search_query("diarrhea treatment")
+
+
+def test_perform_tavily_search_accepts_pet_relevant_vet_result_without_literal_guard_keyword():
+    from app.core.tools.mcp_tools.common_tools import _perform_tavily_search
+    import app.core.tools.mcp_tools.common_tools as common_tools
+
+    fake_raw_results = [
+        {
+            "title": "Managing canine vomiting at home",
+            "content": "Veterinary first aid steps and warning signs before visiting the clinic.",
+            "url": "https://example.com/vet/canine-vomiting",
+        },
+    ]
+
+    with patch.object(common_tools, "TAVILY_AVAILABLE", True):
+        with patch(
+            "app.core.tools.mcp_tools.common_tools._get_tavily_client",
+            new_callable=AsyncMock,
+        ) as mock_client:
+            mock_instance = Mock()
+            mock_instance.search.return_value = {
+                "results": fake_raw_results,
+                "images": [],
+                "answer": None,
+                "follow_up_questions": [],
+            }
+            mock_client.return_value = mock_instance
+
+            search_data = asyncio.run(
+                _perform_tavily_search("chó bị nôn mửa nên làm gì", max_results=3)
+            )
+
+    assert len(search_data["results"]) == 1
+    assert "canine vomiting" in search_data["results"][0]["title"].lower()
+
+
+def test_perform_tavily_search_accepts_string_images():
+    from app.core.tools.mcp_tools.common_tools import _perform_tavily_search
+    import app.core.tools.mcp_tools.common_tools as common_tools
+
+    with patch.object(common_tools, "TAVILY_AVAILABLE", True):
+        with patch(
+            "app.core.tools.mcp_tools.common_tools._get_tavily_client",
+            new_callable=AsyncMock,
+        ) as mock_client:
+            mock_instance = Mock()
+            mock_instance.search.return_value = {
+                "results": [],
+                "images": ["https://example.com/image.jpg"],
+                "answer": None,
+                "follow_up_questions": [],
+            }
+            mock_client.return_value = mock_instance
+
+            search_data = asyncio.run(
+                _perform_tavily_search("chó bị nôn mửa nên làm gì", max_results=3)
+            )
+
+    assert search_data["images"][0]["url"] == "https://example.com/image.jpg"
 
 
 def test_extract_query_keywords_bilingual():

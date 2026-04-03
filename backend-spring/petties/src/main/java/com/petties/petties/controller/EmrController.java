@@ -1,5 +1,6 @@
 package com.petties.petties.controller;
 
+import com.petties.petties.dto.emr.CaseMemoryResyncResponse;
 import com.petties.petties.dto.emr.CreateEmrRequest;
 import com.petties.petties.dto.emr.EmrResponse;
 import com.petties.petties.dto.file.UploadResponse;
@@ -104,6 +105,15 @@ public class EmrController {
     @PreAuthorize("hasAnyRole('STAFF', 'PET_OWNER', 'CLINIC_MANAGER')")
     public ResponseEntity<EmrResponse> getEmrByBookingId(@PathVariable UUID bookingId) {
         EmrResponse response = emrService.getEmrByBookingId(bookingId);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/admin/case-memory/resync")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<CaseMemoryResyncResponse> resyncCaseMemory(
+            @RequestParam(defaultValue = "200") int limit) {
+        log.info("Admin triggering EMR Case Memory resync with limit={}", limit);
+        CaseMemoryResyncResponse response = emrService.resyncConfirmedCaseMemory(limit);
         return ResponseEntity.ok(response);
     }
 }

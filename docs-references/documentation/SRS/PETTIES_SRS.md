@@ -2,14 +2,14 @@
 
 
 
-> Update note dated 2026-03-17: older SRS passages related to `analyze_pet_image`, Visual Case Memory from image feedback, or thumbs up/down should now be treated as historical context only. The active requirements for AI diagnosis are defined in [AI_DIAGNOSIS_FEATURE_PLAN.md](D:/SEP490/petties/docs-references/documentation/AI_DIAGNOSIS_FEATURE_PLAN.md) and [AI_SERVICE_TECHNICAL_SPECIFICATION.md](D:/SEP490/petties/docs-references/documentation/AI_SERVICE_TECHNICAL_SPECIFICATION.md).
+> Update note dated 2026-04-01: older SRS passages related to `analyze_pet_image`, Visual Case Memory from image feedback, or thumbs up/down should now be treated as historical context only. The active requirements for AI diagnosis are defined in [ai_diagnose_service/](D:/SEP490/petties/docs-references/ai_diagnose_service/) and [AI_SERVICE_TECHNICAL_SPECIFICATION.md](D:/SEP490/petties/docs-references/documentation/AI_SERVICE_TECHNICAL_SPECIFICATION.md).
 
 
 
 **Project:** Petties - Veterinary Appointment Booking Platform
 
-**Version:** 2.3.9 (Aligned documentation baseline with approved 20-module checklist)
-**Last Updated:** 2026-03-25
+**Version:** 2.4.0 (Aligned staff AI diagnosis with grounded SOAP synthesis)
+**Last Updated:** 2026-04-02
 **Document Status:** In Progress
 
 
@@ -714,9 +714,9 @@ This SRS uses the approved 20-module checklist as the minimum documentation base
 
 | 38 | Chat | UC-PO-14d | 3.11.2 | ✅ ChatController | ✅ Mobile | ✅ Done |
 
-| 107 | Staff Diagnostic Support | UC-STAFF-11 | 3.11.6 | ✅ Agent Service | ✅ Mobile/Web | 📋 Planned |
+| 107 | Staff Diagnostic Support | UC-STAFF-11 | 3.11.11 | ✅ Agent Service | ✅ Mobile/Web | ✅ Done |
 
-| 108 | AI Medical Image Diagnosis | UC-AI-01 | 3.11.9 | ✅ Agent Service | ✅ Mobile/Web | 📋 Planned |
+| 108 | AI Medical Image Diagnosis | UC-AI-01 | 3.11.11 | ✅ Agent Service | ✅ Mobile/Web | ✅ Covered by UC-STAFF-11 |
 
 | 98 | Real-time Chat WebSocket | UC-PO-20 | - | ✅ ChatWebSocketController | ✅ Mobile/Web | ✅ Done |
 
@@ -1160,15 +1160,15 @@ Bảng tham chiếu giữa Use Cases trong SRS và các Module Implementation tr
 
 | UC-AI-07 | Manage Knowledge Base | Knowledge Base | 3.11.5 |
 
-| UC-AI-08 | Test Agent Playground | Agent Testing | 3.11.6 |
+| UC-AI-08 | Test Agent Playground | Agent Testing | 3.11.4 |
 
-| UC-AI-09 | EMR Analysis with Image Support | AI Agent Service | 3.11.7 |
+| UC-AI-09 | EMR Analysis with Image Support | AI Agent Service | 3.11.11 |
 
-| UC-STAFF-11 | AI Staff Diagnostic Support | AI Agent Service | 3.11.6 |
+| UC-STAFF-11 | AI Staff Diagnostic Support | AI Agent Service | 3.11.11 |
 
-| UC-AI-10 | AI Feedback Audit | AI Agent Service | 3.11.8 |
+| UC-AI-10 | AI Feedback Audit | AI Agent Service | 3.11.7 |
 
-| UC-AI-11 | Knowledge Graph Management | AI Agent Service | 3.11.9 |
+| UC-AI-11 | Knowledge Graph Management | AI Agent Service | 3.11.8 |
 
 | UC-CO-14 | AI Generate Clinic Services | AI Agent Service | 3.13.1 |
 
@@ -7439,7 +7439,7 @@ Figure 47. Pet Selection Dialog (Mobile)
 
 - **Current scope (Phase 1 - Updated 2026-03-17):**
 
-  > **⚠️ Lưu ý quan trọng:** Nguồn cũ từ thumbs up/down feedback đã bị loại bỏ. Case memory hiện tại được cập nhật theo hướng EMR-driven (xem [AI_DIAGNOSIS_FEATURE_PLAN.md](./AI_DIAGNOSIS_FEATURE_PLAN.md)).
+  > **⚠️ Lưu ý quan trọng:** Nguồn cũ từ thumbs up/down feedback đã bị loại bỏ. Case memory hiện tại được cập nhật theo hướng EMR-driven (xem [ai_diagnose_service/01_RUNTIME_FLOW.md](./ai_diagnose_service/01_RUNTIME_FLOW.md)).
 
 
 
@@ -7489,7 +7489,7 @@ Figure 47. Pet Selection Dialog (Mobile)
 
 
 
-> **📝 Implementation Update (2026-03-17):** Kiến trúc đã được cập nhật theo AI_DIAGNOSIS_FEATURE_PLAN.md
+> **📝 Implementation Update (2026-04-01):** Kiến trúc đã được cập nhật theo consolidated ai_diagnose_service/ documentation
 
 > - **Vision:** Gemini Vision thay thế custom vision model
 
@@ -7705,177 +7705,23 @@ Figure 47. Pet Selection Dialog (Mobile)
 
 
 
- #### *3.11.6 AI Staff Diagnostic Support (UC-STAFF-11)*
+ #### *3.11.6 Historical Note - Earlier Staff Diagnostic Support Draft (UC-STAFF-11)*
 
-**User Story:**
+This section is retained only for traceability.
 
-> *As a Staff member, I want to describe symptoms and attach clinical images in AI Diagnosis Panel so that I can receive differential diagnoses, SOAP suggestions, and prescription drafts grounded in internal knowledge and confirmed EMR cases.*
+The active requirement set for the deployed staff AI diagnosis flow is defined in `3.11.11 AI Diagnosis Support Inside the EMR Workspace (UC-STAFF-11)`.
 
+This older section must not be used as the source of truth for:
 
+- `selected_only` behavior
+- confirmed EMR to Case Memory direct push sync
+- canonical `ai_diagnosis_context` naming
+- protocol learning rules and runtime-only Case Memory projection
 
-**Function trigger**
+Active references:
 
-- **Navigation path:** Staff Mobile/Web -> CreateEMR/EditEMR -> "AI Assistant" icon -> AIDiagnosisPanel/AIDiagnosisSheet
-
-- **Timing frequency:** On demand khi Staff cần hỗ trợ chẩn đoán trong lúc tạo/sửa bệnh án.
-
-
-
-**Function description**
-
-- **Actors/Roles:** Staff, Admin.
-
-- **Purpose:** Hỗ trợ Staff tổng hợp triệu chứng, hình ảnh lâm sàng để nhận chẩn đoán phân biệt, gợi ý SOAP và đơn thuốc nháp từ AI.
-
-- **Interface:**
-
-    - **Narrative Input:** Ô nhập mô tả lâm sàng tự do.
-
-    - **Image Upload:** Nút thêm ảnh vùng tổn thương, da, mắt, vết thương.
-
-    - **Analyze Button:** Nút "Phân tích tình trạng" để gọi AI.
-
-    - **Results Display:** Hiển thị chẩn đoán phân biệt, ca EMR tương tự, tri thức hỗ trợ, dấu hiệu từ ảnh, gợi ý đơn thuốc, câu hỏi cần hỏi thêm.
-
-    - **Apply Button:** Nút "Áp dụng vào EMR" để điền SOAP và thêm đơn thuốc vào bệnh án.
-
-
-
-**Data processing**
-
-1. Staff nhập mô tả lâm sàng và/hoặc đính kèm ảnh lâm sàng.
-
-2. Staff nhấn "Phân tích tình trạng".
-
-3. AI Service nhận `StaffDiagnosisRequest` gồm: species, breed, age_months, weight_kg, allergies, doctor_description, image_urls, soap_draft.
-
-4. AI Service thực hiện:
-
-   - **Vision Analysis:** Gọi Gemini Vision để phân tích ảnh (nếu có).
-
-   - **Hybrid RAG:** Truy vấn Knowledge Base + Knowledge Graph.
-
-   - **Case Memory:** Tìm các ca EMR đã xác nhận tương tự.
-
-   - **Protocol Building:** Tạo gợi ý SOAP và đơn thuốc dựa trên evidence và protocol patterns từ EMR.
-
-5. AI Service trả về `DoctorDiagnosisSynthesisResponse` gồm:
-
-   - `top_differentials`: Danh sách chẩn đoán phân biệt với độ tin cậy.
-
-   - `supporting_evidence_from_kb`: Evidence từ knowledge base.
-
-   - `similar_confirmed_cases`: Ca EMR tương tự đã được xác nhận.
-
-   - `vision_findings`: Dấu hiệu từ ảnh (nếu có).
-
-   - `image_analysis`: Mô tả từng ảnh.
-
-   - `prescription_suggestions`: Gợi ý đơn thuốc với dosage, frequency, duration.
-
-   - `suggested_questions`: Câu hỏi cần hỏi thêm.
-
-   - `soap_suggestions`: Nháp SOAP fields.
-
-   - `disclaimer`: Khuyến cáo AI chỉ là hỗ trợ, không thay thế chẩn đoán của bác sĩ.
-
-6. Staff xem kết quả và có thể nhấn "Áp dụng vào EMR" để điền vào SOAP và thêm đơn thuốc.
-
-
-
-**Function details**
-
-- **Data:**
-
-    - `species` - enum - required - Loài: dog, cat, other.
-
-    - `breed` - string - optional - Giống.
-
-    - `age_months` - int - optional - Tuổi tính theo tháng.
-
-    - `weight_kg` - float - optional - Cân nặng (kg).
-
-    - `allergies` - list - optional - Danh sách dị ứng.
-
-    - `doctor_description` - string - required - Mô tả lâm sàng của bác sĩ.
-
-    - `image_urls` - list - optional - Danh sách ảnh (https:// hoặc base64 data:image/).
-
-    - `soap_draft` - object - optional - SOAP draft hiện tại để AI tham khảo.
-
-- **Response Data:**
-
-    - `top_differentials` - list - Danh sách chẩn đoán phân biệt với display_name_vi, confidence_note, supporting_reasons.
-
-    - `supporting_evidence_from_kb` - list - Evidence từ knowledge base.
-
-    - `similar_confirmed_cases` - list - Ca EMR tương tự đã xác nhận.
-
-    - `vision_findings` - list - Dấu hiệu từ ảnh AI đọc được.
-
-    - `image_analysis` - list - Mô tả chi tiết từng ảnh.
-
-    - `prescription_suggestions` - list - Gợi ý đơn thuốc với medicine_name, dosage, frequency, duration_days, instructions, caution.
-
-    - `suggested_questions` - list - Câu hỏi cần hỏi thêm.
-
-    - `soap_suggestions` - object - Nháp SOAP: subjective_draft, objective_draft, assessment_draft, plan_draft.
-
-    - `disclaimer` - string - Khuyến cáo AI không thay thế chẩn đoán bác sĩ.
-
-- **Validation:**
-
-    - Chỉ Staff hoặc Admin được sử dụng chức năng này.
-
-    - doctor_description phải >= 5 ký tự HOẶC có ít nhất 1 ảnh.
-
-    - AI không được trả về kết luận tuyệt đối theo kiểu xác nhận bệnh cuối cùng.
-
-- **Business rules:**
-
-    - **No web search:** AI diagnosis flow KHÔNG sử dụng web search.
-
-    - **Internal data first:** Ưu tiên Knowledge Base, Knowledge Graph, Case Memory từ EMR đã xác nhận.
-
-    - **Safety gates:** Không đề xuất đơn thuốc nếu không đủ evidence nội bộ.
-
-    - **Weight-based dosage:** Thuốc mg/kg yêu cầu weight_kg.
-
-    - **Image handling:** Chỉ chấp nhận https:// hoặc base64 data:image/; bỏ qua blob: URLs.
-
-- **Normal case:**
-
-    1. Staff mở CreateEMR, nhập triệu chứng "Chó 3 tuổi, đỏ mắt, ghèn vàng 3 ngày".
-
-    2. Staff nhấn AI icon, nhập mô tả và đính kèm ảnh mắt.
-
-    3. AI trả về: Viêm kết mạc (70%), kèm evidence từ KB, ca EMR tương tự, gợi ý đơn thuốc.
-
-    4. Staff nhấn "Áp dụng vào EMR" để điền SOAP và thêm đơn thuốc.
-
-- **Abnormal case:**
-
-    - A1. Không đủ evidence nội bộ -> AI trả về chẩn đoán chung, không có đơn thuốc, kèm cảnh báo.
-
-    - A2. Vision fail -> AI vẫn trả kết quả từ text+RAG, ảnh hiển thị "Chưa có mô tả".
-
-    - A3. RAG/Case Memory fail -> AI fallback sang nguồn còn lại, không crash.
-
-    - A4. Không có cân nặng -> AI không đề xuất đơn thuốc mg/kg, thay bằng cảnh báo.
-
-    - A5. Ảnh CMYK/JPEG không đọc được -> AI bỏ qua ảnh đó, vẫn xử lý các ảnh khác.
-
-
-
-**Reference Implementation:**
-
-- Technical documentation: [AI_DIAGNOSIS_COMPLETE.md](../AI_DIAGNOSIS_COMPLETE.md)
-
-- Backend: `petties-agent-serivce/app/core/services/staff_diagnosis_service.py`
-
-- Frontend Web: `petties-web/src/components/emr/AIDiagnosisPanel.tsx`
-
-- Mobile: `petties_mobile/lib/ui/staff/widgets/ai_diagnosis_panel.dart`
+- Runtime lifecycle: `D:/SEP490/petties/docs-references/ai_diagnose_service/01_RUNTIME_FLOW.md`
+- System design: `D:/SEP490/petties/docs-references/documentation/SDD/REPORT_4_SDD_SYSTEM_DESIGN.md`
 
 
 
@@ -8097,113 +7943,102 @@ Figure 49. AI Clinic and Slot Suggestion Cards Rendered from Internal Tool APIs 
 
     - A5. Internal AI tool API timeout or backend failure -> AI responds with a user-friendly retry message and preserves the chat context.
 
-#### *3.11.11 Hỗ trợ AI chẩn đoán trong không gian làm việc EMR (UC-STAFF-11)*
+#### *3.11.11 AI Diagnosis Support Inside the EMR Workspace (UC-STAFF-11)*
 
 **Function trigger:**
 
-- **Navigation path:** Web Staff -> Danh sách lịch hẹn -> Tạo EMR hoặc Chi tiết EMR -> mở `Panel AI chẩn đoán`; hoặc Web Staff -> AI Chat -> mở `Side panel hồ sơ bệnh án`.
-
-- **Timing Frequency:** Theo yêu cầu trong lúc khám, trước khi hoàn tất SOAP notes, hoặc khi cần đối chiếu ca tương tự trong quá trình điền bệnh án.
-
-
+- **Navigation path:** Web Staff -> Appointment list -> Create EMR or EMR detail -> open the AI diagnosis panel; or Web Staff -> AI Chat -> open the EMR side panel.
+- **Timing Frequency:** On demand during consultation, before SOAP completion, or when the doctor wants to compare similar confirmed cases while filling the EMR.
 
 **Function description:**
 
 - **Actors/Roles:** Staff.
-
-- **Purpose:** Hỗ trợ bác sĩ hoặc nhân viên chuyên môn tổng hợp mô tả lâm sàng, ảnh tổn thương, EMR đã xác nhận và kho tri thức nội bộ để gợi ý chẩn đoán phân biệt, câu hỏi cần hỏi thêm và bản nháp SOAP có thể chèn trực tiếp vào bệnh án đang mở.
-
+- **Purpose:** Help the doctor review grounded differentials, evidence, follow-up questions, and SOAP suggestions without leaving the current EMR workspace.
 - **Interface:**
-
-    - **Điểm vào 1:** Panel AI nằm ngay trong màn hình tạo EMR.
-
-    - **Điểm vào 2:** AI Chat của staff mở theo kiểu side panel, dock cạnh bệnh án hiện tại.
-
-    - **Tương tác EMR:** Side panel phải có các nút `Chèn vào Subjective`, `Chèn vào Objective`, `Chèn vào Assessment`, `Chèn vào Plan` để cập nhật trực tiếp form bệnh án.
-
-    - **Dữ liệu lâm sàng:** Ô nhập `Mô tả lâm sàng`, `Vùng tổn thương`, `Triệu chứng chính`, danh sách ảnh lâm sàng và lịch sử EMR liên quan.
-
-    - **Kết quả:** Các card `Chẩn đoán phân biệt`, `Dấu hiệu từ ảnh`, `Ca EMR tương tự`, `Tóm tắt tri thức nội bộ`, `Thông tin cần hỏi thêm`.
-
+  - Entry point 1: embedded AI diagnosis panel in the EMR workspace.
+  - Entry point 2: EMR-aware side panel in Staff AI Chat.
+  - EMR insertion actions: `Insert into Subjective`, `Insert into Objective`, `Insert into Assessment`, and `Insert into Plan`.
+  - Result cards: differential diagnoses, image findings, similar confirmed cases, grounded evidence, and suggested follow-up questions.
 - **Data processing:**
+  1. Staff opens the EMR form or AI side panel while working on a specific pet or booking.
+  2. The system gathers the current SOAP draft, doctor narrative, optional images, and trusted pet or booking context.
+  3. If images are present and additional image reasoning is needed, the AI service calls Gemini Vision.
+  4. The AI service retrieves internal evidence from Knowledge Base, Knowledge Graph, and Case Memory.
+  5. The service builds a section-level grounding bundle for Subjective, Objective, Assessment, and Plan using the current request, KB chunks, and similar confirmed cases.
+  6. The service maps disease labels to `canonical_code`, builds grounded differentials, and generates SOAP suggestions from the grounding bundle.
+  7. If the doctor selects one diagnosis, the system may run `selected_only` to reuse prior grounded context.
+  8. Staff may accept or edit SOAP and prescription suggestions directly in the EMR.
+  9. After EMR persistence, the confirmed record becomes future learning input for Case Memory.
 
-    1. Staff mở form EMR hoặc AI chat side panel khi đang xử lý một pet cụ thể.
+**Screen layout:**
 
-    2. Hệ thống lấy ngữ cảnh pet, booking hiện tại, SOAP draft đang nhập, EMR cũ và dữ liệu tiêm chủng liên quan nếu có.
-
-    3. Nếu có ảnh, AI service gửi ảnh cùng mô tả bác sĩ sang Gemini Vision để lấy `visual findings` và `top conditions`.
-
-    4. AI service tra cứu knowledge base nội bộ và case memory được làm giàu từ EMR đã xác nhận.
-
-    5. Hệ thống map nhãn bệnh về `canonical_code`, tổng hợp bằng chứng theo nguồn và tạo response theo contract chuẩn.
-
-    6. Staff có thể chèn từng phần nội dung vào EMR ngay từ panel hoặc side panel mà không cần rời khỏi bệnh án.
-
-    7. Sau khi bác sĩ lưu EMR, bản ghi đủ điều kiện sẽ trở thành nguồn dữ liệu để làm giàu case memory trong tương lai.
-
-
-
-**Screen layout:** *(Add screen UI here)*
-
-- Màn hình Web Staff Create EMR với layout 2 cột.
-
-- Cột trái là form SOAP notes hiện tại.
-
-- Cột phải là `Panel AI chẩn đoán`.
-
-- Ở trang AI Chat của staff, side panel EMR được dock bên phải và đồng bộ với SOAP draft đang mở.
-
-
+- The Web Staff Create EMR page uses a two-column layout.
+- The left column contains the active SOAP and prescription form.
+- The right column contains the AI diagnosis panel.
+- In Staff AI Chat, the EMR side panel is docked beside the chat workspace and shares the active EMR draft.
 
 **Function details:**
 
 - **Data:**
-
-    - **Input fields:** `petId`, `bookingId`, `species`, `breed`, `sex`, `ageMonths`, `doctorDescription`, `bodyPart`, `symptoms[]`, `imageUrls[]`, `soapDraft.subjective`, `soapDraft.objective`, `soapDraft.assessment`, `soapDraft.plan`.
-
-    - **Output fields:** `topDifferentials[]`, `visualFindings[]`, `matchedEmrCases[]`, `knowledgeBaseSummary`, `suggestedQuestions[]`, `soapSuggestions.subjectiveDraft`, `soapSuggestions.objectiveDraft`, `soapSuggestions.assessmentDraft`, `soapSuggestions.planDraft`, `disclaimer`.
-
+  - **Input fields:** `petId`, `bookingId`, `species`, `breed`, `ageMonths`, `weightKg`, `allergies[]`, `doctorDescription`, `imageUrls[]`, `soapDraft.subjective`, `soapDraft.objective`, `soapDraft.assessment`, `soapDraft.plan`.
+  - **Output fields:** `requestId`, `topDifferentials[]`, `visualFindings[]`, `similarConfirmedCases[]`, `supportingEvidenceFromKb[]`, `suggestedQuestions[]`, `soapSuggestions.*`, `prescriptionSuggestions[]`, `disclaimer`.
 - **Validation:**
-
-    - Chỉ `STAFF` có quyền sử dụng luồng này.
-
-    - Staff chỉ được truy cập ca khám thuộc phạm vi clinic của mình.
-
-    - Chỉ chấp nhận ảnh JPEG/PNG và giới hạn dung lượng theo chính sách upload EMR hiện hành.
-
-    - AI diagnosis cho `STAFF` không được gọi `web_search`.
-
-    - Nếu knowledge base và dữ liệu nội bộ không đủ, hệ thống phải trả về thông báo “Hiện chưa có thông tin về bệnh này trong hệ thống tri thức nội bộ”.
-
+  - Only `STAFF` may use this workflow.
+  - Staff must remain inside the permitted clinic scope.
+  - Only valid EMR upload image formats are accepted.
+  - `web_search` is not allowed in the staff diagnosis flow.
+  - If internal evidence is insufficient, the system must return a safe internal-only response rather than unsupported treatment detail.
+  - If the grounding bundle lacks evidence for a SOAP section, the system must keep that section conservative and must not invent missing facts.
 - **Business rules:**
-
-    - Kết quả AI chỉ là hỗ trợ ra quyết định lâm sàng, không phải chẩn đoán cuối cùng.
-
-    - Chỉ sử dụng nguồn nội bộ đáng tin cậy: knowledge base, EMR đã xác nhận, case memory sinh từ EMR, và Gemini Vision để hiểu ảnh.
-
-    - Dữ liệu feedback thumbs up/down không được dùng làm ground truth chẩn đoán.
-
-    - Bản ghi EMR được bác sĩ hoàn tất mới là nguồn dữ liệu chính để làm giàu case memory.
-
-    - Hệ thống phải hiển thị nguồn bằng chứng theo từng nhóm: `Từ ảnh`, `Từ EMR tương tự`, `Từ kho tri thức`.
+  - AI output is advisory and must never replace the doctor’s final diagnosis.
+  - The staff diagnosis flow only uses trusted internal sources: Knowledge Base, Knowledge Graph, confirmed EMR records, Case Memory, and Gemini Vision when needed.
+  - Deprecated thumbs-up/down feedback data is not a valid diagnosis learning source.
+  - Only a saved confirmed EMR record may enrich Case Memory.
+  - After staff selects one diagnosis from the top differential list, the system may run `selected_only` using `previous_request_id`.
+  - Prescription source priority after selection is: learned `common_prescriptions` from confirmed EMR, then AI fallback, then an empty result if neither source is valid.
+  - Hardcoded disease-to-prescription rules are not allowed in the protocol service.
+  - Safety checks (weight, allergy) apply generically to all diagnoses; no disease-specific hardcoded rules in protocol logic.
+  - The workflow must support cases without clinical images.
+  - When Web stores `aiDiagnosisContext` in EMR, the canonical sync keys must be snake_case: `request_id`, `selected_diagnosis_code`, `selected_diagnosis_label`, `suggested_prescriptions`, and `generated_at`.
+  - Protocol learning may only use data that truly exists in the active EMR workflow: `subjective`, `objective`, `assessment`, `plan`, `notes`, `prescriptions`, clinical images, image descriptions, and persisted AI diagnosis context.
+  - The active Case Memory payload and admin projection must keep only the fields that diagnosis runtime actually reads for retrieval, ranking, and grounded SOAP synthesis.
+  - The active doctor flow must not assume a structured `test_results` payload. Recommendation learning, when needed, must come from doctor-entered `plan` or `notes`.
+  - Disease normalization is autonomous: the system may auto-learn aliases and auto-create canonical diseases using the existing `disease_catalog` and `disease_aliases` storage without requiring daily admin maintenance.
+  - `disease_mapping_review_items` has been removed from the active runtime workflow and active AI-diagnose schema.
+  - `soapSuggestions.subjective` may only be grounded by doctor-entered narrative, symptoms, allergies, and any existing subjective draft.
+  - `soapSuggestions.objective` may only be grounded by trusted structured context, vision findings, image descriptions, current objective draft, and observable clinical facts already present in the request.
+  - `soapSuggestions.assessment` must stay within the grounded differential set and may not introduce a new diagnosis outside the normalized candidates built from KB, KG, Case Memory, and vision mapping.
+  - `soapSuggestions.plan` must prioritize learned protocol items from confirmed EMR, then grounded KB guidance, and only use model knowledge to phrase a safe recommendation without adding unsupported factual claims.
+  - The AI model may improve wording, prioritization, and clinical structure, but it must not invent lab results, measurements, or therapeutic actions that are absent from grounded evidence.
 
 - **Normal case:**
+  1. Staff enters the clinical narrative, optional weight or allergy details, and clinical images.
+  2. The system retrieves internal KB, KG, and Case Memory evidence, then builds a grounded SOAP bundle for each SOAP section.
+  3. The system returns grounded differentials, evidence, follow-up questions, and an initial SOAP draft.
+  4. Staff selects one diagnosis from the differential list.
+  5. The system runs `selected_only`, reuses prior grounded context, and prioritizes learned prescriptions from confirmed EMR with the same `canonical_code`.
+  6. If Case Memory has no valid learned prescription pattern, the system falls back to AI draft prescriptions with a clear disclaimer.
+  7. Staff accepts or edits SOAP and prescriptions, then saves the EMR.
+  8. The saved EMR is pushed to Case Memory sync, where `protocol_pattern` is updated for future retrieval.
 
-    - Staff nhập “Chó Poodle ngứa, rụng lông vùng bụng 2 tuần”, tải 2 ảnh lâm sàng, bấm `Phân tích ca bệnh`.
+- **Abnormal/Exception cases:**
+  - A1. No diagnosis has been selected yet: the system may show grounded differentials and SOAP suggestions but must not finalize treatment-focused prescription output.
+  - A2. No valid learned prescription pattern exists: the system may use AI fallback prescriptions.
+  - A3. AI fallback still cannot produce a safe prescription draft: the system returns no prescription suggestions and allows manual EMR entry.
+  - A4. Key safety inputs such as weight or allergy information are missing: the system may lower prescription quality, add cautions, and require manual confirmation.
+  - A5. AI service timeout or backend failure: the current EMR draft must remain intact and staff must still be able to continue manually.
+  - A6. `selected_only` cache miss: the system safely skips cache reuse and must not corrupt the EMR workflow.
 
-    - Hệ thống trả về top 3 chẩn đoán phân biệt, dấu hiệu nhìn thấy trên ảnh, 2 ca EMR tương tự và bản nháp `Assessment`.
+**Reference implementation:**
 
-    - Staff chọn `Chèn vào Assessment` ngay từ panel hoặc side panel, chỉnh sửa lại câu chữ và lưu EMR.
-
-- **Abnormal case:**
-
-    - Không có ảnh: hệ thống bỏ qua nhánh vision, chỉ dùng knowledge base và EMR nội bộ.
-
-    - Ảnh mờ hoặc không phù hợp: hệ thống yêu cầu chụp lại hoặc tiếp tục bằng mô tả văn bản.
-
-    - Không đủ dữ liệu nội bộ: hệ thống không suy đoán quá mức và trả về thông báo an toàn.
-
-    - AI service hoặc nguồn dữ liệu nội bộ lỗi: hiển thị thông báo lỗi tiếng Việt và cho phép staff tiếp tục ghi EMR thủ công.
+- Runtime lifecycle: `D:/SEP490/petties/docs-references/ai_diagnose_service/01_RUNTIME_FLOW.md`
+- API contracts: `D:/SEP490/petties/docs-references/ai_diagnose_service/02_API_CONTRACTS.md`
+- Components: `D:/SEP490/petties/docs-references/ai_diagnose_service/03_COMPONENTS.md`
+- Data models: `D:/SEP490/petties/docs-references/ai_diagnose_service/04_DATA_MODELS.md`
+- E2E tests: `D:/SEP490/petties/docs-references/ai_diagnose_service/05_E2E_TEST_SCENARIOS.md`
+- AI service orchestration: `D:/SEP490/petties/petties-agent-serivce/app/ai_diagnose/staff_diagnosis_service.py`
+- Web diagnosis UI: `D:/SEP490/petties/petties-web/src/components/emr/AIDiagnosisPanel.tsx`
+- EMR context persistence: `D:/SEP490/petties/petties-web/src/utils/emrAiDiagnosisContext.ts`
 
 
 

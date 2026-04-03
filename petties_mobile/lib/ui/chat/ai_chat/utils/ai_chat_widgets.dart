@@ -339,7 +339,7 @@ class AiChatTracePanel extends StatelessWidget {
         collapsedIconColor: AppColors.stone500,
         iconColor: AppColors.stone700,
         title: const Text(
-          'Chi tiết xử lý',
+          'Diễn giải suy luận',
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w700,
@@ -359,9 +359,9 @@ class AiChatTracePanel extends StatelessWidget {
           final toolName = step['tool_name']?.toString();
 
           var label = rawStepType.toUpperCase();
-          if (stepType == 'thought') label = 'SUY LUẬN';
-          if (stepType == 'action') label = 'GỌI CÔNG CỤ';
-          if (stepType == 'observation') label = 'NHẬN KẾT QUẢ';
+          if (stepType == 'thought') label = 'NHẬN ĐỊNH';
+          if (stepType == 'action') label = 'HÀNH ĐỘNG';
+          if (stepType == 'observation') label = 'TỔNG HỢP';
 
           return Container(
             width: double.infinity,
@@ -506,7 +506,7 @@ class AiChatThinkingBubble extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                isExpanded ? 'ẨN CHI TIẾT' : 'XEM CHI TIẾT',
+                                isExpanded ? 'ẨN SUY LUẬN' : 'XEM SUY LUẬN',
                                 style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w800,
@@ -917,7 +917,7 @@ class _AiChatInlineThinkingTrace extends StatelessWidget {
                       if (hasDetail) ...[
                         const SizedBox(height: 2),
                         Text(
-                          detail!,
+                          detail,
                           style: const TextStyle(
                             fontSize: 11,
                             height: 1.35,
