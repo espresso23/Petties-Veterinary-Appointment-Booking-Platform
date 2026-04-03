@@ -312,6 +312,24 @@ class SpringBackendClient:
             json_body=service_data,
         )
 
+    async def get_clinic_staff_shifts(
+        self,
+        token: str,
+        clinic_id: str,
+        start_date: str,
+        end_date: str,
+    ) -> Any:
+        """Lấy danh sách ca làm việc của phòng khám trong khoảng thời gian"""
+        return await self._request(
+            "GET",
+            f"/staff-shifts/clinics/{clinic_id}/shifts",
+            token=token,
+            params={
+                "startDate": start_date,
+                "endDate": end_date,
+            },
+        )
+
     async def get_clinic_revenue(
         self,
         token: str,

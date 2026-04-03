@@ -171,6 +171,20 @@ DEFAULT_POLICIES = {
         allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
         description="Get overall performance metrics for the clinic",
     ),
+    "get_staff_schedule": ToolPolicy(
+        allow_empty_params=True,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
+        description="Get staff schedule for the clinic",
+    ),
+    "get_slot_availability": ToolPolicy(
+        allow_empty_params=True,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
+        description="Get detailed slot availability and booking status for the clinic",
+    ),
 }
 
 

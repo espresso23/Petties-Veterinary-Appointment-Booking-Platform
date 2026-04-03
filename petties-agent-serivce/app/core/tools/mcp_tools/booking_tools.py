@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import json
 from functools import wraps
 from datetime import date as date_cls, datetime, time, timedelta
 from typing import Any, Dict, List, Optional
@@ -25,6 +26,7 @@ from app.core.tool_runtime_context import (
     get_booking_context_cache,
 )
 from app.core.tools.contracts import (
+    build_tool_success_response,
     build_tool_error_response,
     classify_error_code,
     get_error_title,
@@ -1238,7 +1240,7 @@ async def get_clinic_services(
 
     client = get_backend_client()
     try:
-        services = await client.get_clinic_services(
+        services = await client.get_clinic_services_by_clinic(
             resolved_clinic_id or clinic_id,
             pet_species=normalized_pet_species,
             is_home_visit=is_home_visit,
@@ -2293,7 +2295,7 @@ async def check_available_slots(
     - exact_time: Giờ chính xác (VD: "14:30")
     - time_preference: Ưu tiên buổi (VD: "sáng", "chiều")
     - service_ids: Lọc theo dịch vụ cụ thể
-    - pet_id: ID thú cưng (để resolve context)
+    - pet_id: ID thú cưng (để resolve context). LƯU Ý QUAN TRỌNG: pet_id PHẢI LÀ MỘT UUID HỢP LỆ. Nếu chỉ biết tên thú cưng (VD: "hadine"), BẮT BUỘC phải gọi tool `get_user_pets` trước để lấy chính xác UUID của thú cưng đó. TUYỆT ĐỐI KHÔNG truyền tên thú cưng (VD: "hadine_pet_id") vào trường pet_id này.
     - pet_species: Loại thú cưng ("dog", "cat")
     - booking_type: Loại khám ("IN_CLINIC", "HOME_VISIT")
 
@@ -2474,7 +2476,7 @@ async def check_available_slots(
                     "total_slots": 0,
                     "exact_match": False,
                     "preferred_unavailable": False,
-                    "message": f"Khong the kiem tra slot luc nay: {exc}",
+                    "message": f"Không thể kiểm tra slot lúc này: {exc}",
                     "needs_clarification": False,
                     "next_best_action": "retry",
                 },
@@ -2559,7 +2561,7 @@ async def check_available_slots(
         slots_response = await client.get_available_slots(
             resolved_clinic_id or clinic_id, resolved_date, normalized_service_ids
         )
-        clinic_services = await client.get_clinic_services(
+        clinic_services = await client.get_clinic_services_by_clinic(
             resolved_clinic_id or clinic_id
         )
     except BackendClientError as exc:
@@ -2828,6 +2830,20 @@ async def create_booking_for_user(
         if distance_km is None:
             missing_fields.append("khoang cach di chuyen")
 
+    draft_preview = _build_booking_confirmation_snapshot(
+        pet_id=pet_id,
+        clinic_id=resolved_clinic_id or clinic_id,
+        clinic_name=(clinic_resolution.get("clinic") or {}).get("name"),
+        booking_date=resolved_booking_date,
+        start_time=resolved_start_time,
+        service_ids=normalized_service_ids,
+        booking_type=normalized_booking_type,
+        notes=notes,
+        home_address=home_address,
+        distance_km=distance_km,
+        items=items,
+    )
+
     if missing_fields:
         return _attach_booking_error_metadata(
             {
@@ -2835,8 +2851,13 @@ async def create_booking_for_user(
                 "ready_to_create": False,
                 "missing_fields": missing_fields,
                 "needs_clarification": True,
-                "next_best_action": "collect_missing_fields",
-                "message": f"Chua the tao yeu cau booking vi con thieu: {', '.join(missing_fields)}.",
+                "next_best_action": "fill_booking_form",
+                "message": (
+                    "Minh da tao ban nhap booking tu thong tin ban da cung cap. "
+                    f"Con thieu: {', '.join(missing_fields)}. "
+                    "Ban co the mo form dat lich de dien nhanh phan con lai, roi xac nhan trong mot lan."
+                ),
+                "booking_preview": draft_preview,
             },
             error_code="INVALID_INPUT",
             suggestion="Vui lòng bổ sung đầy đủ thông tin còn thiếu trước khi tạo booking.",
@@ -3149,9 +3170,7 @@ async def quick_booking_search(
             if clinics:
                 clinic = clinics[0]
                 clinic_id = clinic.get("id")
-                services_result = await client.get_clinic_services(
-                    token or "", clinic_id
-                )
+                services_result = await client.get_clinic_services_by_clinic(clinic_id)
                 services = services_result.get("services", []) or []
                 if service_hint:
                     services = [
@@ -3195,8 +3214,8 @@ async def quick_booking_search(
             for clinic in clinics:
                 clinic_id = clinic.get("id")
                 try:
-                    services_result = await client.get_clinic_services(
-                        token or "", clinic_id
+                    services_result = await client.get_clinic_services_by_clinic(
+                        clinic_id
                     )
                     services = services_result.get("services", []) or []
                     if service_hint:
