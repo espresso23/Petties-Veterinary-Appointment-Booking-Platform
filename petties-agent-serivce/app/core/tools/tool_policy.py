@@ -114,56 +114,62 @@ DEFAULT_POLICIES = {
         requires_context=True,
         description="Get EMR history - requires pet_id",
     ),
-    "get_pet_health_summary": ToolPolicy(
-        allow_empty_params=False,
-        requires_context=True,
-        requires_auth=True,
-        description="Get pet health summary - requires pet_id and user_id",
-    ),
-    # Booking Tools - Additional
-    "search_clinics_by_name": ToolPolicy(
-        allow_empty_params=False,
-        requires_context=True,
-        requires_auth=True,
-        description="Search clinics by name - compatibility helper, prefer search_clinics_nearby",
-    ),
-    "get_clinic_detail": ToolPolicy(
-        allow_empty_params=False,
-        requires_context=True,
-        requires_auth=True,
-        description="Get clinic detail by ID - requires clinic_id",
-    ),
-    "get_my_booking_info": ToolPolicy(
-        allow_empty_params=False,
-        requires_context=True,
-        requires_auth=True,
-        description="Get booking info by ID or code - requires booking_id or booking_code",
-    ),
-    "list_my_bookings": ToolPolicy(
+    # Clinic Owner Tools (Phase 0)
+    "generate_clinic_services": ToolPolicy(
         allow_empty_params=True,
         requires_context=True,
         requires_auth=True,
-        description="List user bookings - optional status filter, default upcoming",
+        allowed_roles=["CLINIC_OWNER"],
+        description="Generate clinic service suggestions from master services - for clinic setup",
     ),
-    # Utility Tools
-    "resolve_date_time": ToolPolicy(
-        allow_empty_params=False,
-        requires_context=False,
-        requires_auth=False,
-        description="Resolve Vietnamese date/time expression to ISO format",
-    ),
-    "resolve_booking_context": ToolPolicy(
+    "list_clinic_services": ToolPolicy(
         allow_empty_params=True,
         requires_context=True,
         requires_auth=True,
-        description="Get current booking session context",
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
+        description="List all clinic services - for viewing service catalog",
     ),
-    # Fast Booking Tool
-    "quick_booking_search": ToolPolicy(
+    "update_service_info": ToolPolicy(
         allow_empty_params=False,
         requires_context=True,
         requires_auth=True,
-        description="Fast booking search - find clinic + service + slot in one call",
+        allowed_roles=["CLINIC_OWNER"],
+        description="Update service info - returns preview for confirmation (HITL)",
+    ),
+    "execute_update_service_confirmed": ToolPolicy(
+        allow_empty_params=False,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER"],
+        description="Apply confirmed clinic service update after HITL confirmation",
+    ),
+    "create_clinic_service": ToolPolicy(
+        allow_empty_params=False,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER"],
+        description="Create new clinic service - requires service_data and confirmation (HITL)",
+    ),
+    "get_my_clinic_info": ToolPolicy(
+        allow_empty_params=True,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
+        description="Lấy thông tin chi tiết về phòng khám của CLINIC_OWNER hiện tại",
+    ),
+    "analyze_revenue_trends": ToolPolicy(
+        allow_empty_params=True,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
+        description="Analyze revenue trends for the current clinic",
+    ),
+    "get_clinic_metrics": ToolPolicy(
+        allow_empty_params=True,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
+        description="Get overall performance metrics for the clinic",
     ),
 }
 

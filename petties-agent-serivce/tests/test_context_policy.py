@@ -124,7 +124,6 @@ class ContextPolicyTests(unittest.TestCase):
     def test_clinic_manager_no_phantom_tools(self):
         """Phantom tools not in MCP registry must NOT appear in CLINIC_MANAGER whitelist."""
         phantom_tools = [
-            "analyze_revenue_trends",
             "suggest_staff_assignments",
             "create_staff_shifts",
             "get_patient_summary",
@@ -141,22 +140,37 @@ class ContextPolicyTests(unittest.TestCase):
             msg=f"Phantom tools should be blocked for CLINIC_MANAGER but got: {allowed}",
         )
 
-    def test_clinic_owner_no_phantom_tools(self):
-        """Phantom tools not in MCP registry must NOT appear in CLINIC_OWNER whitelist."""
-        phantom_tools = [
+    def test_clinic_owner_allows_clinic_setup_tools_only(self):
+        """CLINIC_OWNER should get implemented clinic setup tools only."""
+        available_tools = [
             "generate_clinic_services",
+            "list_clinic_services",
+            "update_service_info",
+            "execute_update_service_confirmed",
+            "create_clinic_service",
+            "get_my_clinic_info",
             "analyze_revenue_trends",
+            "get_clinic_metrics",
             "suggest_staff_assignments",
         ]
         allowed = ContextPolicyService.get_allowed_tools(
             user_role="CLINIC_OWNER",
             context_type=BUSINESS_CHAT,
-            available_tools=phantom_tools,
+            available_tools=available_tools,
         )
         self.assertEqual(
             allowed,
-            [],
-            msg=f"Phantom tools should be blocked for CLINIC_OWNER but got: {allowed}",
+            [
+                "generate_clinic_services",
+                "list_clinic_services",
+                "update_service_info",
+                "execute_update_service_confirmed",
+                "create_clinic_service",
+                "get_my_clinic_info",
+                "analyze_revenue_trends",
+                "get_clinic_metrics",
+            ],
+            msg=f"CLINIC_OWNER allowed tools mismatch: {allowed}",
         )
 
 

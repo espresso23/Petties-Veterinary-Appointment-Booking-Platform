@@ -174,7 +174,7 @@ class SpringBackendClient:
             },
         )
 
-    async def get_clinic_services(
+    async def get_clinic_services_by_clinic(
         self,
         clinic_id: str,
         pet_species: Optional[str] = None,
@@ -247,6 +247,10 @@ class SpringBackendClient:
             "GET", "/bookings/my-bookings", token=token, params=params
         )
 
+    async def get_my_clinics(self, token: str) -> Any:
+        """Get clinics owned by current user (CLINIC_OWNER/MANAGER)."""
+        return await self._request("GET", "/clinics/owner/my-clinics", token=token)
+
     async def search_clinics_by_name(
         self,
         name: str,
@@ -257,6 +261,77 @@ class SpringBackendClient:
             "GET",
             "/clinics/search",
             params={"query": name, "page": page, "size": size},
+        )
+
+    async def get_master_services(
+        self,
+        category: Optional[str] = None,
+        pet_type: Optional[str] = None,
+    ) -> Any:
+        """Get all master services (service templates)."""
+        params = {}
+        if category:
+            params["category"] = category
+        if pet_type:
+            params["petType"] = pet_type
+        return await self._request(
+            "GET", "/master-services", params=params if params else None
+        )
+
+    async def get_my_clinic_services(
+        self,
+        token: str,
+    ) -> Any:
+        """Get current user's clinic services (no clinic_id needed - uses auth)."""
+        return await self._request("GET", "/services", token=token)
+
+    async def update_clinic_service(
+        self,
+        token: str,
+        service_id: str,
+        update_data: Dict[str, Any],
+    ) -> Any:
+        """Update a clinic service."""
+        return await self._request(
+            "PUT",
+            f"/services/{service_id}",
+            token=token,
+            json_body=update_data,
+        )
+
+    async def create_clinic_service(
+        self,
+        token: str,
+        service_data: Dict[str, Any],
+    ) -> Any:
+        """Create a new clinic service."""
+        return await self._request(
+            "POST",
+            "/services",
+            token=token,
+            json_body=service_data,
+        )
+
+    async def get_clinic_revenue(
+        self,
+        token: str,
+        clinic_id: str,
+        period: str = "MONTH",
+    ) -> Any:
+        return await self._request(
+            "GET",
+            f"/payments/history/clinic/{clinic_id}/revenue",
+            token=token,
+            params={"period": period},
+        )
+
+    async def get_clinic_revenue_breakdown(
+        self,
+        token: str,
+        clinic_id: str,
+    ) -> Any:
+        return await self._request(
+            "GET", f"/payments/history/clinic/{clinic_id}/breakdown", token=token
         )
 
 
