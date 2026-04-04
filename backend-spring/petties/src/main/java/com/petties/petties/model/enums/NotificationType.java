@@ -55,6 +55,13 @@ public enum NotificationType {
     // Vaccination
     VACCINATION_REMINDER,
 
+    // System / Admin Notifications
+    SYSTEM_MONEY,
+    SYSTEM_SERVER,
+    SYSTEM_WORK,
+    SYSTEM_TIME,
+    SYSTEM_OTHER,
+
     // Subscriptions
     SUBSCRIPTION_EXPIRING_SOON,
     SUBSCRIPTION_ACTIVATED,

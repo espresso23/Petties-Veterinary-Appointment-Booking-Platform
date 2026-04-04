@@ -43,6 +43,7 @@ import com.petties.petties.model.enums.Role;
 public class NotificationService {
 
         private final NotificationRepository notificationRepository;
+        private final com.petties.petties.repository.SystemNotificationRepository systemNotificationRepository;
         private final UserRepository userRepository;
         private final SseEmitterService sseEmitterService;// use for 1 direction real time notification
         private final FcmService fcmService; // use for mobile push notification
@@ -1234,5 +1235,68 @@ public class NotificationService {
                 }
 
                 return builder.build();
+        }
+
+        // ======================== ADMIN NOTIFICATIONS (SYSTEM) ========================
+
+        @Transactional
+        public void createAdminNotification(com.petties.petties.dto.request.AdminNotificationRequest request, User admin) {
+                com.petties.petties.model.SystemNotification systemNotification = com.petties.petties.model.SystemNotification.builder()
+                                .title(request.getTitle())
+                                .message(request.getMessage())
+                                .type(request.getType())
+                                .targetAudience(request.getTargetAudience())
+                                .createdBy(admin)
+                                .build();
+
+                List<User> targets;
+                if ("ALL".equalsIgnoreCase(request.getTargetAudience())) {
+                        targets = userRepository.findByRoleNotAndDeletedAtIsNull(Role.ADMIN);
+                } else if ("ROLE".equalsIgnoreCase(request.getTargetAudience())) {
+                        targets = userRepository.findByRoleInAndDeletedAtIsNull(request.getTargetRoles());
+                        targets.removeIf(u -> u.getRole() == Role.ADMIN);
+                } else if ("SPECIFIC_USERS".equalsIgnoreCase(request.getTargetAudience())) {
+                        targets = userRepository.findByUserIdInAndDeletedAtIsNull(request.getTargetUserIds());
+                        targets.removeIf(u -> u.getRole() == Role.ADMIN);
+                } else {
+                        throw new IllegalArgumentException("Invalid targetAudience: " + request.getTargetAudience());
+                }
+
+                systemNotification.setTargetCount(targets.size());
+                systemNotificationRepository.save(systemNotification);
+
+                if (targets.isEmpty()) {
+                        log.info("No targets found for admin notification");
+                        return;
+                }
+
+                String displayMessage = request.getTitle() + "\n" + request.getMessage();
+
+                List<Notification> notifications = targets.stream().map(targetUser -> Notification.builder()
+                                .user(targetUser)
+                                .type(request.getType())
+                                .message(displayMessage)
+                                .read(false)
+                                .build()).toList();
+
+                notificationRepository.saveAll(notifications);
+
+                for (Notification n : notifications) {
+                        pushNotificationToUser(n.getUser().getUserId(), n);
+                }
+        }
+
+        @Transactional(readOnly = true)
+        public Page<com.petties.petties.dto.response.SystemNotificationResponse> getAdminNotifications(Pageable pageable) {
+                return systemNotificationRepository.findAllByOrderByCreatedAtDesc(pageable)
+                                .map(com.petties.petties.dto.response.SystemNotificationResponse::fromEntity);
+        }
+
+        @Transactional
+        public void deleteAdminNotification(UUID id) {
+                if (!systemNotificationRepository.existsById(id)) {
+                        throw new ResourceNotFoundException("System Notification not found");
+                }
+                systemNotificationRepository.deleteById(id);
         }
 }

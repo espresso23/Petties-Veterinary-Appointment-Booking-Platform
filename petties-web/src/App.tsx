@@ -30,6 +30,7 @@ import { AIInsightsPage } from './pages/admin/insights'
 import { ClinicApprovalPage, ClinicRegistryPage } from './pages/admin/clinics'
 import { ReportsPage as AdminReportsPage } from './pages/admin/ReportsPage'
 import { AdminRefundApplicationsPage } from './pages/admin/refunds/AdminRefundApplicationsPage'
+import AdminNotificationsManagePage from './pages/admin/AdminNotificationsManagePage'
 import { AdminVoucherPage } from './pages/admin/vouchers/AdminVoucherPage'
 import { SubscriptionListPage as AdminSubscriptionListPage, UserSubscriptionHistoryPage as AdminSubscriptionHistoryPage } from './pages/admin/subscriptions'
 
@@ -123,6 +124,7 @@ function App() {
             <Route path="subscriptions" element={<AdminSubscriptionListPage />} />
             <Route path="subscriptions/history" element={<AdminSubscriptionHistoryPage />} />
             <Route path="notifications" element={<AdminNotificationsPage />} />
+            <Route path="notification-manage" element={<AdminNotificationsManagePage />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route >
 
