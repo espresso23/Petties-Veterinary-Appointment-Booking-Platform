@@ -38,7 +38,11 @@ def _require_auth_token() -> str:
 
 @mcp_server.tool
 async def get_staff_schedule(
-    date: Optional[str] = None, days: int = 1
+    date: Optional[str] = None,
+    days: int = 1,
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    clinic_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Get the staff schedule for the clinic. Use this to check who is working today or this week.
@@ -179,7 +183,11 @@ async def get_staff_schedule(
 
 @mcp_server.tool
 async def get_slot_availability(
-    date: Optional[str] = None, staff_name: Optional[str] = None
+    date: Optional[str] = None,
+    staff_name: Optional[str] = None,
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    clinic_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Get detailed slot availability and booking status for the clinic's shifts.

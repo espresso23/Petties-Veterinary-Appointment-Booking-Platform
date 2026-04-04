@@ -132,11 +132,6 @@ class StaffDiagnosisService:
         )
         if self._should_run_vision(request, preloaded_cases):
             vision_response = await self._analyze_vision(request_id, request)
-        elif request.image_urls:
-            logger.debug(
-                "Skipped image analysis for request {} due to strong case match",
-                request_id,
-            )
 
         retrieval_query = self._build_retrieval_query(request, vision_response)
         hybrid_result, similar_cases = await self._retrieve_internal_context(
@@ -158,6 +153,7 @@ class StaffDiagnosisService:
             similar_cases=similar_cases,
             evidence_mode=evidence_mode,
         )
+        base_top_differentials = list(top_differentials)
         selected_primary = self._resolve_selected_diagnosis(
             request=request,
             top_differentials=top_differentials,
@@ -209,7 +205,19 @@ class StaffDiagnosisService:
             f"LLM synthesis completed: {'success' if llm_synthesis else 'failed/empty'}"
         )
         if llm_synthesis and llm_synthesis.get("top_differentials"):
-            top_differentials = llm_synthesis["top_differentials"]
+            top_differentials = self._merge_top_differentials_with_fallback(
+                preferred=llm_synthesis["top_differentials"],
+                fallback=base_top_differentials,
+                request=request,
+                evidence_mode=evidence_mode,
+            )
+        else:
+            top_differentials = self._merge_top_differentials_with_fallback(
+                preferred=top_differentials,
+                fallback=[],
+                request=request,
+                evidence_mode=evidence_mode,
+            )
 
         image_analysis = self._build_image_analysis(request.image_urls, vision_response)
         effective_protocol_decision = self._merge_safety_suggestions(
@@ -313,9 +321,15 @@ class StaffDiagnosisService:
             )
             return None
 
+        cached_top_differentials = self._merge_top_differentials_with_fallback(
+            preferred=cached.top_differentials,
+            fallback=[],
+            request=request,
+            evidence_mode=cached.evidence_mode,
+        )
         selected_primary = self._resolve_selected_diagnosis(
             request=request,
-            top_differentials=cached.top_differentials,
+            top_differentials=cached_top_differentials,
         )
         has_selected_diagnosis = selected_primary is not None
 
@@ -337,11 +351,20 @@ class StaffDiagnosisService:
         if has_selected_diagnosis:
             llm_synthesis = await self._synthesize_with_llm(
                 request=request,
-                top_differentials=cached.top_differentials,
+                top_differentials=cached_top_differentials,
                 hybrid_result=cached.hybrid_result,
                 similar_cases=cached.similar_cases,
                 protocol_decision=protocol_decision,
                 vision_response=cached.vision_response,
+            )
+
+        response_top_differentials = cached_top_differentials
+        if llm_synthesis and llm_synthesis.get("top_differentials"):
+            response_top_differentials = self._merge_top_differentials_with_fallback(
+                preferred=llm_synthesis["top_differentials"],
+                fallback=cached_top_differentials,
+                request=request,
+                evidence_mode=cached.evidence_mode,
             )
 
         effective_protocol_decision = self._merge_safety_suggestions(
@@ -351,7 +374,7 @@ class StaffDiagnosisService:
 
         base_soap_suggestions = self._build_soap_suggestions(
             request=request,
-            top_differentials=cached.top_differentials,
+            top_differentials=response_top_differentials,
             primary_diagnosis=selected_primary,
             vision_response=cached.vision_response,
             hybrid_result=cached.hybrid_result,
@@ -386,7 +409,7 @@ class StaffDiagnosisService:
             evidence_mode=cached.evidence_mode,
             evidence_banner=cached.evidence_banner,
             score_label=cached.score_label,
-            top_differentials=cached.top_differentials,
+            top_differentials=response_top_differentials,
             supporting_evidence_from_kb=self._format_hybrid_evidence(
                 cached.hybrid_result
             ),
@@ -557,40 +580,14 @@ class StaffDiagnosisService:
     ) -> bool:
         if not request.image_urls:
             return False
-        if not similar_cases:
-            return True
-
-        top_case = similar_cases[0]
-        payload = top_case.payload or {}
-
-        has_diagnosis = bool(
-            payload.get("display_name_vi")
-            or payload.get("final_diagnosis_text")
-            or payload.get("canonical_code")
-        )
-        if not has_diagnosis:
-            return True
-
-        is_provisional = payload.get("mapping_status") == "provisional"
-        has_image_match = bool(request.image_urls)
-        threshold = 0.7 if has_image_match else 0.85
-
-        if is_provisional:
-            threshold += 0.1
-
-        is_strong_match = top_case.final_score >= threshold
-
-        logger.debug(
-            "Vision decision for request {}: score={:.2f} (threshold={}), "
-            "is_provisional={}, run_vision={}",
-            request.request_id,
-            top_case.final_score,
-            threshold,
-            is_provisional,
-            not is_strong_match,
-        )
-
-        return not is_strong_match
+        if similar_cases:
+            top_case = similar_cases[0]
+            logger.debug(
+                "Vision analysis forced for request {}: top case score={:.2f}, images_present=true",
+                request.request_id,
+                top_case.final_score,
+            )
+        return True
 
     async def _get_llm_client(self) -> BaseLLMClient:
         if self._llm_client is not None:
@@ -983,6 +980,12 @@ QUAN TRỌNG về safety:
 - Safety phải ngắn gọn, kiểm chứng được từ dữ liệu ca hiện tại, không bịa thêm dữ liệu
 - Không được dùng safety để override selected diagnosis identity
 
+QUAN TRỌNG về tên chẩn đoán:
+- `display_name_vi` phải là TÊN BỆNH NGẮN GỌN, KHÔNG mô tả triệu chứng hay nguyên nhân
+- ĐÚNG: "Viêm ruột cấp tính" hoặc "Viêm da do vi khuẩn"
+- SAI: "Viêm ruột cấp tính, nghi do thay đổi thức ăn hoặc ăn phải thức ăn không phù hợp. Theo dõi thêm triệu chứng."
+- Nếu chưa chắc chắn, dùng tên chung như "Rối loạn tiêu hóa" thay vì mô tả dài dòng
+
 Viết hoàn toàn bằng tiếng Việt, ngắn gọn, lâm sàng, không thêm markdown. Chỉ trả về JSON hợp lệ.
 Ưu tiên câu ngắn, trực tiếp, phù hợp để chèn vào EMR.
 
@@ -993,9 +996,9 @@ JSON:
 {{
   "top_differentials": [
     {{
-      "display_name_vi": "Tên chẩn đoán",
-      "confidence_note": "Mô tả ngắn tương ứng với điểm phần trăm",
-      "supporting_reasons": ["Lý do 1", "Lý do 2"]
+      "display_name_vi": "Viêm ruột cấp tính",
+      "confidence_note": "Độ tự tin: 75%",
+      "supporting_reasons": ["Triệu chứng phù hợp", "Có case tương tự trong KB"]
     }}
   ],
   "soap_suggestions": {{
@@ -1059,6 +1062,14 @@ JSON:
                     display_name = fallback.display_name_vi
                 if not display_name:
                     continue
+                if len(display_name) > 60:
+                    display_name = (
+                        display_name[:60].rsplit(",", 1)[0].rsplit(".", 1)[0].strip()
+                    )
+                    if not display_name or len(display_name) < 3:
+                        display_name = (
+                            fallback.display_name_vi if fallback else "Chưa xác định"
+                        )
                 canonical_code = fallback.canonical_code if fallback else None
                 if fallback is not None:
                     fallback_label = (fallback.display_name_vi or "").strip().lower()
@@ -1333,6 +1344,12 @@ JSON:
             for reason in shared_reasons:
                 candidate.add_reason(reason)
 
+        self._backfill_candidates_from_catalog(
+            candidates=candidates,
+            request=request,
+            minimum=3,
+        )
+
         sorted_candidates = sorted(
             candidates.values(),
             key=lambda item: item.score,
@@ -1366,6 +1383,186 @@ JSON:
                 )
             )
         return result
+
+    def _backfill_candidates_from_catalog(
+        self,
+        *,
+        candidates: Dict[str, DifferentialCandidate],
+        request: StaffDiagnosisRequest,
+        minimum: int,
+    ) -> None:
+        if len(candidates) >= minimum:
+            return
+
+        mapper = get_disease_mapping_service()
+        catalog_entries = sorted(
+            mapper._catalog.values(),
+            key=lambda entry: entry.display_name_vi,
+        )
+        species = (request.species.value or "all").lower()
+        score_seed = 0.14
+
+        for entry in catalog_entries:
+            if len(candidates) >= minimum:
+                break
+
+            entry_species = (entry.species or "all").lower()
+            if entry_species not in {"all", species}:
+                continue
+
+            display_name = (entry.display_name_vi or "").strip()
+            if not display_name:
+                continue
+
+            key = (entry.canonical_code or display_name).lower()
+            if key in candidates:
+                continue
+
+            candidates[key] = DifferentialCandidate(
+                canonical_code=entry.canonical_code,
+                display_name_vi=display_name,
+                score=score_seed,
+                supporting_reasons=[
+                    "Được bổ sung từ danh mục bệnh chuẩn để đảm bảo bác sĩ có đủ Top 3 so sánh.",
+                    "Mức ưu tiên thấp vì bằng chứng hiện tại còn hạn chế, cần đối chiếu lâm sàng thêm.",
+                ],
+            )
+            score_seed = max(score_seed - 0.02, 0.06)
+
+    def _merge_top_differentials_with_fallback(
+        self,
+        *,
+        preferred: List[DiagnosisSuggestion],
+        fallback: List[DiagnosisSuggestion],
+        request: StaffDiagnosisRequest,
+        evidence_mode: str,
+    ) -> List[DiagnosisSuggestion]:
+        merged: List[DiagnosisSuggestion] = []
+        seen: set[str] = set()
+
+        def append_item(
+            item: DiagnosisSuggestion,
+            *,
+            extra_reason: Optional[str] = None,
+        ) -> None:
+            label = (item.display_name_vi or "").strip()
+            if not label:
+                return
+            key = (item.canonical_code or label).strip().lower()
+            if key in seen:
+                return
+            seen.add(key)
+
+            reasons = self._sanitize_text_list(
+                item.supporting_reasons,
+                max_items=4,
+                max_length=220,
+            )
+            if extra_reason and extra_reason not in reasons:
+                reasons.append(extra_reason)
+
+            merged.append(
+                DiagnosisSuggestion(
+                    canonical_code=item.canonical_code,
+                    display_name_vi=label,
+                    rank=0,
+                    score_percent=max(int(item.score_percent or 0), 0),
+                    score_basis=item.score_basis,
+                    confidence_note=item.confidence_note,
+                    supporting_reasons=reasons,
+                )
+            )
+
+        for item in preferred[:3]:
+            append_item(item)
+
+        for item in fallback:
+            if len(merged) >= 3:
+                break
+            append_item(
+                item,
+                extra_reason="Giữ lại để đảm bảo bác sĩ có đủ Top 3 chẩn đoán khả thi để so sánh.",
+            )
+
+        if len(merged) < 3:
+            supplemental_candidates: Dict[str, DifferentialCandidate] = {}
+            self._backfill_candidates_from_catalog(
+                candidates=supplemental_candidates,
+                request=request,
+                minimum=6,
+            )
+            for candidate in supplemental_candidates.values():
+                if len(merged) >= 3:
+                    break
+                append_item(
+                    DiagnosisSuggestion(
+                        canonical_code=candidate.canonical_code,
+                        display_name_vi=candidate.display_name_vi,
+                        score_percent=0,
+                        supporting_reasons=candidate.supporting_reasons,
+                    ),
+                    extra_reason="Cần khám và đối chiếu thêm trước khi kết luận.",
+                )
+
+        if not merged:
+            return []
+
+        return self._rank_top_differentials(
+            differentials=merged[:3],
+            evidence_mode=evidence_mode,
+        )
+
+    def _rank_top_differentials(
+        self,
+        *,
+        differentials: List[DiagnosisSuggestion],
+        evidence_mode: str,
+    ) -> List[DiagnosisSuggestion]:
+        if not differentials:
+            return []
+
+        raw_scores: List[float] = []
+        total_items = len(differentials)
+        for index, item in enumerate(differentials):
+            if item.score_percent and item.score_percent > 0:
+                raw_scores.append(float(item.score_percent))
+            else:
+                raw_scores.append(float(max(total_items - index, 1)))
+
+        normalized_scores = self._normalize_percentages(raw_scores)
+        score_basis = self._score_basis_from_mode(evidence_mode)
+
+        ranked: List[DiagnosisSuggestion] = []
+        for index, item in enumerate(differentials[:3], start=1):
+            percent = (
+                normalized_scores[index - 1]
+                if index - 1 < len(normalized_scores)
+                else 0
+            )
+            reasons = self._sanitize_text_list(
+                item.supporting_reasons,
+                max_items=4,
+                max_length=220,
+            ) or [
+                "Cần đối chiếu thêm khám lâm sàng để tăng độ chắc chắn cho hướng chẩn đoán này."
+            ]
+
+            ranked.append(
+                DiagnosisSuggestion(
+                    canonical_code=item.canonical_code,
+                    display_name_vi=item.display_name_vi,
+                    rank=index,
+                    score_percent=percent,
+                    score_basis=score_basis,
+                    confidence_note=self._confidence_note(
+                        score_percent=percent,
+                        evidence_mode=evidence_mode,
+                    ),
+                    supporting_reasons=reasons,
+                )
+            )
+
+        return ranked
 
     def _merge_vision_candidates(
         self,

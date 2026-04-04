@@ -277,6 +277,65 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(result), 3)
         self.assertEqual(sum(result), 100)
 
+    def test_merge_top_differentials_with_fallback_keeps_three_candidates(self):
+        service = StaffDiagnosisService()
+        request = StaffDiagnosisRequest(
+            species=Species.DOG,
+            doctor_description="Da đỏ, ngứa, rụng lông",
+        )
+        preferred = [
+            DiagnosisSuggestion(
+                canonical_code="bacterial_dermatosis",
+                display_name_vi="Viêm da do vi khuẩn",
+                rank=1,
+                score_percent=100,
+                score_basis="matching_internal",
+                confidence_note="Độ tự tin: 100%",
+                supporting_reasons=["Khớp với tổn thương da mủ."],
+            )
+        ]
+        fallback = [
+            DiagnosisSuggestion(
+                canonical_code="bacterial_dermatosis",
+                display_name_vi="Viêm da do vi khuẩn",
+                rank=1,
+                score_percent=58,
+                score_basis="matching_internal",
+                confidence_note="Độ tự tin: 58%",
+                supporting_reasons=["Khớp dữ liệu nội bộ."],
+            ),
+            DiagnosisSuggestion(
+                canonical_code="dermatosis_or_ectoparasites",
+                display_name_vi="Viêm da hoặc bệnh da ký sinh trùng",
+                rank=2,
+                score_percent=24,
+                score_basis="matching_internal",
+                confidence_note="Độ tự tin: 24%",
+                supporting_reasons=["Cần loại trừ ký sinh trùng ngoài da."],
+            ),
+            DiagnosisSuggestion(
+                canonical_code="ocular_infection",
+                display_name_vi="Viêm kết mạc hoặc nhiễm trùng mắt",
+                rank=3,
+                score_percent=18,
+                score_basis="matching_internal",
+                confidence_note="Độ tự tin: 18%",
+                supporting_reasons=["Cần loại trừ nhiễm trùng mắt thứ phát."],
+            ),
+        ]
+
+        merged = service._merge_top_differentials_with_fallback(
+            preferred=preferred,
+            fallback=fallback,
+            request=request,
+            evidence_mode="internal_grounded",
+        )
+
+        self.assertEqual(len(merged), 3)
+        self.assertEqual(merged[0].canonical_code, "bacterial_dermatosis")
+        self.assertEqual(sum(item.score_percent for item in merged), 100)
+        self.assertEqual([item.rank for item in merged], [1, 2, 3])
+
     async def test_analyze_case_uses_internal_retrieval_and_protocol_prescriptions(
         self,
     ):
@@ -853,12 +912,12 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
         ):
             response = await service.analyze_case(request)
 
-        # Fallback must be generic only — no ear-specific disease name
-        self.assertEqual(len(response.top_differentials), 1)
+        # Fallback must keep generic candidate as top #1 and still provide Top 3
+        self.assertEqual(len(response.top_differentials), 3)
         diff = response.top_differentials[0]
         self.assertIsNone(diff.canonical_code)
         self.assertNotIn("tai", diff.display_name_vi.lower())
-        self.assertEqual(diff.confidence_note, "Độ tự tin (tham khảo): 100%")
+        self.assertTrue(diff.confidence_note.startswith("Độ tự tin (tham khảo):"))
 
     async def test_fallback_no_keyword_heuristic_for_eye(self):
         """_fallback_differentials must NOT return eye-specific diagnosis based on keyword 'mắt'."""
@@ -896,13 +955,90 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
         ):
             response = await service.analyze_case(request)
 
-        # Must be generic fallback — NO "mắt" or "kết mạc" in differential name
-        self.assertEqual(len(response.top_differentials), 1)
+        # Must keep generic fallback as top #1 and still render Top 3 for comparison
+        self.assertEqual(len(response.top_differentials), 3)
         diff = response.top_differentials[0]
         self.assertIsNone(diff.canonical_code)
         self.assertNotIn("mắt", diff.display_name_vi.lower())
         self.assertNotIn("kết mạc", diff.display_name_vi.lower())
-        self.assertEqual(diff.confidence_note, "Độ tự tin (tham khảo): 100%")
+        self.assertTrue(diff.confidence_note.startswith("Độ tự tin (tham khảo):"))
+
+    async def test_analyze_case_with_images_always_runs_vision_even_when_case_match_is_strong(
+        self,
+    ):
+        service = StaffDiagnosisService()
+        request = StaffDiagnosisRequest(
+            species=Species.DOG,
+            doctor_description="Tổn thương da đỏ, ẩm, có mủ.",
+            image_urls=["https://example.com/lesion.jpg"],
+        )
+
+        mock_hybrid_engine = Mock()
+        mock_hybrid_engine.query = AsyncMock(
+            return_value=HybridResult(
+                chunks=[
+                    HybridChunk(
+                        content="Pyoderma thường gây đỏ da, rỉ dịch và ngứa.",
+                        score=0.82,
+                        source="rag",
+                        metadata={"document_name": "Cẩm nang da liễu"},
+                    )
+                ],
+                expanded_query="dog pyoderma",
+                original_query="dog pyoderma",
+                sources_used={"rag": 1, "kg": 0},
+            )
+        )
+
+        mock_case_memory = Mock()
+        mock_case_memory.search_similar = AsyncMock(
+            return_value=[
+                CaseResult(
+                    case_id="emr:strong-match",
+                    content="Ca tương tự đã xác nhận pyoderma.",
+                    score=0.88,
+                    final_score=0.98,
+                    payload={
+                        "species": "dog",
+                        "display_name_vi": "Viêm da do vi khuẩn",
+                        "final_diagnosis_text": "Viêm da do vi khuẩn",
+                        "canonical_code": "bacterial_dermatosis",
+                        "chief_complaint": "Da đỏ, chảy dịch, ngứa",
+                    },
+                )
+            ]
+        )
+
+        with (
+            patch(
+                "app.ai_diagnose.staff_diagnosis_service.get_hybrid_rag_engine",
+                return_value=mock_hybrid_engine,
+            ),
+            patch(
+                "app.ai_diagnose.staff_diagnosis_service.get_case_memory_service",
+                return_value=mock_case_memory,
+            ),
+            patch(
+                "app.core.services.disease_mapping_service.DiseaseMappingService.refresh_from_db",
+                new=AsyncMock(return_value=True),
+            ),
+            patch(
+                "app.ai_diagnose.staff_diagnosis_service.get_gemini_vision_adapter"
+            ) as mock_vision,
+        ):
+            mock_vision.return_value.analyze = AsyncMock(
+                return_value=GeminiVisionDiagnosisResponse(
+                    request_id="vision-force-test",
+                    visual_findings=["Tổn thương da loét nông, viền đỏ."],
+                    image_descriptions=["Vùng da tổn thương có viền đỏ và đóng mày."],
+                    top_conditions=[],
+                )
+            )
+            response = await service.analyze_case(request)
+
+        mock_vision.return_value.analyze.assert_awaited_once()
+        self.assertEqual(len(response.image_analysis), 1)
+        self.assertEqual(response.image_analysis[0]["order"], 1)
 
     async def test_analyze_case_with_images_handles_vision_failure_gracefully(
         self,
@@ -1115,7 +1251,7 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
             response = await service.analyze_case(request)
 
         self.assertIsNotNone(response.request_id)
-        self.assertEqual(len(response.top_differentials), 1)
+        self.assertEqual(len(response.top_differentials), 3)
         self.assertIn(
             "Không tìm thấy thông tin phù hợp",
             response.supporting_evidence_from_kb[0],

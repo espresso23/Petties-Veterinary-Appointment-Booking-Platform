@@ -3,8 +3,8 @@
 > Update note dated 2026-04-01: older sections describing `analyze_pet_image`, legacy feedback-driven Case Memory, polling-based confirmed EMR sync, or the previous feedback loop are no longer the deployed architecture. The active AI diagnosis runtime reference is defined in [ai_diagnose_service/01_RUNTIME_FLOW.md](D:/SEP490/petties/docs-references/ai_diagnose_service/01_RUNTIME_FLOW.md), the active requirements are in [PETTIES_SRS.md](D:/SEP490/petties/docs-references/documentation/SRS/PETTIES_SRS.md) section `3.11.11`, and the trust-boundary rules are in [AI_SERVICE_TECHNICAL_SPECIFICATION.md](D:/SEP490/petties/docs-references/documentation/AI_SERVICE_TECHNICAL_SPECIFICATION.md).
 
 **Project:** Petties - Veterinary Appointment Booking Platform
-**Version:** 3.3.10 (Grounded SOAP synthesis with KB and Case Memory evidence)
-**Last Updated:** 2026-04-02
+**Version:** 3.3.12 (Removed image indexing from Knowledge Base - unused feature cleanup)
+**Last Updated:** 2026-04-03
 **Document Status:** In Progress
 
 ## TABLE OF CONTENTS
@@ -27,6 +27,7 @@
     - [4.22 AI Health Summary for Pet Owner](#422-ai-health-summary-for-pet-owner)
     - [4.23 Staff AI Chat Panel](#423-staff-ai-chat-panel)
     - [4.24 Historical Resolution Note for Confirmed EMR Sync](#424-historical-resolution-note-for-confirmed-emr-sync)
+    - [4.25 AI Copilot Manager Analytics](#425-ai-copilot-manager-analytics)
 ### 4.3 Staff and Scheduling Management
 
 This module covers clinic roster management and staff shift scheduling. The current design is centered around two controllers and two services: one pair manages clinic staff assignment by email and roster removal, while the other pair manages shift creation, schedule viewing, shift detail lookup, and shift deletion.
@@ -1897,7 +1898,7 @@ Alternative persisted paths: CANCELLED, NO_SHOW
 
 ###### Table: knowledge_documents
 
-**Purpose:** Tracks documents uploaded to the RAG knowledge base. PostgreSQL stores metadata while embeddings and searchable payloads live in Qdrant.
+**Purpose:** Tracks documents uploaded to the RAG knowledge base. PostgreSQL stores metadata while text embeddings live in Qdrant (`petties_knowledge_base`). Only text content is indexed - no image extraction is performed.
 
 | Column | Type | Constraints | Purpose & Business Context |
 |--------|------|-------------|---------------------------|
@@ -1907,8 +1908,7 @@ Alternative persisted paths: CANCELLED, NO_SHOW
 | file_type | VARCHAR(10) | | File extension used for parsing strategy |
 | file_size | INT | | File size in bytes |
 | processed | BOOLEAN | DEFAULT false | Whether the file has been chunked and indexed |
-| vector_count | INT | DEFAULT 0 | Number of generated text vectors |
-| image_count | INT | DEFAULT 0 | Number of generated image vectors |
+| vector_count | INT | DEFAULT 0 | Number of generated text vectors (Cohere embed-multilingual-v3.0) |
 | uploaded_by | VARCHAR(100) | | Admin username for audit |
 | notes | TEXT | | Optional document note |
 | uploaded_at | TIMESTAMPTZ | DEFAULT now() | Upload timestamp |
@@ -1973,9 +1973,25 @@ Alternative persisted paths: CANCELLED, NO_SHOW
 **Decision:** AI governance state stays in PostgreSQL, conversational runtime state stays in MongoDB, and retrieval/case-memory vectors stay in Qdrant.
 
 **Active storage split:**
-- PostgreSQL: `agents`, `tools`, `knowledge_documents`, `disease_catalog`, `disease_aliases`, `system_settings`
-- MongoDB: `ai_chat_sessions`, `ai_chat_messages`, `ai_proactive_notifications`, `chat_feedback`, `knowledge_graph_triplets`
-- Qdrant: `petties_knowledge_base`, `petties_case_memory_v2`, `petties_kb_images`
+- PostgreSQL: `agents`, `tools`, `knowledge_documents`, `disease_catalog`, `disease_aliases`, `system_settings` (6 tables)
+- MongoDB: `ai_chat_sessions`, `ai_chat_messages`, `ai_proactive_notifications`, `chat_feedback`, `knowledge_graph_triplets` (5 collections)
+- Qdrant: `petties_knowledge_base`, `petties_case_memory_v2` (2 collections)
+
+**Note:** `petties_kb_images` was previously used for PDF image extraction but has been removed as an unused feature. Jina CLIP v2 image embeddings are still used for Case Memory (`petties_case_memory_v2`) with named vectors `text` + `image`.
+
+**Migration History (Alembic):**
+| Version | Description | Status |
+|---------|-------------|--------|
+| 001 | Initial AI schema (agents, tools, prompt_versions, chat_sessions, chat_messages, knowledge_documents, system_settings) | Applied |
+| 002 | vision_disease_classes table | **Dropped in 009** (unused) |
+| 003 | Add image_count to knowledge_documents | Applied |
+| 004 | Disease mapping catalog (disease_catalog, disease_aliases, disease_mapping_review_items) | Partial (review_items dropped in 008) |
+| 005 | Remove system_prompt column and prompt_versions table | Applied |
+| 006 | Remove assigned_agents from tools table | Applied |
+| 007 | Add WEB_SEARCH to settingcategory enum | Applied |
+| 008 | Drop disease_mapping_review_items, remove body_system/protocol_key from disease_catalog, remove review_status from disease_aliases | Applied |
+| 009 | Drop vision_disease_classes table (deadcode) | Applied |
+| 010 | Drop image_count from knowledge_documents (unused PDF image indexing) | Applied |
 
 ###### AI PostgreSQL Relationship Summary
 
@@ -1997,6 +2013,26 @@ Alternative persisted paths: CANCELLED, NO_SHOW
 | `disease_catalog` | Canonical diagnosis dictionary | Normalizes diagnosis outputs across sources | Staff AI diagnosis, AI service |
 | `disease_aliases` | Alias normalization layer | Maps free-text disease labels to canonical codes | Staff AI diagnosis, AI service |
 | `system_settings` | Runtime secrets and provider configs | Centralized operational configuration | Admin, AI service |
+
+###### AI Table Description Summary
+
+| Table | Primary Role | Why Separate | Main Users |
+|------|--------------|-------------|-----------|
+| `agents` | LLM runtime parameters | Keeps model tuning separate from code deploys | Admin, AI service |
+| `tools` | Tool registry metadata | Supports runtime tool governance and discovery | Admin, AI service |
+| `knowledge_documents` | RAG document metadata | Tracks upload and indexing lifecycle (text only) | Admin, AI service |
+| `disease_catalog` | Canonical diagnosis dictionary | Normalizes diagnosis outputs across sources | Staff AI diagnosis, AI service |
+| `disease_aliases` | Alias normalization layer | Maps free-text disease labels to canonical codes | Staff AI diagnosis, AI service |
+| `system_settings` | Runtime secrets and provider configs | Centralized operational configuration | Admin, AI service |
+
+###### Dropped Tables (Historical)
+
+| Table | Added In | Dropped In | Reason |
+|-------|----------|------------|--------|
+| `prompt_versions` | 001 | 005 | System prompt moved to code (single_agent.py) |
+| `disease_mapping_review_items` | 004 | 008 | Autonomous canonicalization removed manual review |
+| `vision_disease_classes` | 002 | 009 | Never used - no SQLAlchemy model or code references |
+| `petties_kb_images` (Qdrant) | - | Migration 010 | PDF image extraction unused - removed from RAG engine |
 
 #### 2.1.4 Enum Types Summary
 #### 2.1.4 Enum Types Summary
@@ -2024,7 +2060,7 @@ Alternative persisted paths: CANCELLED, NO_SHOW
 | Enum | Values |
 |------|--------|
 | **tool_type** | CODE_BASED, API_BASED |
-| **setting_category** | Stored as VARCHAR in `system_settings.category` (values used in code: llm, rag, embeddings, vector_db, general) |
+| **setting_category** | Stored as VARCHAR in `system_settings.category` (values used in code: llm, rag, embeddings, vector_db, general, web_search) |
 | **message_role** | Document-level value in MongoDB messages (`user`, `assistant`, `system`, `tool`) |
 | **file_type** | Stored as VARCHAR in `knowledge_documents.file_type` (examples: pdf, docx, txt, md) |
 
@@ -2518,34 +2554,6 @@ Use separate vectors for text and image retrieval:
 | emr_updated_at | String | Last EMR update timestamp used for case-memory upsert |
 | image_urls | Array | Clinical image URLs attached to the EMR |
 | image_embedding_provider | String | Image embedding provider metadata, for example `jina-clip-v2` |
-
-### 2.3.3 Collection: petties_kb_images
-
-**Description:** Lưu trữ vector embeddings của ảnh trích xuất từ PDF documents trong Knowledge Base. Hỗ trợ **Hybrid Search (text + image similarity)** khi user gửi ảnh bệnh để tra cứu.
-
-**Vector Configuration:**
-- `text`: Size 1024, Distance COSINE (Cohere embed-multilingual-v3.0) - mô tả document
-- `image`: Size 1024, Distance COSINE (Jina CLIP v2) - ảnh bệnh từ PDF
-
-**Payload Structure (Metadata):**
-| Field | Type | Description |
-|-------|------|-------------|
-| document_id | String | UUID tham chiếu tới bảng `knowledge_documents` trong PostgreSQL |
-| filename | String | Tên file PDF gốc |
-| image_id | String | ID duy nhất của ảnh (format: `p{page}_img{index}_{hash}`) |
-| image_index | Integer | Thứ tự ảnh trong document |
-| extracted_at | String | ISO-8601 Timestamp khi extract |
-| metadata | Object | Metadata bổ sung (notes, file_type,...) |
-
-**Usage:**
-- Khi upload PDF có ảnh bệnh → tự động extract ảnh + tạo image embeddings
-- Query `/knowledge/query-hybrid` để tìm ảnh tương tự
-- Integration với AI Diagnose: khi Staff gửi ảnh bệnh, tìm cases có ảnh tương tự trong KB
-
-**Files Modified:**
-- `app/core/rag/rag_engine.py` - Image extraction + indexing
-- `app/api/routes/knowledge.py` - Endpoint `/query-hybrid`
-- `app/db/postgres/models.py` - Thêm field `image_count`
 
 ---
 
@@ -11783,4 +11791,73 @@ Historical conclusions:
 - If the AI service fails during sync, Spring Boot logs a warning and must not roll back the already-saved EMR.
 - `case_id` remains `emr:{emr_id}` for overwrite-safe updates.
 - Legacy documents that still mention `GET /internal/ai/emrs/confirmed` or auto-sync polling should be treated as historical only.
+
+### 4.25 AI Copilot Manager Analytics
+
+This section describes the design for the AI Copilot used by Clinic Managers to perform daily operations such as viewing daily summaries, filtering bookings, reassigning staff, confirming/canceling bookings, and managing clinic services through a conversational interface.
+
+#### 4.25.1 Class Diagram
+
+```mermaid
+classDiagram
+    class AICopilotController {
+        +handleManagerChat(ClinicId, message)
+    }
+    class AICopilotService {
+        +processManagerIntent(message, context)
+        +executeAction(toolName, params)
+    }
+    class ManagerTools {
+        <<FastMCP>>
+        +get_daily_summary(clinicId, date)
+        +get_booking_list(clinicId, status, date)
+        +reassign_staff_booking(bookingId, newStaffId)
+        +update_booking_status(bookingId, status)
+        +manage_clinic_services(action, params)
+    }
+    class BookingService {
+        +getDailySummary(clinicId, date)
+        +getFilteredBookings(clinicId, filters)
+        +reassignStaff(bookingId, newStaffId)
+        +updateStatus(bookingId, status)
+    }
+    class ClinicServiceManager {
+        +listServices(clinicId)
+        +updateService(serviceId, details)
+    }
+
+    AICopilotController --> AICopilotService
+    AICopilotService --> ManagerTools
+    ManagerTools --> BookingService
+    ManagerTools --> ClinicServiceManager
+```
+
+#### 4.25.2 Sequence Diagram: AI-assisted Booking Operations (Reassign, Confirm, Cancel)
+
+```mermaid
+sequenceDiagram
+    actor Manager as Clinic Manager
+    participant UI as AI Copilot Widget (Web)
+    participant AI as AI Agent Service (FastAPI)
+    participant Tool as ManagerTools (FastMCP)
+    participant SB as Spring Boot Backend
+    participant DB as PostgreSQL
+
+    Manager->>UI: "Chuyển ca khám BK-123 sang bác sĩ Nam"
+    UI->>AI: Send chat message (WebSocket/HTTP)
+    AI->>AI: Analyze intent (LangGraph ReAct)
+    AI->>Tool: Call tool: reassign_staff_booking(BK-123, "Nam")
+    Tool->>SB: API: PUT /api/v1/bookings/BK-123/reassign
+    SB->>DB: Update Booking & StaffAssignment
+    DB-->>SB: Success
+    SB-->>Tool: 200 OK (Updated Booking)
+    Tool-->>AI: Tool result
+    AI-->>UI: "Đã chuyển ca khám BK-123 cho bác sĩ Nam thành công."
+    UI->>Manager: Show confirmation message
+    UI->>UI: Trigger Dashboard data refresh
+```
+
+#### 4.25.3 Cross-Reference to SRS
+
+- SRS section: `3.11.14 AI Copilot Manager Analytics (UC-CM-10)`
 

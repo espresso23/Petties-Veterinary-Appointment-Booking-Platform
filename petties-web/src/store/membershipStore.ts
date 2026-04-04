@@ -9,7 +9,7 @@ interface MembershipState {
     error: string | null
 
     // Actions
-    fetchMembershipStatus: () => Promise<void>
+    fetchMembershipStatus: (clinicId?: string) => Promise<void>
     setMembership: (membership: UserSubscription | null) => void
     clearMembership: () => void
 
@@ -24,13 +24,13 @@ export const useMembershipStore = create<MembershipState>((set, get) => ({
     isLoading: false,
     error: null,
 
-    fetchMembershipStatus: async () => {
+    fetchMembershipStatus: async (clinicId?: string) => {
         // DEV MODE BYPASS: Always return VIP in dev mode
         if (isDevMode) {
             set({
                 membership: {
                     subscriptionId: 'dev-subscription',
-                    clinicId: 'dev-clinic',
+                    clinicId: clinicId || 'dev-clinic',
                     clinicName: 'Phòng Khám DEV',
                     status: 'ACTIVE',
                     paymentMethod: 'CASH',
@@ -55,8 +55,15 @@ export const useMembershipStore = create<MembershipState>((set, get) => ({
 
         set({ isLoading: true, error: null })
         try {
-            const status = await subscriptionService.getMySubscriptionStatus()
-            set({ membership: status, isLoading: false })
+            if (clinicId) {
+                // Use the safer status endpoint for clinic-specific checks to avoid 404s
+                const status = await subscriptionService.getClinicSubscriptionStatus(clinicId)
+                // Prioritize active, then pending
+                set({ membership: status.active || status.pending, isLoading: false })
+            } else {
+                const status = await subscriptionService.getMySubscriptionStatus()
+                set({ membership: status, isLoading: false })
+            }
         } catch (err: unknown) {
             // If 404, it means no subscription, which is a valid state (None)
             if (err && typeof err === 'object' && 'response' in err) {

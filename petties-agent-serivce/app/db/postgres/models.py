@@ -173,7 +173,6 @@ class KnowledgeDocument(Base):
     # Processing status
     processed = Column(Boolean, default=False)
     vector_count = Column(Integer, default=0)  # Text vectors
-    image_count = Column(Integer, default=0)  # Image vectors from PDF
 
     # Metadata
     uploaded_by = Column(String(100))

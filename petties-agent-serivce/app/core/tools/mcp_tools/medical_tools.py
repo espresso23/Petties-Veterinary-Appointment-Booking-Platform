@@ -259,6 +259,9 @@ async def pet_knowledge_search(
 async def get_staff_patients(
     query_name: Optional[str] = None,
     limit: int = 10,
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    clinic_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Lấy danh sách thú cưng của staff hiện tại để tìm kiếm nhanh theo tên.
@@ -362,6 +365,9 @@ async def get_staff_patients(
 @mcp_server.tool
 async def get_patient_summary(
     pet_id: str,
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    clinic_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Lấy tóm tắt nhanh hồ sơ y tế của một thú cưng: thông tin cơ bản, 2 lần khám gần nhất, và đường link hình ảnh y tế.
@@ -478,6 +484,9 @@ async def get_patient_summary(
 async def get_emr_history(
     pet_id: str,
     limit: int = 5,
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    clinic_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Lấy lịch sử bệnh án đầy đủ của một thú cưng với giới hạn số lượng lần khám.

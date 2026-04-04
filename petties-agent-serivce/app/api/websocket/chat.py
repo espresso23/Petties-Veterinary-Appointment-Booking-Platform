@@ -116,6 +116,39 @@ _UI_ACTION_SPECS: Dict[str, Dict[str, Any]] = {
             {"booking_date", "start_time"},
         ],
     },
+    "confirm_service_create": {
+        "allowed": {
+            "name",
+            "description",
+            "base_price",
+            "slots_required",
+            "duration_time",
+            "is_active",
+            "is_home_visit",
+            "service_category",
+            "pet_type",
+        },
+        "required": {"name", "base_price", "slots_required"},
+    },
+    "confirm_service_batch_create": {
+        "allowed": {"services"},
+        "required": {"services"},
+    },
+    "confirm_service_update": {
+        "allowed": {
+            "service_id",
+            "service_name",
+            "base_price",
+            "description",
+            "is_active",
+            "duration_time",
+            "slots_required",
+            "is_home_visit",
+            "service_category",
+            "pet_type",
+        },
+        "required_any": [{"service_id"}, {"service_name"}],
+    },
     "cancel_or_change": {"allowed": {"change_target", "reason"}},
     "change_pet": {
         "allowed": {
@@ -738,11 +771,93 @@ def _normalize_string_list(value: Any, *, max_items: int = 20) -> Optional[List[
     return normalized or None
 
 
+def _normalize_service_batch(
+    value: Any, *, max_items: int = 20
+) -> Optional[List[Dict[str, Any]]]:
+    if not isinstance(value, list):
+        return None
+
+    normalized: List[Dict[str, Any]] = []
+    for item in value[:max_items]:
+        if not isinstance(item, dict):
+            continue
+        name = _normalize_ui_action_field("name", item.get("name"))
+        description = _normalize_ui_action_field("description", item.get("description"))
+        base_price = _normalize_ui_action_field(
+            "base_price",
+            item.get("basePrice")
+            if item.get("basePrice") is not None
+            else item.get("base_price"),
+        )
+        slots_required = _normalize_ui_action_field(
+            "slots_required",
+            item.get("slotsRequired")
+            if item.get("slotsRequired") is not None
+            else item.get("slots_required"),
+        )
+        duration_time = _normalize_ui_action_field(
+            "duration_time",
+            item.get("durationTime")
+            if item.get("durationTime") is not None
+            else item.get("duration_time"),
+        )
+        is_active = _normalize_ui_action_field(
+            "is_active",
+            item.get("isActive")
+            if item.get("isActive") is not None
+            else item.get("is_active"),
+        )
+        is_home_visit = _normalize_ui_action_field(
+            "is_home_visit",
+            item.get("isHomeVisit")
+            if item.get("isHomeVisit") is not None
+            else item.get("is_home_visit"),
+        )
+        service_category = _normalize_ui_action_field(
+            "service_category",
+            item.get("serviceCategory")
+            if item.get("serviceCategory") is not None
+            else item.get("service_category"),
+        )
+        pet_type = _normalize_ui_action_field(
+            "pet_type",
+            item.get("petType")
+            if item.get("petType") is not None
+            else item.get("pet_type"),
+        )
+
+        if not name or base_price is None or slots_required is None:
+            continue
+
+        normalized_item: Dict[str, Any] = {
+            "name": name,
+            "base_price": base_price,
+            "slots_required": slots_required,
+        }
+        if description is not None:
+            normalized_item["description"] = description
+        if duration_time is not None:
+            normalized_item["duration_time"] = duration_time
+        if is_active is not None:
+            normalized_item["is_active"] = is_active
+        if is_home_visit is not None:
+            normalized_item["is_home_visit"] = is_home_visit
+        if service_category is not None:
+            normalized_item["service_category"] = service_category
+        if pet_type is not None:
+            normalized_item["pet_type"] = pet_type
+        normalized.append(normalized_item)
+
+    return normalized or None
+
+
 def _normalize_ui_action_field(key: str, value: Any) -> Any:
     if key in {
         "clinic_id",
         "clinic_name",
         "clinic_address",
+        "service_id",
+        "service_name",
         "pet_id",
         "pet_name",
         "change_target",
@@ -750,6 +865,10 @@ def _normalize_ui_action_field(key: str, value: Any) -> Any:
         "target_id",
         "target_type",
         "confirm_target",
+        "name",
+        "description",
+        "service_category",
+        "pet_type",
     }:
         if not isinstance(value, str):
             return None
@@ -771,6 +890,18 @@ def _normalize_ui_action_field(key: str, value: Any) -> Any:
         return normalized if _TIME_RE.match(normalized) else None
     if key in {"service_ids", "service_names"}:
         return _normalize_string_list(value)
+    if key == "services":
+        return _normalize_service_batch(value)
+    if key in {"base_price", "slots_required", "duration_time"}:
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, (int, float)):
+            return int(value)
+        if isinstance(value, str) and value.strip().isdigit():
+            return int(value.strip())
+        return None
+    if key in {"is_active", "is_home_visit"}:
+        return value if isinstance(value, bool) else None
     return None
 
 
@@ -1684,6 +1815,26 @@ async def websocket_chat_endpoint(websocket: WebSocket, session_id: str = "defau
             if context_type == PLAYGROUND_TEST and not user.is_admin:
                 await websocket.close(code=1008, reason=WS_REASON_PLAYGROUND_FORBIDDEN)
                 return
+
+        if token or user:
+            try:
+                # If we have a user from token, but session already exists,
+                # ensure we don't accidentally downgrade the role if the session was created
+                # with a different role previously.
+                if user and session and session.get("user_role") != user.role:
+                    logger.warning(
+                        f"Session role mismatch: {session_id}. "
+                        f"Session: {session.get('user_role')}, Token: {user.role}. "
+                        "Updating session to match latest token."
+                    )
+                    await touch_chat_session(
+                        session_id,
+                        {"user_role": user.role, "clinic_id": user.clinic_id},
+                    )
+
+                # ... existing logic ...
+            except Exception as e:
+                logger.error(f"Error validating role consistency: {e}")
 
         await manager.connect(websocket, session_id)
         try:

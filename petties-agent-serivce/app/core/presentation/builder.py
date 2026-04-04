@@ -20,13 +20,48 @@ logger = logging.getLogger(__name__)
 
 INTENT_MAP: Dict[str, str] = {
     "get_user_pets": "show_pet_list",
+    "get_my_clinics": "show_clinic_list",
     "search_clinics_nearby": "show_clinic_list",
     "get_clinic_services": "show_services",
+    "generate_clinic_services": "show_clinic_service_suggestions",
+    "list_clinic_services": "show_clinic_service_catalog",
+    "update_service_info": "show_service_update_preview",
     "check_available_slots": "show_available_slots",
     "create_booking_for_user": "show_booking_summary",
+    "start_booking_session": "show_booking_summary",
+    "get_booking_session": "show_booking_summary",
+    "update_booking_draft": "show_booking_summary",
+    "get_booking_draft_summary": "show_booking_summary",
+    "resume_booking_session": "show_booking_summary",
     "get_patient_summary": "show_emr_summary",
     "check_vaccination_status": "show_vaccination_status",
     "quick_booking_search": "show_quick_booking",
+}
+
+BOOKING_SUMMARY_TOOLS = {
+    "create_booking_for_user",
+    "start_booking_session",
+    "get_booking_session",
+    "update_booking_draft",
+    "get_booking_draft_summary",
+    "resume_booking_session",
+}
+
+BOOKING_PAYLOAD_KEYS = {
+    "id",
+    "pet_id",
+    "pet_name",
+    "clinic_id",
+    "clinic_name",
+    "service_ids",
+    "service_names",
+    "booking_date",
+    "start_time",
+    "booking_type",
+    "home_address",
+    "home_lat",
+    "home_long",
+    "notes",
 }
 
 
@@ -72,10 +107,95 @@ def _is_empty_result(data: Dict[str, Any]) -> bool:
     return False
 
 
-def _has_booking_preview(data: Dict[str, Any]) -> bool:
-    return isinstance(data.get("booking_preview"), dict) and bool(
-        data.get("booking_preview")
+def _has_booking_payload_fields(payload: Any) -> bool:
+    return isinstance(payload, dict) and any(
+        key in payload for key in BOOKING_PAYLOAD_KEYS
     )
+
+
+def _extract_booking_payload(data: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(data, dict):
+        return {}
+
+    summary = data.get("summary") if isinstance(data.get("summary"), dict) else {}
+    state = data.get("state") if isinstance(data.get("state"), dict) else {}
+
+    candidates = [
+        data.get("booking_preview"),
+        data.get("booking"),
+        data.get("draft"),
+        state.get("draft") if isinstance(state, dict) else None,
+        summary.get("draft") if isinstance(summary, dict) else None,
+        data.get("collected_fields"),
+    ]
+
+    booking_payload: Dict[str, Any] = {}
+    for candidate in candidates:
+        if _has_booking_payload_fields(candidate):
+            booking_payload.update(
+                {
+                    key: value
+                    for key, value in candidate.items()
+                    if value is not None and value != ""
+                }
+            )
+
+    if not booking_payload and _has_booking_payload_fields(data):
+        booking_payload = {
+            key: value
+            for key, value in data.items()
+            if key in BOOKING_PAYLOAD_KEYS and value is not None and value != ""
+        }
+
+    return booking_payload
+
+
+def _extract_missing_fields(data: Dict[str, Any]) -> List[str]:
+    summary = data.get("summary") if isinstance(data.get("summary"), dict) else {}
+    state = data.get("state") if isinstance(data.get("state"), dict) else {}
+
+    for candidate in (
+        data.get("missing_fields"),
+        summary.get("missing_fields"),
+        state.get("missing_fields"),
+    ):
+        if isinstance(candidate, list):
+            return _normalize_list(candidate)
+
+    return []
+
+
+def _resolve_ready_to_create(data: Dict[str, Any], missing_fields: List[str]) -> bool:
+    summary = data.get("summary") if isinstance(data.get("summary"), dict) else {}
+
+    for candidate in (
+        data.get("ready_to_create"),
+        data.get("ready_for_review"),
+        summary.get("ready_to_create"),
+        summary.get("ready_for_review"),
+    ):
+        if isinstance(candidate, bool):
+            return candidate
+
+    return len(missing_fields) == 0
+
+
+def _resolve_next_best_action(
+    data: Dict[str, Any],
+    missing_fields: List[str],
+    ready_to_create: bool,
+) -> str:
+    next_best_action = str(data.get("next_best_action") or "").strip()
+    if next_best_action:
+        return next_best_action
+
+    if missing_fields:
+        return "fill_booking_form"
+
+    if ready_to_create:
+        return "confirm_booking"
+
+    return "confirm_booking"
 
 
 def _dedupe_services(services: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -96,7 +216,7 @@ def _dedupe_services(services: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 def resolve_intent(tool_name: str, result: Dict[str, Any]) -> str:
     data = result.get("data", {})
 
-    if tool_name == "create_booking_for_user" and _has_booking_preview(data):
+    if tool_name in BOOKING_SUMMARY_TOOLS and _extract_booking_payload(data):
         return "show_booking_summary"
 
     if not result.get("success", True):
@@ -247,6 +367,202 @@ def _build_service_selection_components(data: Dict[str, Any]) -> List[UIComponen
     return components
 
 
+def _build_service_create_confirm_action(service: Dict[str, Any]) -> UIAction:
+    service_name = str(
+        service.get("name") or service.get("display_name") or "Dịch vụ"
+    ).strip()
+    return UIAction(
+        type=ActionType.OPEN_NATIVE_CONFIRM,
+        label="Lưu dịch vụ",
+        payload={
+            "title": f"Lưu dịch vụ {service_name}",
+            "message": f"Bạn có chắc muốn lưu dịch vụ '{service_name}' vào danh mục phòng khám không?",
+            "confirm_label": "Lưu dịch vụ",
+            "cancel_label": "Hủy",
+            "confirm_action": {
+                "type": ActionType.CONFIRM_SERVICE_CREATE.value,
+                "label": "Lưu dịch vụ",
+                "payload": {
+                    "name": service.get("name"),
+                    "description": service.get("description"),
+                    "base_price": service.get("basePrice"),
+                    "slots_required": service.get("slotsRequired"),
+                    "duration_time": service.get("durationTime"),
+                    "is_active": service.get("isActive", True),
+                    "is_home_visit": service.get("isHomeVisit", False),
+                    "service_category": service.get("serviceCategory"),
+                    "pet_type": service.get("petType"),
+                },
+                "display_message": f"Xác nhận lưu dịch vụ {service_name}",
+            },
+        },
+    )
+
+
+def _build_service_batch_create_component(
+    suggestions: List[Dict[str, Any]],
+) -> Optional[UIComponent]:
+    valid_suggestions = [
+        item for item in suggestions if isinstance(item, dict) and item.get("name")
+    ]
+    if not valid_suggestions:
+        return None
+
+    return UIComponent(
+        type=ComponentType.BUTTON,
+        id="clinic_service_batch_create",
+        data={
+            "label": f"Lưu tất cả ({len(valid_suggestions)})",
+            "content": "Xác nhận lưu toàn bộ dịch vụ gợi ý",
+            "variant": "primary",
+        },
+        actions=[
+            UIAction(
+                type=ActionType.OPEN_NATIVE_CONFIRM,
+                label=f"Lưu tất cả ({len(valid_suggestions)})",
+                payload={
+                    "title": "Lưu toàn bộ dịch vụ gợi ý",
+                    "message": f"Bạn có chắc muốn lưu {len(valid_suggestions)} dịch vụ gợi ý vào danh mục phòng khám không?",
+                    "confirm_label": "Lưu tất cả",
+                    "cancel_label": "Hủy",
+                    "confirm_action": {
+                        "type": ActionType.CONFIRM_SERVICE_BATCH_CREATE.value,
+                        "label": "Lưu tất cả",
+                        "payload": {"services": valid_suggestions},
+                        "display_message": f"Xác nhận lưu {len(valid_suggestions)} dịch vụ gợi ý",
+                    },
+                },
+            )
+        ],
+    )
+
+
+def _build_service_update_confirm_action(data: Dict[str, Any]) -> UIAction:
+    service_name = str(data.get("service_name") or "dịch vụ").strip()
+    changes = data.get("changes") or {}
+    return UIAction(
+        type=ActionType.OPEN_NATIVE_CONFIRM,
+        label="Xác nhận cập nhật",
+        payload={
+            "title": f"Cập nhật {service_name}",
+            "message": f"Bạn có chắc muốn áp dụng thay đổi cho {service_name} không?",
+            "confirm_label": "Áp dụng",
+            "cancel_label": "Hủy",
+            "confirm_action": {
+                "type": ActionType.CONFIRM_SERVICE_UPDATE.value,
+                "label": "Áp dụng",
+                "payload": {
+                    "service_id": data.get("service_id"),
+                    "service_name": data.get("service_name"),
+                    "base_price": (changes.get("basePrice") or {}).get("new"),
+                    "description": (changes.get("description") or {}).get("new"),
+                    "is_active": (changes.get("isActive") or {}).get("new"),
+                    "duration_time": (changes.get("durationTime") or {}).get("new"),
+                    "slots_required": (changes.get("slotsRequired") or {}).get("new"),
+                    "is_home_visit": (changes.get("isHomeVisit") or {}).get("new"),
+                    "service_category": (changes.get("serviceCategory") or {}).get(
+                        "new"
+                    ),
+                    "pet_type": (changes.get("petType") or {}).get("new"),
+                },
+                "display_message": f"Xác nhận cập nhật dịch vụ {service_name}",
+            },
+        },
+    )
+
+
+def _build_clinic_service_suggestion_components(
+    data: Dict[str, Any],
+) -> List[UIComponent]:
+    suggestions = data.get("suggestions") or []
+    components: List[UIComponent] = []
+
+    batch_component = _build_service_batch_create_component(suggestions)
+    if batch_component is not None:
+        components.append(batch_component)
+
+    for idx, suggestion in enumerate(suggestions):
+        if not isinstance(suggestion, dict):
+            continue
+        service_id = str(
+            suggestion.get("master_service_id") or suggestion.get("name") or idx
+        )
+        components.append(
+            UIComponent(
+                type=ComponentType.SERVICE_CARD,
+                id=f"clinic_service_suggestion_{service_id}",
+                data={
+                    "name": suggestion.get("display_name") or suggestion.get("name"),
+                    "description": suggestion.get("description"),
+                    "base_price": suggestion.get("basePrice"),
+                    "duration_time": suggestion.get("durationTime"),
+                    "service_category": suggestion.get("serviceCategory"),
+                    "pet_type": suggestion.get("petType"),
+                    "selected": False,
+                },
+                actions=[_build_service_create_confirm_action(suggestion)],
+            )
+        )
+
+    return components
+
+
+def _build_clinic_service_catalog_components(data: Dict[str, Any]) -> List[UIComponent]:
+    services = data.get("services") or []
+    components: List[UIComponent] = []
+
+    for idx, service in enumerate(services):
+        if not isinstance(service, dict):
+            continue
+        service_id = str(service.get("service_id") or idx)
+        components.append(
+            UIComponent(
+                type=ComponentType.SERVICE_CARD,
+                id=f"clinic_service_{service_id}",
+                data={
+                    "name": service.get("name"),
+                    "description": service.get("description"),
+                    "base_price": service.get("base_price"),
+                    "duration_time": service.get("duration_time"),
+                    "service_category": service.get("service_category"),
+                    "pet_type": service.get("pet_type"),
+                    "selected": bool(service.get("is_active", True)),
+                },
+                actions=None,
+            )
+        )
+
+    return components
+
+
+def _build_service_update_preview_components(data: Dict[str, Any]) -> List[UIComponent]:
+    changes = data.get("changes") or {}
+    change_labels = [
+        f"{change.get('label')}: {change.get('new_label', change.get('new'))}"
+        for change in changes.values()
+        if isinstance(change, dict)
+    ]
+
+    summary = "; ".join(change_labels) if change_labels else "Không có thay đổi hợp lệ"
+
+    return [
+        UIComponent(
+            type=ComponentType.SERVICE_CARD,
+            id=f"service_update_preview_{data.get('service_id') or 'unknown'}",
+            data={
+                "name": data.get("service_name") or "Dịch vụ",
+                "description": summary,
+                "base_price": (changes.get("basePrice") or {}).get("new"),
+                "duration_time": (changes.get("durationTime") or {}).get("new"),
+                "service_category": (changes.get("serviceCategory") or {}).get("new"),
+                "pet_type": (changes.get("petType") or {}).get("new"),
+                "selected": True,
+            },
+            actions=[_build_service_update_confirm_action(data)],
+        )
+    ]
+
+
 def _build_slot_components(data: Dict[str, Any]) -> List[UIComponent]:
     slots = data.get("available_slots") or data.get("recommended_slots") or []
     clinic_id = str(
@@ -300,11 +616,16 @@ def _build_slot_components(data: Dict[str, Any]) -> List[UIComponent]:
 
 
 def _build_booking_handoff_payload(data: Dict[str, Any]) -> Dict[str, Any]:
-    booking_payload = dict(data.get("booking_preview") or data.get("booking") or {})
+    booking_payload = _extract_booking_payload(data)
+    missing_fields = _extract_missing_fields(data)
+    ready_to_create = _resolve_ready_to_create(data, missing_fields)
+    next_best_action = _resolve_next_best_action(data, missing_fields, ready_to_create)
+
     return {
         "clinic_id": booking_payload.get("clinic_id"),
         "clinic_name": booking_payload.get("clinic_name"),
         "pet_id": booking_payload.get("pet_id"),
+        "pet_name": booking_payload.get("pet_name"),
         "booking_type": booking_payload.get("booking_type"),
         "booking_date": booking_payload.get("booking_date"),
         "start_time": booking_payload.get("start_time"),
@@ -316,18 +637,37 @@ def _build_booking_handoff_payload(data: Dict[str, Any]) -> Dict[str, Any]:
         "home_address": booking_payload.get("home_address"),
         "home_lat": booking_payload.get("home_lat"),
         "home_long": booking_payload.get("home_long"),
+        "missing_fields": missing_fields,
+        "ready_to_create": ready_to_create,
+        "next_best_action": next_best_action,
     }
 
 
 def _build_booking_summary_component(data: Dict[str, Any]) -> UIComponent:
-    booking_payload = data.get("booking_preview") or data.get("booking") or {}
+    booking_payload = _extract_booking_payload(data)
+    missing_fields = _extract_missing_fields(data)
+    ready_to_create = _resolve_ready_to_create(data, missing_fields)
+    next_best_action = _resolve_next_best_action(data, missing_fields, ready_to_create)
+    needs_form_handoff = bool(missing_fields) or next_best_action == "fill_booking_form"
+
     actions: List[UIAction] = []
 
-    if _has_booking_preview(data):
+    if booking_payload.get("id"):
+        actions = [
+            UIAction(
+                type=ActionType.OPEN_DETAIL,
+                label="Xem chi tiết",
+                payload={
+                    "route": "booking_detail",
+                    "id": booking_payload.get("id"),
+                },
+            )
+        ]
+    elif booking_payload:
         actions = [
             UIAction(
                 type=ActionType.OPEN_NATIVE_CONFIRM,
-                label="Mở màn xác nhận",
+                label="Mở form đặt lịch" if needs_form_handoff else "Mở màn xác nhận",
                 payload=_build_booking_handoff_payload(data),
             ),
             UIAction(
@@ -340,17 +680,6 @@ def _build_booking_summary_component(data: Dict[str, Any]) -> UIComponent:
                 label="Hủy",
                 payload={},
             ),
-        ]
-    elif booking_payload.get("id"):
-        actions = [
-            UIAction(
-                type=ActionType.OPEN_DETAIL,
-                label="Xem chi tiết",
-                payload={
-                    "route": "booking_detail",
-                    "id": booking_payload.get("id"),
-                },
-            )
         ]
 
     return UIComponent(
@@ -365,8 +694,9 @@ def _build_booking_summary_component(data: Dict[str, Any]) -> UIComponent:
             "bookings": data.get("bookings", []),
             "multi_pet_summary": data.get("multi_pet_summary"),
             "message": data.get("message"),
-            "next_best_action": data.get("next_best_action"),
-            "ready_to_create": data.get("ready_to_create"),
+            "next_best_action": next_best_action,
+            "ready_to_create": ready_to_create,
+            "missing_fields": missing_fields,
             "service_names": _normalize_list(
                 booking_payload.get("service_names") or data.get("services")
             ),
@@ -574,6 +904,15 @@ def _build_components_for_intent(
     elif intent == "show_services":
         components.extend(_build_service_selection_components(data))
 
+    elif intent == "show_clinic_service_suggestions":
+        components.extend(_build_clinic_service_suggestion_components(data))
+
+    elif intent == "show_clinic_service_catalog":
+        components.extend(_build_clinic_service_catalog_components(data))
+
+    elif intent == "show_service_update_preview":
+        components.extend(_build_service_update_preview_components(data))
+
     elif intent == "show_available_slots":
         components.extend(_build_slot_components(data))
 
@@ -680,9 +1019,15 @@ def build_ui_schema(tool_results: List[Dict[str, Any]]) -> Optional[UISchemaV1]:
             elif intent == "show_available_slots":
                 final_layout = LayoutType.SLOT_GRID
             elif intent in (
+                "show_clinic_service_suggestions",
+                "show_clinic_service_catalog",
+            ):
+                final_layout = LayoutType.GRID
+            elif intent in (
                 "show_booking_summary",
                 "show_emr_summary",
                 "show_vaccination_status",
+                "show_service_update_preview",
             ):
                 final_layout = LayoutType.CARD
 

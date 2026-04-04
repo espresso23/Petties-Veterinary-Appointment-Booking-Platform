@@ -501,6 +501,7 @@ class WebSocketChatTests(unittest.IsolatedAsyncioTestCase):
                 full_response,
                 react_trace,
                 step_index,
+                persisted_ui_schema,
             ) = await websocket_chat._stream_and_collect(
                 FakeStreamingAgent(),
                 "Dat lich cho Mimi",

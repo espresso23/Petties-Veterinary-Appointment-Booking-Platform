@@ -20,8 +20,7 @@ import json
 
 logger = logging.getLogger(__name__)
 
-# FastMCP server instance - single source of truth cho tất cả tools
-mcp_server = FastMCP("Petties Agent Tools")
+from app.core.tools.fastmcp_app import mcp_server
 
 # ===== MCP TOOLS CACHE =====
 # Cache cho list_tools() để tránh gọi lại mỗi request

@@ -35,6 +35,9 @@ export type UIActionType =
   | 'select_item'
   | 'select_services'
   | 'confirm_booking'
+  | 'confirm_service_create'
+  | 'confirm_service_batch_create'
+  | 'confirm_service_update'
   | 'open_native_confirm'
   | 'cancel_flow'
   | 'load_more'
@@ -45,6 +48,7 @@ export type UIActionType =
 export type UIComponentType =
   | 'pet_card'
   | 'clinic_card'
+  | 'service_card'
   | 'service_chip'
   | 'slot_button'
   | 'booking_summary'

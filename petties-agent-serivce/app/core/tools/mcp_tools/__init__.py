@@ -25,3 +25,5 @@ __all__ = [
 import app.core.tools.mcp_tools.staff_tools
 import app.core.tools.mcp_tools.utility_tools
 import app.core.tools.mcp_tools.booking_session_tools
+
+from . import clinic_tools

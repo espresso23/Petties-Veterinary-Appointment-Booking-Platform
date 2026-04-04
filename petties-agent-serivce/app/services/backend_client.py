@@ -103,13 +103,13 @@ class SpringBackendClient:
         raise BackendClientError(last_error or "Khong the goi Spring backend")
 
     async def get_my_pets(self, token: str) -> Any:
-        return await self._request("GET", "/pets/me", token=token)
+        return await self._request("GET", "/api/pets/me", token=token)
 
     async def get_user_pets(self, token: str, user_id: Optional[str] = None) -> Any:
         """
         Compatibility wrapper for booking tools.
 
-        `GET /pets/me` always resolves from JWT, so `user_id` is kept only to
+        `GET /api/pets/me` always resolves from JWT, so `user_id` is kept only to
         preserve the tool-facing signature and session consistency checks.
         """
         return await self.get_my_pets(token)
@@ -117,20 +117,22 @@ class SpringBackendClient:
     async def get_vaccinations_by_pet(
         self, token: str, pet_id: str
     ) -> List[Dict[str, Any]]:
-        return await self._request("GET", f"/vaccinations/pet/{pet_id}", token=token)
+        return await self._request(
+            "GET", f"/api/vaccinations/pet/{pet_id}", token=token
+        )
 
     async def get_upcoming_vaccinations(
         self, token: str, pet_id: str
     ) -> List[Dict[str, Any]]:
         return await self._request(
-            "GET", f"/vaccinations/pet/{pet_id}/upcoming", token=token
+            "GET", f"/api/vaccinations/pet/{pet_id}/upcoming", token=token
         )
 
     async def get_pet(self, token: str, pet_id: str) -> Any:
-        return await self._request("GET", f"/pets/{pet_id}", token=token)
+        return await self._request("GET", f"/api/pets/{pet_id}", token=token)
 
     async def get_booking(self, token: str, booking_id: str) -> Any:
-        return await self._request("GET", f"/bookings/{booking_id}", token=token)
+        return await self._request("GET", f"/api/bookings/{booking_id}", token=token)
 
     async def get_staff_patients(
         self,
@@ -141,7 +143,7 @@ class SpringBackendClient:
     ) -> Any:
         return await self._request(
             "GET",
-            "/pets/staff",
+            "/api/pets/staff",
             token=token,
             params={"clinicId": clinic_id, "staffId": staff_id},
         )
@@ -152,7 +154,7 @@ class SpringBackendClient:
         token: str,
         pet_id: str,
     ) -> Any:
-        return await self._request("GET", f"/emr/pet/{pet_id}", token=token)
+        return await self._request("GET", f"/api/emr/pet/{pet_id}", token=token)
 
     async def find_nearby_clinics(
         self,
@@ -164,7 +166,7 @@ class SpringBackendClient:
     ) -> Dict[str, Any]:
         return await self._request(
             "GET",
-            "/clinics/nearby",
+            "/api/clinics/nearby",
             params={
                 "latitude": latitude,
                 "longitude": longitude,
@@ -181,7 +183,7 @@ class SpringBackendClient:
         is_home_visit: Optional[bool] = None,
     ) -> Any:
         use_compatible_endpoint = pet_species is not None or is_home_visit is not None
-        base_path = f"/services/by-clinic/{clinic_id}"
+        base_path = f"/api/services/by-clinic/{clinic_id}"
         if not use_compatible_endpoint:
             return await self._request("GET", base_path, params=None)
 
@@ -206,31 +208,52 @@ class SpringBackendClient:
         ]
         params.extend(("serviceIds", service_id) for service_id in service_ids)
         return await self._request(
-            "GET", "/bookings/public/available-slots", params=params
+            "GET", "/api/bookings/public/available-slots", params=params
         )
 
     async def resolve_booking_context(self, token: str, payload: Dict[str, Any]) -> Any:
         return await self._request(
-            "POST", "/ai-tools/booking/context", token=token, json_body=payload
+            "POST", "/api/ai-tools/booking/context", token=token, json_body=payload
         )
 
     async def get_booking_clinic_options(
         self, token: str, payload: Dict[str, Any]
     ) -> Any:
         return await self._request(
-            "POST", "/ai-tools/booking/clinic-options", token=token, json_body=payload
+            "POST",
+            "/api/ai-tools/booking/clinic-options",
+            token=token,
+            json_body=payload,
         )
 
     async def get_booking_slot_options(
         self, token: str, payload: Dict[str, Any]
     ) -> Any:
         return await self._request(
-            "POST", "/ai-tools/booking/slot-options", token=token, json_body=payload
+            "POST", "/api/ai-tools/booking/slot-options", token=token, json_body=payload
         )
 
     async def create_ai_booking(self, token: str, payload: Dict[str, Any]) -> Any:
         return await self._request(
-            "POST", "/ai-tools/booking/create", token=token, json_body=payload
+            "POST", "/api/ai-tools/booking/create", token=token, json_body=payload
+        )
+
+    async def get_clinic_bookings(
+        self,
+        token: str,
+        clinic_id: str,
+        status: Optional[str] = None,
+        booking_type: Optional[str] = None,
+        page: int = 0,
+        size: int = 20,
+    ) -> Dict[str, Any]:
+        params: Dict[str, Any] = {"page": page, "size": size}
+        if status:
+            params["status"] = status
+        if booking_type:
+            params["type"] = booking_type
+        return await self._request(
+            "GET", f"/api/bookings/clinic/{clinic_id}", token=token, params=params
         )
 
     async def get_my_bookings(
@@ -244,12 +267,12 @@ class SpringBackendClient:
         if status:
             params["status"] = status
         return await self._request(
-            "GET", "/bookings/my-bookings", token=token, params=params
+            "GET", "/api/bookings/my-bookings", token=token, params=params
         )
 
     async def get_my_clinics(self, token: str) -> Any:
         """Get clinics owned by current user (CLINIC_OWNER/MANAGER)."""
-        return await self._request("GET", "/clinics/owner/my-clinics", token=token)
+        return await self._request("GET", "/api/clinics/owner/my-clinics", token=token)
 
     async def search_clinics_by_name(
         self,
@@ -259,23 +282,8 @@ class SpringBackendClient:
     ) -> Dict[str, Any]:
         return await self._request(
             "GET",
-            "/clinics/search",
+            "/api/clinics/search",
             params={"query": name, "page": page, "size": size},
-        )
-
-    async def get_master_services(
-        self,
-        category: Optional[str] = None,
-        pet_type: Optional[str] = None,
-    ) -> Any:
-        """Get all master services (service templates)."""
-        params = {}
-        if category:
-            params["category"] = category
-        if pet_type:
-            params["petType"] = pet_type
-        return await self._request(
-            "GET", "/master-services", params=params if params else None
         )
 
     async def get_my_clinic_services(
@@ -283,7 +291,7 @@ class SpringBackendClient:
         token: str,
     ) -> Any:
         """Get current user's clinic services (no clinic_id needed - uses auth)."""
-        return await self._request("GET", "/services", token=token)
+        return await self._request("GET", "/api/services", token=token)
 
     async def update_clinic_service(
         self,
@@ -294,7 +302,7 @@ class SpringBackendClient:
         """Update a clinic service."""
         return await self._request(
             "PUT",
-            f"/services/{service_id}",
+            f"/api/services/{service_id}",
             token=token,
             json_body=update_data,
         )
@@ -307,7 +315,7 @@ class SpringBackendClient:
         """Create a new clinic service."""
         return await self._request(
             "POST",
-            "/services",
+            "/api/services",
             token=token,
             json_body=service_data,
         )
@@ -322,7 +330,7 @@ class SpringBackendClient:
         """Lấy danh sách ca làm việc của phòng khám trong khoảng thời gian"""
         return await self._request(
             "GET",
-            f"/staff-shifts/clinics/{clinic_id}/shifts",
+            f"/api/staff-shifts/clinics/{clinic_id}/shifts",
             token=token,
             params={
                 "startDate": start_date,
@@ -338,7 +346,7 @@ class SpringBackendClient:
     ) -> Any:
         return await self._request(
             "GET",
-            f"/payments/history/clinic/{clinic_id}/revenue",
+            f"/api/payments/history/clinic/{clinic_id}/revenue",
             token=token,
             params={"period": period},
         )
@@ -349,7 +357,134 @@ class SpringBackendClient:
         clinic_id: str,
     ) -> Any:
         return await self._request(
-            "GET", f"/payments/history/clinic/{clinic_id}/breakdown", token=token
+            "GET", f"/api/payments/history/clinic/{clinic_id}/breakdown", token=token
+        )
+
+    async def get_available_staff_for_reassign(
+        self, token: str, booking_id: str, service_id: str
+    ) -> List[Dict[str, Any]]:
+        return await self._request(
+            "GET",
+            f"/api/bookings/{booking_id}/services/{service_id}/reassign/available",
+            token=token,
+        )
+
+    async def reassign_staff_for_service(
+        self, token: str, booking_id: str, service_id: str, payload: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        return await self._request(
+            "PUT",
+            f"/api/bookings/{booking_id}/services/{service_id}/reassign",
+            token=token,
+            json_body=payload,
+        )
+
+    async def confirm_booking(self, token: str, booking_id: str) -> Dict[str, Any]:
+        return await self._request(
+            "POST",
+            f"/api/bookings/{booking_id}/confirm",
+            token=token,
+        )
+
+    async def cancel_booking(
+        self, token: str, booking_id: str, reason: str
+    ) -> Dict[str, Any]:
+        return await self._request(
+            "POST",
+            f"/api/bookings/{booking_id}/cancel",
+            token=token,
+            params={"reason": reason},
+        )
+
+    async def list_clinic_services(
+        self, token: str, is_home_visit: bool = None, is_active: bool = None
+    ) -> list:
+        params = {}
+        if is_home_visit is not None:
+            params["isHomeVisit"] = is_home_visit
+        if is_active is not None:
+            params["isActive"] = is_active
+        return await self._request("GET", "/api/services", token=token, params=params)
+
+    async def update_service_info(
+        self, token: str, service_id: str, payload: dict
+    ) -> dict:
+        return await self._request(
+            "PUT", f"/api/services/{service_id}", token=token, json_body=payload
+        )
+
+    async def create_service(self, token: str, payload: dict) -> dict:
+        return await self._request(
+            "POST", "/api/services", token=token, json_body=payload
+        )
+
+    async def get_clinic_today_bookings(
+        self, token: str, clinic_id: str
+    ) -> List[Dict[str, Any]]:
+        return await self._request(
+            "GET", f"/api/bookings/clinic/{clinic_id}/today", token=token
+        )
+
+    async def get_clinic_revenue_summary(
+        self, token: str, clinic_id: str, period: str = "MONTH"
+    ) -> Dict[str, Any]:
+        return await self._request(
+            "GET",
+            f"/api/payments/history/clinic/{clinic_id}/revenue",
+            token=token,
+            params={"period": period},
+        )
+
+    async def get_clinic_revenue_breakdown(
+        self, token: str, clinic_id: str
+    ) -> Dict[str, Any]:
+        return await self._request(
+            "GET",
+            f"/api/payments/history/clinic/{clinic_id}/breakdown",
+            token=token,
+        )
+
+    async def get_clinic_staff(
+        self, token: str, clinic_id: str
+    ) -> List[Dict[str, Any]]:
+        return await self._request(
+            "GET", f"/api/clinics/{clinic_id}/staff", token=token
+        )
+
+    async def get_booking_availability(
+        self, token: str, booking_id: str
+    ) -> Dict[str, Any]:
+        return await self._request(
+            "GET", f"/api/bookings/{booking_id}/availability", token=token
+        )
+
+    async def get_clinic_shifts(
+        self, token: str, clinic_id: str, start_date: str, end_date: str
+    ) -> List[Dict[str, Any]]:
+        return await self._request(
+            "GET",
+            f"/api/clinics/{clinic_id}/shifts",
+            token=token,
+            params={"startDate": start_date, "endDate": end_date},
+        )
+
+    async def get_master_services(
+        self,
+        token: str,
+        category: Optional[str] = None,
+        pet_type: Optional[str] = None,
+    ) -> Any:
+        """Get all master services (service templates)."""
+        params = {}
+        if category:
+            params["category"] = category
+        if pet_type:
+            params["petType"] = pet_type
+        return await self._request(
+            "GET",
+            "/api/master-services",
+            token=token,
+            params=params if params else None,
         )
 
 

@@ -1,6 +1,6 @@
 # Kế hoạch chỉnh sửa giao diện CreateEmrPage theo workflow lâm sàng có AI hỗ trợ
 
-Last Updated: 2026-03-30
+Last Updated: 2026-04-03
 
 ## Problem Statement
 
@@ -710,7 +710,8 @@ Sau khi plan này được duyệt, bước triển khai nên đi theo thứ t�
 ### Token behavior (để tránh hiểu sai)
 
 - Flow có chọn bệnh thường tạo 2 lần gọi analyze.
-- Case match mạnh chỉ giúp skip VLM (đọc ảnh), không đồng nghĩa skip toàn bộ model.
+- Với `full` mode, nếu có ảnh lâm sàng thì luôn chạy VLM để giữ nhất quán phần `Dấu hiệu từ ảnh`.
+- Với `selected_only`, hệ thống tái sử dụng vision context từ lần `full`, không chạy lại full vision pipeline.
 - LLM synthesis hiện vẫn chạy ở mỗi lần analyze.
 - Vì vậy chi phí token tăng theo số lần analyze; không có quy tắc "match thì chỉ 1 lần, không match thì 2 lần".
 

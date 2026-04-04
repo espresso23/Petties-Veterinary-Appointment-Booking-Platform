@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../../../../config/constants/app_colors.dart';
 import '../../../../data/models/ai_chat.dart';
@@ -435,6 +435,10 @@ class AiChatThinkingBubble extends StatelessWidget {
     final canExpand = trace.isNotEmpty;
     final width = MediaQuery.of(context).size.width;
 
+    String cleanLabel = label;
+    cleanLabel = cleanLabel.replaceAll(RegExp(r'\n?\{"location":[^}]+\}'), '');
+    cleanLabel = cleanLabel.replaceAll(RegExp(r'\n?\{"ui_action":[^}]+\}'), '');
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: Row(
@@ -483,10 +487,10 @@ class AiChatThinkingBubble extends StatelessWidget {
                         AiChatTypingDots(),
                       ],
                     ),
-                    if (label.trim().isNotEmpty) ...[
+                    if (cleanLabel.trim().isNotEmpty) ...[
                       const SizedBox(height: 6),
                       Text(
-                        label.trim(),
+                        cleanLabel.trim(),
                         style: const TextStyle(
                           fontSize: 12,
                           height: 1.45,
@@ -871,7 +875,11 @@ class _AiChatInlineThinkingTrace extends StatelessWidget {
         children: steps.map((step) {
           final stepType = (step['step_type']?.toString() ?? '').toLowerCase();
           final toolName = step['tool_name']?.toString();
-          final content = step['content']?.toString() ?? '';
+          String content = step['content']?.toString() ?? '';
+
+          content = content.replaceAll(RegExp(r'\n?\{"location":[^}]+\}'), '');
+          content = content.replaceAll(RegExp(r'\n?\{"ui_action":[^}]+\}'), '');
+
           final result = step['tool_result'];
 
           var icon = Icons.bolt;

@@ -18,18 +18,24 @@ class PetHealthSummary {
   });
 
   factory PetHealthSummary.fromJson(Map<String, dynamic> json) {
+    final petInfoJson = json['pet_info'] ?? json['petInfo'];
+    final latestEmrJson = json['latest_emr'] ?? json['latestEmr'];
+    final healthWarningsJson = json['health_warnings'] ?? json['healthWarnings'];
+    final medicationRemindersJson = json['medication_reminders'] ?? json['medicationReminders'];
+    final suggestedActionsJson = json['suggested_actions'] ?? json['suggestedActions'];
+
     return PetHealthSummary(
-      petInfo: json['pet_info'] != null ? PetInfo.fromJson(json['pet_info']) : null,
-      latestEmr: json['latest_emr'] != null ? LatestEmr.fromJson(json['latest_emr']) : null,
-      healthWarnings: (json['health_warnings'] as List<dynamic>?)
+      petInfo: petInfoJson != null ? PetInfo.fromJson(petInfoJson) : null,
+      latestEmr: latestEmrJson != null ? LatestEmr.fromJson(latestEmrJson) : null,
+      healthWarnings: (healthWarningsJson as List<dynamic>?)
               ?.map((e) => HealthWarning.fromJson(e))
               .toList() ??
           [],
-      medicationReminders: (json['medication_reminders'] as List<dynamic>?)
+      medicationReminders: (medicationRemindersJson as List<dynamic>?)
               ?.map((e) => MedicationReminder.fromJson(e))
               .toList() ??
           [],
-      suggestedActions: (json['suggested_actions'] as List<dynamic>?)
+      suggestedActions: (suggestedActionsJson as List<dynamic>?)
               ?.map((e) => SuggestedAction.fromJson(e))
               .toList() ??
           [],
@@ -58,12 +64,12 @@ class PetInfo {
 
   factory PetInfo.fromJson(Map<String, dynamic> json) {
     return PetInfo(
-      petId: json['pet_id'] ?? '',
+      petId: json['pet_id'] ?? json['petId'] ?? '',
       name: json['name'] ?? '',
       species: json['species'],
       breed: json['breed'],
-      ageMonths: json['age_months'],
-      weightKg: json['weight_kg']?.toDouble(),
+      ageMonths: json['age_months'] ?? json['ageMonths'],
+      weightKg: (json['weight_kg'] ?? json['weightKg'])?.toDouble(),
     );
   }
 
@@ -95,9 +101,21 @@ class LatestEmr {
   });
 
   factory LatestEmr.fromJson(Map<String, dynamic> json) {
+    DateTime? parsedExamDate;
+    final examDateStr = json['exam_date'] ?? json['examDate'];
+    if (examDateStr != null) {
+      parsedExamDate = DateTime.tryParse(examDateStr);
+      if (parsedExamDate == null && examDateStr is String && examDateStr.contains('/')) {
+        final parts = examDateStr.split('/');
+        if (parts.length == 3) {
+          parsedExamDate = DateTime.tryParse('${parts[2]}-${parts[1]}-${parts[0]}');
+        }
+      }
+    }
+
     return LatestEmr(
-      examDate: json['exam_date'] != null ? DateTime.tryParse(json['exam_date']) : null,
-      clinicName: json['clinic_name'],
+      examDate: parsedExamDate,
+      clinicName: json['clinic_name'] ?? json['clinicName'],
       diagnosis: json['diagnosis'],
       treatment: json['treatment'],
       subjective: json['subjective'],

@@ -1,6 +1,6 @@
 # AI Diagnosis Runtime Flow
 
-> Last Updated: 2026-04-02
+> Last Updated: 2026-04-03
 > Status: Active source of truth for deployed AI diagnosis runtime behavior
 > Scope: `petties-agent-serivce`, `backend-spring/petties`, `petties-web`, `petties_mobile`, confirmed EMR to Case Memory sync, and runtime diagnosis for `STAFF` / `ADMIN`
 > Companion documents: SRS `docs-references/documentation/SRS/PETTIES_SRS.md` section `3.11.11`, SDD `docs-references/documentation/SDD/REPORT_4_SDD_SYSTEM_DESIGN.md` section `4.21`
@@ -14,6 +14,7 @@ This document defines the deployed end-to-end lifecycle of Petties AI diagnosis.
 
 It is the canonical runtime reference for:
 
+- clarifying the fundamental nature of the system: `ai-diagnose` is an adaptive, transparent, evidence-based diagnostic assistant that learns from confirmed EMRs. It is NOT a permanent event-sourcing system that records every single intermediate medical interaction.
 - how Web builds diagnosis requests
 - how the AI service runs `describe_only`, `full`, and `selected_only`
 - how confirmed EMR records are persisted and pushed into Case Memory
@@ -147,7 +148,7 @@ The current flow does not depend on a structured `test_results` field in the EMR
 1. Web collects the current draft SOAP, clinical narrative, image URLs, pet context, and booking context.
 2. Web sends `POST /api/v1/staff-diagnosis/analyze` with `synthesis_mode = full`.
 3. The AI service resolves trusted booking/pet context before synthesis.
-4. If needed, Gemini Vision analyzes clinical images.
+4. If at least one clinical image is present in `full` mode, Gemini Vision is always executed.
 5. The service retrieves internal evidence from KB, KG, and Case Memory.
 6. The diagnosis protocol service builds a deterministic protocol decision using generic safety checks (weight, allergy) without disease-specific hardcoded rules.
 7. The service builds a section-level grounding bundle for Subjective, Objective, Assessment, and Plan from request facts, vision findings, KB chunks, and similar confirmed EMR cases.
@@ -168,8 +169,9 @@ The current flow does not depend on a structured `test_results` field in the EMR
 
 Important notes:
 
-- `selected_only` is a cache-reuse optimization, not a persisted workflow state.
+- `selected_only` is a cache-reuse optimization (using a ~20-minute in-memory cache), not a persisted workflow state. It optimizes follow-up generation for an active session.
 - A cache miss is valid behavior and must not break EMR entry.
+- `full` mode keeps a comparison set of up to 3 differential diagnoses; if synthesis returns fewer items, the service backfills from grounded candidates and canonical catalog entries before returning the response.
 - The treatment source priority in `selected_only` is:
   1. `common_prescriptions` learned from confirmed EMR
   2. LLM fallback if no valid learned prescriptions exist
@@ -229,6 +231,8 @@ The saved EMR record may include:
 - `aiDiagnosisContext`
 
 ### 9.2 Canonical persisted AI context
+
+The `aiDiagnosisContext` is intentionally designed as a lightweight trace rather than a full reasoning log or an event-sourcing payload. It captures the final clinical selections made by the doctor for auditability and replay-safe processing, NOT every intermediate prompt or inference step.
 
 When Web saves AI context into EMR, the canonical payload must use snake_case:
 
@@ -399,7 +403,41 @@ Disclaimer: Đây là gợi ý hỗ trợ tham khảo...
 
 ---
 
-## 12. Deprecated or Non-Canonical Designs
+## 12. Architecture Defense & Technical FAQ
+
+This section anticipates technical scrutiny and provides the architectural defense for the chosen designs.
+
+### 12.1 Defense against Event Sourcing
+**Question:** Why doesn't the system use an Event Sourcing architecture to replay the exact state of the AI at any given time?
+
+**Defense:** Event sourcing is an anti-pattern for LLM-based clinical inference systems where the model behavior (e.g., prompt iterations, LLM endpoint updates) naturally drifts over time. Storing the *input* (the EMR state) and the *final chosen output* (`aiDiagnosisContext`) is sufficient to understand the clinical outcome and provide an audit trail. A full event log of intermediate inferences inflates the database massively with zero clinical or legal value since the final responsibility lies entirely with the human doctor confirming the EMR.
+
+### 12.2 Defense of the ~20-minute In-Memory Cache
+**Question:** Why use a 20-minute in-memory cache (or transient Redis) for `selected_only` instead of persisting the workflow state in a PostgreSQL database?
+
+**Defense:** The `selected_only` transition is a stateless inference optimization, not a long-running business saga (like a payment or checkout). Persisting intermediate states violates the "lightweight" principle and creates stale-state invalidation headaches if the doctor modifies the EMR text concurrently. In-memory is fast, disposable, and scales horizontally. If a cache miss occurs, the system fails gracefully by requiring the user to hit the `full` analysis button again, taking mere seconds to rebuild a fresh, accurate context based on the latest EMR text.
+
+### 12.3 Handling the Cold Start Problem
+**Question:** The system learns from confirmed EMRs. How does it handle a "Cold Start" when a new clinic has zero confirmed cases in its Case Memory?
+
+**Defense:** The system retrieves evidence from three primary sources:
+1. `Knowledge Base (KB)` (Internal clinical guidelines)
+2. `Knowledge Graph (KG)` (Disease-symptom relationships)
+3. `Case Memory` (Confirmed EMRs)
+
+In a Cold Start scenario, Case Memory yields 0 results. The hybrid RAG engine falls back gracefully and heavily relies on the KB and KG. The LLM synthesis will still generate valid differentials and SOAP drafts, though prescription patterns might rely on the safe `llm_fallback` mechanisms (with strict safety gates like weight/allergy checks) until enough real EMRs are ingested.
+
+### 12.4 Defense against Data Poisoning (Bad EMRs)
+**Question:** If a doctor enters a bad diagnosis or incorrect prescription, will the AI learn it and poison future recommendations?
+
+**Defense:** The system implements a 3-layer fault-tolerant design at the code level to prevent data poisoning:
+1. **Strict Ingestion Gate (Confirmed State Only):** The `EmrCaseMemorySyncService._is_valid_for_ingest()` method explicitly rejects any EMR payload where `verified` is False or missing critical text. The AI never learns from draft or unconfirmed EMRs.
+2. **Multi-Source Grounding:** In `StaffDiagnosisService._retrieve_internal_context()`, the system forces a concurrent retrieval (`asyncio.gather(hybrid_task, case_task)`). The LLM is always grounded by both the `Knowledge Base` (textbook truth) and `Case Memory` (experiential truth). A single anomalous case in memory is outweighed by textbook facts and vector similarity to other correct cases.
+3. **Purge Capability:** The core engine provides a `CaseMemory.delete_case()` API that permanently removes specific vectors from Qdrant. If a bad clinical pattern is identified, administrators or Chief Medical Officers can surgically remove the poisoned case from the AI's memory.
+
+---
+
+## 13. Deprecated or Non-Canonical Designs
 
 The following should not be treated as active runtime truth:
 
@@ -412,7 +450,7 @@ The following should not be treated as active runtime truth:
 
 ---
 
-## 13. Documentation Change Rules
+## 14. Documentation Change Rules
 
 Any future change to AI diagnosis must update this document if it changes one of the following:
 

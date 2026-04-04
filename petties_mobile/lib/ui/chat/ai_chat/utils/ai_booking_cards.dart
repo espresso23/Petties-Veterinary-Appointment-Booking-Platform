@@ -313,7 +313,7 @@ class AiStructuredBookingSummaryCard extends StatelessWidget {
                 ),
               ),
               child: Text(
-                isConfirmed ? 'ĐANG MỞ MÀN XÁC NHẬN' : 'MỞ MÀN XÁC NHẬN',
+                isConfirmed ? 'ĐÃ GỬI XÁC NHẬN' : 'XÁC NHẬN ĐẶT LỊCH',
                 style: const TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
@@ -382,7 +382,7 @@ class AiBookingCreatedCard extends StatelessWidget {
             ),
           if (bookingCreated.services.isNotEmpty)
             _BookingInfoRow(
-              label: 'Dịch vụ',
+              label: 'Dịch Vụ',
               value: bookingCreated.services.join(', '),
             ),
           const SizedBox(height: 6),
@@ -390,6 +390,134 @@ class AiBookingCreatedCard extends StatelessWidget {
             bookingCreated.managerWillConfirm
                 ? 'Yêu cầu đã được tạo. Clinic manager sẽ xác nhận sau.'
                 : 'Booking đã được tạo thành công.',
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: AppColors.successDark,
+            ),
+          ),
+          if (onViewBooking != null) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              height: 42,
+              child: ElevatedButton(
+                onPressed: onViewBooking,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.white,
+                  foregroundColor: AppColors.successDark,
+                  elevation: 0,
+                  shadowColor: AppColors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    side: const BorderSide(
+                      color: AppColors.successDark,
+                      width: 2,
+                    ),
+                  ),
+                ),
+                child: const Text(
+                  'Xem lịch hẹn của tôi',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class AiMultiPetBookingCreatedCard extends StatelessWidget {
+  final AiBookingCreatedPayload multiPetBooking;
+  final String Function(String? value) formatBookingDate;
+  final VoidCallback? onViewBooking;
+
+  const AiMultiPetBookingCreatedCard({
+    super.key,
+    required this.multiPetBooking,
+    required this.formatBookingDate,
+    this.onViewBooking,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bookings = multiPetBooking.bookings ?? [];
+    final totalBookings = multiPetBooking.multiPetSummary?['total_bookings']
+            as int? ??
+        bookings.length;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.successLight,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.successDark, width: 2),
+        boxShadow: const [
+          BoxShadow(color: AppColors.successDark, offset: Offset(3, 3)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.check_circle, color: AppColors.successDark, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Đã tạo $totalBookings yêu cầu đặt lịch',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.successDark,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...bookings.take(3).map((booking) {
+            final petName = booking['pet_name']?.toString() ?? '';
+            final clinicName = booking['clinic_name']?.toString() ?? '';
+            final date = booking['date']?.toString() ?? '';
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                children: [
+                  const Icon(Icons.pets, size: 14, color: AppColors.stone600),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      '${petName.isNotEmpty ? '$petName - ' : ''}${clinicName.isNotEmpty ? clinicName : ''}${date.isNotEmpty ? ' (${formatBookingDate(date)})' : ''}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.stone700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+          if (bookings.length > 3)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                '...và ${bookings.length - 3} booking khác',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontStyle: FontStyle.italic,
+                  color: AppColors.stone500,
+                ),
+              ),
+            ),
+          const SizedBox(height: 6),
+          Text(
+            'Clinic manager sẽ xác nhận từng booking sau.',
             style: const TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
@@ -542,7 +670,7 @@ class AiBookingConfirmationCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           const Text(
-            'Nhấn để mở màn xác nhận đặt lịch chuẩn. Nếu chưa đúng, bạn có thể yêu cầu chỉnh lại thông tin.',
+            'Nhấn xác nhận để AI tiếp tục tạo booking thật. Nếu chưa đúng, bạn có thể yêu cầu chỉnh lại thông tin.',
             style: TextStyle(
               fontSize: 11,
               height: 1.4,
@@ -573,7 +701,7 @@ class AiBookingConfirmationCard extends StatelessWidget {
                     ),
                   ),
                   child: Text(
-                    isConfirmed ? 'ĐANG MỞ MÀN XÁC NHẬN' : 'MỞ MÀN XÁC NHẬN',
+                    isConfirmed ? 'ĐÃ GỬI XÁC NHẬN' : 'XÁC NHẬN ĐẶT LỊCH',
                     style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,

@@ -38,7 +38,6 @@ from app.core.tools.mcp_tools.booking_session_tools import (
     update_booking_draft,
 )
 from app.core.tools.mcp_tools.utility_tools import (
-    extract_booking_entities,
     validate_booking_readiness,
 )
 
@@ -212,16 +211,6 @@ class BookingSessionToolTests(unittest.IsolatedAsyncioTestCase):
 
 
 class BookingUtilityToolTests(unittest.IsolatedAsyncioTestCase):
-    async def test_extract_booking_entities_returns_structured_payload(self):
-        result = await extract_booking_entities(
-            "Tôi muốn đặt lịch khám tổng quát cho bé Mimi ở phòng khám Pet Care sáng mai"
-        )
-
-        self.assertTrue(result["success"])
-        self.assertTrue(result["data"]["booking_intent"])
-        self.assertIsNotNone(result["data"]["booking_date"])
-        self.assertEqual(result["data"]["time_preference"], "buoi_sang")
-
     async def test_validate_booking_readiness_for_home_visit(self):
         result = await validate_booking_readiness(
             pet_id="pet-1",

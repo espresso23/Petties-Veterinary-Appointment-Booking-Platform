@@ -121,11 +121,9 @@
 
 9. **Knowledge Base Management (RAG)**
     - Upload tài liệu (PDF, DOCX, TXT, MD)
-    - Tự động extract ảnh từ PDF và tạo image embeddings (Jina CLIP v2)
-    - Theo dõi trạng thái indexing (chunking & vectorization + image count)
+    - Theo dõi trạng thái indexing (chunking & vectorization)
     - Test RAG retrieval với query examples
-    - Hybrid search (text + image similarity) qua `/query-hybrid`
-    - Xem vector count và image count
+    - Xem vector count
 
 10. **Agent Testing & Debugging**
     - Interactive Chat Simulator để test agent

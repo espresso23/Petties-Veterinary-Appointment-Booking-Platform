@@ -58,7 +58,21 @@ void main() {
       expect(event.toolParams?['radius_km'], 5);
     });
 
-    test('parse ui_schema socket event with select_services and native confirm actions', () {
+    test('parse thinking_stream socket event for live reasoning updates', () {
+      final event = AiChatSocketEvent.fromJson({
+        'type': 'thinking_stream',
+        'content': 'Trợ lý đang tổng hợp phản hồi',
+        'step_index': 2,
+      });
+
+      expect(event.type, AiChatSocketEventType.thinkingStream);
+      expect(event.content, 'Trợ lý đang tổng hợp phản hồi');
+      expect(event.stepIndex, 2);
+    });
+
+    test(
+        'parse ui_schema socket event with select_services and native confirm actions',
+        () {
       final event = AiChatSocketEvent.fromJson({
         'type': 'ui_schema',
         'ui_schema': {
@@ -135,7 +149,8 @@ void main() {
       expect(event.type, AiChatSocketEventType.uiSchema);
       expect(event.uiSchema, isNotNull);
       expect(event.uiSchema!.components, hasLength(3));
-      expect(event.uiSchema!.components[1].actions!.first.type, 'select_services');
+      expect(
+          event.uiSchema!.components[1].actions!.first.type, 'select_services');
       expect(
         event.uiSchema!.components[2].actions!.first.type,
         'open_native_confirm',
@@ -152,6 +167,45 @@ void main() {
 
       expect(event.type, AiChatSocketEventType.serviceChips);
       expect(event.uiSchema, isNull);
+    });
+
+    test('parse booking_state_update event with draft snapshot', () {
+      final event = AiChatSocketEvent.fromJson({
+        'type': 'booking_state_update',
+        'booking_state': {
+          'draft': {
+            'clinic_id': 'clinic-1',
+            'pet_id': 'pet-1',
+            'booking_date': '2026-04-04',
+            'service_ids': ['svc-1'],
+          },
+          'status': 'PRESENTING',
+          'stage': 'CONFIRMING',
+        },
+      });
+
+      expect(event.type, AiChatSocketEventType.bookingStateUpdate);
+      expect(event.bookingState, isNotNull);
+      expect(event.bookingState!['draft']['clinic_id'], 'clinic-1');
+      expect(event.bookingState!['stage'], 'CONFIRMING');
+    });
+
+    test('parse booking summary payload with draft-first metadata', () {
+      final summary = AiBookingSummaryPayload.fromJson({
+        'clinic_id': 'clinic-1',
+        'pet_id': 'pet-1',
+        'booking_date': '2026-04-04',
+        'service_ids': ['svc-1'],
+        'missing_fields': ['start_time', 'service_ids'],
+        'ready_to_create': false,
+        'next_best_action': 'fill_booking_form',
+      });
+
+      expect(summary.clinicId, 'clinic-1');
+      expect(summary.petId, 'pet-1');
+      expect(summary.missingFields, ['start_time', 'service_ids']);
+      expect(summary.readyToCreate, isFalse);
+      expect(summary.nextBestAction, 'fill_booking_form');
     });
   });
 }

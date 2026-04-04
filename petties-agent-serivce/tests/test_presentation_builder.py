@@ -47,6 +47,33 @@ def test_resolve_intent_mapping():
         resolve_intent("unknown_utility_tool", {"success": True, "data": {}})
         == "show_text"
     )
+    assert (
+        resolve_intent(
+            "generate_clinic_services",
+            {"success": True, "data": {"suggestions": [{"name": "Khám tổng quát"}]}},
+        )
+        == "show_clinic_service_suggestions"
+    )
+    assert (
+        resolve_intent(
+            "list_clinic_services",
+            {"success": True, "data": {"services": [{"service_id": "svc-1"}]}},
+        )
+        == "show_clinic_service_catalog"
+    )
+    assert (
+        resolve_intent(
+            "update_service_info",
+            {
+                "success": True,
+                "data": {
+                    "service_id": "svc-1",
+                    "changes": {"basePrice": {"new": 100000}},
+                },
+            },
+        )
+        == "show_service_update_preview"
+    )
 
 
 def test_build_ui_schema_single_clinic():
@@ -280,6 +307,122 @@ def test_booking_preview_maps_to_native_confirm_not_chat_confirm():
     assert summary.type == ComponentType.BOOKING_SUMMARY
     assert summary.actions is not None
     assert summary.actions[0].type == ActionType.OPEN_NATIVE_CONFIRM
+    assert summary.actions[0].label == "Mở màn xác nhận"
     assert summary.actions[0].payload["clinic_id"] == "c1"
     assert summary.actions[0].payload["service_ids"] == ["svc-1"]
     assert summary.data["service_names"] == ["Khám tổng quát cho chó"]
+
+
+def test_generate_clinic_services_builds_service_cards_with_native_confirm():
+    tool_results = [
+        {
+            "tool_name": "generate_clinic_services",
+            "success": True,
+            "data": {
+                "suggestions": [
+                    {
+                        "name": "Khám tổng quát",
+                        "description": "Khám sức khỏe định kỳ",
+                        "basePrice": 150000,
+                        "slotsRequired": 1,
+                        "durationTime": 30,
+                        "serviceCategory": "HEALTHCARE",
+                        "petType": "DOG",
+                    }
+                ]
+            },
+        }
+    ]
+
+    schema = build_ui_schema(tool_results)
+
+    assert schema is not None
+    assert schema.layout == LayoutType.GRID
+    assert schema.components[0].type == ComponentType.BUTTON
+    assert (
+        schema.components[0].actions[0].payload["confirm_action"]["type"]
+        == ActionType.CONFIRM_SERVICE_BATCH_CREATE.value
+    )
+    component = schema.components[1]
+    assert component.type == ComponentType.SERVICE_CARD
+    assert component.data["name"] == "Khám tổng quát"
+    assert component.actions is not None
+    assert component.actions[0].type == ActionType.OPEN_NATIVE_CONFIRM
+    confirm_action = component.actions[0].payload["confirm_action"]
+    assert confirm_action["type"] == ActionType.CONFIRM_SERVICE_CREATE.value
+    assert confirm_action["payload"]["base_price"] == 150000
+    assert confirm_action["payload"]["slots_required"] == 1
+
+
+def test_update_service_info_builds_confirmable_preview_card():
+    tool_results = [
+        {
+            "tool_name": "update_service_info",
+            "success": True,
+            "data": {
+                "service_id": "svc-1",
+                "service_name": "Tiêm phòng",
+                "changes": {
+                    "basePrice": {"new": 220000, "label": "Giá (VND)"},
+                    "isActive": {
+                        "new": True,
+                        "label": "Trạng thái",
+                        "new_label": "Hoạt động",
+                    },
+                },
+            },
+        }
+    ]
+
+    schema = build_ui_schema(tool_results)
+
+    assert schema is not None
+    assert schema.layout == LayoutType.CARD
+    component = schema.components[0]
+    assert component.type == ComponentType.SERVICE_CARD
+    assert "Giá (VND): 220000" in component.data["description"]
+    assert component.actions is not None
+    assert component.actions[0].type == ActionType.OPEN_NATIVE_CONFIRM
+    confirm_action = component.actions[0].payload["confirm_action"]
+    assert confirm_action["type"] == ActionType.CONFIRM_SERVICE_UPDATE.value
+    assert confirm_action["payload"]["service_id"] == "svc-1"
+
+
+def test_booking_session_draft_maps_to_summary_with_form_handoff():
+    tool_results = [
+        {
+            "tool_name": "update_booking_draft",
+            "success": True,
+            "data": {
+                "message": "Đã cập nhật booking draft.",
+                "state": {
+                    "draft": {
+                        "clinic_id": "clinic-1",
+                        "clinic_name": "Petties Clinic",
+                        "pet_id": "pet-1",
+                        "booking_date": "2026-04-04",
+                        "service_ids": ["svc-1"],
+                        "service_names": ["Khám tổng quát"],
+                        "booking_type": "IN_CLINIC",
+                    }
+                },
+                "missing_fields": ["start_time"],
+                "next_best_action": "fill_booking_form",
+                "ready_for_review": False,
+            },
+        }
+    ]
+
+    schema = build_ui_schema(tool_results)
+
+    assert schema is not None
+    assert schema.layout == LayoutType.CARD
+    summary = schema.components[0]
+    assert summary.type == ComponentType.BOOKING_SUMMARY
+    assert summary.actions is not None
+    assert summary.actions[0].type == ActionType.OPEN_NATIVE_CONFIRM
+    assert summary.actions[0].label == "Mở form đặt lịch"
+    assert summary.actions[0].payload["next_best_action"] == "fill_booking_form"
+    assert summary.actions[0].payload["missing_fields"] == ["start_time"]
+    assert summary.data["missing_fields"] == ["start_time"]
+    assert summary.data["ready_to_create"] is False

@@ -7,6 +7,7 @@ Auto-sync behavior:
 - Only updates tools that actually changed (compares description + schema)
 - SYSTEM_MANAGED_TOOLS are always enabled
 - ADMIN_CONFIGURABLE_TOOLS can be toggled by admin without being auto-disabled
+- Any DB tool not present in current FastMCP registry is removed
 """
 
 import hashlib
@@ -23,14 +24,6 @@ from app.db.postgres.session import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
 
-
-LEGACY_TOOL_RENAMES = {
-    "pet_care_qa": "pet_knowledge_search",
-    "symptom_search": "pet_knowledge_search",
-    "search_clinics": "search_clinics_nearby",
-    "check_slots": "check_available_slots",
-    "create_booking": "create_booking_for_user",
-}
 
 ADMIN_CONFIGURABLE_TOOLS = {
     "pet_knowledge_search",
@@ -62,6 +55,28 @@ SYSTEM_MANAGED_TOOLS = {
     "get_emr_history",
     "get_pet_health_summary",
     "quick_booking_search",
+    # Phase 0: Clinic Setup AI
+    "generate_clinic_services",
+    "list_clinic_services",
+    "update_service_info",
+    "execute_update_service_confirmed",
+    "create_clinic_service",
+    "get_my_clinics",
+    "analyze_revenue_trends",
+    "get_clinic_metrics",
+    # Clinic Staff & Shift Tools
+    "get_clinic_staff",
+    "get_clinic_shifts",
+    "check_booking_availability",
+    # Booking Management Tools
+    "view_clinic_bookings",
+    "get_clinic_today_summary",
+    "get_staff_schedule",
+    "get_slot_availability",
+    "get_available_staff_for_reassign",
+    "reassign_staff_for_service",
+    "confirm_booking_manager",
+    "cancel_booking_manager",
 }
 
 
@@ -107,9 +122,9 @@ class ToolScanner:
         new_count = 0
         updated_count = 0
         unchanged_count = 0
-        mcp_tool_map = {tool["name"]: tool for tool in mcp_tools}
+        mcp_tool_names = {tool["name"] for tool in mcp_tools}
 
-        await self._migrate_legacy_tools(session, mcp_tool_map)
+        await self._remove_non_mcp_tools(session, mcp_tool_names)
 
         for tool_meta in mcp_tools:
             tool_name = tool_meta["name"]
@@ -118,13 +133,6 @@ class ToolScanner:
 
             if existing_tool:
                 # Check if anything actually changed
-                current_fingerprint = _compute_tool_fingerprint(tool_meta)
-                stored_fingerprint = (
-                    (existing_tool.fingerprint or "")
-                    if hasattr(existing_tool, "fingerprint")
-                    else ""
-                )
-
                 has_changes = (
                     existing_tool.description != tool_meta.get("description", "")
                     or existing_tool.input_schema != tool_meta.get("input_schema")
@@ -171,63 +179,25 @@ class ToolScanner:
 
         return new_count, updated_count, unchanged_count
 
-    async def _migrate_legacy_tools(
+    async def _remove_non_mcp_tools(
         self,
         session: AsyncSession,
-        mcp_tool_map: Dict[str, Dict[str, Any]],
+        mcp_tool_names: set[str],
     ) -> None:
-        """Rename legacy tool rows in DB to canonical FastMCP tool names."""
+        """Delete tool rows that are not registered in current FastMCP metadata."""
         existing_result = await session.execute(select(Tool))
-        existing_tools = {tool.name: tool for tool in existing_result.scalars().all()}
+        stale_tools = [
+            tool
+            for tool in existing_result.scalars().all()
+            if tool.name not in mcp_tool_names
+        ]
 
-        for legacy_name, canonical_name in LEGACY_TOOL_RENAMES.items():
-            legacy_tool = existing_tools.get(legacy_name)
-            if not legacy_tool:
-                continue
+        if not stale_tools:
+            return
 
-            canonical_meta = mcp_tool_map.get(canonical_name)
-            if not canonical_meta:
-                self.logger.warning(
-                    "Skipping legacy tool migration '%s' -> '%s' because canonical tool is not registered in MCP.",
-                    legacy_name,
-                    canonical_name,
-                )
-                continue
-
-            canonical_tool = existing_tools.get(canonical_name)
-            merged_enabled = legacy_tool.enabled or (
-                canonical_tool.enabled if canonical_tool else False
-            )
-            if canonical_name in SYSTEM_MANAGED_TOOLS:
-                merged_enabled = True
-
-            if canonical_tool:
-                canonical_tool.description = canonical_meta.get("description", "")
-                canonical_tool.input_schema = canonical_meta.get("input_schema")
-                canonical_tool.output_schema = canonical_meta.get("output_schema")
-                canonical_tool.enabled = merged_enabled
-                self.logger.info(
-                    "Merged legacy tool '%s' into existing '%s'",
-                    legacy_name,
-                    canonical_name,
-                )
-            else:
-                legacy_tool.name = canonical_name
-                legacy_tool.description = canonical_meta.get("description", "")
-                legacy_tool.input_schema = canonical_meta.get("input_schema")
-                legacy_tool.output_schema = canonical_meta.get("output_schema")
-                legacy_tool.enabled = merged_enabled
-                canonical_tool = legacy_tool
-                existing_tools[canonical_name] = canonical_tool
-                self.logger.info(
-                    "Migrated legacy tool '%s' -> '%s'",
-                    legacy_name,
-                    canonical_name,
-                )
-
-            if canonical_tool is not legacy_tool:
-                await session.delete(legacy_tool)
-            existing_tools.pop(legacy_name, None)
+        for stale_tool in stale_tools:
+            self.logger.info("Removing stale tool row: %s", stale_tool.name)
+            await session.delete(stale_tool)
 
         await session.flush()
 

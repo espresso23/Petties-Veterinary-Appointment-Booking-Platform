@@ -31,7 +31,8 @@ class BookingCreationResult {
   bool get requiresQrPayment =>
       paymentMethod == 'QR' && (qrImageUrl?.isNotEmpty ?? false);
 
-  static const BookingCreationResult failed = BookingCreationResult(success: false);
+  static const BookingCreationResult failed =
+      BookingCreationResult(success: false);
 }
 
 /// Provider for booking wizard state management
@@ -292,6 +293,53 @@ class BookingWizardProvider extends ChangeNotifier {
     loadServices();
   }
 
+  /// Hydrate booking draft state from AI chat for wizard handoff.
+  void hydrateDraftFromAiChat({
+    required Clinic clinic,
+    Pet? pet,
+    required List<ClinicServiceModel> availableServices,
+    List<ClinicServiceModel> selectedServices = const <ClinicServiceModel>[],
+    required BookingType bookingType,
+    String? userAddress,
+    double? userLatitude,
+    double? userLongitude,
+    String? notes,
+    DateTime? bookingDate,
+    String? selectedTime,
+  }) {
+    _clinic = clinic;
+    _userAddress = userAddress;
+    _userLatitude = userLatitude;
+    _userLongitude = userLongitude;
+
+    _selectedPets.clear();
+    _petServices.clear();
+    if (pet != null) {
+      _selectedPets.add(pet);
+      _petServices[pet.id] = List<ClinicServiceModel>.from(selectedServices);
+      _currentPetIdForServiceSelection = pet.id;
+    } else {
+      _currentPetIdForServiceSelection = null;
+    }
+
+    _availableServices = List<ClinicServiceModel>.from(availableServices);
+    _bookingType = bookingType;
+    _notes = notes ?? '';
+    _selectedDate = bookingDate;
+    _selectedTime = selectedTime;
+    _selectedTimeSlots = selectedTime != null && selectedTime.trim().isNotEmpty
+        ? <String>[selectedTime.trim()]
+        : <String>[];
+    _availableSlots = [];
+    _expectedPickupTime = null;
+    _createdBookingId = null;
+    _error = null;
+    _bookingError = null;
+    _selectedVoucherId = null;
+    _voucherDiscount = 0;
+    notifyListeners();
+  }
+
   /// Hydrate booking state from AI chat and jump directly to confirmation flow.
   void hydrateFromAiChat({
     required Clinic clinic,
@@ -306,34 +354,19 @@ class BookingWizardProvider extends ChangeNotifier {
     DateTime? bookingDate,
     String? selectedTime,
   }) {
-    _clinic = clinic;
-    _userAddress = userAddress;
-    _userLatitude = userLatitude;
-    _userLongitude = userLongitude;
-    _selectedPets
-      ..clear()
-      ..add(pet);
-    _petServices
-      ..clear()
-      ..[pet.id] = List<ClinicServiceModel>.from(selectedServices);
-    _availableServices = List<ClinicServiceModel>.from(availableServices);
-    _currentPetIdForServiceSelection = pet.id;
-    _bookingType = bookingType;
-    _notes = notes ?? '';
-    _selectedDate = bookingDate;
-    _selectedTime = selectedTime;
-    _selectedTimeSlots =
-        selectedTime != null && selectedTime.trim().isNotEmpty
-            ? <String>[selectedTime.trim()]
-            : <String>[];
-    _availableSlots = [];
-    _expectedPickupTime = null;
-    _createdBookingId = null;
-    _error = null;
-    _bookingError = null;
-    _selectedVoucherId = null;
-    _voucherDiscount = 0;
-    notifyListeners();
+    hydrateDraftFromAiChat(
+      clinic: clinic,
+      pet: pet,
+      availableServices: availableServices,
+      selectedServices: selectedServices,
+      bookingType: bookingType,
+      userAddress: userAddress,
+      userLatitude: userLatitude,
+      userLongitude: userLongitude,
+      notes: notes,
+      bookingDate: bookingDate,
+      selectedTime: selectedTime,
+    );
   }
 
   /// Update user location (for home visit booking)
@@ -508,14 +541,14 @@ class BookingWizardProvider extends ChangeNotifier {
         _availableServices = services.where((s) => s.isActive).toList();
       } else {
         // No pet selected yet, load all services
-      final services =
-          await _bookingService.getClinicServices(_clinic!.clinicId);
-      // Filter by booking type
+        final services =
+            await _bookingService.getClinicServices(_clinic!.clinicId);
+        // Filter by booking type
         if (isHomeVisit) {
-        _availableServices =
-            services.where((s) => s.isHomeVisit && s.isActive).toList();
-      } else {
-        _availableServices = services.where((s) => s.isActive).toList();
+          _availableServices =
+              services.where((s) => s.isHomeVisit && s.isActive).toList();
+        } else {
+          _availableServices = services.where((s) => s.isActive).toList();
         }
       }
     } catch (e) {
@@ -929,19 +962,23 @@ class BookingWizardProvider extends ChangeNotifier {
       }
 
       final bookingId = responseData['bookingId']?.toString();
-        _createdBookingId = bookingId;
+      _createdBookingId = bookingId;
       final paymentMethod =
-          (responseData['paymentMethod']?.toString().toUpperCase() ?? _paymentMethod);
+          (responseData['paymentMethod']?.toString().toUpperCase() ??
+              _paymentMethod);
       final qrImageUrl = responseData['qrImageUrl']?.toString();
       final paymentDescription = responseData['paymentDescription']?.toString();
-      final totalPrice = (responseData['totalPrice'] as num?)?.toDouble() ?? this.totalPrice;
+      final totalPrice =
+          (responseData['totalPrice'] as num?)?.toDouble() ?? this.totalPrice;
 
       // Auto-apply voucher nếu user đã chọn trước trên confirm screen
       if (_selectedVoucherId != null && bookingId != null) {
         try {
           final bookingSvc = BookingService();
-          final updatedBooking = await bookingSvc.applyVoucher(bookingId, _selectedVoucherId);
-          debugPrint('Auto-applied voucher $_selectedVoucherId to booking $bookingId');
+          final updatedBooking =
+              await bookingSvc.applyVoucher(bookingId, _selectedVoucherId);
+          debugPrint(
+              'Auto-applied voucher $_selectedVoucherId to booking $bookingId');
 
           return BookingCreationResult(
             success: true,
@@ -949,7 +986,9 @@ class BookingWizardProvider extends ChangeNotifier {
             paymentMethod: paymentMethod,
             qrImageUrl: updatedBooking.qrImageUrl,
             paymentDescription: updatedBooking.paymentDescription,
-            totalPrice: updatedBooking.finalPrice ?? updatedBooking.totalPrice ?? this.totalPrice,
+            totalPrice: updatedBooking.finalPrice ??
+                updatedBooking.totalPrice ??
+                this.totalPrice,
           );
         } catch (e) {
           debugPrint('Warning: Failed to auto-apply voucher: $e');

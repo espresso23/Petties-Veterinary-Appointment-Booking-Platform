@@ -37,7 +37,94 @@ def _require_auth_token() -> str:
 
 
 @mcp_server.tool
-async def analyze_revenue_trends(period: str = "MONTH") -> Dict[str, Any]:
+async def get_clinic_today_summary(
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    clinic_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Lấy danh sách các lịch khám trong ngày hôm nay của phòng khám, cùng với tóm tắt trạng thái (Pending, Confirmed, In Progress, Completed, Cancelled).
+
+    Params:
+        user_id: Override user ID (thường không cần truyền, lấy từ session)
+        session_id: Session ID (thường không cần truyền, lấy từ session)
+        clinic_id: Override clinic ID (thường không cần truyền, lấy từ session)
+
+    Returns:
+        Tổng quan lịch khám hôm nay và danh sách lịch khám.
+    """
+    if not _is_tool_available("get_clinic_today_summary"):
+        return build_tool_error_response(
+            error_code="TOOL_NOT_AVAILABLE",
+            message="Công cụ get_clinic_today_summary chưa được kích hoạt.",
+            recoverable=True,
+            suggestion="Liên hệ quản trị viên.",
+        )
+
+    ctx = get_tool_runtime_context()
+    if not ctx or not ctx.clinic_id:
+        return build_tool_error_response(
+            error_code="UNAUTHORIZED",
+            message="Không tìm thấy thông tin phòng khám trong phiên làm việc của bạn.",
+            recoverable=False,
+            suggestion="Yêu cầu đăng nhập với quyền CLINIC_OWNER, CLINIC_MANAGER hoặc STAFF.",
+        )
+
+    token = _require_auth_token()
+    client = get_backend_client()
+
+    try:
+        bookings = await client.get_clinic_today_bookings(token, ctx.clinic_id)
+
+        if bookings is None:
+            bookings = []
+
+        total = len(bookings)
+        pending = sum(1 for b in bookings if b.get("status") == "PENDING")
+        confirmed = sum(1 for b in bookings if b.get("status") == "CONFIRMED")
+        in_progress = sum(1 for b in bookings if b.get("status") == "IN_PROGRESS")
+        completed = sum(1 for b in bookings if b.get("status") == "COMPLETED")
+        cancelled = sum(1 for b in bookings if b.get("status") == "CANCELLED")
+
+        summary = {
+            "total_bookings": total,
+            "pending": pending,
+            "confirmed": confirmed,
+            "in_progress": in_progress,
+            "completed": completed,
+            "cancelled": cancelled,
+        }
+
+        return build_tool_success_response(
+            data={
+                "summary": summary,
+                "bookings": bookings,
+            },
+            metadata={"ui_card": "clinic_today_summary", "is_final": True},
+        )
+    except BackendClientError as e:
+        logger.error(f"Error in get_clinic_today_summary: {e}")
+        return build_tool_error_response(
+            error_code="INTERNAL_ERROR",
+            message=f"Lỗi khi lấy thông tin ngày: {str(e)}",
+            recoverable=True,
+        )
+    except Exception as e:
+        logger.error(f"System error in get_clinic_today_summary: {e}")
+        return build_tool_error_response(
+            error_code="INTERNAL_ERROR",
+            message=f"Lỗi hệ thống: {str(e)}",
+            recoverable=True,
+        )
+
+
+@mcp_server.tool
+async def analyze_revenue_trends(
+    period: str = "MONTH",
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    clinic_id: Optional[str] = None,
+) -> Dict[str, Any]:
     """
     Analyze revenue trends for the current clinic over a specific period.
 
@@ -109,9 +196,16 @@ async def analyze_revenue_trends(period: str = "MONTH") -> Dict[str, Any]:
 
 
 @mcp_server.tool
-async def get_clinic_metrics() -> Dict[str, Any]:
+async def get_clinic_metrics(
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+) -> Dict[str, Any]:
     """
     Get overall performance metrics for the clinic, including bookings, completion rate, and popular services.
+
+    Params:
+        user_id: Override user ID (thường không cần truyền, lấy từ session)
+        session_id: Session ID (thường không cần truyền, lấy từ session)
 
     Returns:
         Key performance indicators (KPIs) for the clinic.

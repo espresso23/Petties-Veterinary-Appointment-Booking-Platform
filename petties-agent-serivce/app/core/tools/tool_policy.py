@@ -150,12 +150,26 @@ DEFAULT_POLICIES = {
         allowed_roles=["CLINIC_OWNER"],
         description="Create new clinic service - requires service_data and confirmation (HITL)",
     ),
-    "get_my_clinic_info": ToolPolicy(
+    "get_my_clinics": ToolPolicy(
         allow_empty_params=True,
         requires_context=True,
         requires_auth=True,
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER", "STAFF"],
+        description="Lấy danh sách các phòng khám mà người dùng hiện tại quản lý hoặc làm việc",
+    ),
+    "view_clinic_bookings": ToolPolicy(
+        allow_empty_params=False,
+        requires_context=True,
+        requires_auth=True,
         allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
-        description="Lấy thông tin chi tiết về phòng khám của CLINIC_OWNER hiện tại",
+        description="Xem danh sách lịch hẹn của phòng khám (dành cho Quản lý/Chủ phòng khám)",
+    ),
+    "get_clinic_today_summary": ToolPolicy(
+        allow_empty_params=True,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER", "STAFF"],
+        description="Tổng quan lịch khám trong ngày của phòng khám",
     ),
     "analyze_revenue_trends": ToolPolicy(
         allow_empty_params=True,
@@ -184,6 +198,56 @@ DEFAULT_POLICIES = {
         requires_auth=True,
         allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
         description="Get detailed slot availability and booking status for the clinic",
+    ),
+    "get_available_staff_for_reassign": ToolPolicy(
+        allow_empty_params=False,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
+        description="Get available staff for service reassignment",
+    ),
+    "reassign_staff_for_service": ToolPolicy(
+        allow_empty_params=False,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
+        description="Reassign staff for a booking service",
+    ),
+    "confirm_booking_manager": ToolPolicy(
+        allow_empty_params=False,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
+        description="Xác nhận lịch hẹn (chỉ dành cho Quản lý/Chủ phòng khám)",
+    ),
+    "cancel_booking_manager": ToolPolicy(
+        allow_empty_params=False,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
+        description="Hủy lịch hẹn (chỉ dành cho Quản lý/Chủ phòng khám)",
+    ),
+    # Clinic Staff & Shift Tools
+    "get_clinic_staff": ToolPolicy(
+        allow_empty_params=True,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
+        description="Lấy danh sách nhân viên của phòng khám hiện tại",
+    ),
+    "get_clinic_shifts": ToolPolicy(
+        allow_empty_params=True,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
+        description="Lấy lịch làm việc (shifts) của phòng khám trong khoảng thời gian",
+    ),
+    "check_booking_availability": ToolPolicy(
+        allow_empty_params=False,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
+        description="Kiểm tra tình trạng nhân viên cho một lịch hẹn cụ thể",
     ),
 }
 

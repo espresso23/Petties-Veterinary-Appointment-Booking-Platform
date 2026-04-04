@@ -8210,6 +8210,56 @@ Figure 49. AI Clinic and Slot Suggestion Cards Rendered from Internal Tool APIs 
 
 
 
+#### *3.11.14 AI Copilot Manager Analytics (UC-CM-10)*
+
+**User Story:**
+
+> *As a Clinic Manager, I want an AI Copilot to help me summarize daily operations, view and filter bookings, reassign staff, confirm or cancel bookings, and manage clinic services directly through a conversational interface, so that I can operate the clinic faster and more efficiently.*
+
+
+
+**Function trigger**
+
+- **Navigation path:** Web Manager Dashboard → AI Copilot Widget (Sidebar/Floating button).
+
+- **Timing frequency:** On demand during daily clinic operations.
+
+
+
+**Function description**
+
+- **Actors/Roles:** Clinic Manager (CLINIC_MANAGER).
+
+- **Purpose:** Cung cấp trợ lý AI chuyên biệt cho quản lý phòng khám (AI Copilot Clinic) để thực hiện các thao tác vận hành hàng ngày thông qua chat.
+
+- **Features:**
+
+  - **Xem tổng quan phòng khám trong ngày (Daily Summary):** AI tóm tắt số lượng ca khám, doanh thu dự kiến, nhân sự đang làm việc.
+
+  - **Xem và Lọc lịch khám của phòng khám (Booking List):** Tra cứu lịch khám theo ngày, theo trạng thái, hoặc theo bác sĩ.
+
+  - **Phân công lại nhân sự cho một ca khám (Reassign Staff):** Yêu cầu AI chuyển ca khám từ bác sĩ A sang bác sĩ B.
+
+  - **Xác nhận hoặc Hủy ca khám (Confirm / Cancel Booking):** Duyệt các ca khám đang ở trạng thái PENDING hoặc hủy ca khám khi có yêu cầu.
+
+  - **Quản lý dịch vụ phòng khám (List, Update, Create Services):** Tra cứu danh sách dịch vụ, cập nhật giá hoặc thêm dịch vụ mới thông qua lệnh chat.
+
+
+
+**Data processing**
+
+1. Clinic Manager mở AI Copilot và nhập yêu cầu (ví dụ: "Hôm nay có bao nhiêu ca khám chưa phân công?").
+
+2. AI Copilot (LangGraph ReAct) phân tích intent và gọi các tool tương ứng.
+
+3. Dữ liệu trả về từ hệ thống được AI tổng hợp thành định dạng dễ đọc (bảng, danh sách) kèm theo các Nút hành động nhanh (Quick Actions).
+
+4. Khi Manager yêu cầu thực hiện hành động (như chuyển ca khám, duyệt/hủy ca khám), AI yêu cầu xác nhận trước khi gọi tool ghi dữ liệu.
+
+5. Kết quả thao tác được phản hồi trực tiếp trong chat và đồng bộ realtime lên Dashboard.
+
+
+
 ### 3.12 Governance & Reporting Flow
 
 

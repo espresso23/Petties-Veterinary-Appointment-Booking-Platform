@@ -10,7 +10,6 @@ import '../../data/services/pet_service.dart';
 import '../../config/constants/app_colors.dart';
 import '../../routing/app_routes.dart';
 import '../../providers/auth_provider.dart';
-import '../chat/ai_chat/ai_chat_bubble.dart';
 import '../common/pet_owner_bottom_nav.dart';
 
 class PetDetailScreen extends StatefulWidget {
@@ -96,7 +95,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
             const SizedBox(height: 20),
             const Text(
               'Cập nhật ảnh thú cưng',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.stone900),
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.stone900),
             ),
             const SizedBox(height: 24),
             Row(
@@ -127,7 +129,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     );
   }
 
-  Widget _buildPickerOption({required IconData icon, required String label, required VoidCallback onTap}) {
+  Widget _buildPickerOption(
+      {required IconData icon,
+      required String label,
+      required VoidCallback onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -145,7 +150,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
           const SizedBox(height: 8),
           Text(
             label,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.stone700),
+            style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: AppColors.stone700),
           ),
         ],
       ),
@@ -225,7 +233,8 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                         heroTag: 'change_avatar',
                         onPressed: _showImagePickerSheet,
                         backgroundColor: AppColors.primary,
-                        child: const Icon(Icons.camera_alt, color: Colors.white),
+                        child:
+                            const Icon(Icons.camera_alt, color: Colors.white),
                       ),
                     ),
                   ],
@@ -378,8 +387,6 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
           );
         },
       ),
-      floatingActionButton: isPetOwner ? const AiChatBubble() : null,
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: isPetOwner
           ? PetOwnerBottomNav(
               currentIndex: 4,
@@ -505,7 +512,8 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                       color: const Color(0xFFFEF3C7),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.auto_awesome, color: Color(0xFFD97706), size: 20),
+                    child: const Icon(Icons.auto_awesome,
+                        color: Color(0xFFD97706), size: 20),
                   ),
                   const SizedBox(width: 12),
                   const Text(
@@ -522,11 +530,15 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
 
               // Latest EMR info
               if (summary.latestEmr != null) ...[
-                _buildInfoRow(Icons.calendar_today, 'Lần khám gần nhất: ${summary.latestEmr!.examDateDisplay}'),
+                _buildInfoRow(Icons.calendar_today,
+                    'Lần khám gần nhất: ${summary.latestEmr!.examDateDisplay}'),
                 if (summary.latestEmr!.clinicName != null)
-                  _buildInfoRow(Icons.local_hospital, 'Phòng khám: ${summary.latestEmr!.clinicName}'),
-                if (summary.latestEmr!.diagnosis != null && summary.latestEmr!.diagnosis!.isNotEmpty)
-                  _buildInfoRow(Icons.medical_services, 'Chẩn đoán: ${summary.latestEmr!.diagnosis}'),
+                  _buildInfoRow(Icons.local_hospital,
+                      'Phòng khám: ${summary.latestEmr!.clinicName}'),
+                if (summary.latestEmr!.diagnosis != null &&
+                    summary.latestEmr!.diagnosis!.isNotEmpty)
+                  _buildInfoRow(Icons.medical_services,
+                      'Chẩn đoán: ${summary.latestEmr!.diagnosis}'),
                 const SizedBox(height: 12),
               ] else
                 _buildInfoRow(Icons.info_outline, 'Chưa có lịch sử khám'),
@@ -535,36 +547,44 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
               if (summary.healthWarnings.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 ...summary.healthWarnings.map((warning) => Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: warning.isHighSeverity ? const Color(0xFFFEE2E2) : const Color(0xFFFFF7ED),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: warning.isHighSeverity ? const Color(0xFFFECACA) : const Color(0xFFFED7AA),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.warning_amber_rounded,
-                        color: warning.isHighSeverity ? const Color(0xFFDC2626) : const Color(0xFFD97706),
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          warning.message,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: warning.isHighSeverity ? const Color(0xFF991B1B) : const Color(0xFF92400E),
-                            fontWeight: FontWeight.w600,
-                          ),
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: warning.isHighSeverity
+                            ? const Color(0xFFFEE2E2)
+                            : const Color(0xFFFFF7ED),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: warning.isHighSeverity
+                              ? const Color(0xFFFECACA)
+                              : const Color(0xFFFED7AA),
                         ),
                       ),
-                    ],
-                  ),
-                )),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            color: warning.isHighSeverity
+                                ? const Color(0xFFDC2626)
+                                : const Color(0xFFD97706),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              warning.message,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: warning.isHighSeverity
+                                    ? const Color(0xFF991B1B)
+                                    : const Color(0xFF92400E),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )),
               ],
 
               // Medication Reminders
@@ -572,61 +592,46 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 const SizedBox(height: 12),
                 const Text(
                   'Đang dùng thuốc:',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.stone600),
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.stone600),
                 ),
                 const SizedBox(height: 4),
                 ...summary.medicationReminders.map((rx) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.medication, color: Color(0xFF0D9488), size: 16),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          '${rx.medication}${rx.dosage != null ? ' - ${rx.dosage}' : ''}',
-                          style: const TextStyle(fontSize: 13, color: AppColors.stone700),
-                        ),
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.medication,
+                              color: Color(0xFF0D9488), size: 16),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '${rx.medication}${rx.dosage != null ? ' - ${rx.dosage}' : ''}',
+                              style: const TextStyle(
+                                  fontSize: 13, color: AppColors.stone700),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                )),
+                    )),
               ],
 
               // Suggested Actions
               if (summary.suggestedActions.isNotEmpty) ...[
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () {
-                          // Open chat with pet context
-                          context.push('/staff/ai-chat?petId=${widget.id}');
-                        },
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.stone700,
-                          side: const BorderSide(color: AppColors.stone300),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        child: const Text('Hỏi AI thêm', style: TextStyle(fontWeight: FontWeight.w600)),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          // Navigate to booking
-                          context.push('/booking?petId=${widget.id}');
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        child: const Text('Đặt lịch ngay', style: TextStyle(fontWeight: FontWeight.w600)),
-                      ),
-                    ),
-                  ],
+                ElevatedButton(
+                  onPressed: () {
+                    context.push('/booking?petId=${widget.id}');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    minimumSize: const Size(double.infinity, 44),
+                  ),
+                  child: const Text('Đặt lịch ngay',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
                 ),
               ],
 
@@ -635,7 +640,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 const SizedBox(height: 12),
                 Text(
                   summary.disclaimer!,
-                  style: const TextStyle(fontSize: 11, color: AppColors.stone500, fontStyle: FontStyle.italic),
+                  style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.stone500,
+                      fontStyle: FontStyle.italic),
                 ),
               ],
             ],
@@ -676,7 +684,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
         decoration: BoxDecoration(
           color: color,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color == AppColors.primary ? Colors.transparent : AppColors.stone200),
+          border: Border.all(
+              color: color == AppColors.primary
+                  ? Colors.transparent
+                  : AppColors.stone200),
           boxShadow: [
             BoxShadow(
               color: color.withOpacity(0.2),

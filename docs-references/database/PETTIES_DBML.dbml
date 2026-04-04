@@ -705,7 +705,6 @@ Table knowledge_documents {
   file_size int
   processed boolean [default: false]
   vector_count int [default: 0]
-  image_count int [default: 0]
   uploaded_by varchar(100)
   notes text
   uploaded_at timestamptz

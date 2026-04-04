@@ -203,6 +203,7 @@ enum AiChatSocketEventType {
   slotGrid,
   bookingSummary,
   bookingCreated,
+  multiPetBookingCreated,
   uiSchema,
   bookingStateUpdate,
   unknown;
@@ -251,6 +252,8 @@ enum AiChatSocketEventType {
         return AiChatSocketEventType.bookingSummary;
       case 'booking_created':
         return AiChatSocketEventType.bookingCreated;
+      case 'multi_pet_booking_created':
+        return AiChatSocketEventType.multiPetBookingCreated;
       case 'ui_schema':
         return AiChatSocketEventType.uiSchema;
       case 'booking_state_update':
@@ -406,6 +409,9 @@ class AiBookingSummaryPayload {
   final double? homeLat;
   final double? homeLong;
   final String? message;
+  final List<String> missingFields;
+  final bool? readyToCreate;
+  final String? nextBestAction;
 
   const AiBookingSummaryPayload({
     this.petId,
@@ -422,9 +428,18 @@ class AiBookingSummaryPayload {
     this.homeLat,
     this.homeLong,
     this.message,
+    this.missingFields = const [],
+    this.readyToCreate,
+    this.nextBestAction,
   });
 
   factory AiBookingSummaryPayload.fromJson(Map<String, dynamic> json) {
+    final readyToCreate = json['ready_to_create'] is bool
+        ? json['ready_to_create'] as bool
+        : (json['ready_for_review'] is bool
+            ? json['ready_for_review'] as bool
+            : null);
+
     return AiBookingSummaryPayload(
       petId: json['pet_id']?.toString(),
       petName: json['pet_name']?.toString(),
@@ -447,6 +462,11 @@ class AiBookingSummaryPayload {
           ? (json['home_long'] as num).toDouble()
           : null,
       message: json['message']?.toString(),
+      missingFields: (json['missing_fields'] as List<dynamic>? ?? const [])
+          .map((item) => item.toString())
+          .toList(),
+      readyToCreate: readyToCreate,
+      nextBestAction: json['next_best_action']?.toString(),
     );
   }
 }
@@ -466,6 +486,8 @@ class AiBookingCreatedPayload {
   final double? distanceKm;
   final bool managerWillConfirm;
   final String? message;
+  final Map<String, dynamic>? multiPetSummary;
+  final List<Map<String, dynamic>>? bookings;
 
   const AiBookingCreatedPayload({
     this.bookingId,
@@ -482,6 +504,8 @@ class AiBookingCreatedPayload {
     this.distanceKm,
     this.managerWillConfirm = true,
     this.message,
+    this.multiPetSummary,
+    this.bookings,
   });
 
   factory AiBookingCreatedPayload.fromJson(Map<String, dynamic> json) {
@@ -511,6 +535,12 @@ class AiBookingCreatedPayload {
           : null,
       managerWillConfirm: booking['manager_will_confirm'] != false,
       message: json['message']?.toString(),
+      multiPetSummary: json['multi_pet_summary'] is Map<String, dynamic>
+          ? json['multi_pet_summary'] as Map<String, dynamic>
+          : null,
+      bookings: (json['bookings'] as List<dynamic>?)
+          ?.map((e) => Map<String, dynamic>.from(e as Map))
+          .toList(),
     );
   }
 }
@@ -638,6 +668,7 @@ class AiChatSocketEvent {
   final AiSlotGridPayload? slotGrid;
   final AiBookingSummaryPayload? bookingSummary;
   final AiBookingCreatedPayload? bookingCreated;
+  final AiBookingCreatedPayload? multiPetBookingCreated;
   final Map<String, dynamic>? bookingState;
   final Map<String, dynamic> raw;
 
@@ -664,6 +695,7 @@ class AiChatSocketEvent {
     this.slotGrid,
     this.bookingSummary,
     this.bookingCreated,
+    this.multiPetBookingCreated,
     this.bookingState,
     this.raw = const {},
   });
@@ -699,6 +731,10 @@ class AiChatSocketEvent {
     final bookingCreated = type == AiChatSocketEventType.bookingCreated
         ? AiBookingCreatedPayload.fromJson(json)
         : null;
+    final multiPetBookingCreated =
+        type == AiChatSocketEventType.multiPetBookingCreated
+            ? AiBookingCreatedPayload.fromJson(json)
+            : null;
 
     return AiChatSocketEvent(
       type: type,
@@ -733,6 +769,7 @@ class AiChatSocketEvent {
       slotGrid: slotGrid,
       bookingSummary: bookingSummary,
       bookingCreated: bookingCreated,
+      multiPetBookingCreated: multiPetBookingCreated,
       bookingState: json['booking_state'] is Map
           ? Map<String, dynamic>.from(json['booking_state'] as Map)
           : null,

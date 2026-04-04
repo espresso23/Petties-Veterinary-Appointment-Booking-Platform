@@ -1,54 +1,743 @@
 # AI Copilot cho Clinic - Implementation Plan
 
-## 1. Overview
+## IMPORTANT - Scope Separation (2026-04-03)
 
-### 1.1 Mục tiêu
-AI Copilot hỗ trợ CLINIC_MANAGER và CLINIC_OWNER trong việc:
-- Quản lý doanh thu và metrics
-- Phân công và tối ưu lịch làm việc nhân viên
-- Insights về appointments và operations
-- Customer analytics và growth recommendations
-- **Clinic Setup & Configuration** (NEW - từ SRS 3.6)
-- **Slot & Shift Management** (NEW - từ SRS 3.6.7, WBS)
+**Plan này bao gồm 3 scope khác nhau, cần tách rõ:**
 
-### 1.2 User Roles
-| Role | Platform | Use Cases |
-|------|----------|-----------|
-| CLINIC_MANAGER | Web | Quản lý nhân viên, lịch, theo dõi metrics, slot management |
-| CLINIC_OWNER | Web | Xem báo cáo, insights, quyết định kinh doanh, clinic setup |
+**Platform clarification:**
+- AI Copilot cho `CLINIC_OWNER` và `CLINIC_MANAGER` nằm trên Web Dashboard.
+- Mobile AI chỉ dành cho `STAFF`.
+- `PET_OWNER` khong nam trong scope AI Copilot va khong duoc expose route AI tren mobile.
 
-### 1.3 Current State (Từ SRS/SDD/AI Docs)
-- **Context Policy**: Có tools được comment là "disabled until MCP implementation ready"
-- **Backend APIs**: Đã có sẵn hầu hết APIs cần thiết
-- **Tool Policy**: Đã có placeholders cho 5 tools chưa implement
-- **SRS References**:
-  - 3.6.1 Register Clinic (UC-CO-01) - ✅ Done
-  - 3.6.2 Approve/Reject Clinic (UC-AD-02/03) - ✅ Done
-  - 3.6.3 Define Master Services (UC-CO-08) - ✅ Done
-  - 3.6.4 Configure Branch Pricing (UC-CO-04) - ✅ Done
-  - 3.6.5 Edit Clinic (UC-CO-02) - ✅ Done
-  - 3.6.6 Create/Update/Delete Clinic Service (UC-CO-03) - ✅ Done
-  - 3.6.7 Inherit From Master Service - ✅ Done
-  - 3.13.1 AI Generate Clinic Services (UC-CO-14) - 📋 Documented, **CHƯA IMPLEMENT**
-  - UC-CO-05 View Statistics/Revenue - ⚠️ Partial
-  - Staff Shift & Slot Management - ✅ Backend done, cần AI tools
-  - Block/Unblock Slot - ✅ Backend done, cần AI tools
+| Package | Scope | Priority | Status |
+|---------|-------|----------|--------|
+| **A. Clinic Setup AI** | generate_clinic_services + review/save (SRS 3.13.1) | **HIGH** | DONE - Phase 0 |
+| **B. Manager Analytics** | Read-only metrics, shifts, reviews | MEDIUM | FUTURE |
+| **C. Workspace Redesign** | Notion-style full page | **FUTURE** | Not in scope |
 
-**Note**: Tất cả tools trong plan này **CHỈ dành cho CLINIC_MANAGER và CLINIC_OWNER**. PET_OWNER không có quyền sử dụng các tools này.
+**Xem chi tiết:** [Gap Analysis](./AI_COPILOT_CLINIC_GAP_ANALYSIS.md)
 
 ---
 
-## 2. Feature Modules
+## 1. Overview
 
-### Module 0: Clinic Setup (Từ SRS 3.13.1 - UC-CO-14)
+### 1.0 Tại Sao Cần AI Copilot Cho Clinic
 
-#### 2.0.1 Tool: `generate_clinic_services` (UC-CO-14)
+#### 1.0.1 Vấn Đề Hiện Tại (Nếu Không Có AI Copilot)
 
-**Mục đích**: Phân tích xu hướng doanh thu theo thời gian
+| Vấn đề | Impact | Frequency |
+|--------|--------|-----------|
+| **Manual service entry** | Mất 2-4 giờ nhập tay từng dịch vụ khi setup clinic | Mỗi lần setup mới |
+| **Không biết giá thị trường** | Owner không có baseline để pricing dịch vụ | Thường xuyên |
+| **Thiếu visibility** | Manager phải vào nhiều màn hình để xem metrics | Hàng ngày |
+| **Khó truy vấn nhanh** | Phải click qua nhiều menu để xem lịch trực/bookings | Hàng ngày |
+| **Không có insights** | Không biết dịch vụ nào hot, dịch vụ nào ế | Hàng tuần |
+| **Thao tác thủ công** | Phải vào form CRUD để đổi giá, toggle status | Thường xuyên |
+
+#### 1.0.2 Nếu Có AI Copilot - Làm Được Gì
+
+| Use Case | Trước (Manual) | Sau (AI Copilot) |
+|----------|----------------|------------------|
+| **Setup danh mục dịch vụ** | 2-4 giờ nhập tay | 5-10 phút + review |
+| **Xem doanh thu** | Vào 3-4 màn hình khác nhau | 1 prompt: "Doanh thu tuần này" |
+| **Kiểm tra lịch trực** | Vào calendar, filter từng ngày | 1 prompt: "Lịch trực ngày mai" |
+| **Cập nhật giá dịch vụ** | Vào form edit, search, update | 1 prompt: "Đổi giá tiêm phòng thành 220k" + confirm |
+| **Tìm insights** | Không có hoặc phải export Excel | 1 prompt: "Dịch vụ nào được đặt nhiều nhất?" |
+| **Xem bookings pending** | Vào booking list, filter status | 1 prompt: "Bookings chờ xác nhận" |
+
+#### 1.0.3 Cải Thiện Những Gì
+
+| Dimension | Improvement | Measurable |
+|-----------|-------------|------------|
+| **Tốc độ** | Setup clinic: 4h → 10 phút | 95% reduction |
+| **Tiện lợi** | Truy vấn: 5 clicks → 1 prompt | 80% fewer clicks |
+| **Accessibility** | Không cần navigate nhiều menu | 1 entry point |
+| **Insights** | Từ không có → có recommendations | Data-driven decisions |
+| **Error reduction** | Manual entry errors → AI suggestions | Validation + review |
+| **Onboarding** | Owner mới không biết bắt đầu từ đâu → AI guide | Guided setup |
+
+#### 1.0.4 Giá Trị Cốt Lõi
+
+- Speed: Setup trong vài phút thay vì vài giờ.
+- Intelligence: Gợi ý dịch vụ va thao tac dua tren du lieu co cau truc.
+- Convenience: 1 prompt de tim thong tin hoac thuc hien buoc review.
+- Safety: HITL bat buoc truoc moi write action.
+- Transparency: Co audit trail va feedback de theo doi.
+- Collaboration: Web dashboard phu hop cho owner/manager, mobile AI tach rieng cho staff.
+
+---
+
+### 1.1 Mục tiêu - Phase 0 (Priority)
+
+AI hỗ trợ CLINIC_OWNER thiết lập danh mục dịch vụ khởi tạo:
+- **Generate**: Tạo danh sách dịch vụ mẫu từ master services
+- **Review**: Hiển thị để user review/edit
+- **Save**: Lưu vào DB sau khi user xác nhận (HITL - Human In The Loop)
+
+**Phase 0 KHÔNG bao gồm:**
+- Revenue analytics
+- Staff management
+- Full workspace redesign
+- CRUD operations phức tạp
+
+### 1.2 User Roles - Phase 0
+
+| Role | Platform | Access |
+|------|----------|--------|
+| CLINIC_OWNER | Web | ✅ Full access (generate + review + save) |
+| CLINIC_MANAGER | Web | ⚠️ View only (sau Phase 0) |
+| STAFF | Mobile | Out of scope cho Clinic Setup AI; chi dung mobile AI staff workflow |
+| PET_OWNER | Mobile | Khong co AI Copilot |
+
+### 1.3 SRS References
+
+| SRS Section | Feature | Status |
+|-------------|---------|--------|
+| 3.13.1 | AI Generate Clinic Services (UC-CO-14) | **✅ DONE - Phase 0** |
+| 3.6.6 | Create/Update/Delete Clinic Service (UC-CO-03) | Backend done, AI tool ✅ |
+| 3.6.7 | Inherit From Master Service | Backend done, AI tool ✅ |
+
+### 1.4 Verified API Paths
+
+| Feature | Real API Path | Method |
+|---------|---------------|--------|
+| List clinic services | `/api/services` | GET |
+| Create service | `/api/services` | POST |
+| Update service | `/api/services/{serviceId}` | PUT |
+| Get master services | `/api/master-services` | GET |
+| Inherit from master | `/api/services/inherit/{masterServiceId}` | POST |
+| Get staff shifts | `/api/clinics/{clinicId}/shifts` | GET |
+| Create shift | `/api/clinics/{clinicId}/shifts` | POST |
+
+---
+
+## 2. Phase 0: Clinic Setup AI (PRIORITY)
+
+### 2.1 Tool: `generate_clinic_services` (UC-CO-14)
+
+**Mục đích**: AI tự động tạo danh sách dịch vụ mẫu dựa trên loại hình clinic, pet types, service scope.
+
+**User Flow (SRS 3.13.1)**:
+```
+1. Owner opens Clinic Setup → "AI Generate Services"
+2. AI asks: "Clinic type?", "Pet types?", "Service scope?"
+3. AI calls: GET /master-services → filter by criteria
+4. AI returns: List of suggested services with confidence scores
+5. Owner reviews: Accept/Edit/Reject từng service
+6. Owner clicks: "Save All"
+7. AI opens HITL confirm modal, sau đó gửi batch create intent
+8. AI calls: POST /services nhiều lần theo từng service đã xác nhận
+9. Success → Redirect to services list
+```
 
 **Backend Integration**:
-- `GET /payments/history/clinic/{clinicId}/revenue?period={DAY|WEEK|MONTH|YEAR}`
-- `GET /payments/history/clinic/{clinicId}/breakdown`
+- `GET /api/master-services` - Lấy master services để suggest
+- `POST /api/services` - Tạo clinic service (batch)
+
+**Input Parameters**:
+```json
+{
+  "clinic_id": "uuid-123",
+  "clinic_type": "general|petshop|hospital",
+  "pet_types": ["dog", "cat"],
+  "service_scope": ["healthcare", "vaccination", "beauty"]
+}
+```
+
+**Output**:
+```json
+{
+  "suggestions": [
+    {
+      "name": "Khám tổng quát",
+      "service_category": "HEALTHCARE",
+      "description": "Khám sức khỏe tổng quát cho thú cưng",
+      "base_price": 150000,
+      "duration_minutes": 30,
+      "confidence": 0.95,
+      "source": "master_service"
+    }
+  ],
+  "total_suggestions": 10
+}
+```
+
+**UISchema Components**:
+- `service_generation_card` - Card hiển thị 1 suggestion
+- `bulk_action_bar` - "Chấp nhận tất cả" / "Bỏ tất cả"
+- `review_modal` - Confirm trước khi save
+
+**HITL (Human In The Loop)**:
+- ❌ AI không tự động save
+- ✅ User phải review và click "Save All"
+- ✅ UI phải show confirm modal
+
+---
+
+### 2.2 Tool: `list_clinic_services`
+
+**Mục đích**: Liệt kê tất cả services của clinic (read-only).
+
+**Backend Integration**:
+- `GET /api/services` - Lấy danh sách services
+
+**User Prompts**:
+- "Liệt kê các dịch vụ"
+- "Cho tôi xem giá tiêm phòng"
+
+**Output**:
+```json
+{
+  "services": [
+    {
+      "service_id": "uuid-1",
+      "name": "Tiêm phòng 5 bệnh",
+      "base_price": 200000,
+      "is_active": true,
+      "service_category": "VACCINATION"
+    }
+  ],
+  "total": 15
+}
+```
+
+**UISchema**: `service_list_card` (read-only, không edit trong chat)
+
+---
+
+### 2.3 Tool: `update_service_info` (Phase 1)
+
+**Mục đích**: Cập nhật thông tin service (price, description, active).
+
+**Backend Integration**:
+- `PUT /api/services/{serviceId}` - Update service
+
+**User Prompts**:
+- "Đổi giá tiêm phòng thành 220k"
+
+**HITL Required**:
+- AI phải show confirm modal trước khi gọi PUT
+- User phải click "Xác nhận" mới thực hiện update
+
+**Output**:
+```json
+{
+  "updated": true,
+  "service_id": "uuid-1",
+  "changes": {
+    "base_price": {"old": 200000, "new": 220000}
+  }
+}
+```
+
+---
+
+## 3. Future Scope (NOT in Phase 0)
+
+### 3.1 Manager Analytics (Future Phase)
+
+**Tools dự kiến** (chưa enable trong context policy):
+- `get_clinic_overview` - Dashboard metrics
+- `analyze_revenue_trends` - Revenue analytics
+- `get_staff_schedule` - View shifts
+- `get_appointment_insights` - Booking analytics
+
+**Note**: Các tools này hiện đang DISABLED trong context_policy.py
+
+### 3.2 Workspace Redesign (Future)
+
+**Không trong scope hiện tại**:
+- Notion-style workspace
+- Full-page editable components
+- Tab-based navigation
+
+**Có thể revisit sau khi Phase 0 hoàn thành.**
+
+---
+
+## 4. Implementation Checklist
+
+### Phase 0: Generate Services Flow
+
+- [ ] AI Tool: `generate_clinic_services` (mcp tool)
+- [ ] Backend: Map GET /master-services
+- [ ] Frontend: ServiceGenerationPage hoặc reuse chat
+- [ ] UI: Review cards với Accept/Edit/Reject
+- [ ] UI: Confirm modal trước save
+- [ ] Backend: POST /services (batch create)
+- [ ] Context Policy: Enable cho CLINIC_OWNER
+- [ ] Test: Integration test với real API
+
+### Phase 0.5: List Services
+
+- [ ] AI Tool: `list_clinic_services`
+- [ ] Frontend: Service list display
+- [ ] Context Policy: Enable cho CLINIC_OWNER/MANAGER
+
+### Phase 1: Update Service (HITL)
+
+- [ ] AI Tool: `update_service_info`
+- [ ] UI: Confirm modal (bắt buộc)
+- [ ] Context Policy: Enable với restrictions
+- [ ] Test: Verify HITL flow
+
+---
+
+## 5. UI Design Notes
+
+### 5.1 AI Copilot Composer (Required Spec)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  🤖 AI Copilot - Pet Care Quận 1                              [User: Owner]│
+├─────────────────────────────────────────────────────────────────────────────┤
+│  [MoonClipboardIcon Dịch vụ] [CalendarIcon Lịch trực] [ChartBarIcon Metrics]│
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  Workspace content (Table/Cards/Chart)                             │   │
+│  │                                                                     │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌───────────────────────────────────────────────────────────────────┐    │
+│  │  CurrencyDollarIcon Doanh thu tuần này  │ CalendarIcon Lịch trực ngày mai  │ │
+│  │  ArrowTrendingUpIcon Bookings chờ xác nhận  │ MoonClipboardIcon Liệt kê dịch vụ │    │
+│  └───────────────────────────────────────────────────────────────────┘    │
+│                                                                             │
+│  ┌─────────────────────────────────────────────┐ ┌────────────────────┐    │
+│  │ Hỏi về lịch trực, bookings hoặc tình       │ │        GỬI        │    │
+│  │ trạng vận hành...                           │ │ (amber-600 button)│    │
+│  │ (2-4 lines, resizeable)                     │ └────────────────────┘    │
+│  └─────────────────────────────────────────────┘                          │
+│                                                                             │
+│  ┌───────────────────────────────────────────────────────────────────┐    │
+│  │  BuildingOfficeIcon Pet Care Q1 │ CalendarIcon Hôm nay │ BeakerIcon Tiêm phòng │ │
+│  │  UserGroupIcon Bs. Minh │ AdjustmentsHorizontalIcon Bộ lọc         │    │
+│  └───────────────────────────────────────────────────────────────────┘    │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 5.2 Composer Layout Specification
+
+| Row | Component | Description |
+|-----|-----------|-------------|
+| **1** | Prompt Suggestions | Horizontal chips: "Doanh thu tuần này", "Lịch trực ngày mai", "Bookings chờ xác nhận", "Liệt kê dịch vụ", "Đổi giá dịch vụ" |
+| **2** | Textarea + Send | Textarea 2-4 lines, Soft Neobrutalism border, Send button (amber-600, right side) |
+| **3** | Context Chips + Filter | Clinic name, Date, Service, Staff, Status chips + AdjustmentsHorizontalIcon |
+
+### 5.3 Dynamic Placeholder by Role
+
+| Role | Placeholder Text |
+|------|------------------|
+| **CLINIC_MANAGER** | "Hỏi về lịch trực, bookings hoặc tình trạng vận hành..." |
+| **CLINIC_OWNER (Setup)** | "Mô tả loại hình clinic để AI gợi ý danh mục dịch vụ..." |
+| **CLINIC_OWNER (运营)** | "Hỏi về doanh thu, hiệu suất hoặc insights kinh doanh..." |
+
+### 5.4 Context Chips (Auto-populated)
+
+- **Phòng khám**: Pet Care Q1 (auto from session)
+- **Thời gian**: Hôm nay / Tuần này (auto, có thể change)
+- **Dịch vụ**: Tiêm phòng, Khám tổng quát... (optional filter)
+- **Nhân viên**: Bs. Minh, NV. Lan... (optional filter)
+- **Trạng thái**: PENDING, CONFIRMED... (optional filter)
+
+**Design**: Chips như data phụ, KHÔNG bắt user nhét vào prompt
+
+### 5.5 Write Action Guard (Required)
+
+```
+User: "Đổi giá tiêm phòng thành 220k"
+       ↓
+AI detects: WRITE action (update data)
+       ↓
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  ⚠️ XÁC NHẬN THAY ĐỔI                                                       │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ Dịch vụ: Tiêm phòng 5 bệnh                                          │   │
+│  │ Giá cũ: 200.000 đ                                                   │   │
+│  │ Giá mới: 220.000 đ                                                   │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                         [HỦY]                [XÁC NHẬN]                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+       ↓
+User clicks "Xác nhận"
+       ↓
+AI calls: PUT /api/services/{id}
+       ↓
+Success → Update UI + Toast
+```
+
+**Rule**: AI phải trả về preview + confirm trước khi gọi API ghi dữ liệu
+
+### 5.6 Ambiguous Prompt Handling
+
+```
+User: "Cho xem lịch" (vague)
+       ↓
+AI asks with chips:
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Bạn muốn xem lịch của ngày nào?                                          │
+│  [Hôm nay] [Ngày mai] [Tuần này] [Chọn ngày khác]                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Rule**: Khi prompt mơ hồ → AI hỏi bằng chip chọn nhanh, KHÔNG bắt user gõ lại
+
+### 5.7 Advanced Filters
+
+- Opens with AdjustmentsHorizontalIcon (Heroicon)
+- Shows: Date range, Service category, Staff, Status filters
+- NOT: mechanical typing like "period=MONTH"
+
+### 5.8 What NOT to Do (Anti-patterns)
+
+| Anti-pattern | Correct Approach |
+|--------------|------------------|
+| ❌ Empty plain "Hỏi gì cũng được" | ✅ Role-based dynamic placeholder |
+| ❌ Force slash commands as main flow | ✅ Natural language + suggestions |
+| ❌ Send write action directly without confirm | ✅ Preview + Confirm modal |
+| ❌ Emoji in quick actions/placeholder | ✅ Heroicons only |
+| ❌ Bắt user nhập period=MONTH | ✅ Filter UI với icon |
+
+### Use Heroicons (NO EMOJI)
+
+| Instead of | Use |
+|------------|-----|
+| 📋 | MoonClipboardIcon |
+| 📅 | CalendarIcon |
+| 📊 | ChartBarIcon |
+| 💰 | CurrencyDollarIcon |
+| 📈 | ArrowTrendingUpIcon |
+| ✅ | CheckCircleIcon |
+| ⚙️ | AdjustmentsHorizontalIcon |
+
+### Use Mermaid for Diagrams
+
+```mermaid
+flowchart LR
+    A[Setup Form] --> B[AI Generate]
+    B --> C[Review Cards]
+    C --> D{User Action}
+    D -->|Accept| E[Confirm Modal]
+    D -->|Edit| F[Edit Form]
+    D -->|Reject| G[Remove]
+    E --> H[POST /services]
+```
+
+---
+
+## 6. AI Copilot Business Logic (Standard Flows)
+
+### 6.1 Prompt Classification Flow
+
+```
+User Prompt
+     ↓
+┌─────────────────────────────┐
+│  Intent Classifier         │
+│  - READ (query data)       │
+│  - WRITE (update data)     │
+│  - GENERATE (create new)   │
+│  - CLARIFY (need info)     │
+└─────────────────────────────┘
+     ↓
+┌─────────────────────────────┐
+│  Entity Extractor          │
+│  - Clinic (from session)   │
+│  - Service (from name/ID)  │
+│  - Date/Time               │
+│  - Staff                   │
+└─────────────────────────────┘
+     ↓
+┌─────────────────────────────┐
+│  Tool Selector             │
+│  - Match intent to tool    │
+│  - Validate required params│
+│  - Check permissions       │
+└─────────────────────────────┘
+```
+
+### 6.2 Read vs Write Handling
+
+| Intent | Behavior |
+|--------|----------|
+| **READ** | Execute tool → Return data → Render UI |
+| **WRITE** | Return preview → Show confirm modal → Execute on confirm → Update UI |
+| **GENERATE** | Show generation UI → Process → Return suggestions → Save on confirm |
+| **CLARIFY** | Return clarification chips → Wait user selection → Continue |
+
+### 6.3 Tool Selection Logic
+
+```python
+def select_tool(prompt: str, intent: str, entities: dict) -> Optional[Tool]:
+    """Select appropriate tool based on intent and entities"""
+    
+    # READ intents
+    if intent == "list_services":
+        return Tool.LIST_CLINIC_SERVICES
+    
+    if intent == "get_metrics" and entities.get("type") == "revenue":
+        return Tool.ANALYZE_REVENUE_TRENDS
+    
+    if intent == "get_schedule":
+        return Tool.GET_STAFF_SCHEDULE
+    
+    # WRITE intents - require confirmation
+    if intent == "update_service":
+        return Tool.UPDATE_SERVICE_INFO  # Will trigger confirm flow
+    
+    if intent == "create_shifts":
+        return Tool.CREATE_STAFF_SHIFTS  # Will trigger confirm flow
+    
+    # GENERATE intents
+    if intent == "generate_services":
+        return Tool.GENERATE_CLINIC_SERVICES  # Show suggestions
+    
+    return None
+```
+
+### 6.4 Response Generation Patterns
+
+```python
+def generate_response(tool_result: dict, intent: str) -> Response:
+    """Generate appropriate response based on tool result and intent"""
+    
+    if intent == "READ":
+        if has_data(tool_result):
+            return Response(
+                type="data_display",
+                components=map_to_uicomponents(tool_result)
+            )
+        else:
+            return Response(
+                type="empty",
+                message="Không tìm thấy dữ liệu"
+            )
+    
+    if intent == "WRITE":
+        if success(tool_result):
+            return Response(
+                type="success",
+                message="Đã cập nhật thành công",
+                toast=True
+            )
+        else:
+            return Response(
+                type="error",
+                message=tool_result.get("error", "Lỗi khi cập nhật")
+            )
+    
+    if intent == "GENERATE":
+        return Response(
+            type="suggestions",
+            components=map_suggestions(tool_result),
+            actions=["accept_all", "edit", "reject"]
+        )
+    
+    if intent == "CLARIFY":
+        return Response(
+            type="clarification",
+            chips=generate_clarification_chips(entities)
+        )
+```
+
+### 6.5 Error Handling Patterns
+
+```python
+def handle_tool_error(error: ToolError, tool: Tool) -> Response:
+    """Handle tool execution errors"""
+    
+    error_mappings = {
+        ErrorCode.UNAUTHORIZED: (
+            "Bạn không có quyền thực hiện thao tác này",
+            "Vui liên hệ quản lý để được cấp quyền"
+        ),
+        ErrorCode.NOT_FOUND: (
+            f"Không tìm thấy {tool.resource_name}",
+            "Kiểm tra lại tên hoặc ID"
+        ),
+        ErrorCode.VALIDATION_ERROR: (
+            "Dữ liệu không hợp lệ",
+            error.details  # Show what's wrong
+        ),
+        ErrorCode.API_ERROR: (
+            "Lỗi hệ thống",
+            "Vui lòng thử lại sau ít phút"
+        )
+    }
+    
+    title, suggestion = error_mappings.get(error.code, ("Lỗi không xác định", "Thử lại"))
+    
+    return Response(
+        type="error",
+        title=title,
+        suggestion=suggestion,
+        recoverable=error.recoverable
+    )
+```
+
+### 6.6 Session Management
+
+```python
+class CopilotSession:
+    """Manage AI Copilot conversation state"""
+    
+    def __init__(self, user_id: str, clinic_id: str, role: str):
+        self.user_id = user_id
+        self.clinic_id = clinic_id
+        self.role = role
+        self.context = {
+            "current_tab": "services",  # Default tab
+            "last_query": None,
+            "pending_confirmation": None,  # For write actions
+            "selected_services": [],  # For bulk operations
+        }
+    
+    def update_context(self, key: str, value: Any):
+        """Update session context"""
+        self.context[key] = value
+    
+    def set_pending_confirmation(self, action: dict):
+        """Store pending write action for confirmation"""
+        self.context["pending_confirmation"] = action
+    
+    def clear_pending_confirmation(self):
+        """Clear after confirmation or cancel"""
+        self.context["pending_confirmation"] = None
+```
+
+### 6.7 Context Chips Generation
+
+```python
+def generate_context_chips(session: CopilotSession, entities: dict) -> list[ContextChip]:
+    """Generate context chips based on session and extracted entities"""
+    
+    chips = [
+        ContextChip(
+            icon="BuildingOfficeIcon",
+            label=session.clinic_name,
+            value=session.clinic_id,
+            type="clinic"
+        )
+    ]
+    
+    # Date filter
+    if entities.get("date"):
+        chips.append(ContextChip(
+            icon="CalendarIcon",
+            label=format_date(entities["date"]),
+            value=entities["date"],
+            type="date"
+        ))
+    
+    # Service filter
+    if entities.get("service"):
+        chips.append(ContextChip(
+            icon="BeakerIcon",
+            label=entities["service"]["name"],
+            value=entities["service"]["id"],
+            type="service"
+        ))
+    
+    # Staff filter
+    if entities.get("staff"):
+        chips.append(ContextChip(
+            icon="UserGroupIcon",
+            label=entities["staff"]["name"],
+            value=entities["staff"]["id"],
+            type="staff"
+        ))
+    
+    return chips
+```
+
+### 6.8 Write Action Guard Implementation
+
+```python
+async def handle_write_action(prompt: str, tool: Tool, params: dict) -> Response:
+    """
+    Handle write actions with human-in-the-loop confirmation
+    """
+    
+    # 1. Parse what will change
+    changes = await preview_changes(tool, params)
+    
+    # 2. Return preview + confirmation request
+    return Response(
+        type="write_preview",
+        title="Xác nhận thay đổi",
+        changes=changes,
+        confirm_action={
+            "type": "execute_write",
+            "tool": tool,
+            "params": params
+        },
+        cancel_action={
+            "type": "cancel_write"
+        }
+    )
+
+
+async def execute_write_on_confirm(tool: Tool, params: dict, user_id: str) -> Response:
+    """
+    Execute write action after user confirmation
+    """
+    
+    # 1. Log user action for audit
+    await audit_log.log(
+        user_id=user_id,
+        action="confirm_write",
+        tool=tool.name,
+        params=params
+    )
+    
+    # 2. Execute tool
+    result = await tool.execute(params)
+    
+    # 3. Return success/error
+    if result.success:
+        return Response(
+            type="success",
+            message=f"Đã cập nhật {tool.resource_name}",
+            toast=True,
+            refresh_needed=True
+        )
+    else:
+        return Response(
+            type="error",
+            message="Lỗi khi cập nhật",
+            details=result.error
+        )
+```
+
+---
+
+## 7. Open Questions
+
+1. **Analytics**: CLINIC_OWNER có cần analytics không hay chỉ setup?
+2. **Workspace**: Có nên làm Notion-style không hay giữ chat?
+3. **Timeline**: Khi nào bắt đầu Phase 0 implementation?
+
+---
+
+## 7. References
+
+- [Gap Analysis](./AI_COPILOT_CLINIC_GAP_ANALYSIS.md)
+- [SRS 3.13.1](../documentation/SRS/PETTIES_SRS.md#313-ai-generate-clinic-services)
+- [Role Requirements](./AI_ASSISTANT_ROLE_REQUIREMENTS.md)
+
+---
+
+**Document Status**: UPDATED - 2026-04-03  
+**Scope**: Phase 0 - Clinic Setup AI (Generate Services)  
+**Total Sections**: 7 (Overview, Phase 0, Future Scope, Checklist, UI Design, Questions, References)
+
+<!-- END OF PHASE 0 PLAN - OLD CONTENT BELOW IS OBSOLETE -->
+
+<!-- [OBSOLETE - START] Legacy content below should be removed in next cleanup
 
 **Input Parameters**:
 ```python
@@ -825,9 +1514,11 @@ Khi không có đủ data cho insights:
 
 ### Phase 0: Clinic Setup & Operations (Từ SRS 3.6, 3.13.1)
 1. `generate_clinic_services` - AI generate danh mục dịch vụ (UC-CO-14, SRS 3.13.1)
-2. `get_operating_hours_config` - Lấy/thiết lập giờ hoạt động (Operating Hours)
-3. `get_slot_availability` - Xem trạng thái slots (block/available/booked)
-4. `get_shift_summary` - Tổng quan lịch trực (Staff Shift)
+2. `list_clinic_services` - Liệt kê và xem chi tiết services (NEW - SRS 3.6.6)
+3. `update_service_info` - Cập nhật thông tin service (NEW - SRS 3.6.6)
+4. `get_operating_hours_config` - Lấy/thiết lập giờ hoạt động (Operating Hours)
+5. `get_slot_availability` - Xem trạng thái slots (block/available/booked)
+6. `get_shift_summary` - Tổng quan lịch trực (Staff Shift)
 
 ### Phase 1: Core (Must Have)
 6. `get_clinic_overview` - Dashboard tổng quan
@@ -855,6 +1546,229 @@ Khi không có đủ data cho insights:
 ### Phase 0: Clinic Setup
 
 #### UC-01: AI Generate Clinic Services (UC-CO-14)
+
+| Field | Description |
+|-------|-------------|
+| **Use Case ID** | UC-01 |
+| **Tool Name** | `generate_clinic_services` |
+| **SRS Reference** | SRS 3.13.1, UC-CO-14 |
+| **Actor** | CLINIC_OWNER |
+| **Trigger** | Click "AI Generate Services" trong Clinic Setup Wizard |
+| **Postconditions** | Tạo danh mục dịch vụ cho clinic |
+
+**Mục đích**: AI tự động tạo danh sách dịch vụ mẫu dựa trên loại hình clinic, pet types, service scope.
+
+**Flow:**
+```
+1. Owner clicks "AI Generate Services" button
+2. Form hiển thị: clinic_type, pet_types, service_scope, location
+3. Owner điền thông tin và submit
+4. AI gọi generate_clinic_services với params
+5. AI parse knowledge base + master services
+6. Trả về danh sách service suggestions với confidence score
+7. UI render service_generation_cards
+8. Owner accept/edit/reject từng service
+9. Owner click "Save All" để lưu vào DB
+```
+
+**Input:**
+```json
+{
+  "clinic_id": "uuid-123",
+  "clinic_type": "general",
+  "pet_types": ["dog", "cat"],
+  "service_scope": ["healthcare", "beauty"],
+  "location": "urban"
+}
+```
+
+**Output:**
+```json
+{
+  "services": [
+    {
+      "name": "Khám tổng quát",
+      "category": "healthcare",
+      "description": "Khám sức khỏe tổng quát...",
+      "duration_minutes": 30,
+      "estimated_price": 150000,
+      "ai_confidence": 0.95
+    }
+  ]
+}
+```
+
+**UISchema:** `service_generation_card`, `bulk_actions`
+**Acceptance Criteria:** Tạo ≥10 services, confidence ≥0.7
+
+---
+
+#### UC-02: List Clinic Services (NEW - SRS 3.6.6)
+
+| Field | Description |
+|-------|-------------|
+| **Use Case ID** | UC-02 |
+| **Tool Name** | `list_clinic_services` |
+| **SRS Reference** | SRS 3.6.6, UC-CO-03 |
+| **Actor** | CLINIC_MANAGER, CLINIC_OWNER |
+| **Trigger** | "Liệt kê dịch vụ" hoặc "Xem danh sách dịch vụ" |
+| **Postconditions** | Hiển thị danh sách services của clinic |
+
+**Mục đích**: Xem tất cả dịch vụ hiện có của clinic, bao gồm giá, mô tả, số lượng đặt.
+
+**User Prompts:**
+- "Liệt kê các dịch vụ của clinic"
+- "Cho tôi xem giá dịch vụ tiêm phòng"
+- "Service nào được đặt nhiều nhất?"
+- "Service nào ít người đặt nhất?"
+
+**Flow:**
+```
+1. User hỏi về services
+2. AI gọi list_clinic_services với clinic_id từ context
+3. Backend trả về danh sách services + stats
+4. UI render service_list cards với actions
+5. User có thể: xem chi tiết, lọc theo category, sort theo price/bookings
+```
+
+**Input:**
+```json
+{
+  "clinic_id": "uuid-123",
+  "category": "all",  // optional: healthcare, vaccination, beauty
+  "status": "all",    // optional: active, inactive
+  "sort_by": "bookings",  // optional: name, price, bookings
+  "order": "desc"     // optional: asc, desc
+}
+```
+
+**Output:**
+```json
+{
+  "clinic_services": [
+    {
+      "service_id": "svc-001",
+      "clinic_id": "clinic-123",
+      "clinic_name": "Pet Care Quận 1",
+      "name": "Khám tổng quát",
+      "category": "healthcare",
+      "description": "Khám sức khỏe tổng quát cho thú cưng",
+      "base_price": 150000,
+      "duration_minutes": 30,
+      "is_active": true,
+      "total_bookings": 62
+    },
+    {
+      "service_id": "svc-002",
+      "name": "Tiêm phòng 5 bệnh",
+      "base_price": 200000,
+      "total_bookings": 85
+    }
+  ],
+  "summary": {
+    "total_services": 15,
+    "active_services": 12,
+    "inactive_services": 3,
+    "top_booked": ["Tiêm phòng 5 bệnh", "Khám tổng quát"],
+    "least_booked": ["Chụp X-quang", "Phẫu thuật"]
+  }
+}
+```
+
+**UISchema:** `clinic_service_list`, `service_stats_summary`, `ranking_list`
+**Acceptance Criteria:** 
+- Hiển thị đầy đủ thông tin: name, price, description, bookings
+- Hỗ trợ lọc theo category, status
+- Sort theo name, price, bookings
+- Hiển thị top/bottom services
+
+---
+
+#### UC-03: Update Service Info (NEW - SRS 3.6.6)
+
+| Field | Description |
+|-------|-------------|
+| **Use Case ID** | UC-03 |
+| **Tool Name** | `update_service_info` |
+| **SRS Reference** | SRS 3.6.6, UC-CO-03 |
+| **Actor** | CLINIC_MANAGER, CLINIC_OWNER |
+| **Trigger** | "Đổi giá dịch vụ X" hoặc "Sửa thông tin dịch vụ Y" |
+| **Postconditions** | Cập nhật thông tin service trong DB |
+
+**Mục đích**: AI hỗ trợ cập nhật nhanh thông tin service (giá, mô tả, duration) mà không cần vào form CRUD thủ công. Có thể update nhiều services trong 1 lần.
+
+**User Prompts:**
+- "Đổi giá dịch vụ tiêm phòng thành 220k"
+- "Cập nhật mô tả dịch vụ khám tổng quát thành 'Khám sức khỏe tổng quát cho chó mèo'"
+- "Sửa giá tất cả dịch vụ tiêm phòng thành 250k"
+- "Bật trạng thái dịch vụ tắm rửa"
+
+**Flow:**
+```
+1. User yêu cầu cập nhật service
+2. AI xác định service(s) cần update:
+   - Parse tên service từ prompt
+   - Gọi list_clinic_services để xác định service_id
+3. AI hiển thị form xác nhận với thông tin cũ + mới
+4. User xác nhận (hoặc điều chỉnh)
+5. AI gọi update_service_info
+6. Backend update và trả kết quả
+7. UI hiển thị kết quả + danh sách updated
+```
+
+**Input:**
+```json
+{
+  "clinic_id": "uuid-123",
+  "updates": [
+    {
+      "service_id": "svc-002",
+      "base_price": 220000,
+      // optional: "description": "...", "duration_minutes": 30, "is_active": true
+    },
+    {
+      "service_name": "Tắm rửa",  // có thể dùng name thay vì id
+      "is_active": true
+    }
+  ]
+}
+```
+
+**Output:**
+```json
+{
+  "updated_services": [
+    {
+      "service_id": "svc-002",
+      "name": "Tiêm phòng 5 bệnh",
+      "previous_price": 200000,
+      "new_price": 220000,
+      "status": "updated"
+    }
+  ],
+  "failed_updates": [],
+  "message": "Đã cập nhật 1 dịch vụ thành công"
+}
+```
+
+**UISchema:** `service_update_confirm`, `bulk_update_form`, `update_result`
+**Acceptance Criteria:**
+- Update được: price, description, duration, is_active
+- Hỗ trợ update bằng service_id hoặc service_name
+- Hỗ trợ bulk update nhiều services trong 1 lần
+- Validate giá hợp lệ (>0), duration (>0)
+- Rollback nếu có lỗi
+
+**Error Handling:**
+| Error | Message |
+|-------|---------|
+| SERVICE_NOT_FOUND | "Không tìm thấy dịch vụ X" |
+| INVALID_PRICE | "Giá phải lớn hơn 0" |
+| NO_PERMISSION | "Bạn không có quyền cập nhật dịch vụ này" |
+
+---
+
+#### UC-04: Configure Operating Hours
 
 | Field | Description |
 |-------|-------------|
@@ -911,11 +1825,11 @@ Khi không có đủ data cho insights:
 
 ---
 
-#### UC-02: Configure Operating Hours
+#### UC-04: Configure Operating Hours
 
 | Field | Description |
 |-------|-------------|
-| **Use Case ID** | UC-02 |
+| **Use Case ID** | UC-04 |
 | **Tool Name** | `get_operating_hours_config` |
 | **SRS Reference** | SRS 3.6.1 |
 | **Actor** | CLINIC_MANAGER, CLINIC_OWNER |
@@ -948,11 +1862,11 @@ Khi không có đủ data cho insights:
 
 ---
 
-#### UC-03: View Slot Availability
+#### UC-05: View Slot Availability
 
 | Field | Description |
 |-------|-------------|
-| **Use Case ID** | UC-03 |
+| **Use Case ID** | UC-05 |
 | **Tool Name** | `get_slot_availability` |
 | **SRS Reference** | SRS 3.6.7 |
 | **Actor** | CLINIC_MANAGER |
@@ -990,11 +1904,11 @@ Khi không có đủ data cho insights:
 
 ---
 
-#### UC-04: View Shift Summary
+#### UC-06: View Shift Summary
 
 | Field | Description |
 |-------|-------------|
-| **Use Case ID** | UC-04 |
+| **Use Case ID** | UC-06 |
 | **Tool Name** | `get_shift_summary` |
 | **SRS Reference** | Staff Shift Management |
 | **Actor** | CLINIC_MANAGER, CLINIC_OWNER |
@@ -1017,7 +1931,7 @@ Khi không có đủ data cho insights:
 
 ### Phase 1: Core
 
-#### UC-05: Clinic Overview Dashboard
+#### UC-07: Clinic Overview Dashboard
 
 | Field | Description |
 |-------|-------------|
@@ -1042,11 +1956,11 @@ Khi không có đủ data cho insights:
 
 ---
 
-#### UC-06: Analyze Revenue Trends
+#### UC-07: Analyze Revenue Trends
 
 | Field | Description |
 |-------|-------------|
-| **Use Case ID** | UC-06 |
+| **Use Case ID** | UC-07 |
 | **Tool Name** | `analyze_revenue_trends` |
 | **SRS Reference** | UC-CO-05 |
 | **Actor** | CLINIC_MANAGER, CLINIC_OWNER |
@@ -1067,11 +1981,11 @@ Khi không có đủ data cho insights:
 
 ---
 
-#### UC-07: View Staff Schedule
+#### UC-08: View Staff Schedule
 
 | Field | Description |
 |-------|-------------|
-| **Use Case ID** | UC-07 |
+| **Use Case ID** | UC-08 |
 | **Tool Name** | `get_staff_schedule` |
 | **SRS Reference** | Staff Shift Management |
 | **Actor** | CLINIC_MANAGER |
@@ -1086,11 +2000,11 @@ Khi không có đủ data cho insights:
 
 ### Phase 2: Insights
 
-#### UC-08: Get Clinic Metrics
+#### UC-09: Get Clinic Metrics
 
 | Field | Description |
 |-------|-------------|
-| **Use Case ID** | UC-08 |
+| **Use Case ID** | UC-09 |
 | **Tool Name** | `get_clinic_metrics` |
 | **SRS Reference** | UC-CO-05 |
 | **Actor** | CLINIC_MANAGER, CLINIC_OWNER |
@@ -1102,11 +2016,11 @@ Khi không có đủ data cho insights:
 
 ---
 
-#### UC-09: Get Appointment Insights
+#### UC-10: Get Appointment Insights
 
 | Field | Description |
 |-------|-------------|
-| **Use Case ID** | UC-09 |
+| **Use Case ID** | UC-10 |
 | **Tool Name** | `get_appointment_insights` |
 | **SRS Reference** | UC-CO-05 |
 | **Actor** | CLINIC_MANAGER |
@@ -1118,11 +2032,11 @@ Khi không có đủ data cho insights:
 
 ---
 
-#### UC-10: Get Customer Insights
+#### UC-11: Get Customer Insights
 
 | Field | Description |
 |-------|-------------|
-| **Use Case ID** | UC-10 |
+| **Use Case ID** | UC-11 |
 | **Tool Name** | `get_customer_insights` |
 | **SRS Reference** | UC-CO-05 |
 | **Actor** | CLINIC_MANAGER, CLINIC_OWNER |
@@ -1134,11 +2048,11 @@ Khi không có đủ data cho insights:
 
 ---
 
-#### UC-11: View Clinic Bookings
+#### UC-12: View Clinic Bookings
 
 | Field | Description |
 |-------|-------------|
-| **Use Case ID** | UC-11 |
+| **Use Case ID** | UC-12 |
 | **Tool Name** | `view_clinic_bookings` |
 | **SRS Reference** | UC-CO-05 |
 | **Actor** | CLINIC_MANAGER |
@@ -1152,11 +2066,11 @@ Khi không có đủ data cho insights:
 
 ### Phase 3: Advanced
 
-#### UC-12: Suggest Staff Assignments
+#### UC-13: Suggest Staff Assignments
 
 | Field | Description |
 |-------|-------------|
-| **Use Case ID** | UC-12 |
+| **Use Case ID** | UC-13 |
 | **Tool Name** | `suggest_staff_assignments` |
 | **SRS Reference** | Staff Assignment |
 | **Actor** | CLINIC_MANAGER |
@@ -1168,11 +2082,11 @@ Khi không có đủ data cho insights:
 
 ---
 
-#### UC-13: Analyze Review Sentiment
+#### UC-14: Analyze Review Sentiment
 
 | Field | Description |
 |-------|-------------|
-| **Use Case ID** | UC-13 |
+| **Use Case ID** | UC-14 |
 | **Tool Name** | `analyze_review_sentiment` |
 | **SRS Reference** | UC-CO-05 |
 | **Actor** | CLINIC_OWNER |
@@ -1184,11 +2098,11 @@ Khi không có đủ data cho insights:
 
 ---
 
-#### UC-14: Compare Performance
+#### UC-15: Compare Performance
 
 | Field | Description |
 |-------|-------------|
-| **Use Case ID** | UC-14 |
+| **Use Case ID** | UC-15 |
 | **Tool Name** | `compare_performance` |
 | **SRS Reference** | UC-CO-05 |
 | **Actor** | CLINIC_OWNER |
@@ -1200,11 +2114,11 @@ Khi không có đủ data cho insights:
 
 ---
 
-#### UC-15: Reassign Booking Staff
+#### UC-16: Reassign Booking Staff
 
 | Field | Description |
 |-------|-------------|
-| **Use Case ID** | UC-15 |
+| **Use Case ID** | UC-16 |
 | **Tool Name** | `reassign_booking_staff` |
 | **SRS Reference** | UC-CO-06 |
 | **Actor** | CLINIC_MANAGER |
@@ -1218,11 +2132,11 @@ Khi không có đủ data cho insights:
 
 ### Phase 4: Automation
 
-#### UC-16: Auto-Create Staff Shifts
+#### UC-17: Auto-Create Staff Shifts
 
 | Field | Description |
 |-------|-------------|
-| **Use Case ID** | UC-16 |
+| **Use Case ID** | UC-17 |
 | **Tool Name** | `create_staff_shifts` |
 | **SRS Reference** | Staff Shift Management |
 | **Actor** | CLINIC_MANAGER |
@@ -1234,11 +2148,11 @@ Khi không có đủ data cho insights:
 
 ---
 
-#### UC-17: Suggest Marketing Campaign
+#### UC-18: Suggest Marketing Campaign
 
 | Field | Description |
 |-------|-------------|
-| **Use Case ID** | UC-17 |
+| **Use Case ID** | UC-18 |
 | **Tool Name** | `suggest_marketing_campaign` |
 | **SRS Reference** | UC-CO-05 |
 | **Actor** | CLINIC_OWNER |
@@ -2098,7 +3012,369 @@ def parse_prompt_to_params(prompt: str, tool_name: str) -> dict:
 
 ---
 
-## 12. Summary
+## 12. Notion-Style Workspace Architecture (NEW - 2026-04)
+
+### 12.1 Paradigm Shift
+
+**Từ**: Chat bubble + UISchema rendered inline
+**Sang**: Full-page editable workspace + AI assistant sidebar
+
+Mục tiêu: CLINIC_MANAGER/OWNER cần workspace thực tế để quản lý data (services, schedules, reports), không chỉ chat.
+
+### 12.2 Workspace UI Components
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  🤖 AI Copilot - [Clinic Name]                         [User: Owner/Manager]│
+├─────────────────────────────────────────────────────────────────────────────┤
+│  💬 Prompt: "Liệt kê dịch vụ, hiển thị giá, top dịch vụ được đặt nhiều nhất"
+├─────────────────────────────────────────────────────────────────────────────┤
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │ [📋 Dịch vụ] [📅 Lịch trực] [📊 Metrics] [💰 Doanh thu] [👥 Khách] │  │
+│  ├───────────────────────────────────────────────────────────────────────┤  │
+│  │                                                                       │  │
+│  │  ┌─────────────────────────────────────────────────────────────────┐  │  │
+│  │  │ 🔍 Tìm kiếm...  │ 📁 Tất cả ▼ │ ⭐ Tất cả ▼ │ [+ Thêm dịch vụ] │  │  │
+│  │  └─────────────────────────────────────────────────────────────────┘  │  │
+│  │                                                                       │  │
+│  │  ┌────────────────────────────────────────────────────────────────┐   │  │
+│  │  │ # │ Tên dịch vụ           │ Giá      │ Lượt đặt │ Trạng thái   │   │  │
+│  │  │───│───────────────────────│──────────│──────────│──────────────│   │  │
+│  │  │ 1 │ Tiêm phòng 5 bệnh     │ 200k [📝]│ 85 [📈]  │ ● [toggle]   │   │  │
+│  │  │ 2 │ Khám tổng quát        │ 150k [📝]│ 62 [📈]  │ ● [toggle]   │   │  │
+│  │  │ 3 │ Tắm rửa & Grooming    │ 100k [📝]│ 45 [📉]  │ ○ [toggle]   │   │  │
+│  │  └────────────────────────────────────────────────────────────────┘   │  │
+│  │                                                                       │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  💡 AI Suggestions: "3 dịch vụ ít đặt - cân nhắc giảm giá" [Apply][Dismiss]│
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 12.3 Component Mapping
+
+| Component | Type | Behavior |
+|-----------|------|----------|
+| `workspace_page` | Container | Main page với tabs |
+| `service_table` | Table | Editable rows với inline edit |
+| `service_row` | Row | Click price để edit → Enter save |
+| `toggle_switch` | Toggle | Instant PUT /api/services/{id}/status |
+| `metric_card` | Card | Hiển thị metrics với trend |
+| `tab_navigation` | Tabs | Switch workspaces |
+| `ai_sidebar` | Sidebar | Gợi ý bên dưới, không che content |
+
+### 12.4 Data Flow
+
+```python
+# 1. User nhập prompt
+User: "Liệt kê dịch vụ và hiển thị giá"
+
+# 2. AI Agent xử lý
+AI → Tool: list_clinic_services
+AI → Generate: page_schema (NOT uischema)
+
+# 3. Frontend render as workspace
+page_schema = {
+    "type": "workspace_page",
+    "tabs": [
+        {"id": "services", "label": "Dịch vụ", "content": {...}},
+        {"id": "schedule", "label": "Lịch trực", "content": {...}},
+        {"id": "metrics", "label": "Metrics", "content": {...}}
+    ],
+    "editable": True,
+    "auto_save": True
+}
+
+# 4. User edit trực tiếp
+User → Click price cell → Edit → Enter
+→ PUT /api/services/{serviceId}
+→ Success → Update UI
+
+# 5. Auto-save hoặc manual save
+
+### 12.5 Hybrid Workflow: Chat + Workspace
+
+**Scenario**: User đang ở workspace tab (ví dụ: Metrics) nhưng muốn edit service qua chat.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  🤖 AI Copilot - Clinic Workspace                              │
+├─────────────────────────────────────────────────────────────────┤
+│  Tabs: [Dịch vụ] [Lịch trực] [📊 Metrics] [Doanh thu]          │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │  Current: Metrics Tab                                    │   │
+│  │  - Revenue chart, Booking stats                          │   │
+│  └─────────────────────────────────────────────────────────┘   │
+├─────────────────────────────────────────────────────────────────┤
+│  💬 Chat: "Đổi giá tiêm phòng thành 220k"                      │
+│           ↓                                                    │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │  AI: Detect edit action → resolve service_id            │   │
+│  │      Clinic context known (workspace state)              │   │
+│  │      Execute PUT /api/services/{id}                      │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│           ↓                                                    │
+│  UI: Show toast + background sync + highlight on next tab      │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### 12.5.1 Three Approaches
+
+| Approach | Behavior | Use Case |
+|----------|----------|----------|
+| **A. Context-aware** | Chat action → Update store + toast, background sync | Default - không rời page |
+| **B. Mini-modal** | Chat action → Show confirm modal overlay | Cần xác nhận trước khi save |
+| **C. Smart redirect** | Chat action → Switch tab + highlight row | Edit xong cần xem kết quả |
+
+#### 12.5.2 Recommended: Approach A (Context-aware)
+
+```typescript
+// AI Response khi nhận edit request:
+{
+  "action": "update_service",
+  "source": "chat",
+  "workspace_context": {
+    "current_tab": "metrics",
+    "clinic_id": "uuid-123"
+  },
+  "result": {
+    "success": true,
+    "updated_field": "base_price",
+    "old_value": 200000,
+    "new_value": 220000,
+    "service_name": "Tiêm phòng 5 bệnh",
+    "toast_message": "Đã cập nhật giá Tiêm phòng 5 bệnh → 220.000đ"
+  },
+  "workspace_update": {
+    "type": "service_updated",
+    "service_id": "uuid-svc",
+    "sync": true
+  }
+}
+```
+
+#### 12.5.3 Implementation Logic
+
+```typescript
+// ChatHandler.tsx
+const handleChatMessage = async (prompt: string) => {
+  // 1. Send to AI Agent
+  const response = await aiAgent.process(prompt, workspaceContext);
+  
+  // 2. Check if action requires workspace update
+  if (response.workspace_update) {
+    // 3. Update Zustand store (background sync)
+    workspaceStore.applyUpdate(response.workspace_update);
+    
+    // 4. Show toast notification
+    showToast(response.toast_message, 'success');
+    
+    // 5. If user is on the target tab, refresh data
+    if (currentTab === response.workspace_update.target_tab) {
+      refreshTabData(response.workspace_update.target_tab);
+    }
+    
+    // 6. If user switches to target tab later, data already synced
+  }
+  
+  // 7. Keep chat history for context
+  addToChatHistory({ prompt, response });
+};
+```
+
+#### 12.5.4 State Synchronization
+
+```typescript
+// workspaceStore.ts (Zustand)
+interface WorkspaceState {
+  currentTab: string;
+  services: ServiceRow[];
+  schedule: ShiftRow[];
+  metrics: MetricData[];
+  
+  // Actions
+  applyUpdate: (update: WorkspaceUpdate) => void;
+  syncFromChat: (chatResult: ChatResult) => void;
+}
+
+const workspaceStore = create<WorkspaceState>((set, get) => ({
+  currentTab: 'metrics',
+  services: [],
+  schedule: [],
+  metrics: [],
+  
+  applyUpdate: (update) => {
+    switch (update.type) {
+      case 'service_updated':
+        set((state) => ({
+          services: state.services.map((s) =>
+            s.service_id === update.service_id
+              ? { ...s, ...update.changes }
+              : s
+          ),
+        }));
+        break;
+      case 'service_created':
+        set((state) => ({
+          services: [...state.services, update.new_service],
+        }));
+        break;
+      case 'service_deleted':
+        set((state) => ({
+          services: state.services.filter((s) => s.service_id !== update.service_id),
+        }));
+        break;
+    }
+  },
+  
+  syncFromChat: (chatResult) => {
+    if (chatResult.workspace_update) {
+      get().applyUpdate(chatResult.workspace_update);
+    }
+  },
+}));
+```
+
+#### 12.5.5 Toast & Feedback
+
+```typescript
+// Toast types for hybrid workflow
+interface WorkspaceToast {
+  id: string;
+  type: 'success' | 'error' | 'info';
+  message: string;
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
+  metadata?: {
+    service_id?: string;
+    tab_redirect?: string;
+  };
+}
+
+// Example: "Đã cập nhật giá Tiêm phòng 5 bệnh → 220.000đ"
+// With action: "Xem" → Click → Redirect to Services tab
+```
+
+#### 12.5.6 Edge Cases
+
+| Scenario | Handling |
+|----------|----------|
+| Edit service khi đang offline | Queue update, sync when online |
+| Edit conflict (2 tabs edit same service) | Last-write-wins + toast warning |
+| Invalid edit (validation fail) | Show error toast + keep chat context |
+| Session expired | Prompt re-login + restore state from store |
+
+### 12.6 Implementation Components
+- Inline edit: Auto-save on Enter/blur
+- Bulk edit: Manual save button
+- Toggle: Instant save
+```
+
+### 12.5 Implementation Components
+
+```typescript
+// New Components cần tạo:
+src/
+├── pages/
+│   └── clinic/
+│       └── ClinicCopilotPage.tsx    // Main workspace page
+├── components/
+│   ├── workspace/
+│   │   ├── WorkspacePage.tsx         // Container với tabs
+│   │   ├── WorkspaceTabs.tsx         // Tab navigation
+│   │   ├── ServiceTable.tsx         // Editable service table
+│   │   ├── ServiceRow.tsx           // Single row với inline edit
+│   │   ├── MetricCard.tsx           // Dashboard metric card
+│   │   ├── MetricGrid.tsx           // Grid of metrics
+│   │   ├── ShiftCalendar.tsx        // Staff shift calendar
+│   │   ├── RevenueChart.tsx         // Revenue visualization
+│   │   └── AISidebar.tsx            // AI suggestions panel
+│   └── ui/
+│       ├── InlineEdit.tsx            // Reusable inline edit
+│       └── ToggleSwitch.tsx         // Toggle component
+└── store/
+    └── workspaceStore.ts             // Zustand store for workspace
+```
+
+### 12.6 Page Schema Definition
+
+```typescript
+interface WorkspacePageSchema {
+  type: 'workspace_page';
+  title: string;
+  tabs: WorkspaceTab[];
+  editable: boolean;
+  auto_save: boolean;
+  ai_suggestions?: AISuggestion[];
+}
+
+interface WorkspaceTab {
+  id: string;
+  label: string;
+  icon: string;
+  content: WorkspaceContent;
+}
+
+interface WorkspaceContent {
+  component: 'service_table' | 'metric_grid' | 'shift_calendar' | 'revenue_chart' | 'customer_list';
+  data: Record<string, any>;
+  config: {
+    editable?: boolean;
+    sortable?: boolean;
+    filterable?: boolean;
+  };
+}
+
+interface ServiceTableContent extends WorkspaceContent {
+  component: 'service_table';
+  data: {
+    services: ServiceRow[];
+    summary: {
+      total: number;
+      active: number;
+      inactive: number;
+      top_booked: string[];
+      least_booked: string[];
+    };
+  };
+}
+
+interface ServiceRow {
+  service_id: string;
+  name: string;
+  base_price: number;
+  total_bookings: number;
+  trend: 'up' | 'down' | 'stable';
+  is_active: boolean;
+}
+```
+
+### 12.7 Backend API Integration
+
+| Action | API | Method |
+|--------|-----|--------|
+| Load services | `/api/services` | GET |
+| Update price inline | `/api/services/{id}` | PUT |
+| Toggle status | `/api/services/{id}/status?isActive={bool}` | PATCH |
+| Add new service | `/api/services` | POST |
+| Delete service | `/api/services/{id}` | DELETE |
+
+### 12.8 Comparison: Chat vs Workspace
+
+| Aspect | Chat-bubble (Before) | Workspace (After) |
+|--------|---------------------|-------------------|
+| **Layout** | Narrow chat bubble | Full page width |
+| **Edit** | Via action buttons | Inline click-to-edit |
+| **Navigation** | Scroll chat history | Tab-based navigation |
+| **Data density** | Low (compact cards) | High (table/grid) |
+| **Use case** | Quick queries | CRUD operations |
+| **AI interaction** | Conversation | Prompt + suggestions |
+
+---
+
+## 13. Summary
 
 | Module | Tools | Priority | APIs Status |
 |--------|-------|----------|--------------|
@@ -2108,14 +3384,27 @@ def parse_prompt_to_params(prompt: str, tool_name: str) -> dict:
 | Appointment & Ops | 4 | MEDIUM | 1 flexible API (filter-based) |
 | Customer & Growth | 3 | MEDIUM | Flexible aggregation APIs |
 | Clinic Management | 1 | HIGH | Đã có |
+| **Workspace UI** | 8 | **HIGH** | Components mới cần tạo |
+
+### 13.1 UI Paradigm
+
+- **Before**: Chat bubble + UISchema components trong message
+- **After**: Full-page Notion-style workspace + AI sidebar
+
+### 13.2 Implementation Order
+
+1. **Phase 0**: WorkspacePage + ServiceTable + InlineEdit
+2. **Phase 1**: MetricCards + TabNavigation
+3. **Phase 2**: ShiftCalendar + RevenueChart + AISidebar
+4. **Phase 3**: Advanced features
 
 **Design Note**: Tất cả AI backend APIs nên implement theo flexible design pattern - response tùy thuộc depth/params từ prompt.
 
 **Note**: Theo AGENTS.md, PET_OWNER chỉ dùng Mobile App, không dùng Web. Nên các tools này chỉ cần enable cho CLINIC_MANAGER/CLINIC_OWNER trên Web Dashboard.
 
-**Kế hoạch đề xuất**: Implement theo từng phase, bắt đầu từ Phase 0 (Clinic Setup) vì đây là yêu cầu từ SRS 3.13.1.
+**Kế hoạch đề xuất**: Implement theo từng phase, bắt đầu từ Phase 0 (Clinic Setup + Workspace UI) vì đây là yêu cầu từ SRS 3.13.1 và user feedback về Notion-style.
 
 Bạn có muốn tôi:
-1. **Proceed với Phase 0 implementation** (generate_clinic_services)?
-2. **Refine thêm acceptance criteria** cho từng tool?
-3. **Tạo technical spec chi tiết** hơn cho từng tool?
+1. **Proceed với Phase 0 implementation** (WorkspacePage + ServiceTable)?
+2. **Refine thêm acceptance criteria** cho từng component?
+3. **Tạo technical spec chi tiết** hơn cho từng component?

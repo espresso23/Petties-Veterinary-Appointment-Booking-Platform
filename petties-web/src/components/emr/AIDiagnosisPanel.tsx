@@ -311,7 +311,6 @@ export const AIDiagnosisPanel = ({
 
     const detailsVisible = inline || isModal ? true : showResultDetails
     const hasSelectedDiagnosis = Boolean(selectedDiagnosisCode || selectedDiagnosisLabel)
-    const provisionalDifferentialsCount = result?.top_differentials.filter(item => !item.canonical_code).length || 0
     const imageCards = allImageUrls.map((url, index) => {
         const analysisItem = result?.image_analysis?.[index]
         const fallbackDescription = imageDescriptions[url]
@@ -456,16 +455,19 @@ export const AIDiagnosisPanel = ({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <h4 className="text-xs font-bold uppercase tracking-wide text-amber-800">Kết quả AI đã sẵn sàng</h4>
-                        <p className="mt-1 text-xs text-stone-700">
-                            {result.top_differentials.length} chẩn đoán phân biệt, {result.prescription_suggestions.length} gợi ý đơn thuốc,
-                            {result.suggested_questions.length} câu hỏi cần khai thác thêm.
-                        </p>
-                        <p className="mt-1 text-xs font-semibold text-stone-700">{result.evidence_banner}</p>
-                        {provisionalDifferentialsCount > 0 && (
-                            <p className="mt-1 text-xs font-semibold text-amber-800">
-                                Có {provisionalDifferentialsCount} nhãn tạm chưa chuẩn hóa. Ưu tiên bác sĩ đối chiếu lâm sàng trước khi dùng để tái sử dụng phác đồ.
+                        {hasSelectedDiagnosis ? (
+                            <p className="mt-1 text-xs text-stone-700">
+                                {result.top_differentials.length} chẩn đoán phân biệt, {result.prescription_suggestions.length} gợi ý đơn thuốc,
+                                {result.suggested_questions.length} câu hỏi cần khai thác thêm.
+                            </p>
+                        ) : (
+                            <p className="mt-1 text-xs text-stone-700">
+                                {result.top_differentials.length} chẩn đoán phân biệt, {result.suggested_questions.length} câu hỏi cần khai thác thêm.
+                                Gợi ý đơn thuốc sẽ mở sau khi bác sĩ chọn 1 chẩn đoán trong Top 3.
                             </p>
                         )}
+                        <p className="mt-1 text-xs font-semibold text-stone-700">{result.evidence_banner}</p>
+
                     </div>
                     {!isModal && (
                         <button
@@ -488,28 +490,19 @@ export const AIDiagnosisPanel = ({
                             {result.top_differentials.slice(0, 3).map((item, idx) => {
                                 const isCurrentSelection = (item.canonical_code && item.canonical_code === selectedDiagnosisCode)
                                     || item.display_name_vi === selectedDiagnosisLabel
-                                const isProvisional = !item.canonical_code
 
                                 return (
                                 <div
                                     key={`${item.display_name_vi}-${idx}`}
                                     className={`rounded-2xl border p-3 ${isCurrentSelection
                                         ? 'border-orange-300 bg-orange-50/80'
-                                        : isProvisional
-                                            ? 'border-amber-300 bg-amber-50/70'
-                                            : 'border-stone-200 bg-stone-50/70'
-                                        }`}
+                                        : 'border-stone-200 bg-stone-50/70'
+                                    }`}
                                 >
                                     <div className="flex flex-wrap items-start justify-between gap-3">
                                         <div className="min-w-0 flex-1">
                                             <div className="flex flex-wrap items-center gap-2">
                                                 <p className="text-sm font-bold text-stone-900">#{item.rank || idx + 1} - {item.display_name_vi}</p>
-                                                <span className={`rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${isProvisional
-                                                    ? 'border-amber-300 bg-amber-100 text-amber-800'
-                                                    : 'border-emerald-300 bg-emerald-100 text-emerald-800'
-                                                    }`}>
-                                                    {isProvisional ? 'Tạm gán nhãn' : 'Đã chuẩn hóa'}
-                                                </span>
                                             </div>
                                             <p className="text-xs text-stone-600">{item.confidence_note}</p>
                                         </div>
@@ -527,20 +520,6 @@ export const AIDiagnosisPanel = ({
                                             </button>
                                         )}
                                     </div>
-                                    {item.supporting_reasons.length > 0 && (
-                                        <ul className="mt-2 space-y-1">
-                                            {item.supporting_reasons.slice(0, 2).map((reason, reasonIndex) => (
-                                                <li key={`${reason}-${reasonIndex}`} className="text-xs text-stone-600">
-                                                    - {reason}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    )}
-                                    {isProvisional && (
-                                        <p className="mt-2 text-[11px] font-semibold text-amber-800">
-                                            Nhãn này chưa được chuẩn hóa về bệnh chuẩn. Cần bác sĩ xác nhận thêm trước khi tái sử dụng SOAP hoặc phác đồ.
-                                        </p>
-                                    )}
                                 </div>
                                 )
                             })}
@@ -551,7 +530,11 @@ export const AIDiagnosisPanel = ({
                         <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-stone-700">Dấu hiệu từ ảnh</h4>
                         <ul className="space-y-1">
                             {result.vision_findings.length === 0 && (
-                                <li className="text-xs text-stone-500">Chưa có dấu hiệu từ ảnh hoặc chưa có ảnh lâm sàng.</li>
+                                <li className="text-xs text-stone-500">
+                                    {allImageUrls.length > 0
+                                        ? 'AI chưa ghi nhận dấu hiệu nổi bật từ ảnh hiện tại. Bác sĩ vui lòng đối chiếu mô tả ảnh và khám lâm sàng.'
+                                        : 'Chưa có ảnh lâm sàng cho ca này.'}
+                                </li>
                             )}
                             {result.vision_findings.map((finding, idx) => (
                                 <li key={`${finding}-${idx}`} className="text-xs text-stone-700">
@@ -586,6 +569,9 @@ export const AIDiagnosisPanel = ({
                                         <p className="text-xs text-stone-600">
                                             {item.dosage || 'Theo toa'} | {item.frequency || 'Theo chỉ định'} | {item.duration_days ?? '-'} ngày
                                         </p>
+                                        {item.instructions && (
+                                            <p className="mt-1 text-[11px] text-stone-500">{item.instructions}</p>
+                                        )}
                                         {item.caution && (
                                             <p className="mt-1 text-[11px] font-semibold text-red-600">{item.caution}</p>
                                         )}

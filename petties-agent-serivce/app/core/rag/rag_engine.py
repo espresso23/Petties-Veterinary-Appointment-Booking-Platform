@@ -14,14 +14,11 @@ Components:
 - Qdrant Cloud for vector storage
 """
 
-from typing import List, Optional, Any, Tuple
+from typing import List, Optional, Any
 from dataclasses import dataclass
 from loguru import logger
 import asyncio
-import base64
-import io
 from pathlib import Path
-import hashlib
 
 # LlamaIndex imports
 from llama_index.core import (
@@ -44,14 +41,6 @@ from app.db.postgres.session import AsyncSessionLocal
 # Cohere embed-multilingual-v3.0 dimension
 COHERE_EMBED_DIMENSION = 1024
 
-# Knowledge Base Image Collection (for image vectors extracted from PDFs)
-KB_IMAGE_COLLECTION = "petties_kb_images"
-JINA_IMAGE_DIMENSION = 1024
-
-# Image extraction settings
-MAX_IMAGES_PER_DOCUMENT = 50  # Tăng từ 10 để hỗ trợ PDF lớn (300+ trang)
-IMAGE_MIN_SIZE_BYTES = 1000  # Skip tiny images likely to be logos/icons
-
 
 @dataclass
 class RetrievedChunk:
@@ -66,10 +55,9 @@ class RetrievedChunk:
 
 @dataclass
 class IndexResult:
-    """Result from indexing a document (text + images)"""
+    """Result from indexing a document"""
 
     text_chunks: int
-    image_vectors: int
 
 
 class LlamaIndexRAGEngine:
@@ -101,9 +89,6 @@ class LlamaIndexRAGEngine:
         self._collection_name = (
             settings.QDRANT_COLLECTION_NAME or "petties_knowledge_base"
         )
-        # Image vector support
-        self._image_qdrant_client: Optional[Any] = None
-        self._image_collection_initialized: bool = False
         self._init_lock = asyncio.Lock()
         LlamaIndexRAGEngine._initialized = True
 
@@ -305,22 +290,7 @@ class LlamaIndexRAGEngine:
 
             logger.info(f"Indexed {filename}: {chunks_count} chunks with LlamaIndex")
 
-            # Index images from PDF (if applicable)
-            images_indexed = 0
-            if file_path and file_path.exists() and file_path.suffix.lower() == ".pdf":
-                try:
-                    images_indexed = await self._index_document_images(
-                        file_path=file_path,
-                        document_id=document_id,
-                        filename=filename,
-                        metadata=metadata,
-                    )
-                    if images_indexed > 0:
-                        logger.info(f"Also indexed {images_indexed} images from PDF")
-                except Exception as img_err:
-                    logger.warning(f"Image indexing failed (non-fatal): {img_err}")
-
-            return IndexResult(text_chunks=chunks_count, image_vectors=images_indexed)
+            return IndexResult(text_chunks=chunks_count)
 
         except Exception as e:
             logger.error(f"Failed to index document: {e}")
@@ -503,209 +473,6 @@ class LlamaIndexRAGEngine:
             logger.error(f"Text extraction failed for {filename}: {e}")
             return ""
 
-    def _extract_images_from_pdf(self, file_path: Path) -> List[Tuple[str, bytes, str]]:
-        """
-        Extract images from PDF using PyMuPDF (fitz).
-
-        Returns:
-            List of (image_id, image_bytes, extension) tuples
-        """
-        images = []
-        try:
-            import fitz
-
-            with fitz.open(str(file_path)) as pdf:
-                for page_num, page in enumerate(pdf):
-                    image_list = page.get_images(full=True)
-                    for img_index, img in enumerate(image_list):
-                        try:
-                            xref = img[0]
-                            base_image = pdf.extract_image(xref)
-                            image_bytes = base_image["image"]
-                            image_ext = base_image.get("ext", "jpeg").lower()
-                            # Skip tiny images (likely logos/icons)
-                            if len(image_bytes) < IMAGE_MIN_SIZE_BYTES:
-                                continue
-                            image_id = f"p{page_num + 1}_img{img_index + 1}_{hashlib.md5(image_bytes[:100]).hexdigest()[:8]}"
-                            images.append((image_id, image_bytes, image_ext))
-                            if len(images) >= MAX_IMAGES_PER_DOCUMENT:
-                                logger.warning(
-                                    f"Reached max images per document ({MAX_IMAGES_PER_DOCUMENT})"
-                                )
-                                break
-                        except Exception as e:
-                            logger.debug(
-                                f"Failed to extract image {img_index} from page {page_num}: {e}"
-                            )
-                            continue
-                    if len(images) >= MAX_IMAGES_PER_DOCUMENT:
-                        break
-            logger.info(f"Extracted {len(images)} images from PDF")
-        except ImportError:
-            logger.warning(
-                "PyMuPDF (fitz) not installed - cannot extract images from PDF"
-            )
-        except Exception as e:
-            logger.error(f"Error extracting images from PDF: {e}")
-        return images
-
-    async def _ensure_image_collection(self):
-        """Ensure KB image collection exists with named vectors (text + image)."""
-        if self._image_collection_initialized:
-            return
-
-        try:
-            from qdrant_client import QdrantClient
-            from qdrant_client.models import VectorParams, Distance
-
-            # Get Qdrant config from DB settings (same as text RAG)
-            async with AsyncSessionLocal() as db:
-                qdrant_url = await get_setting("QDRANT_URL", db)
-                qdrant_api_key = await get_setting("QDRANT_API_KEY", db)
-
-            if qdrant_url and qdrant_api_key:
-                self._image_qdrant_client = QdrantClient(
-                    url=qdrant_url, api_key=qdrant_api_key
-                )
-            else:
-                logger.warning(
-                    "QDRANT_URL/QDRANT_API_KEY not in DB settings - image indexing disabled"
-                )
-                return
-
-            # Create collection if not exists
-            try:
-                exists = self._image_qdrant_client.collection_exists(
-                    KB_IMAGE_COLLECTION
-                )
-            except Exception:
-                exists = False
-
-            if not exists:
-                self._image_qdrant_client.create_collection(
-                    collection_name=KB_IMAGE_COLLECTION,
-                    vectors_config={
-                        "text": VectorParams(
-                            size=COHERE_EMBED_DIMENSION,
-                            distance=Distance.COSINE,
-                        ),
-                        "image": VectorParams(
-                            size=JINA_IMAGE_DIMENSION,
-                            distance=Distance.COSINE,
-                        ),
-                    },
-                )
-                logger.info(f"Created KB image collection: {KB_IMAGE_COLLECTION}")
-
-            self._image_collection_initialized = True
-            logger.info("KB image collection initialized")
-
-        except Exception as e:
-            logger.error(f"Failed to initialize image collection: {e}")
-            self._image_collection_initialized = False
-
-    async def _index_document_images(
-        self,
-        file_path: Path,
-        document_id: int,
-        filename: str,
-        metadata: Optional[dict] = None,
-    ) -> int:
-        """
-        Extract images from PDF and index them into KB image collection.
-
-        Returns:
-            Number of images indexed
-        """
-        if file_path.suffix.lower() != ".pdf":
-            return 0
-
-        await self._ensure_image_collection()
-
-        if not self._image_qdrant_client:
-            logger.debug("Image Qdrant client not available - skipping image indexing")
-            return 0
-
-        images = self._extract_images_from_pdf(file_path)
-        if not images:
-            logger.info(f"No images extracted from PDF {filename}")
-            return 0
-
-        try:
-            from app.core.embeddings.jina_image_embeddings import embed_image_base64
-
-            # Convert images to base64 for Jina
-            base64_images = []
-            for img_id, img_bytes, img_ext in images:
-                b64 = base64.b64encode(img_bytes).decode("utf-8")
-                mime_type = f"image/{img_ext}" if img_ext else "image/jpeg"
-                base64_images.append(f"data:{mime_type};base64,{b64}")
-
-            # Get image embeddings
-            embeddings = await embed_image_base64(base64_images)
-
-            if not embeddings:
-                logger.warning("No image embeddings generated")
-                return 0
-
-            # Get text for text vectors (use document name as fallback)
-            text_for_embedding = metadata.get("notes", "") if metadata else ""
-            if not text_for_embedding:
-                text_for_embedding = f"Document: {filename}"
-
-            # Create text embeddings (reuse existing Cohere)
-            await self.initialize()
-            if self.index:
-                # Use Cohere embedding for text
-                from llama_index.embeddings.cohere import CohereEmbedding
-
-                embed_model = CohereEmbedding(
-                    model="embed-multilingual-v3.0",
-                    api_key=(await self._get_cohere_api_key()),
-                )
-                text_embedding = await asyncio.to_thread(
-                    embed_model.get_text_embedding, text_for_embedding
-                )
-            else:
-                text_embedding = None
-
-            # Upsert points to Qdrant with named vectors
-            from qdrant_client.models import PointStruct
-            from datetime import datetime
-
-            points = []
-            for i, (img_id, img_bytes, img_ext) in enumerate(images[: len(embeddings)]):
-                point = PointStruct(
-                    id=f"{document_id}_{img_id}",
-                    vector={
-                        "text": text_embedding
-                        if text_embedding
-                        else [0.0] * COHERE_EMBED_DIMENSION,
-                        "image": embeddings[i],
-                    },
-                    payload={
-                        "document_id": document_id,
-                        "filename": filename,
-                        "image_id": img_id,
-                        "image_index": i,
-                        "extracted_at": datetime.utcnow().isoformat(),
-                        "metadata": metadata or {},
-                    },
-                )
-                points.append(point)
-
-            self._image_qdrant_client.upsert(
-                collection_name=KB_IMAGE_COLLECTION,
-                points=points,
-            )
-
-            logger.info(f"Indexed {len(points)} images for document {document_id}")
-            return len(points)
-
-        except Exception as e:
-            logger.error(f"Failed to index document images: {e}")
-            return 0
-
     async def _get_cohere_api_key(self) -> Optional[str]:
         """Get Cohere API key from settings."""
         try:
@@ -713,70 +480,6 @@ class LlamaIndexRAGEngine:
                 return await get_setting("COHERE_API_KEY", db)
         except Exception:
             return None
-
-    async def query_with_images(
-        self,
-        query: str,
-        image_urls: Optional[List[str]] = None,
-        top_k: int = 5,
-        min_score: float = 0.5,
-        document_ids: Optional[List[int]] = None,
-    ) -> dict:
-        """
-        Query the knowledge base with text and/or images (hybrid search).
-
-        Args:
-            query: Search query text
-            image_urls: Optional image URLs to search by image similarity
-            top_k: Number of results
-            min_score: Minimum similarity score
-            document_ids: Filter by specific documents (optional)
-
-        Returns:
-            Dict with text_results, image_results, and combined results
-        """
-        await self.initialize()
-
-        text_results = await self.query(query, top_k, min_score, document_ids)
-
-        image_results = []
-        if image_urls and self._image_qdrant_client:
-            try:
-                from app.core.embeddings.jina_image_embeddings import embed_image_urls
-                from qdrant_client.models import Filter, FieldCondition, MatchValue
-
-                image_embeddings = await embed_image_urls(image_urls[:1])
-                if image_embeddings:
-                    # Query image vector
-                    search_result = self._image_qdrant_client.search(
-                        collection_name=KB_IMAGE_COLLECTION,
-                        query_vector=("image", image_embeddings[0]),
-                        limit=top_k,
-                        score_threshold=min_score,
-                    )
-
-                    for hit in search_result:
-                        image_results.append(
-                            {
-                                "document_id": hit.payload.get("document_id"),
-                                "filename": hit.payload.get("filename"),
-                                "image_id": hit.payload.get("image_id"),
-                                "score": hit.score,
-                                "payload": hit.payload,
-                            }
-                        )
-            except Exception as e:
-                logger.error(f"Image search failed: {e}")
-
-        # Combine results
-        combined = {
-            "text_results": text_results,
-            "image_results": image_results,
-            "has_image_query": len(image_results) > 0,
-            "query": query,
-        }
-
-        return combined
 
     async def get_status(self) -> dict:
         """Get RAG engine status"""

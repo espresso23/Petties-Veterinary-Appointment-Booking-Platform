@@ -109,11 +109,19 @@ async def decode_jwt_token(token: str) -> Optional[CurrentUser]:
         real_user_id = payload.get("userId", user_id)
         username = user_id if "userId" in payload else None
 
-        role = payload.get("role", payload.get("roles", "USER"))
+        # Role handling: Support "role" (string) or "roles" (list)
+        role_raw = payload.get("role") or payload.get("roles") or "USER"
+        if isinstance(role_raw, list):
+            role_raw = role_raw[0] if role_raw else "USER"
+
+        # Normalize role: Remove "ROLE_" prefix common in Spring Security
+        role = str(role_raw).replace("ROLE_", "").upper()
+
         clinic_id = (
             payload.get("workingClinicId")
             or payload.get("working_clinic_id")
             or payload.get("clinicId")
+            or payload.get("clinic_id")
         )
 
         # DEV FALLBACK: If no clinic_id in token, try to fetch from backend using userId
@@ -140,12 +148,15 @@ async def decode_jwt_token(token: str) -> Optional[CurrentUser]:
         if isinstance(role, list):
             role = role[0] if role else "USER"
 
+        # Already normalized above
+        final_role = str(role).upper()
+
         return CurrentUser(
             user_id=str(real_user_id),
             username=username,
-            role=role.upper() if role else "USER",
+            role=final_role,
             clinic_id=str(clinic_id) if clinic_id else None,
-            is_admin=role.upper() == "ADMIN" if role else False,
+            is_admin=final_role == "ADMIN",
         )
     except JWTError as e:
         # If signature failed, maybe the secret key in DB changed?

@@ -54,9 +54,6 @@ from app.api.schemas.knowledge_schemas import (
     RetrievedChunk,
     DeleteDocumentResponse,
     KnowledgeBaseStatusResponse,
-    HybridQueryRequest,
-    HybridQueryResponse,
-    ImageSearchResult,
 )
 from app.db.postgres.models import KnowledgeDocument
 from app.db.postgres.session import get_db, AsyncSessionLocal
@@ -469,11 +466,7 @@ async def process_document(
             )
 
         # Allow reprocessing if document has 0 vectors (failed previous attempt)
-        if (
-            document.processed
-            and document.vector_count > 0
-            and document.image_count > 0
-        ):
+        if document.processed and document.vector_count > 0:
             return ProcessDocumentResponse(
                 success=True,
                 message=f"Tài liệu '{document.filename}' đã được xử lý trước đó",
@@ -482,11 +475,9 @@ async def process_document(
                 processing_time_ms=0,
             )
 
-        if document.processed and (
-            document.vector_count == 0 or document.image_count == 0
-        ):
+        if document.processed and document.vector_count == 0:
             logger.warning(
-                f"Document {document_id} was marked processed with {document.vector_count} vectors, {document.image_count} images. Reprocessing for missing data..."
+                f"Document {document_id} was marked processed with {document.vector_count} vectors. Reprocessing..."
             )
             # Reset processed status for retry
             document.processed = False
@@ -530,7 +521,6 @@ async def process_document(
         # Update document status (only if vectors were created successfully)
         document.processed = True
         document.vector_count = index_result.text_chunks
-        document.image_count = index_result.image_vectors
         from datetime import timezone
 
         document.processed_at = datetime.now(timezone.utc)
@@ -539,8 +529,7 @@ async def process_document(
         processing_time = int((time.time() - start_time) * 1000)
 
         logger.info(
-            f"Processed document {document_id}: {index_result.text_chunks} text chunks, "
-            f"{index_result.image_vectors} images in {processing_time}ms"
+            f"Processed document {document_id}: {index_result.text_chunks} text chunks in {processing_time}ms"
         )
 
         return ProcessDocumentResponse(
@@ -944,92 +933,6 @@ async def query_knowledge(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ===== HYBRID QUERY (TEXT + IMAGE) =====
-
-
-@router.post(
-    "/query-hybrid",
-    response_model=HybridQueryResponse,
-    summary="[KB-01] Hybrid search (text + image)",
-    description="""
-    Hybrid search using both text and image embeddings.
-    
-    Use this when:
-    - Query contains both text and image URLs
-    - Want to find similar cases by image
-    - Combined text + image similarity search
-    
-    Requires:
-    - JINA_API_KEY configured in Knowledge settings
-    - PDF documents with extracted images
-    """,
-)
-async def query_hybrid(request: HybridQueryRequest, db: AsyncSession = Depends(get_db)):
-    """
-    Hybrid query with text and/or image search
-
-    Body:
-        {
-            "query": "triệu chứng ghẻ",
-            "image_urls": ["https://example.com/pet_lesion.jpg"],
-            "top_k": 5,
-            "min_score": 0.5
-        }
-    """
-    try:
-        import time
-
-        start_time = time.time()
-
-        rag = get_rag_engine()
-        result = await rag.query_with_images(
-            query=request.query,
-            image_urls=request.image_urls,
-            top_k=request.top_k,
-            min_score=request.min_score,
-        )
-
-        text_chunks = [
-            RetrievedChunk(
-                document_id=r.document_id,
-                document_name=r.document_name,
-                chunk_index=r.chunk_index,
-                content=r.content,
-                score=r.score,
-                metadata={"source": r.document_name},
-            )
-            for r in result.get("text_results", [])
-        ]
-
-        image_results = [
-            ImageSearchResult(
-                document_id=r.get("document_id", 0),
-                filename=r.get("filename", ""),
-                image_id=r.get("image_id", ""),
-                score=r.get("score", 0.0),
-                payload=r.get("payload"),
-            )
-            for r in result.get("image_results", [])
-        ]
-
-        retrieval_time = int((time.time() - start_time) * 1000)
-
-        return HybridQueryResponse(
-            success=True,
-            query=request.query,
-            text_results=text_chunks,
-            image_results=image_results,
-            has_image_query=result.get("has_image_query", False),
-            total_text_results=len(text_chunks),
-            total_image_results=len(image_results),
-            retrieval_time_ms=retrieval_time,
-        )
-
-    except Exception as e:
-        logger.error(f"Error in hybrid query: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 # ===== RECREATE COLLECTION =====
 
 
@@ -1185,12 +1088,6 @@ async def get_status(db: AsyncSession = Depends(get_db)):
         )
         total_vectors = vectors_result.scalar() or 0
 
-        # Sum image vectors from database
-        image_vectors_result = await db.execute(
-            select(func.sum(KnowledgeDocument.image_count))
-        )
-        total_image_vectors = image_vectors_result.scalar() or 0
-
         # Sum file sizes
         size_result = await db.execute(select(func.sum(KnowledgeDocument.file_size)))
         storage_size = size_result.scalar() or 0
@@ -1217,7 +1114,6 @@ async def get_status(db: AsyncSession = Depends(get_db)):
             processed_documents=processed_documents,
             pending_documents=total_documents - processed_documents,
             total_vectors=total_vectors,
-            total_image_vectors=total_image_vectors,
             storage_size_bytes=storage_size,
             last_updated=last_updated,
             qdrant_info=qdrant_info,

@@ -110,8 +110,9 @@ describe('Staff VIP Display Logic', () => {
         // VIP badge should not exist
         expect(screen.queryByText(/VIP/i)).not.toBeInTheDocument()
 
-        // AI Sidebar should be locked
-        expect(screen.getByText(/Yêu cầu Hội viên/i)).toBeInTheDocument()
+        // AI Sidebar should be locked with subscription guard
+        expect(screen.getByText(/Tính năng Trợ lý AI/i)).toBeInTheDocument()
+        expect(screen.getByText(/Gói Hội Viên/i)).toBeInTheDocument()
     })
 
     it('TC-FRONT-VIP-003: Clinic Manager should NEVER see VIP badge', () => {

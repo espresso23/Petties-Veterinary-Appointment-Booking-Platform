@@ -19,7 +19,8 @@ import {
     BeakerIcon,
     BellIcon,
     PresentationChartLineIcon,
-    UserCircleIcon
+    UserCircleIcon,
+    SparklesIcon
 } from '@heroicons/react/24/outline'
 import '../styles/brutalist.css'
 
@@ -31,7 +32,7 @@ export const ClinicOwnerLayout = () => {
     const refreshUnreadCount = useNotificationStore((state) => state.refreshUnreadCount)
     const { state, toggleSidebar, isMobile } = useSidebar()
 
-    const setMembership = useMembershipStore(state => state.setMembership)
+    const fetchMembershipStatus = useMembershipStore(state => state.fetchMembershipStatus)
     const { clinics, getMyClinics } = useClinicStore()
 
     const isVIP = useMembershipStore(state => state.isVIP())
@@ -51,11 +52,9 @@ export const ClinicOwnerLayout = () => {
 
     useEffect(() => {
         if (clinics && clinics.length > 0) {
-            subscriptionService.getClinicSubscription(clinics[0].clinicId)
-                .then(sub => setMembership(sub))
-                .catch(() => setMembership(null))
+            fetchMembershipStatus(clinics[0].clinicId)
         }
-    }, [clinics, setMembership])
+    }, [clinics, fetchMembershipStatus])
 
     const navGroups: NavGroup[] = [
         {
@@ -63,6 +62,7 @@ export const ClinicOwnerLayout = () => {
             items: [
                 { path: '/clinic-owner', label: 'BẢNG ĐIỀU KHIỂN', icon: Squares2X2Icon, end: true },
                 { path: '/clinic-owner/clinics', label: 'QUẢN LÝ PHÒNG KHÁM', icon: HomeModernIcon },
+                { path: '/clinic-owner/ai-copilot', label: 'AI COPILOT', icon: SparklesIcon },
                 { path: '/clinic-owner/subscriptions', label: 'GÓI DỊCH VỤ', icon: CreditCardIcon },
                 { path: '/clinic-owner/staff', label: 'NHÂN SỰ', icon: UserGroupIcon },
             ]

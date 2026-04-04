@@ -165,12 +165,12 @@ flowchart LR
 |---|---|---|
 | `petties_knowledge_base` | text only, 1024-dim | RAG text chunks from uploaded knowledge documents |
 | `petties_case_memory_v2` | named vectors `text` + `image`, both 1024-dim | Confirmed EMR case memory for diagnosis support |
-| `petties_kb_images` | named vectors `text` + `image`, both 1024-dim | Extracted PDF image retrieval for hybrid KB search |
+
+**Note:** `petties_kb_images` was removed (migration 010) - PDF image extraction was never used in production.
 
 ```mermaid
 flowchart LR
     KD["knowledge_documents (PostgreSQL)"] --> KB["petties_knowledge_base"]
-    KD --> KBI["petties_kb_images"]
     EMR["confirmed EMR data"] --> CM["petties_case_memory_v2"]
 ```
 

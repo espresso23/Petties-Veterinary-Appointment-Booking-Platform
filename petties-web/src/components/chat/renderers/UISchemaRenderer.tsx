@@ -1,4 +1,14 @@
 import type { UIAction, UIComponent, UISchemaV1 } from '../../../types/chat'
+import {
+  BookingListCard,
+  BookingDetailCard,
+  ClinicTodaySummaryCard,
+  StaffScheduleCard,
+  StaffListCard,
+  ClinicServiceListCard,
+  ServiceDetailCard,
+  ConfirmationCard
+} from './cards'
 
 interface UISchemaRendererProps {
   schema: UISchemaV1
@@ -71,6 +81,61 @@ function renderClinicCard(
           <ActionButtons component={component} onAction={onAction} />
         </div>
       </div>
+    </div>
+  )
+}
+
+function renderServiceCard(
+  component: UIComponent,
+  onAction?: (action: UIAction, component: UIComponent) => void,
+) {
+  const data = component.data
+  const name = renderSimpleValue(data['name'])
+  const description = renderSimpleValue(data['description'])
+  const basePrice = renderSimpleValue(data['base_price'])
+  const duration = renderSimpleValue(data['duration_time'])
+  const category = renderSimpleValue(data['service_category'])
+  const petType = renderSimpleValue(data['pet_type'])
+
+  return (
+    <div key={component.id} className="bg-white border-2 border-stone-900 rounded-xl p-4 shadow-[4px_4px_0_#1c1917]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1">
+          <h4 className="font-bold text-stone-900 text-sm">{name}</h4>
+          {description && description !== 'Chưa có' && (
+            <p className="text-xs text-stone-600 mt-1">{description}</p>
+          )}
+          <div className="mt-2 flex flex-wrap gap-2">
+            {category && category !== 'Chưa có' && (
+              <span className="px-2 py-1 bg-amber-100 border border-stone-900 rounded text-[10px] font-bold text-stone-700 uppercase">
+                {category}
+              </span>
+            )}
+            {petType && petType !== 'Chưa có' && (
+              <span className="px-2 py-1 bg-teal-100 border border-stone-900 rounded text-[10px] font-bold text-stone-700 uppercase">
+                {petType}
+              </span>
+            )}
+          </div>
+          <div className="mt-3 flex items-center gap-4 text-xs font-bold">
+            {basePrice && basePrice !== 'Chưa có' && (
+              <span className="text-amber-600">{Number(basePrice).toLocaleString('vi-VN')}đ</span>
+            )}
+            {duration && duration !== 'Chưa có' && (
+              <span className="text-stone-500">{duration} phút</span>
+            )}
+          </div>
+        </div>
+        <div className="flex-shrink-0">
+          <input
+            type="checkbox"
+            id={`service-${component.id}`}
+            className="w-5 h-5 accent-amber-600 border-2 border-stone-900"
+            defaultChecked={data['selected'] === true}
+          />
+        </div>
+      </div>
+      <ActionButtons component={component} onAction={onAction} />
     </div>
   )
 }
@@ -222,6 +287,26 @@ function renderBadge(component: UIComponent) {
   )
 }
 
+function renderButtonComponent(
+  component: UIComponent,
+  onAction?: (action: UIAction, component: UIComponent) => void,
+) {
+  const firstAction = component.actions?.[0]
+  const label = renderSimpleValue(component.data['label'] ?? component.data['content'])
+
+  return (
+    <button
+      key={component.id}
+      type="button"
+      disabled={!firstAction || !onAction}
+      onClick={() => firstAction && onAction?.(firstAction, component)}
+      className="w-full px-4 py-3 bg-amber-500 border-2 border-stone-900 rounded-lg text-sm font-black uppercase text-stone-900 shadow-[3px_3px_0_#1c1917] hover:-translate-y-0.5 transition-transform disabled:opacity-60"
+    >
+      {label}
+    </button>
+  )
+}
+
 function renderComponent(
   component: UIComponent,
   onAction?: (action: UIAction, component: UIComponent) => void,
@@ -229,6 +314,8 @@ function renderComponent(
   switch (component.type) {
     case 'clinic_card':
       return renderClinicCard(component, onAction)
+    case 'service_card':
+      return renderServiceCard(component, onAction)
     case 'pet_card':
       return renderPetCard(component, onAction)
     case 'service_chip':
@@ -248,6 +335,26 @@ function renderComponent(
       return renderText(component)
     case 'badge':
       return renderBadge(component)
+    case 'button':
+      return renderButtonComponent(component, onAction)
+    case 'booking_list_card':
+      return <BookingListCard key={component.id} component={component} onAction={onAction} renderActions={(comp, act) => <ActionButtons component={comp} onAction={act} />} />
+    case 'booking_detail_card':
+      return <BookingDetailCard key={component.id} component={component} onAction={onAction} renderActions={(comp, act) => <ActionButtons component={comp} onAction={act} />} />
+    case 'clinic_today_summary':
+    case 'daily_summary_card':
+      return <ClinicTodaySummaryCard key={component.id} component={component} onAction={onAction} renderActions={(comp, act) => <ActionButtons component={comp} onAction={act} />} />
+    case 'staff_schedule_card':
+      return <StaffScheduleCard key={component.id} component={component} onAction={onAction} renderActions={(comp, act) => <ActionButtons component={comp} onAction={act} />} />
+    case 'staff_list_card':
+      return <StaffListCard key={component.id} component={component} onAction={onAction} renderActions={(comp, act) => <ActionButtons component={comp} onAction={act} />} />
+    case 'clinic_service_list_card':
+      return <ClinicServiceListCard key={component.id} component={component} onAction={onAction} renderActions={(comp, act) => <ActionButtons component={comp} onAction={act} />} />
+    case 'service_detail_card':
+      return <ServiceDetailCard key={component.id} component={component} onAction={onAction} renderActions={(comp, act) => <ActionButtons component={comp} onAction={act} />} />
+    case 'confirmation_card':
+    case 'action_confirmation_card':
+      return <ConfirmationCard key={component.id} component={component} onAction={onAction} renderActions={(comp, act) => <ActionButtons component={comp} onAction={act} />} />
     default:
       return (
         <pre key={component.id} className="text-xs whitespace-pre-wrap break-words bg-stone-100 border-2 border-stone-900 rounded-xl p-3">
