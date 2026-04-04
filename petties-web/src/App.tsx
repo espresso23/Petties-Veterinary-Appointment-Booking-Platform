@@ -30,6 +30,7 @@ import { PlaygroundPage } from './pages/admin/playground'
 import { AIInsightsPage } from './pages/admin/insights'
 import { ClinicApprovalPage } from './pages/admin/clinics'
 import { AdminRefundApplicationsPage } from './pages/admin/refunds/AdminRefundApplicationsPage'
+import AdminNotificationsManagePage from './pages/admin/AdminNotificationsManagePage'
 
 // Role-specific Pages
 import { StaffDashboardPage, StaffSchedulePage, StaffBookingsPage, StaffPatientsPage, StaffAIChatPage } from './pages/staff'
@@ -115,6 +116,7 @@ function App() {
             <Route path="clinics" element={<ClinicApprovalPage />} />
             <Route path="refunds" element={<AdminRefundApplicationsPage />} />
             <Route path="notifications" element={<AdminNotificationsPage />} />
+            <Route path="notification-manage" element={<AdminNotificationsManagePage />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route >
 

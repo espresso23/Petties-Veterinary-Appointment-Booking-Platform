@@ -2,6 +2,7 @@ package com.petties.petties.service;
 
 import com.petties.petties.dto.auth.UserResponse;
 import com.petties.petties.dto.file.UploadResponse;
+import com.petties.petties.dto.response.AdminUserSummaryResponse;
 import com.petties.petties.dto.user.ChangePasswordRequest;
 import com.petties.petties.dto.user.UpdateProfileRequest;
 import com.petties.petties.exception.BadRequestException;
@@ -10,12 +11,17 @@ import com.petties.petties.model.User;
 import com.petties.petties.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
 import java.util.List;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import com.petties.petties.repository.ChatConversationRepository;
 import com.petties.petties.model.ChatConversation;
@@ -158,6 +164,42 @@ public class UserService {
 
                 user.setPassword(passwordEncoder.encode(request.getNewPassword()));
                 userRepository.save(user);
+        }
+
+        @Transactional(readOnly = true)
+        public Page<AdminUserSummaryResponse> searchUsersForAdmin(
+                        Role role,
+                        String search,
+                        LocalDate createdFrom,
+                        LocalDate createdTo,
+                        Pageable pageable) {
+
+                Specification<User> spec = Specification.where(null);
+
+                if (role != null) {
+                        spec = spec.and((root, query, cb) -> cb.equal(root.get("role"), role));
+                }
+
+                if (search != null && !search.isBlank()) {
+                        String keyword = "%" + search.trim().toLowerCase() + "%";
+                        spec = spec.and((root, query, cb) -> cb.or(
+                                        cb.like(cb.lower(root.get("username")), keyword),
+                                        cb.like(cb.lower(root.get("fullName")), keyword),
+                                        cb.like(cb.lower(root.get("email")), keyword)));
+                }
+
+                if (createdFrom != null) {
+                        LocalDateTime startDateTime = createdFrom.atStartOfDay();
+                        spec = spec.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("createdAt"),
+                                        startDateTime));
+                }
+
+                if (createdTo != null) {
+                        LocalDateTime endDateTime = createdTo.plusDays(1).atStartOfDay().minusNanos(1);
+                        spec = spec.and((root, query, cb) -> cb.lessThanOrEqualTo(root.get("createdAt"), endDateTime));
+                }
+
+                return userRepository.findAll(spec, pageable).map(AdminUserSummaryResponse::fromEntity);
         }
 
         private UserResponse mapToResponse(User user) {

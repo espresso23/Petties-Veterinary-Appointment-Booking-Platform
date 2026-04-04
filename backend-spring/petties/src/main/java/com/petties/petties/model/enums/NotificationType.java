@@ -51,5 +51,12 @@ public enum NotificationType {
     RE_EXAMINATION_REMINDER,
 
     // Vaccination
-    VACCINATION_REMINDER
+    VACCINATION_REMINDER,
+
+    // System / Admin Notifications
+    SYSTEM_MONEY,
+    SYSTEM_SERVER,
+    SYSTEM_WORK,
+    SYSTEM_TIME,
+    SYSTEM_OTHER
 }
