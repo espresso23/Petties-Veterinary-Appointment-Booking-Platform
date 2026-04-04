@@ -40,35 +40,37 @@ export const useSyncProfile = () => {
         }
 
         prevUserIdRef.current = currentUserId
-    }, [user, profile, fetchProfile, clearProfile])
+    }, [user?.userId, profile?.userId, fetchProfile, clearProfile])
 
     // Sync profile data to authStore when profile is loaded
-    // Use refs to prevent infinite loops
+    // Use refs and careful normalization to prevent infinite loops
     useEffect(() => {
         if (user && profile && profile.userId === user.userId) {
+            // Normalize values to undefined for consistent comparison
+            const profileAvatar = profile.avatar || undefined
+            const userAvatar = user.avatar || undefined
+            const profileFullName = profile.fullName || user.fullName
+            const userFullName = user.fullName
+
             const avatarNeedsUpdate =
-                profile.avatar !== user.avatar &&
-                profile.avatar !== syncedAvatarRef.current
+                profileAvatar !== userAvatar &&
+                profileAvatar !== syncedAvatarRef.current
 
             const fullNameNeedsUpdate =
-                profile.fullName !== user.fullName &&
-                profile.fullName !== syncedFullNameRef.current
+                profileFullName !== userFullName &&
+                profileFullName !== syncedFullNameRef.current
 
             if (avatarNeedsUpdate || fullNameNeedsUpdate) {
-                const newAvatar = profile.avatar || undefined
-                const newFullName = profile.fullName || user.fullName
-
-                // Track what we're syncing to prevent re-syncing
-                syncedAvatarRef.current = newAvatar
-                syncedFullNameRef.current = newFullName
+                // Track what we're syncing before updating store
+                syncedAvatarRef.current = profileAvatar
+                syncedFullNameRef.current = profileFullName
 
                 useAuthStore.getState().setUser({
                     ...user,
-                    avatar: newAvatar,
-                    fullName: newFullName,
+                    avatar: profileAvatar,
+                    fullName: profileFullName,
                 })
             }
         }
-    }, [user, profile])
+    }, [user?.userId, user?.avatar, user?.fullName, profile?.userId, profile?.avatar, profile?.fullName])
 }
-

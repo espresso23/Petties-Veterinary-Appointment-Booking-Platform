@@ -441,4 +441,32 @@ class ClinicControllerUnitTest {
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.content", hasSize(0)));
         }
+
+        @Test
+        @DisplayName("TC-UNIT-CLINIC-050: Success - get admin clinic registry")
+        void getAdminClinicRegistry_returns200() throws Exception {
+                Page<ClinicResponse> page = new PageImpl<>(List.of(mockClinic(UUID.randomUUID(), "Clinic A")));
+                when(clinicService.getAdminClinicRegistry(isNull(), isNull(), any())).thenReturn(page);
+
+                mockMvc.perform(get("/clinics/admin/registry").param("page", "0").param("size", "20"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.content", hasSize(1)));
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-CLINIC-051: Success - admin ban clinic")
+        void adminBanClinic_returns200() throws Exception {
+                UUID clinicId = UUID.randomUUID();
+                ClinicResponse response = mockClinic(clinicId, "Banned");
+                when(clinicService.adminBanClinic(eq(clinicId), eq("Lý do đủ mười ký tự trở lên để test")))
+                                .thenReturn(response);
+
+                mockMvc.perform(post("/clinics/admin/{id}/ban", clinicId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                                objectMapper.writeValueAsString(
+                                                                Map.of("reason", "Lý do đủ mười ký tự trở lên để test"))))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.clinicId").value(clinicId.toString()));
+        }
 }

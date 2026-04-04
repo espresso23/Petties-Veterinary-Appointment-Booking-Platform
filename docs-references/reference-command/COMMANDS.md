@@ -1,4 +1,4 @@
-# Petties - Development Commands
+﻿# Petties - Development Commands
 
 
 ## 1. Development với Docker (Recommended)

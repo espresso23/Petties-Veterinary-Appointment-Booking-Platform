@@ -8,11 +8,11 @@ import logging
 import uuid
 
 from app.api.middleware.auth import CurrentUser, get_current_user
+from app.api.middleware.subscription_guard import check_active_subscription
 from app.api.schemas.feedback_schemas import (
     FeedbackRequest,
     FeedbackResponse,
     UpdateFeedbackRequest,
-    DeleteFeedbackResponse,
     FeedbackStatsResponse,
     FeedbackListResponse,
     FeedbackItem,
@@ -183,7 +183,9 @@ def _map_session(
     "/sessions", response_model=CreateSessionResponse, summary="Create new chat session"
 )
 async def create_session(
-    request: CreateSessionRequest, user: CurrentUser = Depends(get_current_user)
+    request: CreateSessionRequest, 
+    user: CurrentUser = Depends(get_current_user),
+    _Subscription: bool = Depends(check_active_subscription)
 ):
     """
     Create a new chat session
@@ -275,6 +277,7 @@ async def send_message(
     session_id: str,
     request: SendMessageRequest,
     user: CurrentUser = Depends(get_current_user),
+    _Subscription: bool = Depends(check_active_subscription)
 ):
     """
     Save user message to chat session.
@@ -308,22 +311,6 @@ async def send_message(
     )
 
 
-@router.delete("/sessions/{session_id}", summary="Delete chat session")
-async def delete_session_authenticated(
-    session_id: str, user: CurrentUser = Depends(get_current_user)
-):
-    """Delete chat session nếu session thuộc owner hiện tại."""
-    _validate_session_access(await get_chat_session(session_id), user)
-    deleted = await delete_chat_session_document(session_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Không tìm thấy session")
-
-    return {"success": True, "message": f"Session {session_id} deleted"}
-
-
-# ===== FEEDBACK ENDPOINTS =====
-
-
 @router.post(
     "/feedback",
     response_model=FeedbackResponse,
@@ -334,13 +321,10 @@ async def submit_feedback(
     user: CurrentUser = Depends(get_current_user),
 ):
     """
-    Gửi feedback (thumbs_up / thumbs_down / report / confirmed / vet_confirmed)
-    cho một tin nhắn AI cụ thể.
+    Gửi feedback cho một tin nhắn AI cụ thể.
 
-    - Positive feedback sẽ tự động embed vào Case Memory để cải thiện AI.
-    - Feedback được auto-classify category dựa trên react_trace.
-    - Weight tính theo role: VET/STAFF = 1.0, CLINIC_MANAGER/OWNER = 0.7,
-      PET_OWNER = 0.6, ADMIN = 0.0 (playground only).
+    Feedback chỉ phục vụ analytics, audit và monitoring.
+    Case Memory được làm giàu từ EMR confirmed, không từ feedback.
     """
     from app.core.services.feedback_service import get_feedback_service
 
@@ -356,7 +340,6 @@ async def submit_feedback(
         "feedback_text": request.feedback_text or "",
     }
 
-    # Allow explicit category override, otherwise auto-classify
     if request.feedback_category:
         feedback_data["feedback_category"] = request.feedback_category.value
 
@@ -372,9 +355,12 @@ async def submit_feedback(
     return FeedbackResponse(
         success=True,
         feedback_id=result["feedback_id"],
-        case_embedded=result.get("case_embedded", False),
+        status="saved",
         category=result.get("category", "general"),
         weight=result.get("weight", 0.0),
+        used_for_analytics=result.get("used_for_analytics", True),
+        used_for_monitoring=result.get("used_for_monitoring", True),
+        used_for_enrichment=result.get("used_for_enrichment", False),
         message="Đã lưu feedback thành công",
     )
 
@@ -391,16 +377,12 @@ async def get_feedback_stats(
     """
     Lấy thống kê feedback tổng hợp.
 
-    - Admin: xem tất cả feedback.
-    - Các role khác: chỉ xem feedback của chính mình.
+    Admin xem tất cả feedback, các role khác chỉ xem feedback của chính mình.
     """
     from app.core.services.feedback_service import get_feedback_service
 
     service = get_feedback_service()
-
-    # Admin sees all, others see only their own
     target_user_id = None if user.is_admin else user.user_id
-
     stats = await service.get_feedback_stats(user_id=target_user_id, days=days)
 
     return FeedbackStatsResponse(
@@ -418,7 +400,7 @@ async def get_feedback_stats(
     summary="Danh sách feedback chi tiết",
 )
 async def list_feedback(
-    page: int = Query(default=1, ge=1, description="Số trang (bắt đầu từ 1)"),
+    page: int = Query(default=1, ge=1, description="Số trang bắt đầu từ 1"),
     page_size: int = Query(default=20, ge=1, le=100, description="Số lượng mỗi trang"),
     feedback_type: Optional[str] = Query(
         default=None,
@@ -440,11 +422,7 @@ async def list_feedback(
     ),
     user: CurrentUser = Depends(get_current_user),
 ):
-    """
-    Lấy danh sách feedback chi tiết với bộ lọc và phân trang.
-
-    Chỉ ADMIN mới có quyền truy cập endpoint này.
-    """
+    """Lấy danh sách feedback chi tiết với bộ lọc và phân trang."""
     if not user.is_admin:
         raise HTTPException(
             status_code=403,
@@ -485,9 +463,7 @@ async def update_feedback(
     """
     Sửa feedback đã gửi trước đó.
 
-    - Chỉ chính người gửi hoặc ADMIN mới được sửa.
-    - Nếu đổi từ positive → negative: case đã embed sẽ bị xóa khỏi Qdrant.
-    - Nếu đổi từ negative → positive: case mới sẽ được embed.
+    Chỉ chính người gửi hoặc admin mới được sửa.
     """
     from app.core.services.feedback_service import get_feedback_service
 
@@ -519,43 +495,31 @@ async def update_feedback(
     return FeedbackResponse(
         status="updated",
         feedback_id=feedback_id,
-        case_embedded=result.get("case_embedded", False),
+        success=True,
         category=result.get("category", ""),
         weight=result.get("weight", 0.0),
+        used_for_analytics=result.get("used_for_analytics", True),
+        used_for_monitoring=result.get("used_for_monitoring", True),
+        used_for_enrichment=result.get("used_for_enrichment", False),
+        message="Đã cập nhật feedback thành công",
     )
 
 
 @router.delete(
     "/feedback/{feedback_id}",
-    response_model=DeleteFeedbackResponse,
-    summary="Xóa feedback đã gửi",
+    summary="Feedback là append-only, không hỗ trợ xóa",
 )
 async def delete_feedback(
     feedback_id: str,
     user: CurrentUser = Depends(get_current_user),
 ):
     """
-    Xóa feedback đã gửi trước đó.
+    Feedback records được giữ lại để audit và monitoring.
 
-    - Chỉ chính người gửi hoặc ADMIN mới được xóa.
-    - Nếu feedback đã embed case vào Qdrant, case đó cũng sẽ bị xóa.
+    Endpoint này luôn từ chối thao tác xóa.
     """
-    from app.core.services.feedback_service import get_feedback_service
-
-    service = get_feedback_service()
-    result = await service.delete_feedback(
-        feedback_id=feedback_id,
-        user_id=user.user_id,
-        is_admin=user.is_admin,
+    raise HTTPException(
+        status_code=403,
+        detail="Feedback chi phuc vu phan tich va giam sat, khong ho tro xoa",
     )
 
-    if result.get("status") == "error":
-        status_code = 404 if "không tìm thấy" in result["error"].lower() else 403
-        raise HTTPException(status_code=status_code, detail=result["error"])
-
-    return DeleteFeedbackResponse(
-        success=True,
-        feedback_id=feedback_id,
-        case_deleted=result.get("case_deleted", False),
-        message="Đã xóa feedback thành công",
-    )

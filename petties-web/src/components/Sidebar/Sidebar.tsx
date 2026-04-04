@@ -45,6 +45,9 @@ interface SidebarProps {
     toggleSidebar: () => void
     onLogout: () => void
     isMobile: boolean
+    isVIP?: boolean
+    planName?: string
+    remainingDays?: number | null
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -54,7 +57,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     state,
     toggleSidebar,
     onLogout,
-    isMobile
+    isMobile,
+    isVIP = false,
+    planName = 'GÓI MIỄN PHÍ',
+    remainingDays = null
 }) => {
     const isCollapsed = state === 'collapsed'
     const isExpanded = state === 'expanded'
@@ -81,14 +87,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div className={`px-4 py-5 border-b-2 border-stone-900 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} min-h-[85px]`}>
                     {isExpanded && (
                         <div className="animate-in fade-in slide-in-from-left duration-300">
-                            <h2 className="text-xl font-black text-amber-600 uppercase tracking-wider">PETTIES</h2>
-                            <p className="text-[10px] font-bold text-stone-500 uppercase tracking-tighter mt-0.5">{roleName}</p>
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-xl font-black text-amber-600 uppercase tracking-wider">PETTIES</h2>
+                                {isVIP && (
+                                    <span className="px-1.5 py-0.5 bg-amber-500 text-stone-950 text-[8px] font-black rounded border border-stone-900 shadow-[1px_1px_0_0_#000] animate-pulse">
+                                        VIP
+                                    </span>
+                                )}
+                            </div>
+                            <p className="text-[10px] font-bold text-stone- stone-500 uppercase tracking-tighter mt-0.5">{roleName}</p>
                         </div>
                     )}
 
                     {isCollapsed && (
-                        <div className="w-10 h-10 bg-amber-500 rounded-lg flex items-center justify-center border-2 border-stone-900 shadow-[3px_3px_0_0_#000] font-black text-white text-xl animate-in zoom-in duration-300">
-                            P
+                        <div className="relative">
+                            <div className="w-10 h-10 bg-amber-500 rounded-lg flex items-center justify-center border-2 border-stone-900 shadow-[3px_3px_0_0_#000] font-black text-white text-xl animate-in zoom-in duration-300">
+                                P
+                            </div>
+                            {isVIP && (
+                                <div className="absolute -top-1 -right-1 w-3 h-3 bg-amber-400 border border-stone-900 rounded-full flex items-center justify-center">
+                                    <div className="w-1 h-1 bg-stone-900 rounded-full animate-ping"></div>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -184,7 +204,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                     <p className="text-[11px] font-black text-stone-900 truncate uppercase leading-tight">
                                         {user?.fullName || 'User'}
                                     </p>
-                                    <p className="text-[9px] font-medium text-stone-500 truncate mt-0.5">{user?.email}</p>
+                                    <p className="text-[9px] font-medium text-stone-500 truncate block">
+                                        {user?.email}
+                                    </p>
+                                    {isVIP && (
+                                        <div className="mt-1">
+                                            <span className="inline-block text-[7px] font-black bg-stone-900 text-white px-1.5 py-0.5 rounded border border-stone-800 uppercase tracking-widest leading-none">
+                                                {planName}
+                                            </span>
+                                        </div>
+                                    )}
+                                    {isVIP && remainingDays !== null && (
+                                        <p className="text-[8px] font-bold text-amber-600 mt-0.5 uppercase tracking-tighter">
+                                            Hết hạn sau {remainingDays} ngày
+                                        </p>
+                                    )}
                                     {user?.specialty && (
                                         <p className="text-[8px] font-bold text-amber-600 truncate mt-0.5 uppercase">
                                             {(user.specialty === 'VET' || user.specialty?.startsWith('VET_')) && 'BS Thú y'}

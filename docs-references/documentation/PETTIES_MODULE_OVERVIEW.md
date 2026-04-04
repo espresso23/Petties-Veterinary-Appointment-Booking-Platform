@@ -1,4 +1,4 @@
-# PETTIES - Complete Module Overview
+﻿# PETTIES - Complete Module Overview
 
 **Document Purpose:** Tổng hợp đầy đủ các module/feature của project Petties khi hoàn thành
 **For:** Stakeholder review, scope verification, team alignment

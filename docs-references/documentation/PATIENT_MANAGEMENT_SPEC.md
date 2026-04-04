@@ -1,4 +1,4 @@
-# PETTIES - PATIENT MANAGEMENT MODULE SPECIFICATION
+﻿# PETTIES - PATIENT MANAGEMENT MODULE SPECIFICATION
 **Version:** 1.5.0  
 **Scope:** Clinic Manager (Web), Staff (Mobile/Web)  
 **Created:** 2025-12-27

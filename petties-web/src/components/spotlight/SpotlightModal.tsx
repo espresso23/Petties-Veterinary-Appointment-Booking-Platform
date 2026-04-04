@@ -215,7 +215,7 @@ export const SpotlightModal = ({
             case 'prescription':
                 return 'Kê đơn thuốc'
             case 'patient_info':
-                return 'Thông tin bệnh nhân'
+                return 'Thông tin thú cưng'
             default:
                 return 'Hành động'
         }
@@ -318,12 +318,12 @@ export const SpotlightModal = ({
                                         </button>
                                         <button
                                             onClick={() => {
-                                                setInputValue('Xem bệnh nhân')
+                                                setInputValue('Xem thú cưng')
                                                 inputRef.current?.focus()
                                             }}
                                             className="px-3 py-1 bg-white border border-stone-300 rounded-full text-xs text-stone-600 hover:bg-amber-50 hover:border-amber-300 transition-colors"
                                         >
-                                            "Xem bệnh nhân"
+                                            "Xem thú cưng"
                                         </button>
                                     </div>
                                 </div>

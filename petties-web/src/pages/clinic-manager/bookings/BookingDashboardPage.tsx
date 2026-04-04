@@ -10,19 +10,22 @@ import {
     confirmBookingWithOptions,
     addServiceToBooking,
     getAvailableStaffForConfirm,
-    completeBooking,
     removeServiceFromBooking,
     cancelBooking,
+    checkoutBooking,
     type StaffOption,
 } from '../../../services/bookingService';
-import { checkQrPaymentStatus } from '../../../services/paymentService';
 import type { Booking, BookingStatus, BookingServiceItem, StaffAvailabilityCheckResponse } from '../../../types/booking';
 import { BOOKING_STATUS_CONFIG, BOOKING_TYPE_CONFIG, BOOKING_TYPE_LABELS, SERVICE_CATEGORY_LABELS, PAYMENT_STATUS_LABELS, STAFF_SPECIALTY_LABELS } from '../../../types/booking';
 import { ReassignStaffModal } from '../../../components/booking/ReassignStaffModal';
 import { StaffAvailabilityWarningModal, type ConfirmOption } from '../../../components/booking/StaffAvailabilityWarningModal';
 import { AddServiceModal } from '../../../components/booking/AddServiceModal';
+import { ReportBookingModal } from '../../../components/booking/ReportBookingModal';
+import { ConfirmModal } from '../../../components/ConfirmModal';
+import { getMyReports, withdrawReport } from '../../../services/reportService';
+import type { ReportResponse } from '../../../types/report';
 import { useToast } from '../../../components/Toast';
-import { TrashIcon, TruckIcon, ScaleIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, TruckIcon, ScaleIcon, FlagIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useSseNotification } from '../../../hooks/useSseNotification';
 import '../../../styles/brutalist.css';
 
@@ -52,6 +55,36 @@ const getAllServices = (booking: Booking): BookingServiceItem[] => {
     return booking.services || [];
 };
 
+function getReportStatusLabel(status: ReportResponse['status']): string {
+    switch (status) {
+        case 'PENDING':
+            return 'Chờ xử lý';
+        case 'APPROVED':
+            return 'Đã duyệt';
+        case 'REJECTED':
+            return 'Từ chối';
+        case 'WITHDRAWN':
+            return 'Đã rút';
+        default:
+            return status;
+    }
+}
+
+function getReportStatusBadgeClass(status: ReportResponse['status']): string {
+    switch (status) {
+        case 'PENDING':
+            return 'bg-yellow-400 text-stone-900';
+        case 'APPROVED':
+            return 'bg-mint-400 text-stone-900';
+        case 'REJECTED':
+            return 'bg-red-500 text-white';
+        case 'WITHDRAWN':
+            return 'bg-stone-300 text-stone-900';
+        default:
+            return 'bg-stone-200 text-stone-900';
+    }
+}
+
 /**
  * Booking Dashboard Page - Manager view
  * Shows list of bookings with filter tabs and confirm action
@@ -78,6 +111,31 @@ export const BookingDashboardPage = () => {
     // Add-on Service state
     const [addServiceModalOpen, setAddServiceModalOpen] = useState(false);
     const [addingService, setAddingService] = useState(false);
+
+    // Report state
+    const [reportModalOpen, setReportModalOpen] = useState(false);
+    const [bookingToReport, setBookingToReport] = useState<{
+        id: string;
+        code: string;
+        clinicName: string;
+        bookingDate: string;
+        bookingTime: string;
+    } | null>(null);
+    /** Metadata lịch hẹn khi sửa báo cáo (lấy từ danh sách hoặc API) */
+    const [reportEditBookingMeta, setReportEditBookingMeta] = useState<{
+        clinicName: string;
+        bookingDate: string;
+        bookingTime: string;
+    } | null>(null);
+    const [editingReport, setEditingReport] = useState<ReportResponse | null>(null);
+    const [reportToWithdraw, setReportToWithdraw] = useState<ReportResponse | null>(null);
+    const [withdrawingReportId, setWithdrawingReportId] = useState<string | null>(null);
+
+    // Main view: Lịch hẹn | Lịch sử báo cáo
+    const [viewMode, setViewMode] = useState<'bookings' | 'reports'>('bookings');
+    const [reports, setReports] = useState<ReportResponse[]>([]);
+    const [reportsLoading, setReportsLoading] = useState(false);
+    const [reportDetail, setReportDetail] = useState<ReportResponse | null>(null);
 
     // Handle bookingId from URL query params (e.g., from schedule page click)
     useEffect(() => {
@@ -175,6 +233,26 @@ export const BookingDashboardPage = () => {
     useEffect(() => {
         fetchBookings();
     }, [fetchBookings]);
+
+    // Fetch report history when on reports tab
+    const fetchReports = useCallback(async () => {
+        setReportsLoading(true);
+        try {
+            const data = await getMyReports(0, 50);
+            setReports(data.content || []);
+        } catch (error) {
+            console.error('Failed to fetch reports:', error);
+            showToast('error', 'Không thể tải lịch sử báo cáo');
+        } finally {
+            setReportsLoading(false);
+        }
+    }, [showToast]);
+
+    useEffect(() => {
+        if (viewMode === 'reports') {
+            fetchReports();
+        }
+    }, [viewMode, fetchReports]);
 
     // Handle real-time booking updates
     useSseNotification({
@@ -315,12 +393,103 @@ export const BookingDashboardPage = () => {
             setSelectedBooking(null);
             setCancelModalOpen(false);
             setBookingIdToCancel(null);
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Failed to cancel booking:', error);
-            const errorMessage = error.response?.data?.message || error.message || 'Không thể hủy lịch hẹn. Vui lòng thử lại.';
+            const errorMessage =
+                isAxiosError(error) && error.response?.data && typeof error.response.data === 'object' && 'message' in error.response.data
+                    ? String((error.response.data as { message?: unknown }).message)
+                    : error instanceof Error
+                      ? error.message
+                      : 'Không thể hủy lịch hẹn. Vui lòng thử lại.';
             showToast('error', errorMessage);
         } finally {
             setCancelling(null);
+        }
+    };
+
+    const handleOpenReportModal = (booking: Booking) => {
+        setEditingReport(null);
+        setBookingToReport({
+            id: booking.bookingId,
+            code: booking.bookingCode,
+            clinicName: booking.clinicName,
+            bookingDate: booking.bookingDate,
+            bookingTime: booking.bookingTime,
+        });
+        setReportModalOpen(true);
+    };
+
+    const handleOpenEditReportModal = (report: ReportResponse) => {
+        setBookingToReport(null);
+        setEditingReport(report);
+        setReportModalOpen(true);
+    };
+
+    // Khi sửa báo cáo: lấy tên phòng khám + ngày giờ từ danh sách lịch hẹn hoặc gọi API
+    useEffect(() => {
+        if (!reportModalOpen || !editingReport) {
+            setReportEditBookingMeta(null);
+            return;
+        }
+        const local = bookings.find((b) => b.bookingId === editingReport.bookingId);
+        if (local) {
+            setReportEditBookingMeta({
+                clinicName: local.clinicName,
+                bookingDate: local.bookingDate,
+                bookingTime: local.bookingTime,
+            });
+            return;
+        }
+        setReportEditBookingMeta({
+            clinicName: user?.workingClinicName ?? '',
+            bookingDate: '',
+            bookingTime: '',
+        });
+        let cancelled = false;
+        getBookingById(editingReport.bookingId)
+            .then((bk) => {
+                if (!cancelled) {
+                    setReportEditBookingMeta({
+                        clinicName: bk.clinicName,
+                        bookingDate: bk.bookingDate,
+                        bookingTime: bk.bookingTime,
+                    });
+                }
+            })
+            .catch(() => {
+                /* giữ giá trị tối thiểu từ workingClinicName */
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [reportModalOpen, editingReport, bookings, user?.workingClinicName]);
+
+    const handleCloseReportModal = () => {
+        setReportModalOpen(false);
+        setBookingToReport(null);
+        setEditingReport(null);
+    };
+
+    const confirmWithdrawReport = async () => {
+        if (!reportToWithdraw) return;
+        setWithdrawingReportId(reportToWithdraw.id);
+        try {
+            await withdrawReport(reportToWithdraw.id);
+            showToast('success', 'Đã rút báo cáo thành công.');
+            if (reportDetail?.id === reportToWithdraw.id) {
+                setReportDetail(null);
+            }
+            await fetchReports();
+        } catch (error) {
+            console.error('Failed to withdraw report:', error);
+            const msg =
+                isAxiosError(error) && error.response?.data && typeof error.response.data === 'object' && 'message' in error.response.data
+                    ? String((error.response.data as { message?: unknown }).message)
+                    : 'Không thể rút báo cáo. Vui lòng thử lại.';
+            showToast('error', msg);
+        } finally {
+            setWithdrawingReportId(null);
+            setReportToWithdraw(null);
         }
     };
 
@@ -358,9 +527,34 @@ export const BookingDashboardPage = () => {
                 </p>
             </header>
 
+            {/* Main view tabs: Lịch hẹn | Lịch sử báo cáo */}
+            <div className="flex gap-2 mb-6">
+                <button
+                    onClick={() => setViewMode('bookings')}
+                    className={`px-6 py-2 font-bold uppercase border-2 border-stone-900 transition-all ${viewMode === 'bookings'
+                        ? 'bg-amber-400 shadow-[4px_4px_0_#1c1917]'
+                        : 'bg-white hover:bg-stone-100'
+                        }`}
+                >
+                    Lịch hẹn
+                </button>
+                <button
+                    onClick={() => {
+                        setViewMode('reports');
+                        setSelectedBooking(null);
+                    }}
+                    className={`px-6 py-2 font-bold uppercase border-2 border-stone-900 transition-all ${viewMode === 'reports'
+                        ? 'bg-amber-400 shadow-[4px_4px_0_#1c1917]'
+                        : 'bg-white hover:bg-stone-100'
+                        }`}
+                >
+                    Lịch sử báo cáo
+                </button>
+            </div>
 
-
-            {/* Tabs */}
+            {viewMode === 'bookings' && (
+            <>
+            {/* Tabs (chỉ hiện khi xem Lịch hẹn) */}
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
                 <div className="flex gap-2">
                     {TAB_OPTIONS.map((tab) => (
@@ -598,7 +792,172 @@ export const BookingDashboardPage = () => {
                         )}
                     </tbody>
                 </table>
-            </div >
+            </div>
+            </>
+            )}
+
+            {/* Lịch sử báo cáo */}
+            {viewMode === 'reports' && (
+            <div className="bg-white border-4 border-stone-900 shadow-brutal overflow-hidden">
+                <table className="w-full">
+                    <thead className="border-b-4 border-stone-900 bg-stone-100">
+                        <tr className="text-left font-bold uppercase text-xs tracking-wider">
+                            <th className="p-4">Mã Booking</th>
+                            <th className="p-4">Khách hàng bị báo cáo</th>
+                            <th className="p-4">Lý do</th>
+                            <th className="p-4 text-center">Trạng thái</th>
+                            <th className="p-4 text-center">Ngày gửi</th>
+                            <th className="p-4 text-center">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {reportsLoading ? (
+                            <tr>
+                                <td colSpan={6} className="p-8 text-center text-stone-600">Đang tải...</td>
+                            </tr>
+                        ) : reports.length === 0 ? (
+                            <tr>
+                                <td colSpan={6} className="p-8 text-center text-stone-600">Chưa có báo cáo nào</td>
+                            </tr>
+                        ) : (
+                            reports.map((report) => (
+                                <tr key={report.id} className="border-b-2 border-stone-200 hover:bg-amber-50">
+                                    <td className="p-4 font-mono font-bold">{report.bookingCode}</td>
+                                    <td className="p-4">
+                                        <div className="font-bold">{report.reportedUserName || report.reportedClinicName || '—'}</div>
+                                        <div className="text-[10px] text-stone-500 uppercase">
+                                            {report.reportedUserName ? 'Khách hàng' : report.reportedClinicName ? 'Phòng khám' : ''}
+                                        </div>
+                                    </td>
+                                    <td className="p-4 max-w-xs">
+                                        <div className="text-sm line-clamp-2" title={report.reason}>{report.reason}</div>
+                                    </td>
+                                    <td className="p-4 text-center">
+                                        <span
+                                            className={`px-3 py-1 text-xs font-bold uppercase border-2 border-stone-900 ${getReportStatusBadgeClass(
+                                                report.status
+                                            )}`}
+                                        >
+                                            {getReportStatusLabel(report.status)}
+                                        </span>
+                                    </td>
+                                    <td className="p-4 text-center text-sm text-stone-600">
+                                        {new Date(report.createdAt).toLocaleDateString('vi-VN')}
+                                    </td>
+                                    <td className="p-4 text-center">
+                                        <div className="flex flex-wrap gap-2 justify-center">
+                                            <button
+                                                type="button"
+                                                onClick={() => setReportDetail(report)}
+                                                className="px-3 py-1 text-xs font-bold uppercase bg-white border-2 border-stone-900 hover:shadow-[2px_2px_0_#1c1917]"
+                                            >
+                                                Chi tiết
+                                            </button>
+                                            {report.status === 'PENDING' && (
+                                                <>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleOpenEditReportModal(report)}
+                                                        className="px-3 py-1 text-xs font-bold uppercase bg-amber-400 border-2 border-stone-900 hover:shadow-[2px_2px_0_#1c1917]"
+                                                    >
+                                                        Sửa
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setReportToWithdraw(report)}
+                                                        disabled={withdrawingReportId === report.id}
+                                                        className="px-3 py-1 text-xs font-bold uppercase bg-red-500 text-white border-2 border-stone-900 hover:shadow-[2px_2px_0_#1c1917] disabled:opacity-50"
+                                                    >
+                                                        {withdrawingReportId === report.id ? '...' : 'Hủy báo cáo'}
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+            )}
+
+            {/* Report Detail Modal (read-only) */}
+            {reportDetail && (
+                <div className="fixed inset-0 bg-stone-900/80 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
+                    <div className="bg-white border-4 border-stone-900 shadow-[8px_8px_0_#1c1917] max-w-2xl w-full flex flex-col animate-in fade-in zoom-in duration-200">
+                        <div className="bg-amber-400 border-b-4 border-stone-900 p-4 flex justify-between items-center">
+                            <h2 className="text-xl font-bold uppercase">Chi tiết báo cáo</h2>
+                            <button
+                                type="button"
+                                onClick={() => setReportDetail(null)}
+                                className="w-8 h-8 flex items-center justify-center bg-white border-2 border-stone-900 hover:bg-stone-100"
+                                aria-label="Đóng"
+                            >
+                                <XMarkIcon className="w-5 h-5 text-stone-900" />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4 overflow-y-auto max-h-[70vh]">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[10px] font-bold text-stone-500 uppercase">Trạng thái:</span>
+                                <span
+                                    className={`px-3 py-1 text-xs font-bold uppercase border-2 border-stone-900 ${getReportStatusBadgeClass(
+                                        reportDetail.status
+                                    )}`}
+                                >
+                                    {getReportStatusLabel(reportDetail.status)}
+                                </span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="border-2 border-stone-900 p-3 bg-stone-50">
+                                    <p className="text-[10px] font-bold text-stone-500 uppercase">Mã booking</p>
+                                    <p className="font-mono font-bold">{reportDetail.bookingCode}</p>
+                                </div>
+                                <div className="border-2 border-stone-900 p-3 bg-stone-50">
+                                    <p className="text-[10px] font-bold text-stone-500 uppercase">Bị báo cáo</p>
+                                    <p className="font-bold">{reportDetail.reportedUserName || reportDetail.reportedClinicName || '—'}</p>
+                                </div>
+                            </div>
+                            <div className="border-2 border-stone-900 p-3 bg-white">
+                                <p className="text-[10px] font-bold text-stone-500 uppercase mb-1">Lý do báo cáo</p>
+                                <p className="text-sm font-medium">{reportDetail.reason}</p>
+                            </div>
+                            {reportDetail.attachmentUrls && reportDetail.attachmentUrls.length > 0 && (
+                                <div className="border-2 border-stone-900 p-3 bg-stone-50">
+                                    <p className="text-[10px] font-bold text-stone-500 uppercase mb-2">Ảnh đính kèm</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {reportDetail.attachmentUrls.map((url) => (
+                                            <a
+                                                key={url}
+                                                href={url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="block w-24 h-24 border-2 border-stone-900 overflow-hidden bg-white shrink-0 hover:opacity-90"
+                                            >
+                                                <img src={url} alt="" className="w-full h-full object-cover" />
+                                            </a>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {reportDetail.status !== 'PENDING' && reportDetail.status !== 'WITHDRAWN' && reportDetail.adminNote && (
+                                <div className={`border-2 border-stone-900 p-3 ${reportDetail.status === 'APPROVED' ? 'bg-mint-50' : 'bg-red-50'}`}>
+                                    <p className="text-[10px] font-bold text-stone-500 uppercase mb-1">Quyết định của Admin</p>
+                                    <p className="text-sm font-medium">{reportDetail.adminNote}</p>
+                                </div>
+                            )}
+                        </div>
+                        <div className="p-4 border-t-4 border-stone-900 bg-stone-100 flex justify-end">
+                            <button
+                                onClick={() => setReportDetail(null)}
+                                className="px-6 py-2 font-bold uppercase bg-white border-2 border-stone-900 shadow-[4px_4px_0_#1c1917]"
+                            >
+                                Đóng
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Booking Detail Modal */}
             {selectedBooking && (
@@ -609,8 +968,51 @@ export const BookingDashboardPage = () => {
                     onCancel={handleCancelBooking}
                     onBookingUpdated={fetchBookings}
                     onAddService={handleOpenAddServiceModal}
+                    onReport={() => handleOpenReportModal(selectedBooking)}
                 />
             )}
+
+            {/* Report Modal (tạo mới hoặc sửa khi PENDING) */}
+            {(bookingToReport || editingReport) && (
+                <ReportBookingModal
+                    isOpen={reportModalOpen}
+                    onClose={handleCloseReportModal}
+                    onSuccess={() => {
+                        if (viewMode === 'reports') void fetchReports();
+                        if (editingReport && reportDetail?.id === editingReport.id) {
+                            setReportDetail(null);
+                        }
+                    }}
+                    mode={editingReport ? 'edit' : 'create'}
+                    reportId={editingReport?.id}
+                    initialReport={editingReport ?? undefined}
+                    bookingId={editingReport?.bookingId ?? bookingToReport!.id}
+                    bookingCode={editingReport?.bookingCode ?? bookingToReport!.code}
+                    clinicName={
+                        bookingToReport?.clinicName ??
+                        reportEditBookingMeta?.clinicName ??
+                        user?.workingClinicName ??
+                        ''
+                    }
+                    bookingDate={bookingToReport?.bookingDate ?? reportEditBookingMeta?.bookingDate ?? ''}
+                    bookingTime={bookingToReport?.bookingTime ?? reportEditBookingMeta?.bookingTime ?? ''}
+                    reporterContext="CLINIC_MANAGER"
+                />
+            )}
+
+            <ConfirmModal
+                isOpen={!!reportToWithdraw}
+                title="Hủy báo cáo"
+                message="Bạn có chắc muốn rút báo cáo này? Hành động này không thể hoàn tác."
+                confirmLabel="Rút báo cáo"
+                cancelLabel="Quay lại"
+                isDanger
+                onConfirm={confirmWithdrawReport}
+                onCancel={() => {
+                    if (withdrawingReportId) return;
+                    setReportToWithdraw(null);
+                }}
+            />
 
             {/* Staff Availability Warning Modal */}
             {
@@ -661,9 +1063,10 @@ interface BookingDetailModalProps {
     onCancel: (bookingId: string) => void;
     onBookingUpdated?: () => void;
     onAddService?: () => void;
+    onReport?: () => void;
 }
 
-const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCancel, onBookingUpdated, onAddService }: BookingDetailModalProps) => {
+const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCancel, onBookingUpdated, onAddService, onReport }: BookingDetailModalProps) => {
     const { showToast } = useToast();
     const [booking, setBooking] = useState<Booking>(initialBooking);
     const [reassignModalOpen, setReassignModalOpen] = useState(false);
@@ -680,41 +1083,49 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
     const [loadingStaff, setLoadingStaff] = useState(false);
     const [openDropdownServiceId, setOpenDropdownServiceId] = useState<string | null>(null);
 
-    // ========== CHECKOUT STATE (QR Payment) ==========
-    const [checkoutStep, setCheckoutStep] = useState<'idle' | 'select' | 'qr'>('idle');
-    const [checkoutLoading, setCheckoutLoading] = useState(false);
-    const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
-    const [pollingQr, setPollingQr] = useState(false);
-
-    // QR polling effect
-    useEffect(() => {
-        if (checkoutStep !== 'qr' || !pollingQr) return;
-
-        const interval = setInterval(async () => {
-            try {
-                const result = await checkQrPaymentStatus(booking.bookingId);
-                if (result.status === 'PAID') {
-                    setPollingQr(false);
-                    clearInterval(interval);
-                    // Complete the booking now that payment is confirmed
-                    await completeBooking(booking.bookingId);
-                    showToast('success', 'Thanh toán QR thành công! Booking đã hoàn thành.');
-                    if (onBookingUpdated) onBookingUpdated();
-                    onClose();
-                }
-            } catch (err) {
-                console.error('QR polling error:', err);
-            }
-        }, 5000);
-
-        return () => clearInterval(interval);
-    }, [checkoutStep, pollingQr, booking.bookingId, onBookingUpdated, onClose, showToast]);
-
     // Confirmation Modal for Removal (integrationFeature)
     const [confirmRemoveModal, setConfirmRemoveModal] = useState<{ isOpen: boolean; serviceId: string | null }>({
         isOpen: false,
         serviceId: null,
     });
+    const [confirmCheckoutModal, setConfirmCheckoutModal] = useState<Booking | null>(null);
+    const [confirmCheckoutCashModal, setConfirmCheckoutCashModal] = useState<Booking | null>(null);
+
+    const handleCheckout = async () => {
+        if (!confirmCheckoutModal) return;
+        try {
+            await checkoutBooking(confirmCheckoutModal.bookingId);
+            showToast('success', 'Hoàn thành lịch hẹn thành công');
+            setConfirmCheckoutModal(null);
+            if (onBookingUpdated) onBookingUpdated();
+            onClose();
+        } catch (error: unknown) {
+            console.error('Failed to checkout:', error);
+            const errorMessage =
+                isAxiosError(error) && error.response?.data && typeof error.response.data === 'object' && 'message' in error.response.data
+                    ? String((error.response.data as { message?: unknown }).message)
+                    : 'Không thể chốt đơn. Vui lòng thử lại.';
+            showToast('error', errorMessage);
+        }
+    };
+
+    const handleCheckoutCash = async () => {
+        if (!confirmCheckoutCashModal) return;
+        try {
+            await checkoutBooking(confirmCheckoutCashModal.bookingId, { paymentMethod: 'CASH' });
+            showToast('success', 'Thu tiền mặt và hoàn thành lịch hẹn thành công');
+            setConfirmCheckoutCashModal(null);
+            if (onBookingUpdated) onBookingUpdated();
+            onClose();
+        } catch (error: unknown) {
+            console.error('Failed to checkout cash:', error);
+            const errorMessage =
+                isAxiosError(error) && error.response?.data && typeof error.response.data === 'object' && 'message' in error.response.data
+                    ? String((error.response.data as { message?: unknown }).message)
+                    : 'Không thể thu tiền. Vui lòng thử lại.';
+            showToast('error', errorMessage);
+        }
+    };
 
     // Fetch available staff when modal opens with PENDING booking
     useEffect(() => {
@@ -935,21 +1346,21 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
                     )}
 
                     {/* QR Code Display (when QR checkout is active) */}
-                    {checkoutStep === 'qr' && qrImageUrl && (
+                    {booking.paymentStatus === 'PENDING' && booking.qrImageUrl && (
                         <div className="border-2 border-blue-500 bg-blue-50 p-4 mb-4">
                             <h3 className="font-bold uppercase text-sm mb-3 text-blue-700 text-center">
                                 Quét mã QR để thanh toán
                             </h3>
                             <div className="flex justify-center mb-3">
                                 <img
-                                    src={qrImageUrl}
-                                    alt="QR Payment"
+                                    src={booking.qrImageUrl}
+                                    alt={booking.bookingCode}
                                     className="w-56 h-56 border-2 border-stone-900"
                                 />
                             </div>
                             <div className="text-center">
                                 <div className="text-lg font-bold text-stone-900">
-                                    {Number(booking.totalPrice).toLocaleString('vi-VN')} VNĐ
+                                    {Number(booking.finalPrice ?? booking.totalPrice).toLocaleString('vi-VN')} VNĐ
                                 </div>
                                 <div className="flex items-center justify-center gap-2 mt-2">
                                     <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
@@ -1371,9 +1782,20 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
                                     <span className="text-red-600">+{formatCurrency(booking.sosFee || 0)}</span>
                                 </div>
                             )}
+                            {booking.discountAmount && booking.discountAmount > 0 ? (
+                                <div className="flex justify-between text-stone-500">
+                                    <span>- Giảm voucher</span>
+                                    <span className="text-green-600">-{formatCurrency(booking.discountAmount)}</span>
+                                </div>
+                            ) : null}
                             <div className="flex justify-between font-bold border-t border-stone-300 pt-1 mt-1 text-stone-900">
                                 <span>Tổng cộng</span>
-                                <span className="text-sm">{formatCurrency(booking.totalPrice)}</span>
+                                <span className="text-sm">
+                                    {booking.discountAmount && booking.discountAmount > 0 ? (
+                                        <span className="text-stone-400 line-through mr-2 font-normal">{formatCurrency(booking.totalPrice)}</span>
+                                    ) : null}
+                                    {formatCurrency(booking.finalPrice ?? booking.totalPrice)}
+                                </span>
                             </div>
                         </div>
 
@@ -1471,139 +1893,62 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
                 </div>
 
                 {/* Footer Actions */}
-                <div className="flex justify-end gap-3 p-4 border-t-4 border-stone-900 bg-stone-50 flex-shrink-0">
-                    <button onClick={onClose} className="px-6 py-2 font-bold uppercase bg-white border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Đóng</button>
-                    {(booking.status === 'PENDING' || booking.status === 'CONFIRMED') && (
-                        <button
-                            onClick={() => onCancel(booking.bookingId)}
-                            className="px-6 py-2 font-bold uppercase bg-red-500 text-white border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all"
-                        >
-                            Hủy lịch
-                        </button>
-                    )}
-                    {booking.status === 'PENDING' && (
-                        <button
-                            onClick={() => {
-                                const firstSvc = getAllServices(booking)[0];
-                                const sid = firstSvc?.bookingServiceId || firstSvc?.serviceId;
-                                onConfirm(
-                                    booking.bookingId,
-                                    sid ? selectedStaffByService[sid] : undefined
-                                );
-                                onClose();
-                            }}
-                            className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all"
-                        >
-                            Xác nhận
-                        </button>
-                    )}
-                    {(booking.status === 'CONFIRMED' ||
-                        booking.status === 'IN_PROGRESS' ||
-                        (booking.status === 'COMPLETED' && booking.paymentStatus !== 'PAID')) && (
+                <div className="flex justify-between items-center p-4 border-t-4 border-stone-900 bg-stone-50 flex-shrink-0 font-bold">
+                    <div>
+                        {booking.status !== 'CANCELLED' && booking.status !== 'NO_SHOW' && onReport && (
+                            <button
+                                onClick={onReport}
+                                className="px-4 py-2 font-bold uppercase bg-white text-red-600 border-2 border-red-600 hover:bg-red-50 transition-all flex items-center gap-2"
+                            >
+                                <FlagIcon className="w-5 h-5" />
+                                Báo cáo
+                            </button>
+                        )}
+                    </div>
+                    <div className="flex gap-3">
+                        <button onClick={onClose} className="px-6 py-2 font-bold uppercase bg-white border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Đóng</button>
+                        {(booking.status === 'PENDING' || booking.status === 'CONFIRMED') && (
+                            <button
+                                onClick={() => onCancel(booking.bookingId)}
+                                className="px-6 py-2 font-bold uppercase bg-red-500 text-white border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all"
+                            >
+                                Hủy lịch
+                            </button>
+                        )}
+                        {booking.status === 'PENDING' && (
+                            <button onClick={() => { const firstSvc = getAllServices(booking)[0]; const sid = firstSvc?.bookingServiceId || firstSvc?.serviceId; onConfirm(booking.bookingId, sid ? selectedStaffByService[sid] : undefined); onClose(); }} className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Xác nhận</button>
+                        )}
+                        {booking.status === 'IN_PROGRESS' && (
                             <>
-                                <button
-                                    onClick={onAddService}
-                                    className="px-6 py-2 font-bold uppercase bg-amber-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all"
-                                >
-                                    Thêm dịch vụ
-                                </button>
-
-                                {/* ========== CHECKOUT FLOW ========== */}
-                                {checkoutStep === 'idle' && (
-                                    <button
-                                        onClick={() => setCheckoutStep('select')}
-                                        className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all"
-                                    >
-                                        Checkout
-                                    </button>
-                                )}
-
-                                {checkoutStep === 'select' && (
-                                    <div className="flex gap-2">
-                                        <button
-                                            disabled={checkoutLoading}
-                                            onClick={async () => {
-                                                setCheckoutLoading(true);
-                                                try {
-                                                    await completeBooking(booking.bookingId, 'CASH');
-                                                    showToast(
-                                                        'success',
-                                                        'Thanh toán tiền mặt thành công!'
-                                                    );
-                                                    if (onBookingUpdated) onBookingUpdated();
-                                                    onClose();
-                                                } catch (err) {
-                                                    console.error('Cash checkout failed:', err);
-                                                    showToast('error', 'Thanh toán thất bại');
-                                                } finally {
-                                                    setCheckoutLoading(false);
-                                                }
-                                            }}
-                                            className="px-5 py-2 font-bold uppercase bg-green-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all disabled:opacity-50 flex items-center gap-1.5"
-                                        >
-                                            💵 Tiền mặt
-                                        </button>
-                                        <button
-                                            disabled={checkoutLoading}
-                                            onClick={async () => {
-                                                setCheckoutLoading(true);
-                                                try {
-                                                    const result = await completeBooking(
-                                                        booking.bookingId,
-                                                        'QR'
-                                                    );
-                                                    if ((result as any).qrImageUrl) {
-                                                        // Backend không lưu QR nhưng có thể trả về URL tạm thời
-                                                        setQrImageUrl((result as any).qrImageUrl);
-                                                    }
-                                                    setCheckoutStep('qr');
-                                                    setPollingQr(true);
-                                                    setBooking(result);
-                                                } catch (err) {
-                                                    console.error('QR checkout failed:', err);
-                                                    showToast('error', 'Không thể tạo mã QR');
-                                                } finally {
-                                                    setCheckoutLoading(false);
-                                                }
-                                            }}
-                                            className="px-5 py-2 font-bold uppercase bg-blue-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all disabled:opacity-50 flex items-center gap-1.5"
-                                        >
-                                            📱 QR Code
-                                        </button>
-                                        <button
-                                            onClick={() => setCheckoutStep('idle')}
-                                            className="px-3 py-2 font-bold text-stone-500 hover:text-stone-800 transition-colors"
-                                            title="Hủy"
-                                        >
-                                            ✕
-                                        </button>
-                                    </div>
-                                )}
-
-                                {checkoutStep === 'qr' && (
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                                        <span className="text-sm font-bold text-blue-700">
-                                            Đang chờ thanh toán QR...
-                                        </span>
-                                        <button
-                                            onClick={() => {
-                                                setPollingQr(false);
-                                                setCheckoutStep('idle');
-                                                setQrImageUrl(null);
-                                            }}
-                                            className="px-3 py-1 text-xs font-bold text-stone-500 hover:text-stone-800 border border-stone-300 hover:border-stone-500 transition-colors"
-                                        >
-                                            Hủy
-                                        </button>
-                                    </div>
-                                )}
+                                <button onClick={onAddService} className="px-6 py-2 font-bold uppercase bg-amber-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Thêm dịch vụ</button>
+                                <button onClick={() => setConfirmCheckoutModal(booking)} className="px-6 py-2 font-bold uppercase bg-stone-100 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Hoàn Thành (App)</button>
+                                <button onClick={() => setConfirmCheckoutCashModal(booking)} className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Thu Tiền Mặt</button>
                             </>
                         )}
+                    </div>
                 </div>
             </div>
 
             {/* Sub-Modals */}
+            <ConfirmModal
+                isOpen={!!confirmCheckoutModal}
+                title={`Hoàn thành: ${confirmCheckoutModal?.bookingCode}`}
+                message={`Xác nhận chỉ chốt hoàn thành Đơn khám, và khoản tiền ${confirmCheckoutModal?.totalPrice.toLocaleString('vi-VN')} đ sẽ do người dùng thanh toán qua app (QR/Online)?`}
+                confirmLabel="Chốt Hoàn Thành Đơn"
+                cancelLabel="Hủy"
+                onConfirm={handleCheckout}
+                onCancel={() => setConfirmCheckoutModal(null)}
+            />
+
+            <ConfirmModal
+                isOpen={!!confirmCheckoutCashModal}
+                title={`Thu Tiền Mặt: ${confirmCheckoutCashModal?.bookingCode}`}
+                message={`Xác nhận đã thu ${confirmCheckoutCashModal?.totalPrice.toLocaleString('vi-VN')} đ TIỀN MẶT trực tiếp từ khách hàng?`}
+                confirmLabel="Xác nhận Thu Tiền"
+                cancelLabel="Hủy"
+                onConfirm={handleCheckoutCash}
+                onCancel={() => setConfirmCheckoutCashModal(null)}
+            />
             {confirmRemoveModal.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/80 flex items-center justify-center z-[70] p-4 backdrop-blur-sm">
                     <div className="bg-white border-4 border-stone-900 shadow-[8px_8px_0_#1c1917] max-w-sm w-full p-6">

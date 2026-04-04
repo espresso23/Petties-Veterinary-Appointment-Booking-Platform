@@ -298,6 +298,22 @@ public class SosSessionManager {
         return MAX_CLINICS_TO_TRY;
     }
 
+    /**
+     * Check if there are any active SOS sessions in Redis
+     * Used to optimize DB queries - skip if no active sessions
+     *
+     * @return true if there are active SOS sessions
+     */
+    public boolean hasActiveSessions() {
+        try {
+            var keys = redisTemplate.keys(REDIS_KEY_PREFIX + "*" + REDIS_CLINICS_KEY);
+            return keys != null && !keys.isEmpty();
+        } catch (Exception e) {
+            log.warn("Error checking active SOS sessions: {}", e.getMessage());
+            return true; // Default to query DB on error
+        }
+    }
+
     // ========== Private Helpers ==========
 
     private long calculateSessionTtl() {

@@ -10,6 +10,7 @@ import '../../providers/notification_provider.dart';
 import '../../data/services/booking_service.dart';
 import '../../data/models/booking.dart';
 import '../../utils/fcm_service.dart';
+import 'widgets/staff_ai_chat_bubble.dart';
 
 /// Staff Home Screen - Redesigned based on Image 0
 /// Uses optimized single API call for home summary data
@@ -86,77 +87,86 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.stone50,
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _fetchData,
-          color: AppColors.primary,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 1. Header Section
-                _buildHeader(context, dateStr,
-                    user?.fullName ?? user?.username ?? 'Doctor'),
-
-                const SizedBox(height: 20),
-
-                // 2. Search Bar
-                _buildSearchBar(),
-
-                const SizedBox(height: 24),
-
-                // 3. Stats Dashboard (Grid)
-                _buildDashboardGrid(),
-
-                const SizedBox(height: 24),
-
-                // 4. Lịch làm việc của tôi (entry point rõ ràng)
-                _buildMyScheduleEntry(context),
-
-                const SizedBox(height: 24),
-
-                // 5. Upcoming Section
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      body: Stack(
+        children: [
+          SafeArea(
+            child: RefreshIndicator(
+              onRefresh: _fetchData,
+              color: AppColors.primary,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // 1. Header Section
+                    _buildHeader(context, dateStr,
+                        user?.fullName ?? user?.username ?? 'Doctor'),
+
+                    const SizedBox(height: 20),
+
+                    // 2. Search Bar
+                    _buildSearchBar(),
+
+                    const SizedBox(height: 24),
+
+                    // 3. Stats Dashboard (Grid)
+                    _buildDashboardGrid(),
+
+                    const SizedBox(height: 24),
+
+                    // 4. Lịch làm việc của tôi (entry point rõ ràng)
+                    _buildMyScheduleEntry(context),
+
+                    const SizedBox(height: 24),
+
+                    // 5. Upcoming Section
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Lịch hẹn sắp tới',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.stone900,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => context.push(AppRoutes.staffBookings),
+                          child: const Text('Xem tất cả',
+                              style: TextStyle(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _buildUpcomingList(),
+
+                    const SizedBox(height: 24),
+
+                    // 6. Quick Actions
                     const Text(
-                      'Lịch hẹn sắp tới',
+                      'Thao tác nhanh',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
                         color: AppColors.stone900,
                       ),
                     ),
-                    TextButton(
-                      onPressed: () => context.push(AppRoutes.staffBookings),
-                      child: const Text('Xem tất cả',
-                          style: TextStyle(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.bold)),
-                    ),
+                    const SizedBox(height: 12),
+                    _buildQuickActions(context),
                   ],
                 ),
-                const SizedBox(height: 12),
-                _buildUpcomingList(),
-
-                const SizedBox(height: 24),
-
-                // 6. Quick Actions
-                const Text(
-                  'Thao tác nhanh',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.stone900,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _buildQuickActions(context),
-              ],
+              ),
             ),
           ),
-        ),
+          Positioned(
+            bottom: 20,
+            right: 20,
+            child: const StaffAiChatBubble(),
+          ),
+        ],
       ),
       bottomNavigationBar: _buildBottomNav(context),
     );
@@ -286,7 +296,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
           Icon(Icons.search, color: AppColors.stone400),
           SizedBox(width: 12),
           Text(
-            'Tìm kiếm lịch hẹn, bệnh nhân...',
+            'Tìm kiếm lịch hẹn, thú cưng...',
             style: TextStyle(
                 color: AppColors.stone400,
                 fontSize: 14,

@@ -5,7 +5,7 @@
 ```
 Version: v2.0.0 (Full LlamaIndex RAG)
 Status:  ✅ Single Agent + Full LlamaIndex Integration
-Stack:   Python 3.12 | FastAPI | LangGraph | LlamaIndex | PostgreSQL | Qdrant Cloud | OpenRouter/DeepSeek | Cohere
+Stack:   Python 3.12 | FastAPI | LangGraph | LlamaIndex | PostgreSQL | Qdrant Cloud | OpenRouter | Cohere
 ```
 
 ---
@@ -122,7 +122,7 @@ User: "Mèo bị sổ mũi nên làm gì?"
 
 4. **Cloud AI Services (Cloud-Only Architecture)**
    - **LLM Provider:** OpenRouter API (gateway đến nhiều LLM providers)
-   - **Models:** gemini-2.0-flash, llama-3.3-70b, claude-3.5-sonnet
+- **Models:** gemini-2.5-flash-lite, llama-3.3-70b, claude-3.7-sonnet
    - **Embeddings:** Cohere embed-multilingual-v3
    - Zero infrastructure - không cần GPU/RAM local
 
@@ -173,7 +173,7 @@ DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/petties_agent_db
 LLM_PROVIDER=openrouter
 OPENROUTER_API_KEY=sk-your-openrouter-key
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
-PRIMARY_MODEL=google/gemini-2.0-flash-exp:free
+PRIMARY_MODEL=google/gemini-2.5-flash-lite
 FALLBACK_MODEL=meta-llama/llama-3.3-70b-instruct
 
 # Embeddings (Cohere - Cloud Only)
@@ -297,7 +297,7 @@ petties-agent-serivce/
 │   │       └── session.py      # Async session
 │   │
 │   └── services/               # Services
-│       └── llm_client.py       # OpenRouter/DeepSeek client wrapper
+│       └── llm_client.py       # OpenRouter client wrapper
 │
 ├── scripts/
 │   └── seed_db.py              # ⭐ Database seeding (loads templates → DB)
@@ -482,8 +482,8 @@ Response:
 
 | Component | Technology | Purpose |
 |-----------|------------|---------|
-| **LLM Provider** | **OpenRouter API / DeepSeek** | ⭐ Gateway đến nhiều LLM providers (Cloud) |
-| **Primary Models** | **gemini-2.0-flash, deepseek-chat** | ⭐ Free tier + Vietnamese support |
+| **LLM Provider** | **OpenRouter API** | ⭐ Gateway đến nhiều LLM providers (Cloud) |
+| **Primary Models** | **gemini-2.5-flash-lite, llama-3.3-70b** | ⭐ Stable tier + Vietnamese support |
 | **Fallback** | **llama-3.3-70b** | Best quality khi cần |
 | **Embeddings** | **Cohere embed-multilingual-v3** | ⭐ Best for Vietnamese (Cloud API) |
 | **RAG Framework** | **LlamaIndex (Full)** | ⭐ Document processing, chunking, retrieval |

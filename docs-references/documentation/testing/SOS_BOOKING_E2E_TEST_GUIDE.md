@@ -1,4 +1,4 @@
-# Hướng dẫn Test SOS Booking - Full Flow End-to-End
+﻿# Hướng dẫn Test SOS Booking - Full Flow End-to-End
 
 ## Môi trường chuẩn bị
 

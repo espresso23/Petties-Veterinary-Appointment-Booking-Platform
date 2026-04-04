@@ -2,7 +2,7 @@
  * Booking API Service
  */
 import axios from './api/client';
-import type { Booking, CreateBookingRequest, ConfirmBookingRequest, AvailableStaffResponse, StaffAvailabilityCheckResponse, ConfirmBookingWithOptionsRequest } from '../types/booking';
+import type { Booking, CreateBookingRequest, ConfirmBookingRequest, AvailableStaffResponse, StaffAvailabilityCheckResponse, ConfirmBookingWithOptionsRequest, StaffHomeSummaryResponse } from '../types/booking';
 import type { SosAlertMessage } from './websocket/sosWebSocket';
 import type { BookingStatus } from '../types/booking';
 import type { ClinicServiceResponse } from '../types/service';
@@ -68,6 +68,14 @@ export const getBookingsByStaff = async (
 
     const url = `${BOOKING_API}/staff/${staffId}?${params.toString()}`;
     const response = await axios.get(url);
+    return response.data;
+};
+
+/**
+ * Staff dashboard home summary (today counts + upcoming bookings)
+ */
+export const getStaffHomeSummary = async (): Promise<StaffHomeSummaryResponse> => {
+    const response = await axios.get(`${BOOKING_API}/staff/home-summary`);
     return response.data;
 };
 
@@ -224,16 +232,11 @@ export const checkInBooking = async (bookingId: string): Promise<Booking> => {
 };
 
 /**
-<<<<<<< HEAD
  * Complete booking (Checkout) with payment method selection
  * - CASH: Creates payment as PAID → booking COMPLETED immediately
  * - QR: Creates payment as PENDING → returns QR info for polling
  * - undefined: Legacy behavior → booking COMPLETED without payment
  * Transitions: IN_PROGRESS → COMPLETED (for CASH/undefined)
-=======
- * Complete booking
- * Transitions: IN_PROGRESS → COMPLETED
->>>>>>> 22a81d38772a380aec5f7855c90f58a0b7452dcc
  */
 export const completeBooking = async (
     bookingId: string,
@@ -247,14 +250,13 @@ export const completeBooking = async (
 /**
  * Checkout booking (Staff action – thanh toán)
  * Chỉ gọi khi status IN_PROGRESS. Backend chuyển sang COMPLETED và xử lý thanh toán.
- * @param overriddenSosFee Optional: ghi đè phí SOS (cho booking SOS)
+ * @param options Ghi đè phí SOS hoặc truyền voucherId
  */
 export const checkoutBooking = async (
     bookingId: string,
-    overriddenSosFee?: number | null
+    options?: { overriddenSosFee?: number | null; voucherId?: string; removeVoucher?: boolean; paymentMethod?: 'CASH' | 'QR' }
 ): Promise<Booking> => {
-    const body = overriddenSosFee != null ? { overriddenSosFee } : {};
-    const response = await axios.post(`${BOOKING_API}/${bookingId}/checkout`, body);
+    const response = await axios.post(`${BOOKING_API}/${bookingId}/checkout`, options || {});
     return response.data;
 };
 
@@ -342,6 +344,7 @@ export const getActiveSosAlerts = async (): Promise<SosAlertMessage[]> => {
 // Named export for backwards compatibility and object-style imports
 export const bookingService = {
     getBookingsByClinic,
+    getStaffHomeSummary,
     getBookingsByStaff,
     getBookingById,
     getBookingByCode,

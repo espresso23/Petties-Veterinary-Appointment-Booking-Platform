@@ -1,4 +1,4 @@
-# Petties AI Agent Developer - Update Summary
+﻿# Petties AI Agent Developer - Update Summary
 
 **Date:** 2025-12-25
 **Author:** Claude Code

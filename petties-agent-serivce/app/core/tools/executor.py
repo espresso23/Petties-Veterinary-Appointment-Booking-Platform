@@ -14,6 +14,7 @@ from loguru import logger
 from app.db.postgres.models import Tool
 from app.db.postgres.session import AsyncSessionLocal
 from app.core.tool_runtime_context import get_tool_runtime_context
+from app.core.tools.contracts import normalize_tool_input, normalize_tool_output
 
 
 class ToolExecutor:
@@ -73,30 +74,53 @@ class ToolExecutor:
         if parameters and isinstance(parameters, dict):
             parameters = {k.strip(): v for k, v in parameters.items()}
 
-        # Filter out parameters không có trong schema để tránh lỗi
-        # "Unexpected keyword argument" từ Pydantic/FastMCP (ví dụ key "type" dư)
+        # Normalize aliases/coercions BEFORE schema filtering so we do not drop
+        # clinicId/serviceIds/lat keys that the LLM may output.
+        parameters = normalize_tool_input(tool_name, parameters)
+
+        # Track dropped parameters for better error reporting
+        # Instead of silent drop, we return error info so LLM can recover
+        dropped_params: Dict[str, Any] = {}
         if tool.input_schema and isinstance(tool.input_schema, dict):
             schema = tool.input_schema
-            allowed_keys = set()
+            allowed_keys: set = set()
             properties = schema.get("properties")
             if isinstance(properties, dict):
                 allowed_keys = set(properties.keys())
 
             if allowed_keys:
-                original_keys = set(parameters.keys())
                 filtered_parameters = {
                     k: v for k, v in parameters.items() if k in allowed_keys
                 }
-                dropped = original_keys - set(filtered_parameters.keys())
+                dropped = {k: v for k, v in parameters.items() if k not in allowed_keys}
                 if dropped:
                     logger.warning(
-                        f"Dropping unsupported params for tool '{tool_name}': {dropped}"
+                        f"Params not in schema for '{tool_name}': {list(dropped.keys())}"
                     )
+                    dropped_params = dropped
                 parameters = filtered_parameters
+
+        # Store dropped params in result for LLM to see (via async context)
+        # This allows LLM to understand what was dropped and potentially retry
+        from app.core.tools import executor_state
+
+        executor_state.set_dropped_params(dropped_params)
 
         logger.info(f"Executing tool: {tool_name} with params: {parameters}")
 
+        # Context injection happens after the first schema filter, so normalize
+        # and filter once more before calling FastMCP.
         parameters = self._inject_contextual_parameters(tool_name, parameters)
+        parameters = normalize_tool_input(tool_name, parameters)
+        if tool.input_schema and isinstance(tool.input_schema, dict):
+            properties = tool.input_schema.get("properties")
+            if isinstance(properties, dict) and properties:
+                allowed_keys = set(properties.keys())
+                parameters = {
+                    key: value
+                    for key, value in parameters.items()
+                    if key in allowed_keys
+                }
 
         # Step 2: Validate parameters
         self._validate_parameters(tool, parameters)
@@ -104,7 +128,12 @@ class ToolExecutor:
         # Step 3: Execute via FastMCP (with normalized params)
         result = await self._execute_mcp_tool(tool_name, parameters)
 
-        logger.info(f"Tool executed successfully: {tool_name}")
+        if result.get("success"):
+            logger.info(f"Tool executed successfully: {tool_name}")
+        else:
+            logger.warning(
+                f"Tool execution returned error payload: {tool_name} -> {result.get('error')}"
+            )
 
         return result
 
@@ -154,20 +183,25 @@ class ToolExecutor:
         tool_name: str,
         parameters: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """Inject runtime context vao tool params khi can."""
+        """Inject runtime context into tool params based on policy."""
         context = get_tool_runtime_context()
         if context is None:
             return parameters
 
-        contextual_tools = {
-            "get_user_pets": ["user_id"],
-            "create_booking_for_user": ["user_id"],
-        }
+        # Use policy system to determine what to inject
+        from app.core.tools.tool_policy import requires_context
 
         injected = dict(parameters)
-        for field_name in contextual_tools.get(tool_name, []):
-            if field_name == "user_id":
+
+        # Check if tool requires context injection
+        if requires_context(tool_name):
+            # Common context fields that might be injected
+            if hasattr(context, "user_id") and context.user_id:
                 injected["user_id"] = context.user_id
+            if hasattr(context, "clinic_id") and context.clinic_id:
+                injected["clinic_id"] = context.clinic_id
+            if hasattr(context, "session_id") and context.session_id:
+                injected["session_id"] = context.session_id
 
         return injected
 
@@ -182,18 +216,54 @@ class ToolExecutor:
             parameters: Tool parameters
 
         Returns:
-            Execution result dict
+            Execution result dict with optional dropped_params warning
         """
         try:
             from app.core.tools.mcp_server import call_mcp_tool
+            from app.core.tools import executor_state
 
             result = await call_mcp_tool(tool_name, parameters)
+            result = normalize_tool_output(tool_name, result)
 
-            return {"success": True, "data": result, "tool_name": tool_name}
+            # Include dropped params warning if any
+            dropped = executor_state.get_dropped_params()
+            response: Dict[str, Any] = {
+                "success": True,
+                "data": result,
+                "tool_name": tool_name,
+            }
+            if dropped:
+                response["_warning"] = (
+                    f"Các tham số không được chấp nhận (đã bị loại): {list(dropped.keys())}. "
+                    "Vui lòng kiểm tra input schema của tool."
+                )
+                response["_dropped_params"] = list(dropped.keys())
+                logger.info(
+                    f"Tool '{tool_name}' executed with dropped params warning: {list(dropped.keys())}"
+                )
+
+            # Clear dropped params after use
+            executor_state.clear_dropped_params()
+            return response
 
         except Exception as e:
             logger.error(f"Error executing tool {tool_name}: {e}")
-            return {"success": False, "error": str(e), "tool_name": tool_name}
+            from app.core.tools import executor_state
+
+            dropped = executor_state.get_dropped_params()
+            executor_state.clear_dropped_params()
+            response: Dict[str, Any] = {
+                "success": False,
+                "error": str(e),
+                "tool_name": tool_name,
+            }
+            if dropped:
+                response["_dropped_params"] = list(dropped.keys())
+                response["_warning"] = (
+                    f"Các tham số không được chấp nhận (đã bị loại): {list(dropped.keys())}. "
+                    "Đây có thể là nguyên nhân gây lỗi."
+                )
+            return response
 
     async def execute_batch(
         self, tool_calls: List[Dict[str, Any]]
@@ -248,36 +318,26 @@ async def get_tool_by_name(tool_name: str) -> Optional[Tool]:
         return result.scalar_one_or_none()
 
 
-async def get_enabled_tools_for_agent(agent_name: str) -> List[Tool]:
+async def get_enabled_tools() -> List[Tool]:
     """
-    Helper: Get enabled tools for specific agent
-
-    Args:
-        agent_name: Agent name (e.g., booking_agent)
+    Helper: Get all enabled tools
 
     Returns:
-        List of enabled Tool objects assigned to agent
+        List of enabled Tool objects
     """
     async with AsyncSessionLocal() as session:
-        result = await session.execute(
-            select(Tool).where(
-                Tool.enabled == True, Tool.assigned_agents.contains([agent_name])
-            )
-        )
+        result = await session.execute(select(Tool).where(Tool.enabled == True))
         return result.scalars().all()
 
 
-async def get_tool_schemas_for_agent(agent_name: str) -> List[Dict[str, Any]]:
+async def get_tool_schemas() -> List[Dict[str, Any]]:
     """
     Get tool schemas formatted for LLM consumption
-
-    Args:
-        agent_name: Agent name
 
     Returns:
         List of tool schemas for LLM function calling
     """
-    tools = await get_enabled_tools_for_agent(agent_name)
+    tools = await get_enabled_tools()
 
     return [
         {

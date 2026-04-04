@@ -1,4 +1,4 @@
-# Technical Design Document: Real-time Staff Location Tracking
+﻿# Technical Design Document: Real-time Staff Location Tracking
 
 ## 1. Introduction
 This document outlines the technical design for tracking the real-time location of Staff during "Home Visit" bookings. This feature enhances user experience by providing Pet Owners with an Estimated Time of Arrival (ETA) and a live map of the Staff's progress.

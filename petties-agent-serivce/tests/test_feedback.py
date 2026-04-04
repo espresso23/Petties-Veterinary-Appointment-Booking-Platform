@@ -129,64 +129,34 @@ class TestDeleteFeedbackEndpoint(unittest.IsolatedAsyncioTestCase):
     """Tests cho DELETE /chat/feedback/{feedback_id}."""
 
     async def test_delete_feedback_with_case(self):
-        """Xóa feedback + cascade xóa case Qdrant."""
-        mock_service = _mock_feedback_service({
-            "status": "deleted",
-            "feedback_id": "fb-1",
-            "case_deleted": True,
-        })
-
-        with patch(
-            f"{FEEDBACK_SERVICE_MODULE}.get_feedback_service",
-            return_value=mock_service,
-        ):
-            result = await delete_feedback_endpoint(
+        """Delete feedback is forbidden because records are append-only."""
+        with self.assertRaises(HTTPException) as exc_info:
+            await delete_feedback_endpoint(
                 feedback_id="fb-1",
                 user=_make_user(),
             )
 
-        self.assertTrue(result.success)
-        self.assertTrue(result.case_deleted)
-        self.assertEqual(result.feedback_id, "fb-1")
+        self.assertEqual(exc_info.exception.status_code, 403)
 
     async def test_delete_feedback_without_case(self):
-        """Xóa feedback không có case → chỉ xóa MongoDB."""
-        mock_service = _mock_feedback_service({
-            "status": "deleted",
-            "feedback_id": "fb-2",
-            "case_deleted": False,
-        })
-
-        with patch(
-            f"{FEEDBACK_SERVICE_MODULE}.get_feedback_service",
-            return_value=mock_service,
-        ):
-            result = await delete_feedback_endpoint(
+        """Delete remains forbidden even when no linked case exists."""
+        with self.assertRaises(HTTPException) as exc_info:
+            await delete_feedback_endpoint(
                 feedback_id="fb-2",
                 user=_make_user(),
             )
 
-        self.assertTrue(result.success)
-        self.assertFalse(result.case_deleted)
+        self.assertEqual(exc_info.exception.status_code, 403)
 
     async def test_delete_feedback_not_found(self):
-        """Trả 404 nếu feedback không tồn tại."""
-        mock_service = _mock_feedback_service({
-            "status": "error",
-            "error": "Không tìm thấy feedback",
-        })
+        """Admin cũng không được xóa feedback."""
+        with self.assertRaises(HTTPException) as exc_info:
+            await delete_feedback_endpoint(
+                feedback_id="not-exist",
+                user=_make_user(user_id="admin-1", role="ADMIN", is_admin=True),
+            )
 
-        with patch(
-            f"{FEEDBACK_SERVICE_MODULE}.get_feedback_service",
-            return_value=mock_service,
-        ):
-            with self.assertRaises(HTTPException) as exc_info:
-                await delete_feedback_endpoint(
-                    feedback_id="not-exist",
-                    user=_make_user(),
-                )
-
-        self.assertEqual(exc_info.exception.status_code, 404)
+        self.assertEqual(exc_info.exception.status_code, 403)
 
 
 class TestCaseMemoryDeleteCase(unittest.IsolatedAsyncioTestCase):
@@ -199,20 +169,21 @@ class TestCaseMemoryDeleteCase(unittest.IsolatedAsyncioTestCase):
         service = CaseMemoryService.__new__(CaseMemoryService)
         service._initialized = True
         service._collection_name = "petties_case_memory"
+        service.initialize = AsyncMock(return_value=None)
 
         # Mock point result
         mock_point = MagicMock()
         mock_point.id = "point-uuid-1"
 
         mock_qdrant = MagicMock()
-        mock_qdrant.scroll.return_value = ([mock_point], None)
+        mock_qdrant.retrieve.return_value = [mock_point]
         mock_qdrant.delete.return_value = True
         service._qdrant_client = mock_qdrant
 
         result = await service.delete_case("case-uuid-1")
 
         self.assertTrue(result)
-        mock_qdrant.scroll.assert_called_once()
+        mock_qdrant.retrieve.assert_called_once()
         mock_qdrant.delete.assert_called_once()
 
     async def test_delete_case_not_found(self):
@@ -222,9 +193,10 @@ class TestCaseMemoryDeleteCase(unittest.IsolatedAsyncioTestCase):
         service = CaseMemoryService.__new__(CaseMemoryService)
         service._initialized = True
         service._collection_name = "petties_case_memory"
+        service.initialize = AsyncMock(return_value=None)
 
         mock_qdrant = MagicMock()
-        mock_qdrant.scroll.return_value = ([], None)
+        mock_qdrant.retrieve.return_value = []
         service._qdrant_client = mock_qdrant
 
         result = await service.delete_case("non-existent-case")
@@ -237,7 +209,7 @@ class TestCaseMemoryDeleteCase(unittest.IsolatedAsyncioTestCase):
         from app.core.rag.case_memory import CaseMemoryService
 
         service = CaseMemoryService.__new__(CaseMemoryService)
-        service._initialized = True
+        service.initialize = AsyncMock(return_value=None)
         service._qdrant_client = None
 
         result = await service.delete_case("case-uuid-1")

@@ -88,6 +88,47 @@ export interface StaffPatient {
     allergies?: string
 }
 
+export interface PetHealthSummary {
+    petInfo?: {
+        petId: string
+        name: string
+        species?: string
+        breed?: string
+        ageMonths?: number
+        weightKg?: number
+    }
+    latestEmr?: {
+        examDate?: string
+        clinicName?: string
+        diagnosis?: string
+        treatment?: string
+        subjective?: string
+        objective?: string
+    }
+    healthWarnings: Array<{
+        type: string
+        message: string
+        severity: string
+    }>
+    medicationReminders: Array<{
+        medication: string
+        dosage?: string
+        frequency?: string
+    }>
+    suggestedActions: Array<{
+        type: string
+        label: string
+        reason: string
+    }>
+    aiInsights?: {
+        summary?: string
+        trends?: string
+        advice?: string
+        intakeNotes?: string[]
+    }
+    disclaimer?: string
+}
+
 /**
  * Get prioritized patients for Staff (Assigned first)
  */
@@ -112,7 +153,12 @@ export const petService = {
     getMyPets: async (): Promise<Pet[]> => {
         const response = await api.get('/pets/me')
         return response.data
-    }
+    },
+
+    getHealthSummary: async (petId: string): Promise<PetHealthSummary> => {
+        const response = await api.get(`/pets/${petId}/health-summary`)
+        return response.data
+    },
 }
 
 export default petService

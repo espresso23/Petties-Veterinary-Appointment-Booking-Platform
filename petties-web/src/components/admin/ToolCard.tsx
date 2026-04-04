@@ -135,21 +135,6 @@ export const ToolCard = ({ tool, onToggle }: ToolCardProps) => {
               </p>
             )}
 
-            {/* Assigned Agents */}
-            {tool.assigned_agents && tool.assigned_agents.length > 0 && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-stone-500 uppercase font-semibold">Assigned to:</span>
-                {tool.assigned_agents.map(agent => (
-                  <span
-                    key={agent}
-                    className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700"
-                  >
-                    {agent}
-                  </span>
-                ))}
-              </div>
-            )}
-
             <div className="pt-2">
               <p className="text-xs text-stone-500 leading-relaxed">
                 {PLAYGROUND_TESTABLE_TOOLS.has(tool.name)

@@ -1,4 +1,4 @@
-# 🚀 Lộ Trình Triển Khai Hệ Thống Real-time (WebSocket & SSE) - Petties Platform
+﻿# 🚀 Lộ Trình Triển Khai Hệ Thống Real-time (WebSocket & SSE) - Petties Platform
 
 ## 1. Tổng quan (Overview)
 Hệ thống Real-time của Petties sử dụng kết hợp hai công nghệ bổ trợ nhau:

@@ -1,6 +1,7 @@
 package com.petties.petties.controller;
 
 import com.petties.petties.dto.clinic.ClinicLocationResponse;
+import com.petties.petties.dto.clinic.AdminBanClinicRequest;
 import com.petties.petties.dto.clinic.ApproveClinicRequest;
 import com.petties.petties.dto.clinic.ClinicRequest;
 import com.petties.petties.dto.clinic.ClinicResponse;
@@ -252,6 +253,61 @@ public class ClinicController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Long> getPendingClinicsCount() {
         return ResponseEntity.ok(clinicService.countPendingClinics());
+    }
+
+    /**
+     * GET /api/clinics/admin/struck
+     * Danh sách phòng khám đang bị hạn chế (strike)
+     * ADMIN only
+     */
+    @GetMapping("/admin/struck")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Page<ClinicResponse>> getStruckClinics(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "strikeUntil") String sortBy,
+            @RequestParam(defaultValue = "ASC") Sort.Direction sortDir) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(sortDir, sortBy));
+        return ResponseEntity.ok(clinicService.getStruckClinics(pageable));
+    }
+
+    /**
+     * GET /api/clinics/admin/registry
+     * Danh sách phòng khám (chủ sở hữu) cho admin — lọc trạng thái / tên
+     */
+    @GetMapping("/admin/registry")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Page<ClinicResponse>> getAdminClinicRegistry(
+            @RequestParam(required = false) ClinicStatus status,
+            @RequestParam(required = false) String name,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "DESC") Sort.Direction sortDir) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(sortDir, sortBy));
+        return ResponseEntity.ok(clinicService.getAdminClinicRegistry(status, name, pageable));
+    }
+
+    /**
+     * POST /api/clinics/admin/{id}/ban
+     * Hạn chế vĩnh viễn phòng khám đã duyệt (strike vĩnh viễn)
+     */
+    @PostMapping("/admin/{id}/ban")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ClinicResponse> adminBanClinic(
+            @PathVariable UUID id,
+            @Valid @RequestBody AdminBanClinicRequest request) {
+        return ResponseEntity.ok(clinicService.adminBanClinic(id, request.getReason()));
+    }
+
+    /**
+     * POST /api/clinics/admin/{id}/lift-strike
+     * Gỡ hạn chế strike (tạm hoặc vĩnh viễn)
+     */
+    @PostMapping("/admin/{id}/lift-strike")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ClinicResponse> adminLiftClinicStrike(@PathVariable UUID id) {
+        return ResponseEntity.ok(clinicService.adminLiftClinicStrike(id));
     }
 
     /**

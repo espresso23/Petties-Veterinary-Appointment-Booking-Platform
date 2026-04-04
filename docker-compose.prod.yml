@@ -32,8 +32,8 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-petties-prod}
       # MongoDB Atlas
       MONGO_URI: ${MONGO_URI:-}
-      # AI Service
-      AI_SERVICE_URL: http://ai-service:8000
+      # AI Service (APP_AI_SERVICE_URL -> Spring binds to app.ai-service-url)
+      APP_AI_SERVICE_URL: http://ai-service:8000
       # JWT (64 chars)
       JWT_SECRET: ${JWT_SECRET:-}
       # Google OAuth

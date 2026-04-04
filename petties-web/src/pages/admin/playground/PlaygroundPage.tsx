@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { agentApi, chatApi, feedbackApi, type Agent, type ChatContextType, type ChatSessionMessage, type ChatSessionSummary, type PromptVersion } from '../../../services/agentService'
+import { agentApi, chatApi, feedbackApi, type Agent, type ChatContextType, type ChatSessionMessage, type ChatSessionSummary } from '../../../services/agentService'
 import { ChatMessage } from '../../../components/admin/ChatMessage'
 import { ModelParametersConfig } from '../../../components/admin/ModelParametersConfig'
 import { ConfirmModal } from '../../../components/ConfirmModal'
@@ -23,32 +23,26 @@ import {
   Cog6ToothIcon,
   XMarkIcon,
   KeyIcon,
-  DocumentTextIcon,
-  ClockIcon,
   CommandLineIcon,
   PhotoIcon,
 } from '@heroicons/react/24/outline'
-
 const AI_API_BASE_URL = env.AGENT_API_BASE_URL
 const AI_WS_BASE_URL = env.AGENT_WS_BASE_URL
-
-// Get auth headers
 const getAuthHeaders = (): Record<string, string> => {
   const token = useAuthStore.getState().accessToken
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
-
 interface Message {
   id: string
   role: 'user' | 'assistant'
   content: string
+  images?: string[]
   timestamp: Date
   thinkingProcess?: string[]
   toolCalls?: Array<{ tool: string; input: unknown; output?: unknown }>
   feedback?: 'good' | 'bad' | null
   isStreaming?: boolean
 }
-
 interface ReActStep {
   step_index: number
   step_type: 'thought' | 'action' | 'observation'
@@ -58,18 +52,14 @@ interface ReActStep {
   tool_result?: unknown
   timestamp: string
 }
-
-
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
-type LLMProvider = 'openrouter' | 'deepseek'
-
+type LLMProvider = 'openrouter'
 interface DebugLog {
   id: string
   type: string
   data: unknown
   timestamp: string
 }
-
 interface SessionInfo {
   sessionId: string
   contextType: ChatContextType
@@ -77,28 +67,21 @@ interface SessionInfo {
   userRole: string
   clinicId?: string | null
 }
-
 // Available LLM providers
 const PROVIDERS: Array<{ id: LLMProvider; name: string; description: string }> = [
   { id: 'openrouter', name: 'OpenRouter', description: 'Multi-model API (Gemini, Claude, Llama, GPT)' },
-  { id: 'deepseek', name: 'DeepSeek', description: 'DeepSeek Chat & Coder' },
 ]
-
 // Models per provider
 const MODELS_BY_PROVIDER: Record<LLMProvider, Array<{ id: string; name: string; vision?: boolean }>> = {
   openrouter: [
-    { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Flash (Free)', vision: true },
-    { id: 'google/gemini-2.5-flash-preview', name: 'Gemini 2.5 Flash Preview', vision: true },
+    { id: 'google/gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', vision: true },
+    { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash', vision: true },
+    { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)', vision: false },
     { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B', vision: false },
-    { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', vision: true },
+    { id: 'anthropic/claude-3.7-sonnet', name: 'Claude 3.7 Sonnet', vision: true },
     { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B', vision: false },
   ],
-  deepseek: [
-    { id: 'deepseek-chat', name: 'DeepSeek Chat', vision: false },
-    { id: 'deepseek-coder', name: 'DeepSeek Coder', vision: false },
-  ],
 }
-
 /**
  * Agent Playground Page (Merged with Agent Settings)
  *
@@ -106,41 +89,27 @@ const MODELS_BY_PROVIDER: Record<LLMProvider, Array<{ id: string; name: string; 
  * - WebSocket real-time chat with SingleAgent
  * - ReAct trace visualization (Thinking -> Tool Call -> Result -> Answer)
  * - Split view: Chat + ReAct Trace Panel
- * - Settings Panel: LLM config, API Key, Model Parameters, System Prompt
+ * - Settings Panel: LLM config, API Key, Model Parameters
  */
 export const PlaygroundPage = () => {
   const toast = useToast()
-
   // Agent selection
   const [agent, setAgent] = useState<Agent | null>(null)
   const [agents, setAgents] = useState<Agent[]>([])
   const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null)
   const [loadingAgents, setLoadingAgents] = useState(true)
-
   // LLM Provider & Model selection
   const [selectedProvider, setSelectedProvider] = useState<LLMProvider>('openrouter')
-  const [selectedModel, setSelectedModel] = useState<string>('google/gemini-2.0-flash-exp:free')
-
+  const [selectedModel, setSelectedModel] = useState<string>('google/gemini-2.5-flash-lite')
   // Settings Panel State
   const [showSettings, setShowSettings] = useState(false)
   const [apiKey, setApiKey] = useState('')
   const [showApiKey, setShowApiKey] = useState(false)
   const [providerKeys, setProviderKeys] = useState<Record<LLMProvider, string>>({
-    openrouter: '',
-    deepseek: ''
+    openrouter: ''
   })
   const [savingProvider, setSavingProvider] = useState(false)
   const [testingConnection, setTestingConnection] = useState(false)
-
-  // System Prompt State
-  const [systemPrompt, setSystemPrompt] = useState('')
-  const [promptNotes, setPromptNotes] = useState('')
-  const [originalPrompt, setOriginalPrompt] = useState('')
-  const [savingPrompt, setSavingPrompt] = useState(false)
-  const [showPromptHistory, setShowPromptHistory] = useState(false)
-  const [promptHistory, setPromptHistory] = useState<PromptVersion[]>([])
-  const [loadingHistory, setLoadingHistory] = useState(false)
-
   // WebSocket state
   const wsRef = useRef<WebSocket | null>(null)
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected')
@@ -150,7 +119,6 @@ export const PlaygroundPage = () => {
   const [sessionList, setSessionList] = useState<ChatSessionSummary[]>([])
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null)
   const [allowedTools, setAllowedTools] = useState<string[]>([])
-
   // Chat state
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -158,7 +126,6 @@ export const PlaygroundPage = () => {
   const [streamingContent, setStreamingContent] = useState('')
   const [seeding, setSeeding] = useState(false)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-
   // ReAct trace state
   const [reactSteps, setReactSteps] = useState<ReActStep[]>([])
   const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set())
@@ -166,67 +133,46 @@ export const PlaygroundPage = () => {
   const [showDebug, setShowDebug] = useState(false)
   const [showTracePanel, setShowTracePanel] = useState(true)
   const [debugPanelHeight, setDebugPanelHeight] = useState(40) // Default 40% height
-
   // Confirm modal state
   const [showSeedConfirm, setShowSeedConfirm] = useState(false)
   const [sessionToDelete, setSessionToDelete] = useState<ChatSessionSummary | null>(null)
-
   // Image upload state for multimodal
   const [selectedImages, setSelectedImages] = useState<Array<{ file: File; preview: string; base64: string }>>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
-
   // ==================== LOAD DATA ====================
-
   const loadProviderSettings = useCallback(async (currentProvider?: LLMProvider) => {
     try {
       const response = await fetch(`${AI_API_BASE_URL}/api/v1/settings`, {
         headers: getAuthHeaders(),
       })
       if (!response.ok) throw new Error('Failed to fetch settings')
-
       const data = await response.json()
       const settingsList = Array.isArray(data) ? data : (data.settings || [])
-
       const openrouterKey = settingsList.find((s: { key: string }) => s.key === 'OPENROUTER_API_KEY')?.value || ''
-      const deepseekKey = settingsList.find((s: { key: string }) => s.key === 'DEEPSEEK_API_KEY')?.value || ''
-
-      const newKeys = { openrouter: openrouterKey, deepseek: deepseekKey }
+      const newKeys = { openrouter: openrouterKey }
       setProviderKeys(newKeys)
-
       const provider = currentProvider || selectedProvider
       setApiKey(newKeys[provider])
     } catch (err) {
       console.error('Failed to load provider settings:', err)
     }
   }, [selectedProvider])
-
   const loadAgentData = useCallback(async () => {
     try {
       setLoadingAgents(true)
       const response = await agentApi.getAgents()
       const enabledAgents = response.agents.filter(a => a.enabled)
       setAgents(enabledAgents)
-
       if (enabledAgents.length > 0) {
         const firstAgent = enabledAgents[0]
         setSelectedAgentId(firstAgent.id)
-
         // Load full agent details
         const agentData = await agentApi.getAgent(firstAgent.id)
         setAgent(agentData)
-        setSystemPrompt(agentData.system_prompt || '')
-        setOriginalPrompt(agentData.system_prompt || '')
         setSelectedModel(agentData.model)
-
-        // Detect provider from model
-        let provider: LLMProvider = 'openrouter'
-        if (agentData.model.startsWith('deepseek') && !agentData.model.includes('openrouter')) {
-          provider = 'deepseek'
-        }
-        setSelectedProvider(provider)
-
+        setSelectedProvider('openrouter')
         // Load API keys
-        await loadProviderSettings(provider)
+        await loadProviderSettings('openrouter')
       }
     } catch (err) {
       console.error('Failed to load agents:', err)
@@ -234,12 +180,10 @@ export const PlaygroundPage = () => {
       setLoadingAgents(false)
     }
   }, [loadProviderSettings])
-
   // Load agents and settings on mount
   useEffect(() => {
     loadAgentData()
   }, [loadAgentData])
-
   const handleSeedDatabase = async () => {
     setShowSeedConfirm(false)
     try {
@@ -249,19 +193,16 @@ export const PlaygroundPage = () => {
         headers: getAuthHeaders(),
       })
       if (!response.ok) throw new Error('Failed to seed database')
-
       await response.json()
-      toast.showToast('success', 'Dữ liệu mẫu đã được nạp thành công!')
+      toast.showToast('success', 'Nhập dữ liệu từ database thành công!')
       await loadAgentData() // Reload agents
     } catch (err) {
-      handleApiError(err, toast, 'Nạp dữ liệu mẫu thất bại')
+      handleApiError(err, toast, 'Nhập dữ liệu thất bại')
     } finally {
       setSeeding(false)
     }
   }
-
   // ==================== PROVIDER HANDLERS ====================
-
   const handleProviderChange = (provider: LLMProvider) => {
     setSelectedProvider(provider)
     setApiKey(providerKeys[provider])
@@ -270,7 +211,6 @@ export const PlaygroundPage = () => {
       setSelectedModel(models[0].id)
     }
   }
-
   const handleTestConnection = async () => {
     if (!apiKey) {
       toast.showToast('warning', 'Vui lòng nhập API Key')
@@ -278,7 +218,7 @@ export const PlaygroundPage = () => {
     }
     try {
       setTestingConnection(true)
-      const endpoint = selectedProvider === 'openrouter' ? '/api/v1/settings/test-openrouter' : '/api/v1/settings/test-deepseek'
+      const endpoint = '/api/v1/settings/test-openrouter'
       const response = await fetch(`${AI_API_BASE_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
@@ -295,7 +235,6 @@ export const PlaygroundPage = () => {
       setTestingConnection(false)
     }
   }
-
   const handleSaveProvider = async () => {
     if (!apiKey) {
       toast.showToast('warning', 'Vui lòng nhập API Key')
@@ -304,9 +243,8 @@ export const PlaygroundPage = () => {
     try {
       setSavingProvider(true)
       const isMasked = apiKey.startsWith('****')
-
       if (!isMasked) {
-        const apiKeyKey = selectedProvider === 'openrouter' ? 'OPENROUTER_API_KEY' : 'DEEPSEEK_API_KEY'
+        const apiKeyKey = 'OPENROUTER_API_KEY'
         const keyResponse = await fetch(`${AI_API_BASE_URL}/api/v1/settings/${apiKeyKey}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
@@ -315,7 +253,6 @@ export const PlaygroundPage = () => {
         if (!keyResponse.ok) throw new Error('Failed to save API Key')
         setProviderKeys(prev => ({ ...prev, [selectedProvider]: apiKey }))
       }
-
       if (agent) {
         await agentApi.updateAgent(agent.id, { model: selectedModel })
         setAgent({ ...agent, model: selectedModel })
@@ -327,9 +264,7 @@ export const PlaygroundPage = () => {
       setSavingProvider(false)
     }
   }
-
   // ==================== PARAMETERS HANDLERS ====================
-
   const handleUpdateParameters = async (params: { temperature?: number; max_tokens?: number; top_p?: number }) => {
     if (!agent) return
     try {
@@ -341,53 +276,6 @@ export const PlaygroundPage = () => {
       handleApiError(err, toast, 'Không thể cập nhật')
     }
   }
-
-  // ==================== PROMPT HANDLERS ====================
-
-  const handleSavePrompt = async () => {
-    if (!agent || !systemPrompt.trim()) {
-      toast.showToast('warning', 'System prompt không được để trống')
-      return
-    }
-    try {
-      setSavingPrompt(true)
-      await agentApi.updatePrompt(agent.id, systemPrompt, promptNotes || undefined)
-      setOriginalPrompt(systemPrompt)
-      setPromptNotes('')
-      if (showPromptHistory) await loadPromptHistory()
-      toast.showToast('success', 'Đã lưu system prompt')
-    } catch (err) {
-      handleApiError(err, toast, 'Không thể lưu prompt')
-    } finally {
-      setSavingPrompt(false)
-    }
-  }
-
-  const loadPromptHistory = async () => {
-    if (!agent) return
-    try {
-      setLoadingHistory(true)
-      const versions = await agentApi.getPromptHistory(agent.id)
-      setPromptHistory(versions.slice(0, 5))
-    } catch (err) {
-      console.error('Failed to load history:', err)
-    } finally {
-      setLoadingHistory(false)
-    }
-  }
-
-  const handleRestorePrompt = (version: PromptVersion) => {
-    setSystemPrompt(version.prompt)
-    setPromptNotes(`Restored from version ${version.version}`)
-    toast.showToast('info', `Đã khôi phục version ${version.version}`)
-  }
-
-  const handleTogglePromptHistory = async () => {
-    const newState = !showPromptHistory
-    setShowPromptHistory(newState)
-    if (newState && promptHistory.length === 0) await loadPromptHistory()
-  }
-
   const handleToggleEnabled = async () => {
     if (!agent) return
     try {
@@ -399,13 +287,11 @@ export const PlaygroundPage = () => {
       handleApiError(err, toast, 'Không thể thay đổi trạng thái')
     }
   }
-
   const mapHistoryMessage = useCallback((message: ChatSessionMessage): Message => {
     const reactTrace = message.react_trace || []
     const thinkingProcess = reactTrace
       .filter(step => step.step_type === 'thought' && step.content)
       .map(step => step.content as string)
-
     const toolCalls: Array<{ tool: string; input: unknown; output?: unknown }> = []
     for (const step of reactTrace) {
       if (step.step_type === 'action' && step.tool_name) {
@@ -415,22 +301,21 @@ export const PlaygroundPage = () => {
           output: undefined,
         })
       }
-
       if (step.step_type === 'observation' && toolCalls.length > 0) {
         toolCalls[toolCalls.length - 1].output = step.tool_result
       }
     }
-
+    const images = message.metadata?.images as string[] | undefined
     return {
       id: message.message_id || crypto.randomUUID(),
       role: message.role === 'assistant' ? 'assistant' : 'user',
       content: message.content,
+      images: images?.length ? images : undefined,
       timestamp: message.timestamp ? new Date(message.timestamp) : new Date(),
       thinkingProcess: thinkingProcess.length > 0 ? thinkingProcess : undefined,
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
     }
   }, [])
-
   const disconnectWebSocket = useCallback(() => {
     if (wsRef.current) {
       wsRef.current.close()
@@ -438,7 +323,6 @@ export const PlaygroundPage = () => {
     }
     setConnectionStatus('disconnected')
   }, [])
-
   const loadPlaygroundSessions = useCallback(async () => {
     try {
       setLoadingSessions(true)
@@ -451,7 +335,6 @@ export const PlaygroundPage = () => {
       setLoadingSessions(false)
     }
   }, [toast])
-
   const handleSelectSession = useCallback(async (sessionId: string) => {
     try {
       disconnectWebSocket()
@@ -459,7 +342,6 @@ export const PlaygroundPage = () => {
       setSending(false)
       setReactSteps([])
       setAllowedTools([])
-
       const session = await chatApi.getSession(sessionId)
       setSessionInfo({
         sessionId: session.session_id,
@@ -473,14 +355,11 @@ export const PlaygroundPage = () => {
       handleApiError(err, toast, 'Không thể mở cuộc chat đã chọn')
     }
   }, [disconnectWebSocket, mapHistoryMessage, toast])
-
   const handleDeleteSession = useCallback(async () => {
     if (!sessionToDelete) return
-
     try {
       setDeletingSessionId(sessionToDelete.session_id)
       await chatApi.deleteSession(sessionToDelete.session_id)
-
       if (sessionInfo?.sessionId === sessionToDelete.session_id) {
         disconnectWebSocket()
         setSessionInfo(null)
@@ -490,7 +369,6 @@ export const PlaygroundPage = () => {
         setAllowedTools([])
         setSending(false)
       }
-
       setSessionList(prev => prev.filter(session => session.session_id !== sessionToDelete.session_id))
       toast.showToast('success', 'Đã xóa session chat')
       setSessionToDelete(null)
@@ -501,25 +379,20 @@ export const PlaygroundPage = () => {
       setDeletingSessionId(null)
     }
   }, [disconnectWebSocket, loadPlaygroundSessions, sessionInfo?.sessionId, sessionToDelete, toast])
-
   useEffect(() => {
     void loadPlaygroundSessions()
   }, [loadPlaygroundSessions])
-
   const createPlaygroundSession = useCallback(async () => {
     if (creatingSession) return
-
     try {
       setCreatingSession(true)
       disconnectWebSocket()
       setConnectionStatus('connecting')
-
       const session = await chatApi.createSession({
         agent_id: selectedAgentId ?? undefined,
         title: `Playground ${new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`,
         context_type: 'PLAYGROUND_TEST',
       })
-
       setSessionInfo({
         sessionId: session.session_id,
         contextType: session.context_type,
@@ -539,23 +412,17 @@ export const PlaygroundPage = () => {
       setCreatingSession(false)
     }
   }, [creatingSession, disconnectWebSocket, loadPlaygroundSessions, selectedAgentId, toast])
-
   // ==================== WEBSOCKET ====================
-
   const connectWebSocket = useCallback(() => {
     if (!sessionInfo?.sessionId) return
     if (
       wsRef.current?.readyState === WebSocket.OPEN ||
       wsRef.current?.readyState === WebSocket.CONNECTING
     ) return
-
     setConnectionStatus('connecting')
     const token = useAuthStore.getState().accessToken
-
     const fullWsUrl = `${AI_WS_BASE_URL}/ws/chat/${sessionInfo.sessionId}?token=${token}&context_type=${sessionInfo.contextType}`
-
     const ws = new WebSocket(fullWsUrl)
-
     ws.onopen = () => {
       console.log('WebSocket connected')
       setConnectionStatus('connected')
@@ -590,7 +457,6 @@ export const PlaygroundPage = () => {
     wsRef.current = ws
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionInfo?.contextType, sessionInfo?.sessionId])
-
   const handleWebSocketMessage = useCallback((data: {
     type: string
     session_id?: string
@@ -619,7 +485,6 @@ export const PlaygroundPage = () => {
             if (prev.sessionId === nextSessionId && prev.contextType === nextContextType) {
               return prev
             }
-
             return {
               ...prev,
               sessionId: nextSessionId,
@@ -681,7 +546,6 @@ export const PlaygroundPage = () => {
         setStreamingContent('')
         const thinkingProcess: string[] = []
         const toolCalls: Array<{ tool: string; input: unknown; output?: unknown }> = []
-
         if (data.react_trace) {
           for (const step of data.react_trace) {
             if (step.step_type === 'thought' && step.content) thinkingProcess.push(step.content)
@@ -716,13 +580,11 @@ export const PlaygroundPage = () => {
         break
     }
   }, [loadPlaygroundSessions, mapHistoryMessage])
-
   useEffect(() => {
     if (!sessionInfo?.sessionId) {
       disconnectWebSocket()
       return
     }
-
     connectWebSocket()
     return () => {
       if (wsRef.current) {
@@ -731,9 +593,6 @@ export const PlaygroundPage = () => {
       }
     }
   }, [connectWebSocket, disconnectWebSocket, sessionInfo?.sessionId])
-
-
-
   useEffect(() => {
     if (scrollContainerRef.current) {
       const { scrollHeight, clientHeight } = scrollContainerRef.current
@@ -743,24 +602,20 @@ export const PlaygroundPage = () => {
       })
     }
   }, [messages, streamingContent])
-
   // ==================== CHAT HANDLERS ====================
-
   const sendMessage = async () => {
     if (!input.trim() || sending || connectionStatus !== 'connected' || !sessionInfo?.sessionId) return
-
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
       content: input.trim(),
+      images: selectedImages.length > 0 ? selectedImages.map(img => img.base64) : undefined,
       timestamp: new Date()
     }
-
     setMessages(prev => [...prev, userMessage])
     setInput('')
     setSending(true)
     setReactSteps([])
-
     // Build WebSocket message with optional images
     const wsPayload: Record<string, unknown> = {
       message: userMessage.content,
@@ -768,24 +623,19 @@ export const PlaygroundPage = () => {
       provider: selectedProvider,
       model: selectedModel
     }
-
     // Add images if any (base64 encoded)
     if (selectedImages.length > 0) {
       wsPayload.images = selectedImages.map(img => img.base64)
     }
-
     wsRef.current?.send(JSON.stringify(wsPayload))
-
     // Clear selected images after sending
     setSelectedImages([])
   }
-
   const handleFeedback = async (messageId: string, feedback: 'good' | 'bad') => {
     // Cập nhật UI ngay lập tức
     setMessages(prev => prev.map(msg =>
       msg.id === messageId ? { ...msg, feedback } : msg
     ))
-
     // Gọi API lưu feedback vào MongoDB
     if (sessionInfo?.sessionId) {
       try {
@@ -799,58 +649,48 @@ export const PlaygroundPage = () => {
       }
     }
   }
-
   const clearChat = () => {
     setMessages([])
     setReactSteps([])
     setStreamingContent('')
     setSelectedImages([])
   }
-
   // Image handling
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
-
     const MAX_IMAGES = 4
     const MAX_SIZE_MB = 5
-
     const newImages: Array<{ file: File; preview: string; base64: string }> = []
-
     for (let i = 0; i < Math.min(files.length, MAX_IMAGES - selectedImages.length); i++) {
       const file = files[i]
       if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-        toast.showToast('error', `Ảnh ${file.name} quá lớn (tối đa ${MAX_SIZE_MB}MB)`)
+        toast.showToast('error', `ảnh ${file.name} quá lớn (tối đa ${MAX_SIZE_MB}MB)`)
         continue
       }
       if (!file.type.startsWith('image/')) {
         toast.showToast('error', `${file.name} không phải file ảnh`)
         continue
       }
-
       const reader = new FileReader()
       const base64 = await new Promise<string>((resolve) => {
         reader.onload = () => resolve(reader.result as string)
         reader.readAsDataURL(file)
       })
-
       newImages.push({
         file,
         preview: URL.createObjectURL(file),
         base64: base64.split(',')[1], // Remove data:image/xxx;base64, prefix
       })
     }
-
     if (newImages.length > 0) {
       setSelectedImages(prev => [...prev, ...newImages].slice(0, MAX_IMAGES))
     }
-
     // Reset input
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
   }
-
   const removeImage = (index: number) => {
     setSelectedImages(prev => {
       const newImages = [...prev]
@@ -859,14 +699,12 @@ export const PlaygroundPage = () => {
       return newImages
     })
   }
-
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       sendMessage()
     }
   }
-
   const toggleStepExpand = (stepIndex: number) => {
     setExpandedSteps(prev => {
       const next = new Set(prev)
@@ -875,7 +713,6 @@ export const PlaygroundPage = () => {
       return next
     })
   }
-
   const getStepIcon = (stepType: string) => {
     switch (stepType) {
       case 'thought': return <CpuChipIcon className="w-4 h-4" />
@@ -884,7 +721,6 @@ export const PlaygroundPage = () => {
       default: return <ChatBubbleLeftRightIcon className="w-4 h-4" />
     }
   }
-
   const getStepColor = (stepType: string) => {
     switch (stepType) {
       case 'thought': return 'bg-blue-100 text-blue-700 border-blue-300'
@@ -893,11 +729,7 @@ export const PlaygroundPage = () => {
       default: return 'bg-stone-100 text-stone-700 border-stone-300'
     }
   }
-
-  const hasPromptChanges = systemPrompt !== originalPrompt
-
   // ==================== RENDER ====================
-
   if (loadingAgents) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-stone-50">
@@ -908,7 +740,6 @@ export const PlaygroundPage = () => {
       </div>
     )
   }
-
   return (
     <div className="h-full bg-stone-50 flex flex-col overflow-hidden">
       {/* Page Header */}
@@ -920,7 +751,6 @@ export const PlaygroundPage = () => {
                 <h1 className="text-xl font-black text-stone-900 uppercase tracking-tight">Agent Playground</h1>
                 <p className="text-[10px] text-stone-600 font-bold uppercase tracking-wide">AI Agent Trace Real-time</p>
               </div>
-
               {/* Status Badge in Header */}
               <div className={`flex items-center gap-1.5 px-2 py-1 border-2 border-stone-900 transition-colors shadow-[1px_1px_0_#1c1917] ${connectionStatus === 'connected' ? 'bg-green-100' :
                 connectionStatus === 'connecting' ? 'bg-yellow-100' :
@@ -936,7 +766,6 @@ export const PlaygroundPage = () => {
                 </span>
               </div>
             </div>
-
             {/* Header Actions */}
             <div className="flex items-center gap-2 w-full md:w-auto mt-2 md:mt-0">
               <button
@@ -947,7 +776,6 @@ export const PlaygroundPage = () => {
                 <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
                 {creatingSession ? 'Đang tạo' : 'Chat mới'}
               </button>
-
               <button
                 onClick={() => void loadPlaygroundSessions()}
                 disabled={loadingSessions}
@@ -956,7 +784,6 @@ export const PlaygroundPage = () => {
                 <ArrowPathIcon className={`w-3.5 h-3.5 ${loadingSessions ? 'animate-spin' : ''}`} />
                 Làm mới
               </button>
-
               <button
                 onClick={() => setShowSettings(!showSettings)}
                 className={`flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-1.5 font-black uppercase text-[10px] border-2 border-stone-900 transition-all cursor-pointer shadow-[2px_2px_0_#1c1917] hover:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] ${showSettings ? 'bg-amber-400 text-stone-900' : 'bg-white text-stone-900 hover:bg-stone-50'}`}
@@ -964,14 +791,12 @@ export const PlaygroundPage = () => {
                 <Cog6ToothIcon className="w-3.5 h-3.5" />
                 Settings
               </button>
-
               <button
                 onClick={() => setShowTracePanel(!showTracePanel)}
                 className={`flex-1 md:flex-none px-3 py-1.5 font-black uppercase text-[10px] border-2 border-stone-900 transition-all cursor-pointer shadow-[2px_2px_0_#1c1917] hover:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] ${showTracePanel ? 'bg-amber-400 text-stone-900' : 'bg-white text-stone-900 hover:bg-stone-50'}`}
               >
                 {showTracePanel ? 'Hide Trace' : 'Show Trace'}
               </button>
-
               <button
                 onClick={() => setShowDebug(!showDebug)}
                 className={`flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-1.5 font-black uppercase text-[10px] border-2 border-stone-900 transition-all cursor-pointer shadow-[2px_2px_0_#1c1917] hover:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] ${showDebug ? 'bg-purple-400 text-stone-900' : 'bg-white text-stone-900 hover:bg-stone-50'}`}
@@ -979,7 +804,6 @@ export const PlaygroundPage = () => {
                 <CommandLineIcon className="w-3.5 h-3.5" />
                 Logs
               </button>
-
               <button
                 onClick={clearChat}
                 className="flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-1.5 font-black uppercase text-[10px] text-stone-900 bg-white border-2 border-stone-900 hover:bg-stone-50 transition-all cursor-pointer shadow-[2px_2px_0_#1c1917] hover:shadow-none hover:translate-x-[1px] hover:translate-y-[1px]"
@@ -991,7 +815,6 @@ export const PlaygroundPage = () => {
           </div>
         </div>
       </div>
-
       {/* Agent Controls & Info Bar */}
       <div className="px-4 py-2 bg-stone-100 border-b-2 border-stone-900 flex flex-wrap items-center gap-4 shrink-0">
         {/* Selectors Group */}
@@ -1011,7 +834,6 @@ export const PlaygroundPage = () => {
               ))}
             </select>
           </div>
-
           <div className="flex flex-col gap-0.5">
             <span className="text-[9px] font-black uppercase text-stone-500">Provider</span>
             <select
@@ -1026,7 +848,6 @@ export const PlaygroundPage = () => {
               ))}
             </select>
           </div>
-
           <div className="flex flex-col gap-0.5">
             <span className="text-[9px] font-black uppercase text-stone-500">Model</span>
             <div className="flex items-center gap-2">
@@ -1049,10 +870,8 @@ export const PlaygroundPage = () => {
             </div>
           </div>
         </div>
-
         {/* Vertical Divider */}
         <div className="h-10 w-0.5 bg-stone-300 hidden md:block"></div>
-
         {/* Status Group */}
         <div className="flex items-center gap-3">
           <div className="flex flex-col gap-0.5">
@@ -1061,14 +880,12 @@ export const PlaygroundPage = () => {
               {agent?.enabled ? 'ENABLED' : 'DISABLED'}
             </span>
           </div>
-
           <div className="flex flex-col gap-0.5">
             <span className="text-[9px] font-black uppercase text-stone-500 tracking-wider text-center">Context</span>
             <span className="px-3 py-1 border-2 border-stone-900 font-black text-[10px] bg-purple-200 text-stone-900 shadow-[1px_1px_0_#1c1917]">
               {sessionInfo?.contextType || 'PLAYGROUND_TEST'}
             </span>
           </div>
-
           <div className="flex flex-col gap-0.5 min-w-[180px]">
             <span className="text-[9px] font-black uppercase text-stone-500 tracking-wider">Session ID</span>
             <span className="px-2 py-1 border-2 border-stone-900 font-black text-[10px] bg-white text-stone-700 shadow-[1px_1px_0_#1c1917] truncate">
@@ -1077,7 +894,6 @@ export const PlaygroundPage = () => {
           </div>
         </div>
       </div>
-
       <div className="px-4 py-2 bg-white border-b-2 border-stone-900 flex flex-wrap items-center gap-2 shrink-0">
         <span className="text-[10px] font-black uppercase text-stone-500">Phiên chat</span>
         {loadingSessions ? (
@@ -1120,7 +936,6 @@ export const PlaygroundPage = () => {
           <span className="text-[10px] font-bold text-stone-500">Chưa có session nào. Hãy bấm Chat mới để bắt đầu.</span>
         )}
       </div>
-
       <div className="px-4 py-2 bg-white border-b-2 border-stone-900 flex flex-wrap items-center gap-2 shrink-0">
         <span className="text-[10px] font-black uppercase text-stone-500">Allowed tools</span>
         {allowedTools.length > 0 ? (
@@ -1138,13 +953,11 @@ export const PlaygroundPage = () => {
           </span>
         )}
       </div>
-
       {connectionStatus === 'error' && (
         <div className="px-4 py-2 bg-red-100 border-b-2 border-stone-900 text-xs text-red-800 font-bold">
           Không thể kết nối tới AI Service. Vui lòng kiểm tra lại cấu hình AI REST/WS URL trong môi trường và tải lại trang.
         </div>
       )}
-
       {/* Main Content - Split View */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
         {/* Chat Panel */}
@@ -1197,6 +1010,7 @@ export const PlaygroundPage = () => {
                     key={msg.id}
                     role={msg.role}
                     content={msg.content}
+                    images={msg.images}
                     timestamp={msg.timestamp}
                     thinkingProcess={msg.thinkingProcess}
                     toolCalls={msg.toolCalls?.map(t => ({ ...t, input: (t.input ?? {}) as Record<string, unknown> }))}
@@ -1226,7 +1040,6 @@ export const PlaygroundPage = () => {
               </div>
             )}
           </div>
-
           {/* Input Area */}
           <div className="p-4 border-t-4 border-stone-900 bg-white">
             {/* Image Preview */}
@@ -1254,7 +1067,6 @@ export const PlaygroundPage = () => {
                 )}
               </div>
             )}
-            
             <div className="flex gap-3">
               {/* Image Attachment Button */}
               <input
@@ -1274,7 +1086,6 @@ export const PlaygroundPage = () => {
               >
                 <PhotoIcon className="w-5 h-5" />
               </button>
-              
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -1296,7 +1107,6 @@ export const PlaygroundPage = () => {
             </div>
           </div>
         </div>
-
         {/* ReAct Trace Panel */}
         {showTracePanel && (
           <div className="w-full md:w-80 lg:w-96 flex flex-col bg-white border-t-4 md:border-t-0 md:border-l-4 border-stone-900 h-1/3 md:h-auto flex-none">
@@ -1306,7 +1116,6 @@ export const PlaygroundPage = () => {
                 Thought → Action → Observation
               </p>
             </div>
-
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {reactSteps.length === 0 ? (
                 <div className="text-center py-8 text-stone-400">
@@ -1336,7 +1145,6 @@ export const PlaygroundPage = () => {
                         </span>
                       )}
                     </button>
-
                     {expandedSteps.has(step.step_index) && (
                       <div className="px-3 pb-3 pt-1 border-t border-current border-opacity-30">
                         <p className="text-xs whitespace-pre-wrap break-words">{step.content}</p>
@@ -1365,7 +1173,6 @@ export const PlaygroundPage = () => {
                 ))
               )}
             </div>
-
             {reactSteps.length > 0 && (
               <div className="px-4 py-2 bg-stone-100 border-t-2 border-stone-900 text-xs">
                 <span className="font-bold">Total Steps:</span> {reactSteps.length} |{' '}
@@ -1376,7 +1183,6 @@ export const PlaygroundPage = () => {
             )}
           </div>
         )}
-
         {/* Debug Console (Overlay) - Resizable */}
         {showDebug && (
           <div
@@ -1390,7 +1196,6 @@ export const PlaygroundPage = () => {
                 e.preventDefault()
                 const startY = e.clientY
                 const startHeight = debugPanelHeight
-
                 const handleMouseMove = (moveEvent: MouseEvent) => {
                   const deltaY = startY - moveEvent.clientY
                   const containerHeight = window.innerHeight
@@ -1398,19 +1203,16 @@ export const PlaygroundPage = () => {
                   const newHeight = Math.max(20, Math.min(80, startHeight + deltaPercent))
                   setDebugPanelHeight(newHeight)
                 }
-
                 const handleMouseUp = () => {
                   document.removeEventListener('mousemove', handleMouseMove)
                   document.removeEventListener('mouseup', handleMouseUp)
                 }
-
                 document.addEventListener('mousemove', handleMouseMove)
                 document.addEventListener('mouseup', handleMouseUp)
               }}
             >
               <div className="w-12 h-1 bg-stone-500 rounded-full group-hover:bg-white transition-colors" />
             </div>
-
             <div className="flex items-center justify-between px-4 py-2 bg-stone-800 border-b-2 border-stone-700">
               <div className="flex items-center gap-2">
                 <CommandLineIcon className="w-4 h-4 text-purple-400" />
@@ -1450,13 +1252,11 @@ export const PlaygroundPage = () => {
             </div>
           </div>
         )}
-
         {/* Settings Panel (Overlay) */}
         {showSettings && (
           <div className="absolute inset-0 z-50 flex">
             {/* Backdrop */}
             <div className="flex-1 bg-black/30" onClick={() => setShowSettings(false)} />
-
             {/* Settings Drawer */}
             <div className="w-full max-w-lg bg-white border-l-4 border-stone-900 overflow-y-auto">
               {/* Header */}
@@ -1469,7 +1269,6 @@ export const PlaygroundPage = () => {
                   <XMarkIcon className="w-6 h-6 text-stone-900" />
                 </button>
               </div>
-
               <div className="p-6 space-y-6">
                 {/* Agent Status */}
                 {agent && (
@@ -1486,14 +1285,12 @@ export const PlaygroundPage = () => {
                     </button>
                   </div>
                 )}
-
                 {/* Provider Config */}
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-sm font-black uppercase text-stone-900">
                     <CpuChipIcon className="w-5 h-5" />
                     LLM Provider
                   </div>
-
                   <div className="flex gap-2">
                     {PROVIDERS.map(p => (
                       <button
@@ -1505,7 +1302,6 @@ export const PlaygroundPage = () => {
                       </button>
                     ))}
                   </div>
-
                   {/* API Key */}
                   <div>
                     <label className="block text-sm font-black uppercase text-stone-900 mb-2">
@@ -1528,7 +1324,6 @@ export const PlaygroundPage = () => {
                       </button>
                     </div>
                   </div>
-
                   {/* Model */}
                   <div>
                     <label className="block text-sm font-black uppercase text-stone-900 mb-2">Model</label>
@@ -1544,7 +1339,6 @@ export const PlaygroundPage = () => {
                       ))}
                     </select>
                   </div>
-
                   {/* Provider Actions */}
                   <div className="flex gap-2 pt-2">
                     <button
@@ -1563,7 +1357,6 @@ export const PlaygroundPage = () => {
                     </button>
                   </div>
                 </div>
-
                 {/* Model Parameters */}
                 {agent && (
                   <ModelParametersConfig
@@ -1574,95 +1367,6 @@ export const PlaygroundPage = () => {
                     onUpdate={handleUpdateParameters}
                   />
                 )}
-
-                {/* System Prompt */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-sm font-black uppercase text-stone-900">
-                    <DocumentTextIcon className="w-5 h-5" />
-                    System Prompt
-                  </div>
-
-                  <textarea
-                    value={systemPrompt}
-                    onChange={(e) => setSystemPrompt(e.target.value)}
-                    rows={8}
-                    placeholder="Enter system prompt..."
-                    className="w-full px-4 py-3 border-2 border-stone-900 bg-white text-stone-900 font-mono text-sm resize-y"
-                  />
-
-                  <input
-                    type="text"
-                    value={promptNotes}
-                    onChange={(e) => setPromptNotes(e.target.value)}
-                    placeholder="Version notes (optional)..."
-                    className="w-full px-4 py-2 border-2 border-stone-900 bg-white text-stone-900 text-sm"
-                  />
-
-                  {hasPromptChanges && (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => { setSystemPrompt(originalPrompt); setPromptNotes('') }}
-                        className="px-4 py-2 font-bold uppercase text-sm bg-white text-stone-900 border-2 border-stone-900"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleSavePrompt}
-                        disabled={savingPrompt}
-                        className="flex-1 px-4 py-2 font-bold uppercase text-sm bg-amber-500 text-white border-2 border-stone-900 disabled:bg-stone-300"
-                      >
-                        {savingPrompt ? 'Saving...' : 'Save Prompt'}
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Prompt History */}
-                <div className="space-y-4">
-                  <button
-                    onClick={handleTogglePromptHistory}
-                    className="w-full px-4 py-3 bg-stone-100 border-2 border-stone-900 flex items-center justify-between hover:bg-stone-200 text-stone-900"
-                  >
-                    <div className="flex items-center gap-2">
-                      <ClockIcon className="w-5 h-5 text-stone-900" />
-                      <span className="font-black uppercase text-sm">Prompt History</span>
-                    </div>
-                    {showPromptHistory ? <ChevronDownIcon className="w-5 h-5 text-stone-900" /> : <ChevronRightIcon className="w-5 h-5 text-stone-900" />}
-                  </button>
-
-                  {showPromptHistory && (
-                    <div className="space-y-2">
-                      {loadingHistory ? (
-                        <div className="text-center py-4">
-                          <ArrowPathIcon className="w-6 h-6 animate-spin text-amber-600 mx-auto" />
-                        </div>
-                      ) : promptHistory.length === 0 ? (
-                        <p className="text-center py-4 text-stone-500 text-sm">No history</p>
-                      ) : (
-                        promptHistory.map(v => (
-                          <div key={v.version} className="p-3 bg-stone-50 border-2 border-stone-900">
-                            <div className="flex items-center justify-between mb-2">
-                              <div>
-                                <span className="text-xs font-black text-amber-600">Version {v.version}</span>
-                                <span className="text-xs text-stone-500 ml-2">
-                                  {new Date(v.created_at).toLocaleString('vi-VN')}
-                                </span>
-                              </div>
-                              <button
-                                onClick={() => handleRestorePrompt(v)}
-                                className="px-2 py-1 text-xs font-bold bg-stone-900 text-white"
-                              >
-                                Restore
-                              </button>
-                            </div>
-                            <p className="text-xs font-mono text-stone-600 line-clamp-2">{v.prompt}</p>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </div>
-
                 {/* Initial Setup Section */}
                 <div className="pt-6 border-t-4 border-stone-900 space-y-4">
                   <div className="flex items-center gap-2 text-sm font-black uppercase text-red-600">
@@ -1684,7 +1388,6 @@ export const PlaygroundPage = () => {
             </div>
           </div>
         )}
-
         {/* Confirm Modal for Seed Database */}
         <ConfirmModal
           isOpen={showSeedConfirm}
@@ -1696,7 +1399,6 @@ export const PlaygroundPage = () => {
           onCancel={() => setShowSeedConfirm(false)}
           isDanger
         />
-
         <ConfirmModal
           isOpen={!!sessionToDelete}
           title="Xác nhận xóa session"
@@ -1711,5 +1413,4 @@ export const PlaygroundPage = () => {
     </div>
   )
 }
-
 export default PlaygroundPage

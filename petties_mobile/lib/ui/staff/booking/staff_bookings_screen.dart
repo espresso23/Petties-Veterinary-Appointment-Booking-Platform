@@ -254,7 +254,7 @@ class _StaffBookingsScreenState extends State<StaffBookingsScreen>
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Tất cả lịch hẹn hôm nay của phòng khám. Bạn có thể thêm bệnh án cho bệnh nhân đang khám.',
+                  'Tất cả lịch hẹn hôm nay của phòng khám. Bạn có thể thêm bệnh án cho thú cưng đang khám.',
                   style: TextStyle(color: Colors.blue.shade700, fontSize: 12),
                 ),
               ),

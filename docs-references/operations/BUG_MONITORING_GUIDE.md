@@ -1,4 +1,4 @@
-# 🐛 Petties Bug Monitoring & Incident Response Guide
+﻿# 🐛 Petties Bug Monitoring & Incident Response Guide
 
 **Phiên bản:** 1.0  
 **Cập nhật:** 2025-12-27  

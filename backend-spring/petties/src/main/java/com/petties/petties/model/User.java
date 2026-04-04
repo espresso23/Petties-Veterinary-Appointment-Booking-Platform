@@ -79,6 +79,9 @@ public class User {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    @Column(name = "strike_until")
+    private LocalDateTime strikeUntil; // NULL = không bị strike; có giá trị = hạn chế đặt lịch đến thời điểm này
+
     // ========== STAFF-SPECIFIC FIELDS ==========
 
     // Chuyên môn của Staff (VET hoặc GROOMER)

@@ -11,6 +11,7 @@ import { useClinicStore } from '../store/clinicStore'
 import {
   Squares2X2Icon,
   BuildingOfficeIcon,
+  RectangleStackIcon,
   UsersIcon,
   FlagIcon,
   BookOpenIcon,
@@ -20,7 +21,9 @@ import {
   BellIcon,
   UserCircleIcon,
   BanknotesIcon,
-  MegaphoneIcon
+  MegaphoneIcon,
+  TicketIcon,
+  CreditCardIcon
 } from '@heroicons/react/24/outline'
 import '../styles/brutalist.css'
 
@@ -54,11 +57,20 @@ export const AdminLayout = () => {
     {
       title: 'PLATFORM MANAGEMENT',
       items: [
-        { path: '/admin/clinics', label: 'QUẢN LÝ CLINIC', icon: BuildingOfficeIcon, unreadCount: pendingCount },
+        {
+          path: '/admin/clinics',
+          label: 'QUẢN LÝ CLINIC',
+          icon: BuildingOfficeIcon,
+          unreadCount: pendingCount,
+          end: true,
+        },
+        { path: '/admin/clinics/registry', label: 'DS PHÒNG KHÁM', icon: RectangleStackIcon },
         { path: '/admin/users', label: 'USERS', icon: UsersIcon },
         { path: '/admin/reports', label: 'REPORTS', icon: FlagIcon },
         { path: '/admin/refunds', label: 'RÚT TIỀN', icon: BanknotesIcon },
         { path: '/admin/notification-manage', label: 'GỬI THÔNG BÁO', icon: MegaphoneIcon },
+        { path: '/admin/vouchers', label: 'VOUCHER', icon: TicketIcon },
+        { path: '/admin/subscriptions', label: 'QUẢN LÝ GÓI', icon: CreditCardIcon },
       ]
     },
     {
@@ -94,6 +106,8 @@ export const AdminLayout = () => {
         toggleSidebar={toggleSidebar}
         onLogout={handleLogout}
         isMobile={isMobile}
+        isVIP={false}
+        planName="ADMIN"
       />
 
       {/* Main Content */}

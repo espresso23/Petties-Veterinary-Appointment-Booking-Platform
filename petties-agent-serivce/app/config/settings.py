@@ -151,10 +151,14 @@ class Settings(BaseSettings):
         default="chat_feedback",
         description="Collection name cho user feedback (thumbs up/down)",
     )
+    MONGODB_KG_TRIPLETS_COLLECTION: str = Field(
+        default="knowledge_graph_triplets",
+        description="Collection name cho Knowledge Graph triplets (MongoDB)",
+    )
 
     # ==================== AI/LLM Configuration ====================
     LLM_PROVIDER: str = Field(
-        default="openrouter", description="LLM provider: openrouter, deepseek"
+        default="openrouter", description="LLM provider: openrouter"
     )
 
     # ===== OpenRouter (RECOMMENDED - Cloud API) =====
@@ -168,19 +172,6 @@ class Settings(BaseSettings):
     OPENROUTER_FALLBACK_MODEL: str = Field(
         default="meta-llama/llama-3.3-70b-instruct",
         description="Fallback model when primary fails",
-    )
-
-    # ===== DeepSeek (FALLBACK - Cloud API) =====
-    DEEPSEEK_API_KEY: str = Field(
-        default="",
-        description="DeepSeek API Key (https://platform.deepseek.com/api_keys)",
-    )
-    DEEPSEEK_BASE_URL: str = Field(
-        default="https://api.deepseek.com", description="DeepSeek API base URL"
-    )
-    DEEPSEEK_MODEL: str = Field(
-        default="deepseek-chat",
-        description="DeepSeek model (deepseek-chat, deepseek-coder)",
     )
 
     # ===== Cohere Embeddings (RECOMMENDED) =====
@@ -223,11 +214,14 @@ class Settings(BaseSettings):
     )
 
     # ==================== Web Search Configuration ====================
-    DUCKDUCKGO_MAX_RESULTS: int = Field(
-        default=5, description="Max DuckDuckGo search results"
-    )
+    TAVILY_API_KEY: str = Field(default="", description="Tavily Search API key")
+    TAVILY_MAX_RESULTS: int = Field(default=5, description="Max Tavily search results")
     YOUTUBE_API_KEY: str = Field(
         default="", description="YouTube Data API key (optional)"
+    )
+    DUCKDUCKGO_MAX_RESULTS: int = Field(
+        default=5,
+        description="Max DuckDuckGo search results (deprecated, use TAVILY_MAX_RESULTS)",
     )
 
     # ==================== MCP Integration ====================
@@ -235,6 +229,10 @@ class Settings(BaseSettings):
         default="http://localhost:8080/api", description="Spring Boot backend URL"
     )
     MCP_TIMEOUT: int = Field(default=30, description="MCP request timeout (seconds)")
+    AI_INTERNAL_SYNC_KEY: str = Field(
+        default="",
+        description="Shared internal API key used by Spring Boot to push confirmed EMR into case memory",
+    )
 
     # ==================== Authentication & Security ====================
     # CRITICAL: Must be set via environment variable (synced with Spring Boot)

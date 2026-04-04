@@ -40,8 +40,11 @@ from app.db.postgres.session import AsyncSessionLocal
 # CONSTANTS
 # ============================================================
 
-MAX_TRIPLETS_PER_CHUNK = 10
+MAX_TRIPLETS_PER_CHUNK = 50
 """Số triplets tối đa được extract từ mỗi text chunk."""
+
+MAX_TOTAL_TRIPLETS = 1000
+"""Số triplets tối đa tổng cộng được extract sau deduplication."""
 
 KG_PERSIST_DIR = "./data/knowledge_graph"
 """Thư mục lưu trữ graph store lên đĩa."""
@@ -91,18 +94,31 @@ class KnowledgeGraphService:
         results = await service.query_graph("mèo ho khan chảy nước mũi")
     """
 
-    def __init__(self, persist_dir: str = KG_PERSIST_DIR) -> None:
+    def __init__(self) -> None:
         """Khởi tạo service với các giá trị mặc định."""
         self._kg_index = None
-        self._graph_store = None
-        self._persist_dir = persist_dir
-        self._llm_model = "google/gemini-2.0-flash-001"
+        self._llm_model = "google/gemini-2.5-flash-lite"
         self._initialized = False
+
+        # Deduplication tracking
+        self._triplet_hashes: set = set()  # Track existing triplet hashes
+        self._processed_doc_ids: set = set()  # Track processed document IDs
 
         import asyncio
 
         self._init_lock = asyncio.Lock()
         logger.debug("KnowledgeGraphService instance created")
+
+    # ----------------------------------------------------------
+    # Helper methods
+    # ----------------------------------------------------------
+
+    def _get_triplet_hash(self, subj: str, pred: str, obj: str) -> str:
+        """Generate deterministic hash for triplet to detect duplicates."""
+        import hashlib
+
+        key = f"{subj.lower()}|{pred.lower()}|{obj.lower()}"
+        return hashlib.md5(key.encode("utf-8")).hexdigest()
 
     # ----------------------------------------------------------
     # Initialization
@@ -117,18 +133,17 @@ class KnowledgeGraphService:
             - Cohere embedding model
             - SimpleGraphStore (tải từ đĩa nếu có)
         """
-        if self._graph_store is not None:
+        if self._initialized:
             return
 
         async with self._init_lock:
-            if self._graph_store is not None:
+            if self._initialized:
                 return
 
             logger.info("Initializing KnowledgeGraphService...")
 
             # Lazy imports to avoid circular dependencies
             import asyncio
-            from llama_index.core.graph_stores import SimpleGraphStore
             from llama_index.embeddings.cohere import CohereEmbedding
             from llama_index.llms.openrouter import OpenRouter
             from llama_index.core import Settings as LlamaSettings
@@ -145,7 +160,7 @@ class KnowledgeGraphService:
                 openrouter_api_key = await get_setting("OPENROUTER_API_KEY", db)
                 llm_model = (
                     await get_setting("KG_LLM_MODEL", db)
-                    or "google/gemini-2.0-flash-001"
+                    or "google/gemini-2.5-flash-lite"
                 )
                 self._llm_model = llm_model
 
@@ -174,21 +189,10 @@ class KnowledgeGraphService:
                     "OPENROUTER_API_KEY not configured. KG extraction will fail."
                 )
 
-            # Load or create graph store
-            persist_path = Path(self._persist_dir)
-            graph_store_file = persist_path / "graph_store.json"
-
-            if graph_store_file.exists():
-                logger.info(f"Loading existing graph store from {graph_store_file}")
-                self._graph_store = SimpleGraphStore.from_persist_path(
-                    str(graph_store_file)
-                )
-            else:
-                logger.info("Creating new SimpleGraphStore")
-                self._graph_store = SimpleGraphStore()
-
             self._initialized = True
-            logger.info("KnowledgeGraphService initialized successfully")
+            logger.info(
+                "KnowledgeGraphService initialized successfully (MongoDB backend)"
+            )
 
     # ----------------------------------------------------------
     # Public API
@@ -213,10 +217,6 @@ class KnowledgeGraphService:
             Số lượng triplets đã extract.
         """
         await self.initialize()
-
-        if self._graph_store is None:
-            logger.warning("KnowledgeGraphService not available, skipping build")
-            return 0
 
         import asyncio
 
@@ -244,8 +244,15 @@ class KnowledgeGraphService:
                 or []
             )
 
-            # Lưu triplets vào graph store (chỉ triplets hợp lệ)
+            # Lưu triplets vào MongoDB (chỉ triplets hợp lệ)
             saved_count = 0
+
+            from app.core.database.mongodb import get_mongodb_database
+            from app.config.settings import settings
+
+            db_mongo = await get_mongodb_database()
+            kg_collection = db_mongo[settings.MONGODB_KG_TRIPLETS_COLLECTION]
+
             for subj, pred, obj in triplets:
                 subj_clean = subj.strip()
                 pred_clean = pred.strip()
@@ -281,16 +288,40 @@ class KnowledgeGraphService:
                     )
                     continue
 
-                self._graph_store.upsert_triplet(
-                    subj=subj_clean, rel=pred_clean, obj=obj_clean
-                )
-                saved_count += 1
+                # Deduplication: MongoDB unique index will handle it, but we can compute hash
+                triplet_hash = self._get_triplet_hash(subj_clean, pred_clean, obj_clean)
 
-            # Persist to disk
-            self._persist()
+                doc_record = {
+                    "subject": subj_clean,
+                    "predicate": pred_clean,
+                    "object": obj_clean,
+                    "source": "documents",
+                    "triplet_hash": triplet_hash,
+                }
+
+                try:
+                    await kg_collection.update_one(
+                        {
+                            "subject": subj_clean,
+                            "predicate": pred_clean,
+                            "object": obj_clean,
+                        },
+                        {"$setOnInsert": doc_record},
+                        upsert=True,
+                    )
+                    saved_count += 1
+                except Exception as e:
+                    logger.warning(f"Error inserting triplet to MongoDB: {e}")
+
+            # Track processed document IDs
+            for doc in documents:
+                doc_id = doc.metadata.get("document_id") if doc.metadata else None
+                if doc_id:
+                    self._processed_doc_ids.add(str(doc_id))
 
             logger.info(
-                f"Saved {saved_count}/{len(triplets)} triplets from {len(documents)} documents"
+                f"Saved {saved_count}/{len(triplets)} triplets from {len(documents)} documents "
+                f"(MongoDB collection: {settings.MONGODB_KG_TRIPLETS_COLLECTION})"
             )
             return saved_count
 
@@ -299,7 +330,10 @@ class KnowledgeGraphService:
             return 0
 
     async def _extract_triplets_with_llm(
-        self, text: str, openrouter_key: str, max_triplets: int = 10
+        self,
+        text: str,
+        openrouter_key: str,
+        max_triplets_per_chunk: int = MAX_TRIPLETS_PER_CHUNK,
     ) -> List[Tuple[str, str, str]]:
         """
         Trích xuất triplets từ text bằng LLM qua OpenRouter API.
@@ -307,7 +341,7 @@ class KnowledgeGraphService:
         Args:
             text: Văn bản cần extract
             openrouter_key: API key cho OpenRouter
-            max_triplets: Số triplets tối đa
+            max_triplets_per_chunk: Số triplets tối đa mỗi chunk
 
         Returns:
             List of (subject, predicate, object) tuples
@@ -353,7 +387,9 @@ Ví dụ output:
   ["Rận tai", "thường_gặp_ở", "Mèo"]
 ]"""
 
-        for chunk in chunks[:3]:  # Giới hạn 3 chunks
+        for chunk in chunks[
+            :15
+        ]:  # Tăng từ 3 lên 15 chunks để cover đầy đủ cho tài liệu lớn
             # Bỏ qua chunk quá ngắn
             if len(chunk.strip()) < 50:
                 continue
@@ -377,7 +413,7 @@ Ví dụ output:
                                     "content": f"Trích xuất triplets từ văn bản thú y sau:\n\n{chunk[:3000]}",
                                 },
                             ],
-                            "max_tokens": 1200,
+                            "max_tokens": 2000,  # Tăng từ 1200 để đủ cho nhiều triplets hơn với 15 chunks
                             "temperature": 0.1,
                         },
                     )
@@ -404,8 +440,15 @@ Ví dụ output:
                 logger.warning(f"Error extracting triplets from chunk: {e}")
                 continue
 
-        # Loại bỏ duplicates
+        # Loại bỏ duplicates và tôn trọng giới hạn caller truyền vào
+        max_triplets = max(
+            1,
+            min(int(max_triplets_per_chunk or MAX_TOTAL_TRIPLETS), MAX_TOTAL_TRIPLETS),
+        )
         unique_triplets = list(set(all_triplets))[:max_triplets]
+        logger.info(
+            f"Extracted {len(all_triplets)} triplets before dedup, {len(unique_triplets)} after dedup"
+        )
         return unique_triplets
 
     def _parse_triplets_json(self, raw: str) -> List[Any]:
@@ -492,13 +535,10 @@ Ví dụ output:
         """
         await self.initialize()
 
-        if self._graph_store is None:
-            return []
-
         try:
-            all_triplets = self._get_triplets_from_store(self._graph_store)
+            all_triplets = await self._get_all_triplets()
             if not all_triplets:
-                logger.info("KG query: graph store is empty")
+                logger.info("KG query: MongoDB graph store is empty")
                 return []
 
             # 1. Build adjacency list for BFS
@@ -640,11 +680,13 @@ Ví dụ output:
         """
         await self.initialize()
 
-        if not text or not text.strip() or self._graph_store is None:
+        if not text or not text.strip():
             return 0
 
         from app.core.config_helper import get_setting
         from app.db.postgres.session import AsyncSessionLocal
+        from app.core.database.mongodb import get_mongodb_database
+        from app.config.settings import settings
 
         async with AsyncSessionLocal() as db:
             openrouter_api_key = await get_setting("OPENROUTER_API_KEY", db)
@@ -658,27 +700,49 @@ Ví dụ output:
         # Trích xuất triplets sử dụng LLM
         triplets = await self._extract_triplets_with_llm(text, openrouter_api_key)
 
+        db_mongo = await get_mongodb_database()
+        kg_collection = db_mongo[settings.MONGODB_KG_TRIPLETS_COLLECTION]
+
         added_count = 0
         for subj, pred, obj in triplets:
             if len(subj) > 50 or len(pred) > 50 or len(obj) > 50:
                 continue  # Bỏ qua triplet rác
 
-            subj = self._clean_text(subj)
-            pred = self._clean_text(pred)
-            obj = self._clean_text(obj)
+            subj_clean = self._clean_text(subj).strip()
+            pred_clean = self._clean_text(pred).strip()
+            obj_clean = self._clean_text(obj).strip()
 
-            if not subj or not pred or not obj:
+            if not subj_clean or not pred_clean or not obj_clean:
                 continue
 
             try:
-                # Upsert into SimpleGraphStore
-                self._graph_store.upsert_triplet(subj, pred, obj)
-                added_count += 1
+                triplet_hash = self._get_triplet_hash(subj_clean, pred_clean, obj_clean)
+                doc_record = {
+                    "subject": subj_clean,
+                    "predicate": pred_clean,
+                    "object": obj_clean,
+                    "source": "text_auto_update",
+                    "triplet_hash": triplet_hash,
+                }
+
+                # Upsert into MongoDB
+                res = await kg_collection.update_one(
+                    {
+                        "subject": subj_clean,
+                        "predicate": pred_clean,
+                        "object": obj_clean,
+                    },
+                    {"$setOnInsert": doc_record},
+                    upsert=True,
+                )
+                if res.upserted_id:
+                    added_count += 1
             except Exception as e:
-                logger.warning(f"Error adding triplet ({subj}, {pred}, {obj}): {e}")
+                logger.warning(
+                    f"Error adding triplet ({subj_clean}, {pred_clean}, {obj_clean}): {e}"
+                )
 
         if added_count > 0:
-            self._persist()
             logger.info(
                 f"[Auto-update] Added {added_count} new triplets to KG from text"
             )
@@ -694,14 +758,8 @@ Ví dụ output:
         """
         await self.initialize()
 
-        if self._graph_store is None:
-            return {
-                "initialized": False,
-                "error": "KnowledgeGraphService not available",
-            }
-
-        triplet_count = self._count_triplets()
-        triplets = self._get_triplets_from_store(self._graph_store)
+        triplet_count = await self._count_triplets()
+        triplets = await self._get_all_triplets()
 
         # Count unique entities and relation types
         subjects = set()
@@ -721,93 +779,79 @@ Ví dụ output:
             "entity_count": len(all_entities),
             "relation_types": sorted(list(predicates)),
             "relation_type_count": len(predicates),
-            "persist_dir": self._persist_dir,
         }
+
+    async def reset_knowledge_graph(self) -> Dict[str, Any]:
+        """
+        Xóa toàn bộ Knowledge Graph và bắt đầu lại từ đầu.
+
+        Dùng khi muốn rebuild KG hoàn toàn mới (xóa triplets cũ, reset tracking).
+
+        Returns:
+            Dict với thông báo thành công
+        """
+        await self.initialize()
+
+        try:
+            from app.core.database.mongodb import get_mongodb_database
+            from app.config.settings import settings
+
+            db_mongo = await get_mongodb_database()
+            kg_collection = db_mongo[settings.MONGODB_KG_TRIPLETS_COLLECTION]
+            await kg_collection.delete_many({})
+
+            self._triplet_hashes = set()
+            self._processed_doc_ids = set()
+
+            logger.info("Knowledge Graph has been reset in MongoDB")
+            return {
+                "success": True,
+                "message": "Đã xóa toàn bộ KG và bắt đầu lại từ đầu",
+            }
+        except Exception as e:
+            logger.error(f"Failed to reset KG: {e}")
+            return {"success": False, "error": str(e)}
 
     # ----------------------------------------------------------
     # Internal helpers
     # ----------------------------------------------------------
 
-    def _count_triplets(self) -> int:
-        """Đếm tổng số triplets trong graph store."""
-        if self._graph_store is None:
-            return 0
-        triplets = self._get_triplets_from_store(self._graph_store)
-        return len(triplets)
+    async def _count_triplets(self) -> int:
+        """Đếm tổng số triplets trong MongoDB."""
+        try:
+            from app.core.database.mongodb import get_mongodb_database
+            from app.config.settings import settings
 
-    def _get_triplets_from_store(self, store: Any) -> List[Tuple[str, str, str]]:
-        """Trích xuất tất cả triplets từ SimpleGraphStore."""
+            db_mongo = await get_mongodb_database()
+            return await db_mongo[
+                settings.MONGODB_KG_TRIPLETS_COLLECTION
+            ].count_documents({})
+        except Exception:
+            return 0
+
+    async def _get_all_triplets(self) -> List[Tuple[str, str, str]]:
+        """Trích xuất tất cả triplets từ MongoDB."""
         triplets = []
         try:
-            # SimpleGraphStore stores data in _data.graph_dict
-            # Format: { subject: [[relation, object], ...] }
-            graph_dict = {}
-            if hasattr(store, "_data") and hasattr(store._data, "graph_dict"):
-                graph_dict = store._data.graph_dict
-            elif hasattr(store, "graph_dict"):
-                graph_dict = store.graph_dict
+            from app.core.database.mongodb import get_mongodb_database
+            from app.config.settings import settings
 
-            logger.info(f"[KG] graph_dict has {len(graph_dict)} subjects")
-
-            for subject, edges in graph_dict.items():
-                if isinstance(edges, (list, set)):
-                    for edge in edges:
-                        if isinstance(edge, (list, tuple)) and len(edge) >= 2:
-                            triplets.append((str(subject), str(edge[0]), str(edge[1])))
-                elif isinstance(edges, dict):
-                    for relation, objects in edges.items():
-                        if isinstance(objects, (list, set)):
-                            for obj in objects:
-                                triplets.append((str(subject), str(relation), str(obj)))
-                        else:
-                            triplets.append((str(subject), str(relation), str(objects)))
+            db_mongo = await get_mongodb_database()
+            cursor = db_mongo[settings.MONGODB_KG_TRIPLETS_COLLECTION].find(
+                {}, {"subject": 1, "predicate": 1, "object": 1, "_id": 0}
+            )
+            docs = await cursor.to_list(length=None)
+            for d in docs:
+                triplets.append(
+                    (d.get("subject", ""), d.get("predicate", ""), d.get("object", ""))
+                )
         except Exception as e:
-            logger.warning(f"Failed to extract triplets from store: {e}")
+            logger.warning(f"Failed to fetch triplets from MongoDB: {e}")
         return triplets
 
     async def _load_index_from_store(self) -> bool:
-        """Thử tải KG index từ graph store hiện có."""
-        if self._graph_store is None:
-            return False
-
-        # Check if graph has data
-        if self._count_triplets() == 0:
-            return False
-
-        import asyncio
-        from llama_index.core import KnowledgeGraphIndex, StorageContext
-
-        try:
-            storage_context = StorageContext.from_defaults(
-                graph_store=self._graph_store
-            )
-            # Create an empty index backed by the existing graph store
-            self._kg_index = await asyncio.to_thread(
-                KnowledgeGraphIndex.from_documents,
-                [],
-                storage_context=storage_context,
-                include_embeddings=True,
-            )
-            logger.info("Loaded KG index from existing graph store")
-            return True
-        except Exception as e:
-            logger.warning(f"Failed to load KG index: {e}")
-            return False
-
-    def _persist(self) -> None:
-        """Lưu trữ graph store lên đĩa."""
-        if self._graph_store is None:
-            return
-
-        try:
-            persist_path = Path(self._persist_dir)
-            persist_path.mkdir(parents=True, exist_ok=True)
-
-            graph_store_file = str(persist_path / "graph_store.json")
-            self._graph_store.persist(persist_path=graph_store_file)
-            logger.info(f"Graph store persisted to {graph_store_file}")
-        except Exception as e:
-            logger.warning(f"Failed to persist graph store: {e}")
+        """Thử tải KG index (dummy)."""
+        return False
 
     async def get_graph_visualization_data(self) -> Dict[str, Any]:
         """
@@ -818,10 +862,7 @@ Ví dụ output:
         """
         await self.initialize()
 
-        if self._graph_store is None:
-            return {"nodes": [], "edges": [], "error": "Graph store not initialized"}
-
-        triplets = self._get_triplets_from_store(self._graph_store)
+        triplets = await self._get_all_triplets()
 
         if not triplets:
             return {"nodes": [], "edges": [], "error": "No triplets found"}

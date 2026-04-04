@@ -98,6 +98,45 @@ class ContextPolicyTests(unittest.TestCase):
 
         self.assertEqual(allowed, ["get_clinic_services", "check_vaccination_status"])
 
+    def test_clinic_manager_no_phantom_tools(self):
+        """Phantom tools not in MCP registry must NOT appear in CLINIC_MANAGER whitelist."""
+        phantom_tools = [
+            "analyze_revenue_trends",
+            "suggest_staff_assignments",
+            "create_staff_shifts",
+            "get_patient_summary",
+            "get_emr_history",
+        ]
+        allowed = ContextPolicyService.get_allowed_tools(
+            user_role="CLINIC_MANAGER",
+            context_type=BUSINESS_CHAT,
+            available_tools=phantom_tools,
+        )
+        self.assertEqual(
+            allowed,
+            [],
+            msg=f"Phantom tools should be blocked for CLINIC_MANAGER but got: {allowed}",
+        )
+
+    def test_clinic_owner_no_phantom_tools(self):
+        """Phantom tools not in MCP registry must NOT appear in CLINIC_OWNER whitelist."""
+        phantom_tools = [
+            "generate_clinic_services",
+            "analyze_revenue_trends",
+            "suggest_staff_assignments",
+        ]
+        allowed = ContextPolicyService.get_allowed_tools(
+            user_role="CLINIC_OWNER",
+            context_type=BUSINESS_CHAT,
+            available_tools=phantom_tools,
+        )
+        self.assertEqual(
+            allowed,
+            [],
+            msg=f"Phantom tools should be blocked for CLINIC_OWNER but got: {allowed}",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -1,4 +1,11 @@
+> Legacy Note (2026-03-25): This document may contain historical references to `prompt_versions`, editable system-prompt versioning, or older AI schema/ERD counts. It is retained for historical or presentation context only. For current database truth and active AI storage architecture, use `docs-references/database/PETTIES_DBML.dbml`, `docs-references/documentation/PETTIES_ERD_DIAGRAM.md`, `docs-references/documentation/DATABASE_SCHEMA_ANALYSIS.md`, `docs-references/documentation/SRS/PETTIES_SRS.md`, and `docs-references/documentation/SDD/REPORT_4_SDD_SYSTEM_DESIGN.md`.
 # **TECHNICAL SCOPE: PETTIES - AGENT MANAGEMENT**
+
+> **Lưu ý cập nhật ngày 2026-03-22:** 
+> - **Tool Self-Contained UI Cards (v2.0):** Tools định nghĩa `ui_card` trong return value, chat.py dùng generic dispatcher. Không còn hardcoded extraction logic.
+> - Các đoạn về Visual Case Memory, thumbs up/down và AI Diagnose cũ chỉ còn giá trị lịch sử.
+> - Kiến trúc hiện hành ưu tiên knowledge base nội bộ, EMR đã xác nhận và Gemini Vision.
+> - Xem thêm [AI_SERVICE_TECHNICAL_SPECIFICATION.md](D:/SEP490/petties/docs-references/documentation/AI_SERVICE_TECHNICAL_SPECIFICATION.md).
 
 ## **1. Định hướng cốt lõi (Core Philosophy)**
 
@@ -83,6 +90,131 @@ graph.add_edge("observe", "think")
 3. **Observation**: Nhận và xử lý kết quả từ tool
 4. **Loop**: Lặp lại nếu cần thêm thông tin
 5. **Answer**: Tổng hợp và trả lời user
+
+### **B2. Tool Self-Contained UI Cards (v2.0)**
+
+> **Design Principle:** Tool tự định nghĩa UI card trong return value. chat.py dùng generic dispatcher. Không hardcoded extraction logic.
+
+**Mục đích:** Trước đây, `chat.py` chứa logic extraction cứng cho từng tool (if/elif blocks). Nay tools tự define `ui_card` để:
+- chat.py generic, không cần biết tool names
+- Thêm tool mới không cần sửa chat.py
+- UI logic gần data hơn, dễ maintain
+
+**Architecture:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Tool (MCP)                                │
+│  @mcp_server.tool                                            │
+│  - name: "search_clinics_nearby"                             │
+│  - returns: {clinics: [...], ui_card: {type, data...}}      │
+└─────────────────────────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Generic Dispatcher (chat.py)                    │
+│                                                              │
+│  def extract_ui_card(step):                                 │
+│      return step.tool_result.get("ui_card")                  │
+│                                                              │
+│  # KHÔNG if/elif tool names                                 │
+└─────────────────────────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│              WebSocket → Client                               │
+│  {"type": "clinic_suggestion", "clinics": [...]}           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Tool Implementation Example:**
+
+```python
+@mcp_server.tool
+async def search_clinics_nearby(...) -> Dict[str, Any]:
+    result = await _do_search(...)
+    
+    return {
+        "success": True,
+        "clinics": [...],
+        "total_found": len(clinics),
+        "location": {"lat": lat, "lng": lng},
+        
+        # Tool self-contains UI spec
+        "ui_card": {
+            "type": "clinic_suggestion",
+            "clinics": clinics[:5],
+            "total_found": len(clinics),
+            "location": {"lat": lat, "lng": lng, "address": address},
+        }
+    }
+```
+
+**chat.py Generic Dispatcher:**
+
+```python
+def extract_ui_card(step: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Generic UI card extractor - reads ui_card from tool's return value."""
+    tool_result = step.get("tool_result") or {}
+    
+    if isinstance(tool_result, dict) and isinstance(tool_result.get("data"), dict):
+        tool_result = tool_result.get("data") or {}
+    
+    ui_card = tool_result.get("ui_card")
+    if not ui_card or not isinstance(ui_card, dict):
+        return None
+    
+    ui_type = ui_card.get("type")
+    if not ui_type:
+        return None
+    
+    # Return clean payload with type
+    return {"type": ui_type, **{k: v for k, v in ui_card.items() if k != "type"}}
+
+
+# In streaming loop - NO hardcoded tool names:
+if step_type == "observation":
+    ui_payload = extract_ui_card(safe_step)
+    if ui_payload:
+        ui_type = ui_payload.get("type")
+        if not sent_ui_types.get(ui_type):
+            sent_ui_types[ui_type] = True
+            await manager.send_message(session_id, {
+                **ui_payload,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            })
+```
+
+**Current UI Card Types:**
+
+| UI Card Type | Tool | Purpose |
+|--------------|------|---------|
+| `clinic_suggestion` | `search_clinics_nearby` | Clinic carousel UI |
+| `service_chips` | `get_clinic_services` | Service selection chips |
+| `slot_grid` | `check_available_slots` | Time slot picker |
+| `booking_summary` | `create_booking_for_user` | Booking preview |
+| `booking_created` | `create_booking_for_user` | Success confirmation |
+| `pet_list` | `get_user_pets` | Pet list for selection |
+| `vaccination_card` | `check_vaccination_status` | Vaccination history |
+
+**Adding a New Tool with UI Card:**
+
+```python
+@mcp_server.tool
+async def my_new_tool(...) -> Dict[str, Any]:
+    result = await do_something(...)
+    
+    return {
+        "data": result,
+        "ui_card": {
+            "type": "my_new_card",
+            "field1": result.value1,
+            "field2": result.value2,
+        }
+    }
+```
+
+No changes needed to `chat.py` - UI card is automatically dispatched.
 
 ### **C. Khác biệt với kiến trúc legacy (Tham khảo)**
 
@@ -384,18 +516,18 @@ Danh sách chi tiết các công nghệ được sử dụng để xây dựng h
     * Backend: SimpleGraphStore (MVP) → Neo4j (at scale)
     * Example: "Dry cough + runny nose" → KG infers "Upper respiratory infection" → "Antibiotics + keep warm"
 
-  * **Visual Case Memory (Qdrant `petties_case_memory` collection):**
+* **Case Memory từ EMR xác nhận:**
     * Vision LLM describes the image, then embeds the **textual description** (visual_description + diagnosis + symptoms) with Cohere and stores it together with metadata (species, disease, feedback, image_url, etc.)
     * On similar future images, retrieves confirmed cases to increase accuracy and provide explanations such as "based on a previous case confirmed by Staff/Vet"
     * Feedback-weighted retrieval: cases confirmed many times are boosted in ranking
-    * **Phase 2 (Planned):** Add a layer of **CLIP-style image embeddings** in a dedicated Qdrant collection for images, combined with text embeddings to better capture purely visual patterns. Not implemented in the current codebase.
+    * **Phase 2 (Done):** Add a layer of **CLIP-style image embeddings** in a dedicated Qdrant collection (`petties_kb_images`) for images extracted from PDFs, combined with text embeddings to better capture purely visual patterns. Implemented with Jina CLIP v2 (1024 dim) for image vectors and Cohere for text vectors. Supports hybrid search (text + image similarity).
 
   * **Query Expansion:**
     * LLM automatically expands short queries ("dog not eating" → synonyms, clinical terms, related symptoms)
     * Increases recall for RAG search
 
   * **Feedback Loop:**
-    * Thumbs up/down stored in MongoDB `chat_feedback` → confirmed cases embedded into Case Memory
+* Chat feedback chỉ dùng cho audit trải nghiệm; case memory cho doctor flow ưu tiên EMR đã xác nhận
     * Prompt optimization based on patterns found in feedback data
     * Periodic prune: remove low-value cases, prioritize verified ones
 
@@ -454,9 +586,10 @@ Các tính năng được phân nhóm theo chức năng và mức độ ưu tiê
 | **KB-02** | **Indexing Status** | Theo dõi trạng thái indexing: parsing → chunking → embedding → Qdrant. | **✅ Done** |
 | **KB-03** | **RAG Retrieval Test** | Admin nhập query test để xem RAG trả về chunks nào từ knowledge base. | **✅ Done** |
 | **KB-04** | **Query Expansion** | LLM tu dong mo rong query ngan gon truoc khi RAG search. Tang recall cho cau hoi ngan cua Staff. | **✅ Done** |
-| **KB-05** | **Knowledge Graph Index** | LlamaIndex KG extract triplets (trieu chung->benh->loai) tu tai lieu. Hybrid query RAG + KG. | **Planned (Phase 2)** |
-| **KB-06** | **Visual Case Memory** | Luu mo ta hinh anh + chan doan + feedback vao Qdrant. Tim case tuong tu cho lan sau. | **✅ Done** |
-| **KB-07** | **Feedback Loop & Case Embedding** | Thu thap feedback (thumbs up/down), embed confirmed cases vao Case Memory. | **✅ Done** |
+| **KB-05** | **Knowledge Graph Index** | LlamaIndex KG extract triplets (trieu chung->benh->loai) tu tai lieu. Hybrid query RAG + KG. Hash-based deduplication for consistent builds. | **✅ Done** |
+| **KB-06** | **Case Memory từ EMR xác nhận** | Tái sử dụng EMR đã xác nhận làm nguồn case memory nội bộ để truy xuất ca tương tự. | **🔄 Redesigned** |
+| **KB-07** | **KB Image Embeddings** | Extract images from PDF documents and index with Jina CLIP v2. Support hybrid search (text + image similarity) via `/query-hybrid` endpoint. | **✅ Done (2026-03-19)** |
+| **KB-08** | **Feedback & dữ liệu học** | Chat feedback chỉ dùng cho audit/chất lượng UX; nguồn học chính của chẩn đoán là EMR xác nhận. | **🔄 Redesigned** |
 
 ### **Agent Testing & Debugging**
 

@@ -89,6 +89,35 @@
 
 ---
 
+### E2E-PO-04c: Đặt lịch với Trợ lý AI (Interactive Components)
+
+- **Mục đích:** UC-PO-14c – Booking With ChatBot (Guided Booking).
+- **Hướng dẫn chi tiết:** [BOOKING_WITH_AI_E2E_TEST_GUIDE](./BOOKING_WITH_AI_E2E_TEST_GUIDE.md)
+- **Điều kiện:**
+  - Đã đăng nhập Pet Owner.
+  - Có ít nhất 1 thú cưng.
+  - Bật quyền vị trí (để tìm phòng khám gần nhất).
+  - Clinic có dịch vụ phù hợp và có slot trống trong 7 ngày tới.
+- **Bước:**
+  - Mở màn hình Chat với Trợ lý AI.
+  - Tap chip `Tôi muốn đặt lịch khám`.
+  - Chọn Pet Card.
+  - Chọn hình thức khám (tại phòng khám hoặc tại nhà).
+  - Chọn nhóm dịch vụ (khám bệnh/tiêm phòng/tỉa lông). Nếu app xin quyền vị trí, chọn Cho phép.
+  - Chọn phòng khám trong carousel.
+  - Chọn 1 hoặc nhiều dịch vụ trong chips, bấm `Tiếp tục`.
+  - Chọn ngày, chọn giờ.
+  - Kiểm tra `Booking Summary Card` và bấm `XÁC NHẬN ĐẶT LỊCH`.
+- **Kết quả:**
+  - Nhận thông báo `booking_created` và nội dung: quản lý phòng khám xác nhận thời gian cuối.
+  - Booking được tạo ở trạng thái chờ xác nhận.
+- **Checklist:**
+  - [ ] Hiển thị đủ chips/cards/carousel/slot grid
+  - [ ] Không tạo booking nếu chưa bấm `XÁC NHẬN ĐẶT LỊCH`
+  - [ ] Từ chối quyền vị trí thì AI yêu cầu bật vị trí và không crash
+  - [ ] Reconnect vào cùng session vẫn restore UI bước gần nhất
+
+---
 ### E2E-PO-05: Đặt lịch khám tại nhà (HOME_VISIT)
 
 - **Mục đích:** UC-BOOK-02 – Đặt lịch khám tại nhà.
@@ -429,3 +458,4 @@
 ---
 
 *Tài liệu dạng outline; có thể bổ sung chi tiết từng bước (data mẫu, ảnh màn hình) trong các bản cập nhật sau.*
+

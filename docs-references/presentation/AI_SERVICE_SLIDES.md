@@ -1,4 +1,7 @@
+> Legacy Note (2026-03-25): This document may contain historical references to `prompt_versions`, editable system-prompt versioning, or older AI schema/ERD counts. It is retained for historical or presentation context only. For current database truth and active AI storage architecture, use `docs-references/database/PETTIES_DBML.dbml`, `docs-references/documentation/PETTIES_ERD_DIAGRAM.md`, `docs-references/documentation/DATABASE_SCHEMA_ANALYSIS.md`, `docs-references/documentation/SRS/PETTIES_SRS.md`, and `docs-references/documentation/SDD/REPORT_4_SDD_SYSTEM_DESIGN.md`.
 # AI Service Deep Dive
+
+> Lưu ý cập nhật ngày 2026-03-17: một số tham chiếu AI Diagnose trong slide này chỉ còn giá trị lịch sử. Luồng chẩn đoán hiện tại cho bác sĩ dùng knowledge base nội bộ + EMR xác nhận + Gemini Vision, không dùng `web_search`.
 ## Petties Veterinary Platform
 
 ---
@@ -130,11 +133,13 @@ sequenceDiagram
 | Data Type | Storage | Purpose | Retention |
 |-----------|---------|---------|-----------|
 | **Full Chat History** | MongoDB (`ai_chat_messages`) | User/AI turns + ReAct traces (thought/action/observation) | 30 days |
-| **User Feedback** | MongoDB (`chat_feedback`) | Thumbs up/down, reports, feedback text | 90 days |
+| **User Feedback** | MongoDB (`chat_feedback`) | Thumbs up/down, reports, feedback text (chỉ dùng cho UX analysis) | 90 days |
 | **Agent Config** | PostgreSQL (`agents`, `tools`, `prompt_versions`) | Runtime configuration, tool management, prompt versioning | Persistent |
 | **Encrypted API Keys** | PostgreSQL (`system_settings`) | Secure storage of OpenRouter, Cohere, Qdrant keys | Persistent (encrypted) |
 | **Knowledge Base** | PostgreSQL (`knowledge_documents`) + Qdrant (`petties_knowledge`) | Doc metadata + vector embeddings | Persistent |
-| **Case Memory** | Qdrant (`petties_case_memory_v2`) | Confirmed cases with **named vectors**:<br>- `text`: Cohere embed-multilingual-v3 (1024-dim)<br>- `image`: Jina CLIP v2 (1024-dim) | Persistent (with pruning) |
+| **Case Memory** | Qdrant (`petties_case_memory_v2`) | **EMR-confirmed cases** (thay thế feedback-driven):<br>- `text`: Cohere embed-multilingual-v3 (1024-dim)<br>- `image`: Jina CLIP v2 (1024-dim) | Persistent (with pruning) |
+
+> **⚠️ 2026-03-17 Update:** Case Memory nguồn từ EMR confirmed, không còn từ thumbs up/down feedback.
 
 **Verification Queries Possible:**
 ```sql
@@ -226,7 +231,7 @@ classDiagram
 | **HybridRAGEngine** | Combines RAG + Knowledge Graph + Case Memory with re-ranking | `app/core/rag/hybrid_engine.py` |
 | **EmbeddingService** | Handles text (Cohere) and image (Jina CLIP v2) embeddings | `app/core/embeddings/` |
 | **ConfigService** | Loads dynamic configuration from PostgreSQL (hot-reload capable) | `app/core/config_helper.py` |
-| **FeedbackService** | Processes user feedback and updates case memory | `app/core/services/feedback_service.py` |
+| **FeedbackService** | Processes user feedback for analytics, audit, and monitoring | `app/core/services/feedback_service.py` |
 
 **Critical Architecture Points:**
 - ✅ **Separation of Concerns**: Each layer has single responsibility

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { clinicService } from '../../../services/api/clinicService'
 import type { ClinicResponse, ClinicListResponse } from '../../../types/clinic'
 import { ClinicDetailModal } from '../../../components/admin/ClinicDetailModal'
@@ -113,14 +114,22 @@ export const ClinicApprovalPage = () => {
             Duyệt phòng khám đang chờ ({totalElements} phòng khám)
           </p>
         </div>
-        <button
-          onClick={loadPendingClinics}
-          disabled={loading}
-          className="btn-brutal py-2 px-4 text-sm flex items-center gap-2 disabled:opacity-50"
-        >
-          <ArrowPathIcon className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-          LÀM MỚI
-        </button>
+        <div className="flex items-center gap-3">
+          <Link
+            to="/admin/clinics/registry"
+            className="btn-brutal py-2 px-4 text-sm font-bold uppercase border-2 border-stone-900 bg-white hover:bg-amber-50"
+          >
+            Danh sách phòng khám và hạn chế
+          </Link>
+          <button
+            onClick={loadPendingClinics}
+            disabled={loading}
+            className="btn-brutal py-2 px-4 text-sm flex items-center gap-2 disabled:opacity-50"
+          >
+            <ArrowPathIcon className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+            LÀM MỚI
+          </button>
+        </div>
       </header>
 
       {/* Table */}

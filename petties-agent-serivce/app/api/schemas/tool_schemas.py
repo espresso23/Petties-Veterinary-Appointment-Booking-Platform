@@ -27,16 +27,6 @@ class ExecuteToolRequest(BaseModel):
     )
 
 
-class AssignToolToAgentRequest(BaseModel):
-    """
-    Request schema cho assign tool to agent
-
-    Endpoint: POST /tools/{tool_id}/assign
-    """
-
-    agent_name: str = Field(..., description="Agent name", examples=["petties_agent"])
-
-
 class EnableToolRequest(BaseModel):
     """
     Request schema cho enable/disable tool
@@ -69,9 +59,6 @@ class CreateToolRequest(BaseModel):
         default=None, description="JSON schema for output"
     )
     enabled: bool = Field(default=False, description="Enable tool immediately")
-    assigned_agents: List[str] = Field(
-        default_factory=list, description="List of agent names to assign"
-    )
 
 
 class UpdateToolRequest(BaseModel):
@@ -85,7 +72,6 @@ class UpdateToolRequest(BaseModel):
     input_schema: Optional[Dict[str, Any]] = None
     output_schema: Optional[Dict[str, Any]] = None
     enabled: Optional[bool] = None
-    assigned_agents: Optional[List[str]] = None
 
 
 # ===== RESPONSE SCHEMAS =====
@@ -102,7 +88,6 @@ class ToolResponse(BaseModel):
     input_schema: Optional[Dict[str, Any]] = None
     output_schema: Optional[Dict[str, Any]] = None
     enabled: bool
-    assigned_agents: List[str] = []
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

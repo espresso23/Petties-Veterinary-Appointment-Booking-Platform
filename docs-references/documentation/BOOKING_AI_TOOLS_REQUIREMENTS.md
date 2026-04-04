@@ -7,6 +7,18 @@
 
 ---
 
+## Cap nhat kien truc 2026-03-18
+
+- Booking with AI duoc refactor theo huong `Semantic ReAct + Thin Validator`.
+- Agent chon tool dua tren y nghia prompt + tool description + JSON schema, khong dung keyword router de ep flow booking.
+- Tool chaining duoc phep dien ra tu nhien theo hoi thoai, vi du: `get_user_pets -> search_clinics_nearby -> get_clinic_services -> check_available_slots -> create_booking_for_user`.
+- Agent khong preload pets/clinics/services. Moi tool chi duoc goi khi hoi thoai thuc su can den du lieu do.
+- Thin validator o tang agent chi lam 3 viec: loc param thua, chuan hoa kieu du lieu don gian, va chan thieu input bat buoc toi thieu.
+- Fuzzy resolution cho clinic, service, date/time preference phai nam o tool/business API, khong nam o agent router.
+- Neu user da neu phong kham cu the thi tool layer phai uu tien clinic do; khong duoc fallback sang clinic gan nhat chi vi co GPS.
+
+---
+
 ## 📋 TOOLS CẦN BỔ SUNG
 
 ### 1. `get_user_pets` - Lấy danh sách pets của user

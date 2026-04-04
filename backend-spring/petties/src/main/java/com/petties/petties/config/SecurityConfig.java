@@ -34,7 +34,7 @@ public class SecurityConfig {
     private final UserDetailsServiceImpl userDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    @Value("${cors.allowed-origins:http://localhost:5173,http://localhost:3000,https://*.ngrok.io,https://*.ngrok-free.app,https://*.ngrok.dev}")
+    @Value("${cors.allowed-origins:http://localhost:5173,http://localhost:3000,https://*.ngrok.io,https://*.ngrok-free.app,https://*.ngrok.dev,https://*.ngrok-free.dev}")
     private String allowedOrigins;
 
     @Bean
@@ -106,6 +106,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/clinics/nearby").permitAll()
                         .requestMatchers(HttpMethod.GET, "/clinics/locations").permitAll()
                         .requestMatchers(HttpMethod.GET, "/clinics/*").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/services/by-clinic/*").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/services/by-clinic/*/compatible").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/services/*/dose-prices").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/services/*/dose-prices/*").permitAll()
                         .requestMatchers("/test/**").permitAll()
                         .anyRequest().authenticated())
                 .authenticationProvider(authenticationProvider())

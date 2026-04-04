@@ -34,11 +34,94 @@ class FakeAgent:
     agent_type = "single_agent"
     enabled_tools = ["pet_knowledge_search", "web_search"]
 
-    async def stream(self, user_message, session_id):
+    async def stream(self, user_message, session_id, **kwargs):
         yield {"type": "final_answer", "content": "phan hoi test"}
 
 
 class WebSocketChatTests(unittest.IsolatedAsyncioTestCase):
+    async def test_extract_latest_location_from_history_uses_previous_metadata(self):
+        history = [
+            {
+                "role": "user",
+                "content": "Tim phong kham gan toi",
+                "metadata": {
+                    "location": {
+                        "lat": 15.9575,
+                        "lng": 108.2575,
+                        "address": "Ngu Hanh Son, Da Nang",
+                    }
+                },
+            },
+            {
+                "role": "user",
+                "content": "Toi muon chon kham tong quat",
+                "metadata": {},
+            },
+        ]
+
+        location = websocket_chat._extract_latest_location_from_history(history)
+
+        self.assertEqual(location["lat"], 15.9575)
+        self.assertEqual(location["lng"], 108.2575)
+        self.assertEqual(location["address"], "Ngu Hanh Son, Da Nang")
+
+    async def test_augment_content_with_metadata_embeds_compact_ui_action_json(self):
+        content = "Toi chon phong kham Benh Vien Thu Y PetCare."
+        metadata = {
+            "ui_action": {
+                "type": "select_clinic",
+                "clinic_id": "clinic-1",
+                "clinic_name": "Benh Vien Thu Y PetCare",
+                "clinic_address": "FPT Complex Da Nang",
+            }
+        }
+
+        enriched = websocket_chat._augment_content_with_metadata(content, metadata)
+
+        self.assertIn(content, enriched)
+        self.assertIn('"ui_action"', enriched)
+        self.assertIn('"type":"select_clinic"', enriched)
+        self.assertIn('"clinic_id":"clinic-1"', enriched)
+
+    async def test_augment_content_with_metadata_embeds_structured_booking_update(self):
+        metadata = {
+            "ui_action": {
+                "type": "change_time",
+                "clinic_id": "clinic-1",
+                "booking_date": "2026-03-21",
+                "start_time": "09:00",
+                "service_ids": ["svc-1"],
+            }
+        }
+
+        enriched = websocket_chat._augment_content_with_metadata("", metadata)
+
+        self.assertIn('"ui_action"', enriched)
+        self.assertIn('"type":"change_time"', enriched)
+        self.assertIn('"booking_date":"2026-03-21"', enriched)
+        self.assertIn('"service_ids":["svc-1"]', enriched)
+
+    async def test_extract_clinic_suggestion_skips_auto_selected_explicit_match(self):
+        payload = {
+            "clinics": [
+                {
+                    "id": "clinic-1",
+                    "name": "PetCare",
+                }
+            ],
+            "total_found": 1,
+            "match_mode": "explicit_name",
+            "auto_select_clinic": True,
+            "resolved_clinic": {
+                "id": "clinic-1",
+                "name": "PetCare",
+            },
+        }
+
+        suggestion = websocket_chat.extract_clinic_suggestion(payload)
+
+        self.assertIsNone(suggestion)
+
     async def test_handle_chat_message_passes_role_and_context_to_factory(self):
         captured = {}
 
@@ -78,6 +161,58 @@ class WebSocketChatTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(captured["user_role"], "PET_OWNER")
         self.assertEqual(captured["context_type"], BUSINESS_CHAT)
 
+    async def test_handle_chat_message_propagates_auth_token_to_runtime_context(self):
+        captured_context = {}
+
+        async def fake_get_agent(**kwargs):
+            return FakeAgent()
+
+        async def fake_save_chat_message(data):
+            return data
+
+        async def fake_touch_chat_session(session_id, data=None):
+            return {"session_id": session_id, "data": data}
+
+        async def fake_send_message(session_id, payload):
+            return {"session_id": session_id, "payload": payload}
+
+        def fake_set_tool_runtime_context(context):
+            captured_context["value"] = context
+            return "runtime-token"
+
+        def fake_reset_tool_runtime_context(token):
+            return None
+
+        user = CurrentUser(user_id="user-1", role="PET_OWNER", is_admin=False)
+
+        with (
+            patch.object(websocket_chat.AgentFactory, "get_agent", fake_get_agent),
+            patch.object(
+                websocket_chat, "AsyncSessionLocal", lambda: FakeSessionContext()
+            ),
+            patch.object(websocket_chat, "save_chat_message", fake_save_chat_message),
+            patch.object(websocket_chat, "touch_chat_session", fake_touch_chat_session),
+            patch.object(websocket_chat, "set_tool_runtime_context", fake_set_tool_runtime_context),
+            patch.object(
+                websocket_chat,
+                "reset_tool_runtime_context",
+                fake_reset_tool_runtime_context,
+            ),
+            patch.object(websocket_chat.manager, "send_message", fake_send_message),
+        ):
+            await websocket_chat.handle_chat_message(
+                websocket=None,
+                session_id="session-1",
+                user=user,
+                session_context=BUSINESS_CHAT,
+                message=json.dumps({"message": "Xin chao"}),
+                auth_token="jwt-token",
+            )
+
+        self.assertEqual(captured_context["value"].auth_token, "jwt-token")
+        self.assertEqual(captured_context["value"].user_id, "user-1")
+        self.assertEqual(captured_context["value"].context_type, BUSINESS_CHAT)
+
     async def test_websocket_close_reasons_are_stable_constants(self):
         self.assertEqual(websocket_chat.WS_REASON_AUTH_REQUIRED, "CHAT_AUTH_REQUIRED")
         self.assertEqual(websocket_chat.WS_REASON_INVALID_AUTH, "CHAT_INVALID_AUTH")
@@ -94,7 +229,7 @@ class WebSocketChatTests(unittest.IsolatedAsyncioTestCase):
         payload = websocket_chat.map_react_step_to_message(
             {
                 "step_type": "thought",
-                "content": "Tôi sẽ tìm phòng khám gần bạn",
+                "content": "Toi se tim phong kham gan ban",
                 "tool_name": "search_clinics_nearby",
                 "tool_params": {"radius_km": 5},
             },

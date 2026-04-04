@@ -5,11 +5,12 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../data/models/pet.dart';
+import '../../data/models/pet_health_summary.dart';
 import '../../data/services/pet_service.dart';
 import '../../config/constants/app_colors.dart';
 import '../../routing/app_routes.dart';
 import '../../providers/auth_provider.dart';
-import '../chat/ai_chat_bubble.dart';
+import '../chat/ai_chat/ai_chat_bubble.dart';
 import '../common/pet_owner_bottom_nav.dart';
 
 class PetDetailScreen extends StatefulWidget {
@@ -342,6 +343,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                         ),
                       ],
 
+                      const SizedBox(height: 24),
+                      // AI Health Summary Card (for Pet Owner)
+                      if (isPetOwner) _buildHealthSummaryCard(),
+
                       const SizedBox(height: 32),
                       // Actions
                       _buildActionButton(
@@ -436,6 +441,224 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildHealthSummaryCard() {
+    return FutureBuilder<PetHealthSummary>(
+      future: _petService.getHealthSummary(widget.id),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF7ED),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFFED7AA)),
+            ),
+            child: const Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                SizedBox(width: 12),
+                Text('Đang tổng hợp thông tin sức khỏe...'),
+              ],
+            ),
+          );
+        }
+
+        if (snapshot.hasError || snapshot.data == null) {
+          return const SizedBox.shrink();
+        }
+
+        final summary = snapshot.data!;
+        if (summary.error != null) {
+          return const SizedBox.shrink();
+        }
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.stone200),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0A000000),
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.auto_awesome, color: Color(0xFFD97706), size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'TỔNG QUAN SỨC KHỎE',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.stone900,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Latest EMR info
+              if (summary.latestEmr != null) ...[
+                _buildInfoRow(Icons.calendar_today, 'Lần khám gần nhất: ${summary.latestEmr!.examDateDisplay}'),
+                if (summary.latestEmr!.clinicName != null)
+                  _buildInfoRow(Icons.local_hospital, 'Phòng khám: ${summary.latestEmr!.clinicName}'),
+                if (summary.latestEmr!.diagnosis != null && summary.latestEmr!.diagnosis!.isNotEmpty)
+                  _buildInfoRow(Icons.medical_services, 'Chẩn đoán: ${summary.latestEmr!.diagnosis}'),
+                const SizedBox(height: 12),
+              ] else
+                _buildInfoRow(Icons.info_outline, 'Chưa có lịch sử khám'),
+
+              // Health Warnings
+              if (summary.healthWarnings.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                ...summary.healthWarnings.map((warning) => Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: warning.isHighSeverity ? const Color(0xFFFEE2E2) : const Color(0xFFFFF7ED),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: warning.isHighSeverity ? const Color(0xFFFECACA) : const Color(0xFFFED7AA),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        color: warning.isHighSeverity ? const Color(0xFFDC2626) : const Color(0xFFD97706),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          warning.message,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: warning.isHighSeverity ? const Color(0xFF991B1B) : const Color(0xFF92400E),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+              ],
+
+              // Medication Reminders
+              if (summary.medicationReminders.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                const Text(
+                  'Đang dùng thuốc:',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.stone600),
+                ),
+                const SizedBox(height: 4),
+                ...summary.medicationReminders.map((rx) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.medication, color: Color(0xFF0D9488), size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '${rx.medication}${rx.dosage != null ? ' - ${rx.dosage}' : ''}',
+                          style: const TextStyle(fontSize: 13, color: AppColors.stone700),
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+              ],
+
+              // Suggested Actions
+              if (summary.suggestedActions.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          // Open chat with pet context
+                          context.push('/staff/ai-chat?petId=${widget.id}');
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.stone700,
+                          side: const BorderSide(color: AppColors.stone300),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: const Text('Hỏi AI thêm', style: TextStyle(fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          // Navigate to booking
+                          context.push('/booking?petId=${widget.id}');
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: const Text('Đặt lịch ngay', style: TextStyle(fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+
+              // Disclaimer
+              if (summary.disclaimer != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  summary.disclaimer!,
+                  style: const TextStyle(fontSize: 11, color: AppColors.stone500, fontStyle: FontStyle.italic),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: AppColors.stone500),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 13, color: AppColors.stone700),
+            ),
+          ),
+        ],
       ),
     );
   }

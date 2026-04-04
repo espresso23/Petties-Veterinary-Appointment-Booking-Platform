@@ -470,6 +470,7 @@ class SosMatchingServiceUnitTest {
             // Arrange
             long oldTimestamp = System.currentTimeMillis() - 70000; // 70 seconds ago
 
+            when(sessionManager.hasActiveSessions()).thenReturn(true);
             when(bookingRepository.findByStatusAndBookingType(
                     BookingStatus.PENDING_CLINIC_CONFIRM, BookingType.SOS))
                     .thenReturn(List.of(booking));

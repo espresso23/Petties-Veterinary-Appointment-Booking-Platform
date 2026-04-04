@@ -1,4 +1,6 @@
-# AI Service Architecture - Simple Diagram with Data Improvement
+﻿# AI Service Architecture - Simple Diagram with Data Improvement
+
+> Lưu ý cập nhật ngày 2026-03-17: sơ đồ này chứa hướng cải thiện dữ liệu cũ dựa trên thumbs up/down và visual case memory. Kiến trúc hiện hành chuyển sang EMR xác nhận + knowledge base + Gemini Vision.
 **Petties Veterinary Platform**
 
 ```mermaid
@@ -77,9 +79,9 @@ flowchart TD
 **[Cơ Chế Cải Thiện Dữ Liệu AI - 45s (Phần Màu Xanh Lá)]**
 "Điểm đặc biệt nhất của kiến trúc này là **cơ chế tự cải thiện dữ liệu theo thời gian (Data Improvement Loop)**, thể hiện ở nửa dưới sơ đồ:
 1. **Lưu Trữ Chi Tiết**: Mọi cuộc trò chuyện và luồng suy nghĩ (ReAct traces) của AI đều được lưu vào **MongoDB** để đội ngũ phát triển phân tích và audit.
-2. **Thu Thập Phản Hồi**: Khi người dùng nhấn Thumbs Up/Down, **Feedback Loop** sẽ ghi nhận vào MongoDB.
-3. **Visual Case Memory (Bộ Nhớ Trực Quan)**: Với các ca tư vấn thành công (Thumbs Up), hệ thống tự động trích xuất thông tin (triệu chứng, chẩn đoán, hình ảnh) → sử dụng Embedding Service tạo vector (text+image) → lưu vào **Qdrant**.
-4. **Tự Động Học Hỏi**: Trong các lần hỏi sau, **Hybrid RAG** sẽ tìm kiếm lại trong Qdrant. Nhờ đó, AI có thể trả lời: *'Dựa trên một ca bệnh tương tự trước đây đã được xác nhận, bé cún của bạn có thể đang bị...'*
+2. **Thu Thập Phản Hồi**: Khi người dùng nhấn Thumbs Up/Down, hệ thống ghi nhận feedback vào MongoDB để analytics, audit, và monitoring.
+3. **EMR-Driven Case Memory**: Khi bác sĩ lưu EMR đã xác nhận, hệ thống đồng bộ thông tin (triệu chứng, chẩn đoán, hình ảnh, SOAP, toa thuốc) vào **Qdrant**.
+4. **Tái Sử Dụng Ca Đã Xác Nhận**: Trong các lần hỏi sau, **Hybrid RAG** sẽ truy vấn lại Case Memory từ EMR confirmed để tăng chất lượng grounding cho câu trả lời.
 
 **[Kết Luận - 10s]**
 "Cơ chế này giúp AI của Petties càng dùng càng thông minh, cá nhân hóa kiến thức theo đúng nghiệp vụ của phòng khám mà không cần fine-tune model tốn kém."

@@ -409,8 +409,30 @@ class AiChatService {
     }
   }
 
+  String encodeOutgoingPayload({
+    String? message,
+    Map<String, dynamic>? uiAction,
+    Map<String, dynamic>? location,
+    List<String>? images,
+  }) {
+    final payload = <String, dynamic>{};
+    if (message != null) {
+      payload['message'] = message;
+    }
+    if (uiAction != null) {
+      payload['ui_action'] = uiAction;
+    }
+    if (location != null) {
+      payload['location'] = location;
+    }
+    if (images != null && images.isNotEmpty) {
+      payload['images'] = images;
+    }
+    return jsonEncode(payload);
+  }
+
   String encodeOutgoingMessage(String message) {
-    return jsonEncode({'message': message});
+    return encodeOutgoingPayload(message: message);
   }
 
   AiChatSocketEvent parseSocketEvent(dynamic payload) {
@@ -438,3 +460,4 @@ class AiChatService {
     );
   }
 }
+

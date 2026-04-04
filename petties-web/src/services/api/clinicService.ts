@@ -147,6 +147,54 @@ export const clinicService = {
   },
 
   /**
+   * Get struck clinics (đang bị hạn chế) - ADMIN only
+   */
+  getStruckClinics: async (page = 0, size = 20, sortBy = 'strikeUntil', sortDir: 'ASC' | 'DESC' = 'ASC'): Promise<ClinicListResponse> => {
+    const params = new URLSearchParams({
+      page: String(page),
+      size: String(size),
+      sortBy,
+      sortDir,
+    })
+    const response = await apiClient.get<ClinicListResponse>(`/clinics/admin/struck?${params.toString()}`)
+    return response.data
+  },
+
+  /**
+   * Danh sách phòng khám (chủ sở hữu) cho admin — lọc trạng thái / tên
+   */
+  getAdminClinicRegistry: async (filters?: {
+    status?: string
+    name?: string
+    page?: number
+    size?: number
+    sortBy?: string
+    sortDir?: 'ASC' | 'DESC'
+  }): Promise<ClinicListResponse> => {
+    const params = new URLSearchParams()
+    params.append('page', String(filters?.page ?? 0))
+    params.append('size', String(filters?.size ?? 20))
+    if (filters?.status) params.append('status', filters.status)
+    if (filters?.name?.trim()) params.append('name', filters.name.trim())
+    if (filters?.sortBy) params.append('sortBy', filters.sortBy)
+    if (filters?.sortDir) params.append('sortDir', filters.sortDir)
+    const response = await apiClient.get<ClinicListResponse>(`/clinics/admin/registry?${params.toString()}`)
+    return response.data
+  },
+
+  /** Admin hạn chế vĩnh viễn phòng khám đã duyệt */
+  adminBanClinic: async (clinicId: string, reason: string): Promise<ClinicResponse> => {
+    const response = await apiClient.post<ClinicResponse>(`/clinics/admin/${clinicId}/ban`, { reason })
+    return response.data
+  },
+
+  /** Admin gỡ hạn chế strike */
+  adminLiftClinicStrike: async (clinicId: string): Promise<ClinicResponse> => {
+    const response = await apiClient.post<ClinicResponse>(`/clinics/admin/${clinicId}/lift-strike`, {})
+    return response.data
+  },
+
+  /**
    * Approve clinic (ADMIN only)
    */
   approveClinic: async (clinicId: string, reason?: string): Promise<ClinicResponse> => {

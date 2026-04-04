@@ -87,6 +87,8 @@ public class BookingService {
         private final TransactionService transactionService;
         private final SosSessionManager sosSessionManager;
         private final TrackingService trackingService;
+        private final VoucherService voucherService;
+        private final com.petties.petties.repository.VoucherRepository voucherRepository;
 
         @Value("${sepay.qr.acc:}")
         private String sepayQrAcc;
@@ -104,6 +106,25 @@ public class BookingService {
          * Validate vaccine species compatibility between pet and service
          * Throws BadRequestException if vaccine is not compatible with pet species
          */
+        private void validateClinicNotStruck(Clinic clinic) {
+                if (clinic.getStatus() != com.petties.petties.model.enums.ClinicStatus.APPROVED) {
+                        throw new BadRequestException("Phòng khám chưa được duyệt hoặc không hoạt động");
+                }
+                if (clinic.getStrikeUntil() != null && clinic.getStrikeUntil().isAfter(java.time.LocalDateTime.now())) {
+                        throw new BadRequestException(
+                                        "Phòng khám đang tạm ngưng nhận đặt lịch do vi phạm. Vui lòng thử lại sau ngày "
+                                                        + clinic.getStrikeUntil().toLocalDate() + ".");
+                }
+        }
+
+        private void validatePetOwnerNotStruck(User petOwner) {
+                if (petOwner.getStrikeUntil() != null && petOwner.getStrikeUntil().isAfter(java.time.LocalDateTime.now())) {
+                        throw new BadRequestException(
+                                        "Tài khoản của bạn đang bị hạn chế đặt lịch do vi phạm. Vui lòng thử lại sau ngày "
+                                                        + petOwner.getStrikeUntil().toLocalDate() + ".");
+                }
+        }
+
         private void validateVaccineSpeciesCompatibility(Pet pet, ClinicService service) {
                 if (service.getVaccineTemplate() != null) {
                         var targetSpecies = service.getVaccineTemplate().getTargetSpecies();
@@ -260,7 +281,7 @@ public class BookingService {
                                 "https://qr.sepay.vn/img?acc=%s&bank=%s&amount=%s&des=%s",
                                 sepayQrAcc,
                                 sepayQrBank,
-                                booking.getTotalPrice().toBigInteger().toString(),
+                                (booking.getFinalPrice() != null ? booking.getFinalPrice() : booking.getTotalPrice()).toBigInteger().toString(),
                                 paymentDescription);
 
                 BookingResponse response = bookingMapper.mapToResponse(booking);
@@ -317,6 +338,9 @@ public class BookingService {
                                                         "Không tìm thấy chủ thú cưng"));
                         Clinic clinic = clinicRepository.findById(request.getClinicId())
                                         .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
+
+                        validatePetOwnerNotStruck(petOwner);
+                        validateClinicNotStruck(clinic);
 
                         List<Pet> petsToUse = new ArrayList<>();
                         List<ClinicService> servicesToUse = new ArrayList<>();
@@ -526,9 +550,12 @@ public class BookingService {
                         ProxyRecipientInfo recipientInfo = request.getRecipient();
                         User recipient = createRecipientUser(recipientInfo);
 
-                        // Step 2: Validate clinic
+                        // Step 2: Validate clinic and recipient (pet owner)
                         Clinic clinic = clinicRepository.findById(request.getClinicId())
                                         .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
+
+                        validatePetOwnerNotStruck(recipient);
+                        validateClinicNotStruck(clinic);
 
                         // Step 3: Collect (serviceId, pet) pairs - mỗi cặp ứng với 1 BookingServiceItem
                         // Dùng List thay vì Map vì cùng serviceId có thể dùng cho nhiều pet khác nhau
@@ -671,17 +698,28 @@ public class BookingService {
         }
 
         /**
-         * Create a new guest user for proxy booking.
-         * In proxy booking flow, we always create a new guest user without checking
-         * existing records.
+         * Get or create a user for proxy booking.
+         * Checks if a user with the given phone number already exists:
+         * - If it exists, reuse it (prioritizing existing users/guests).
+         * - If not, create a new guest user and save their phone number.
          */
         private User createRecipientUser(ProxyRecipientInfo recipientInfo) {
+                // Check if user already exists with this phone number
+                if (recipientInfo.getPhone() != null && !recipientInfo.getPhone().trim().isEmpty()) {
+                        Optional<User> existingUserOpt = userRepository.findByPhone(recipientInfo.getPhone().trim());
+                        if (existingUserOpt.isPresent()) {
+                                log.info("Found existing user {} for proxy booking by phone: {}", 
+                                                existingUserOpt.get().getUserId(), recipientInfo.getPhone());
+                                return existingUserOpt.get();
+                        }
+                }
+
                 // Generate a unique username using phone + timestamp to avoid conflicts
                 String uniqueUsername = "proxy_" + recipientInfo.getPhone() + "_" + System.currentTimeMillis();
 
                 User newUser = new User();
                 newUser.setFullName(recipientInfo.getFullName());
-                newUser.setPhone(null); // Don't set phone to avoid unique constraint issues
+                newUser.setPhone(recipientInfo.getPhone()); // Save phone number for future proxy bookings
                 newUser.setAddress(recipientInfo.getAddress());
                 newUser.setRole(Role.PET_OWNER);
                 newUser.setUsername(uniqueUsername);
@@ -1344,26 +1382,95 @@ public class BookingService {
                         booking.setTotalPrice(servicesTotal.add(sosFee));
                 }
 
-                // Checkout sẽ hoàn tất booking ngay sau khi chốt thông tin thanh toán.
-                String paymentMethod = request != null ? request.getPaymentMethod() : null;
-                PaymentMethod method = paymentMethod != null && !paymentMethod.isBlank()
-                                ? PaymentMethod.valueOf(paymentMethod.trim().toUpperCase())
-                                : PaymentMethod.CASH;
 
+                // Apply voucher discount if any
+                BigDecimal originalTotal = booking.getTotalPrice() != null ? booking.getTotalPrice() : BigDecimal.ZERO;
+                BigDecimal discount = BigDecimal.ZERO;
+
+                if (booking.getVoucher() != null) {
+                        try {
+                                // Double check if conditions still match
+                                discount = voucherService.calculateVoucherDiscount(booking.getVoucher().getVoucherId(), booking.getClinic().getClinicId(), originalTotal);
+                                booking.setDiscountAmount(discount);
+                        } catch (Exception e) {
+                                // Voucher may be invalid now (e.g. amount too small after removing services)
+                                log.warn("Voucher {} became invalid for booking {}: {}", booking.getVoucher().getVoucherId(), bookingId, e.getMessage());
+                                booking.setVoucher(null);
+                                booking.setDiscountAmount(BigDecimal.ZERO);
+                        }
+                } else {
+                        booking.setDiscountAmount(BigDecimal.ZERO);
+                }
+
+                BigDecimal finalTotal = originalTotal.subtract(discount).max(BigDecimal.ZERO);
+                booking.setFinalPrice(finalTotal);
+
+                // Checkout sẽ hoàn tất booking ngay sau khi chốt thông tin thanh toán.
+                String reqMethodStr = request != null ? request.getPaymentMethod() : null;
+                PaymentMethod method;
                 Payment payment = paymentRepository.findByBookingBookingId(bookingId).orElse(null);
+                
+                if (reqMethodStr != null && !reqMethodStr.isBlank()) {
+                        method = PaymentMethod.valueOf(reqMethodStr.trim().toUpperCase());
+                } else {
+                        // Lấy phương thức thanh toán gốc của booking thay vì mặc định ép CASH
+                        if (payment != null && payment.getMethod() != null) {
+                                method = payment.getMethod();
+                        } else {
+                                PaymentMethod pref = resolvePreferredPaymentMethodFromBooking(booking);
+                                method = pref != null ? pref : PaymentMethod.CASH;
+                        }
+                }
+
+                if (booking.getVoucher() != null && Boolean.TRUE.equals(booking.getVoucher().getRequireOnlinePayment())) {
+                        if (method == PaymentMethod.CASH) {
+                                throw new BadRequestException("Voucher đang sử dụng chỉ áp dụng cho hình thức Thanh toán trực tuyến (Mã QR/Online). Vui lòng quét QR hoặc gỡ voucher để thu tiền mặt.");
+                        }
+                }
+
+                // Nếu đã thanh toán rồi thì chỉ cần hoàn tất booking, không tạo payment mới
+                if (payment != null && payment.getStatus() == PaymentStatus.PAID) {
+                        booking.setPayment(payment);
+                        booking.syncPaymentStatus(payment);
+                        booking.setStatus(BookingStatus.COMPLETED);
+                        Booking savedBooking = bookingRepository.save(booking);
+
+                        try {
+                                trackingService.clearTracking(bookingId);
+                        } catch (Exception e) {
+                                log.warn("Failed to clear tracking data: {}", e.getMessage());
+                        }
+
+                        bookingNotificationService.pushBookingUpdateToUsers(savedBooking, "COMPLETED");
+                        try {
+                                notificationService.sendCompletedNotification(savedBooking);
+                        } catch (Exception e) {
+                                log.warn("Failed to send completed notification after checkout: {}", e.getMessage());
+                        }
+
+                        log.info("Booking {} checked out and completed (Already PAID previously)", booking.getBookingCode());
+                        return bookingMapper.mapToResponse(savedBooking);
+                }
+
+                // Với QR, bắt buộc phải xác nhận PAID trước khi complete.
+                if (method == PaymentMethod.QR) {
+                        throw new BadRequestException(
+                                        "Booking QR chưa thanh toán thành công. Vui lòng chờ xác nhận thanh toán trước khi hoàn tất.");
+                }
+
+                // Dùng lại hoặc tạo mới payment CASH
                 if (payment == null) {
                         payment = Payment.builder()
                                         .booking(booking)
-                                        .amount(booking.getTotalPrice())
+                                        .amount(finalTotal)
                                         .method(method)
                                         .status(PaymentStatus.PENDING)
                                         .build();
                 }
 
-                if (payment.getStatus() != PaymentStatus.PAID) {
-                        payment.setMethod(method);
-                        payment.markAsPaid();
-                }
+                payment.setMethod(method);
+                payment.setAmount(finalTotal);
+                payment.markAsPaid();
 
                 paymentRepository.save(payment);
                 booking.setPayment(payment);
@@ -1390,6 +1497,72 @@ public class BookingService {
                 log.info("Booking {} checked out by staff and completed with method {}",
                                 booking.getBookingCode(), payment.getMethod());
                 return bookingMapper.mapToResponse(booking);
+        }
+
+        // ========== VOUCHER APPLICATION ==========
+
+        @Transactional
+        public BookingResponse applyVoucherToBooking(UUID bookingId, com.petties.petties.dto.booking.ApplyVoucherRequest request, User currentUser) {
+                Booking booking = bookingRepository.findById(bookingId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+
+                // Pet Owner must own the booking, or staff/manager handles it
+                if (currentUser.getRole() == com.petties.petties.model.enums.Role.PET_OWNER && 
+                    !booking.getPetOwner().getUserId().equals(currentUser.getUserId())) {
+                        throw new ForbiddenException("Bạn không có quyền thao tác trên lịch hẹn này");
+                }
+
+                if (booking.getStatus() == BookingStatus.COMPLETED || booking.getStatus() == BookingStatus.CANCELLED) {
+                        throw new BadRequestException("Không thể áp dụng/gỡ voucher cho lịch hẹn đã hoàn thành hoặc đã hủy");
+                }
+
+                if (request != null && request.getVoucherId() != null) {
+                        // Apply voucher
+                        UUID vId = request.getVoucherId();
+                        BigDecimal discount = voucherService.calculateVoucherDiscount(vId, booking.getClinic().getClinicId(), booking.getTotalPrice());
+                        com.petties.petties.model.Voucher voucher = voucherRepository.findById(vId).orElseThrow();
+                        
+                        booking.setVoucher(voucher);
+                        booking.setDiscountAmount(discount);
+                        BigDecimal finalP = booking.getTotalPrice().subtract(discount).max(BigDecimal.ZERO);
+                        booking.setFinalPrice(finalP);
+
+                        // If payment exists and not paid, update amount
+                        Payment payment = booking.getPayment();
+                        if (payment != null && payment.getStatus() != PaymentStatus.PAID) {
+                                payment.setAmount(finalP);
+                                // Refresh QR if already generated
+                                if (payment.getMethod() == PaymentMethod.QR) {
+                                       String paymentDesc = transactionService.generatePaymentDescription(booking.getBookingId());
+                                       payment.setPaymentDescription(paymentDesc);
+                                }
+                                paymentRepository.save(payment);
+                        }
+
+                        booking = bookingRepository.save(booking); // Explicitly save to ensure DB is updated
+                        log.info("User {} applied voucher {} to booking {}", currentUser.getUserId(), vId, bookingId);
+                } else {
+                        // Remove voucher
+                        booking.setVoucher(null);
+                        booking.setDiscountAmount(BigDecimal.ZERO);
+                        booking.setFinalPrice(booking.getTotalPrice());
+
+                        Payment payment = booking.getPayment();
+                        if (payment != null && payment.getStatus() != PaymentStatus.PAID) {
+                                payment.setAmount(booking.getTotalPrice());
+                                if (payment.getMethod() == PaymentMethod.QR) {
+                                       String paymentDesc = transactionService.generatePaymentDescription(booking.getBookingId());
+                                       payment.setPaymentDescription(paymentDesc);
+                                }
+                                paymentRepository.save(payment);
+                        }
+
+                        log.info("User {} removed voucher from booking {}", currentUser.getUserId(), bookingId);
+                }
+
+                Booking saved = bookingRepository.save(booking);
+                bookingNotificationService.pushBookingUpdateToUsers(saved, "VOUCHER_UPDATED");
+                return bookingMapper.mapToResponse(saved);
         }
 
         /**

@@ -7,6 +7,7 @@ import com.petties.petties.dto.pet.StaffPatientDTO;
 import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.model.Booking;
 import com.petties.petties.model.BookingServiceItem;
+import com.petties.petties.model.Clinic;
 import com.petties.petties.model.EmrRecord;
 import com.petties.petties.model.Pet;
 import com.petties.petties.model.User;
@@ -21,6 +22,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
@@ -49,6 +54,9 @@ class PetServiceUnitTest {
 
     @Mock
     private BookingRepository bookingRepository;
+
+    @Mock
+    private RestTemplate restTemplate;
 
     @InjectMocks
     private PetService petService;
@@ -188,5 +196,76 @@ class PetServiceUnitTest {
         assertEquals("http://cloudinary.com/new_avatar.jpg", response.getImageUrl());
         verify(cloudinaryService).uploadFile(eq(mockFile), anyString());
         verify(petRepository).save(pet);
+    }
+
+    @Test
+    @DisplayName("Get Health Summary - Staff cùng clinic - Success")
+    void getHealthSummary_staffSameClinic_success() {
+        UUID petId = UUID.randomUUID();
+        UUID clinicId = UUID.randomUUID();
+
+        User owner = new User();
+        owner.setUserId(UUID.randomUUID());
+
+        Pet pet = new Pet();
+        pet.setId(petId);
+        pet.setName("Bella");
+        pet.setUser(owner);
+
+        Clinic clinic = new Clinic();
+        clinic.setClinicId(clinicId);
+
+        User staff = new User();
+        staff.setUserId(UUID.randomUUID());
+        staff.setRole(Role.STAFF);
+        staff.setWorkingClinic(clinic);
+
+        when(authService.getCurrentUser()).thenReturn(staff);
+        when(petRepository.findById(petId)).thenReturn(Optional.of(pet));
+        when(bookingRepository.existsByPet_IdAndClinic_ClinicId(petId, clinicId)).thenReturn(true);
+        when(emrRecordRepository.findByPetIdOrderByCreatedAtDesc(petId)).thenReturn(List.of());
+        Map<String, Object> aiResponse = new HashMap<>();
+        aiResponse.put("health_warnings", List.of());
+        aiResponse.put("medication_reminders", List.of());
+        aiResponse.put("suggested_actions", List.of());
+        aiResponse.put("latest_emr_summary", null);
+        aiResponse.put("disclaimer", "test");
+        when(restTemplate.exchange(anyString(), eq(org.springframework.http.HttpMethod.POST), any(HttpEntity.class), eq(Map.class)))
+                .thenReturn(new ResponseEntity<>(aiResponse, HttpStatus.OK));
+
+        var response = petService.getHealthSummary(petId);
+
+        assertNotNull(response);
+        assertNotNull(response.getPetInfo());
+        assertEquals("Bella", response.getPetInfo().getName());
+    }
+
+    @Test
+    @DisplayName("Get Health Summary - Staff khác clinic - Throws Forbidden")
+    void getHealthSummary_staffOtherClinic_forbidden() {
+        UUID petId = UUID.randomUUID();
+        UUID clinicId = UUID.randomUUID();
+
+        User owner = new User();
+        owner.setUserId(UUID.randomUUID());
+
+        Pet pet = new Pet();
+        pet.setId(petId);
+        pet.setUser(owner);
+
+        Clinic clinic = new Clinic();
+        clinic.setClinicId(clinicId);
+
+        User staff = new User();
+        staff.setUserId(UUID.randomUUID());
+        staff.setRole(Role.STAFF);
+        staff.setWorkingClinic(clinic);
+
+        when(authService.getCurrentUser()).thenReturn(staff);
+        when(petRepository.findById(petId)).thenReturn(Optional.of(pet));
+        when(bookingRepository.existsByPet_IdAndClinic_ClinicId(petId, clinicId)).thenReturn(false);
+        when(emrRecordRepository.findByPetIdOrderByCreatedAtDesc(petId)).thenReturn(List.of());
+
+        assertThrows(ForbiddenException.class, () -> petService.getHealthSummary(petId));
     }
 }

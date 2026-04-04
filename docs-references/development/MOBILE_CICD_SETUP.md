@@ -1,4 +1,4 @@
-# 📱 Mobile CI/CD Setup Guide
+﻿# 📱 Mobile CI/CD Setup Guide
 
 Hướng dẫn thiết lập CI/CD cho Petties Mobile App với Firebase App Distribution và TestFlight.
 

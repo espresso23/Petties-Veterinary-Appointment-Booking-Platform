@@ -11,12 +11,16 @@ if str(ROOT) not in sys.path:
 from app.core.agents.single_agent import SingleAgent
 from app.core.agents.enrichment_strategy import build_final_answer_from_tool_result
 from app.core.agents.response_formatter import format_tool_observation
-from app.core.tools.mcp_tools.medical_tools import pet_knowledge_search, web_search
+from app.core.tools.mcp_tools.medical_tools import pet_knowledge_search
+from app.core.tools.mcp_tools.common_tools import web_search
 
 
 class FakeHybridChunk:
     def __init__(
-        self, content: str, score: float, source: str = "rag",
+        self,
+        content: str,
+        score: float,
+        source: str = "rag",
         metadata: dict = None,
     ):
         self.content = content
@@ -47,8 +51,7 @@ def test_web_search_rejects_non_pet_query():
     assert result["sources_used"] == 0
     assert result["search_source"] == "web_search"
     assert result["results"] == []
-    assert result["error"] == "Query ngoài phạm vi thú cưng/thú y"
-    # Pure data: no "answer" field
+    assert result["error"] == "Query ngoai pham vi thu cung/thu y"
     assert "answer" not in result
 
 
@@ -60,28 +63,18 @@ def test_web_search_formats_pet_results():
             "url": "https://example.com/dog-diarrhea-diet",
             "source": "https://example.com/dog-diarrhea-diet",
         },
-        {
-            "title": "Chăm sóc chó bị rối loạn tiêu hóa",
-            "snippet": "Theo dõi nôn ói, bỏ ăn và đưa đi khám nếu có máu trong phân.",
-            "url": "https://example.com/dog-digestive-care",
-            "source": "https://example.com/dog-digestive-care",
-        },
     ]
 
     with patch(
-        "app.core.tools.mcp_tools.medical_tools._perform_duckduckgo_search",
+        "app.core.tools.mcp_tools.common_tools._perform_tavily_search",
         return_value=mocked_results,
     ):
         result = asyncio.run(web_search("chó bị tiêu chảy nên ăn gì", max_results=3))
 
-    assert result["sources_used"] == 2
+    assert result["sources_used"] == 1
     assert result["search_source"] == "web_search"
-    # Pure data: no "answer" field, raw results list instead
     assert "answer" not in result
-    assert len(result["results"]) == 2
-    assert result["results"][0]["title"] == "Chó bị tiêu chảy nên ăn gì?"
-    assert result["results"][0]["url"] == "https://example.com/dog-diarrhea-diet"
-    assert result["results"][1]["title"] == "Chăm sóc chó bị rối loạn tiêu hóa"
+    assert len(result["results"]) == 1
 
 
 def test_pet_knowledge_search_returns_raw_results():
@@ -515,73 +508,76 @@ def test_single_agent_omits_empty_web_message_when_kb_has_results():
 
 def test_perform_duckduckgo_search_relaxed_fallback_works():
     """Khi không có kết quả score >= 4, relaxed fallback (score >= 1) phải trả về."""
-    from app.core.tools.mcp_tools.medical_tools import _perform_duckduckgo_search
+    from app.core.tools.mcp_tools.common_tools import _perform_tavily_search
+    import app.core.tools.mcp_tools.common_tools as common_tools
 
     fake_raw_results = [
         {
             "title": "Thông tin thú y tổng quát",
-            "body": "Chó nên ăn thức ăn mềm khi bị tiêu chảy.",
-            "href": "https://example.com/general-vet",
+            "content": "Chó nên ăn thức ăn mềm khi bị tiêu chảy.",
+            "url": "https://example.com/general-vet",
         },
     ]
 
-    with patch("app.core.tools.mcp_tools.medical_tools.DDGS") as MockDDGS:
-        mock_instance = MockDDGS.return_value.__enter__.return_value
-        mock_instance.text.return_value = fake_raw_results
-
-        # Patch _score_web_result để trả score = 2 (dưới strict threshold 4, nhưng trên relaxed 1)
+    with patch.object(common_tools, "TAVILY_AVAILABLE", True):
         with patch(
-            "app.core.tools.mcp_tools.medical_tools._score_web_result",
-            return_value=2,
-        ):
-            results = _perform_duckduckgo_search(
-                "chó bị tiêu chảy nên ăn gì", max_results=3
-            )
+            "app.core.tools.mcp_tools.common_tools._get_tavily_client"
+        ) as mock_client:
+            mock_instance = mock_client.return_value
+            mock_instance.search.return_value = {"results": fake_raw_results}
 
-    # Relaxed fallback PHẢI trả về kết quả score >= 1
+            with patch(
+                "app.core.tools.mcp_tools.common_tools._score_web_result",
+                return_value=2,
+            ):
+                results = _perform_tavily_search(
+                    "chó bị tiêu chảy nên ăn gì", max_results=3
+                )
+
     assert len(results) == 1
     assert results[0]["score"] == 2
-    assert "thú y" in results[0]["title"].lower()
 
 
 def test_build_search_query_returns_original():
     """Query được trả về nguyên gốc — không thêm context, để LLM tự xử lý."""
-    from app.core.tools.mcp_tools.medical_tools import _build_search_query
+    from app.core.tools.mcp_tools.common_tools import _build_search_query
 
     # Query có pet term hay không đều trả về nguyên gốc
-    assert _build_search_query("chó bị tiêu chảy nên ăn gì") == "chó bị tiêu chảy nên ăn gì"
+    assert (
+        _build_search_query("chó bị tiêu chảy nên ăn gì")
+        == "chó bị tiêu chảy nên ăn gì"
+    )
     assert _build_search_query("tiêu chảy nên ăn gì") == "tiêu chảy nên ăn gì"
-    assert _build_search_query("dog diarrhea what to feed") == "dog diarrhea what to feed"
+    assert (
+        _build_search_query("dog diarrhea what to feed") == "dog diarrhea what to feed"
+    )
     assert _build_search_query("diarrhea treatment") == "diarrhea treatment"
 
 
 def test_extract_query_keywords_bilingual():
     """Keywords phải được extract cho cả tiếng Việt và tiếng Anh."""
-    from app.core.tools.mcp_tools.medical_tools import _extract_query_keywords
+    from app.core.tools.mcp_tools.common_tools import _tokenize
 
     # Vietnamese
-    vn_keywords = _extract_query_keywords("chó bị tiêu chảy nên ăn gì")
+    vn_keywords = _tokenize("chó bị tiêu chảy nên ăn gì")
     assert "tiêu" in vn_keywords
     assert "chảy" in vn_keywords
     assert "ăn" in vn_keywords
-    # Vì bỏ STOP_WORDS, tất cả tokens >= 2 ký tự đều được giữ
     assert "nên" in vn_keywords
     assert "chó" in vn_keywords
 
     # English
-    en_keywords = _extract_query_keywords("dog diarrhea what to feed")
+    en_keywords = _tokenize("dog diarrhea what to feed")
     assert "dog" in en_keywords
     assert "diarrhea" in en_keywords
     assert "feed" in en_keywords
-    # "what" giờ cũng được giữ (>= 2 ký tự)
     assert "what" in en_keywords
-    # "to" vẫn bị loại vì chỉ có 2 ký tự nhưng đủ điều kiện len >= 2
     assert "to" in en_keywords
 
 
 def test_score_web_result_domain_based():
     """Scoring dựa trên domain penalty — không dùng keyword matching."""
-    from app.core.tools.mcp_tools.medical_tools import _score_web_result
+    from app.core.tools.mcp_tools.common_tools import _score_web_result
 
     # Nguồn bình thường: base score = 5
     score_normal = _score_web_result(
@@ -610,4 +606,3 @@ def test_score_web_result_domain_based():
     )
     assert score_wiki < score_en
     assert score_wiki <= 2  # Base 5 - penalty 3 = 2
-

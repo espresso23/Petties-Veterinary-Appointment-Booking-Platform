@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 
 interface InlineSuggestionProps {
     value: string
@@ -24,11 +24,13 @@ export const InlineSuggestion = ({
     const inputRef = useRef<HTMLTextAreaElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
 
-    // Filter suggestions based on current input
-    const filteredSuggestions = suggestions.filter(s => 
-        s.toLowerCase().includes(value.toLowerCase()) && 
-        s.toLowerCase() !== value.toLowerCase()
-    )
+    const filteredSuggestions = useMemo(() => {
+        const lowerValue = value.toLowerCase()
+        return suggestions.filter(s =>
+            s.toLowerCase().includes(lowerValue) &&
+            s.toLowerCase() !== lowerValue
+        )
+    }, [suggestions, value])
 
     // Close suggestions when clicking outside
     useEffect(() => {

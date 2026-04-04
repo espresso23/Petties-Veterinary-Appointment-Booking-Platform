@@ -25,6 +25,7 @@ Petties is a veterinary appointment booking platform connecting pet owners with 
 **Databases:** PostgreSQL 16 (primary), MongoDB 7 (documents), Redis 7 (OTP/cache), Qdrant Cloud (vectors), Firebase (push messages)
 
 **AI Layer:** Single Agent với ReAct pattern (LangGraph), **LLM Provider (Cloud API Only):** **OpenRouter**, LlamaIndex for RAG, Qdrant Cloud for vectors, Cohere for embeddings.
+
 ## Development Commands
 
 ### Quick Start (Databases only, services local)
@@ -91,7 +92,7 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 ## Key Technical Patterns
 
 ### Backend (Spring Boot)
-- Layered: Controller → Service → Repository
+- Layered: Controller -> Service -> Repository
 - JWT auth with refresh tokens (Spring Security 6.x)
 - Global exception handling via `GlobalExceptionHandler`
 - Validation with Vietnamese messages on DTOs (`@NotBlank`, `@Size`, etc.)
@@ -106,7 +107,7 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 - Styling: Tailwind CSS v4 with **Neobrutalism** design (no rounded corners, thick black borders, offset shadows)
 
 ### AI Service (FastAPI)
-- Single Agent: LangGraph với ReAct pattern (Thought → Action → Observation)
+- Single Agent: LangGraph với ReAct pattern (Thought -> Action -> Observation)
 - Config: DB-based dynamic configuration (prompt, parameters, tools)
 - Tools: FastMCP với @mcp.tool decorator
   - `pet_knowledge_search` - Tra cứu cẩm nang/kiến thức thú y (Hybrid: RAG + Knowledge Graph + Case Memory)
@@ -124,7 +125,6 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 - Tool runtime: trước khi gọi FastMCP, lọc tham số theo `input_schema.properties` để loại key dư (ví dụ `type`) nhằm tránh lỗi Pydantic `Unexpected keyword argument`
 - Streaming: WebSocket có thể gửi đầy đủ thought/action/observation; client nên mặc định chỉ hiển thị thought/stream cho UX, và bật debug mode để xem tool_call/tool_result khi cần
 - Cấu hình Jina: `JINA_API_KEY` (và tùy chọn `JINA_IMAGE_EMBED_MODEL`) được lưu trong bảng `system_settings` và có thể chỉnh từ trang Admin Knowledge (cùng trang với Cohere/Qdrant), kèm nút test `/api/v1/settings/test-jina` để kiểm tra kết nối và dimension
-
 
 ### Mobile (Flutter)
 - State: Provider pattern
@@ -166,7 +166,7 @@ Friendly Brutalist - Giữ bản sắc brutalist nhưng mềm mại, thân thi�
 | Button Text | `font-bold uppercase` |
 | Labels | `text-xs font-bold uppercase` |
 
-### UI Rules (QUAN TRONG)
+### UI Rules (QUAN TRỌNG)
 - **KHONG DUNG EMOJI trong UI** - Dùng Heroicons thay thế (MoonIcon, ArrowRightIcon, etc.)
 - **No border-radius > 12px** except for badges/avatars (use `rounded-full`)
 - **No blur shadows** - always offset shadows only
@@ -190,6 +190,16 @@ Friendly Brutalist - Giữ bản sắc brutalist nhưng mềm mại, thân thi�
 - **Frontend (React/Flutter):** Tất cả toast messages, error states, validation text, button labels
 - **API responses:** Error messages trả về cho client
 - **Log messages giữ tiếng Anh:** `log.info()`, `log.error()` - vì logs dành cho developers
+
+## Documentation Language Rule
+
+**Technical documentation and internal design documents may use English by default to reduce encoding/mojibake risk.**
+
+**Apply this rule as follows:**
+- **User-facing text:** Must remain Vietnamese 100%.
+- **Technical docs in `docs-references/`:** Prefer English when the content is internal, technical, architectural, testing, deployment, or developer-oriented.
+- **Mixed documents:** If a document contains both user-facing copy and technical content, keep user-facing examples in Vietnamese but write the explanatory/technical sections in English.
+- **Encoding safety:** Always save docs as UTF-8 and verify readability after editing. If Vietnamese text shows encoding issues and the document is not user-facing, rewrite that section in English instead of leaving mojibake in the repo.
 
 ## No Browser Native Dialogs Rule
 
@@ -233,11 +243,10 @@ const [showConfirm, setShowConfirm] = useState(false)
 
 | Workflow | Trigger | Purpose |
 |----------|---------|--------|
-| `ci.yml` | PR → develop, main | Build + Lint + Test (Frontend, Backend, AI Service) |
-| `deploy-test.yml` | Push → develop | Auto Deploy to EC2 Test Environment |
-| `deploy-ec2.yml` | Push → main | Auto Deploy to EC2 Production |
+| `ci.yml` | PR -> develop, main | Build + Lint + Test (Frontend, Backend, AI Service) |
+| `deploy-test.yml` | Push -> develop | Auto Deploy to EC2 Test Environment |
+| `deploy-ec2.yml` | Push -> main | Auto Deploy to EC2 Production |
 | `mobile-ci-cd.yml` | Manual Dispatch | Build & Deploy Mobile App (Android/iOS) to Firebase/TestFlight |
-
 
 ### Docker Compose Files
 
@@ -250,7 +259,7 @@ const [showConfirm, setShowConfirm] = useState(false)
 Copy `.env.example` to `.env` for local, `.env.test` for Test Env.
 
 ## Project Rules
-0. Always response in Vietnamese và không tự ý chạy lệnh trên môi trường của user; chỉ hướng dẫn lệnh để user tự chạy.
+0. Always response in Vietnamese. Agent được phép tự chạy các lệnh build/test/lint/verify trong workspace khi user đã cho phép rõ ràng; nếu chưa có cho phép thì chỉ hướng dẫn lệnh để user tự chạy.
 1. Always references in `docs-references/` folder to avoid out of scope.
 2. Always comprehensive all plan and got a user accepted before execute code.
 3. Always clearly dev environment, test environment and production environment, make sure best practice project structure.
@@ -259,12 +268,14 @@ Copy `.env.example` to `.env` for local, `.env.test` for Test Env.
 6. Always ensure APIs Spring Boot design have API documentation (Swagger).
 7. **Environments**: "dev" = localhost (feature/* branches), "test" = test.petties.world + api-test.petties.world (develop branch), "prod" = www.petties.world + api.petties.world (main branch).
 8. If update docs, should update the docs to lasted version and date.
-9. Make sure get context all project structure before coding to avoid duplicate.
-10. When write docs do not import any description use ASCII art (┌, ─, │, └, etc.), should add mermaid diagram code (if any) and necessary content.
-11. Create Unit Testing and System testing for new feature use JUnit for Spring Boot and pytest for Python.
-12. If done feature or usecase should be update to docs-references to update project status, checklist, etc,...
-13. Always follow the app design style for the frontend in `docs-references/`.
-14. Từ giờ, mỗi khi bạn thêm trường mới vào Entity trong Java, hãy nhớ tạo thêm file migration tương ứng nhé! Chi tiết trong file DATABASE_MIGRATION_GUIDE.md
+9. For technical/internal documentation, English is preferred by default to avoid encoding issues; only keep Vietnamese for user-facing copy, business wording that must stay Vietnamese, or when the user explicitly requests Vietnamese documentation.
+10. Make sure get context all project structure before coding to avoid duplicate.
+11. When write docs do not import any description use ASCII art (`┌`, `─`, `│`, `└`, etc.), should add mermaid diagram code (if any) and necessary content.
+12. Create Unit Testing and System testing for new feature use JUnit for Spring Boot and pytest for Python.
+13. If done feature or usecase should be update to docs-references to update project status, checklist, etc,...
+14. Always follow the app design style for the frontend in `docs-references/`.
+15. Always verify encoding UTF-8 sau khi tạo hoặc sửa file source/config/doc. Ưu tiên UTF-8 không BOM cho source code, tránh mojibake/ký tự lạ, và khi có dấu hiệu lỗi encoding thì phải kiểm tra, chuẩn hóa, rồi verify lại trước khi ship.
+16. Từ giờ, mỗi khi bạn thêm trường mới vào Entity trong Java, hãy nhớ tạo thêm file migration tương ứng nhé! Chi tiết trong file DATABASE_MIGRATION_GUIDE.md
 Tạo Script: Tạo file SQL mới với định dạng V<Timestamp>__<tên_mô_tả>.sql.
 Sai: V2__add_phone.sql (Dễ trùng nếu 2 người cùng làm).
 Đúng: V202412301030__add_phone_to_users.sql (Định dạng: V + NămThángNgàyGiờPhút).
@@ -273,7 +284,7 @@ Lưu ý: Giữa Version và Mô tả phải có 2 dấu gạch dưới (__).
 
 ## Documentation-First Development Rule
 
-15. **TRƯỚC KHI CODE bất kỳ feature nào**, PHẢI chuẩn bị nội dung documentation để cập nhật vào:
+17. **TRƯỚC KHI CODE bất kỳ feature nào**, PHẢI chuẩn bị nội dung documentation để cập nhật vào:
 
     **A. PETTIES_SRS.md - Phần 3.2 Functional Requirements:**
     Theo format mẫu đã có (xem 3.2.1 - 3.2.6):
@@ -323,33 +334,32 @@ Lưu ý: Giữa Version và Mô tả phải có 2 dấu gạch dưới (__).
     #### 3.X.3 Sequence Diagram: [Main Flow]
     ```mermaid
     sequenceDiagram
-        [Actor → UI → Controller → Service → Repository → DB flow]
+        [Actor -> UI -> Controller -> Service -> Repository -> DB flow]
     ```
     ```
 
     **Workflow:**
-    1. Khi nhận yêu cầu implement feature mới → Dùng `petties-report-writer` agent để tạo documentation draft
+    1. Khi nhận yêu cầu implement feature mới -> Dùng `petties-report-writer` agent để tạo documentation draft
     2. Trình bày documentation cho user review & approve
-    3. SAU KHI user approve documentation → Mới bắt đầu code với các agents tương ứng
-    4. Sau khi code xong → Cập nhật lại documentation nếu có thay đổi
+    3. SAU KHI user approve documentation -> Mới bắt đầu code với các agents tương ứng
+    4. Sau khi code xong -> Cập nhật lại documentation nếu có thay đổi
 
 ## Context & Clarification Rules
 
-14. **Ambiguous Questions**: If a user question is ambiguous or missing important information, first list the missing details and ask clarifying questions instead of guessing.
-15. **Context Priority**: When answering about code, always prioritize context from:
+18. **Ambiguous Questions**: If a user question is ambiguous or missing important information, first list the missing details and ask clarifying questions instead of guessing.
+19. **Context Priority**: When answering about code, always prioritize context from:
     - `docs-references/` folder (PETTIES_Features.md, WBS, etc.)
     - Existing codebase files
     - Previous conversation
     - General knowledge (last resort)
-16. **Confirm Understanding**: Before proposing major changes, summarize your current understanding in 3-5 bullet points and ask user to confirm or correct.
-17. **Insufficient Context**: If context is insufficient, clearly state that you are unsure and explain which additional files or information are needed (e.g., "I need to see the BookingController.java to understand the current implementation").
-18. **Multiple Interpretations**: When multiple interpretations are possible, explicitly describe each interpretation and ask the user which one is correct before implementing.
-19. **File References**: For every answer involving code, mention which files, modules, or components you are assuming to be relevant:
+20. **Confirm Understanding**: Before proposing major changes, summarize your current understanding in 3-5 bullet points and ask user to confirm or correct.
+21. **Insufficient Context**: If context is insufficient, clearly state that you are unsure and explain which additional files or information are needed (e.g., "I need to see the BookingController.java to understand the current implementation").
+22. **Multiple Interpretations**: When multiple interpretations are possible, explicitly describe each interpretation and ask the user which one is correct before implementing.
+23. **File References**: For every answer involving code, mention which files, modules, or components you are assuming to be relevant:
     - Backend: `backend-spring/petties/src/main/java/com/petties/...`
     - Web: `petties-web/src/...`
     - Mobile: `petties_mobile/lib/...`
     - AI Service: `petties-agent-serivce/app/...`
-
 
 ```mermaid
 flowchart TD
@@ -397,7 +407,7 @@ flowchart TD
 - "Config ReAct flow visualization trong Admin Dashboard"
 - "Implement system prompt versioning cho agent"
 - "Thêm hyperparameters slider cho Temperature tuning"
-- "Debug ReAct loop: Thought → Action → Observation"
+- "Debug ReAct loop: Thought -> Action -> Observation"
 
 ---
 
@@ -416,3 +426,42 @@ flowchart TD
 
 **Design:**
 - `docs-references/design/design-style-guide.md` - Soft Neobrutalism UI guide; Reference Implementation: Sidebar (UI/UX, typography, icon)
+
+## Skills
+A skill is a set of local instructions to follow that is stored in a `SKILL.md` file. Below is the list of skills that can be used. Each entry includes a name, description, and file path so you can open the source for full instructions when using a specific skill.
+### Available skills
+- code-review-excellence: Master effective code review practices to provide constructive feedback, catch bugs early, and foster knowledge sharing while maintaining team morale. Use when reviewing pull requests, establishing review standards, or mentoring developers. (file: D:/SEP490/petties/.agents/skills/code-review-excellence/SKILL.md)
+- mermaidjs-v11: Create diagrams and visualizations using Mermaid.js v11 syntax. Use when generating flowcharts, sequence diagrams, class diagrams, state diagrams, ER diagrams, Gantt charts, user journeys, timelines, architecture diagrams, or any of 24+ diagram types. Supports JavaScript API integration, CLI rendering to SVG/PNG/PDF, theming, configuration, and accessibility features. Essential for documentation, technical diagrams, project planning, system architecture, and visual communication. (file: D:/SEP490/petties/.agents/skills/mermaidjs-v11/SKILL.md)
+- petties-docker-monitor: Monitor và debug Docker containers trong Petties project - check logs, container status, restart services. Sử dụng khi cần troubleshoot issues trong development hoặc production. (file: D:/SEP490/petties/.agents/skills/petties-docker-monitor/SKILL.md)
+- petties-git-commit: Tạo commit message theo Conventional Commits cho các thay đổi đã thực hiện. Sử dụng khi cần commit code, tạo commit message chuẩn, hoặc review changes trước khi push. (file: D:/SEP490/petties/.agents/skills/petties-git-commit/SKILL.md)
+- petties-onboarding: Hiểu toàn bộ project Petties từ A-Z - architecture, modules, tiến độ, code structure, rules. Sử dụng khi cần deep understanding hoặc làm feature phức tạp. (file: D:/SEP490/petties/.agents/skills/petties-onboarding/SKILL.md)
+- petties-quick-context: Lấy context nhanh về project Petties - tiến độ, architecture, modules, sprint hiện tại. Sử dụng khi bắt đầu session mới hoặc cần nhắc lại context project. (file: D:/SEP490/petties/.agents/skills/petties-quick-context/SKILL.md)
+- petties-review-module: Review chi tiết một feature/function/module trong project Petties - kiểm tra code, documentation, tests, và status. Sử dụng khi cần review module Chat, Booking, VetShift, etc. (file: D:/SEP490/petties/.agents/skills/petties-review-module/SKILL.md)
+- doc: Use when the task involves reading, creating, or editing `.docx` documents, especially when formatting or layout fidelity matters; prefer `python-docx` plus the bundled `scripts/render_docx.py` for visual checks. (file: C:/Users/TAN/.codex/skills/doc/SKILL.md)
+- find-skills: Helps users discover and install agent skills when they ask questions like "how do I do X", "find a skill for X", "is there a skill that can...", or express interest in extending capabilities. This skill should be used when the user is looking for functionality that might exist as an installable skill. (file: C:/Users/TAN/.agents/skills/find-skills/SKILL.md)
+- gh-fix-ci: Use when a user asks to debug or fix failing GitHub PR checks that run in GitHub Actions; use `gh` to inspect checks and logs, summarize failure context, draft a fix plan, and implement only after explicit approval. Treat external providers (for example Buildkite) as out of scope and report only the details URL. (file: C:/Users/TAN/.codex/skills/gh-fix-ci/SKILL.md)
+- playwright: Use when the task requires automating a real browser from the terminal (navigation, form filling, snapshots, screenshots, data extraction, UI-flow debugging) via `playwright-cli` or the bundled wrapper script. (file: C:/Users/TAN/.codex/skills/playwright/SKILL.md)
+- playwright-interactive: Persistent browser and Electron interaction through `js_repl` for fast iterative UI debugging. (file: C:/Users/TAN/.codex/skills/playwright-interactive/SKILL.md)
+- screenshot: Use when the user explicitly asks for a desktop or system screenshot (full screen, specific app or window, or a pixel region), or when tool-specific capture capabilities are unavailable and an OS-level capture is needed. (file: C:/Users/TAN/.codex/skills/screenshot/SKILL.md)
+- spreadsheet: Use when tasks involve creating, editing, analyzing, or formatting spreadsheets (`.xlsx`, `.csv`, `.tsv`) with formula-aware workflows, cached recalculation, and visual review. (file: C:/Users/TAN/.codex/skills/spreadsheet/SKILL.md)
+- openai-docs: Use when the user asks how to build with OpenAI products or APIs and needs up-to-date official documentation with citations, help choosing the latest model for a use case, or explicit GPT-5.4 upgrade and prompt-upgrade guidance; prioritize OpenAI docs MCP tools, use bundled references only as helper context, and restrict any fallback browsing to official OpenAI domains. (file: C:/Users/TAN/.codex/skills/.system/openai-docs/SKILL.md)
+- skill-creator: Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Codex's capabilities with specialized knowledge, workflows, or tool integrations. (file: C:/Users/TAN/.codex/skills/.system/skill-creator/SKILL.md)
+- skill-installer: Install Codex skills into $CODEX_HOME/skills from a curated list or a GitHub repo path. Use when a user asks to list installable skills, install a curated skill, or install a skill from another repo (including private repos). (file: C:/Users/TAN/.codex/skills/.system/skill-installer/SKILL.md)
+### How to use skills
+- Discovery: The list above is the skills available in this session (name + description + file path). Skill bodies live on disk at the listed paths.
+- Trigger rules: If the user names a skill (with `$SkillName` or plain text) OR the task clearly matches a skill's description shown above, you must use that skill for that turn. Multiple mentions mean use them all. Do not carry skills across turns unless re-mentioned.
+- Missing/blocked: If a named skill isn't in the list or the path can't be read, say so briefly and continue with the best fallback.
+- How to use a skill (progressive disclosure):
+  1) After deciding to use a skill, open its `SKILL.md`. Read only enough to follow the workflow.
+  2) When `SKILL.md` references relative paths (e.g., `scripts/foo.py`), resolve them relative to the skill directory listed above first, and only consider other paths if needed.
+  3) If `SKILL.md` points to extra folders such as `references/`, load only the specific files needed for the request; don't bulk-load everything.
+  4) If `scripts/` exist, prefer running or patching them instead of retyping large code blocks.
+  5) If `assets/` or templates exist, reuse them instead of recreating from scratch.
+- Coordination and sequencing:
+  - If multiple skills apply, choose the minimal set that covers the request and state the order you'll use them.
+  - Announce which skill(s) you're using and why (one short line). If you skip an obvious skill, say why.
+- Context hygiene:
+  - Keep context small: summarize long sections instead of pasting them; only load extra files when needed.
+  - Avoid deep reference-chasing: prefer opening only files directly linked from `SKILL.md` unless you're blocked.
+  - When variants exist (frameworks, providers, domains), pick only the relevant reference file(s) and note that choice.
+- Safety and fallback: If a skill can't be applied cleanly (missing files, unclear instructions), state the issue, pick the next-best approach, and continue.

@@ -26,6 +26,8 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
         @Query("SELECT DISTINCT b.pet.id FROM Booking b WHERE b.clinic.clinicId = :clinicId")
         List<UUID> findPetIdsByClinicId(@Param("clinicId") UUID clinicId);
 
+        boolean existsByPet_IdAndClinic_ClinicId(UUID petId, UUID clinicId);
+
         // ========== FIND BY CLINIC ==========
 
         /**
@@ -111,9 +113,22 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
         boolean existsByPet_IdAndStatusIn(UUID petId, List<BookingStatus> statuses);
 
         /**
+         * Check if a user has already used a specific voucher in any active booking.
+         * Excludes CANCELLED and NO_SHOW bookings.
+         */
+        @Query("SELECT COUNT(b) > 0 FROM Booking b WHERE b.petOwner.userId = :userId " +
+                        "AND b.voucher.voucherId = :voucherId " +
+                        "AND b.status NOT IN (com.petties.petties.model.enums.BookingStatus.CANCELLED, " +
+                        "com.petties.petties.model.enums.BookingStatus.NO_SHOW)")
+        boolean hasUserUsedVoucher(@Param("userId") UUID userId, @Param("voucherId") UUID voucherId);
+
+        boolean existsByVoucher_VoucherId(UUID voucherId);
+
+        /**
          * Delete all bookings for a pet owner (for cleanup/seeding)
          */
         void deleteAllByPetOwner_UserId(UUID userId);
+
 
         // ========== UTILITY QUERIES ==========
 

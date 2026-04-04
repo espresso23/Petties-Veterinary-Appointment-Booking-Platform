@@ -1,4 +1,7 @@
+> Legacy Note (2026-03-25): This document may contain historical references to `prompt_versions`, editable system-prompt versioning, or older AI schema/ERD counts. It is retained for historical or presentation context only. For current database truth and active AI storage architecture, use `docs-references/database/PETTIES_DBML.dbml`, `docs-references/documentation/PETTIES_ERD_DIAGRAM.md`, `docs-references/documentation/DATABASE_SCHEMA_ANALYSIS.md`, `docs-references/documentation/SRS/PETTIES_SRS.md`, and `docs-references/documentation/SDD/REPORT_4_SDD_SYSTEM_DESIGN.md`.
 # AI Service Architecture Presentation
+
+> Lưu ý cập nhật ngày 2026-03-17: slide này có thể còn chứa tham chiếu lịch sử tới AI Diagnose cũ, thumbs feedback và visual case memory. Kiến trúc hiện hành là knowledge base + EMR xác nhận + Gemini Vision.
 ## Petties - Veterinary Appointment Booking Platform
 
 ---
@@ -165,9 +168,9 @@ sequenceDiagram
 | **Encrypted API Keys** | PostgreSQL (`system_settings`) | Secure storage of OpenRouter, Cohere, Qdrant keys | Persistent (encrypted) |
 | **Chat Sessions** | MongoDB (`ai_chat_sessions`) | Session metadata, user_id, timestamps | 30 days (configurable) |
 | **Chat Messages** | MongoDB (`ai_chat_messages`) | Full conversation history with ReAct traces (thought/action/observation) | 30 days (configurable) |
-| **User Feedback** | MongoDB (`chat_feedback`) | Thumbs up/down, reports, feedback text | 90 days (for analysis) |
+| **User Feedback** | MongoDB (`chat_feedback`) | Thumbs up/down, reports, feedback text (chỉ dùng cho UX analysis, không dùng làm nguồn học) | 90 days (for analysis) |
 | **Knowledge Base** | PostgreSQL (`knowledge_documents`) + Qdrant (`petties_knowledge`) | Document metadata + vector embeddings | Persistent |
-| **Case Memory** | Qdrant (`petties_case_memory_v2`) | Confirmed cases with text + image vectors (named vectors) | Persistent (with pruning) |
+| **Case Memory** | Qdrant (`petties_case_memory_v2`) | **EMR-confirmed cases** (thay thế feedback-driven): text + image vectors | Persistent (with pruning) |
 | **Tool Usage Logs** | MongoDB (implicit in chat_messages) | Audit trail of tool calls with parameters/results | 30 days |
 
 ### 4.2 AI-Related Tables in PostgreSQL
@@ -268,7 +271,7 @@ classDiagram
 | **HybridRAGEngine** | Combines RAG + Knowledge Graph + Case Memory with re-ranking | `app/core/rag/hybrid_engine.py` |
 | **EmbeddingService** | Handles text (Cohere) and image (Jina CLIP v2) embeddings | `app/core/embeddings/` |
 | **ConfigService** | Loads dynamic configuration from PostgreSQL (hot-reload capable) | `app/core/config_helper.py` |
-| **FeedbackService** | Processes user feedback and updates case memory | `app/core/services/feedback_service.py` |
+| **FeedbackService** | Processes user feedback for analytics, audit, and monitoring | `app/core/services/feedback_service.py` |
 
 ---
 
@@ -295,13 +298,12 @@ flowchart TD
     
     N --> O[Stream Response Tokens]
     O --> P[Save to MongoDB with Trace]
-    P --> Q[Check for Positive Feedback]
-    Q -->|Thumbs Up| R[Extract Case → Embed in Case Memory]
-    Q -->|Thumbs Down| S[Log for Review]
-    Q -->|Report| T[Flag for Moderation]
+    P --> Q[Collect Feedback for Audit]
+    Q -->|Thumbs Up/Down| R[Save Feedback to MongoDB]
+    Q -->|Report| S[Flag for Moderation]
     
-    R --> U[Update Case Feedback Count]
-    U --> V[Re-rank Similar Cases]
+    P --> T[Confirmed EMR Sync]
+    T --> U[Upsert Case Memory from EMR]
     
     style E fill:#ffe4b5,stroke:#f39c12,stroke-width:2px
     style H fill:#e8f8f5,stroke:#00b894,stroke-width:2px
@@ -459,7 +461,7 @@ LIMIT 10;
 
 ### 🔧 Implementation Status:
 - **Completed**: Core AI service with ReAct pattern, tool system, RAG pipeline
-- **Completed**: Dynamic configuration, feedback loop, case memory with hybrid vectors
+- **Completed**: Dynamic configuration, feedback analytics, EMR-driven case memory with hybrid vectors
 - **Completed**: Monitoring, error handling, and fallback mechanisms
 - **In Progress**: Advanced analytics dashboard for AI performance metrics
 - **Planned**: Knowledge Graph enhancement (Phase 2)

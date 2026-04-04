@@ -1,4 +1,4 @@
-# 📋 SOS Booking Feature Checklist
+﻿# 📋 SOS Booking Feature Checklist
 
 Tài liệu này tổng hợp tất cả các hạng mục công việc đã triển khai cho tính năng SOS Booking & Auto-Match.
 

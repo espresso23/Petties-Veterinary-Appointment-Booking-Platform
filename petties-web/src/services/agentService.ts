@@ -46,17 +46,10 @@ export interface Agent {
     max_tokens: number
     top_p: number // Added top_p support
     model: string
-    system_prompt?: string
     enabled: boolean
     created_at?: string
     updated_at?: string
     tools?: string[]
-}
-
-export interface PromptVersion {
-    version: number
-    prompt: string
-    created_at: string
 }
 
 export interface ScanToolsResult {
@@ -79,6 +72,7 @@ export interface KnowledgeStatusResult {
     total_documents: number
     processed_documents: number
     total_vectors: number
+    total_image_vectors: number
     storage_size_bytes?: number
 }
 
@@ -87,7 +81,6 @@ export interface Tool {
     name: string
     description?: string
     enabled: boolean
-    assigned_agents?: string[]
 }
 
 export interface Document {
@@ -97,6 +90,7 @@ export interface Document {
     file_size?: number
     processed: boolean
     vector_count: number
+    image_count?: number
     uploaded_at?: string
 }
 
@@ -162,11 +156,15 @@ export interface SubmitFeedbackRequest {
 }
 
 export interface SubmitFeedbackResponse {
+    success: boolean
     status: string
     feedback_id?: string
-    case_embedded: boolean
     category: string
     weight: number
+    used_for_analytics: boolean
+    used_for_monitoring: boolean
+    used_for_enrichment: boolean
+    message?: string
     error?: string
 }
 
@@ -190,8 +188,11 @@ export interface KGBuildResponse {
 
 export interface CaseMemoryStatsResponse {
     success: boolean
-    total_cases: number
-    collection_status: string
+    points_count: number
+    status: string
+    collection: string
+    initialized: boolean
+    image_enabled: boolean
     [key: string]: unknown
 }
 
@@ -203,6 +204,45 @@ export interface CaseMemoryPruneResponse {
         max_feedback_below: number
         older_than_days: number
     }
+}
+
+export interface CaseMemoryItem {
+    case_id: string
+    text_content: string
+    species: string
+    breed?: string
+    chief_complaint: string
+    symptoms: string[]
+    final_diagnosis_text: string
+    canonical_code?: string
+    confirmation_count: number
+    created_at: string
+    last_confirmed_at?: string
+    image_urls: string[]
+    image_descriptions?: string[]
+    emr_id?: string
+    clinic_id?: string
+}
+
+export interface CaseMemoryListResponse {
+    success: boolean
+    items: CaseMemoryItem[]
+    total: number
+    page: number
+    page_size: number
+}
+
+export interface CaseMemoryDetailResponse {
+    success: boolean
+    case: CaseMemoryItem
+}
+
+export interface CaseMemoryListParams {
+    query?: string
+    species?: string
+    diagnosis?: string
+    page?: number
+    page_size?: number
 }
 
 export type ChatContextType = 'BUSINESS_CHAT' | 'PLAYGROUND_TEST'
@@ -271,6 +311,64 @@ export interface SessionListResponse {
     sessions: ChatSessionSummary[]
 }
 
+export interface StaffDiagnosisRequest {
+    request_id?: string
+    pet_id?: string
+    booking_id?: string
+    species: 'dog' | 'cat' | 'other'
+    breed?: string
+    age_months?: number
+    weight_kg?: number
+    sex?: 'male' | 'female' | 'unknown'
+    allergies?: string[]
+    doctor_description: string
+    body_part?: string
+    symptoms?: string[]
+    image_urls?: string[]
+    image_analysis_mode?: 'full' | 'describe_only'
+    soap_draft?: {
+        subjective?: string
+        objective?: string
+        assessment?: string
+        plan?: string
+    }
+}
+
+export interface StaffDiagnosisSuggestion {
+    canonical_code?: string | null
+    display_name_vi: string
+    confidence_note: string
+    supporting_reasons: string[]
+}
+
+export interface StaffDiagnosisPrescriptionSuggestion {
+    medicine_name: string
+    dosage: string
+    frequency: string
+    duration_days?: number | null
+    instructions: string
+    caution?: string | null
+}
+
+export interface StaffDiagnosisResponse {
+    request_id: string
+    top_differentials: StaffDiagnosisSuggestion[]
+    supporting_evidence_from_kb: string[]
+    similar_confirmed_cases: string[]
+    vision_findings: string[]
+    image_descriptions: string[]
+    image_analysis: Array<{ url: string; description: string; order: number }>
+    suggested_questions: string[]
+    soap_suggestions: {
+        subjective_draft: string
+        objective_draft: string
+        assessment_draft: string
+        plan_draft: string
+    }
+    prescription_suggestions: StaffDiagnosisPrescriptionSuggestion[]
+    disclaimer: string
+}
+
 // ===== AGENT APIs =====
 
 export const agentApi = {
@@ -299,28 +397,6 @@ export const agentApi = {
         if (!response.ok) throw new Error('Failed to update agent')
         const result = await response.json()
         return result.agent
-    },
-
-    // Update system prompt
-    async updatePrompt(id: number, promptText: string, notes?: string): Promise<void> {
-        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/agents/${id}/prompt`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                prompt_text: promptText,
-                notes: notes,
-                created_by: 'admin'
-            })
-        })
-        if (!response.ok) throw new Error('Failed to update prompt')
-    },
-
-    // Get prompt history
-    async getPromptHistory(id: number): Promise<PromptVersion[]> {
-        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/agents/${id}/prompt-history`)
-        if (!response.ok) throw new Error('Failed to fetch prompt history')
-        const data = await response.json()
-        return data.versions
     },
 
     // Test agent - returns response with thinking process and tool calls
@@ -524,6 +600,24 @@ export const chatApi = {
     }
 }
 
+// ===== STAFF DIAGNOSIS API =====
+
+export const diagnosisApi = {
+    async analyzeCase(payload: StaffDiagnosisRequest): Promise<StaffDiagnosisResponse> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/staff-diagnosis/analyze`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => null)
+            throw new Error(err?.detail || 'Không thể phân tích ca bệnh')
+        }
+        return response.json()
+    }
+}
+
 // ===== FEEDBACK API =====
 
 export const feedbackApi = {
@@ -557,17 +651,16 @@ export const feedbackApi = {
         if (!response.ok) throw new Error('Không thể gửi feedback')
         return response.json()
     },
-
-    async deleteFeedback(feedbackId: string): Promise<{ success: boolean; feedback_id: string; case_deleted: boolean; message: string }> {
+    async deleteFeedback(feedbackId: string): Promise<{ success: boolean; feedback_id: string; case_deleted?: boolean; message: string }> {
         const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/chat/feedback/${feedbackId}`, {
             method: 'DELETE'
         })
         if (!response.ok) {
             const err = await response.json().catch(() => null)
-            throw new Error(err?.detail || 'Không thể xóa feedback')
+            throw new Error(err?.detail || 'Khong the xoa feedback')
         }
         return response.json()
-    }
+    },
 }
 
 // ===== KNOWLEDGE GRAPH API =====
@@ -650,6 +743,58 @@ export const caseMemoryApi = {
         return response.json()
     },
 
+    async list(params: CaseMemoryListParams = {}): Promise<CaseMemoryListResponse> {
+        const searchParams = new URLSearchParams()
+        if (params.query) searchParams.set('query', params.query)
+        if (params.species) searchParams.set('species', params.species)
+        if (params.diagnosis) searchParams.set('diagnosis', params.diagnosis)
+        if (params.page) searchParams.set('page', String(params.page))
+        if (params.page_size) searchParams.set('page_size', String(params.page_size))
+        
+        const queryString = searchParams.toString()
+        const response = await fetchWithAuth(
+            `${AGENT_API_BASE_URL}/api/v1/knowledge/case-memory${queryString ? `?${queryString}` : ''}`
+        )
+        if (!response.ok) {
+            const err = await response.json().catch(() => null)
+            throw new Error(err?.detail || 'Không thể lấy danh sách Case Memory')
+        }
+        return response.json()
+    },
+
+    async get(caseId: string): Promise<CaseMemoryDetailResponse> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/case-memory/${caseId}`)
+        if (!response.ok) {
+            const err = await response.json().catch(() => null)
+            throw new Error(err?.detail || 'Không thể lấy chi tiết Case')
+        }
+        return response.json()
+    },
+
+    async update(caseId: string, data: { diagnosis?: string; symptoms?: string[] }): Promise<{ success: boolean; message: string }> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/case-memory/${caseId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        if (!response.ok) {
+            const err = await response.json().catch(() => null)
+            throw new Error(err?.detail || 'Không thể cập nhật Case')
+        }
+        return response.json()
+    },
+
+    async delete(caseId: string): Promise<{ success: boolean; message: string }> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/case-memory/${caseId}`, {
+            method: 'DELETE'
+        })
+        if (!response.ok) {
+            const err = await response.json().catch(() => null)
+            throw new Error(err?.detail || 'Không thể xóa Case')
+        }
+        return response.json()
+    },
+
     async prune(olderThanDays: number = 90, maxFeedbackBelow: number = 0): Promise<CaseMemoryPruneResponse> {
         const params = new URLSearchParams({
             older_than_days: String(olderThanDays),
@@ -698,5 +843,5 @@ export const createChatWebSocket = (sessionId: string, contextType?: string): We
     return new WebSocket(fullWsUrl)
 }
 
-export default { agentApi, toolApi, knowledgeApi, chatApi, feedbackApi, kgApi, caseMemoryApi, createChatWebSocket }
+export default { agentApi, toolApi, knowledgeApi, chatApi, diagnosisApi, feedbackApi, kgApi, caseMemoryApi, createChatWebSocket }
 

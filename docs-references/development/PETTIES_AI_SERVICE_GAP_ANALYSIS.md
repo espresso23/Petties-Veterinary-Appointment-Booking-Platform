@@ -1,4 +1,4 @@
-# Petties AI Service - Gap Analysis Report
+﻿# Petties AI Service - Gap Analysis Report
 
 **Date:** 2025-12-25
 **Author:** Claude Code

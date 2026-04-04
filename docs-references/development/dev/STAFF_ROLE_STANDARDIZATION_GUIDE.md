@@ -1,4 +1,4 @@
-# Staff Role Standardization Guide
+﻿# Staff Role Standardization Guide
 
 **Phiên bản:** 1.0
 **Ngày cập nhật:** 2026-03-11

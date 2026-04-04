@@ -68,6 +68,7 @@ public interface ClinicRepository extends JpaRepository<Clinic, UUID> {
                         FROM clinics c
                         WHERE c.deleted_at IS NULL
                           AND c.status = 'APPROVED'
+                          AND (c.strike_until IS NULL OR c.strike_until < CURRENT_TIMESTAMP)
                           AND c.latitude IS NOT NULL
                           AND c.longitude IS NOT NULL
                           AND (6371 * acos(cos(radians(:lat)) * cos(radians(c.latitude)) *
@@ -114,8 +115,21 @@ public interface ClinicRepository extends JpaRepository<Clinic, UUID> {
                         +
                         "FROM Clinic c " +
                         "WHERE c.status = 'APPROVED' AND c.deletedAt IS NULL " +
+                        "AND (c.strikeUntil IS NULL OR c.strikeUntil < CURRENT_TIMESTAMP) " +
                         "ORDER BY c.province, c.district, c.ward")
         List<ClinicLocationResponse> findActiveLocations();
+
+        /**
+         * Tìm clinics có strike_until đã hết hạn (để scheduler clear).
+         */
+        @Query("SELECT c FROM Clinic c WHERE c.strikeUntil IS NOT NULL AND c.strikeUntil < CURRENT_TIMESTAMP AND c.deletedAt IS NULL")
+        List<Clinic> findClinicsWithExpiredStrike();
+
+        /**
+         * Tìm clinics đang bị strike (strikeUntil > now). Admin chỉ xem.
+         */
+        @Query("SELECT c FROM Clinic c WHERE c.strikeUntil IS NOT NULL AND c.strikeUntil > CURRENT_TIMESTAMP AND c.deletedAt IS NULL")
+        Page<Clinic> findClinicsWithActiveStrike(Pageable pageable);
 
         /**
          * Advanced search clinics with multiple filters (internal use)
@@ -138,6 +152,7 @@ public interface ClinicRepository extends JpaRepository<Clinic, UUID> {
                         FROM clinics c
                         WHERE c.deleted_at IS NULL
                           AND c.status = 'APPROVED'
+                          AND (c.strike_until IS NULL OR c.strike_until < CURRENT_TIMESTAMP)
                           AND (:query IS NULL OR :query = '' OR (
                               LOWER(c.name) LIKE LOWER(CONCAT('%', :query, '%'))
                               OR LOWER(c.description) LIKE LOWER(CONCAT('%', :query, '%'))
