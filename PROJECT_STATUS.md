@@ -1,6 +1,6 @@
 # 🐾 PETTIES Project Status
 
-> **Last Updated:** 2026-04-04
+> **Last Updated:** 2026-04-06
 > **Current Sprint:** Post Sprint 13 - Production Hardening & AI Enhancement
 > **Overall Progress:** ~95% (code-based scan)
 
@@ -117,6 +117,9 @@
 - Chat (Clinic↔Staff)
 - Refunds Page
 - Voucher Management
+
+**Architecture/Technical (Web):**
+- Chat type boundary hardening ✅: separated traditional chat types and AI Copilot schema types to avoid cross-flow coupling (`petties-web/src/types/chat.ts`, `petties-web/src/types/chat-copilot.ts`) while preserving legacy chat flow.
 
 **Staff Web (9):**
 - Dashboard, Schedule, Bookings, Patients

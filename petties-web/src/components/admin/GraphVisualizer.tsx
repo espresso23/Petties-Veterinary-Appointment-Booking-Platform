@@ -160,7 +160,7 @@ export const GraphVisualizer = ({ data, height = 500 }: GraphVisualizerProps) =>
           event.subject.fy = null
         })
 
-        ; (node as unknown as Selection<SVGGElement, GraphNode, null, undefined>).call(dragBehavior)
+        ; (node as any).call(dragBehavior)
 
       // Node circles
       node.append('circle')

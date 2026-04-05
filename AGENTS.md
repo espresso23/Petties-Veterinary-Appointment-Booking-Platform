@@ -13,6 +13,11 @@ This file provides guidance to Petties agents when working with code in this rep
 
 Petties is a veterinary appointment booking platform connecting pet owners with veterinary clinics. The platform uses a clinic-centric model where pet owners book with clinics, and clinic managers assign appropriate vets.
 
+## Project Rules
+
+- Hạn chế dùng PowerShell để replace text trong file; ưu tiên `apply_patch` để chỉnh sửa nội dung một cách rõ ràng, an toàn và dễ review.
+- Nếu bắt buộc phải dùng PowerShell cho thay đổi nội dung, chỉ dùng cho thao tác nhỏ và phải kiểm tra lại diff ngay sau đó.
+
 ## Architecture
 
 **Monorepo with 4 main services:**
@@ -490,7 +495,7 @@ A skill is a set of local instructions to follow that is stored in a `SKILL.md` 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **petties** (12053 symbols, 34160 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **petties** (14641 symbols, 37615 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

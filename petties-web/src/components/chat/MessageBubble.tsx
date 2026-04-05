@@ -1,10 +1,16 @@
 import { useState } from 'react'
 import type { ChatMessage } from '../../types/chat'
+import type { ChatStage, UISchemaV1 } from '../../types/chat-copilot'
 import { useToast } from '../../hooks/useToast'
 import * as AIRenderers from './renderers'
 
+type MessageBubbleMessage = ChatMessage & {
+  ui_schema?: UISchemaV1
+  stage?: ChatStage
+}
+
 interface MessageBubbleProps {
-  message: ChatMessage
+  message: MessageBubbleMessage
   onImageClick?: (imageUrl: string) => void
 }
 
@@ -313,4 +319,3 @@ export function MessageBubble({ message, onImageClick, myAvatar, partnerAvatar }
     </div>
   )
 }
-

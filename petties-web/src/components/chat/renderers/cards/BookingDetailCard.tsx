@@ -1,4 +1,4 @@
-import type { UIAction, UIComponent } from '../../../../types/chat'
+import type { UIAction, UIComponent } from '../../../../types/chat-copilot'
 
 interface Props {
   component: UIComponent
@@ -37,13 +37,13 @@ export function BookingDetailCard({ component, onAction, renderActions }: Props)
             {Array.isArray(data['services']) ? data['services'].join(', ') : String(data['services'] || 'Chưa có')}
           </span>
         </div>
-        {data['staff_name'] && (
+        {Boolean(data['staff_name']) && (
           <div className="grid grid-cols-3 gap-2">
             <span className="font-bold text-stone-600 col-span-1">Nhân viên:</span>
             <span className="text-stone-900 col-span-2">{String(data['staff_name'])}</span>
           </div>
         )}
-        {data['note'] && (
+        {Boolean(data['note']) && (
           <div className="grid grid-cols-3 gap-2">
             <span className="font-bold text-stone-600 col-span-1">Ghi chú:</span>
             <span className="text-stone-900 col-span-2">{String(data['note'])}</span>

@@ -1,4 +1,4 @@
-import type { UIAction, UIComponent } from '../../../../types/chat'
+import type { UIAction, UIComponent } from '../../../../types/chat-copilot'
 
 interface Props {
   component: UIComponent

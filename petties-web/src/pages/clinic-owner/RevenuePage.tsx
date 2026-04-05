@@ -146,7 +146,7 @@ export const ClinicOwnerRevenuePage = () => {
 
             const loadedClinics = clinicItems.map((c: unknown) => {
                 const clinic = c as { clinicId?: string; id?: string; name?: string };
-                return { id: clinic.clinicId || clinic.id, name: clinic.name || '' }
+                return { id: clinic.clinicId || clinic.id || '', name: clinic.name || '' }
             });
             setClinics(loadedClinics);
             if (loadedClinics.length > 0 && !selectedClinicId) {

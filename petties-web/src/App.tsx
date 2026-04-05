@@ -24,7 +24,7 @@ const ClinicManagerLayout = lazy(() => import('./layouts/ClinicManagerLayout'))
 const AdminDashboardPage = lazy(() => import('./pages/admin/DashboardPage'))
 const AdminNotificationsPage = lazy(() => import('./pages/admin/NotificationsPage'))
 const AdminNotificationsManagePage = lazy(() => import('./pages/admin/AdminNotificationsManagePage'))
-const ReportReasonManagePage = lazy(() => import('./pages/admin/ReportReasonManagePage'))
+// const ReportReasonManagePage = lazy(() => import('./pages/admin/ReportReasonManagePage'))
 const ToolsPage = lazy(() => import('./pages/admin/tools/ToolsPage'))
 const KnowledgePage = lazy(() => import('./pages/admin/knowledge/KnowledgePage'))
 const PlaygroundPage = lazy(() => import('./pages/admin/playground/PlaygroundPage'))
@@ -49,8 +49,8 @@ const StaffDashboardPage = lazy(() => import('./pages/staff/DashboardPage'))
 const StaffSchedulePage = lazy(() => import('./pages/staff/StaffSchedulePage'))
 const StaffBookingsPage = lazy(() => import('./pages/staff/StaffBookingsPage'))
 const StaffPatientsPage = lazy(() => import('./pages/staff/patients/StaffPatientsPage'))
-const StaffAIChatPage = lazy(() => import('./pages/staff/StaffAIChatPage'))
-const ClinicOwnerAIChatPage = lazy(() => import('./pages/clinic-owner/AIChatPage'))
+const StaffAIChatPage = lazyNamed(() => import('./pages/staff/StaffAIChatPage'), 'StaffAIChatPage')
+const ClinicOwnerAIChatPage = lazyNamed(() => import('./pages/clinic-owner/AIChatPage'), 'ClinicOwnerAIChatPage')
 const StaffNotificationsPage = lazy(() => import('./pages/staff/NotificationsPage'))
 const CreateEmrPage = lazy(() => import('./pages/staff/emr/CreateEmrPage'))
 const EditEmrPage = lazyNamed(() => import('./pages/staff/emr/EditEmrPage'), 'EditEmrPage')
@@ -192,7 +192,7 @@ function App() {
               <Route path="subscriptions/history" element={<AdminSubscriptionHistoryPage />} />
               <Route path="notifications" element={<AdminNotificationsPage />} />
               <Route path="notification-manage" element={<AdminNotificationsManagePage />} />
-              <Route path="report-reason-manage" element={<ReportReasonManagePage />} />
+              {/* <Route path="report-reason-manage" element={<ReportReasonManagePage />} /> */}
               <Route path="profile" element={<ProfilePage />} />
             </Route>
 

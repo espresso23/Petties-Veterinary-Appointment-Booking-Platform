@@ -11,7 +11,7 @@ import {
   SparklesIcon,
   ComputerDesktopIcon,
 } from '@heroicons/react/24/outline'
-import type { UIAction, UISchemaV1 } from '../../types/chat'
+import type { UIAction, UISchemaV1 } from '../../types/chat-copilot'
 
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 

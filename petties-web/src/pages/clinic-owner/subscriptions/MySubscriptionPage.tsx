@@ -50,12 +50,6 @@ export const MySubscriptionPage = () => {
         }
     }, [clinics, selectedClinicId, clinicsLoading])
 
-    useEffect(() => {
-        if (selectedClinicId) {
-            fetchData()
-        }
-    }, [selectedClinicId, fetchData]) // eslint-disable-line react-hooks/exhaustive-deps
-
     const fetchData = async () => {
         if (!selectedClinicId) return
 
@@ -78,6 +72,13 @@ export const MySubscriptionPage = () => {
             setIsLoading(false)
         }
     }
+
+    useEffect(() => {
+        if (selectedClinicId) {
+            fetchData()
+        }
+    }, [selectedClinicId, fetchData]) // eslint-disable-line react-hooks/exhaustive-deps
+
 
     const handleSubscribe = (plan: SubscriptionPlan) => {
         setSelectedPlan(plan)
@@ -304,7 +305,7 @@ export const MySubscriptionPage = () => {
                                                                     try {
                                                                         setIsLoading(true);
                                                                         const res = await subscriptionService.checkPaymentStatus(pendingSubscription.subscriptionId);
-                                                                        if (res.status === 'PAID') {
+                                                                        if (res.status === 'COMPLETED') {
                                                                             showToast('success', 'Thanh toán thành công!');
                                                                             fetchData();
                                                                         } else {

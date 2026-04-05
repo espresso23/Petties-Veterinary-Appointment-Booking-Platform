@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { CheckIcon, XMarkIcon, LinkIcon, CpuChipIcon, WrenchScrewdriverIcon, UserIcon, BoltIcon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
 import { LoadingCard, UISchemaRenderer } from '../chat/renderers'
-import type { ChatStage, UIAction, UIComponent, UISchemaV1 } from '../../types/chat'
+import type { ChatStage, UIAction, UIComponent, UISchemaV1 } from '../../types/chat-copilot'
 
 interface ChatMessageProps {
   role: 'user' | 'assistant'

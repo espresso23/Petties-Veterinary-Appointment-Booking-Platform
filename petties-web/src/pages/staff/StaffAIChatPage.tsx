@@ -24,7 +24,7 @@ import {
   ShieldCheckIcon,
 } from '@heroicons/react/24/outline'
 import { useMembershipStore } from '../../store/membershipStore'
-import type { ChatStage, UIAction, UISchemaV1 } from '../../types/chat'
+import type { ChatStage, UIAction, UISchemaV1 } from '../../types/chat-copilot'
 
 const MAX_IMAGES = 3
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024 // 5MB
@@ -85,7 +85,7 @@ export const StaffAIChatPage = () => {
   const wsRef = useRef<WebSocket | null>(null)
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected')
   const [reconnectAttempts, setReconnectAttempts] = useState(0)
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null)
   const [creatingSession, setCreatingSession] = useState(false)
   const [loadingSessions, setLoadingSessions] = useState(false)

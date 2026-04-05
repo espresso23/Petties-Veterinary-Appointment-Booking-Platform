@@ -1,4 +1,4 @@
-import type { UIAction, UIComponent, UISchemaV1 } from '../../../types/chat'
+import type { UIAction, UIComponent, UISchemaV1 } from '../../../types/chat-copilot'
 import {
   BookingListCard,
   BookingDetailCard,

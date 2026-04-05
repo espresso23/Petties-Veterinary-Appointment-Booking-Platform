@@ -127,6 +127,23 @@ export const StaffSchedulePage = () => {
     const [viewMode, setViewMode] = useState<'week' | 'day' | 'month'>('week')
     const [selectedDay, setSelectedDay] = useState<Date>(new Date())
 
+    const fetchShifts = useCallback(async () => {
+        if (!staffId || weekDates.length === 0) return
+        setLoading(true)
+        try {
+            const startDate = formatDate(weekDates[0])
+            const endDate = formatDate(weekDates[6])
+
+            // Sử dụng API lấy lịch riêng của staff
+            const data = await staffShiftService.getMyShifts(startDate, endDate)
+            setShifts(data)
+        } catch (err) {
+            showToast('error', err.response?.data?.message || err.message || 'Lỗi tải lịch')
+        } finally {
+            setLoading(false)
+        }
+    }, [staffId, weekDates, showToast])
+
     useEffect(() => {
         setWeekDates(getWeekDates(new Date(currentWeek)))
     }, [currentWeek.getTime()]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -146,23 +163,6 @@ export const StaffSchedulePage = () => {
     useEffect(() => {
         if (weekDates.length > 0) fetchShifts()
     }, [weekDates, fetchShifts]) // eslint-disable-line react-hooks/exhaustive-deps
-
-    const fetchShifts = useCallback(async () => {
-        if (!staffId || weekDates.length === 0) return
-        setLoading(true)
-        try {
-            const startDate = formatDate(weekDates[0])
-            const endDate = formatDate(weekDates[6])
-
-            // Sử dụng API lấy lịch riêng của staff
-            const data = await staffShiftService.getMyShifts(startDate, endDate)
-            setShifts(data)
-        } catch (err) {
-            showToast('error', err.response?.data?.message || err.message || 'Lỗi tải lịch')
-        } finally {
-            setLoading(false)
-        }
-    }, [staffId, weekDates, showToast])
 
     // Subscribe to SSE for real-time booking updates
     useSseNotification({

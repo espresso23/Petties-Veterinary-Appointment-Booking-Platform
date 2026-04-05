@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { UISchemaRenderer } from '../UISchemaRenderer'
-import type { UISchemaV1 } from '../../../../types/chat'
+import type { UISchemaV1 } from '../../../../types/chat-copilot'
 
 describe('UISchemaRenderer', () => {
   it('TC-UNIT-010-001: renders service_card with formatted fields and action', () => {
