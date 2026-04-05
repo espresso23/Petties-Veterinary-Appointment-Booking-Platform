@@ -32,13 +32,6 @@ async def lifespan(app: FastAPI):
     logger.info(f"Debug mode: {settings.APP_DEBUG}")
 
     try:
-        from app.core.sentry import init_sentry
-
-        init_sentry()
-    except Exception as exc:
-        logger.warning(f"Sentry init skipped: {exc}")
-
-    try:
         from app.db.postgres.session import AsyncSessionLocal, init_db
 
         await init_db()

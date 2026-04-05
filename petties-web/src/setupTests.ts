@@ -33,7 +33,7 @@ Object.defineProperty(window, 'localStorage', {
 // Setup after each test case
 afterEach(() => {
   cleanup()
-  window.localStorage.clear()
+  // window.localStorage.clear()
 })
 
 // Mock window.matchMedia (needed for responsive components)

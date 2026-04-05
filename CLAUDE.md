@@ -225,6 +225,7 @@ Sai: V2__add_phone.sql (Dễ trùng nếu 2 người cùng làm).
 Đúng: V202412301030__add_phone_to_users.sql (Định dạng: V + NămThángNgàyGiờPhút).
 Lưu ý: Giữa Version và Mô tả phải có 2 dấu gạch dưới (__).
 Áp dụng: Flyway sẽ tự động chạy script này khi ứng dụng khởi động.
+14.1. Nếu thực hiện thay đổi lớn/quan trọng (major feature, refactor lớn, bugfix production, thay đổi kiến trúc), PHẢI cập nhật `PROJECT_STATUS.md` thường xuyên, rõ ràng, và theo code-based evidence (liệt kê module/files/test-status thực tế), không cập nhật theo ước lượng cảm tính.
 
 ## Vietnamese-Only Rule (User-Facing Text)
 

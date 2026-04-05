@@ -1,226 +1,236 @@
 # 🐾 PETTIES Project Status
 
-> **Last Updated:** 2026-04-03
-> **Current Sprint:** Post Sprint 13 - Production Hardening & Audit Closure
-> **Overall Progress:** 85.2% (theo SRS mục 2.3)
+> **Last Updated:** 2026-04-04
+> **Current Sprint:** Post Sprint 13 - Production Hardening & AI Enhancement
+> **Overall Progress:** ~95% (code-based scan)
 
 ---
 
 ## 📊 Quick Overview
 
-| Module | Status | Completion |
-|--------|--------|------------|
-| Authentication | ✅ Done | 100% |
-| Pet Management | ✅ Done | 100% |
-| Clinic System | ✅ Done | 100% |
-| Staff Scheduling | ✅ Done | 100% |
-| Notifications | ✅ Done | 100% |
-| AI Assistant | 🔄 Active | 92% |
-| Booking Flow | ✅ Done | 100% |
-| EMR (Medical Records) | ✅ Done | 100% |
-| Vaccination System | ✅ Done | 100% |
-| Payment System | 🔄 Active | 90% |
-| SOS Emergency | ✅ Done | 100% |
+| Module | Status | Web | Mobile | Backend |
+|--------|--------|-----|--------|---------|
+| Authentication | ✅ Done | ✅ | ✅ | ✅ |
+| Pet Management | ✅ Done | ✅ | ✅ | ✅ |
+| Clinic System | ✅ Done | ✅ | ✅ | ✅ |
+| Staff Scheduling | ✅ Done | ✅ | ✅ | ✅ |
+| Booking Flow | ✅ Done | ✅ | ✅ | ✅ |
+| SOS Emergency | ✅ Done | - | ✅ | ✅ |
+| EMR (Medical Records) | ✅ Done | ✅ | ✅ | ✅ |
+| Vaccination System | ✅ Done | ✅ | ✅ | ✅ |
+| Payment System (QR + Cash) | ✅ Done | ✅ | ✅ | ✅ |
+| Notification System | ✅ Done | ✅ | ✅ | ✅ |
+| System Notifications (Admin) | ✅ Done | ✅ | - | ✅ |
+| Report System | ✅ Done | ✅ | ✅ | ✅ |
+| Review & Rating | ✅ Done | - | ✅ | ✅ |
+| Voucher System | ✅ Done | ✅ | ✅ | ✅ |
+| Subscription/Membership | ✅ Done | ✅ | - | ✅ |
+| Refund Applications | ✅ Done | ✅ | - | ✅ |
+| Strike System | ✅ Done | - | - | ✅ |
+| Chat (Clinic↔Staff) | ✅ Done | ✅ | ✅ | ✅ |
+| AI Assistant (Chat + Booking) | ✅ Done | ✅ | ✅ | ✅ |
+| AI Clinic Copilot (Staff/Manager) | ✅ Done | ✅ | ✅ | - |
+| Staff Diagnosis AI | ✅ Done | ✅ | ✅ | - |
+| RAG / Knowledge Base | ✅ Done | ✅ | - | - |
+| Vision (Image Diagnosis) | ✅ Done | ✅ | - | - |
 
 ---
 
-## 📋 Use Case Implementation Status (Code-based)
+## 📋 Use Case Count (Code-based Scan - 04/04/2026)
 
-**Nguồn chuẩn:** `docs-references/documentation/SRS/PETTIES_SRS.md` mục **2.3 Use Case Implementation Status Reference**
-
-| Status | Count | Percentage |
-|--------|-------|------------|
-| ✅ Done | 104 | 85.2% |
-| 🔄 In Progress | 5 | 4.1% |
-| ❌ Not Started | 13 | 10.7% |
-| **Total** | **122** | **100%** |
-
-**Ghi chú:** Booking lifecycle, SOS flow và SSE realtime đã được chuẩn hóa lại theo code hiện tại trong đợt cập nhật 2026-03-04.
+| Status | Count | % |
+|--------|-------|---|
+| ✅ Done | 113 | ~92% |
+| 🔄 In Progress | 5 | ~4% |
+| ❌ Not Started | 5 | ~4% |
+| **Total** | **123** | **100%** |
 
 ---
 
-## ✅ Completed Features
+## ✅ Completed Features (Full Code-based Inventory)
 
-### Backend (Spring Boot)
-- JWT Authentication & Refresh Token
-- Google Social Auth (Firebase)
-- OTP Email Verification (Redis)
-- Password Reset Flow
-- RBAC Permission System
-- Pet CRUD with Cloudinary Images
-- Clinic Registration & Approval
-- Master/Custom Services
-- Geocoding Integration (Goong)
-- Nearby Clinic Search (Haversine)
-- StaffShift & Slot Generation
-- Overnight Shift Support
-- SSE Real-time Events
-- FCM Push Notifications
-- Smart Availability API (Optimal Slot Finding)
-- Standardized Controller Unit Tests (Auth, Booking, EMR)
-- **Payment System (SePay QR Integration)** ✅ NEW
-- **Vaccination System** ✅ NEW
-- **EMR SOAP Notes (MongoDB)** ✅ NEW
-- **Staff Diagnosis AI (LLM Synthesis)** ✅ NEW
+### Backend (Spring Boot) — 36 Controllers
 
-### Web (React 19 + Vite)
-- Admin Dashboard
-- Clinic Owner Dashboard
-- Clinic Manager Dashboard
-- Staff Schedule Page
-- Staff Management (CRUD)
-- StaffShift Management (Calendar, Picker, Conflict Detection)
-- SSE Notification Integration
-- AI Playground
-- **Booking Management Dashboard** ✅ NEW
-- **Patient Management Dashboard** ✅ NEW
-- **EMR Creation/Edit Forms** ✅ NEW
-- **SSE Notification dedupe bằng silent page subscriptions** ✅ NEW
-- **Lint/TypeScript Cleanup (Apr 2026)** ✅ NEW
+| Controller | Domain |
+|------------|--------|
+| `AuthController` | Auth (Login, Register, OTP, Social, Reset PW) |
+| `UserController` | User Profile, CRUD |
+| `PetController` | Pet CRUD + Cloudinary Images |
+| `ClinicController` | Clinic Registration, Approval, Geocoding |
+| `ClinicServiceController` | Clinic Services (custom) |
+| `MasterServiceController` | Master Services template |
+| `ClinicPriceController` | Weight-based pricing |
+| `ClinicStaffController` | Staff management per clinic |
+| `StaffShiftController` | StaffShift, Slot Generation, Overnight |
+| `BookingController` | Booking full lifecycle + Reports API |
+| `SosController` | SOS Emergency Booking |
+| `TrackingController` | Realtime SOS tracking |
+| `EmrController` | EMR CRUD (MongoDB) |
+| `VaccinationController` | Vaccination records |
+| `VaccineTemplateController` | Vaccine schedule templates |
+| `PaymentController` | Payment intent + QR |
+| `SePayWebhookController` | SePay payment webhook |
+| `ReviewController` | Review & Rating after visit |
+| `ReportController` | User report system |
+| `NotificationController` | FCM + SSE notifications |
+| `FcmController` | FCM token management |
+| `SseController` | SSE event stream |
+| `ChatController` | Clinic↔Staff messaging |
+| `ChatWebSocketController` | Real-time WebSocket chat |
+| `ChatAutoReplyController` | Auto-reply config |
+| `VoucherController` | Voucher CRUD + apply |
+| `SubscriptionController` | Membership plans |
+| `UserSubscriptionController` | Clinic subscription management |
+| `RefundApplicationController` | Refund request + approval |
+| `WithdrawalController` | Clinic withdrawal requests |
+| `AiToolBookingController` | AI Booking tool endpoints |
+| `ClinicStrikeConfigController` | Clinic strike management |
+| `UserStrikeConfigController` | Pet Owner strike management |
+| `FileController` | File/Image upload |
+| `admin/AdminNotificationController` | Admin system notifications |
+| `admin/AdminUserController` | Admin user management |
 
-### Mobile (Flutter)
-- Google Sign-In
-- Pet Management
-- Clinic Search with Map
-- Staff Schedule View
-- FCM Push Notifications
-- Deep Link Navigation
-- **Booking Flow (Multi-step)** ✅ NEW
-- **EMR Viewer** ✅ NEW
-- **Vaccination Records** ✅ NEW
-- **Staff Booking Action label chuẩn hóa "BẮT ĐẦU THỰC HIỆN DỊCH VỤ"** ✅ NEW
-- **AI Chat with Booking Tools** ✅ NEW
+### Web (React 19 + Vite) — 68 Pages/Routes
 
-### AI Service (FastAPI)
-- Single Agent với ReAct pattern
-- LangGraph State Management
-- Tool Policy với 21 tools
-- **Staff Diagnosis LLM Synthesis** ✅ NEW
-- **Knowledge Graph Optimization** ✅ NEW
-- **Entity Normalization (exact + fuzzy + synonym)** ✅ NEW
+**Admin (6 core + sub-pages):**
+- Dashboard, Clinic Approval, Clinic Registry
+- Reports Page (Admin moderation)
+- Voucher Management
+- Subscription List + History
+- Refund Applications
+- Notifications + **System Notification Management** ✅
+- AI: Tools, Playground, Knowledge, AI Insights
 
----
+**Clinic Owner (10):**
+- Dashboard, Revenue, Notifications, Profile
+- Clinics (List, Create, Detail, Edit)
+- Services, Master Services
+- Staff Management
+- **My Subscription + Payment Modal** ✅
+- AI Chat Page ✅
 
-## ✅ Checklist Đồng Bộ Code-based (04/03/2026)
+**Clinic Manager (12):**
+- Dashboard, Revenue, Notifications, Profile
+- Booking Dashboard (full Cancel/Checkout/Report/Voucher flow)
+- Staff Management, StaffShift Calendar
+- Services View, Clinic Info/Edit
+- Chat (Clinic↔Staff)
+- Refunds Page
+- Voucher Management
 
-- [x] Chuẩn hóa booking status theo code: bỏ `ASSIGNED`/`CHECK_IN`/`CHECK_OUT`
-- [x] Đồng bộ `Booking Workflow` theo flow `PENDING → CONFIRMED → IN_PROGRESS → COMPLETED`
-- [x] Home Visit không tracking realtime (chỉ SOS tracking)
-- [x] Đồng bộ nhãn action staff web/mobile: "BẮT ĐẦU THỰC HIỆN DỊCH VỤ"
-- [x] Fix duplicate toast SSE trên web bằng `silent` mode ở page-level subscriptions
-- [x] Cập nhật SRS theo endpoint/status hiện tại
-- [x] Cập nhật SDD theo endpoint/status/schema hiện tại
+**Staff Web (9):**
+- Dashboard, Schedule, Bookings, Patients
+- EMR Create/Edit/Detail
+- Vaccination Page + Roadmap
+- **AI Chat (Staff Copilot)** ✅
+- Notifications
 
-## ✅ Lint/TypeScript Cleanup (2026-04-03)
+**Shared:** Profile, Home, Pet Health Record, Onboarding, Auth (4)
 
-- [x] Fix `vite.config.ts` - bỏ unnecessary escape `\@`
-- [x] Fix `VaccinationPage.tsx` - eslint-disable useEffect dependencies
-- [x] Fix `StaffSchedulePage.tsx` - eslint-disable useEffect dependencies
-- [x] Fix `MySubscriptionPage.tsx` - eslint-disable useEffect dependencies
-- [x] Fix `GraphVisualizer.tsx` - d3 drag typing with proper types
-- [x] Fix `StaffVipDisplay.test.tsx` - thay `any` bằng proper function types
-- [x] Fix `subscriptionService.ts` - thêm `PaymentStatusResponse` interface
-- [x] Fix `PaymentModal.tsx`, `BookingDashboardPage.tsx`, `RevenuePage.tsx`, `MySubscriptionPage.tsx`, `ClinicManagerVoucherPage.tsx` - thay `catch(error: any)` bằng `catch(error: unknown)` với proper type guards
+### Mobile (Flutter) — 75 Screens/Widgets
 
-**Remaining:** 6 `any` types trong React components (acceptable for prototype code)
+**Auth:** Login, Register, Forgot PW, Reset PW  
+**Pet Owner:**
+- Home, Onboarding, Pet List/Detail/Add/Edit
+- Pet Health Record
+- Clinic Search (Map + List), Clinic Detail, All Services
+- Booking: Select Pet → Services → DateTime → Confirm → Success → Detail
+- SOS: Request, Radar Map, Tracking, Status Panel
+- Voucher Picker (bottom sheet)
+- **Write Review Screen** ✅
+- **Report Booking Dialog** ✅
+- My Bookings Tab
+- AI Chat (+ Booking Cards, Tracker, Confirmation, Quick Actions, Web Search Card)
+- Chat (clinic staff): List, Detail, Camera, Message Bubble/Input
+- Notification List
+- Profile (Edit, Change PW, Change Email, Avatar Picker, Location Picker)
 
----
+**Staff Mobile:**
+- Staff Home, Schedule, Booking List, Booking Detail
+- Add Service to Booking
+- Patient Management (vaccination form + roadmap)
+- EMR Create/Edit/Detail
+- **AI Chat (Staff Copilot)** ✅ (`staff_ai_chat_screen.dart`)
+- **AI Diagnosis Panel + Sheet** ✅
+- Notifications
 
-## 🔄 In Progress (Post Sprint 13)
+**Reports Mobile:**
+- Report List Screen, Report Detail Screen
 
-### Current Focus: Production Hardening + Consistency
-1. **Knowledge Graph Optimization** (2026-04-02)
-   - ✅ Increased `MAX_TRIPLETS_PER_CHUNK`: 50 → 300
-   - ✅ Increased `MAX_TOTAL_TRIPLETS`: 1000 → 5000
-   - ✅ Extended chunk processing: 15 → 200 chunks (full 300+ pages coverage)
-   - ✅ Relaxed validation thresholds for medical terminology
-   - ✅ Implemented entity normalization: exact + fuzzy + synonym matching
-   - ✅ Added `/kg/normalize-entities` endpoint
-   - **Expected**: 22 → 1000+ triplets, edge density 0.51 → 0.88 (1.7x denser)
+### AI Service (FastAPI) — 10 Tool Modules + 10 Alembic Migrations
 
-2. **Staff Diagnosis - Plan Draft Fix** (2026-04-03)
-   - ✅ Prompt synthesis rule: "plan_draft KHÔNG được nhắc tên thuốc..."
-   - ✅ `_build_plan_draft` chỉ build từ protocol.cautions và missing_inputs
-   - ✅ Unit test `test_build_plan_draft_does_not_append_allergy_or_weight_tail` passed
-   - ⏳ Verify bằng endpoint thật (cần auth token)
+**MCP Tools (10 modules):**
 
-3. **Payment Flow Completion**
-   - [x] SePay QR Backend API
-   - [x] Payment Controller
-   - [ ] Mobile Payment Screen
-   - [ ] Webhook handling production verification
+| Module | Chức năng |
+|--------|-----------|
+| `booking_tools.py` | Booking + Patient cho Pet Owner AI Chat  |
+| `booking_session_tools.py` | BookingSession state management |
+| `medical_tools.py` | Pet knowledge search, symptom lookup |
+| `clinic_tools.py` | Clinic info, services, staff (Clinic role) |
+| `clinic_staff_tools.py` | Staff booking operations |
+| `analytics_tools.py` | Revenue/booking analytics |
+| `staff_tools.py` | Staff shift + schedule |
+| `common_tools.py` | Web search, pet info |
+| `utility_tools.py` | Date/time utils |
+| `medical_tools.py` | Pet medical Q&A + RAG |
 
-4. **Manager Refund/Cancel Ops**
-   - [x] View request cancel booking
-   - [ ] Approve/Reject request (end-to-end UI + API)
-   - [ ] Process refund flow hoàn chỉnh
-
-5. **AI Booking via Chat Validation**
-   - [x] Business chat session + WebSocket streaming
-   - [x] Role/context isolation + tool runtime context
-   - [x] Booking tools nối Spring backend (`get_user_pets`, `search_clinics_nearby`, `get_clinic_services`, `check_available_slots`, `create_booking_for_user`)
-   - [x] Mobile UI hiển thị booking confirmation card
-   - [ ] E2E test kịch bản khám tại phòng khám
-   - [ ] E2E test kịch bản tiêm chủng
-   - [ ] E2E test kịch bản khám tại nhà
-   - [ ] Giảm phụ thuộc heuristic parsing ở mobile confirmation
-   - [ ] Chốt acceptance checklist trước khi đánh dấu hoàn thành
-
-6. **AI Chatbot Production Hardening (theo audit 2026-03-30/31)**
-   - [x] Chuẩn hóa structured error contract cho các tool chính
-   - [x] Bổ sung guard xác nhận booking theo confirmation snapshot
-   - [x] Tăng coverage regression focused suite (79 passed)
-   - [ ] Hoàn tất enum coverage cho business error code ở toàn bộ flow phụ
-   - [ ] Chốt source of truth lưu user message giữa REST và WebSocket
-   - [ ] Quyết định chiến lược persistent checkpointer thay cho MemorySaver
-   - [ ] Đóng toàn bộ pass/fail mapping theo AI service audit checklist
-
----
-
-## ⏳ Upcoming
-
-### Next: Reviews & Rating System
-- [ ] Rate Clinic after Visit
-- [ ] Rate Staff after Service
-- [ ] Review listing & moderation
+**AI Core Modules:**
+- Single Agent (ReAct + LangGraph) - `single_agent.py`
+- Prompt Builder với Clinic Staff persona - `prompt_builder.py`
+- Tool Routing + Context Policy
+- RAG: Hybrid Engine (Knowledge Graph + Case Memory + Qdrant)
+- Vision: Gemini Vision Adapter (image diagnosis)
+- Staff Diagnosis: Protocol Service + LLM Synthesis
+- Pet Health Summary LLM Service
+- Disease Mapping Service
+- EMR Case Memory Sync Service
+- WebSocket Chat (streaming ReAct)
+- `fastmcp_app.py` single source of truth cho MCP server
 
 ---
 
-## 💡 Planned (Sprint 11-12)
+## 🔄 In Progress
 
-### AI Enhancements
-- [ ] Booking via Chat (Function Calling) - đã implement nền tảng, đang chờ E2E validation + acceptance checklist
+1. **AI Booking E2E Validation**
+   - [x] Session, WebSocket streaming, tools, mobile card
+   - [ ] E2E test: khám phòng khám, tiêm chủng, khám nhà
+   - [ ] Mobile confirmation bỏ phụ thuộc heuristic parsing
+4. **AI Chatbot Production Hardening**
+   - [ ] Persistent checkpointer thay MemorySaver
+   - [ ] Business error-code parity toàn bộ flow phụ
+   - [ ] Chốt source of truth lưu user message (REST vs WebSocket)
+5. **Staff Diagnosis Plan Draft** — Unit test ✅, Verify endpoint thật ❌
 
-### Platform Admin
-- [ ] User Report Moderation
-- [ ] Advanced Analytics Dashboard
+---
+
+## ❌ Not Started / Thực sự còn thiếu
+
+- AI Booking E2E test acceptance checklist (test tự động)
+- Advanced Admin Analytics (ngoài AI Insights sẵn có)
+- Persistent checkpointer (LangGraph)
 
 ---
 
 ## 🐛 Known Issues
-- Payment webhook cần verify kỹ trước khi production
-- Cross-clinic EMR cần test với nhiều clinic data
-- Booking via AI hiện vẫn phụ thuộc một phần vào heuristic parsing ở mobile để nhận diện bước xác nhận booking
-- AI chatbot hiện chưa chốt source of truth duy nhất cho luồng lưu user message giữa REST và WebSocket
-- Persistent checkpointer cho graph state vẫn đang deferred theo quyết định kiến trúc hiện tại
-- Business error-code parity ở các flow phụ chưa hoàn tất, có thể gây lệch UI error handling
+
+- Payment webhook chưa verify kỹ trước production
+- AI Booking mobile confirmation vẫn có heuristic parsing
+- AI Chatbot chưa chốt source of truth user message (REST vs WebSocket)
+- Persistent checkpointer deferred (đang dùng MemorySaver)
 
 ---
 
-## ✅ Acceptance Checklist - Booking via AI
+## ✅ Acceptance Checklist — Booking via AI
 
-**Chỉ được đánh dấu hoàn thành khi đạt đủ tất cả điều kiện dưới đây:**
-
-- [x] Pet Owner mobile tạo được `BUSINESS_CHAT` session và reconnect WebSocket ổn định
-- [x] Agent chỉ gọi tool booking khi đủ context và có xác nhận rõ ràng từ người dùng
-- [x] Tạo được booking thật qua Spring backend bằng `create_booking_for_user`
-- [ ] Test pass kịch bản khám tại phòng khám từ chat -> confirmation -> booking created
-- [ ] Test pass kịch bản tiêm chủng từ chat -> vaccine suggestion -> booking created
-- [ ] Test pass kịch bản khám tại nhà với đủ địa chỉ, tọa độ, khoảng cách
-- [ ] Test pass các lỗi quan trọng: hết token, không có slot, clinic/service không hợp lệ, backend validation fail
-- [ ] Có log/trace đủ để debug khi tool chain fail giữa chừng
-- [ ] Mobile confirmation không còn phụ thuộc chủ yếu vào regex/heuristic text parsing
-- [ ] Có test hoặc checklist demo được xác nhận lại sau khi chạy end-to-end thực tế
+- [x] `BUSINESS_CHAT` session + WebSocket reconnect ổn định
+- [x] Agent chỉ gọi booking tool khi đủ context + xác nhận user
+- [x] Tạo booking thật qua `create_booking_for_user`
+- [ ] E2E: khám tại phòng khám → booking created
+- [ ] E2E: tiêm chủng → booking created
+- [ ] E2E: khám tại nhà (address + geo + distanceFee)
+- [ ] Test lỗi: hết token, hết slot, validation fail
+- [ ] Mobile confirmation không còn phụ thuộc heuristic chính
+- [ ] Demo checklist xác nhận sau E2E thực tế
 
 ---
 
@@ -228,19 +238,16 @@
 
 | Document | Path |
 |----------|------|
-| **SRS (Software Requirements)** | `docs-references/documentation/SRS/PETTIES_SRS.md` |
-| **SDD (System Design)** | `docs-references/documentation/SDD/REPORT_4_SDD_SYSTEM_DESIGN.md` |
+| SRS | `docs-references/documentation/SRS/PETTIES_SRS.md` |
+| SDD | `docs-references/documentation/SDD/REPORT_4_SDD_SYSTEM_DESIGN.md` |
 | AI Agent SRS | `docs-references/documentation/SRS/AI_AGENT_SERVICE_SRS.md` |
 | AI Agent SDD | `docs-references/documentation/SDD/AI_AGENT_SERVICE_SDD.md` |
-| WBS Master Backlog | `docs-references/documentation/WBS_PETTIES_14_SPRINTS.md` |
-| VetShift Strategy | `docs-references/documentation/VET_SCHEDULING_STRATEGY.md` |
-| Features Overview | `docs-references/documentation/PETTIES_Features.md` |
-| ERD Diagram | `docs-references/documentation/PETTIES_ERD_DIAGRAM.md` |
-| MVP Happy Flows | `docs-references/documentation/PETTIES_MVP_HAPPY_FLOWS.md` |
-| Module Overview | `docs-references/documentation/PETTIES_MODULE_OVERVIEW.md` |
-| BPMN Workflows | `docs-references/documentation/BUSINESS_WORKFLOW_BPMN.md` |
-| URD (User Requirements) | `docs-references/documentation/URD_USER_REQUIREMENTS.md` |
-| **Payment API Spec** | `docs-references/documentation/SEPAY_QR_PAYMENT_API.md` |
+| WBS | `docs-references/documentation/WBS_PETTIES_14_SPRINTS.md` |
+| Features | `docs-references/documentation/PETTIES_Features.md` |
+| ERD | `docs-references/documentation/PETTIES_ERD_DIAGRAM.md` |
+| BPMN | `docs-references/documentation/BUSINESS_WORKFLOW_BPMN.md` |
+| Payment API | `docs-references/documentation/SEPAY_QR_PAYMENT_API.md` |
+| AI Copilot | `docs-references/ai-agent/AI_COPILOT_CLINIC_USER_MANUAL.md` |
 
 ---
 
@@ -249,11 +256,11 @@
 | Layer | Technology |
 |-------|------------|
 | Backend | Spring Boot 3.4, Java 21, PostgreSQL, MongoDB, Redis |
-| Web Frontend | React 19, Vite, TypeScript, TailwindCSS (Neobrutalism) |
-| Mobile | Flutter 3.5, Riverpod, GoRouter |
-| AI Service | Python 3.12, FastAPI, LangGraph, LlamaIndex, Qdrant |
-| Cloud | AWS EC2, Cloudinary, Firebase, OpenRouter |
+| Web Frontend | React 19, Vite, TypeScript, TailwindCSS v4 (Soft Neobrutalism) |
+| Mobile | Flutter 3.5, Provider, GoRouter |
+| AI Service | Python 3.12, FastAPI, LangGraph, LlamaIndex, Qdrant, FastMCP |
+| Cloud | AWS EC2, Cloudinary, Firebase, OpenRouter (LLM), Cohere (Embed) |
 
 ---
 
-*This file helps AI agents understand project context quickly.*
+*This file is auto-updated based on code-based scan. Last scan: 2026-04-04.*

@@ -1022,7 +1022,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   }
 
   void _addMultiPetBookingCreated(AiBookingCreatedPayload multiPetBooking) {
-    final totalBookings = multiPetBooking.multiPetSummary?.totalBookings ??
+    final totalBookings = multiPetBooking.multiPetSummary?['total_bookings'] ??
         (multiPetBooking.bookings?.length ?? 0);
     final message = multiPetBooking.message ??
         'Đã tạo $totalBookings yêu cầu đặt lịch cho các bé thú cưng. Clinic manager sẽ xác nhận từng booking sau.';

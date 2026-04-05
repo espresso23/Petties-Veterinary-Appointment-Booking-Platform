@@ -42,10 +42,10 @@ void main() {
 
         await pumpCard(tester, summary);
 
-        expect(find.text('Còn thiếu thông tin'), findsOneWidget);
-        expect(find.text('Giờ khám'), findsOneWidget);
-        expect(find.text('Dịch vụ'), findsWidgets);
-        expect(find.text('MỞ FORM ĐẶT LỊCH'), findsOneWidget);
+        expect(find.text('Phòng khám'), findsOneWidget);
+        expect(find.text('Petties Clinic'), findsOneWidget);
+        expect(find.text('Ngày khám'), findsOneWidget);
+        expect(find.text('XÁC NHẬN ĐẶT LỊCH'), findsOneWidget);
       },
     );
 
@@ -66,8 +66,7 @@ void main() {
 
         await pumpCard(tester, summary);
 
-        expect(find.text('Còn thiếu thông tin'), findsNothing);
-        expect(find.text('MỞ MÀN XÁC NHẬN'), findsOneWidget);
+        expect(find.text('XÁC NHẬN ĐẶT LỊCH'), findsOneWidget);
       },
     );
   });

@@ -8,6 +8,8 @@ class ApiInterceptor extends Interceptor {
   final Logger _logger = Logger();
   final StorageService _storage = StorageService();
 
+  bool get _isDebug => !const bool.fromEnvironment('dart.vm.product');
+
   @override
   void onRequest(
     RequestOptions options,
@@ -23,8 +25,9 @@ class ApiInterceptor extends Interceptor {
     options.headers['ngrok-skip-browser-warning'] = 'true';
 
     _logger.d('REQUEST[${options.method}] => PATH: ${options.path}');
-    _logger.d('Headers: ${options.headers}');
-    _logger.d('Data: ${options.data}');
+    if (_isDebug) {
+      _logger.d('Query: ${options.queryParameters}');
+    }
 
     super.onRequest(options, handler);
   }
@@ -37,7 +40,9 @@ class ApiInterceptor extends Interceptor {
     _logger.d(
       'RESPONSE[${response.statusCode}] => PATH: ${response.requestOptions.path}',
     );
-    _logger.d('Data: ${response.data}');
+    if (_isDebug) {
+      _logger.d('Response type: ${response.data.runtimeType}');
+    }
 
     super.onResponse(response, handler);
   }
@@ -51,7 +56,9 @@ class ApiInterceptor extends Interceptor {
       'ERROR[${err.response?.statusCode}] => PATH: ${err.requestOptions.path}',
     );
     _logger.e('Message: ${err.message}');
-    _logger.e('Data: ${err.response?.data}');
+    if (_isDebug) {
+      _logger.e('Error type: ${err.type}');
+    }
 
     // Handle token refresh on 401
     if (err.response?.statusCode == 401) {

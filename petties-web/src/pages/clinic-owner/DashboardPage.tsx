@@ -170,6 +170,7 @@ export const ClinicOwnerDashboardPage = () => {
     }, [getMyClinics])
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (clinicId) loadMetrics()
     }, [clinicId, loadMetrics])
 

@@ -9,7 +9,7 @@ import { useSseNotification } from '../hooks/useSseNotification'
 import { useSyncProfile } from '../hooks/useSyncProfile'
 import { useMembershipStore } from '../store/membershipStore'
 import { useClinicStore } from '../store/clinicStore'
-import { subscriptionService } from '../services/api/subscriptionService'
+
 import {
     Squares2X2Icon,
     HomeModernIcon,

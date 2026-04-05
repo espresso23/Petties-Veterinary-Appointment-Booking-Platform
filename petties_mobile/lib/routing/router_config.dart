@@ -486,8 +486,8 @@ class AppRouterConfig {
         GoRoute(
           path: AppRoutes.aiChat,
           redirect: (context, state) {
-            final authState = authProvider.authState;
-            if (authState?.role != 'STAFF') {
+            final isAuthenticated = authProvider.isAuthenticated;
+            if (!isAuthenticated || authProvider.user?.role != 'STAFF') {
               return AppRoutes.petOwnerHome;
             }
             return null;
