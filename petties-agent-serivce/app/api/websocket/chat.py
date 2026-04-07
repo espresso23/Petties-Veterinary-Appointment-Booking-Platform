@@ -108,6 +108,10 @@ _UI_ACTION_SPECS: Dict[str, Dict[str, Any]] = {
             "start_time",
             "service_ids",
             "booking_type",
+            "home_address",
+            "home_lat",
+            "home_long",
+            "distance_km",
         },
         "required_any": [
             {"pet_id"},
@@ -127,6 +131,11 @@ _UI_ACTION_SPECS: Dict[str, Dict[str, Any]] = {
             "is_home_visit",
             "service_category",
             "pet_type",
+            "reminder_interval",
+            "reminder_unit",
+            "weight_prices",
+            "vaccine_template_id",
+            "dose_prices",
         },
         "required": {"name", "base_price", "slots_required"},
     },
@@ -138,6 +147,7 @@ _UI_ACTION_SPECS: Dict[str, Dict[str, Any]] = {
         "allowed": {
             "service_id",
             "service_name",
+            "name",
             "base_price",
             "description",
             "is_active",
@@ -146,6 +156,11 @@ _UI_ACTION_SPECS: Dict[str, Dict[str, Any]] = {
             "is_home_visit",
             "service_category",
             "pet_type",
+            "reminder_interval",
+            "reminder_unit",
+            "weight_prices",
+            "vaccine_template_id",
+            "dose_prices",
         },
         "required_any": [{"service_id"}, {"service_name"}],
     },
@@ -553,14 +568,79 @@ def sanitize_assistant_response(
     if starts_with_intro and (has_prior_assistant_message or not user_is_greeting):
         normalized = stripped
 
+    normalized = normalized.replace("\r\n", "\n").replace("\r", "\n")
+    normalized = re.sub(r"```[a-zA-Z0-9_\-]*\n?", "", normalized)
+    normalized = normalized.replace("```", "")
+
     normalized = re.sub(r"\*\*(.*?)\*\*", r"\1", normalized)
     normalized = re.sub(r"__[ \t]*(.*?)[ \t]*__", r"\1", normalized)
+    normalized = re.sub(r"(?m)^\s{0,3}#{1,6}\s*", "", normalized)
+    normalized = normalized.replace("•", "- ")
+
+    def _split_inline_numbered_items(raw: str) -> str:
+        lines: List[str] = []
+        for source_line in raw.split("\n"):
+            line = source_line.strip()
+            if not line:
+                lines.append("")
+                continue
+
+            matches = list(re.finditer(r"\d+\.\s+", line))
+            if len(matches) <= 1:
+                lines.append(source_line)
+                continue
+
+            prefix = line[: matches[0].start()].strip(" -:;")
+            if prefix:
+                lines.append(prefix)
+
+            for idx, match in enumerate(matches):
+                start = match.start()
+                end = matches[idx + 1].start() if idx + 1 < len(matches) else len(line)
+                item = line[start:end].strip()
+                if item:
+                    lines.append(item)
+
+        return "\n".join(lines)
+
+    normalized = _split_inline_numbered_items(normalized)
+
+    def _split_inline_bullets(raw: str) -> str:
+        lines: List[str] = []
+        for source_line in raw.split("\n"):
+            line = source_line.strip()
+            if not line:
+                lines.append("")
+                continue
+
+            if " - " not in line or line.startswith("- "):
+                lines.append(source_line)
+                continue
+
+            if any(token in line for token in ["http://", "https://"]):
+                lines.append(source_line)
+                continue
+
+            segments = [segment.strip() for segment in line.split(" - ") if segment.strip()]
+            if len(segments) <= 1:
+                lines.append(source_line)
+                continue
+
+            lines.append(segments[0])
+            for segment in segments[1:]:
+                lines.append(f"- {segment}")
+
+        return "\n".join(lines)
+
+    normalized = _split_inline_bullets(normalized)
+
     normalized = re.sub(r"[ \t]+\n", "\n", normalized)
     normalized = re.sub(r"\n{3,}", "\n\n", normalized)
     normalized = re.sub(r"^(\d+)\.\s+", r"\1. ", normalized, flags=re.MULTILINE)
     normalized = re.sub(r"^\*\s+", "- ", normalized, flags=re.MULTILINE)
     normalized = re.sub(r"^-{2,}\s*", "- ", normalized, flags=re.MULTILINE)
     normalized = re.sub(r"\n([\-\*]\s)", r"\n\1", normalized)
+    normalized = re.sub(r"(?m)^\s+$", "", normalized)
 
     return normalized
 
@@ -825,6 +905,36 @@ def _normalize_service_batch(
             if item.get("petType") is not None
             else item.get("pet_type"),
         )
+        reminder_interval = _normalize_ui_action_field(
+            "reminder_interval",
+            item.get("reminderInterval")
+            if item.get("reminderInterval") is not None
+            else item.get("reminder_interval"),
+        )
+        reminder_unit = _normalize_ui_action_field(
+            "reminder_unit",
+            item.get("reminderUnit")
+            if item.get("reminderUnit") is not None
+            else item.get("reminder_unit"),
+        )
+        weight_prices = _normalize_ui_action_field(
+            "weight_prices",
+            item.get("weightPrices")
+            if item.get("weightPrices") is not None
+            else item.get("weight_prices"),
+        )
+        vaccine_template_id = _normalize_ui_action_field(
+            "vaccine_template_id",
+            item.get("vaccineTemplateId")
+            if item.get("vaccineTemplateId") is not None
+            else item.get("vaccine_template_id"),
+        )
+        dose_prices = _normalize_ui_action_field(
+            "dose_prices",
+            item.get("dosePrices")
+            if item.get("dosePrices") is not None
+            else item.get("dose_prices"),
+        )
 
         if not name or base_price is None or slots_required is None:
             continue
@@ -846,6 +956,16 @@ def _normalize_service_batch(
             normalized_item["service_category"] = service_category
         if pet_type is not None:
             normalized_item["pet_type"] = pet_type
+        if reminder_interval is not None:
+            normalized_item["reminder_interval"] = reminder_interval
+        if reminder_unit is not None:
+            normalized_item["reminder_unit"] = reminder_unit
+        if weight_prices is not None:
+            normalized_item["weight_prices"] = weight_prices
+        if vaccine_template_id is not None:
+            normalized_item["vaccine_template_id"] = vaccine_template_id
+        if dose_prices is not None:
+            normalized_item["dose_prices"] = dose_prices
         normalized.append(normalized_item)
 
     return normalized or None
@@ -858,8 +978,10 @@ def _normalize_ui_action_field(key: str, value: Any) -> Any:
         "clinic_address",
         "service_id",
         "service_name",
+        "group_id",
         "pet_id",
         "pet_name",
+        "source",
         "change_target",
         "reason",
         "target_id",
@@ -869,11 +991,30 @@ def _normalize_ui_action_field(key: str, value: Any) -> Any:
         "description",
         "service_category",
         "pet_type",
+        "home_address",
+        "reminder_unit",
+        "vaccine_template_id",
     }:
         if not isinstance(value, str):
             return None
         trimmed = value.strip()
         return trimmed[:200] if trimmed else None
+    if key == "item_id":
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, (int, float)):
+            return str(int(value))
+        if isinstance(value, str):
+            trimmed = value.strip()
+            return trimmed[:200] if trimmed else None
+        return None
+    if key == "item_type":
+        if not isinstance(value, str):
+            return None
+        normalized = value.strip().lower()
+        if normalized in {"clinic", "service", "slot", "pet"}:
+            return normalized
+        return None
     if key == "booking_type":
         normalized = str(value or "").strip().upper()
         return normalized if normalized in {"IN_CLINIC", "HOME_VISIT"} else None
@@ -885,7 +1026,13 @@ def _normalize_ui_action_field(key: str, value: Any) -> Any:
     if key == "booking_date":
         normalized = str(value or "").strip()
         return normalized if _DATE_RE.match(normalized) else None
+    if key == "slot_date":
+        normalized = str(value or "").strip()
+        return normalized if _DATE_RE.match(normalized) else None
     if key == "start_time":
+        normalized = str(value or "").strip()
+        return normalized if _TIME_RE.match(normalized) else None
+    if key == "slot_time":
         normalized = str(value or "").strip()
         return normalized if _TIME_RE.match(normalized) else None
     if key in {"service_ids", "service_names"}:
@@ -900,8 +1047,99 @@ def _normalize_ui_action_field(key: str, value: Any) -> Any:
         if isinstance(value, str) and value.strip().isdigit():
             return int(value.strip())
         return None
+    if key == "reminder_interval":
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, (int, float)):
+            return int(value)
+        if isinstance(value, str) and value.strip().isdigit():
+            return int(value.strip())
+        return None
     if key in {"is_active", "is_home_visit"}:
         return value if isinstance(value, bool) else None
+    if key in {"home_lat", "home_long", "distance_km"}:
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            try:
+                return float(value.strip())
+            except ValueError:
+                return None
+        return None
+    if key == "weight_prices":
+        if not isinstance(value, list):
+            return None
+        normalized_weight_prices: List[Dict[str, Any]] = []
+        for item in value[:20]:
+            if not isinstance(item, dict):
+                continue
+            min_weight = (
+                item.get("min_weight")
+                if item.get("min_weight") is not None
+                else item.get("minWeight")
+            )
+            max_weight = (
+                item.get("max_weight")
+                if item.get("max_weight") is not None
+                else item.get("maxWeight")
+            )
+            price = item.get("price")
+            if (
+                isinstance(min_weight, bool)
+                or isinstance(max_weight, bool)
+                or isinstance(price, bool)
+            ):
+                continue
+            try:
+                min_weight_value = float(min_weight)
+                max_weight_value = float(max_weight)
+                price_value = float(price)
+            except Exception:
+                continue
+            normalized_weight_prices.append(
+                {
+                    "min_weight": min_weight_value,
+                    "max_weight": max_weight_value,
+                    "price": price_value,
+                }
+            )
+        return normalized_weight_prices or None
+    if key == "dose_prices":
+        if not isinstance(value, list):
+            return None
+        normalized_dose_prices: List[Dict[str, Any]] = []
+        for item in value[:20]:
+            if not isinstance(item, dict):
+                continue
+            dose_number = (
+                item.get("dose_number")
+                if item.get("dose_number") is not None
+                else item.get("doseNumber")
+            )
+            dose_label = (
+                item.get("dose_label")
+                if item.get("dose_label") is not None
+                else item.get("doseLabel")
+            )
+            price = item.get("price")
+            if isinstance(price, bool):
+                continue
+            try:
+                price_value = float(price)
+            except Exception:
+                continue
+            normalized_item: Dict[str, Any] = {"price": price_value}
+            if dose_number is not None and not isinstance(dose_number, bool):
+                try:
+                    normalized_item["dose_number"] = int(dose_number)
+                except Exception:
+                    pass
+            if isinstance(dose_label, str) and dose_label.strip():
+                normalized_item["dose_label"] = dose_label.strip()[:200]
+            normalized_dose_prices.append(normalized_item)
+        return normalized_dose_prices or None
     return None
 
 

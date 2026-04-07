@@ -1400,7 +1400,7 @@ erDiagram
 | **Subscriptions & Governance** | SubscriptionPlan, UserSubscription, ClinicStrikeConfig, UserStrikeConfig | AI subscription lifecycle and strike policies |
 | **Notifications** | Notification | System notifications |
 | **Communication** | ChatConversation (Mongo), ChatMessage (Mongo) | Direct chat between pet owner and clinic |
-| **AI Service** | Agent, Tool, KnowledgeDocument, DiseaseCatalog, DiseaseAlias, DiseaseMappingReviewItem, SystemSetting, AIChatSession (Mongo), AIChatMessage (Mongo), AIProactiveNotification (Mongo), ChatFeedback (Mongo), KnowledgeGraphTriplet (Mongo) | Single-agent governance, diagnosis normalization, RAG, and AI runtime telemetry |
+| **AI Service** | Agent, Tool, KnowledgeDocument, DiseaseCatalog, DiseaseAlias, DiseaseMappingReviewItem, SystemSetting, AIChatSession (Mongo), AIChatMessage (Mongo), AIProactiveNotification (Mongo), ChatFeedback (Mongo) | Single-agent governance, diagnosis normalization, RAG, and AI runtime telemetry |
 
 ##### D. Detailed ERD (Database Design)
 
@@ -1974,7 +1974,7 @@ Alternative persisted paths: CANCELLED, NO_SHOW
 
 **Active storage split:**
 - PostgreSQL: `agents`, `tools`, `knowledge_documents`, `disease_catalog`, `disease_aliases`, `system_settings` (6 tables)
-- MongoDB: `ai_chat_sessions`, `ai_chat_messages`, `ai_proactive_notifications`, `chat_feedback`, `knowledge_graph_triplets` (5 collections)
+- MongoDB: `ai_chat_sessions`, `ai_chat_messages`, `ai_proactive_notifications`, `chat_feedback` (4 collections)
 - Qdrant: `petties_knowledge_base`, `petties_case_memory_v2` (2 collections)
 
 **Note:** `petties_kb_images` was previously used for PDF image extraction but has been removed as an unused feature. Jina CLIP v2 image embeddings are still used for Case Memory (`petties_case_memory_v2`) with named vectors `text` + `image`.
@@ -2706,11 +2706,9 @@ Use separate vectors for text and image retrieval:
 | POST | `/ai/chat/feedback` | Submit feedback (thumbs up/down/report) for a message | Auth |
 | GET | `/ai/chat/feedback/stats` | Get feedback statistics by role and period | Admin |
 
-#### 3.2.6 Knowledge Graph & Case Memory (`/ai/knowledge`)
+#### 3.2.6 Case Memory (`/ai/knowledge`)
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
-| POST | `/ai/knowledge/build-kg` | Build Knowledge Graph from indexed documents | Admin |
-| GET | `/ai/knowledge/kg-stats` | Get Knowledge Graph statistics (entities, relations) | Admin |
 | POST | `/ai/knowledge/embed-confirmed-cases` | Legacy endpoint note; active Case Memory sync is EMR-driven | Admin |
 | GET | `/ai/knowledge/case-memory/stats` | Get Case Memory statistics (total cases, categories) | Admin |
 
@@ -9739,7 +9737,7 @@ sequenceDiagram
 
 ### 4.20 AI Data Improvement Mechanisms
 
-He thong AI cua Petties su dung 4 co che chinh de cai thien do chinh xac theo thoi gian: **Query Expansion**, **Knowledge Graph**, **Visual Case Memory**, va **Feedback Loop**. Cac co che nay hoat dong dong thoi, bo sung cho nhau, va ap dung cho **tat ca roles** (PET_OWNER, STAFF, CLINIC_MANAGER, CLINIC_OWNER, ADMIN) tren **tat ca loai tuong tac AI** (pet health Q&A, booking, EMR, clinic management, revenue analysis,...).
+He thong AI cua Petties su dung 3 co che chinh de cai thien do chinh xac theo thoi gian: **Query Expansion**, **Visual Case Memory**, va **Feedback Loop**. Cac co che nay hoat dong dong thoi, bo sung cho nhau, va ap dung cho **tat ca roles** (PET_OWNER, STAFF, CLINIC_MANAGER, CLINIC_OWNER, ADMIN) tren **tat ca loai tuong tac AI** (pet health Q&A, booking, EMR, clinic management, revenue analysis,...).
 
 In the **current implementation**, Visual Case Memory stores **hybrid embeddings** of confirmed cases: 
 - **Text embeddings** using **Cohere embed-multilingual-v3.0** (1024-dim)
@@ -9761,29 +9759,7 @@ classDiagram
         -_is_short_query(query: str) bool
     }
 
-    %% === KNOWLEDGE GRAPH ===
-    class KnowledgeGraphService {
-        -kg_index: KnowledgeGraphIndex
-        -graph_store: SimpleGraphStore
-        -llm_client: OpenRouterClient
-        +build_from_documents(documents: List) int
-        +query_graph(query: str, top_k: int) KGQueryResult
-        +extract_triplets(text: str) List~Triplet~
-        +get_graph_stats() dict
-    }
 
-    class Triplet {
-        +subject: str
-        +predicate: str
-        +object: str
-        +source_chunk_id: str
-    }
-
-    class KGQueryResult {
-        +triplets: List~Triplet~
-        +related_entities: List~str~
-        +reasoning_chain: str
-    }
 
     %% === VISUAL CASE MEMORY ===
     class CaseMemoryService {
@@ -9912,7 +9888,6 @@ classDiagram
     %% === HYBRID RAG ENGINE (updated) ===
     class HybridRAGEngine {
         -rag_engine: LlamaIndexRAGEngine
-        -kg_service: KnowledgeGraphService
         -case_memory: CaseMemoryService
         -query_expander: QueryExpander
         +query(user_query: str, pet_type: str) HybridResult
@@ -9922,14 +9897,12 @@ classDiagram
     class HybridResult {
         +answer: str
         +rag_sources: List~str~
-        +kg_reasoning: str
         +similar_cases: List~CaseResult~
         +confidence: float
     }
 
     %% === RELATIONSHIPS ===
     HybridRAGEngine --> QueryExpander : uses
-    HybridRAGEngine --> KnowledgeGraphService : uses
     HybridRAGEngine --> CaseMemoryService : uses
     HybridRAGEngine "1" --> "1" LlamaIndexRAGEngine : wraps
 
@@ -9942,8 +9915,6 @@ classDiagram
     CaseMemoryService ..> ConfirmedCase : stores
     CaseMemoryService ..> CaseResult : returns
 
-    KnowledgeGraphService ..> Triplet : extracts
-    KnowledgeGraphService ..> KGQueryResult : returns
 
     class LlamaIndexRAGEngine {
         <<existing>>
@@ -9964,19 +9935,6 @@ classDiagram
 | `expand_query(query, pet_type)` | Neu query < 5 tu: goi LLM mo rong them dong nghia, thuat ngu thu y, trieu chung lien quan. Tra ve query goc + bo sung. |
 | `_build_expansion_prompt(query, pet_type)` | Tao prompt cho LLM: them synonym, medical terms, species context |
 | `_is_short_query(query)` | Kiem tra query co it hon min_word_threshold tu khong |
-
-**2. KnowledgeGraphService**
-
-| Responsibility | Xay dung va query do thi tri thuc thu y (Symptom -> Disease -> Treatment) |
-|---------------|---------------------------------------------------------------------------|
-| Location | `petties-agent-serivce/app/core/rag/knowledge_graph.py` |
-
-| Method | Description |
-|--------|-------------|
-| `build_from_documents(documents)` | Tao KG index tu tai lieu: parse, extract triplets, luu vao graph store. Tra ve so triplets. |
-| `query_graph(query)` | Duyet graph de tim quan he: trieu chung -> benh -> xu ly. Tra ve KGQueryResult. |
-| `extract_triplets(text)` | Goi LLM extract (subject, predicate, object) tu text chunk. |
-| `get_graph_stats()` | So entity, so relation, top diseases, top symptoms. |
 
 **3. CaseMemoryService**
 
@@ -10016,13 +9974,13 @@ classDiagram
 
 **5. HybridRAGEngine**
 
-| Responsibility | Ket hop 3 nguon tri thuc (RAG + KG + Case Memory) de tra loi chinh xac hon |
+| Responsibility | Ket hop 2 nguon tri thuc (RAG + Case Memory) de tra loi chinh xac hon |
 |---------------|-----------------------------------------------------------------------------|
 | Location | `petties-agent-serivce/app/core/rag/hybrid_engine.py` |
 
 | Method | Description |
 |--------|-------------|
-| `query(user_query, pet_type)` | Pipeline: expand query -> search RAG + KG + Case Memory song song -> merge & re-rank -> tra ve HybridResult |
+| `query(user_query, pet_type)` | Pipeline: expand query -> search RAG + Case Memory song song -> merge & re-rank -> tra ve HybridResult |
 | `_merge_and_rerank(rag, kg, cases)` | Ket hop ket qua tu 3 nguon, tinh final_score dua tren relevance + quality boost |
 
 #### 4.20.3 Sequence Diagram: Query Expansion Flow
@@ -10056,65 +10014,6 @@ sequenceDiagram
     deactivate RAG
 
     Agent-->>User: 9. Tra loi chinh xac hon nho expanded query
-    deactivate Agent
-```
-
-#### 4.20.4 Sequence Diagram: Knowledge Graph Build & Query
-
-```mermaid
-sequenceDiagram
-    actor Admin
-    participant API as AI Service API
-    participant KG as KnowledgeGraphService
-    participant LLM as LLM (OpenRouter)
-    participant Store as SimpleGraphStore
-    participant Qdrant as Qdrant Cloud
-
-    Note over Admin,Qdrant: === PHASE 1: Build KG tu tai lieu ===
-    Admin->>API: 1. POST /ai/knowledge/build-kg (document_ids)
-    activate API
-
-    API->>KG: 2. build_from_documents(documents)
-    activate KG
-
-    loop Moi document chunk
-        KG->>LLM: 3. extract_triplets(chunk_text)
-        activate LLM
-        Note right of LLM: "Meo bi ran tai thuong<br/>ngua, lac dau, can thuoc<br/>nho tai, rua tai"
-        LLM-->>KG: 4. Triplets:<br/>(Ran_tai, trieu_chung, Ngua)<br/>(Ran_tai, trieu_chung, Lac_dau)<br/>(Ran_tai, xu_ly, Thuoc_nho_tai)<br/>(Ran_tai, thuong_gap, Meo)
-        deactivate LLM
-
-        KG->>Store: 5. Store triplets in graph
-        KG->>Qdrant: 6. Embed triplet text (hybrid: vector + graph)
-    end
-
-    KG-->>API: 7. {total_triplets: 1250, entities: 340}
-    deactivate KG
-    API-->>Admin: 8. 200 OK - KG built successfully
-    deactivate API
-
-    Note over Admin,Qdrant: === PHASE 2: Hybrid Query (RAG + KG) ===
-    actor User
-    participant Agent as AI Agent
-
-    User->>Agent: 9. "Meo ho khan chay nuoc mui"
-    activate Agent
-
-    par RAG Search
-        Agent->>Qdrant: 10. Vector search (Cohere embedding)
-        Qdrant-->>Agent: 11. Top 5 chunks tuong tu
-    and KG Traversal
-        Agent->>KG: 12. query_graph("ho khan + chay nuoc mui")
-        activate KG
-        KG->>Store: 13. Duyet graph relationships
-        Note right of Store: Ho_khan --chi_diem--> Viem_mui_hong<br/>Chay_nuoc_mui --chi_diem--> Viem_mui_hong<br/>Viem_mui_hong --thuong_gap--> Meo<br/>Viem_mui_hong --xu_ly--> Khang_sinh
-        Store-->>KG: 14. Related triplets + reasoning chain
-        KG-->>Agent: 15. KGQueryResult {triplets, reasoning_chain}
-        deactivate KG
-    end
-
-    Agent->>Agent: 16. Merge RAG chunks + KG reasoning
-    Agent-->>User: 17. "Nghi viem duong ho hap tren (Viem mui hong).<br/>Logic: Ho khan + Chay mui -> Viem mui hong (thuong gap o meo).<br/>Xu ly: Khang sinh + Giu am + Kham tai phong kham."
     deactivate Agent
 ```
 
@@ -10246,7 +10145,7 @@ sequenceDiagram
     Client-->>User: 22. "Cam on ban da gop y!"
 ```
 
-#### 4.20.7 Sequence Diagram: Hybrid Query (RAG + KG + Case Memory)
+#### 4.20.7 Sequence Diagram: Hybrid Query (RAG + Case Memory)
 
 ```mermaid
 sequenceDiagram
@@ -10255,7 +10154,6 @@ sequenceDiagram
     participant Hybrid as HybridRAGEngine
     participant QE as QueryExpander
     participant RAG as LlamaIndexRAGEngine
-    participant KG as KnowledgeGraphService
     participant CaseMem as CaseMemoryService
     participant LLM as LLM (OpenRouter)
 
@@ -10311,7 +10209,6 @@ flowchart TB
     subgraph SHARED["DU LIEU CHUNG TOAN HE THONG (Qdrant + MongoDB)"]
         direction TB
         RAG["RAG Knowledge Base<br/>(Tai lieu thu y, petties_knowledge_base)"]
-        KG["Knowledge Graph<br/>(Triplets trong MongoDB knowledge_graph_triplets)"]
         CM["Case Memory<br/>(Cases confirmed, petties_case_memory_v2)"]
     end
     
@@ -10346,7 +10243,6 @@ flowchart TB
 | Chat messages + ReAct trace | RIENG moi session | MongoDB `ai_chat_messages` | Moi message gui/nhan |
 | Chat feedback | User gui RIENG | MongoDB `chat_feedback` | User bam thumbs up/down |
 | RAG Knowledge Base | Shared across all users | Qdrant `petties_knowledge_base` | Admin uploads and reprocesses knowledge documents |
-| Knowledge Graph | Shared across all users | MongoDB `knowledge_graph_triplets` | Extracted subject-predicate-object facts used by graph-based retrieval |
 | Case Memory | CHUNG toan he thong | Qdrant `petties_case_memory_v2` | Upsert from confirmed EMR records |
 | AI Runtime Governance | Shared configuration | PostgreSQL `agents`, `tools`, `system_settings` | Admin governs model parameters, tool availability, and provider settings |
 | Du lieu nghiep vu | Realtime query | PostgreSQL (Spring Boot) | Business operations |
@@ -10409,14 +10305,12 @@ flowchart LR
     
     subgraph PROCESS["2. Xu ly"]
         P1["Query Expansion"]
-        P2["KG Triplet Extraction"]
         P3["Case Embedding"]
         P4["Feedback Classification"]
     end
     
     subgraph IMPROVE["3. Cai thien"]
         I1["RAG Knowledge Base mo rong"]
-        I2["Knowledge Graph phong phu hon"]
         I3["Case Memory lon dan"]
         I4["Prompt tinh chinh theo role"]
     end
@@ -10449,10 +10343,9 @@ flowchart LR
 |-------------|---------------|-------------|
 | 4.19.1 Class Diagram | 3.11 AI Assistant | Overall class structure for AI improvement mechanisms |
 | 4.19.3 Query Expansion | 3.11.1, 3.11.6 | Expands short queries before RAG search |
-| 4.19.4 Knowledge Graph | 3.11.1 | Builds symptom-disease-treatment graph from vet documents |
 | 4.19.5 Visual Case Memory | 3.11.1, 3.11.3 | Accumulates confirmed image diagnosis cases |
 | 4.19.6 Feedback Loop | 3.11.1-3.11.6 | Collects and processes feedback from all roles |
-| 4.19.7 Hybrid Query | 3.11.1, 3.11.6 | Combines RAG + KG + Case Memory for better accuracy |
+| 4.19.7 Hybrid Query | 3.11.1, 3.11.6 | Combines RAG + Case Memory for better accuracy |
 | 4.19.8 Per-User vs Shared | 3.11.5 | Data isolation: per-user sessions vs shared knowledge |
 
 ---
@@ -11014,7 +10907,7 @@ classDiagram
 #### 4.21.3 Class Specifications
 
 > **⚠️ 2026-03-23 Update:** AI Diagnosis flow đã hoàn thành và production-ready:
-> - Nguồn dữ liệu: EMR confirmed (Case Memory), Knowledge Base, Knowledge Graph
+> - Nguồn dữ liệu: EMR confirmed (Case Memory), Knowledge Base
 > - Case Memory: EMR-driven từ confirmed diagnoses
 > - Evidence display: `supporting_evidence_from_kb`, `similar_confirmed_cases`
 > - Technical documentation: [ai_diagnose_service/](D:/SEP490/petties/docs-references/ai_diagnose_service/)
@@ -11230,7 +11123,7 @@ sequenceDiagram
         Service->>Vision: analyze(imageUrls, doctorDescription, species)
         Vision-->>Service: visualFindings, topConditions, imageDescriptions
     end
-    Service->>KB: query(query, RAG + KG)
+    Service->>KB: query(query, RAG)
     KB->>DB: Query knowledge chunks and graph facts
     DB-->>KB: Knowledge evidence
     KB-->>Service: HybridResult
@@ -11318,7 +11211,7 @@ flowchart LR
     subgraph Lane3["AI Service"]
         A1["StaffDiagnosisService nhận request"]
         A2["Gọi Gemini Vision nếu có ảnh"]
-        A3["Query HybridRAGEngine (RAG + KG)"]
+        A3["Query HybridRAGEngine (RAG + Case Memory)"]
         A4["Query CaseMemoryService"]
         A5["Map canonical disease + áp protocol"]
         A6["Trả diagnosis response"]
@@ -11382,7 +11275,7 @@ flowchart LR
     subgraph Lane3["AI Service"]
         A1["StaffDiagnosisService nhận request"]
         A2["Gọi Gemini Vision nếu có ảnh"]
-        A3["Query HybridRAGEngine (RAG + KG)"]
+        A3["Query HybridRAGEngine (RAG + Case Memory)"]
         A4["Query CaseMemoryService"]
         A5["Map canonical disease + áp protocol"]
         A6["Trả diagnosis response"]

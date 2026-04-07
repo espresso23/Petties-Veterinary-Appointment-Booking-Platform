@@ -21,6 +21,12 @@ from app.core.agents.enrichment_strategy import build_final_answer_from_tool_res
 from app.core.agents.response_formatter import format_tool_observation
 from app.core.tools.mcp_tools.medical_tools import pet_knowledge_search
 from app.core.tools.mcp_tools.common_tools import web_search
+from app.core.tool_runtime_context import (
+    ToolRuntimeContext,
+    reset_tool_runtime_context,
+    set_tool_runtime_context,
+)
+from app.core.tools.mcp_tools.medical_tools import get_pet_health_summary
 
 
 class FakeHybridChunk:
@@ -651,3 +657,72 @@ def test_score_web_result_domain_based():
     )
     assert score_wiki < score_en
     assert score_wiki <= 2  # Base 5 - penalty 3 = 2
+
+
+def test_get_pet_health_summary_rejects_input_user_id_when_mismatched():
+    runtime_token = set_tool_runtime_context(
+        ToolRuntimeContext(
+            user_id="user-1",
+            role="PET_OWNER",
+            auth_token="jwt-token",
+        )
+    )
+
+    backend = AsyncMock()
+    backend.get_pet.return_value = {
+        "id": "pet-1",
+        "name": "Rocky",
+        "species": "DOG",
+        "breed": "Poodle",
+    }
+    backend.get_pet_emr_history.return_value = []
+
+    try:
+        with patch(
+            "app.services.backend_client.get_backend_client",
+            return_value=backend,
+        ):
+            result = asyncio.run(
+                get_pet_health_summary(
+                    pet_id="pet-1",
+                    user_id="user-x",
+                )
+            )
+    finally:
+        reset_tool_runtime_context(runtime_token)
+
+    assert result["success"] is False
+    assert result["error_code"] == "UNAUTHORIZED"
+    backend.get_pet.assert_not_awaited()
+
+
+def test_get_pet_health_summary_resolves_pet_by_name_with_runtime_user_id():
+    runtime_token = set_tool_runtime_context(
+        ToolRuntimeContext(
+            user_id="user-1",
+            role="PET_OWNER",
+            auth_token="jwt-token",
+        )
+    )
+
+    backend = AsyncMock()
+    backend.get_user_pets.return_value = [{"id": "pet-1", "name": "Rocky"}]
+    backend.get_pet.return_value = {
+        "id": "pet-1",
+        "name": "Rocky",
+        "species": "DOG",
+        "breed": "Poodle",
+    }
+    backend.get_pet_emr_history.return_value = []
+
+    try:
+        with patch(
+            "app.services.backend_client.get_backend_client",
+            return_value=backend,
+        ):
+            result = asyncio.run(get_pet_health_summary(pet_name_hint="rocky"))
+    finally:
+        reset_tool_runtime_context(runtime_token)
+
+    assert result["success"] is True
+    backend.get_user_pets.assert_awaited_once_with("jwt-token", "user-1")

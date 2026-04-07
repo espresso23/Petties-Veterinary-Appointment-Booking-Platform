@@ -724,9 +724,7 @@ This SRS uses the approved 20-module checklist as the minimum documentation base
 
 | 123 | AI Feedback Audit | UC-AD-11 | 3.11.7 | ✅ Agent Service | ✅ Web | ✅ Done |
 
-| 124 | Knowledge Graph Visualizer | UC-AD-12 | 3.11.8 | ✅ Agent Service | ✅ Web | ✅ Done |
 
-| 125 | KG Query Testing | UC-AD-13 | 3.11.8 | ✅ Agent Service | ✅ Web | ✅ Done |
 
 
 
@@ -1168,7 +1166,6 @@ Bảng tham chiếu giữa Use Cases trong SRS và các Module Implementation tr
 
 | UC-AI-10 | AI Feedback Audit | AI Agent Service | 3.11.7 |
 
-| UC-AI-11 | Knowledge Graph Management | AI Agent Service | 3.11.8 |
 
 | UC-CO-14 | AI Generate Clinic Services | AI Agent Service | 3.13.1 |
 
@@ -2754,7 +2751,6 @@ The following catalog lists the active storage structures used by the current Pe
 | **AI_CHAT_MESSAGE** | ai_chat_messages | AI messages and ReAct trace payloads | Stores tool calls, observations, sources, thinking metadata, and streaming output history. |
 | **AI_PROACTIVE_NOTIFICATION** | ai_proactive_notifications | AI-generated proactive notification log | Used for AI-driven reminders and suggestion workflows. |
 | **CHAT_FEEDBACK** | chat_feedback | User feedback on AI answers | Stores thumbs up/down and optional textual feedback per message. |
-| **KNOWLEDGE_GRAPH_TRIPLET** | knowledge_graph_triplets | Extracted graph facts for knowledge workflows | Stores subject-predicate-object triplets and metadata used by graph-based retrieval. |
 
 ##### Future / Runtime-Managed Structures
 
@@ -7769,52 +7765,6 @@ Active references:
 
 
 
- #### *3.11.8 Knowledge Graph Visualizer & Query Testing (UC-AD-12 / UC-AD-13)*
-
-**User Story:**
-
-> *As a Platform Admin, I want to visualize the Knowledge Graph and test its query capabilities so that I can verify the structured knowledge extracted from documents.*
-
-
-
-**Function trigger**
-
-- **Navigation path:** Admin Dashboard → AI Insights → Knowledge Graph.
-
-- **Timing frequency:** Sau khi build KG từ tài liệu mới hoặc khi cần kiểm tra logic tri thức.
-
-
-
-**Function description**
-
-- **Actors/Roles:** Admin.
-
-- **Purpose:** Hiển thị trực quan mối quan hệ Thực thể - Quan hệ và cung cấp công cụ truy vấn thử nghiệm KG engine.
-
-- **Interface:**
-
-    - **D3.js Graph:** Đồ thị động hiển thị các nodes (Subject/Object) và links (Predicate).
-
-    - **Graph Stats:** Hiển thị tổng số Nodes và Edges hiện có.
-
-    - **KG Query Tool:** Ô nhập câu hỏi và bảng kết quả hiển thị các Triplets liên quan nhất kèm Score và Nguồn dẫn.
-
-
-
-**Normal case:**
-
-1. Admin chọn tính năng Knowledge Graph build.
-
-2. Sau khi build xong, hệ thống hiển thị đồ thị 2D trực quan.
-
-3. Admin nhập "mèo bị nấm" vào ô truy vấn KG.
-
-4. Hệ thống trả về các triplet: `(Mèo, có triệu chứng, Ngứa)`, `(Nấm da, điều trị, Thuốc nội khoa)`...
-
-
-
-
-
  #### *3.11.10 AI Tool Booking API Orchestration (Internal System Support for UC-PO-14c)*
 
 **User Story:**
@@ -7963,7 +7913,7 @@ Figure 49. AI Clinic and Slot Suggestion Cards Rendered from Internal Tool APIs 
   1. Staff opens the EMR form or AI side panel while working on a specific pet or booking.
   2. The system gathers the current SOAP draft, doctor narrative, optional images, and trusted pet or booking context.
   3. If images are present and additional image reasoning is needed, the AI service calls Gemini Vision.
-  4. The AI service retrieves internal evidence from Knowledge Base, Knowledge Graph, and Case Memory.
+  4. The AI service retrieves internal evidence from Knowledge Base and Case Memory.
   5. The service builds a section-level grounding bundle for Subjective, Objective, Assessment, and Plan using the current request, KB chunks, and similar confirmed cases.
   6. The service maps disease labels to `canonical_code`, builds grounded differentials, and generates SOAP suggestions from the grounding bundle.
   7. If the doctor selects one diagnosis, the system may run `selected_only` to reuse prior grounded context.
@@ -7991,7 +7941,7 @@ Figure 49. AI Clinic and Slot Suggestion Cards Rendered from Internal Tool APIs 
   - If the grounding bundle lacks evidence for a SOAP section, the system must keep that section conservative and must not invent missing facts.
 - **Business rules:**
   - AI output is advisory and must never replace the doctor’s final diagnosis.
-  - The staff diagnosis flow only uses trusted internal sources: Knowledge Base, Knowledge Graph, confirmed EMR records, Case Memory, and Gemini Vision when needed.
+  - The staff diagnosis flow only uses trusted internal sources: Knowledge Base, confirmed EMR records, Case Memory, and Gemini Vision when needed.
   - Deprecated thumbs-up/down feedback data is not a valid diagnosis learning source.
   - Only a saved confirmed EMR record may enrich Case Memory.
   - After staff selects one diagnosis from the top differential list, the system may run `selected_only` using `previous_request_id`.

@@ -1,16 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
-import { feedbackApi, kgApi, caseMemoryApi } from '../../../services/agentService'
+import { feedbackApi, caseMemoryApi } from '../../../services/agentService'
 import type {
   FeedbackStatsResponse,
   FeedbackListResponse,
   FeedbackItem,
   FeedbackListParams,
-  KGStatsResponse,
-  KGBuildResponse,
-  KGVisualizeResponse,
-  KGQueryResultItem,
   CaseMemoryStatsResponse,
-  CaseMemoryPruneResponse,
   CaseMemoryItem,
   CaseMemoryDetailItem,
   CaseMemoryListParams,
@@ -21,9 +16,7 @@ import {
   HandThumbDownIcon,
   ChartBarIcon,
   CircleStackIcon,
-  CubeTransparentIcon,
   TrashIcon,
-  ArrowPathRoundedSquareIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
   ClockIcon,
@@ -32,22 +25,18 @@ import {
   ChevronRightIcon,
   TableCellsIcon,
   XMarkIcon,
-  ArrowsPointingOutIcon,
-  MagnifyingGlassIcon,
   EyeIcon,
   DocumentTextIcon,
 } from '@heroicons/react/24/outline'
 import { useToast } from '../../../components/Toast'
-import { GraphVisualizer } from '../../../components/admin/GraphVisualizer'
 import { ConfirmModal } from '../../../components/ConfirmModal'
 
 /**
  * AI Insights Page - Neobrutalism Edition
  *
- * 3 sections:
+ * 2 sections:
  * 1. Feedback Dashboard - stats, by_type, by_category with period selector
- * 2. Knowledge Graph - stats + build trigger
- * 3. Kho ca bệnh AI - stats + prune trigger
+ * 2. Kho ca bệnh AI - stats + prune trigger
  */
 export const AIInsightsPage = () => {
   const { showToast } = useToast()
@@ -59,22 +48,9 @@ export const AIInsightsPage = () => {
   const [feedbackStats, setFeedbackStats] = useState<FeedbackStatsResponse | null>(null)
   const [feedbackLoading, setFeedbackLoading] = useState(true)
 
-  // --- Section 2: Knowledge Graph ---
-  const [kgStats, setKgStats] = useState<KGStatsResponse | null>(null)
-  const [kgLoading, setKgLoading] = useState(true)
-  const [kgBuilding, setKgBuilding] = useState(false)
-  const [kgBuildResult, setKgBuildResult] = useState<KGBuildResponse | null>(null)
-  const [kgBuildJobId, setKgBuildJobId] = useState<string | null>(null)
-  const [kgBuildJobStatus, setKgBuildJobStatus] = useState<string | null>(null)
-  const [kgVisualizeData, setKgVisualizeData] = useState<KGVisualizeResponse | null>(null)
-  const [showKgGraph, setShowKgGraph] = useState(false)
-
-  // --- Section 3: Case Memory ---
+  // --- Section 2: Case Memory ---
   const [caseStats, setCaseStats] = useState<CaseMemoryStatsResponse | null>(null)
   const [caseLoading, setCaseLoading] = useState(true)
-  const [casePruning, setCasePruning] = useState(false)
-  const [casePruneResult, setCasePruneResult] = useState<CaseMemoryPruneResponse | null>(null)
-  const [pruneOlderThanDays, setPruneOlderThanDays] = useState(90)
 
   // --- Section 3b: Case Memory List ---
 
@@ -96,7 +72,7 @@ export const AIInsightsPage = () => {
   // --- Delete Confirmation ---
   const [deleteCaseId, setDeleteCaseId] = useState<string | null>(null)
 
-  // --- Section 4: Feedback Detail List ---
+  // --- Section 3: Feedback Detail List ---
   const [feedbackList, setFeedbackList] = useState<FeedbackListResponse | null>(null)
   const [feedbackListLoading, setFeedbackListLoading] = useState(false)
   const [feedbackListPage, setFeedbackListPage] = useState(1)
@@ -105,27 +81,6 @@ export const AIInsightsPage = () => {
   })
   const [showFilters, setShowFilters] = useState(false)
   const [showDetailSection, setShowDetailSection] = useState(false)
-  // Knowledge Graph Query
-  const [kgSearchQuery, setKgSearchQuery] = useState('')
-  const [kgSearchResults, setKgSearchResults] = useState<KGQueryResultItem[]>([])
-  const [kgSearching, setKgSearching] = useState(false)
-
-  const handleQueryKG = async () => {
-    if (!kgSearchQuery.trim()) return
-    setKgSearching(true)
-    try {
-      const res = await kgApi.queryKG({ query: kgSearchQuery })
-      setKgSearchResults(res.results)
-      if (res.results.length === 0) {
-        showToast('info', 'Không tìm thấy thông tin liên quan trong Knowledge Graph')
-      }
-    } catch (error) {
-      const err = error as Error
-      showToast('error', err.message || 'Lỗi khi truy vấn Knowledge Graph')
-    } finally {
-      setKgSearching(false)
-    }
-  }
 
   // --- Load Feedback Stats ---
   const loadFeedbackStats = useCallback(async () => {
@@ -140,19 +95,6 @@ export const AIInsightsPage = () => {
       setFeedbackLoading(false)
     }
   }, [periodDays, showToast])
-
-  // --- Load KG Stats ---
-  const loadKGStats = useCallback(async () => {
-    try {
-      setKgLoading(true)
-      const data = await kgApi.getStats()
-      setKgStats(data)
-    } catch (err) {
-      console.error('Failed to load KG stats:', err)
-    } finally {
-      setKgLoading(false)
-    }
-  }, [])
 
   // --- Load Case Memory Stats ---
   const loadCaseStats = useCallback(async () => {
@@ -246,10 +188,9 @@ export const AIInsightsPage = () => {
   }, [loadFeedbackStats])
 
   useEffect(() => {
-    loadKGStats()
     loadCaseStats()
     loadCaseList(1)
-  }, [loadKGStats, loadCaseStats, loadCaseList])
+  }, [loadCaseStats, loadCaseList])
 
   // Load feedback list when detail section is opened or filters change
   useEffect(() => {
@@ -257,104 +198,6 @@ export const AIInsightsPage = () => {
       loadFeedbackList(1)
     }
   }, [showDetailSection, loadFeedbackList])
-
-  // --- Actions ---
-  const handleBuildKG = async () => {
-    try {
-      setKgBuilding(true)
-      setKgBuildResult(null)
-      const result = await kgApi.build(undefined, 2000, true)
-      if (result.job_id) {
-        setKgBuildJobId(result.job_id)
-        setKgBuildJobStatus(result.status ?? 'queued')
-        showToast('success', 'Đã đưa tác vụ xây dựng KG vào chạy ngầm. Bạn có thể tiếp tục thao tác.')
-      } else {
-        setKgBuildResult(result)
-        await loadKGStats()
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Lỗi không xác định'
-      showToast('error', `Xây dựng KG thất bại: ${message}`)
-    } finally {
-      setKgBuilding(false)
-    }
-  }
-
-  useEffect(() => {
-    if (!kgBuildJobId) return
-
-    const poll = async () => {
-      try {
-        const status = await kgApi.getBuildJobStatus(kgBuildJobId)
-        setKgBuildJobStatus(status.status)
-
-        if (status.status === 'completed') {
-          const buildResult = status.result
-          if (buildResult) {
-            setKgBuildResult(buildResult)
-            const mergedEntities = buildResult.normalize_result?.stats?.entities_merged ?? 0
-            showToast(
-              'success',
-              `Đã xây dựng KG: ${buildResult.triplets_extracted} bộ ba, chuẩn hóa ${mergedEntities} thực thể`
-            )
-          }
-          await loadKGStats()
-          if (showKgGraph) {
-            const data = await kgApi.visualize()
-            setKgVisualizeData(data)
-          }
-          setKgBuildJobId(null)
-          setKgBuildJobStatus(null)
-        }
-
-        if (status.status === 'failed') {
-          showToast('error', `Xây dựng KG thất bại: ${status.error || 'Lỗi không xác định'}`)
-          setKgBuildJobId(null)
-          setKgBuildJobStatus(null)
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Lỗi không xác định'
-        showToast('error', `Không thể lấy trạng thái job KG: ${message}`)
-        setKgBuildJobId(null)
-        setKgBuildJobStatus(null)
-      }
-    }
-
-    poll()
-    const intervalId = window.setInterval(poll, 5000)
-    return () => window.clearInterval(intervalId)
-  }, [kgBuildJobId, loadKGStats, showKgGraph])
-
-  const handleShowKgGraph = async () => {
-    if (showKgGraph) {
-      setShowKgGraph(false)
-      return
-    }
-    try {
-      const data = await kgApi.visualize()
-      setKgVisualizeData(data)
-      setShowKgGraph(true)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Lỗi không xác định'
-      showToast('error', `Không thể tải graph: ${message}`)
-    }
-  }
-
-  const handlePruneCaseMemory = async () => {
-    try {
-      setCasePruning(true)
-      setCasePruneResult(null)
-      const result = await caseMemoryApi.prune(pruneOlderThanDays)
-      setCasePruneResult(result)
-      showToast('success', `Đã dọn dẹp ${result.pruned_count} ca cũ`)
-      await loadCaseStats()
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Lỗi không xác định'
-      showToast('error', `Dọn dẹp thất bại: ${message}`)
-    } finally {
-      setCasePruning(false)
-    }
-  }
 
   // --- Helpers ---
   const positiveRate = feedbackStats ? Math.round(feedbackStats.positive_rate * 100) : 0
@@ -370,13 +213,12 @@ export const AIInsightsPage = () => {
             <div>
               <h1 className="text-4xl font-black text-black uppercase italic tracking-tighter">AI INSIGHTS</h1>
               <p className="text-sm font-bold text-black mt-1 uppercase">
-                Feedback, Knowledge Graph & Kho ca bệnh AI
+                Feedback & Kho ca bệnh AI
               </p>
             </div>
             <button
               onClick={() => {
                 loadFeedbackStats()
-                loadKGStats()
                 loadCaseStats()
               }}
               className="inline-flex items-center gap-2 px-4 py-2 text-sm font-black uppercase bg-white text-stone-900 border-4 border-black shadow-[4px_4px_0_#1c1917] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all cursor-pointer"
@@ -687,213 +529,7 @@ export const AIInsightsPage = () => {
         </section>
 
         {/* ============================================
-           SECTION 2: KNOWLEDGE GRAPH
-           ============================================ */}
-        <section>
-          <h2 className="text-2xl font-black text-stone-900 uppercase tracking-tight mb-4">Knowledge Graph</h2>
-
-          {kgLoading ? (
-            <LoadingCard label="Đang tải thống kê Knowledge Graph..." />
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* KG Stats Cards */}
-              <StatCard
-                icon={<CubeTransparentIcon className="w-5 h-5 text-purple-600" />}
-                value={kgStats?.triplet_count ?? 0}
-                label="Tổng bộ ba"
-                bgColor="bg-purple-50"
-                valueColor="text-purple-600"
-              />
-              <StatCard
-                icon={<CircleStackIcon className="w-5 h-5 text-indigo-600" />}
-                value={kgStats?.entity_count ?? 0}
-                label="Thực thể duy nhất"
-                bgColor="bg-indigo-50"
-                valueColor="text-indigo-600"
-              />
-              <StatCard
-                icon={<ArrowPathRoundedSquareIcon className="w-5 h-5 text-teal-600" />}
-                value={kgStats?.relation_types?.length ?? 0}
-                label="Loại quan hệ"
-                bgColor="bg-teal-50"
-                valueColor="text-teal-600"
-              />
-
-              {/* Build KG Card */}
-              <div className="lg:col-span-3 bg-white border-2 border-stone-900 rounded-xl shadow-[4px_4px_0_#1c1917] p-6">
-                <div className="flex items-center justify-between gap-4 mb-4">
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-black uppercase text-stone-700">Xây dựng Knowledge Graph</h3>
-                    <p className="text-xs text-stone-500 mt-1">
-                      Trích xuất bộ ba (subject-predicate-object) từ tất cả tài liệu đã xử lý
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                      onClick={handleBuildKG}
-                      disabled={kgBuilding}
-                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-black uppercase bg-purple-600 text-white border-2 border-stone-900 rounded-lg shadow-[3px_3px_0_#1c1917] hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {kgBuilding ? (
-                        <>
-                          <ArrowPathIcon className="w-4 h-4 animate-spin" />
-                          Đang xây dựng...
-                        </>
-                      ) : (
-                        <>
-                          <CubeTransparentIcon className="w-4 h-4" />
-                          Xây dựng KG
-                        </>
-                      )}
-                    </button>
-                    <button
-                      onClick={handleShowKgGraph}
-                      disabled={!kgStats?.triplet_count}
-                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-black uppercase bg-teal-600 text-white border-2 border-stone-900 rounded-lg shadow-[3px_3px_0_#1c1917] hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <ArrowsPointingOutIcon className="w-4 h-4" />
-                      {showKgGraph ? 'Ẩn Graph' : 'Xem Graph'}
-                    </button>
-                  </div>
-                </div>
-
-                {kgBuildJobId && (
-                  <div className="mb-4 p-3 bg-amber-50 border-2 border-amber-600 rounded-lg">
-                    <p className="text-xs font-bold uppercase text-amber-800">
-                      Tác vụ xây dựng KG đang chạy ngầm: {kgBuildJobStatus || 'queued'}
-                    </p>
-                  </div>
-                )}
-
-                {/* Graph Visualization */}
-                {showKgGraph && kgVisualizeData && (
-                  <div className="mt-4">
-                    <GraphVisualizer data={kgVisualizeData} width={700} height={450} />
-                  </div>
-                )}
-                {/* Build result */}
-                {kgBuildResult && (
-                  <div className="mt-4 p-4 bg-green-50 border-2 border-green-600 rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircleIcon className="w-5 h-5 text-green-600" />
-                      <span className="text-sm font-bold text-green-800">{kgBuildResult.message}</span>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs text-stone-700">
-                      <div>
-                        <span className="font-bold uppercase">Tài liệu xử lý:</span>{' '}
-                        {kgBuildResult.documents_processed}
-                      </div>
-                      <div>
-                        <span className="font-bold uppercase">Bộ ba trích xuất:</span>{' '}
-                        {kgBuildResult.triplets_extracted}
-                      </div>
-                      <div>
-                        <span className="font-bold uppercase">Tài liệu bỏ qua:</span>{' '}
-                        {kgBuildResult.documents_skipped?.length ?? 0}
-                      </div>
-                      <div>
-                        <span className="font-bold uppercase">Thời gian:</span>{' '}
-                        {(kgBuildResult.processing_time_ms / 1000).toFixed(1)}s
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* KG Query Section */}
-                <div className="mt-8 pt-8 border-t-2 border-stone-100">
-                  <div className="flex items-center gap-2 mb-4">
-                    <MagnifyingGlassIcon className="w-5 h-5 text-purple-600" />
-                    <h4 className="text-sm font-black uppercase text-stone-700">Test Truy vấn Knowledge Graph</h4>
-                  </div>
-
-                  <div className="flex gap-3 mb-6">
-                    <div className="flex-1 relative">
-                      <input
-                        type="text"
-                        value={kgSearchQuery}
-                        onChange={(e) => setKgSearchQuery(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleQueryKG()}
-                        placeholder="Nhập câu hỏi hoặc từ khóa thú y (vídụ: Triệu chứng bệnh dại)..."
-                        className="w-full px-4 py-2 bg-stone-50 border-2 border-stone-900 rounded-lg shadow-[2px_2px_0_#1c1917] focus:outline-none focus:ring-2 focus:ring-purple-500 placeholder:text-stone-400"
-                      />
-                    </div>
-                    <button
-                      onClick={handleQueryKG}
-                      disabled={kgSearching || !kgSearchQuery.trim()}
-                      className="px-6 py-2 bg-stone-900 text-white font-black uppercase rounded-lg shadow-[3px_3px_0_#d97706] hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px] transition-all disabled:opacity-50"
-                    >
-                      {kgSearching ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : 'Truy vấn'}
-                    </button>
-                  </div>
-
-                  {kgSearchResults.length > 0 && (
-                    <div className="space-y-4">
-                      <div className="overflow-x-auto border-2 border-stone-900 rounded-xl overflow-hidden shadow-[4px_4px_0_#1c1917]">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="bg-stone-50 border-b-2 border-stone-900">
-                              <th className="px-4 py-3 text-left font-black uppercase text-xs text-stone-600">Thông tin liên quan tìm được</th>
-                              <th className="px-4 py-3 text-right font-black uppercase text-xs text-stone-600 w-24">Độ khớp</th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y border-stone-200">
-                            {kgSearchResults.map((res, i) => (
-                              <tr key={i} className="hover:bg-purple-50 transition-colors">
-                                <td className="px-4 py-3">
-                                  <div className="font-medium text-stone-900 mb-1">{res.object}</div>
-                                  <div className="flex flex-wrap gap-2">
-                                    {res.source_nodes?.map((node, ni) => (
-                                      <span key={ni} className="px-2 py-0.5 bg-stone-100 text-stone-600 rounded text-[10px] font-bold border border-stone-200">
-                                        {node}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </td>
-                                <td className="px-4 py-3 text-right font-mono font-bold text-purple-600">
-                                  {(res.score || 1).toFixed(2)}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Sample triplets */}
-                {kgStats?.sample_triplets && kgStats.sample_triplets.length > 0 && (
-                  <div className="mt-4">
-                    <h4 className="text-xs font-black uppercase text-stone-500 mb-2">Bộ ba mẫu</h4>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm border-2 border-stone-900 rounded-lg overflow-hidden">
-                        <thead>
-                          <tr className="bg-purple-50">
-                            <th className="text-left px-3 py-2 text-xs font-black uppercase border-b-2 border-stone-900">Chủ thể</th>
-                            <th className="text-left px-3 py-2 text-xs font-black uppercase border-b-2 border-stone-900">Quan hệ</th>
-                            <th className="text-left px-3 py-2 text-xs font-black uppercase border-b-2 border-stone-900">Đối tượng</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {kgStats.sample_triplets.map((t, i) => (
-                            <tr key={i} className="border-b border-stone-200 last:border-b-0 hover:bg-stone-50">
-                              <td className="px-3 py-2 font-medium">{t.subject}</td>
-                              <td className="px-3 py-2 text-purple-700 font-bold">{t.predicate}</td>
-                              <td className="px-3 py-2">{t.object}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* ============================================
-           SECTION 3: CASE MEMORY
+           SECTION 2: CASE MEMORY
            ============================================ */}
         <section>
           <h2 className="text-2xl font-black text-stone-900 uppercase tracking-tight mb-4">Kho ca bệnh AI</h2>
@@ -911,70 +547,6 @@ export const AIInsightsPage = () => {
                 valueColor="text-amber-600"
               />
               <CollectionStatusBadge status={caseStats?.status} />
-
-              {/* Prune Card */}
-              <div className="lg:col-span-2 bg-white border-2 border-stone-900 rounded-xl shadow-[4px_4px_0_#1c1917] p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-sm font-black uppercase text-stone-700">Dọn dẹp kho ca bệnh AI</h3>
-                    <p className="text-xs text-stone-500 mt-1">
-                      Xóa các ca đã quá cũ để giữ dữ liệu retrieval gọn, sạch và hữu ích hơn.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-end gap-4 mb-4">
-                  <div className="flex-1 max-w-xs">
-                    <label className="block text-xs font-black uppercase text-stone-600 mb-1">
-                      Xóa ca cũ hơn (ngày)
-                    </label>
-                    <input
-                      type="number"
-                      value={pruneOlderThanDays}
-                      onChange={(e) => setPruneOlderThanDays(Number(e.target.value))}
-                      min={7}
-                      max={365}
-                      className="w-full px-3 py-2 border-2 border-stone-900 rounded-lg text-sm font-medium shadow-[2px_2px_0_#1c1917] focus:outline-none focus:border-amber-600"
-                    />
-                  </div>
-                  <button
-                    onClick={handlePruneCaseMemory}
-                    disabled={casePruning}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-black uppercase bg-red-500 text-white border-2 border-stone-900 rounded-lg shadow-[3px_3px_0_#1c1917] hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {casePruning ? (
-                      <>
-                        <ArrowPathIcon className="w-4 h-4 animate-spin" />
-                        Đang dọn dẹp...
-                      </>
-                    ) : (
-                      <>
-                        <TrashIcon className="w-4 h-4" />
-                        Dọn dẹp
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {/* Prune result */}
-                {casePruneResult && (
-                  <div className="p-4 bg-green-50 border-2 border-green-600 rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircleIcon className="w-5 h-5 text-green-600" />
-                      <span className="text-sm font-bold text-green-800">{casePruneResult.message}</span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-stone-700">
-                      <div>
-                        <span className="font-bold uppercase">Đã xóa:</span> {casePruneResult.pruned_count} ca
-                      </div>
-                      <div>
-                        <span className="font-bold uppercase">Cũ hơn:</span>{' '}
-                        {casePruneResult.criteria.older_than_days} ngày
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
           )}
         </section>
@@ -1090,7 +662,6 @@ export const AIInsightsPage = () => {
                         <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Loài</th>
                         <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Chủ đề chính</th>
                         <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Chẩn đoán</th>
-                        <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Chuẩn hóa</th>
                         <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Ngày khám</th>
                         <th className="text-center px-3 py-2.5 text-[10px] font-black uppercase text-stone-600 min-w-[96px]">Thao tác</th>
                       </tr>
@@ -1473,18 +1044,6 @@ function CaseRow({ item, onView, onDelete }: CaseRowProps) {
     other: 'Khác',
   }[item.species] || item.species
 
-  const mappingLabel = item.mapping_status === 'mapped'
-    ? 'Đã chuẩn hóa'
-    : item.mapping_status === 'provisional'
-      ? 'Tạm gán nhãn'
-      : item.mapping_status || '--'
-
-  const mappingColor = item.mapping_status === 'mapped'
-    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-    : item.mapping_status === 'provisional'
-      ? 'bg-amber-100 text-amber-800 border-amber-300'
-      : 'bg-stone-100 text-stone-700 border-stone-300'
-
   const speciesColor = {
     dog: 'bg-amber-100 text-amber-700',
     cat: 'bg-purple-100 text-purple-700',
@@ -1503,11 +1062,6 @@ function CaseRow({ item, onView, onDelete }: CaseRowProps) {
       </td>
       <td className="px-3 py-2.5 text-xs font-bold text-stone-900 max-w-[200px] truncate">
         {item.display_name_vi || item.final_diagnosis_text || '--'}
-      </td>
-      <td className="px-3 py-2.5 whitespace-nowrap">
-        <span className={`inline-block rounded-lg border px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${mappingColor}`}>
-          {mappingLabel}
-        </span>
       </td>
       <td className="px-3 py-2.5 text-xs font-medium text-stone-600 whitespace-nowrap">
         {item.exam_at ? formatFeedbackDate(item.exam_at) : '--'}
@@ -1579,9 +1133,6 @@ function CaseDetailModal({ case: item, isLoading, onClose }: CaseDetailModalProp
                 <p className="font-bold text-stone-900">{item.display_name_vi || item.final_diagnosis_text || '--'}</p>
                 {item.canonical_code && (
                   <p className="mt-1 text-xs text-stone-500">Mã chuẩn: {item.canonical_code}</p>
-                )}
-                {item.mapping_status && (
-                  <p className="mt-1 text-xs text-stone-500">Trạng thái mapping: {item.mapping_status}</p>
                 )}
               </div>
 

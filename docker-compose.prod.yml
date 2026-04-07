@@ -104,7 +104,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       SECRET_KEY: ${JWT_SECRET}
       # Spring Boot Backend (container-to-container)
-      SPRING_BACKEND_URL: http://backend:8080/api
+      SPRING_BACKEND_URL: http://backend:8080
       # Qdrant Cloud (Managed via DB system_settings)
       QDRANT_COLLECTION_NAME: petties_knowledge_base
       # AI Architecture: Cloud-Only (OpenRouter + Cohere)

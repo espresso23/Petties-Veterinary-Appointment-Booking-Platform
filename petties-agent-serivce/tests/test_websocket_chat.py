@@ -27,8 +27,8 @@ from app.api.websocket import chat as websocket_chat
 from app.core.chat_context import BUSINESS_CHAT
 from app.core.tool_runtime_context import ToolRuntimeContext
 from app.core.tools.mcp_tools.booking_session_tools import (
-    end_booking_session,
-    start_booking_session_tool,
+    close_booking_session,
+    sync_booking_draft,
 )
 
 
@@ -69,7 +69,7 @@ class FakeThoughtStreamingAgent:
 class FakeBookingJourneyAgent:
     name = "petties_agent"
     agent_type = "single_agent"
-    enabled_tools = ["start_booking_session", "end_booking_session"]
+    enabled_tools = ["start_booking_session", "close_booking_session"]
 
     async def stream(self, user_message, session_id, **kwargs):
         normalized = str(user_message or "").lower()
@@ -79,13 +79,13 @@ class FakeBookingJourneyAgent:
             or "không đặt" in normalized
             or "huy" in normalized
         ):
-            tool_result = await end_booking_session(reason="CANCELLED")
+            tool_result = await close_booking_session(reason="CANCELLED")
             yield {
                 "type": "react_step",
                 "step": {
                     "step_type": "action",
-                    "content": "Called end_booking_session",
-                    "tool_name": "end_booking_session",
+                    "content": "Called close_booking_session",
+                    "tool_name": "close_booking_session",
                     "tool_params": {"reason": "CANCELLED"},
                     "tool_result": tool_result,
                 },
@@ -95,7 +95,7 @@ class FakeBookingJourneyAgent:
                 "step": {
                     "step_type": "observation",
                     "content": "booking session cancelled",
-                    "tool_name": "end_booking_session",
+                    "tool_name": "close_booking_session",
                     "tool_params": {"reason": "CANCELLED"},
                     "tool_result": tool_result,
                 },
@@ -107,7 +107,7 @@ class FakeBookingJourneyAgent:
             return
 
         if "dat lai" in normalized or "đặt lại" in normalized:
-            tool_result = await start_booking_session_tool(
+            tool_result = await sync_booking_draft(
                 initial_draft={
                     "pet_id": "pet-1",
                     "clinic_id": "clinic-1",
@@ -147,7 +147,7 @@ class FakeBookingJourneyAgent:
             return
 
         if "dat lich" in normalized or "đặt lịch" in normalized:
-            tool_result = await start_booking_session_tool(
+            tool_result = await sync_booking_draft(
                 initial_draft={
                     "pet_id": "pet-1",
                     "clinic_id": "clinic-1",
@@ -303,6 +303,66 @@ class WebSocketChatTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNone(parsed.ui_action)
         self.assertIn("booking_date", parsed.ui_action_error)
+
+    async def test_parse_raw_message_accepts_select_item_payload(self):
+        parsed = websocket_chat._parse_raw_message(
+            json.dumps(
+                {
+                    "message": "Chọn phòng khám",
+                    "ui_action": {
+                        "type": "select_item",
+                        "item_id": "clinic-1",
+                        "item_type": "clinic",
+                        "source": "quick_booking",
+                    },
+                }
+            ),
+            agent_id=None,
+            provider_override=None,
+            model_override=None,
+            images=None,
+        )
+
+        self.assertIsNone(parsed.ui_action_error)
+        self.assertIsNotNone(parsed.ui_action)
+        self.assertEqual(parsed.ui_action.get("type"), "select_item")
+        self.assertEqual(parsed.ui_action.get("item_id"), "clinic-1")
+        self.assertEqual(parsed.ui_action.get("item_type"), "clinic")
+
+    async def test_parse_raw_message_accepts_confirm_service_update_with_extended_fields(self):
+        parsed = websocket_chat._parse_raw_message(
+            json.dumps(
+                {
+                    "message": "Xác nhận cập nhật dịch vụ",
+                    "ui_action": {
+                        "type": "confirm_service_update",
+                        "service_id": "svc-1",
+                        "base_price": 250000,
+                        "reminder_interval": 6,
+                        "reminder_unit": "MONTH",
+                        "weight_prices": [
+                            {"min_weight": 0, "max_weight": 10, "price": 250000}
+                        ],
+                        "dose_prices": [
+                            {"dose_number": 1, "dose_label": "Mũi 1", "price": 120000}
+                        ],
+                    },
+                }
+            ),
+            agent_id=None,
+            provider_override=None,
+            model_override=None,
+            images=None,
+        )
+
+        self.assertIsNone(parsed.ui_action_error)
+        self.assertIsNotNone(parsed.ui_action)
+        self.assertEqual(parsed.ui_action.get("type"), "confirm_service_update")
+        self.assertEqual(parsed.ui_action.get("service_id"), "svc-1")
+        self.assertEqual(parsed.ui_action.get("reminder_interval"), 6)
+        self.assertEqual(parsed.ui_action.get("reminder_unit"), "MONTH")
+        self.assertEqual(len(parsed.ui_action.get("weight_prices") or []), 1)
+        self.assertEqual(len(parsed.ui_action.get("dose_prices") or []), 1)
 
     async def test_handle_chat_message_passes_role_and_context_to_factory(self):
         captured = {}
@@ -586,6 +646,24 @@ class WebSocketChatTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Đang suy luận:", payload["content"])
         self.assertIn("đang rút ý chính", payload["content"])
 
+    def test_map_react_step_to_message_observation_hides_structured_json_payload(self):
+        payload = websocket_chat.map_react_step_to_message(
+            {
+                "step_type": "observation",
+                "tool_name": "get_my_clinics",
+                "content": (
+                    "Đã truy xuất danh sách phòng khám. "
+                    '{"matched_clinic":{"clinicId":"clinic-1","name":"Petties"}}'
+                ),
+            },
+            3,
+        )
+
+        self.assertEqual(payload["type"], "tool_result")
+        self.assertIn("Đang suy luận:", payload["content"])
+        self.assertNotIn("clinicId", payload["content"])
+        self.assertNotIn("{", payload["content"])
+
     def test_sanitize_assistant_response_removes_markdown_bold_and_normalizes_bullets(
         self,
     ):
@@ -606,6 +684,27 @@ class WebSocketChatTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Bạn nên làm gì ngay bây giờ:", sanitized)
         self.assertIn("1. Ngừng cho ăn uống:", sanitized)
         self.assertIn("- Chó nôn liên tục, không ngừng hoặc nôn ra máu.", sanitized)
+
+    def test_sanitize_assistant_response_splits_inline_lists_to_multiline(self):
+        text = (
+            "### Kế hoạch xử lý\n"
+            "Bạn có thể làm theo 1. Theo dõi nhiệt độ 2. Bù nước đúng cách 3. Đưa bé đi khám nếu nặng\n"
+            "Lưu ý quan trọng - Không tự ý dùng thuốc người - Chuẩn bị video triệu chứng"
+        )
+
+        sanitized = websocket_chat.sanitize_assistant_response(
+            text,
+            user_message="cho toi huong dan",
+            has_prior_assistant_message=True,
+        )
+
+        self.assertNotIn("###", sanitized)
+        self.assertIn("Kế hoạch xử lý", sanitized)
+        self.assertIn("1. Theo dõi nhiệt độ", sanitized)
+        self.assertIn("2. Bù nước đúng cách", sanitized)
+        self.assertIn("3. Đưa bé đi khám nếu nặng", sanitized)
+        self.assertIn("- Không tự ý dùng thuốc người", sanitized)
+        self.assertIn("- Chuẩn bị video triệu chứng", sanitized)
 
     async def test_websocket_connect_emits_history_and_booking_state_hydration(self):
         sent_payloads = []

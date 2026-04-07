@@ -143,12 +143,55 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
                   : [],
             ),
       body: SafeArea(bottom: false, child: bodyContent),
+      floatingActionButton: _buildAiChatBubble(context),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: PetOwnerBottomNav(
         currentIndex: _currentIndex,
         onTap: _onTabTapped,
       ),
     );
   }
+
+  Widget _buildAiChatBubble(BuildContext context) {
+    return GestureDetector(
+      onTap: () => context.push(AppRoutes.aiChat),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.primary,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.stone900, width: 2),
+          boxShadow: const [
+            BoxShadow(
+              color: AppColors.stone900,
+              offset: Offset(3, 3),
+            ),
+          ],
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.auto_awesome,
+              color: AppColors.stone900,
+              size: 18,
+            ),
+            SizedBox(width: 6),
+            Text(
+              'TRỢ LÝ AI',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: AppColors.stone900,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildHomeTab(BuildContext context, AuthProvider authProvider) {
     final user = authProvider.user;
     return RefreshIndicator(
@@ -575,5 +618,4 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
       ),
     );
   }
-
 }

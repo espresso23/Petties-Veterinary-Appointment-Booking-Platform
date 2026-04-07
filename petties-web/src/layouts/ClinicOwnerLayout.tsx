@@ -33,7 +33,7 @@ export const ClinicOwnerLayout = () => {
     const { state, toggleSidebar, isMobile } = useSidebar()
 
     const fetchMembershipStatus = useMembershipStore(state => state.fetchMembershipStatus)
-    const { clinics, getMyClinics } = useClinicStore()
+    const { getMyClinics, selectedClinicId } = useClinicStore()
 
     const isVIP = useMembershipStore(state => state.isVIP())
     const planName = useMembershipStore(state => state.getPlanName())
@@ -51,10 +51,10 @@ export const ClinicOwnerLayout = () => {
     }, [refreshUnreadCount, getMyClinics])
 
     useEffect(() => {
-        if (clinics && clinics.length > 0) {
-            fetchMembershipStatus(clinics[0].clinicId)
+        if (selectedClinicId) {
+            fetchMembershipStatus(selectedClinicId)
         }
-    }, [clinics, fetchMembershipStatus])
+    }, [selectedClinicId, fetchMembershipStatus])
 
     const navGroups: NavGroup[] = [
         {

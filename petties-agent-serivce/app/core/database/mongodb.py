@@ -288,27 +288,6 @@ async def create_mongodb_indexes():
         await feedback_collection.create_index("timestamp")
         logger.success(f"✅ Created indexes for {settings.MONGODB_FEEDBACK_COLLECTION}")
 
-        # ===== knowledge_graph_triplets indexes =====
-        kg_collection = db[settings.MONGODB_KG_TRIPLETS_COLLECTION]
-
-        # Unique index on (subject, predicate, object) exactly
-        await kg_collection.create_index(
-            [("subject", 1), ("predicate", 1), ("object", 1)], unique=True
-        )
-        # Indexes for graph traversal operations
-        await kg_collection.create_index([("subject", 1), ("predicate", 1)])
-        await kg_collection.create_index([("object", 1), ("predicate", 1)])
-        # Text index for keyword search logic on entities
-        await kg_collection.create_index(
-            [("subject", "text"), ("object", "text")],
-            weights={"subject": 2, "object": 1},
-        )
-        await kg_collection.create_index("source")
-
-        logger.success(
-            f"✅ Created indexes for {settings.MONGODB_KG_TRIPLETS_COLLECTION}"
-        )
-
         logger.success("✅ All MongoDB indexes created successfully!")
 
     except Exception as e:

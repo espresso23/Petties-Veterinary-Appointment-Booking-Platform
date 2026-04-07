@@ -3,7 +3,7 @@
 
 > Lưu ý cập nhật ngày 2026-04-01: tài liệu này chứa nhiều nội dung lịch sử của hướng AI Diagnose cũ như Visual Case Memory từ feedback ảnh, thumbs up/down và Label Studio. Kiến trúc hiện hành đã chuyển sang knowledge base + EMR xác nhận + Gemini Vision. Xem consolidated documentation: [ai_diagnose_service/](D:/SEP490/petties/docs-references/ai_diagnose_service/). Không dùng tài liệu này làm nguồn triển khai chính cho doctor diagnostic flow mới.
 
-**Muc dich:** Giai thich cach AI Agent luu tru du lieu, cai thien theo thoi gian, va cac co che nang cao do chinh xac (Query Expansion, Knowledge Graph, Visual Case Memory, Feedback Loop).
+**Muc dich:** Giai thich cach AI Agent luu tru du lieu, cai thien theo thoi gian, va cac co che nang cao do chinh xac (Query Expansion, Visual Case Memory, Feedback Loop).
 
 **Ngay tao:** 2026-03-08
 **Cap nhat:** 2026-03-12
@@ -525,173 +525,6 @@ async def _expand_query(query: str, pet_type: str = None) -> str:
 
 ---
 
-## 8. KNOWLEDGE GRAPH - DO THI TRI THUC THU Y
-
-### 8.1 Tai sao can Knowledge Graph?
-
-RAG thuan tuy chi tim chunk van ban tuong tu ve ngu nghia. Nhung nhieu case thu y can **suy luan chuoi**:
-
-```
-Vi du: "Meo ho khan 3 ngay, chay nuoc mui"
-
-RAG thuan:  Tim chunk co "ho khan" + "chay mui" -> tra ket qua gan nhat
-KG bo sung:  Duyet graph:
-             Ho khan --chi_diem--> Viem mui hong
-             Chay nuoc mui --chi_diem--> Viem mui hong  
-             Viem mui hong --thuong_gap_o--> Meo
-             Viem mui hong --xu_ly--> Khang sinh + Giu am + Kham tai phong kham
-             -> Tra loi co cau truc va logic hon
-```
-
-### 8.2 Kien truc Knowledge Graph
-
-```mermaid
-graph TD
-    subgraph KG["Knowledge Graph (LlamaIndex KG Index)"]
-        S1["Ho khan"] -->|chi_diem| D1["Viem mui hong"]
-        S2["Chay nuoc mui"] -->|chi_diem| D1
-        S3["Non mua"] -->|chi_diem| D2["Viem da day ruot"]
-        S3 -->|chi_diem| D3["Parvo virus"]
-        S4["Phan co mau"] -->|chi_diem| D3
-        
-        D1 -->|thuong_gap_o| A1["Meo"]
-        D3 -->|thuong_gap_o| A2["Cho con < 6 thang"]
-        
-        D1 -->|xu_ly| T1["Khang sinh + Giu am"]
-        D2 -->|xu_ly| T2["Nhin an + Truyen dich"]
-        D3 -->|xu_ly| T3["Nhap vien + Truyen dich + Khang sinh"]
-    end
-    
-    subgraph Sources["Nguon du lieu"]
-        Doc["Tai lieu thu y (PDF)"]
-        Cases["Case thuc te (Feedback)"]
-        Web["Web search results"]
-    end
-    
-    Sources -->|"LLM Extract Triplets"| KG
-```
-
-### 8.3 Cach xay KG tu tai lieu thu y
-
-```mermaid
-sequenceDiagram
-    participant Admin
-    participant API as AI Service
-    participant LLM as LLM (OpenRouter)
-    participant KG as KG Index (LlamaIndex)
-    participant Qdrant as Qdrant Cloud
-
-    Admin->>API: Upload tai lieu thu y (PDF)
-    API->>API: Parse + Chunk van ban
-    API->>LLM: Extract triplets tu moi chunk
-    Note right of LLM: "Mèo bị rận tai thường<br/>ngứa, lắc đầu, cặn đen<br/>nhớ, rửa tai"<br/>-> (Rận tai, trieu_chung, Ngứa dữ dội)<br/>-> (Rận tai, trieu_chung, Lắc đầu)<br/>-> (Rận tai, xu_ly, Thuốc nhỏ tai)<br/>-> (Rận tai, thuong_gap, Mèo)
-    LLM-->>API: Triplets [(subject, predicate, object)]
-    API->>KG: Luu triplets vao KG Index
-    API->>Qdrant: Embed + store (hybrid: vector + graph)
-    Qdrant-->>API: OK
-    API-->>Admin: Index thanh cong (N triplets extracted)
-```
-
-### 8.4 Hybrid Query: RAG + Knowledge Graph
-
-Khi user hoi, he thong ket hop 2 nguon:
-
-```mermaid
-flowchart TB
-    Q["User: 'Meo ho khan chay nuoc mui'"] --> P["Query Expansion"]
-    P --> R["RAG Search (Qdrant)"]
-    P --> K["KG Traversal (Graph)"]
-    
-    R --> |"Top 5 chunks tuong tu"| M["Merge & Re-rank"]
-    K --> |"Quan he: Trieu chung->Benh->Xu ly"| M
-    
-    M --> A["LLM tong hop cau tra loi"]
-    A --> |"Ket qua co structure + evidence"| U["User"]
-```
-
-**Loi ich Hybrid Query:**
-
-| Chi tieu | RAG thuan | RAG + KG |
-|----------|-----------|----------|
-| Cau hoi don gian | Tot | Tuong duong |
-| Cau hoi nhieu trieu chung | Tim chunk gan nhat | Suy luan chuoi, chinh xac hon |
-| Case hiem gap | Co the khong tim thay | Suy luan tu quan he da biet |
-| Giai thich ket qua | Trich dan chunk | Trinh bay logic: A -> B -> C |
-
-### 8.5 Implementation voi LlamaIndex
-
-```python
-from llama_index.core import KnowledgeGraphIndex, ServiceContext
-from llama_index.core.graph_stores import SimpleGraphStore
-
-# Buoc 1: Tao KG Index tu documents
-graph_store = SimpleGraphStore()  # Hoac Neo4j neu can scale
-kg_index = KnowledgeGraphIndex.from_documents(
-    documents,
-    max_triplets_per_chunk=10,
-    include_embeddings=True,
-    graph_store=graph_store,
-)
-
-# Buoc 2: Query KG
-query_engine = kg_index.as_query_engine(
-    include_text=True,      # Kem theo text goc
-    response_mode="tree_summarize",
-    embedding_mode="hybrid",  # Vector + Graph
-)
-
-response = query_engine.query("Meo ho khan chay nuoc mui la benh gi?")
-# -> Tra ve: benh + quan he + evidence tu graph
-```
-
-### 8.6 Implementation Status (2026-03-12)
-
-#### 8.6.1 Da Hoan Thanh
-
-| Feature | Status | Implementation |
-|---------|--------|----------------|
-| **KG Index (LlamaIndex)** | ✅ Done | `knowledge_graph.py` - KnowledgeGraphIndex + SimpleGraphStore |
-| **Build from documents** | ✅ Done | `/build-kg` API endpoint |
-| **Graph visualization** | ✅ Done | D3.js frontend + `/kg-visualize` API |
-| **LLM-based reasoning** | ✅ Done | Query returns ALL triplets → LLM downstream tự suy luận |
-| **HybridRAGEngine** | ✅ Done | RAG + KG + Case Memory parallel search |
-
-#### 8.6.2 Implementation Details
-
-Thay vi keyword matching (fragile, mat ngon ngu), implementation hien tai:
-- **query_graph()** tra ve TAT CA triplets tu graph store
-- **LLM downstream** (Agent) tu quyet dinh triplets nao lien quan
-- **HybridRAGEngine** gop ket qua tu RAG, KG, va Case Memory
-- **Agent LLM** doc context + suy luan -> generate cau tra loi
-
-```
-User Query → Agent (LLM) → pet_knowledge_search tool 
-                              ↓
-                     HybridRAGEngine
-                              ↓
-           ┌──────────────────┼──────────────────┐
-           ↓                  ↓                  ↓
-      RAG Search       KG Query          Case Memory
-      (chunks)     (ALL triplets)        (cases)
-           └──────────────────┼──────────────────┘
-                              ↓
-                     Merge & Re-rank
-                              ↓
-                     Return to Agent
-                              ↓
-           Agent LLM doc context + SUY LUAN → Generate response
-```
-
-#### 8.6.3 Chua Hoan Thanh
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| **Transitive reasoning (A→B→C)** | ⏳ Pending | Co the them sau |
-| **Neo4j backend** | ⏳ Pending | Phase 3 |
-| **Auto-update from feedback** | ⏳ Pending | Phase 3 |
-
----
-
 ## 9. VISUAL CASE MEMORY - KNOWLEDGE FROM IMAGES
 
 ### 9.1 Problem
@@ -1044,7 +877,7 @@ ADMIN playground         = weight 0.0 (chi dung de debug, khong embed)
 
 ### 11.1 Per-User Context vs Shared Knowledge
 
-Moi user co context va memory **rieng biet** (session, lich su hoi thoai). Nhung Knowledge Graph, RAG Knowledge Base, va Case Memory la **chung toan he thong** — moi feedback tu bat ky user nao deu nuoi chung kho tri thuc.
+Moi user co context va memory **rieng biet** (session, lich su hoi thoai). Nhung RAG Knowledge Base va Case Memory la **chung toan he thong** — moi feedback tu bat ky user nao deu nuoi chung kho tri thuc.
 
 ```mermaid
 flowchart TB
@@ -1058,7 +891,6 @@ flowchart TB
     subgraph SHARED["DU LIEU CHUNG TOAN HE THONG (Qdrant Cloud)"]
         direction TB
         RAG["RAG Knowledge Base<br/>(Tai lieu thu y)"]
-        KG["Knowledge Graph<br/>(Trieu chung -> Benh -> Loai)"]
         CM["Case Memory<br/>(Cases da confirmed)"]
     end
     
@@ -1090,7 +922,6 @@ sequenceDiagram
     participant MongoDB as MongoDB (Per-User)
     participant QE as Query Expansion
     participant RAG as RAG (Qdrant - CHUNG)
-    participant KG as Knowledge Graph (CHUNG)
     participant CaseMem as Case Memory (Qdrant - CHUNG)
     participant LLM as LLM (OpenRouter)
     participant Tools as Business Tools (Spring Boot)
@@ -1161,7 +992,6 @@ sequenceDiagram
     participant Agent as AI Agent
     participant MongoDB as MongoDB
     participant CaseMem as Case Memory (CHUNG)
-    participant KG as Knowledge Graph (CHUNG)
     participant RAG as RAG KB (CHUNG)
 
     Note over UserA,RAG: === GIAI DOAN 1: User A hoi, AI tra loi ===
@@ -1197,7 +1027,6 @@ sequenceDiagram
 | **Chat messages + ReAct trace** | RIENG moi session | MongoDB `ai_chat_messages` | Moi message gui/nhan |
 | **Chat feedback** | User gui RIENG | MongoDB `chat_feedback` | User bam thumbs up/down |
 | **RAG Knowledge Base** | CHUNG toan he thong | Qdrant `petties_knowledge` | Admin upload tai lieu |
-| **Knowledge Graph** | CHUNG toan he thong | Qdrant (KG Index) | Extract triplets tu tai lieu + confirmed cases |
 | **Case Memory** | CHUNG toan he thong | Qdrant `petties_case_memory` | Auto-embed khi feedback confirmed |
 | **System Prompt** | CHUNG toan he thong | PostgreSQL `prompt_versions` | Admin tinh chinh |
 | **Du lieu nghiep vu** (clinic, slot, pet) | Realtime query | PostgreSQL (Spring Boot) | Business operations |
@@ -1218,7 +1047,6 @@ flowchart LR
     
     subgraph MECHANISMS["4 Co che"]
         M1["1. Query Expansion<br/>Mo rong tu khoa"]
-        M2["2. Knowledge Graph<br/>Suy luan quan he"]
         M3["3. Visual Case Memory<br/>Tich luy case hinh anh"]
         M4["4. Feedback Loop<br/>Hoc tu phan hoi"]
     end
@@ -1248,10 +1076,9 @@ flowchart LR
 | **1. PostgreSQL (Config)** | ✅ Done | Agent config, tools, prompts, documents metadata |
 | **2. MongoDB Schema** | ✅ Done | ai_chat_sessions, ai_chat_messages, chat_feedback |
 | **3. Query Expansion** | ✅ Done | LLM-based rewrite for short queries |
-| **4. Knowledge Graph** | ✅ Done | LLM-based reasoning (not keyword) |
 | **5. Visual Case Memory** | ✅ Done | Text + Image (Jina CLIP) embeddings |
 | **6. Feedback Loop** | ✅ Done | Thumbs up/down, Staff confirm, categories |
-| **7. HybridRAGEngine** | ✅ Done | RAG + KG + Case Memory parallel search |
+| **7. HybridRAGEngine** | ✅ Done | RAG + Case Memory parallel search |
 | **8. Metrics Collection** | ❌ Pending | Section 4 chua implement |
 | **9. Pattern Analysis** | ❌ Pending | Advanced feedback processing |
 
@@ -1261,10 +1088,6 @@ flowchart LR
 |----------|--------|------|
 | `/chat/feedback` | ✅ Done | Required |
 | `/chat/sessions` | ✅ Done | Required |
-| `/knowledge/build-kg` | ✅ Done | Admin |
-| `/knowledge/kg-stats` | ✅ Done | Public |
-| `/knowledge/kg-visualize` | ✅ Done | Public |
-| `/knowledge/kg-query` | ✅ Done | Public |
 | `/knowledge/case-memory/stats` | ✅ Done | Public |
 | `/knowledge/case-memory/prune` | ✅ Done | Admin |
 
@@ -1272,7 +1095,6 @@ flowchart LR
 
 | Component | File |
 |-----------|------|
-| Knowledge Graph | `app/core/rag/knowledge_graph.py` |
 | HybridRAGEngine | `app/core/rag/hybrid_engine.py` |
 | Query Expander | `app/core/rag/query_expander.py` |
 | Case Memory | `app/core/rag/case_memory.py` |

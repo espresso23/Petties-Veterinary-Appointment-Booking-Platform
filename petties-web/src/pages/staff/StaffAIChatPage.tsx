@@ -47,6 +47,8 @@ type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 
 const MAX_RECONNECT_ATTEMPTS = 3
 const RECONNECT_INTERVAL_MS = 2000
+const WEBSOCKET_OPEN_STATE = typeof WebSocket !== 'undefined' && typeof WebSocket.OPEN === 'number' ? WebSocket.OPEN : 1
+const WEBSOCKET_CONNECTING_STATE = typeof WebSocket !== 'undefined' && typeof WebSocket.CONNECTING === 'number' ? WebSocket.CONNECTING : 0
 
 interface SessionInfo {
   sessionId: string
@@ -60,6 +62,20 @@ interface ImageUpload {
   file: File
   preview: string
   base64: string
+}
+
+const looksLikeJsonPayload = (value: unknown): boolean => {
+  if (typeof value !== 'string') return false
+  const text = value.trim()
+  if (!text) return false
+  if (!(text.startsWith('{') || text.startsWith('['))) return false
+  return (
+    text.includes('"success"') ||
+    text.includes('"data"') ||
+    text.includes('"suggestions"') ||
+    text.includes('"error_code"') ||
+    text.includes('"ui_card"')
+  )
 }
 
 const parseAgeMonths = (value?: string | null): number | undefined => {
@@ -83,6 +99,9 @@ export const StaffAIChatPage = () => {
 
   // WebSocket state
   const wsRef = useRef<WebSocket | null>(null)
+  const manualDisconnectRef = useRef(false)
+  const expectedSessionIdRef = useRef<string | null>(null)
+  const reconnectAttemptsRef = useRef(0)
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected')
   const [reconnectAttempts, setReconnectAttempts] = useState(0)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -209,6 +228,7 @@ export const StaffAIChatPage = () => {
   // ==================== SESSION MANAGEMENT ====================
 
   const disconnectWebSocket = useCallback(() => {
+    manualDisconnectRef.current = true
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current)
       reconnectTimeoutRef.current = null
@@ -217,7 +237,9 @@ export const StaffAIChatPage = () => {
       wsRef.current.close()
       wsRef.current = null
     }
+    expectedSessionIdRef.current = null
     setConnectionStatus('disconnected')
+    reconnectAttemptsRef.current = 0
     setReconnectAttempts(0)
   }, [])
 
@@ -473,7 +495,9 @@ export const StaffAIChatPage = () => {
               ...prev.slice(0, -1),
               {
                 ...last,
-                content: data.full_response ?? '',
+                content: looksLikeJsonPayload(data.full_response)
+                  ? ''
+                  : (data.full_response ?? ''),
                 timestamp: new Date(),
                 thinkingProcess,
                 toolCalls,
@@ -484,7 +508,9 @@ export const StaffAIChatPage = () => {
           return [...prev, {
             id: (Date.now() + 1).toString(),
             role: 'assistant',
-            content: data.full_response ?? '',
+            content: looksLikeJsonPayload(data.full_response)
+              ? ''
+              : (data.full_response ?? ''),
             timestamp: new Date(),
             thinkingProcess,
             toolCalls
@@ -512,34 +538,50 @@ export const StaffAIChatPage = () => {
     }
   }, [mapHistoryMessage])
 
-  const connectWebSocket = useCallback(() => {
-    if (!sessionInfo?.sessionId) return
+  const connectWebSocket = useCallback((sessionId: string, contextType: ChatContextType) => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current)
+      reconnectTimeoutRef.current = null
+    }
+
     if (
-      wsRef.current?.readyState === WebSocket.OPEN ||
-      wsRef.current?.readyState === WebSocket.CONNECTING
+      wsRef.current?.readyState === WEBSOCKET_OPEN_STATE ||
+      wsRef.current?.readyState === WEBSOCKET_CONNECTING_STATE
     ) return
 
+    manualDisconnectRef.current = false
     setConnectionStatus('connecting')
-    const ws = createChatWebSocket(sessionInfo.sessionId, sessionInfo.contextType)
+    const ws = createChatWebSocket(sessionId, contextType)
 
     ws.onopen = () => {
       setConnectionStatus('connected')
+      reconnectAttemptsRef.current = 0
       setReconnectAttempts(0)
     }
+
     ws.onclose = () => {
-      setConnectionStatus('disconnected')
       if (wsRef.current === ws) wsRef.current = null
-      
+
+      if (manualDisconnectRef.current || expectedSessionIdRef.current !== sessionId) {
+        setConnectionStatus('disconnected')
+        return
+      }
+
       // Auto-reconnect if within retry limit
-      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-        const nextAttempt = reconnectAttempts + 1
+      const nextAttempt = reconnectAttemptsRef.current + 1
+      if (nextAttempt <= MAX_RECONNECT_ATTEMPTS) {
+        reconnectAttemptsRef.current = nextAttempt
         setReconnectAttempts(nextAttempt)
         console.log(`WebSocket closed, auto-reconnecting (${nextAttempt}/${MAX_RECONNECT_ATTEMPTS})...`)
+        setConnectionStatus('connecting')
         reconnectTimeoutRef.current = setTimeout(() => {
-          connectWebSocket()
+          connectWebSocket(sessionId, contextType)
         }, RECONNECT_INTERVAL_MS)
+      } else {
+        setConnectionStatus('disconnected')
       }
     }
+
     ws.onerror = () => setConnectionStatus('error')
 
     ws.onmessage = (event) => {
@@ -551,21 +593,28 @@ export const StaffAIChatPage = () => {
       }
     }
     wsRef.current = ws
-  }, [handleWebSocketMessage, sessionInfo?.contextType, sessionInfo?.sessionId, reconnectAttempts])
+  }, [handleWebSocketMessage])
+
+  useEffect(() => {
+    expectedSessionIdRef.current = sessionInfo?.sessionId ?? null
+  }, [sessionInfo?.sessionId])
 
   useEffect(() => {
     if (!sessionInfo?.sessionId) {
       disconnectWebSocket()
       return
     }
-    connectWebSocket()
+
+    connectWebSocket(sessionInfo.sessionId, sessionInfo.contextType)
+
     return () => {
+      manualDisconnectRef.current = true
       if (wsRef.current) {
         wsRef.current.close()
         wsRef.current = null
       }
     }
-  }, [connectWebSocket, disconnectWebSocket, sessionInfo?.sessionId])
+  }, [connectWebSocket, disconnectWebSocket, sessionInfo?.contextType, sessionInfo?.sessionId])
 
   useEffect(() => {
     if (scrollContainerRef.current) {

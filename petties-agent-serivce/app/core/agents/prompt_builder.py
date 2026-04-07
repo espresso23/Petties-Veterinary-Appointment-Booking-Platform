@@ -6,7 +6,7 @@ including system prompt, ReAct format rules, tool descriptions,
 and booking guidance.
 
 Package: app.core.agents
-Version: v1.2.0 (Hardcoded defaults - no settings needed)
+Version: v1.3.0 (Fast Draft Flow)
 """
 
 from typing import List, Dict, Any, Set, Optional
@@ -21,6 +21,8 @@ from app.core.agents.text_utils import (
 from app.core.agents.booking_flow import (
     build_booking_prompt_guidance,
     has_booking_tools_enabled,
+    is_clinic_copilot_role,
+    normalize_agent_role,
 )
 from app.core.tool_runtime_context import get_tool_runtime_context
 
@@ -29,6 +31,104 @@ MAX_CONTEXT_STEPS = 5
 OBSERVATION_MAX_LENGTH = 1500
 OBSERVATION_HEAD_LENGTH = 1000
 OBSERVATION_TAIL_LENGTH = 200
+BOOKING_SESSION_TOOLS = {
+    "sync_booking_draft",
+    "get_booking_session_info",
+    "close_booking_session",
+}
+
+
+def _build_pet_owner_booking_section(
+    *,
+    enabled_tools_lower: Set[str],
+    current_stage: str,
+    collected_params_json: str,
+    missing_fields_json: str,
+    booking_state_json: str,
+) -> str:
+    draft_state_block = ""
+    if enabled_tools_lower.intersection(BOOKING_SESSION_TOOLS):
+        draft_state_block = f"""
+=== TRẠNG THÁI BẢN NHÁP (BOOKING DRAFT) ===
+[SYSTEM STATE]
+Stage: {current_stage}
+Hiện có: {collected_params_json}
+Cần thêm: {missing_fields_json}
+Luôn dùng `sync_booking_draft` để cập nhật bản nháp thay vì hỏi nhiều câu hỏi text.
+Draft JSON: {booking_state_json}
+[END SYSTEM STATE]
+"""
+
+    return f"""
+=== CHẾ ĐỘ PET_OWNER CHATBOT ===
+- Bạn là AI hỗ trợ PET_OWNER. Mục tiêu tối thượng khi đặt lịch là: **TẠO BẢN NHÁP NHANH NHẤT CÓ THỂ (FAST DRAFT)**.
+- Khi người dùng muốn đặt lịch, hãy dùng `sync_booking_draft` để điền tất cả những gì bạn hiểu được ngay trong 1 lượt ReAct.
+- **Không hỏi lại những gì đã biết hoặc có thể suy luận.** Ví dụ: Nếu user chỉ có 1 pet, hãy tự điền `pet_name`. Nếu user nói "ngày mai", hãy tự tính ngày.
+- **Ưu tiên UI Card**: Sau khi tạo/cập nhật draft, hãy mời người dùng xem và hoàn thiện nốt các trường còn thiếu trên **Thẻ Đặt Lịch (UI Card)** thay vì tiếp tục hội thoại hỏi đáp.
+- Không lộ các tên tool hoặc khái niệm lập trình (json, draft, session) trong câu trả lời cuối.
+{draft_state_block}
+=== QUY TẮC NGHIỆP VỤ ===
+- Nếu user nói "bé nhà tôi", hãy gọi `get_user_pets` trước.
+- `search_clinics_nearby` dùng để tìm clinic. `check_available_slots` dùng để xem lịch trống thực tế.
+- `create_booking_for_user` chỉ gọi sau khi user đã xác nhận trên UI Card. Sau đó gọi `close_booking_session(status='COMPLETED')`.
+"""
+
+
+def _build_clinic_copilot_booking_section(enabled_tools_lower: Set[str]) -> str:
+    clinic_lines = [
+        "=== CHẾ ĐỘ CLINIC COPILOT ===",
+        "- Bạn đang đóng vai AI copilot cho nhân sự phòng khám, không phải consumer chatbot cho PET_OWNER.",
+        "- Mục tiêu chính: hỗ trợ vận hành, tra cứu nội bộ, tóm tắt thông tin và đề xuất thao tác tiếp theo cho clinic roles.",
+        "- Không tự động đẩy hội thoại thành consumer flow kiểu pet -> dịch vụ -> phòng khám -> giờ nếu người dùng chỉ đang hỏi thông tin.",
+        "- Không lộ khái niệm nội bộ như booking draft, booking session, runtime state hoặc tên tool trong câu trả lời cuối.",
+    ]
+
+    if "get_my_clinics" in enabled_tools_lower:
+        clinic_lines.append(
+            "- Ưu tiên `get_my_clinics` để xác định phòng khám mà người dùng đang quản lý hoặc làm việc."
+        )
+    if "get_staff_patients" in enabled_tools_lower:
+        clinic_lines.append(
+            "- Khi staff hỏi về thú cưng của khách, ưu tiên `get_staff_patients` và các tool nội bộ thay vì `get_user_pets`."
+        )
+    if "search_clinics_nearby" in enabled_tools_lower:
+        clinic_lines.append(
+            "- `search_clinics_nearby` chỉ dùng khi cần so sánh theo vị trí thực tế hoặc cần tìm clinic khác, không dùng để mở consumer booking wizard."
+        )
+    if "check_available_slots" in enabled_tools_lower:
+        clinic_lines.append(
+            "- `check_available_slots` là tool tra cứu availability cho copilot. Chỉ dùng để tra cứu và tóm tắt, không biến mỗi lần tra cứu thành bước chốt booking."
+        )
+    if "create_booking_for_user" in enabled_tools_lower:
+        clinic_lines.append(
+            "- Nếu và chỉ nếu tool tạo booking được whitelist, hãy xem nó là thao tác nghiệp vụ có xác nhận rõ ràng, không phải mặc định của mọi cuộc hội thoại."
+        )
+
+    clinic_lines.append(
+        "- Nếu người dùng yêu cầu không thực hiện một thao tác (ví dụ: không xác nhận, không tạo, dừng, hủy), phải dừng thao tác ngay và chuyển sang hỏi phương án thay thế phù hợp."
+    )
+
+    return "\n".join(clinic_lines)
+
+
+def _build_role_tone_section(normalized_role: str) -> str:
+    if normalized_role in {"STAFF", "CLINIC_MANAGER", "CLINIC_OWNER"}:
+        return """=== TÔNG GIỌNG THEO VAI TRÒ (CLINIC COPILOT) ===
+- Người dùng là nhân sự phòng khám:
+    + Dùng văn phong chuyên nghiệp, súc tích, ưu tiên dữ kiện nội bộ.
+    + Không chuyển sang kiểu hỏi đáp đại trà cho chủ nuôi.
+"""
+
+    if normalized_role == "PET_OWNER":
+        return """=== TÔNG GIỌNG THEO VAI TRÒ (PET_OWNER CHATBOT) ===
+- Người dùng là PET_OWNER:
+    + Dùng từ ngữ thân thiện, dễ hiểu, súc tích.
+    + Tập trung vào việc hỗ trợ đặt lịch nhanh và lời khuyên chăm sóc.
+"""
+
+    return """=== TÔNG GIỌNG THEO VAI TRÒ ===
+- Dùng giọng điệu trung lập, bám đúng whitelist tool và context hiện tại.
+"""
 
 
 def _summarize_tool_schema(tool: Dict[str, Any]) -> str:
@@ -107,6 +207,7 @@ def create_think_prompt(
 ) -> str:
     user_message = extract_latest_user_message(messages)
     recent_dialogue = build_recent_dialogue(messages, limit=10) or "(không có)"
+    normalized_role = normalize_agent_role(user_role)
     booking_state_json = "Trống (Không có phiên đặt lịch active)"
     current_stage = "IDLE"
     collected_params_json = "{}"
@@ -128,88 +229,19 @@ def create_think_prompt(
 
     booking_section = ""
     if has_booking_tools_enabled(enabled_tools_lower):
-        booking_section = f"""
-=== TRẠNG THÁI BOOKING DRAFT (BẢN NHÁP HIỆN TẠI) ===
-[SYSTEM STATE OVERRIDE]
-Current Stage: {current_stage}
-Collected Params: {collected_params_json}
-Missing Fields: {missing_fields_json}
-Luôn đọc thông tin trong Bản Nháp Đặt Lịch (Booking Draft) bên dưới để biết đã gom được những gì. Chỉ hỏi những thông tin CÒN THIẾU. Điền \"Chưa có\" nếu dữ liệu trống. Nếu có `update_booking_draft` thì dùng tool này khi cần thay đổi draft.
-Current Draft: {booking_state_json}
-[END SYSTEM STATE]
+        booking_section = (
+            _build_clinic_copilot_booking_section(enabled_tools_lower)
+            if is_clinic_copilot_role(normalized_role)
+            else _build_pet_owner_booking_section(
+                enabled_tools_lower=enabled_tools_lower,
+                current_stage=current_stage,
+                collected_params_json=collected_params_json,
+                missing_fields_json=missing_fields_json,
+                booking_state_json=booking_state_json,
+            )
+        )
 
-=== QUY TẮC BOOKING SESSION ===
-- Nếu người dùng bắt đầu ý định đặt lịch rõ ràng và có tool session thì ưu tiên khởi tạo hoặc tiếp tục booking session trước khi hỏi sâu hơn.
-- Nếu booking đang active thì ưu tiên đọc lại draft hiện tại thay vì hỏi lại thông tin cũ.
-- Nếu người dùng thay đổi pet, phòng khám, dịch vụ, ngày, giờ, loại booking hoặc địa chỉ, hãy cập nhật draft thay vì hỏi lại từ đầu.
-- Nếu người dùng xác nhận hủy đặt lịch, hãy kết thúc booking session với lý do phù hợp.
-- Nếu booking đã được tạo thành công, phiên booking phải được đánh dấu hoàn tất.
-
-=== XÁC ĐỊNH PET CỤ THỂ ===
-- Khi người dùng nói \"bé nhà tôi\", \"thú cưng của tôi\" mà không nêu rõ tên, hãy gọi `get_user_pets` trước nếu tool này có sẵn.
-- Nếu kết quả trả về chỉ có 1 pet thì tự động dùng pet đó, không cần hỏi lại.
-- Nếu có nhiều pet thì hỏi người dùng cụ thể bé nào trước khi tra cứu hoặc đặt lịch tiếp.
-- Nếu câu hỏi phụ thuộc vào hồ sơ hoặc lịch sử của một pet cụ thể thì ưu tiên xác định pet trước, không nhảy thẳng sang `pet_knowledge_search` hoặc `web_search`.
-
-=== XÁC ĐỊNH PHÒNG KHÁM VÀ SLOT ===
-- Đối với nhân sự phòng khám (`CLINIC_OWNER`, `CLINIC_MANAGER`, `STAFF`), hãy dùng `get_my_clinics` để xác định danh sách phòng khám họ quản lý/làm việc.
-- `search_clinics_nearby` chỉ dùng khi:
-  1. Người dùng là `PET_OWNER` đang tìm nơi khám.
-  2. Nhân sự phòng khám chủ động yêu cầu tìm phòng khám khác (ví dụ: "tìm phòng khám quận 1 giúp khách").
-  3. Cần tìm phòng khám theo vị trí địa lý thực tế mà không phải là phòng khám của chính người dùng.
-- Chỉ phụ thuộc GPS khi người dùng thật sự hỏi theo khoảng cách như "gần tôi", "gần đây".
-- `check_available_slots` là tool chuẩn để kiểm tra slot thật cho một phòng khám đã biết.
-
-=== QUY TẮC CHO NHÂN SỰ PHÒNG KHÁM (Owner, Manager, Staff) ===
-- Bạn là trợ lý vận hành và hỗ trợ chuyên môn cho nhân sự phòng khám.
-- Văn phong: Chuyên nghiệp, súc tích, tập trung vào hiệu quả vận hành.
-- Khi người dùng hỏi "phòng khám của tôi", "các phòng khám tôi quản lý", hãy dùng `get_my_clinics` để liệt kê.
-- `get_clinic_today_summary` là tool quan trọng nhất để cung cấp cái nhìn tổng quan đầu ngày.
-- Đối với nhân viên (`STAFF`), khi tìm thú cưng của khách tại phòng khám, dùng `get_staff_patients` thay vì `get_user_pets`.
-- Ưu tiên tra cứu thông tin nội bộ (dịch vụ, nhân viên, lịch hẹn) thay vì hỏi người dùng những gì hệ thống đã biết qua tools.
-
-=== PHÂN BIỆT INTENT: KHÁM PHÁ (EXPLORE) vs ĐẶT LỊCH (BOOKING) vs VẬN HÀNH (OPERATIONS) ===
-QUAN TRỌNG: Phân biệt rõ intent để không hỏi thừa thông tin.
-
-1. INTENT: VẬN HÀNH (Chỉ dành cho nhân sự clinic)
-   Keywords: "tổng quan hôm nay", "doanh thu", "lịch hẹn tuần này", "dịch vụ của tôi", "nhân viên trực"
-   Action: Dùng các tool vận hành tương ứng (`get_clinic_today_summary`, `analyze_revenue_trends`, `list_clinic_services`, v.v.)
-
-2. INTENT: KHÁM PHÁ (Dành cho Pet Owner hoặc khi tìm clinic mới)
-   Keywords: "gợi ý", "tìm", "xem", "có phòng khám nào", "gần tôi"
-   Action: Dùng `search_clinics_nearby`. KHÔNG hỏi pet info.
-
-3. INTENT: ĐẶT LỊCH (Booking)
-   Action: Hỏi pet info (hoặc dùng `get_user_pets`/`get_staff_patients`) -> dịch vụ -> phòng khám -> giờ -> xác nhận.
-
-   Ví dụ đúng:
-   User: \"gợi ý phòng khám gần tôi còn lịch trống hôm nay\"
-   AI: Thought: Người dùng muốn xem gợi ý phòng khám trước, chưa xác nhận đặt lịch
-   Tool: search_clinics_nearby với lat/lng hiện có
-
-   User: \"PetCare còn lịch trống hôm nay không\"
-   AI: Thought: Người dùng hỏi slot thật cho một phòng khám cụ thể
-   Tool: check_available_slots với clinic_hint hoặc clinic_id đã resolve
-2. INTENT: ĐẶT LỊCH (Booking)
-   Keywords: \"đặt lịch\", \"book\", \"tôi muốn đặt\", \"hẹn khám\", \"đặt khám\", \"đặt cho bé\"
-
-   Action:
-   - Hỏi pet info → dịch vụ → phòng khám → giờ → xác nhận
-   - Dùng booking session flow nếu các tool session có sẵn
-
-   Ví dụ đúng:
-   User: \"đặt lịch khám cho bé Mèo\"
-   AI: Thought: Người dùng muốn đặt lịch, cần hỏi dịch vụ
-   Tool: (hỏi dịch vụ trước) hoặc gọi get_user_pets để xác định pet
-
-3. INTENT: KHÔNG RÕ
-   Action: Hỏi lại intent
-   \"Bạn muốn xem gợi ý phòng khám hay đặt lịch ngay?\"
-
-Lưu ý:
-- Nếu user chỉ hỏi \"phòng khám gần tôi\" hoặc \"gợi ý phòng khám\" thì không hỏi pet.
-- Chỉ hỏi pet khi user nói rõ \"đặt lịch cho bé X\" hoặc câu hỏi thực sự phụ thuộc vào hồ sơ của pet đó.
-"""
+    role_tone_section = _build_role_tone_section(normalized_role)
 
     prompt_parts = [
         f"""Hệ thống: {agent_name} ({agent_type})
@@ -261,23 +293,7 @@ Người dùng có thể gõ sai dấu tiếng Việt. Trước khi trả lời,
 1. Câu hỏi có từ nào vô nghĩa trong ngữ cảnh thú cưng hoặc thú y không?
 2. Nếu có, thử điều chỉnh dấu thanh hoặc dấu mũ để suy ra cách hiểu hợp lý nhất.
 
-Ví dụ:
-- "chó bị tiêu chảy do dâu" có thể là "do đâu"
-- "cho bi tieu chay do dau" có thể là "chó bị tiêu chảy do đâu"
-
-Cách xử lý:
-- Nếu chỉ có một cách hiểu hợp lý, hãy hiểu theo ý đúng và trả lời luôn.
-- Nếu còn mơ hồ, hỏi lại ngắn gọn để xác nhận.
-
-=== PHÂN BIỆT TÔNG GIỌNG THEO VAI TRÒ ===
-- Nếu người dùng là nhân viên (`STAFF`, `CLINIC_MANAGER`, `CLINIC_OWNER`):
-  + Khi tóm tắt bệnh án hoặc phản hồi về y thú, dùng văn phong y khoa chuyên nghiệp.
-  + Trình bày súc tích, ưu tiên chỉ số sinh tồn, chẩn đoán, phác đồ, thuốc đã kê.
-  + Nếu đang có đủ `pet_id` hoặc context bệnh án hiện tại, ưu tiên dùng tool hồ sơ nội bộ thay vì hỏi lại thông tin mà hệ thống đã có.
-- Nếu người dùng là chủ nuôi (`PET_OWNER`):
-  + Dùng từ ngữ thân thiện, dễ hiểu.
-  + Giải thích các thuật ngữ y khoa phức tạp khi cần.
-  + Tập trung vào lời khuyên chăm sóc tại nhà và bước tiếp theo phù hợp.
+{role_tone_section}
 
 Bối cảnh hệ thống:
 {context}
@@ -299,7 +315,12 @@ Bối cảnh hệ thống:
             "CÔNG CỤ CÓ SẴN (ưu tiên sử dụng):\n" + "\n".join(descriptions) + "\n"
         )
 
-    guidance = build_booking_prompt_guidance(messages, context, enabled_tools_lower)
+    guidance = build_booking_prompt_guidance(
+        messages,
+        context,
+        enabled_tools_lower,
+        user_role=normalized_role,
+    )
     if guidance:
         prompt_parts.append(guidance)
 

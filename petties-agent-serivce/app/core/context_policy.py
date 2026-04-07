@@ -45,6 +45,27 @@ ROLE_RESPONSE_STYLES = {
     ),
 }
 
+ROLE_PRODUCT_MODES = {
+    "PET_OWNER": (
+        "Che do san pham: AI chat cho chu nuoi. Co the tu van, giai thich va ho tro booking o muc do chat assistant."
+    ),
+    "STAFF": (
+        "Che do san pham: AI copilot noi bo cho STAFF. Uu tien thao tac nghiep vu, EMR, benh nhan va van hanh, khong dong vai consumer chatbot. "
+        "Co the xem lich kham trong ngay (get_clinic_today_summary) va kiem tra tiem chung (check_vaccination_status)."
+    ),
+    "CLINIC_MANAGER": (
+        "Che do san pham: AI copilot cho CLINIC_MANAGER. Uu tien van hanh, lich hen, nhan su va dieu phoi, khong dong vai consumer chatbot. "
+        "Co the xem doanh thu, lich lam viec, slot, xac nhan/huy booking va phan cong lai nhan vien."
+    ),
+    "CLINIC_OWNER": (
+        "Che do san pham: AI copilot cho CLINIC_OWNER. Uu tien goc nhin dieu hanh va kinh doanh, khong dong vai consumer chatbot. "
+        "Co the tao dich vu, cap nhat gia, xem thong ke doanh thu va quan ly toan bo phong kham."
+    ),
+    "ADMIN": (
+        "Che do san pham: AI control assistant cho ADMIN, uu tien kiem soat he thong va cau hinh."
+    ),
+}
+
 
 class ContextPolicyService:
     """Service xây dựng tool whitelist và prompt guardrails theo role/context."""
@@ -55,35 +76,35 @@ class ContextPolicyService:
             "web_search",
             "get_user_pets",
             "get_pet_health_summary",
-            "start_booking_session",
-            "get_booking_session",
-            "update_booking_draft",
-            "get_booking_draft_summary",
-            "suspend_booking_session",
-            "resume_booking_session",
-            "end_booking_session",
+            "sync_booking_draft",
+            "get_booking_session_info",
+            "close_booking_session",
             "search_clinics_nearby",
             "check_available_slots",
             "create_booking_for_user",
             "get_clinic_services",
+            "list_my_bookings",
+            "get_my_booking_info",
             "check_vaccination_status",
+            "get_current_datetime",
+            "resolve_booking_context",
         },
         "STAFF": {
-            "pet_knowledge_search",
             "get_staff_patients",
             "get_patient_summary",
             "get_emr_history",
-            "check_vaccination_status",
             "get_my_clinics",
+            "get_clinic_today_summary",
+            "check_vaccination_status",
+            "sync_booking_draft",
+            "get_booking_session_info",
+            "close_booking_session",
         },
         "CLINIC_MANAGER": {
-            "pet_knowledge_search",
-            "web_search",
-            "search_clinics_nearby",
-            "check_available_slots",
-            "get_clinic_services",
             "list_clinic_services",
+            "get_clinic_services",
             "get_my_clinics",
+            "get_clinic_today_summary",
             "analyze_revenue_trends",
             "get_clinic_metrics",
             "get_staff_schedule",
@@ -93,28 +114,39 @@ class ContextPolicyService:
             "reassign_staff_for_service",
             "confirm_booking_manager",
             "cancel_booking_manager",
+            "get_clinic_staff",
+            "get_clinic_shifts",
+            "check_booking_availability",
+            "sync_booking_draft",
+            "get_booking_session_info",
+            "close_booking_session",
         },
         "CLINIC_OWNER": {
-            "pet_knowledge_search",
-            "web_search",
-            "search_clinics_nearby",
-            "check_available_slots",
-            "get_clinic_services",
-            "generate_clinic_services",
             "list_clinic_services",
+            "get_clinic_services",
+            "create_clinic_service",
             "update_service_info",
             "execute_update_service_confirmed",
-            "create_clinic_service",
+            "generate_clinic_services",
+            "inherit_service_from_template",
             "get_my_clinics",
-            "analyze_revenue_trends",
-            "get_clinic_metrics",
-            "get_staff_schedule",
-            "get_slot_availability",
             "view_clinic_bookings",
-            "get_available_staff_for_reassign",
-            "reassign_staff_for_service",
+            "get_clinic_today_summary",
             "confirm_booking_manager",
             "cancel_booking_manager",
+            "get_available_staff_for_reassign",
+            "reassign_staff_for_service",
+            "analyze_revenue_trends",
+            "get_clinic_metrics",
+            "get_owner_stats_overview",
+            "get_staff_schedule",
+            "get_slot_availability",
+            "get_clinic_staff",
+            "get_clinic_shifts",
+            "check_booking_availability",
+            "sync_booking_draft",
+            "get_booking_session_info",
+            "close_booking_session",
         },
         "ADMIN": set(PUBLIC_BUSINESS_TOOLS),
     }
@@ -178,6 +210,10 @@ class ContextPolicyService:
             normalized_role,
             ROLE_RESPONSE_STYLES["PET_OWNER"],
         )
+        product_mode = ROLE_PRODUCT_MODES.get(
+            normalized_role,
+            ROLE_PRODUCT_MODES["PET_OWNER"],
+        )
 
         if normalized_context == PLAYGROUND_TEST:
             guardrail = (
@@ -185,7 +221,7 @@ class ContextPolicyService:
                 "Chỉ được dùng đúng các tool trong whitelist hiện tại: "
                 f"{tool_text}. "
                 "Nếu một tool không nằm trong danh sách này thì không được tự ý gọi. "
-                f"{role_style}"
+                f"{role_style} {product_mode}"
             )
         else:
             guardrail = (
@@ -193,7 +229,7 @@ class ContextPolicyService:
                 "Chỉ được dùng các tool nghiệp vụ đã được whitelist cho role này: "
                 f"{tool_text}. "
                 "Nếu câu hỏi nằm ngoài các tool được phép thì hãy trả lời an toàn hoặc hướng dẫn người dùng liên hệ đúng bộ phận. "
-                f"{role_style}"
+                f"{role_style} {product_mode}"
             )
 
         if normalized_role == "STAFF":
@@ -211,6 +247,18 @@ class ContextPolicyService:
                 "Nếu là HOME_VISIT thì còn phải có địa chỉ, tọa độ và khoảng cách di chuyển. "
                 "Nếu dịch vụ là tiêm chủng, hãy giữ cách tư vấn giống flow thủ công: có thể nêu giá theo mũi/dose cho người dùng biết và chọn, "
                 "nhưng không tự tạo flow riêng hoặc yêu cầu thông tin chuyên sâu không cần thiết."
+            )
+
+        if normalized_role in {"STAFF", "CLINIC_MANAGER", "CLINIC_OWNER"}:
+            guardrail = (
+                f"{guardrail} Khong duoc tu dong dan hoi thoai theo consumer booking wizard cua PET_OWNER "
+                "(vi du: tu mo flow hoi pet -> dich vu -> phong kham -> gio) tru khi nguoi dung dang yeu cau ro rang mot thao tac booking noi bo va tool do duoc whitelist."
+            )
+
+        if normalized_role == "PET_OWNER":
+            guardrail = (
+                f"{guardrail} Tuyet doi khong xu ly nhu copilot van hanh clinic (doanh thu, dieu phoi staff, booking manager actions). "
+                "Neu nguoi dung hoi van hanh noi bo clinic, hay thong bao ro rang day khong phai pham vi PET_OWNER chatbot."
             )
 
         if not prompt:

@@ -13,6 +13,16 @@ import re
 
 
 _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_UUID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I
+)
+
+
+def _is_uuid(val: Any) -> bool:
+    if not isinstance(val, str):
+        return False
+    return bool(_UUID_RE.match(val.strip()))
+
 
 BUSINESS_ERROR_CODES = {
     "BOOKING_ALREADY_COMPLETED",
@@ -109,6 +119,18 @@ def get_error_title(error_code: Optional[str]) -> str:
 
 def classify_error_code(message: str, *, default: str = "INTERNAL_ERROR") -> str:
     normalized = str(message or "").strip().lower()
+    if any(
+        token in normalized
+        for token in [
+            "không có quyền",
+            "khong co quyen",
+            "forbidden",
+            "access denied",
+            "http 403",
+            " 403",
+        ]
+    ):
+        return "FORBIDDEN"
     if any(
         token in normalized
         for token in [
@@ -245,12 +267,28 @@ def normalize_tool_input(tool_name: str, parameters: Dict[str, Any]) -> Dict[str
     if name == "get_clinic_services":
         if p.get("clinic_id") is None and p.get("clinicId") is not None:
             p["clinic_id"] = p.get("clinicId")
+        if p.get("clinic_id") is None and p.get("clinic_name_hint") is not None:
+            p["clinic_id"] = p.get("clinic_name_hint")
+
+        cid = p.get("clinic_id")
+        if cid and not _is_uuid(cid) and p.get("clinic_name_hint") is None:
+            p["clinic_name_hint"] = cid
+            p["clinic_id"] = None
+
         if "clinic_id" in p and p["clinic_id"] is not None:
             p["clinic_id"] = str(p["clinic_id"]).strip()
 
     if name == "check_available_slots":
         if p.get("clinic_id") is None and p.get("clinicId") is not None:
             p["clinic_id"] = p.get("clinicId")
+        if p.get("clinic_id") is None and p.get("clinic_name_hint") is not None:
+            p["clinic_id"] = p.get("clinic_name_hint")
+
+        cid = p.get("clinic_id")
+        if cid and not _is_uuid(cid) and p.get("clinic_name_hint") is None:
+            p["clinic_name_hint"] = cid
+            p["clinic_id"] = None
+
         if p.get("service_ids") is None and p.get("serviceIds") is not None:
             p["service_ids"] = p.get("serviceIds")
         # Allow booking_date alias (some prompts use booking_date consistently)
@@ -339,10 +377,20 @@ def normalize_tool_input(tool_name: str, parameters: Dict[str, Any]) -> Dict[str
 
     # check_vaccination_status
     if name == "check_vaccination_status":
+        if p.get("pet_id") is None and p.get("petId") is not None:
+            p["pet_id"] = p.get("petId")
+
+        pid = p.get("pet_id")
+        if pid and not _is_uuid(pid) and p.get("pet_hint") is None:
+            p["pet_hint"] = pid
+            p["pet_id"] = None
+
         if "pet_id" in p and p["pet_id"] is not None:
             p["pet_id"] = str(p["pet_id"]).strip()
         if "vaccine_template_id" in p and p["vaccine_template_id"] is not None:
             p["vaccine_template_id"] = str(p["vaccine_template_id"]).strip()
+        if "pet_hint" in p and p["pet_hint"] is not None:
+            p["pet_hint"] = str(p["pet_hint"]).strip()
 
     # get_staff_patients
     if name == "get_staff_patients":
@@ -353,22 +401,52 @@ def normalize_tool_input(tool_name: str, parameters: Dict[str, Any]) -> Dict[str
 
     # get_patient_summary
     if name == "get_patient_summary":
+        if p.get("pet_id") is None and p.get("petId") is not None:
+            p["pet_id"] = p.get("petId")
+
+        pid = p.get("pet_id")
+        if pid and not _is_uuid(pid) and p.get("pet_name_hint") is None:
+            p["pet_name_hint"] = pid
+            p["pet_id"] = None
+
         if "pet_id" in p and p["pet_id"] is not None:
             p["pet_id"] = str(p["pet_id"]).strip()
+        if "pet_name_hint" in p and p["pet_name_hint"] is not None:
+            p["pet_name_hint"] = str(p["pet_name_hint"]).strip()
 
     # get_emr_history
     if name == "get_emr_history":
+        if p.get("pet_id") is None and p.get("petId") is not None:
+            p["pet_id"] = p.get("petId")
+
+        pid = p.get("pet_id")
+        if pid and not _is_uuid(pid) and p.get("pet_name_hint") is None:
+            p["pet_name_hint"] = pid
+            p["pet_id"] = None
+
         if "pet_id" in p and p["pet_id"] is not None:
             p["pet_id"] = str(p["pet_id"]).strip()
         if p.get("limit") is not None:
             p["limit"] = _to_int(p.get("limit"))
+        if "pet_name_hint" in p and p["pet_name_hint"] is not None:
+            p["pet_name_hint"] = str(p["pet_name_hint"]).strip()
 
     # get_pet_health_summary
     if name == "get_pet_health_summary":
+        if p.get("pet_id") is None and p.get("petId") is not None:
+            p["pet_id"] = p.get("petId")
+
+        pid = p.get("pet_id")
+        if pid and not _is_uuid(pid) and p.get("pet_name_hint") is None:
+            p["pet_name_hint"] = pid
+            p["pet_id"] = None
+
         if "pet_id" in p and p["pet_id"] is not None:
             p["pet_id"] = str(p["pet_id"]).strip()
         if "user_id" in p and p["user_id"] is not None:
             p["user_id"] = str(p["user_id"]).strip()
+        if "pet_name_hint" in p and p["pet_name_hint"] is not None:
+            p["pet_name_hint"] = str(p["pet_name_hint"]).strip()
 
     # list_my_bookings
     if name == "list_my_bookings":
@@ -383,6 +461,110 @@ def normalize_tool_input(tool_name: str, parameters: Dict[str, Any]) -> Dict[str
             p["booking_id"] = str(p["booking_id"]).strip()
         if "booking_code" in p and p["booking_code"] is not None:
             p["booking_code"] = str(p["booking_code"]).strip()
+
+    # Booking Session tools
+    if name == "start_booking_session":
+        if p.get("intent") is None:
+            p["intent"] = "create_booking"
+        p["intent"] = str(p["intent"]).strip().lower()
+
+    if name == "update_booking_draft":
+        # Handle complex list coercion for service_ids & service_names
+        for k in ["service_ids", "service_names"]:
+            if k in p:
+                p[k] = [str(x).strip() for x in _as_list(p[k]) if str(x).strip()]
+        # Coerce numeric fields
+        for k in ["home_lat", "home_long"]:
+            if k in p:
+                p[k] = _to_float(p[k])
+        # Strip strings
+        for k in [
+            "pet_id",
+            "pet_name",
+            "clinic_id",
+            "clinic_hint",
+            "clinic_name",
+            "booking_date",
+            "start_time",
+            "time_preference",
+            "booking_type",
+            "home_address",
+        ]:
+            if k in p and p[k] is not None:
+                p[k] = str(p[k]).strip()
+
+    if name == "end_booking_session":
+        if p.get("reason") is None:
+            p["reason"] = "CANCELLED"
+        p["reason"] = str(p["reason"]).strip().upper()
+
+    # Utility tools
+    if name == "get_current_datetime":
+        if p.get("time_expression") is None and p.get("expression") is not None:
+            p["time_expression"] = p.get("expression")
+        if "reference_date_iso" in p and p["reference_date_iso"] is not None:
+            p["reference_date_iso"] = str(p["reference_date_iso"]).strip()
+
+    # Medical tools
+    if name == "get_patient_summary":
+        if "pet_id" in p and p["pet_id"] is not None:
+            p["pet_id"] = str(p["pet_id"]).strip()
+
+    # Clinic Owner stats overview
+    if name == "get_owner_stats_overview":
+        if p.get("period") is None:
+            p["period"] = "MONTH"
+        p["period"] = str(p["period"]).strip().upper()
+
+    # Clinic metrics
+    if name == "get_clinic_metrics":
+        if p.get("period") is None:
+            p["period"] = "MONTH"
+        p["period"] = str(p["period"]).strip().upper()
+
+    # Inherit service
+    if name == "inherit_service_from_template":
+        if p.get("price") is not None:
+            p["price"] = _to_float(p.get("price"))
+        if p.get("price_per_km") is not None:
+            p["price_per_km"] = _to_float(p.get("price_per_km"))
+
+    if name == "cancel_booking_manager":
+        if p.get("booking_id") is None and p.get("bookingId") is not None:
+            p["booking_id"] = p.get("bookingId")
+        bid = p.get("booking_id")
+        if bid and not _is_uuid(bid) and p.get("booking_code_hint") is None:
+            p["booking_code_hint"] = bid
+            p["booking_id"] = None
+        if "booking_id" in p and p["booking_id"] is not None:
+            p["booking_id"] = str(p["booking_id"]).strip()
+        if "booking_code_hint" in p and p["booking_code_hint"] is not None:
+            p["booking_code_hint"] = str(p["booking_code_hint"]).strip()
+
+    # Analytics & Summary
+    if name in {
+        "analyze_revenue_trends",
+        "get_clinic_metrics",
+        "get_clinic_today_summary",
+        "get_staff_schedule",
+        "get_slot_availability",
+    }:
+        if p.get("clinic_id") is None and p.get("clinicId") is not None:
+            p["clinic_id"] = p.get("clinicId")
+
+        cid = p.get("clinic_id")
+        # If clinic_id is provided but it's clearly a name hint, move it
+        if cid and not _is_uuid(cid) and p.get("clinic_name_hint") is None:
+            p["clinic_name_hint"] = cid
+            p["clinic_id"] = None
+
+        # Upper case period if exists
+        if p.get("period"):
+            p["period"] = str(p["period"]).strip().upper()
+        if "clinic_id" in p and p["clinic_id"] is not None:
+            p["clinic_id"] = str(p["clinic_id"]).strip()
+        if "clinic_name_hint" in p and p["clinic_name_hint"] is not None:
+            p["clinic_name_hint"] = str(p["clinic_name_hint"]).strip()
 
     return p
 
@@ -487,6 +669,56 @@ def normalize_tool_output(tool_name: str, result: Any) -> Any:
                 data.get("booking"), dict
             ):
                 data["booking"] = {"value": data.get("booking")}
+
+        if name == "get_owner_stats_overview":
+            data["clinics_stats"] = [
+                s for s in _as_list(data.get("clinics_stats")) if isinstance(s, dict)
+            ]
+            data["total_revenue"] = _to_float(data.get("total_revenue")) or 0.0
+
+        if name == "get_clinic_metrics":
+            data["top_services"] = [
+                s for s in _as_list(data.get("top_services")) if isinstance(s, dict)
+            ]
+
+        if name == "get_clinic_staff":
+            data["staff"] = [
+                s for s in _as_list(data.get("staff")) if isinstance(s, dict)
+            ]
+            data["total"] = _to_int(data.get("total")) or len(data["staff"])
+
+        if name == "get_clinic_shifts":
+            data["shifts"] = [
+                s for s in _as_list(data.get("shifts")) if isinstance(s, dict)
+            ]
+
+        if name in {
+            "start_booking_session",
+            "get_booking_session",
+            "update_booking_draft",
+            "get_booking_draft_summary",
+            "suspend_booking_session",
+            "resume_booking_session",
+        }:
+            if "state" in data and isinstance(data["state"], dict):
+                # Ensure state is cleaned up for LLM consumption if needed, but usually kept as-is
+                pass
+            data["missing_fields"] = _as_list(data.get("missing_fields"))
+            data["ready_for_review"] = bool(data.get("ready_for_review", False))
+
+        if name == "get_patient_summary":
+            if "pet_info" in data and isinstance(data["pet_info"], dict):
+                data["pet_info"]["allergies"] = _as_list(
+                    data["pet_info"].get("allergies")
+                )
+            data["recent_exams"] = [
+                e for e in _as_list(data.get("recent_exams")) if isinstance(e, dict)
+            ]
+
+        if name == "get_current_datetime":
+            for k in ["resolved_date", "resolved_time"]:
+                if data.get(k):
+                    data[k] = str(data[k]).strip()
 
         for k in ("date", "booking_date"):
             if isinstance(data.get(k), str):

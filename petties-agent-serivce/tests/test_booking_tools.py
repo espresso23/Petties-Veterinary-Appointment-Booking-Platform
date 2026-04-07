@@ -119,6 +119,39 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["total_pets"], 1)
         self.assertEqual(result["pets"][0]["name"], "Mimi")
 
+    async def test_get_user_pets_rejects_input_user_id_when_mismatched(self):
+        runtime_token = set_tool_runtime_context(
+            ToolRuntimeContext(
+                user_id="user-1", role="PET_OWNER", auth_token="jwt-token"
+            )
+        )
+
+        client = AsyncMock()
+        client.get_user_pets.return_value = [
+            {
+                "id": "pet-1",
+                "name": "Mimi",
+                "species": "CAT",
+                "breed": "Anh long ngan",
+                "dateOfBirth": "2023-03-01",
+                "weight": 3.2,
+                "imageUrl": "https://example.com/mimi.png",
+            }
+        ]
+
+        try:
+            with patch(
+                "app.core.tools.mcp_tools.booking_tools.get_backend_client",
+                return_value=client,
+            ):
+                result = await get_user_pets(user_id="user-x")
+        finally:
+            reset_tool_runtime_context(runtime_token)
+
+        client.get_user_pets.assert_not_awaited()
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error_code"], "UNAUTHORIZED")
+
     async def test_search_clinics_nearby_uses_clinic_options_for_explicit_clinic(self):
         runtime_token = set_tool_runtime_context(
             ToolRuntimeContext(
@@ -201,7 +234,7 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
                 }
             ],
         }
-        client.get_clinic_services.return_value = []
+        client.get_clinic_services_by_clinic.return_value = []
 
         try:
             with patch(
@@ -217,7 +250,7 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
         finally:
             reset_tool_runtime_context(runtime_token)
 
-        client.get_clinic_services.assert_awaited_once_with(
+        client.get_clinic_services_by_clinic.assert_awaited_once_with(
             "3fa85f64-5717-4562-b3fc-2c963f66afa6",
             pet_species="DOG",
             is_home_visit=None,
@@ -245,7 +278,7 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
                 }
             ],
         }
-        client.get_clinic_services.return_value = []
+        client.get_clinic_services_by_clinic.return_value = []
 
         try:
             with patch(
@@ -260,7 +293,7 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
         finally:
             reset_tool_runtime_context(runtime_token)
 
-        client.get_clinic_services.assert_awaited_once_with(
+        client.get_clinic_services_by_clinic.assert_awaited_once_with(
             "3fa85f64-5717-4562-b3fc-2c963f66afa6",
             pet_species="DOG",
             is_home_visit=None,
@@ -371,31 +404,33 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
     async def test_search_clinics_nearby_does_not_fallback_to_nearest_when_explicit_clinic_not_found(
         self,
     ):
+        runtime_token = set_tool_runtime_context(
+            ToolRuntimeContext(
+                user_id="user-1", role="PET_OWNER", auth_token="jwt-token"
+            )
+        )
+
         client = AsyncMock()
-        client.find_nearby_clinics.return_value = {
-            "content": [
-                {
-                    "clinicId": "clinic-2",
-                    "name": "Bien Xanh Pet Hospital",
-                    "address": "123 Vo Nguyen Giap",
-                    "distance": 1.9,
-                    "ratingAvg": 4.8,
-                    "ratingCount": 134,
-                    "operatingHours": {},
-                }
-            ]
+        client.resolve_booking_context.return_value = {}
+        client.get_booking_clinic_options.return_value = {
+            "totalFound": 0,
+            "clinics": [],
         }
 
-        with patch(
-            "app.core.tools.mcp_tools.booking_tools.get_backend_client",
-            return_value=client,
-        ):
-            result = await search_clinics_nearby(
-                latitude=15.9575,
-                longitude=108.2575,
-                clinic_hint="PetCare",
-            )
+        try:
+            with patch(
+                "app.core.tools.mcp_tools.booking_tools.get_backend_client",
+                return_value=client,
+            ):
+                result = await search_clinics_nearby(
+                    latitude=15.9575,
+                    longitude=108.2575,
+                    clinic_hint="PetCare",
+                )
+        finally:
+            reset_tool_runtime_context(runtime_token)
 
+        client.get_booking_clinic_options.assert_awaited_once()
         self.assertEqual(result["total_found"], 0)
         self.assertIsNone(result["matched_clinic"])
         self.assertTrue(result["needs_clarification"])
@@ -539,7 +574,7 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
             reset_tool_runtime_context(runtime_token)
 
         self.assertFalse(result["success"])
-        self.assertEqual(result["next_best_action"], "collect_missing_fields")
+        self.assertEqual(result["next_best_action"], "fill_booking_form")
         self.assertEqual(result["error_code"], "INVALID_INPUT")
         self.assertIn("dich vu", result["missing_fields"])
         self.assertIn("gio kham", result["missing_fields"])
@@ -704,9 +739,119 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result["success"])
         self.assertEqual(result["error_code"], "CONFIRMATION_MISMATCH")
 
-    async def test_get_clinic_services_includes_vaccination_metadata(self):
+    async def test_create_booking_blocks_when_user_explicitly_denies_action(self):
+        runtime_token = set_tool_runtime_context(
+            ToolRuntimeContext(
+                user_id="user-1",
+                role="PET_OWNER",
+                auth_token="jwt-token",
+                booking_state=self._build_confirmation_booking_state(
+                    service_ids=["svc-1"]
+                ),
+            )
+        )
+
         client = AsyncMock()
-        client.get_clinic_services.return_value = [
+        client.resolve_booking_context.return_value = {}
+        client.get_booking_clinic_options.return_value = {
+            "totalFound": 1,
+            "clinics": [
+                {
+                    "clinicId": "550e8400-e29b-41d4-a716-446655440001",
+                    "clinicName": "Petties Clinic",
+                    "address": "Test Address",
+                }
+            ],
+        }
+
+        try:
+            with patch(
+                "app.core.tools.mcp_tools.booking_tools.get_backend_client",
+                return_value=client,
+            ):
+                result = await create_booking_for_user(
+                    pet_id="pet-1",
+                    clinic_id="550e8400-e29b-41d4-a716-446655440001",
+                    booking_date="2026-12-25",
+                    start_time="09:00",
+                    service_ids=["svc-1"],
+                    confirmed=True,
+                    latest_message="Không tạo booking nhé",
+                    transcript="Mình đổi ý, không đặt lịch nữa.",
+                )
+        finally:
+            reset_tool_runtime_context(runtime_token)
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error_code"], "INVALID_CONFIRMATION")
+        self.assertEqual(result["next_best_action"], "cancel_or_change")
+        client.create_ai_booking.assert_not_awaited()
+
+    async def test_create_booking_for_user_rejects_input_user_id_when_mismatched(self):
+        runtime_token = set_tool_runtime_context(
+            ToolRuntimeContext(
+                user_id="user-1",
+                role="PET_OWNER",
+                auth_token="jwt-token",
+                booking_state=self._build_confirmation_booking_state(
+                    service_ids=["svc-1"]
+                ),
+            )
+        )
+
+        client = AsyncMock()
+        client.resolve_booking_context.return_value = {}
+        client.get_booking_clinic_options.return_value = {
+            "totalFound": 1,
+            "clinics": [
+                {
+                    "clinicId": "550e8400-e29b-41d4-a716-446655440001",
+                    "clinicName": "Petties Clinic",
+                    "address": "Test Address",
+                }
+            ],
+        }
+        client.create_ai_booking.return_value = {
+            "bookingId": "booking-1",
+            "bookingCode": "BK001",
+            "status": "PENDING",
+            "petName": "Mimi",
+            "clinicName": "Petties Clinic",
+            "bookingDate": "2026-12-25",
+            "bookingTime": "09:00",
+            "managerWillConfirm": True,
+        }
+
+        try:
+            with patch(
+                "app.core.tools.mcp_tools.booking_tools.get_backend_client",
+                return_value=client,
+            ):
+                result = await create_booking_for_user(
+                    pet_id="pet-1",
+                    clinic_id="550e8400-e29b-41d4-a716-446655440001",
+                    booking_date="2026-12-25",
+                    start_time="09:00",
+                    service_ids=["svc-1"],
+                    user_id="user-x",
+                    confirmed=True,
+                )
+        finally:
+            reset_tool_runtime_context(runtime_token)
+
+        client.create_ai_booking.assert_not_awaited()
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error_code"], "UNAUTHORIZED")
+
+    async def test_get_clinic_services_includes_vaccination_metadata(self):
+        runtime_token = set_tool_runtime_context(
+            ToolRuntimeContext(
+                user_id="user-1", role="PET_OWNER", auth_token="jwt-token"
+            )
+        )
+
+        client = AsyncMock()
+        client.get_clinic_services_by_clinic.return_value = [
             {
                 "serviceId": "svc-vaccine-1",
                 "name": "Tiem phong dai",
@@ -738,15 +883,18 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
             }
         ]
 
-        with patch(
-            "app.core.tools.mcp_tools.booking_tools.get_backend_client",
-            return_value=client,
-        ):
-            result = await get_clinic_services(
-                "clinic-1", pet_species="DOG", is_home_visit=False
-            )
+        try:
+            with patch(
+                "app.core.tools.mcp_tools.booking_tools.get_backend_client",
+                return_value=client,
+            ):
+                result = await get_clinic_services(
+                    "clinic-1", pet_species="DOG", is_home_visit=False
+                )
+        finally:
+            reset_tool_runtime_context(runtime_token)
 
-        client.get_clinic_services.assert_awaited_once_with(
+        client.get_clinic_services_by_clinic.assert_awaited_once_with(
             "clinic-1",
             pet_species="DOG",
             is_home_visit=False,
@@ -756,6 +904,60 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["services"][0]["vaccine_template_id"], "template-1")
         self.assertTrue(result["services"][0]["is_vaccination"])
         self.assertEqual(len(result["services"][0]["dose_prices"]), 2)
+
+    async def test_get_clinic_services_matches_tam_hint_to_db_service(self):
+        runtime_token = set_tool_runtime_context(
+            ToolRuntimeContext(
+                user_id="user-1", role="PET_OWNER", auth_token="jwt-token"
+            )
+        )
+
+        client = AsyncMock()
+        client.get_clinic_services_by_clinic.return_value = [
+            {
+                "id": "svc-dog-bath",
+                "name": "Grooming cho",
+                "description": "Tam va cat tia long cho",
+                "basePrice": 120000,
+                "durationTime": 30,
+                "slotsRequired": 1,
+                "serviceCategory": "GROOMING",
+                "petType": "DOG",
+                "isHomeVisit": False,
+                "isActive": True,
+            },
+            {
+                "id": "svc-cat-bath",
+                "name": "Grooming meo",
+                "description": "Tam va cat tia long meo",
+                "basePrice": 100000,
+                "durationTime": 30,
+                "slotsRequired": 1,
+                "serviceCategory": "GROOMING",
+                "petType": "CAT",
+                "isHomeVisit": False,
+                "isActive": True,
+            },
+        ]
+
+        try:
+            with patch(
+                "app.core.tools.mcp_tools.booking_tools.get_backend_client",
+                return_value=client,
+            ):
+                result = await get_clinic_services(
+                    "clinic-1",
+                    pet_species="DOG",
+                    service_hint="tắm",
+                    latest_message="toi muon tam cho",
+                )
+        finally:
+            reset_tool_runtime_context(runtime_token)
+
+        self.assertGreaterEqual(len(result["services"]), 2)
+        self.assertGreaterEqual(len(result["matched_services"]), 1)
+        self.assertEqual(result["matched_services"][0]["id"], "svc-dog-bath")
+        self.assertIn("svc-dog-bath", result["resolved_service_ids"])
 
     async def test_check_vaccination_status_returns_filtered_history(self):
         runtime_token = set_tool_runtime_context(
@@ -815,7 +1017,9 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
                 "app.core.tools.mcp_tools.booking_tools.get_backend_client",
                 return_value=client,
             ):
-                result = await check_vaccination_status("pet-1", "template-1")
+                result = await check_vaccination_status(
+                    pet_id="pet-1", vaccine_template_id="template-1"
+                )
         finally:
             reset_tool_runtime_context(runtime_token)
 
@@ -825,6 +1029,35 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["total_upcoming"], 1)
         self.assertEqual(result["history"][0]["dose_number"], 1)
         self.assertEqual(result["upcoming"][0]["dose_number"], 2)
+
+    async def test_check_vaccination_status_rejects_input_user_id_when_mismatched(self):
+        runtime_token = set_tool_runtime_context(
+            ToolRuntimeContext(
+                user_id="user-1", role="PET_OWNER", auth_token="jwt-token"
+            )
+        )
+
+        client = AsyncMock()
+        client.get_user_pets.return_value = [{"id": "pet-1", "name": "Mimi"}]
+        client.get_vaccinations_by_pet.return_value = []
+        client.get_upcoming_vaccinations.return_value = []
+
+        try:
+            with patch(
+                "app.core.tools.mcp_tools.booking_tools.get_backend_client",
+                return_value=client,
+            ):
+                result = await check_vaccination_status(
+                    pet_id=None,
+                    pet_hint="Mimi",
+                    user_id="user-x",
+                )
+        finally:
+            reset_tool_runtime_context(runtime_token)
+
+        client.get_user_pets.assert_not_awaited()
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error_code"], "UNAUTHORIZED")
 
     def test_resolve_booking_datetime_inputs_supports_relative_weekday(self):
         resolved = _resolve_booking_datetime_inputs(

@@ -9,7 +9,7 @@
 
 Use this message first:
 
-"Petties AI Diagnose is a clinical support feature for staff inside the EMR workspace. It does not replace the doctor. It retrieves internal evidence from the Knowledge Base, Knowledge Graph, and confirmed EMR Case Memory, then generates a grounded SOAP draft and treatment suggestions for faster documentation and safer decision support."
+"Petties AI Diagnose is a clinical support feature for staff inside the EMR workspace. It does not replace the doctor. It retrieves internal evidence from the Knowledge Base and confirmed EMR Case Memory, then generates a grounded SOAP draft and treatment suggestions for faster documentation and safer decision support."
 
 ---
 
@@ -78,7 +78,6 @@ Use this message first:
 ### 5.2 Internal evidence sources
 
 - Knowledge Base
-- Knowledge Graph
 - confirmed EMR Case Memory
 
 ### 5.3 Outputs

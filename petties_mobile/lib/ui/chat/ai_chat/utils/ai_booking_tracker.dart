@@ -103,15 +103,25 @@ class AiBookingTrackerSnapshot {
     };
 
     return AiBookingTrackerSnapshot(
-      petId: draft['pet_id']?.toString(),
-      petName: draft['pet_name']?.toString(),
-      clinicId: draft['clinic_id']?.toString(),
-      clinicName: draft['clinic_name']?.toString(),
-      bookingDate: draft['booking_date']?.toString(),
-      startTime: draft['start_time']?.toString(),
-      serviceIds: _normalizeList(draft['service_ids']),
-      serviceNames: _normalizeList(draft['service_names']),
-      bookingType: draft['booking_type']?.toString(),
+      petId: _firstText(draft, const ['pet_id', 'petId']),
+      petName: _firstText(draft, const ['pet_name', 'petName']),
+      clinicId: _firstText(draft, const ['clinic_id', 'clinicId']),
+      clinicName: _firstText(draft, const ['clinic_name', 'clinicName']),
+      bookingDate: _normalizeBookingDate(
+        _firstText(draft, const ['booking_date', 'bookingDate']),
+      ),
+      startTime: _normalizeStartTime(
+        _firstText(draft, const ['start_time', 'startTime']),
+      ),
+      serviceIds: _firstList(
+        draft,
+        const ['service_ids', 'serviceIds'],
+      ),
+      serviceNames: _firstList(
+        draft,
+        const ['service_names', 'serviceNames', 'services'],
+      ),
+      bookingType: _firstText(draft, const ['booking_type', 'bookingType']),
       status: json['status']?.toString(),
       notes: draft['notes']?.toString() ?? json['notes']?.toString(),
       metadata: trackerMetadata,
@@ -209,8 +219,8 @@ class AiBookingTrackerSnapshot {
   }) {
     return copyWith(
       clinicId: _pick(clinicId, this.clinicId),
-      bookingDate: _pick(bookingDate, this.bookingDate),
-      startTime: _pick(startTime, this.startTime),
+      bookingDate: _pick(_normalizeBookingDate(bookingDate), this.bookingDate),
+      startTime: _pick(_normalizeStartTime(startTime), this.startTime),
       serviceIds: serviceIds == null
           ? this.serviceIds
           : _mergeList(serviceIds, this.serviceIds),
@@ -221,17 +231,37 @@ class AiBookingTrackerSnapshot {
   }
 
   AiBookingTrackerSnapshot mergeSummaryData(Map<String, dynamic> data) {
-    final summaryServiceNames =
-        _normalizeList(data['service_names'] ?? data['services']);
+    final summaryServiceNames = _firstList(
+      data,
+      const ['service_names', 'serviceNames', 'services'],
+    );
     return copyWith(
-      petId: _pick(data['pet_id']?.toString(), petId),
-      petName: _pick(data['pet_name']?.toString(), petName),
-      clinicId: _pick(data['clinic_id']?.toString(), clinicId),
-      clinicName: _pick(data['clinic_name']?.toString(), clinicName),
-      bookingDate: _pick(data['booking_date']?.toString(), bookingDate),
-      startTime: _pick(data['start_time']?.toString(), startTime),
-      bookingType: _pick(data['booking_type']?.toString(), bookingType),
-      serviceIds: _mergeList(_normalizeList(data['service_ids']), serviceIds),
+      petId: _pick(_firstText(data, const ['pet_id', 'petId']), petId),
+      petName: _pick(_firstText(data, const ['pet_name', 'petName']), petName),
+      clinicId:
+          _pick(_firstText(data, const ['clinic_id', 'clinicId']), clinicId),
+      clinicName: _pick(
+        _firstText(data, const ['clinic_name', 'clinicName']),
+        clinicName,
+      ),
+      bookingDate: _pick(
+          _normalizeBookingDate(
+            _firstText(data, const ['booking_date', 'bookingDate']),
+          ),
+          bookingDate),
+      startTime: _pick(
+        _normalizeStartTime(
+            _firstText(data, const ['start_time', 'startTime'])),
+        startTime,
+      ),
+      bookingType: _pick(
+        _firstText(data, const ['booking_type', 'bookingType']),
+        bookingType,
+      ),
+      serviceIds: _mergeList(
+        _firstList(data, const ['service_ids', 'serviceIds']),
+        serviceIds,
+      ),
       serviceNames: _mergeList(summaryServiceNames, serviceNames),
       status: _pick(data['status']?.toString(), status),
       notes: _pick(data['notes']?.toString(), notes),
@@ -254,10 +284,18 @@ class AiBookingTrackerSnapshot {
           break;
         case 'slot_button':
           next = next.mergeSlotSelection(
-            clinicId: component.data['clinic_id']?.toString(),
-            bookingDate: component.data['booking_date']?.toString(),
-            serviceIds: _normalizeList(component.data['service_ids']),
-            serviceNames: _normalizeList(component.data['service_names']),
+            clinicId:
+                _firstText(component.data, const ['clinic_id', 'clinicId']),
+            bookingDate: _firstText(
+                component.data, const ['booking_date', 'bookingDate']),
+            serviceIds: _firstList(
+              component.data,
+              const ['service_ids', 'serviceIds'],
+            ),
+            serviceNames: _firstList(
+              component.data,
+              const ['service_names', 'serviceNames'],
+            ),
           );
           break;
         default:
@@ -279,11 +317,11 @@ class AiBookingTrackerSnapshot {
 
     if (action.type == 'select_services') {
       return mergeServiceSelection(
-        clinicId: payload['clinic_id']?.toString(),
-        serviceIds:
-            selectedServiceIds ?? _normalizeList(payload['service_ids']),
-        serviceNames:
-            selectedServiceNames ?? _normalizeList(payload['service_names']),
+        clinicId: _firstText(payload, const ['clinic_id', 'clinicId']),
+        serviceIds: selectedServiceIds ??
+            _firstList(payload, const ['service_ids', 'serviceIds']),
+        serviceNames: selectedServiceNames ??
+            _firstList(payload, const ['service_names', 'serviceNames']),
       );
     }
 
@@ -307,16 +345,30 @@ class AiBookingTrackerSnapshot {
 
     if (action.type == 'select_item' && itemType == 'slot') {
       return mergeSlotSelection(
-        clinicId:
-            payload['clinic_id']?.toString() ?? data['clinic_id']?.toString(),
-        bookingDate: payload['booking_date']?.toString() ??
-            data['booking_date']?.toString(),
-        startTime:
-            payload['start_time']?.toString() ?? data['start_time']?.toString(),
-        serviceIds:
-            _normalizeList(payload['service_ids'] ?? data['service_ids']),
-        serviceNames:
-            _normalizeList(payload['service_names'] ?? data['service_names']),
+        clinicId: _firstText(
+              payload,
+              const ['clinic_id', 'clinicId'],
+            ) ??
+            _firstText(data, const ['clinic_id', 'clinicId']),
+        bookingDate: _firstText(
+              payload,
+              const ['booking_date', 'bookingDate'],
+            ) ??
+            _firstText(data, const ['booking_date', 'bookingDate']),
+        startTime: _firstText(payload, const ['start_time', 'startTime']) ??
+            _firstText(data, const ['start_time', 'startTime']),
+        serviceIds: _firstList(
+          payload,
+          const ['service_ids', 'serviceIds'],
+        ).isNotEmpty
+            ? _firstList(payload, const ['service_ids', 'serviceIds'])
+            : _firstList(data, const ['service_ids', 'serviceIds']),
+        serviceNames: _firstList(
+          payload,
+          const ['service_names', 'serviceNames'],
+        ).isNotEmpty
+            ? _firstList(payload, const ['service_names', 'serviceNames'])
+            : _firstList(data, const ['service_names', 'serviceNames']),
       );
     }
 
@@ -347,5 +399,111 @@ class AiBookingTrackerSnapshot {
         .map((item) => item.toString().trim())
         .where((item) => item.isNotEmpty)
         .toList();
+  }
+
+  static String? _firstText(Map<String, dynamic> data, List<String> keys) {
+    for (final key in keys) {
+      final value = data[key];
+      if (value == null) {
+        continue;
+      }
+      final text = value.toString().trim();
+      if (text.isNotEmpty) {
+        return text;
+      }
+    }
+    return null;
+  }
+
+  static List<String> _firstList(Map<String, dynamic> data, List<String> keys) {
+    for (final key in keys) {
+      final value = data[key];
+      if (value is List<dynamic>) {
+        final normalized = _normalizeList(value);
+        if (normalized.isNotEmpty) {
+          return normalized;
+        }
+      }
+    }
+    return const <String>[];
+  }
+
+  static String? _normalizeBookingDate(String? raw) {
+    final value = raw?.trim();
+    if (value == null || value.isEmpty) {
+      return null;
+    }
+
+    if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value)) {
+      return value;
+    }
+
+    final slashIso = RegExp(r'^(\d{4})/(\d{2})/(\d{2})$').firstMatch(value);
+    if (slashIso != null) {
+      return '${slashIso.group(1)}-${slashIso.group(2)}-${slashIso.group(3)}';
+    }
+
+    final local = RegExp(r'^(\d{2})/(\d{2})/(\d{4})$').firstMatch(value);
+    if (local != null) {
+      return '${local.group(3)}-${local.group(2)}-${local.group(1)}';
+    }
+
+    final lower = value.toLowerCase();
+    final now = DateTime.now();
+    if (lower == 'hôm nay' || lower == 'hom nay' || lower == 'today') {
+      return _toIsoDate(now);
+    }
+    if (lower == 'ngày mai' ||
+        lower == 'ngay mai' ||
+        lower == 'mai' ||
+        lower == 'tomorrow') {
+      return _toIsoDate(now.add(const Duration(days: 1)));
+    }
+
+    return value;
+  }
+
+  static String? _normalizeStartTime(String? raw) {
+    final value = raw?.trim();
+    if (value == null || value.isEmpty) {
+      return null;
+    }
+
+    final hhmm = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(value);
+    if (hhmm != null) {
+      final hour = int.tryParse(hhmm.group(1) ?? '');
+      final minute = int.tryParse(hhmm.group(2) ?? '');
+      if (hour != null &&
+          minute != null &&
+          hour >= 0 &&
+          hour <= 23 &&
+          minute >= 0 &&
+          minute <= 59) {
+        return '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+      }
+    }
+
+    final byHour = RegExp(r'^(\d{1,2})h(?:(\d{2}))?$', caseSensitive: false)
+        .firstMatch(value.replaceAll(' ', ''));
+    if (byHour != null) {
+      final hour = int.tryParse(byHour.group(1) ?? '');
+      final minute = int.tryParse(byHour.group(2) ?? '0') ?? 0;
+      if (hour != null &&
+          hour >= 0 &&
+          hour <= 23 &&
+          minute >= 0 &&
+          minute <= 59) {
+        return '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+      }
+    }
+
+    return value;
+  }
+
+  static String _toIsoDate(DateTime value) {
+    final year = value.year.toString().padLeft(4, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    return '$year-$month-$day';
   }
 }

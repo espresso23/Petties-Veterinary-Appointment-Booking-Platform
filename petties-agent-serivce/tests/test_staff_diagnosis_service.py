@@ -236,6 +236,102 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn("gợi ý từ ai", response.disclaimer.lower())
 
+    async def test_selected_only_fills_missing_prescription_instructions(self):
+        service = StaffDiagnosisService()
+        previous_request_id = "req-selected-only-missing-instruction"
+
+        cached_top = [
+            DiagnosisSuggestion(
+                canonical_code="pyoderma",
+                display_name_vi="Viêm da do vi khuẩn (Pyoderma)",
+                rank=1,
+                score_percent=60,
+                score_basis="matching_internal",
+                confidence_note="Độ tự tin: 60%",
+                supporting_reasons=["Khớp mô tả tổn thương da mủ."],
+            )
+        ]
+        cached_hybrid = HybridResult(
+            chunks=[
+                HybridChunk(
+                    content="Pyoderma cần điều trị kháng sinh theo chỉ định và theo dõi đáp ứng.",
+                    score=0.75,
+                    source="rag",
+                    metadata={"document_name": "Cẩm nang da liễu"},
+                )
+            ],
+            expanded_query="dog pyoderma",
+            original_query="dog pyoderma",
+            sources_used={"rag": 1, "kg": 0},
+        )
+
+        service._analysis_cache[previous_request_id] = CachedAnalysisContext(
+            created_at=datetime.utcnow(),
+            evidence_mode="internal_grounded",
+            evidence_banner="Đã đối chiếu dữ liệu nội bộ",
+            score_label="Độ tự tin (%)",
+            top_differentials=cached_top,
+            hybrid_result=cached_hybrid,
+            similar_cases=[],
+            vision_response=GeminiVisionDiagnosisResponse(
+                request_id=previous_request_id
+            ),
+            image_analysis=[],
+        )
+
+        request = StaffDiagnosisRequest(
+            species=Species.DOG,
+            doctor_description="Da đỏ, có mủ",
+            synthesis_mode="selected_only",
+            previous_request_id=previous_request_id,
+            selected_diagnosis_code="pyoderma",
+        )
+
+        protocol_service = Mock()
+        protocol_service.build_decision.return_value = ProtocolDecision(
+            diagnosis_code="pyoderma",
+            diagnosis_display_name="Viêm da do vi khuẩn (Pyoderma)",
+            summary="Protocol co san",
+            prescriptions=[
+                PrescriptionSuggestion(
+                    medicine_name="Cephalexin",
+                    dosage="22 mg/kg",
+                    frequency="BID",
+                    duration_days=14,
+                    instructions="",
+                )
+            ],
+        )
+        protocol_service.apply_emr_patterns.side_effect = (
+            lambda protocol_decision, emr_patterns, request: protocol_decision
+        )
+
+        with (
+            patch(
+                "app.ai_diagnose.staff_diagnosis_service.get_diagnosis_protocol_service",
+                return_value=protocol_service,
+            ),
+            patch.object(
+                service,
+                "_synthesize_with_llm",
+                new=AsyncMock(
+                    return_value={
+                        "soap_suggestions": {
+                            "subjective_draft": "Theo dõi ngứa và mức độ liếm gãi.",
+                            "objective_draft": "Quan sát tổn thương da mủ lan tỏa.",
+                            "assessment_draft": "Nghi viêm da do vi khuẩn.",
+                            "plan_draft": "Theo dõi đáp ứng điều trị trong 3 ngày đầu.",
+                        },
+                    }
+                ),
+            ),
+        ):
+            response = await service.analyze_case(request)
+
+        self.assertEqual(len(response.prescription_suggestions), 1)
+        self.assertTrue(response.prescription_suggestions[0].instructions.strip())
+        self.assertIn("Liều mỗi lần", response.prescription_suggestions[0].instructions)
+
     def test_select_diagnosis_prefers_doctor_selected_code(self):
         service = StaffDiagnosisService()
         request = StaffDiagnosisRequest(
@@ -277,7 +373,7 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(result), 3)
         self.assertEqual(sum(result), 100)
 
-    def test_merge_top_differentials_with_fallback_keeps_three_candidates(self):
+    def test_merge_top_differentials_with_fallback_keeps_focus_aligned_candidates(self):
         service = StaffDiagnosisService()
         request = StaffDiagnosisRequest(
             species=Species.DOG,
@@ -331,10 +427,10 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
             evidence_mode="internal_grounded",
         )
 
-        self.assertEqual(len(merged), 3)
+        self.assertEqual(len(merged), 2)
         self.assertEqual(merged[0].canonical_code, "bacterial_dermatosis")
         self.assertEqual(sum(item.score_percent for item in merged), 100)
-        self.assertEqual([item.rank for item in merged], [1, 2, 3])
+        self.assertEqual([item.rank for item in merged], [1, 2])
 
     async def test_analyze_case_uses_internal_retrieval_and_protocol_prescriptions(
         self,
@@ -407,6 +503,11 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
             patch(
                 "app.core.services.disease_mapping_service.DiseaseMappingService.refresh_from_db",
                 new=AsyncMock(return_value=True),
+            ),
+            patch.object(
+                service,
+                "_synthesize_with_llm",
+                new=AsyncMock(return_value=None),
             ),
         ):
             response = await service.analyze_case(request)
@@ -621,6 +722,36 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
             ["Theo dõi đáp ứng 48 giờ"],
         )
 
+        def test_parse_llm_synthesis_response_keeps_llm_label_when_fallback_is_generic(self):
+                service = StaffDiagnosisService()
+                fallback = [
+                        DiagnosisSuggestion(
+                                canonical_code=None,
+                                display_name_vi="Cần phân biệt thêm trước khi kết luận cho thú cưng",
+                                rank=1,
+                                score_percent=100,
+                                score_basis="llm_reference",
+                                confidence_note="Độ tự tin (tham khảo): 100%",
+                                supporting_reasons=["Thiếu dữ liệu nội bộ"],
+                        )
+                ]
+
+                payload = """{
+                    "top_differentials": [
+                        {
+                            "display_name_vi": "Viêm mũi dị ứng",
+                            "supporting_reasons": ["Chảy nước mũi và hắt hơi"]
+                        }
+                    ]
+                }"""
+
+                parsed = service._parse_llm_synthesis_response(payload, fallback, "dog")
+
+                self.assertIsNotNone(parsed)
+                differential = parsed["top_differentials"][0]
+                self.assertEqual(differential.display_name_vi, "Viêm mũi dị ứng")
+                self.assertIsNone(differential.canonical_code)
+
     def test_build_plan_draft_does_not_append_allergy_or_weight_tail(self):
         service = StaffDiagnosisService()
         request = StaffDiagnosisRequest(
@@ -680,6 +811,11 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
                 "app.core.services.disease_mapping_service.DiseaseMappingService.refresh_from_db",
                 new=AsyncMock(return_value=True),
             ),
+            patch.object(
+                service,
+                "_synthesize_with_llm",
+                new=AsyncMock(return_value=None),
+            ),
         ):
             response = await service.analyze_case(request)
 
@@ -697,7 +833,7 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(response.prescription_suggestions, [])
         self.assertEqual(response.soap_suggestions.plan_draft, "")
-        self.assertIn("Chọn một chẩn đoán trong Top 3", response.disclaimer)
+        self.assertIn("Chọn một chẩn đoán trong danh sách gợi ý", response.disclaimer)
 
     async def test_analyze_case_with_images_returns_image_analysis(self):
         service = StaffDiagnosisService()
@@ -819,6 +955,11 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
                 "app.core.services.disease_mapping_service.DiseaseMappingService.refresh_from_db",
                 new=AsyncMock(return_value=True),
             ),
+            patch.object(
+                service,
+                "_synthesize_with_llm",
+                new=AsyncMock(return_value=None),
+            ),
         ):
             response = await service.analyze_case(request)
 
@@ -912,8 +1053,8 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
         ):
             response = await service.analyze_case(request)
 
-        # Fallback must keep generic candidate as top #1 and still provide Top 3
-        self.assertEqual(len(response.top_differentials), 3)
+        # Fallback keeps generic candidate first and can return fewer than 3 when evidence is insufficient
+        self.assertEqual(len(response.top_differentials), 1)
         diff = response.top_differentials[0]
         self.assertIsNone(diff.canonical_code)
         self.assertNotIn("tai", diff.display_name_vi.lower())
@@ -955,13 +1096,176 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
         ):
             response = await service.analyze_case(request)
 
-        # Must keep generic fallback as top #1 and still render Top 3 for comparison
-        self.assertEqual(len(response.top_differentials), 3)
+        # Must keep generic fallback first and can return fewer than 3 when evidence is insufficient
+        self.assertEqual(len(response.top_differentials), 1)
         diff = response.top_differentials[0]
         self.assertIsNone(diff.canonical_code)
         self.assertNotIn("mắt", diff.display_name_vi.lower())
         self.assertNotIn("kết mạc", diff.display_name_vi.lower())
         self.assertTrue(diff.confidence_note.startswith("Độ tự tin (tham khảo):"))
+
+    async def test_provisional_case_memory_is_excluded_from_differential_ranking(self):
+        service = StaffDiagnosisService()
+        request = StaffDiagnosisRequest(
+            species=Species.DOG,
+            doctor_description="Bé chảy nước mũi liên tục, hắt hơi.",
+        )
+
+        mock_hybrid_engine = Mock()
+        mock_hybrid_engine.query = AsyncMock(
+            return_value=HybridResult(
+                chunks=[],
+                expanded_query="dog",
+                original_query="dog",
+                sources_used={},
+            )
+        )
+
+        mock_case_memory = Mock()
+        mock_case_memory.search_similar = AsyncMock(
+            return_value=[
+                CaseResult(
+                    case_id="emr:provisional-eye",
+                    content="Ca mắt tạm gán nhãn.",
+                    score=0.8,
+                    final_score=0.89,
+                    payload={
+                        "species": "dog",
+                        "display_name_vi": "Viêm kết mạc hoặc nhiễm trùng mắt",
+                        "final_diagnosis_text": "Viêm kết mạc",
+                        "canonical_code": "ocular_infection",
+                        "chief_complaint": "Đỏ mắt, ghèn mắt",
+                        "mapping_status": "provisional",
+                    },
+                ),
+                CaseResult(
+                    case_id="emr:provisional-healthy",
+                    content="Ca sức khỏe tốt tạm gán nhãn.",
+                    score=0.78,
+                    final_score=0.85,
+                    payload={
+                        "species": "dog",
+                        "display_name_vi": "Sức khỏe tốt; không có dấu hiệu bệnh lý",
+                        "final_diagnosis_text": "Sức khỏe tốt",
+                        "canonical_code": "healthy",
+                        "chief_complaint": "Ăn uống bình thường",
+                        "mapping_status": "provisional",
+                    },
+                ),
+            ]
+        )
+
+        with (
+            patch(
+                "app.ai_diagnose.staff_diagnosis_service.get_hybrid_rag_engine",
+                return_value=mock_hybrid_engine,
+            ),
+            patch(
+                "app.ai_diagnose.staff_diagnosis_service.get_case_memory_service",
+                return_value=mock_case_memory,
+            ),
+            patch(
+                "app.core.services.disease_mapping_service.DiseaseMappingService.refresh_from_db",
+                new=AsyncMock(return_value=True),
+            ),
+        ):
+            response = await service.analyze_case(request)
+
+        self.assertEqual(response.evidence_mode, "llm_fallback")
+        self.assertEqual(len(response.top_differentials), 1)
+        self.assertIsNone(response.top_differentials[0].canonical_code)
+        self.assertIn(
+            "Cần phân biệt thêm",
+            response.top_differentials[0].display_name_vi,
+        )
+        self.assertIn(
+            "Không tìm thấy ca EMR xác nhận",
+            response.similar_confirmed_cases[0],
+        )
+
+    async def test_analyze_case_uses_llm_suggestions_when_internal_evidence_is_weak(self):
+        service = StaffDiagnosisService()
+        request = StaffDiagnosisRequest(
+            species=Species.DOG,
+            doctor_description="Bé chảy nước mũi, hắt hơi.",
+        )
+
+        mock_hybrid_engine = Mock()
+        mock_hybrid_engine.query = AsyncMock(
+            return_value=HybridResult(
+                chunks=[],
+                expanded_query="dog runny nose",
+                original_query="dog runny nose",
+                sources_used={},
+            )
+        )
+
+        mock_case_memory = Mock()
+        mock_case_memory.search_similar = AsyncMock(return_value=[])
+
+        llm_payload = {
+            "top_differentials": [
+                DiagnosisSuggestion(
+                    canonical_code=None,
+                    display_name_vi="Viêm mũi dị ứng",
+                    rank=1,
+                    score_percent=0,
+                    score_basis="llm_reference",
+                    confidence_note="Độ tự tin (tham khảo): 0%",
+                    supporting_reasons=["Khớp triệu chứng chảy nước mũi, hắt hơi."],
+                ),
+                DiagnosisSuggestion(
+                    canonical_code=None,
+                    display_name_vi="Viêm hô hấp trên",
+                    rank=2,
+                    score_percent=0,
+                    score_basis="llm_reference",
+                    confidence_note="Độ tự tin (tham khảo): 0%",
+                    supporting_reasons=["Triệu chứng đường hô hấp trên phù hợp."],
+                ),
+            ],
+            "prescription_suggestions": [
+                PrescriptionSuggestion(
+                    medicine_name="Dung dịch nhỏ mũi NaCl 0.9%",
+                    dosage="2-3 giọt",
+                    frequency="3 lần/ngày",
+                    duration_days=5,
+                    instructions="Nhỏ mũi và theo dõi đáp ứng lâm sàng.",
+                    source="llm_fallback",
+                    source_detail="Cần xác nhận từ bác sĩ",
+                )
+            ],
+        }
+
+        with (
+            patch(
+                "app.ai_diagnose.staff_diagnosis_service.get_hybrid_rag_engine",
+                return_value=mock_hybrid_engine,
+            ),
+            patch(
+                "app.ai_diagnose.staff_diagnosis_service.get_case_memory_service",
+                return_value=mock_case_memory,
+            ),
+            patch(
+                "app.core.services.disease_mapping_service.DiseaseMappingService.refresh_from_db",
+                new=AsyncMock(return_value=True),
+            ),
+            patch.object(
+                service,
+                "_synthesize_with_llm",
+                new=AsyncMock(return_value=llm_payload),
+            ),
+        ):
+            response = await service.analyze_case(request)
+
+        self.assertGreaterEqual(len(response.top_differentials), 1)
+        self.assertIn("mũi", response.top_differentials[0].display_name_vi.lower())
+        self.assertEqual(len(response.prescription_suggestions), 1)
+        self.assertEqual(
+            response.prescription_suggestions[0].medicine_name,
+            "Dung dịch nhỏ mũi NaCl 0.9%",
+        )
+        self.assertEqual(response.prescription_suggestions[0].source, "llm_fallback")
 
     async def test_analyze_case_with_images_always_runs_vision_even_when_case_match_is_strong(
         self,
@@ -1039,6 +1343,82 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
         mock_vision.return_value.analyze.assert_awaited_once()
         self.assertEqual(len(response.image_analysis), 1)
         self.assertEqual(response.image_analysis[0]["order"], 1)
+
+    async def test_focus_alignment_filters_eye_evidence_for_nasal_complaint(self):
+        service = StaffDiagnosisService()
+        request = StaffDiagnosisRequest(
+            species=Species.DOG,
+            doctor_description="Bé chảy nước mũi, hắt hơi liên tục.",
+        )
+
+        mock_hybrid_engine = Mock()
+        mock_hybrid_engine.query = AsyncMock(
+            return_value=HybridResult(
+                chunks=[
+                    HybridChunk(
+                        content="Viêm kết mạc thường gây chảy mủ mắt, đỏ mắt.",
+                        score=0.92,
+                        source="rag",
+                        metadata={"document_name": "petcare1.pdf"},
+                    )
+                ],
+                expanded_query="dog runny nose",
+                original_query="dog runny nose",
+                sources_used={"rag": 1, "kg": 0},
+            )
+        )
+
+        mock_case_memory = Mock()
+        mock_case_memory.search_similar = AsyncMock(
+            return_value=[
+                CaseResult(
+                    case_id="emr:eye-confirmed",
+                    content="Ca mắt đỏ, chảy mủ mắt, bác sĩ xác nhận viêm kết mạc.",
+                    score=0.89,
+                    final_score=0.91,
+                    payload={
+                        "species": "dog",
+                        "display_name_vi": "Viêm kết mạc hoặc nhiễm trùng mắt",
+                        "final_diagnosis_text": "Viêm kết mạc",
+                        "canonical_code": "ocular_infection",
+                        "chief_complaint": "Chảy mủ mắt, đỏ mắt",
+                        "mapping_status": "mapped",
+                    },
+                )
+            ]
+        )
+
+        with (
+            patch(
+                "app.ai_diagnose.staff_diagnosis_service.get_hybrid_rag_engine",
+                return_value=mock_hybrid_engine,
+            ),
+            patch(
+                "app.ai_diagnose.staff_diagnosis_service.get_case_memory_service",
+                return_value=mock_case_memory,
+            ),
+            patch(
+                "app.core.services.disease_mapping_service.DiseaseMappingService.refresh_from_db",
+                new=AsyncMock(return_value=True),
+            ),
+            patch.object(
+                service,
+                "_synthesize_with_llm",
+                new=AsyncMock(return_value=None),
+            ),
+        ):
+            response = await service.analyze_case(request)
+
+        self.assertEqual(len(response.top_differentials), 1)
+        self.assertNotIn("mắt", response.top_differentials[0].display_name_vi.lower())
+        self.assertIn(
+            "Không tìm thấy ca EMR xác nhận",
+            response.similar_confirmed_cases[0],
+        )
+        self.assertIn(
+            "Không tìm thấy thông tin phù hợp",
+            response.supporting_evidence_from_kb[0],
+        )
 
     async def test_analyze_case_with_images_handles_vision_failure_gracefully(
         self,
@@ -1247,11 +1627,16 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
                 "app.core.services.disease_mapping_service.DiseaseMappingService.refresh_from_db",
                 new=AsyncMock(return_value=True),
             ),
+            patch.object(
+                service,
+                "_synthesize_with_llm",
+                new=AsyncMock(return_value=None),
+            ),
         ):
             response = await service.analyze_case(request)
 
         self.assertIsNotNone(response.request_id)
-        self.assertEqual(len(response.top_differentials), 3)
+        self.assertEqual(len(response.top_differentials), 1)
         self.assertIn(
             "Không tìm thấy thông tin phù hợp",
             response.supporting_evidence_from_kb[0],

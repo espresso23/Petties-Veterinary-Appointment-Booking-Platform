@@ -46,7 +46,7 @@ const FETCH_KEYS = [
 
 export const ClinicOwnerDashboardPage = () => {
     const { user } = useAuthStore()
-    const { clinics, getMyClinics, isLoading: clinicsLoading } = useClinicStore()
+    const { clinics, getMyClinics, isLoading: clinicsLoading, selectedClinicId, setSelectedClinicId } = useClinicStore()
 
     const [dayRevenue, setDayRevenue] = useState<number | null>(null)
     const [monthRevenue, setMonthRevenue] = useState<number | null>(null)
@@ -64,7 +64,7 @@ export const ClinicOwnerDashboardPage = () => {
     const [partialWarnings, setPartialWarnings] = useState<string[]>([])
     const [revenueChartPeriod, setRevenueChartPeriod] = useState<'WEEK' | 'MONTH'>('WEEK')
 
-    const clinic = clinics[0] ?? null
+    const clinic = clinics.find(c => c.clinicId === selectedClinicId) ?? null
     const clinicId = clinic?.clinicId
 
     const ratingLabel = useMemo(() => {
@@ -182,7 +182,20 @@ export const ClinicOwnerDashboardPage = () => {
                 <div>
                     <h1 className="text-2xl font-bold text-stone-900">Tổng quan phòng khám</h1>
                     <p className="text-stone-600 mt-1">Xin chào, {user?.fullName || 'Chủ phòng khám'}</p>
-                    {clinic && (
+                    {clinics.length > 1 && (
+                        <div className="mt-2">
+                            <select
+                                value={selectedClinicId ?? ''}
+                                onChange={(e) => setSelectedClinicId(e.target.value)}
+                                className="text-sm font-bold border-2 border-stone-900 px-3 py-1.5 bg-white shadow-[2px_2px_0_#1c1917] rounded-lg cursor-pointer"
+                            >
+                                {clinics.map(c => (
+                                    <option key={c.clinicId} value={c.clinicId}>{c.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+                    {clinics.length === 1 && clinic && (
                         <p className="text-sm font-bold text-stone-800 mt-2 border-2 border-stone-900 inline-block px-3 py-1 bg-amber-100">
                             {clinic.name}
                         </p>

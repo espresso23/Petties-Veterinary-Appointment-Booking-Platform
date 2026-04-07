@@ -510,13 +510,12 @@ Danh sách chi tiết các công nghệ được sử dụng để xây dựng h
 
 * **Domain Knowledge & Intelligence:**
 
-  * **Knowledge Graph (LlamaIndex KnowledgeGraphIndex):**
-    * Extracts triplets from veterinary documents: (Symptom) --points_to--> (Disease) --common_in--> (Species)
-    * Hybrid Query: RAG (vector similarity) + KG (graph traversal) for reasoning over chains
-    * Backend: SimpleGraphStore (MVP) → Neo4j (at scale)
-    * Example: "Dry cough + runny nose" → KG infers "Upper respiratory infection" → "Antibiotics + keep warm"
+  * **RAG Knowledge Base:**
+    * Vector-indexed veterinary documents via Qdrant Cloud + Cohere embeddings
+    * Sentence-level chunking for accurate retrieval
+    * Example: "Dry cough + runny nose" → RAG retrieves relevant veterinary guidance → "Antibiotics + keep warm"
 
-* **Case Memory từ EMR xác nhận:**
+  * **Case Memory từ EMR xác nhận:**
     * Vision LLM describes the image, then embeds the **textual description** actually used by retrieval together with metadata (species, canonical disease mapping, quality gate, image_url, etc.)
     * On similar future images, retrieves confirmed cases to increase accuracy and provide explanations such as "based on a previous case confirmed by Staff/Vet"
     * Quality-gated retrieval: ranking is boosted by `quality_gate.score` and by support metrics aggregated from multiple confirmed EMRs of the same disease/species
@@ -586,7 +585,6 @@ Các tính năng được phân nhóm theo chức năng và mức độ ưu tiê
 | **KB-02** | **Indexing Status** | Theo dõi trạng thái indexing: parsing → chunking → embedding → Qdrant. | **✅ Done** |
 | **KB-03** | **RAG Retrieval Test** | Admin nhập query test để xem RAG trả về chunks nào từ knowledge base. | **✅ Done** |
 | **KB-04** | **Query Expansion** | LLM tu dong mo rong query ngan gon truoc khi RAG search. Tang recall cho cau hoi ngan cua Staff. | **✅ Done** |
-| **KB-05** | **Knowledge Graph Index** | LlamaIndex KG extract triplets (trieu chung->benh->loai) tu tai lieu. Hybrid query RAG + KG. Hash-based deduplication for consistent builds. | **✅ Done** |
 | **KB-06** | **Case Memory từ EMR xác nhận** | Tái sử dụng EMR đã xác nhận làm nguồn case memory nội bộ để truy xuất ca tương tự. | **🔄 Redesigned** |
 | **KB-07** | ~~**KB Image Embeddings**~~ | ~~Extract images from PDF documents and index with Jina CLIP v2. Support hybrid search (text + image similarity) via `/query-hybrid` endpoint.~~ | **❌ Removed (2026-04-03)** - Unused feature, no production usage |
 | **KB-08** | **Feedback & dữ liệu học** | Chat feedback chỉ dùng cho audit/chất lượng UX; nguồn học chính của chẩn đoán là EMR xác nhận. | **🔄 Redesigned** |

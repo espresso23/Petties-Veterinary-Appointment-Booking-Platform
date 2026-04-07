@@ -88,6 +88,24 @@ DEFAULT_POLICIES = {
         requires_auth=True,
         description="Create booking - requires full params and auth",
     ),
+    "sync_booking_draft": ToolPolicy(
+        allow_empty_params=False,
+        requires_context=True,
+        requires_auth=True,
+        description="Synchronize booking draft with extracted parameters and real-time service mapping",
+    ),
+    "get_booking_session_info": ToolPolicy(
+        allow_empty_params=True,
+        requires_context=True,
+        requires_auth=True,
+        description="Get current booking session information and state",
+    ),
+    "close_booking_session": ToolPolicy(
+        allow_empty_params=True,
+        requires_context=True,
+        requires_auth=True,
+        description="Close the active booking session and cleanup state",
+    ),
     # Medical/Staff Tools
     "pet_knowledge_search": ToolPolicy(
         allow_empty_params=False,
@@ -113,6 +131,11 @@ DEFAULT_POLICIES = {
         allow_empty_params=False,
         requires_context=True,
         description="Get EMR history - requires pet_id",
+    ),
+    "get_pet_health_summary": ToolPolicy(
+        allow_empty_params=False,
+        requires_context=True,
+        description="Get pet health summary - requires pet_id or pet_name_hint",
     ),
     # Clinic Owner Tools (Phase 0)
     "generate_clinic_services": ToolPolicy(

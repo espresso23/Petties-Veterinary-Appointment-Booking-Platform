@@ -24,7 +24,8 @@ import {
     ClipboardDocumentCheckIcon,
     HomeModernIcon,
     ChartBarIcon,
-    TicketIcon
+    TicketIcon,
+    SparklesIcon,
 } from '@heroicons/react/24/outline'
 import '../styles/brutalist.css'
 
@@ -162,6 +163,7 @@ export const ClinicManagerLayout = () => {
         {
             title: 'HỆ THỐNG',
             items: [
+                { path: '/clinic-manager/ai-copilot', label: 'AI COPILOT', icon: SparklesIcon },
                 { path: '/clinic-manager/chat', label: 'CHAT', icon: ChatBubbleLeftRightIcon, unreadCount: chatUnreadCount },
                 { path: '/clinic-manager/revenue', label: 'DOANH THU', icon: ChartBarIcon },
                 { path: '/clinic-manager/notifications', label: 'THÔNG BÁO', icon: BellIcon, unreadCount },

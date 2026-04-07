@@ -51,6 +51,7 @@ const StaffBookingsPage = lazy(() => import('./pages/staff/StaffBookingsPage'))
 const StaffPatientsPage = lazy(() => import('./pages/staff/patients/StaffPatientsPage'))
 const StaffAIChatPage = lazyNamed(() => import('./pages/staff/StaffAIChatPage'), 'StaffAIChatPage')
 const ClinicOwnerAIChatPage = lazyNamed(() => import('./pages/clinic-owner/AIChatPage'), 'ClinicOwnerAIChatPage')
+const ClinicManagerAIChatPage = lazyNamed(() => import('./pages/clinic-manager/AIChatPage'), 'ClinicManagerAIChatPage')
 const StaffNotificationsPage = lazy(() => import('./pages/staff/NotificationsPage'))
 const CreateEmrPage = lazy(() => import('./pages/staff/emr/CreateEmrPage'))
 const EditEmrPage = lazyNamed(() => import('./pages/staff/emr/EditEmrPage'), 'EditEmrPage')
@@ -255,6 +256,7 @@ function App() {
               <Route path="shifts" element={<StaffShiftPage />} />
               <Route path="services" element={<ServicesViewPage />} />
               <Route path="chat" element={<ClinicManagerChatPage />} />
+              <Route path="ai-copilot" element={<ClinicManagerAIChatPage />} />
               <Route path="refunds" element={<RefundsPage />} />
               <Route path="revenue" element={<RevenuePage />} />
               <Route path="notifications" element={<ClinicManagerNotificationsPage />} />

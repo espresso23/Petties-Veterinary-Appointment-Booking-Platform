@@ -7,10 +7,9 @@ Components:
 - Qdrant Cloud for vector storage
 - QueryExpander: LLM-based short query expansion for better recall
 - CaseMemoryService: Confirmed case storage with quality-gated re-ranking
-- KnowledgeGraphService: Triplet-based KG with LlamaIndex SimpleGraphStore
-- HybridRAGEngine: Combines RAG + KG + Case Memory with parallel search
+- HybridRAGEngine: Combines RAG + Case Memory with parallel search
 
-Version: v3.0.0 (Full LlamaIndex + AI Improvement Mechanisms)
+Version: v4.0.0 (KG removed, RAG + Case Memory only)
 """
 
 from app.core.rag.rag_engine import (
@@ -35,13 +34,6 @@ from app.core.rag.case_memory import (
     CASE_MEMORY_COLLECTION,
     CASE_MEMORY_TEXT_DIMENSION,
     CASE_MEMORY_IMAGE_DIMENSION,
-)
-
-from app.core.rag.knowledge_graph import (
-    KnowledgeGraphService,
-    KGQueryResult,
-    get_knowledge_graph_service,
-    reset_knowledge_graph_service,
 )
 
 from app.core.rag.hybrid_engine import (
@@ -73,11 +65,6 @@ __all__ = [
     "CASE_MEMORY_COLLECTION",
     "CASE_MEMORY_TEXT_DIMENSION",
     "CASE_MEMORY_IMAGE_DIMENSION",
-    # Knowledge Graph
-    "KnowledgeGraphService",
-    "KGQueryResult",
-    "get_knowledge_graph_service",
-    "reset_knowledge_graph_service",
     # Hybrid Engine
     "HybridRAGEngine",
     "get_hybrid_rag_engine",

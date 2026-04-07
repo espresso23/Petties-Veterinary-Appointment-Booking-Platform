@@ -88,7 +88,6 @@ Analyzes clinical images using Gemini via OpenRouter:
 Hybrid search combining:
 
 - **Text RAG**: Cohere embed + Qdrant vector search from KB documents
-- **Knowledge Graph**: Structured triplet retrieval from `SimpleGraphStore`
 - **Deduplication**: RAG query deduplication at the retrieval level
 
 ```python
@@ -98,7 +97,6 @@ await hybrid_engine.query(
     min_score=0.45,
     pet_type="dog",
     enable_rag=True,
-    enable_kg=True,
     enable_case_memory=False  # case memory is queried separately
 )
 ```

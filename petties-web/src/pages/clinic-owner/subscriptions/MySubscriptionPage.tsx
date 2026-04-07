@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useClinicStore } from '../../../store/clinicStore'
 import { subscriptionService, type SubscriptionPlan, type UserSubscription } from '../../../services/api/subscriptionService'
 import { useToast } from '../../../components/Toast'
@@ -50,7 +50,7 @@ export const MySubscriptionPage = () => {
         }
     }, [clinics, selectedClinicId, clinicsLoading])
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         if (!selectedClinicId) return
 
         setIsLoading(true)
@@ -71,13 +71,13 @@ export const MySubscriptionPage = () => {
         } finally {
             setIsLoading(false)
         }
-    }
+    }, [selectedClinicId, showToast, setMembership])
 
     useEffect(() => {
         if (selectedClinicId) {
             fetchData()
         }
-    }, [selectedClinicId, fetchData]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [fetchData])
 
 
     const handleSubscribe = (plan: SubscriptionPlan) => {

@@ -125,8 +125,6 @@
 | US-CLN-02 | Duyệt phòng khám (Approve/Reject) | ✅ |
 | US-CLN-03 | Quản lý Master Services | ✅ |
 | US-AD-11 | AI Feedback Audit & Visual Learning | ✅ |
-| US-AD-12 | Knowledge Graph Management | ✅ |
-| US-AD-13 | Knowledge Graph Query Testing | ✅ |
 
 ---
 
@@ -313,7 +311,6 @@
 - `US-AI-05` Web search for pet products (DuckDuckGo)
 - `US-AI-06` AI Vision Pet Health Analysis (Images)
 - `US-AI-11` AI Feedback Audit & Visual Learning
-- `US-AI-12` Knowledge Graph Management & Visualization
 - `US-AI-13` KB Image Embeddings (PDF images + Jina CLIP) ✅ NEW
 
 **Dependencies:** EPIC-DISCOVERY (for AI booking), external AI services
@@ -422,7 +419,7 @@
 | **S10** | 03/02 - 09/02/2026 | AI (Advanced) | AI booking, AI Recommend, Web Search | ✅ Done |
 | **S11** | 10/02 - 16/02/2026 | PT_REVIEW | Review system, UI polishing (Neobrutalism) | ✅ Done |
 | **S12** | 17/02 - 01/03/2026 | TESTING | Integration Testing, System Testing | ✅ Done |
-| **S13** | 02/03 - 11/03/2026 | AI_DATA_IMPR | Feedback Audit, Knowledge Graph Query | ✅ Done |
+| **S13** | 02/03 - 11/03/2026 | AI_DATA_IMPR | Feedback Audit | ✅ Done |
 | **S14** | 12/03 - 15/03/2026 | RELEASE | Final Audit, Walkthrough, Production Release | 🔄 Current |
 
 ---

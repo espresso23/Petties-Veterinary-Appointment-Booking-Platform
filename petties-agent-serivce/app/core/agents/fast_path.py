@@ -198,7 +198,6 @@ def build_fast_pet_care_tool_call(
             "pet_type": pet_type,
             "top_k": 2,
             "min_score": 0.45,
-            "enable_kg": False,
             "enable_case_memory": False,
             "enable_query_expansion": False,
         },

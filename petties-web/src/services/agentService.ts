@@ -170,51 +170,6 @@ export interface SubmitFeedbackResponse {
     error?: string
 }
 
-export interface KGStatsResponse {
-    success: boolean
-    triplet_count: number
-    entity_count: number
-    relation_types: string[]
-    relation_type_count: number
-    sample_triplets?: Array<{ subject: string; predicate: string; object: string }>
-}
-
-export interface KGBuildResponse {
-    success: boolean
-    message: string
-    documents_processed: number
-    documents_skipped: number[]
-    triplets_extracted: number
-    processing_time_ms: number
-    async_mode?: boolean
-    job_id?: string
-    status?: string
-    normalize_result?: KGNormalizeResponse
-}
-
-export interface KGNormalizeResponse {
-    success: boolean
-    message: string
-    stats?: {
-        entities_merged: number
-        triplets_retained: number
-        unique_entities_before: number
-        unique_entities_after: number
-        edge_density_new: number
-    }
-}
-
-export interface KGBuildJobStatusResponse {
-    success: boolean
-    job_id: string
-    status: 'queued' | 'running' | 'completed' | 'failed'
-    created_at?: string
-    started_at?: string
-    finished_at?: string
-    error?: string
-    result?: KGBuildResponse
-}
-
 export interface CaseMemoryStatsResponse {
     success: boolean
     points_count: number
@@ -724,102 +679,6 @@ export const feedbackApi = {
     },
 }
 
-// ===== KNOWLEDGE GRAPH API =====
-
-export interface KGVisualizeResponse extends KGStatsResponse {
-    nodes: { id: string; label: string; type: string }[]
-    edges: { id: string; source: string; target: string; label: string }[]
-}
-
-export interface KGQueryRequest {
-    query: string
-    top_k?: number
-}
-
-export interface KGQueryResultItem {
-    subject: string
-    predicate: string
-    object: string
-    score?: number
-    source_nodes?: string[]
-}
-
-export interface KGQueryResponse {
-    success: boolean
-    query: string
-    results: KGQueryResultItem[]
-    message?: string
-}
-
-export const kgApi = {
-    async getStats(): Promise<KGStatsResponse> {
-        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/kg-stats`)
-        if (!response.ok) throw new Error('Không thể lấy thống kê Knowledge Graph')
-        return response.json()
-    },
-
-    async build(
-        documentIds?: number[],
-        maxTriplets: number = 2000,
-        asyncMode: boolean = true
-    ): Promise<KGBuildResponse> {
-        const params = new URLSearchParams()
-        if (documentIds?.length) {
-            documentIds.forEach(id => params.append('document_ids', String(id)))
-        }
-        params.set('max_triplets', String(maxTriplets))
-        params.set('async_mode', String(asyncMode))
-
-        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/build-kg?${params.toString()}`, {
-            method: 'POST'
-        })
-        if (!response.ok) {
-            const err = await response.json().catch(() => null)
-            throw new Error(err?.detail || 'Không thể xây dựng Knowledge Graph')
-        }
-        return response.json()
-    },
-
-    async getBuildJobStatus(jobId: string): Promise<KGBuildJobStatusResponse> {
-        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/build-kg/jobs/${jobId}`)
-        if (!response.ok) {
-            const err = await response.json().catch(() => null)
-            throw new Error(err?.detail || 'Không thể lấy trạng thái job xây dựng KG')
-        }
-        return response.json()
-    },
-
-    async normalizeEntities(): Promise<KGNormalizeResponse> {
-        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/kg/normalize-entities`, {
-            method: 'POST'
-        })
-        if (!response.ok) {
-            const err = await response.json().catch(() => null)
-            throw new Error(err?.detail || 'Không thể chuẩn hóa thực thể Knowledge Graph')
-        }
-        return response.json()
-    },
-
-    async visualize(): Promise<KGVisualizeResponse> {
-        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/kg-visualize`)
-        if (!response.ok) throw new Error('Không thể lấy dữ liệu visualization KG')
-        return response.json()
-    },
-
-    async queryKG(data: KGQueryRequest): Promise<KGQueryResponse> {
-        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/kg-query`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        })
-        if (!response.ok) {
-            const err = await response.json().catch(() => null)
-            throw new Error(err?.detail || 'Không thể truy vấn Knowledge Graph')
-        }
-        return response.json()
-    }
-}
-
 // ===== CASE MEMORY API =====
 
 export const caseMemoryApi = {
@@ -915,5 +774,5 @@ export const createChatWebSocket = (sessionId: string, contextType?: string): We
     return new WebSocket(fullWsUrl)
 }
 
-export default { agentApi, toolApi, knowledgeApi, chatApi, diagnosisApi, feedbackApi, kgApi, caseMemoryApi, createChatWebSocket }
+export default { agentApi, toolApi, knowledgeApi, chatApi, diagnosisApi, feedbackApi, caseMemoryApi, createChatWebSocket }
 

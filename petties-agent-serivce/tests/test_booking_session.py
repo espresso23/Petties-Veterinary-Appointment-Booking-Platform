@@ -33,13 +33,12 @@ from app.core.tool_runtime_context import (
 )
 from app.core.agents.single_agent import SingleAgent
 from app.core.tools.mcp_tools.booking_session_tools import (
-    get_booking_session,
-    start_booking_session_tool,
-    update_booking_draft,
+    close_booking_session,
+    get_booking_session_info,
+    sync_booking_draft,
 )
-from app.core.tools.mcp_tools.utility_tools import (
-    validate_booking_readiness,
-)
+from app.core.tools.mcp_tools.utility_tools import resolve_booking_context
+# Removed utility tools validation test dependent on deleted function
 
 
 class BookingSessionReducerTests(unittest.TestCase):
@@ -134,34 +133,36 @@ class BookingSessionToolTests(unittest.IsolatedAsyncioTestCase):
                 user_id="user-1",
                 role="PET_OWNER",
                 session_id="session-1",
+                auth_token="jwt-token",
             )
         )
 
     async def asyncTearDown(self):
         reset_tool_runtime_context(self.runtime_token)
 
-    async def test_start_and_get_booking_session_tool(self):
-        with patch(
-            "app.core.tools.mcp_tools.booking_session_tools.update_booking_state_in_db",
-            new=AsyncMock(return_value=True),
+    async def test_sync_booking_draft_tool_syncs_context(self):
+        with (
+            patch(
+                "app.core.tools.mcp_tools.booking_session_tools.update_booking_state_in_db",
+                new=AsyncMock(return_value=True),
+            ),
+            patch(
+                "app.core.tools.mcp_tools.booking_session_tools._require_auth_token",
+                return_value="mock-token",
+            ),
         ):
-            started = await start_booking_session_tool(
-                initial_draft={"pet_id": "pet-1", "booking_type": "IN_CLINIC"}
-            )
-            fetched = await get_booking_session()
+            # 1. Start session via sync_booking_draft
+            started = await sync_booking_draft(pet_id="pet-1", booking_type="IN_CLINIC")
+            self.assertTrue(started["success"])
+            self.assertEqual(started["data"]["state"]["draft"]["pet_id"], "pet-1")
 
-        self.assertTrue(started["success"])
-        self.assertEqual(started["data"]["state"]["draft"]["pet_id"], "pet-1")
-        self.assertTrue(fetched["success"])
-        self.assertEqual(fetched["data"]["state"]["draft"]["pet_id"], "pet-1")
+            # 2. Get info
+            fetched = await get_booking_session_info()
+            self.assertTrue(fetched["success"])
+            self.assertEqual(fetched["data"]["state"]["draft"]["pet_id"], "pet-1")
 
-    async def test_update_booking_draft_tool_syncs_context(self):
-        with patch(
-            "app.core.tools.mcp_tools.booking_session_tools.update_booking_state_in_db",
-            new=AsyncMock(return_value=True),
-        ):
-            await start_booking_session_tool(initial_draft={"pet_id": "pet-1"})
-            result = await update_booking_draft(
+            # 3. Update via sync_booking_draft
+            result = await sync_booking_draft(
                 clinic_id="clinic-1",
                 service_ids=["svc-1"],
                 booking_date="2026-03-29",
@@ -211,20 +212,97 @@ class BookingSessionToolTests(unittest.IsolatedAsyncioTestCase):
 
 
 class BookingUtilityToolTests(unittest.IsolatedAsyncioTestCase):
-    async def test_validate_booking_readiness_for_home_visit(self):
-        result = await validate_booking_readiness(
-            pet_id="pet-1",
-            clinic_id="clinic-1",
-            service_ids=["svc-1"],
-            booking_date="2026-03-29",
-            start_time="10:00",
-            booking_type="HOME_VISIT",
-            home_address="123 Duong ABC",
+    async def test_sync_booking_draft_validation_for_home_visit(self):
+        runtime_token = set_tool_runtime_context(
+            ToolRuntimeContext(
+                user_id="user-1",
+                role="PET_OWNER",
+                session_id="session-1",
+                auth_token="jwt-token",
+            )
         )
 
+        with (
+            patch(
+                "app.core.tools.mcp_tools.booking_session_tools.update_booking_state_in_db",
+                new=AsyncMock(return_value=True),
+            ),
+            patch(
+                "app.core.tools.mcp_tools.booking_session_tools._require_auth_token",
+                return_value="mock-token",
+            ),
+        ):
+            result = await sync_booking_draft(
+                pet_id="pet-1",
+                clinic_id="clinic-1",
+                service_ids=["svc-1"],
+                booking_date="2026-03-29",
+                start_time="10:00",
+                booking_type="HOME_VISIT",
+                home_address="123 Duong ABC",
+            )
+
+        reset_tool_runtime_context(runtime_token)
+
         self.assertTrue(result["success"])
-        self.assertFalse(result["data"]["is_ready"])
+        # In the new logic, HOME_VISIT might require home_lat/home_long or it might just be a missing field
         self.assertIn("home_coordinates", result["data"]["missing_fields"])
+
+
+class BookingSessionAuthTests(unittest.IsolatedAsyncioTestCase):
+    async def test_get_booking_session_info_requires_auth(self):
+        runtime_token = set_tool_runtime_context(
+            ToolRuntimeContext(
+                user_id="user-1",
+                role="PET_OWNER",
+                session_id="session-1",
+                auth_token=None,
+            )
+        )
+
+        try:
+            result = await get_booking_session_info()
+        finally:
+            reset_tool_runtime_context(runtime_token)
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error_code"], "UNAUTHORIZED")
+
+    async def test_close_booking_session_requires_auth(self):
+        runtime_token = set_tool_runtime_context(
+            ToolRuntimeContext(
+                user_id="user-1",
+                role="PET_OWNER",
+                session_id="session-1",
+                auth_token=None,
+            )
+        )
+
+        try:
+            result = await close_booking_session()
+        finally:
+            reset_tool_runtime_context(runtime_token)
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error_code"], "UNAUTHORIZED")
+
+    async def test_resolve_booking_context_requires_auth(self):
+        runtime_token = set_tool_runtime_context(
+            ToolRuntimeContext(
+                user_id="user-1",
+                role="PET_OWNER",
+                session_id="session-1",
+                auth_token=None,
+            )
+        )
+
+        try:
+            result = await resolve_booking_context()
+        finally:
+            reset_tool_runtime_context(runtime_token)
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error_code"], "UNAUTHORIZED")
 
 
 if __name__ == "__main__":

@@ -77,6 +77,10 @@ def test_classify_error_code_maps_common_messages():
     )
     assert classify_error_code("Khong tim thay dich vu phu hop") == "SERVICE_NOT_FOUND"
     assert classify_error_code("Khong con slot phu hop") == "NO_SLOTS_AVAILABLE"
+    assert (
+        classify_error_code("Bạn không có quyền thực hiện hành động này") == "FORBIDDEN"
+    )
+    assert classify_error_code("Backend request failed (HTTP 403)") == "FORBIDDEN"
 
 
 def test_get_error_title_returns_business_title():

@@ -1,5 +1,8 @@
 import 'package:flutter/foundation.dart';
 
+const String bookingTypeInClinic = 'IN_CLINIC';
+const String bookingTypeHomeVisit = 'HOME_VISIT';
+
 class AiChatMessage {
   final String? messageId;
   final String role;
@@ -83,17 +86,44 @@ class AiClinic {
   });
 
   factory AiClinic.fromJson(Map<String, dynamic> json) {
+    String _pickString(List<String> keys) {
+      for (final key in keys) {
+        final value = json[key];
+        final text = value?.toString().trim() ?? '';
+        if (text.isNotEmpty) {
+          return text;
+        }
+      }
+      return '';
+    }
+
+    double? _pickDouble(List<String> keys) {
+      for (final key in keys) {
+        final value = json[key];
+        if (value is num) {
+          return value.toDouble();
+        }
+      }
+      return null;
+    }
+
+    int? _pickInt(List<String> keys) {
+      for (final key in keys) {
+        final value = json[key];
+        if (value is num) {
+          return value.toInt();
+        }
+      }
+      return null;
+    }
+
     return AiClinic(
-      id: json['id']?.toString() ?? '',
-      name: json['name']?.toString() ?? '',
-      address: json['address']?.toString() ?? '',
-      distanceKm: json['distance_km'] is num
-          ? (json['distance_km'] as num).toDouble()
-          : null,
-      rating: json['rating'] is num ? (json['rating'] as num).toDouble() : null,
-      totalReviews: json['total_reviews'] is num
-          ? (json['total_reviews'] as num).toInt()
-          : null,
+      id: _pickString(['id', 'clinic_id', 'clinicId', 'item_id']),
+      name: _pickString(['name', 'clinic_name', 'clinicName', 'title']),
+      address: _pickString(['address', 'clinic_address', 'clinicAddress']),
+      distanceKm: _pickDouble(['distance_km', 'distanceKm']),
+      rating: _pickDouble(['rating']),
+      totalReviews: _pickInt(['total_reviews', 'totalReviews']),
       services: (json['services'] as List<dynamic>? ?? const [])
           .whereType<Map<String, dynamic>>()
           .map(AiClinicService.fromJson)
@@ -113,6 +143,7 @@ class AiClinic {
 }
 
 class AiClinicService {
+  final String id;
   final String name;
   final String? category;
   final double? basePrice;
@@ -120,6 +151,7 @@ class AiClinicService {
   final bool isVaccination;
 
   const AiClinicService({
+    required this.id,
     required this.name,
     this.category,
     this.basePrice,
@@ -128,12 +160,33 @@ class AiClinicService {
   });
 
   factory AiClinicService.fromJson(Map<String, dynamic> json) {
+    String _pickString(List<String> keys) {
+      for (final key in keys) {
+        final value = json[key];
+        final text = value?.toString().trim() ?? '';
+        if (text.isNotEmpty) {
+          return text;
+        }
+      }
+      return '';
+    }
+
+    double? _pickDouble(List<String> keys) {
+      for (final key in keys) {
+        final value = json[key];
+        if (value is num) {
+          return value.toDouble();
+        }
+      }
+      return null;
+    }
+
     return AiClinicService(
-      name: json['name']?.toString() ?? '',
-      category: json['category']?.toString(),
-      basePrice: json['base_price'] is num
-          ? (json['base_price'] as num).toDouble()
-          : null,
+      id: _pickString(['id', 'service_id', 'serviceId', 'item_id']),
+      name: _pickString(['name', 'service_name', 'serviceName', 'label']),
+      category:
+          _pickString(['category']).isEmpty ? null : _pickString(['category']),
+      basePrice: _pickDouble(['base_price', 'basePrice', 'price']),
       description: json['description']?.toString(),
       isVaccination: json['is_vaccination'] == true,
     );
@@ -297,24 +350,51 @@ class AiClinicSuggestion {
 class AiBookingServiceOption {
   final String id;
   final String name;
+  final String? clinicId;
   final String? category;
   final double? basePrice;
 
   const AiBookingServiceOption({
     required this.id,
     required this.name,
+    this.clinicId,
     this.category,
     this.basePrice,
   });
 
   factory AiBookingServiceOption.fromJson(Map<String, dynamic> json) {
+    String _pickString(List<String> keys) {
+      for (final key in keys) {
+        final value = json[key];
+        final text = value?.toString().trim() ?? '';
+        if (text.isNotEmpty) {
+          return text;
+        }
+      }
+      return '';
+    }
+
+    String? _pickNullableString(List<String> keys) {
+      final value = _pickString(keys);
+      return value.isEmpty ? null : value;
+    }
+
+    double? _pickDouble(List<String> keys) {
+      for (final key in keys) {
+        final value = json[key];
+        if (value is num) {
+          return value.toDouble();
+        }
+      }
+      return null;
+    }
+
     return AiBookingServiceOption(
-      id: json['id']?.toString() ?? '',
-      name: json['name']?.toString() ?? '',
-      category: json['category']?.toString(),
-      basePrice: json['base_price'] is num
-          ? (json['base_price'] as num).toDouble()
-          : null,
+      id: _pickString(['id', 'service_id', 'serviceId', 'item_id']),
+      name: _pickString(['name', 'service_name', 'serviceName', 'label']),
+      clinicId: _pickNullableString(['clinic_id', 'clinicId']),
+      category: _pickNullableString(['category']),
+      basePrice: _pickDouble(['base_price', 'basePrice', 'price']),
     );
   }
 }
@@ -368,15 +448,46 @@ class AiSlotGridPayload {
   });
 
   factory AiSlotGridPayload.fromJson(Map<String, dynamic> json) {
+    String? _pickString(List<String> keys) {
+      for (final key in keys) {
+        final value = json[key];
+        if (value == null) continue;
+        final text = value.toString().trim();
+        if (text.isNotEmpty) {
+          return text;
+        }
+      }
+      return null;
+    }
+
+    List<String> _pickStringList(List<String> keys) {
+      for (final key in keys) {
+        final value = json[key];
+        if (value is List) {
+          return value
+              .map((item) => item.toString().trim())
+              .where((item) => item.isNotEmpty)
+              .toList();
+        }
+      }
+      return const <String>[];
+    }
+
+    int _pickInt(List<String> keys, {int fallback = 0}) {
+      for (final key in keys) {
+        final value = json[key];
+        if (value is num) {
+          return value.toInt();
+        }
+      }
+      return fallback;
+    }
+
     return AiSlotGridPayload(
-      clinicId: json['clinic_id']?.toString(),
-      bookingDate: json['booking_date']?.toString(),
-      serviceIds: (json['service_ids'] as List<dynamic>? ?? const [])
-          .map((item) => item.toString())
-          .toList(),
-      serviceNames: (json['service_names'] as List<dynamic>? ?? const [])
-          .map((item) => item.toString())
-          .toList(),
+      clinicId: _pickString(['clinic_id', 'clinicId']),
+      bookingDate: _pickString(['booking_date', 'bookingDate', 'date']),
+      serviceIds: _pickStringList(['service_ids', 'serviceIds']),
+      serviceNames: _pickStringList(['service_names', 'serviceNames']),
       recommendedSlots:
           (json['recommended_slots'] as List<dynamic>? ?? const [])
               .whereType<Map<String, dynamic>>()
@@ -387,9 +498,8 @@ class AiSlotGridPayload {
               .whereType<Map<String, dynamic>>()
               .map(AiBookingSlotOption.fromJson)
               .toList(),
-      totalSlots:
-          json['total_slots'] is num ? (json['total_slots'] as num).toInt() : 0,
-      message: json['message']?.toString(),
+      totalSlots: _pickInt(['total_slots', 'totalSlots']),
+      message: _pickString(['message']),
     );
   }
 }
@@ -408,6 +518,7 @@ class AiBookingSummaryPayload {
   final String? homeAddress;
   final double? homeLat;
   final double? homeLong;
+  final double? distanceKm;
   final String? message;
   final List<String> missingFields;
   final bool? readyToCreate;
@@ -427,6 +538,7 @@ class AiBookingSummaryPayload {
     this.homeAddress,
     this.homeLat,
     this.homeLong,
+    this.distanceKm,
     this.message,
     this.missingFields = const [],
     this.readyToCreate,
@@ -434,39 +546,70 @@ class AiBookingSummaryPayload {
   });
 
   factory AiBookingSummaryPayload.fromJson(Map<String, dynamic> json) {
+    String? _pickString(List<String> keys) {
+      for (final key in keys) {
+        final value = json[key];
+        if (value == null) continue;
+        final text = value.toString().trim();
+        if (text.isNotEmpty) {
+          return text;
+        }
+      }
+      return null;
+    }
+
+    List<String> _pickStringList(List<String> keys) {
+      for (final key in keys) {
+        final value = json[key];
+        if (value is List) {
+          return value
+              .map((item) => item.toString().trim())
+              .where((item) => item.isNotEmpty)
+              .toList();
+        }
+      }
+      return const <String>[];
+    }
+
+    double? _pickDouble(List<String> keys) {
+      for (final key in keys) {
+        final value = json[key];
+        if (value is num) {
+          return value.toDouble();
+        }
+      }
+      return null;
+    }
+
     final readyToCreate = json['ready_to_create'] is bool
         ? json['ready_to_create'] as bool
         : (json['ready_for_review'] is bool
             ? json['ready_for_review'] as bool
-            : null);
+            : (json['readyToCreate'] is bool
+                ? json['readyToCreate'] as bool
+                : (json['readyForReview'] is bool
+                    ? json['readyForReview'] as bool
+                    : null)));
 
     return AiBookingSummaryPayload(
-      petId: json['pet_id']?.toString(),
-      petName: json['pet_name']?.toString(),
-      clinicId: json['clinic_id']?.toString(),
-      clinicName: json['clinic_name']?.toString(),
-      bookingDate: json['booking_date']?.toString(),
-      startTime: json['start_time']?.toString(),
-      serviceIds: (json['service_ids'] as List<dynamic>? ?? const [])
-          .map((item) => item.toString())
-          .toList(),
-      serviceNames: (json['service_names'] as List<dynamic>? ?? const [])
-          .map((item) => item.toString())
-          .toList(),
-      bookingType: json['booking_type']?.toString(),
-      notes: json['notes']?.toString(),
-      homeAddress: json['home_address']?.toString(),
-      homeLat:
-          json['home_lat'] is num ? (json['home_lat'] as num).toDouble() : null,
-      homeLong: json['home_long'] is num
-          ? (json['home_long'] as num).toDouble()
-          : null,
-      message: json['message']?.toString(),
-      missingFields: (json['missing_fields'] as List<dynamic>? ?? const [])
-          .map((item) => item.toString())
-          .toList(),
+      petId: _pickString(['pet_id', 'petId']),
+      petName: _pickString(['pet_name', 'petName']),
+      clinicId: _pickString(['clinic_id', 'clinicId']),
+      clinicName: _pickString(['clinic_name', 'clinicName']),
+      bookingDate: _pickString(['booking_date', 'bookingDate', 'date']),
+      startTime: _pickString(['start_time', 'startTime']),
+      serviceIds: _pickStringList(['service_ids', 'serviceIds']),
+      serviceNames: _pickStringList(['service_names', 'serviceNames']),
+      bookingType: _pickString(['booking_type', 'bookingType', 'type']),
+      notes: _pickString(['notes']),
+      homeAddress: _pickString(['home_address', 'homeAddress']),
+      homeLat: _pickDouble(['home_lat', 'homeLat']),
+      homeLong: _pickDouble(['home_long', 'homeLong']),
+      distanceKm: _pickDouble(['distance_km', 'distanceKm']),
+      message: _pickString(['message']),
+      missingFields: _pickStringList(['missing_fields', 'missingFields']),
       readyToCreate: readyToCreate,
-      nextBestAction: json['next_best_action']?.toString(),
+      nextBestAction: _pickString(['next_best_action', 'nextBestAction']),
     );
   }
 }
@@ -722,12 +865,20 @@ class AiChatSocketEvent {
     final slotGrid = type == AiChatSocketEventType.slotGrid
         ? AiSlotGridPayload.fromJson(json)
         : null;
-    final bookingSummary =
-        type == AiChatSocketEventType.bookingSummary && json['summary'] is Map
-            ? AiBookingSummaryPayload.fromJson(
-                Map<String, dynamic>.from(json['summary'] as Map),
-              )
-            : null;
+    Map<String, dynamic>? bookingSummaryPayload;
+    if (type == AiChatSocketEventType.bookingSummary) {
+      if (json['summary'] is Map) {
+        bookingSummaryPayload =
+            Map<String, dynamic>.from(json['summary'] as Map);
+      } else if (json['data'] is Map) {
+        bookingSummaryPayload = Map<String, dynamic>.from(json['data'] as Map);
+      } else {
+        bookingSummaryPayload = Map<String, dynamic>.from(json);
+      }
+    }
+    final bookingSummary = bookingSummaryPayload == null
+        ? null
+        : AiBookingSummaryPayload.fromJson(bookingSummaryPayload);
     final bookingCreated = type == AiChatSocketEventType.bookingCreated
         ? AiBookingCreatedPayload.fromJson(json)
         : null;

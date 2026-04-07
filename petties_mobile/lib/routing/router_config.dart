@@ -308,6 +308,13 @@ class AppRouterConfig {
         ),
         GoRoute(
           path: AppRoutes.staffAiChat,
+          redirect: (context, state) {
+            final isAuthenticated = authProvider.isAuthenticated;
+            if (!isAuthenticated || authProvider.user?.role != 'STAFF') {
+              return AppRoutes.petOwnerHome;
+            }
+            return null;
+          },
           pageBuilder: (context, state) => const MaterialPage<void>(
             fullscreenDialog: true,
             child: StaffAiChatScreen(),
@@ -487,7 +494,14 @@ class AppRouterConfig {
           path: AppRoutes.aiChat,
           redirect: (context, state) {
             final isAuthenticated = authProvider.isAuthenticated;
-            if (!isAuthenticated || authProvider.user?.role != 'STAFF') {
+            final role = authProvider.user?.role;
+            if (!isAuthenticated) {
+              return AppRoutes.login;
+            }
+            if (role == 'STAFF') {
+              return AppRoutes.staffAiChat;
+            }
+            if (role != 'PET_OWNER') {
               return AppRoutes.petOwnerHome;
             }
             return null;

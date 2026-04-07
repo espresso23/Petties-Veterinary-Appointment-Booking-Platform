@@ -355,11 +355,17 @@ class AiBookingTrackerCard extends StatelessWidget {
 class AiChatComposerSuggestions extends StatelessWidget {
   final List<String> suggestions;
   final ValueChanged<String> onSuggestionTap;
+  final Color backgroundColor;
+  final Color borderColor;
+  final Color textColor;
 
   const AiChatComposerSuggestions({
     super.key,
     required this.suggestions,
     required this.onSuggestionTap,
+    this.backgroundColor = AppColors.primarySurface,
+    this.borderColor = AppColors.stone900,
+    this.textColor = AppColors.stone900,
   });
 
   @override
@@ -384,18 +390,18 @@ class AiChatComposerSuggestions extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: AppColors.primarySurface,
+                  color: backgroundColor,
                   borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: AppColors.stone900, width: 1.5),
+                  border: Border.all(color: borderColor, width: 1.5),
                 ),
                 child: Text(
                   displayText,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.stone900,
+                    color: textColor,
                   ),
                 ),
               ),
@@ -410,6 +416,7 @@ class AiChatComposerSuggestions extends StatelessWidget {
 class AiChatComposer extends StatelessWidget {
   final double horizontalPadding;
   final AiBookingTrackerSnapshot tracker;
+  final bool showTracker;
   final List<String> suggestions;
   final String? errorText;
   final TextEditingController controller;
@@ -419,11 +426,16 @@ class AiChatComposer extends StatelessWidget {
   final bool isReconnecting;
   final ValueChanged<List<String>>? onImagesSelected;
   final List<String>? selectedImages;
+  final String hintText;
+  final Color accentColor;
+  final Color suggestionBackgroundColor;
+  final Color suggestionTextColor;
 
   const AiChatComposer({
     super.key,
     required this.horizontalPadding,
     required this.tracker,
+    this.showTracker = true,
     required this.suggestions,
     required this.errorText,
     required this.controller,
@@ -433,6 +445,10 @@ class AiChatComposer extends StatelessWidget {
     required this.isReconnecting,
     this.onImagesSelected,
     this.selectedImages,
+    this.hintText = 'Nhập câu hỏi cho trợ lý AI...',
+    this.accentColor = AppColors.primary,
+    this.suggestionBackgroundColor = AppColors.primarySurface,
+    this.suggestionTextColor = AppColors.stone900,
   });
 
   Future<void> _pickImages(BuildContext context) async {
@@ -463,7 +479,8 @@ class AiChatComposer extends StatelessWidget {
     final hasImages = selectedImages != null && selectedImages!.isNotEmpty;
     final isKeyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
     final shouldShowSuggestions = suggestions.isNotEmpty && !isKeyboardVisible;
-    final shouldShowTracker = tracker.hasData && !isKeyboardVisible;
+    final shouldShowTracker =
+        showTracker && tracker.hasData && !isKeyboardVisible;
     final shouldShowError = errorText != null && !isKeyboardVisible;
     final shouldShowImages = hasImages && !isKeyboardVisible;
     final composerMaxLines = isKeyboardVisible ? 8 : 10;
@@ -490,6 +507,9 @@ class AiChatComposer extends StatelessWidget {
             AiChatComposerSuggestions(
               suggestions: suggestions,
               onSuggestionTap: onSuggestionTap,
+              backgroundColor: suggestionBackgroundColor,
+              borderColor: AppColors.stone900,
+              textColor: suggestionTextColor,
             ),
           if (shouldShowError) ...[
             Container(
@@ -597,9 +617,9 @@ class AiChatComposer extends StatelessWidget {
                         ),
                       ],
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.add_photo_alternate_outlined,
-                      color: AppColors.stone900,
+                      color: accentColor,
                       size: 20,
                     ),
                   ),
@@ -629,9 +649,9 @@ class AiChatComposer extends StatelessWidget {
                       scrollPadding: const EdgeInsets.symmetric(vertical: 8),
                       textInputAction: TextInputAction.newline,
                       style: const TextStyle(fontSize: 14),
-                      decoration: const InputDecoration(
-                        hintText: 'Nhập câu hỏi cho trợ lý AI...',
-                        hintStyle: TextStyle(
+                      decoration: InputDecoration(
+                        hintText: hintText,
+                        hintStyle: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                           color: AppColors.stone400,
@@ -652,7 +672,7 @@ class AiChatComposer extends StatelessWidget {
                   width: 46,
                   height: 46,
                   decoration: BoxDecoration(
-                    color: isBusy ? AppColors.stone300 : AppColors.primary,
+                    color: isBusy ? AppColors.stone300 : accentColor,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: AppColors.stone900, width: 2),
                     boxShadow: isSending

@@ -31,6 +31,7 @@ from app.core.tools.contracts import (
     build_tool_success_response,
     classify_error_code,
 )
+from app.core.tools.auth_deps import _require_auth_token
 
 
 def _clean_rag_text(text: str) -> str:
@@ -124,7 +125,6 @@ async def pet_knowledge_search(
     pet_type: str = "dog",
     top_k: int = 5,
     min_score: float = 0.4,
-    enable_kg: bool = True,
     enable_case_memory: bool = True,
     enable_query_expansion: bool = True,
 ) -> Dict[str, Any]:
@@ -169,7 +169,6 @@ async def pet_knowledge_search(
             min_score=min_score,
             pet_type=pet_type,
             enable_rag=True,
-            enable_kg=enable_kg,
             enable_case_memory=enable_case_memory,
             enable_query_expansion=enable_query_expansion,
         )
@@ -182,9 +181,6 @@ async def pet_knowledge_search(
             if c.source == "rag":
                 source_label = meta.get("document_name") or "Knowledge Base"
                 chunk_index = meta.get("chunk_index")
-            elif c.source == "kg":
-                source_label = "Knowledge Graph"
-                chunk_index = None
             elif c.source == "case_memory":
                 source_label = "Case Memory"
                 chunk_index = None
@@ -203,7 +199,7 @@ async def pet_knowledge_search(
 
         logger.info(
             f"pet_knowledge_search: Found {len(formatted_results)} results "
-            f"(expanded={query_expanded}, kg={enable_kg}, case_memory={enable_case_memory}) "
+            f"(expanded={query_expanded}, case_memory={enable_case_memory}) "
             f"for query: {query[:50]}... in {int((time.perf_counter() - started) * 1000)}ms"
         )
 
@@ -228,7 +224,6 @@ async def pet_knowledge_search(
                 },
                 "retrieval_profile": {
                     "enable_rag": True,
-                    "enable_kg": enable_kg,
                     "enable_case_memory": enable_case_memory,
                     "enable_query_expansion": enable_query_expansion,
                     "top_k": top_k,
@@ -364,13 +359,15 @@ async def get_staff_patients(
 
 @mcp_server.tool
 async def get_patient_summary(
-    pet_id: str,
+    pet_id: Optional[str] = None,
+    pet_name_hint: Optional[str] = None,
     user_id: Optional[str] = None,
     session_id: Optional[str] = None,
     clinic_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Lấy tóm tắt nhanh hồ sơ y tế của một thú cưng: thông tin cơ bản, 2 lần khám gần nhất, và đường link hình ảnh y tế.
+    Lấy tóm tắt nhanh hồ sơ y tế của một thú cưng.
+    Nếu không có pet_id, hãy truyền pet_name_hint để tool tự tra cứu.
 
     Args:
         pet_id: ID của thú cưng
@@ -421,6 +418,32 @@ async def get_patient_summary(
             )
 
         backend_client = get_backend_client()
+
+        # Resolve pet_id from pet_name_hint if pet_id is missing
+        if not pet_id and pet_name_hint:
+            from app.core.agents.booking_context import fuzzy_match_pet_name
+
+            # Staff search (clinic-wide)
+            patients_data = await backend_client.get_staff_patients(
+                token, clinic_id, user_id
+            )
+            # Map patients back to Pet objects for fuzzy_match (need id and name)
+            pet_list = [
+                {"id": p.get("petId"), "name": p.get("petName")}
+                for p in (patients_data or [])
+            ]
+            matched = fuzzy_match_pet_name(pet_name_hint, pet_list)
+            if matched:
+                pet_id = matched.get("id")
+
+        if not pet_id:
+            return build_tool_error_response(
+                error_code="PET_NOT_FOUND",
+                message=f"Không tìm thấy thú cưng có tên '{pet_name_hint}'.",
+                recoverable=True,
+                suggestion="Vui lòng kiểm tra lại tên hoặc dùng tool 'get_staff_patients'.",
+            )
+
         pet = await backend_client.get_pet(token, pet_id)
         emr_history = await backend_client.get_pet_emr_history(
             token=token, pet_id=pet_id
@@ -482,14 +505,16 @@ async def get_patient_summary(
 
 @mcp_server.tool
 async def get_emr_history(
-    pet_id: str,
+    pet_id: Optional[str] = None,
+    pet_name_hint: Optional[str] = None,
     limit: int = 5,
     user_id: Optional[str] = None,
     session_id: Optional[str] = None,
     clinic_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Lấy lịch sử bệnh án đầy đủ của một thú cưng với giới hạn số lượng lần khám.
+    Lấy lịch sử bệnh án đầy đủ của một thú cưng.
+    Hỗ trợ tìm kiếm theo pet_name_hint nếu không có pet_id chính xác.
 
     Args:
         pet_id: ID của thú cưng
@@ -536,6 +561,30 @@ async def get_emr_history(
             )
 
         backend_client = get_backend_client()
+
+        # Resolve pet_id from pet_name_hint if pet_id is missing
+        if not pet_id and pet_name_hint:
+            from app.core.agents.booking_context import fuzzy_match_pet_name
+
+            patients_data = await backend_client.get_staff_patients(
+                token, clinic_id, user_id
+            )
+            pet_list = [
+                {"id": p.get("petId"), "name": p.get("petName")}
+                for p in (patients_data or [])
+            ]
+            matched = fuzzy_match_pet_name(pet_name_hint, pet_list)
+            if matched:
+                pet_id = matched.get("id")
+
+        if not pet_id:
+            return build_tool_error_response(
+                error_code="PET_NOT_FOUND",
+                message=f"Không tìm thấy thú cưng có tên '{pet_name_hint}'.",
+                recoverable=True,
+                suggestion="Vui lòng kiểm tra lại tên hoặc dùng tool 'get_staff_patients'.",
+            )
+
         raw_history = await backend_client.get_pet_emr_history(
             token=token, pet_id=pet_id
         )
@@ -583,11 +632,13 @@ async def get_emr_history(
 
 @mcp_server.tool
 async def get_pet_health_summary(
-    pet_id: str,
-    user_id: str,
+    pet_id: Optional[str] = None,
+    pet_name_hint: Optional[str] = None,
+    user_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Tổng hợp thông tin sức khỏe của pet cho Pet Owner.
+    Dễ dàng tra cứu bằng pet_name_hint thay vì pet_id.
 
     Sử dụng khi:
     - User muốn xem tổng quan sức khỏe của thú cưng
@@ -626,21 +677,39 @@ async def get_pet_health_summary(
                 "Không thể xác định thông tin người dùng. Vui lòng đăng nhập lại."
             )
 
-        token = context.auth_token
-        if not token:
-            return _build_auth_error_response(
-                "Không thể xác định phiên đăng nhập. Vui lòng đăng nhập lại."
-            )
+        try:
+            token = _require_auth_token()
+        except Exception as exc:
+            return _build_auth_error_response(str(exc))
 
-        if context.user_id != user_id:
-            return build_tool_error_response(
-                error_code="FORBIDDEN",
-                message="Bạn không có quyền xem thông tin sức khỏe của thú cưng này.",
-                recoverable=False,
-                suggestion="Vui lòng kiểm tra tài khoản hoặc chọn thú cưng thuộc hồ sơ của bạn.",
+        resolved_user_id = str(context.user_id).strip()
+        requested_user_id = str(user_id or "").strip()
+        if requested_user_id and requested_user_id != resolved_user_id:
+            logger.warning(
+                "Tu choi user_id tu tool input vi khong khop session trong get_pet_health_summary: "
+                f"input={requested_user_id}, runtime={resolved_user_id}"
             )
+            return _build_auth_error_response("User ID khong khop voi session hien tai")
 
         backend = get_backend_client()
+
+        # Resolve pet_id from pet_name_hint if pet_id is missing
+        if not pet_id and pet_name_hint:
+            from app.core.agents.booking_context import fuzzy_match_pet_name
+
+            pets_data = await backend.get_user_pets(token, resolved_user_id)
+            matched = fuzzy_match_pet_name(pet_name_hint, pets_data)
+            if matched:
+                pet_id = matched.get("id")
+
+        if not pet_id:
+            return build_tool_error_response(
+                error_code="PET_NOT_FOUND",
+                message=f"Không tìm thấy thú cưng có tên '{pet_name_hint}'.",
+                recoverable=True,
+                suggestion="Vui lòng dùng 'get_user_pets' để xem danh sách bé nhà mình.",
+            )
+
         pet_data = await backend.get_pet(token, pet_id)
         emr_list = await backend.get_pet_emr_history(token=token, pet_id=pet_id)
         latest_emr = emr_list[0] if isinstance(emr_list, list) and emr_list else None

@@ -191,9 +191,8 @@
 │  ├── RAG Engine: LlamaIndex + Qdrant Cloud + Cohere Embeddings     │
 │  ├── KB Images: Extract images from PDF + Jina CLIP embeddings      │
 │  ├── Query Expander: LLM-based short query expansion               │
-│  ├── Knowledge Graph: LlamaIndex KGIndex + SimpleGraphStore        │
 │  ├── Case Memory: Confirmed cases + quality-gated re-ranking        │
-│  └── Parallel Search: RAG + KG + KB Images + Case Memory         │
+│  └── Parallel Search: RAG + KB Images + Case Memory         │
 │                                                                     │
 │  💬 Feedback & Analytics                                             │
 │  ├── User Feedback Collection (1-5 rating per message)             │
@@ -206,7 +205,6 @@
 │  ├── Parameters: Temperature, Max Tokens, Top-P                     │
 │  ├── Tool Management: Enable/Disable individual tools              │
 │  ├── Knowledge Base: Upload/Remove documents                        │
-│  ├── Knowledge Graph: Build/Stats                                   │
 │  └── Case Memory: Stats/Prune                                       │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
@@ -254,13 +252,6 @@
 - 🔍 Tích hợp vào `pet_knowledge_search` MCP tool
 - 🔍 File: `app/core/rag/query_expander.py`
 
-#### Knowledge Graph (Đồ thị tri thức) ✅
-- 🧠 **LlamaIndex KnowledgeGraphIndex** - Trích xuất quan hệ (entity → relation → entity) từ tài liệu
-- 🧠 **SimpleGraphStore** - Lưu trữ graph trong file JSON (phù hợp MVP)
-- 🧠 Build từ Admin API (`POST /knowledge/build-kg`)
-- 🧠 Cung cấp ngữ cảnh quan hệ bổ sung cho RAG retrieval
-- 🧠 File: `app/core/rag/knowledge_graph.py`
-
 #### Case Memory từ EMR xác nhận (thay cho hướng cũ)
 - 📋 **Confirmed Case Storage** - Lưu các ca bệnh đã xác nhận từ EMR confirmed vào Qdrant
 - 📋 **Quality-gated Re-ranking** - Score = cosine_similarity + quality_boost, ưu tiên case có quality gate tốt
@@ -278,9 +269,9 @@
 - 💬 File: `app/core/services/feedback_service.py`, `app/api/schemas/feedback_schemas.py`
 
 #### Hybrid RAG Engine (Tổng hợp) ✅
-- 🔗 **Parallel Search** - Chạy đồng thời RAG + Knowledge Graph + Case Memory
-- 🔗 **Merged Results** - Gộp và deduplicate kết quả từ 3 nguồn
-- 🔗 **Graceful Degradation** - Nếu KG hoặc Case Memory lỗi, vẫn trả kết quả RAG
+- 🔗 **Parallel Search** - Chạy đồng thời RAG + Case Memory
+- 🔗 **Merged Results** - Gộp và deduplicate kết quả từ 2 nguồn
+- 🔗 **Graceful Degradation** - Nếu Case Memory lỗi, vẫn trả kết quả RAG
 - 🔗 File: `app/core/rag/hybrid_engine.py`
 
 ---
@@ -391,7 +382,6 @@
 ✅ **Admin Agent Config** (Prompt, Parameters, Tools, Knowledge Base)  
 ✅ **Knowledge Base RAG** (LlamaIndex + Qdrant Cloud)  
 ✅ **Query Expansion** (LLM-based short query expansion)  
-✅ **Knowledge Graph** (LlamaIndex KGIndex + SimpleGraphStore)  
 ✅ **Case Memory** (Confirmed cases + quality-gated re-ranking)
 ✅ **Feedback Loop** (User feedback → auto-embed positive cases)
 

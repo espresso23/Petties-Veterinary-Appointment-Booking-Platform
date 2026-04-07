@@ -1,4 +1,4 @@
-﻿# AI Assistant - Role-Based Requirements Analysis
+# AI Assistant - Role-Based Requirements Analysis
 
 > Lưu ý cập nhật ngày 2026-04-01: phần doctor diagnostic flow trong tài liệu này đã được thiết kế lại. `STAFF` không dùng `web_search` cho chẩn đoán; luồng mới ưu tiên knowledge base nội bộ, EMR đã xác nhận và Gemini Vision. Xem thêm [ai_diagnose_service/](D:/SEP490/petties/docs-references/ai_diagnose_service/).
 
@@ -130,12 +130,14 @@
 ### 3.6 Tools Access Permission
 | Tool | Allowed? | Notes |
 |------|----------|-------|
-| All Pet Owner tools | ✅ | For helping customers |
-| `get_patient_summary` | ✅ | Own clinic only |
+| `get_staff_patients` | ✅ | Own clinic patients |
+| `get_patient_summary` | ✅ | Assigned bookings only |
 | `get_emr_history` | ✅ | Assigned bookings only |
+| `get_my_clinics` | ✅ | Own clinic only |
+| `get_clinic_today_summary` | ✅ | Own clinic - today schedule |
 | `check_vaccination_status` | ✅ | Own clinic pets |
-| Chẩn đoán hình ảnh cho bác sĩ | Redesigned | Sẽ dùng Gemini Vision + mô tả bác sĩ theo kiến trúc mới, chưa có runtime mới |
-| `create_booking_for_user` | ❌ | Staff không tự tạo booking cho customer trong scope hiện tại |
+| Image diagnostics for doctors | Redesigned | Will use Gemini Vision + doctor description, no runtime yet |
+| `create_booking_for_user` | ❌ | Staff do not create bookings for customers in current scope |
 | Manager/Owner tools | ❌ | Forbidden |
 
 ---
@@ -201,11 +203,24 @@ notification = {
 ### 4.6 Tools Access Permission
 | Tool | Allowed? | Notes |
 |------|----------|-------|
-| All Staff tools | ✅ | Full clinic access |
-| `analyze_customer_reviews` | ✅ | Own clinic data |
-| `generate_care_messages` | ✅ | Own clinic data |
-| `summarize_booking_trends` | ✅ | Own clinic data |
-| Owner tools | ❌ | Forbidden (cannot access multi-clinic data) |
+| `list_clinic_services` | ✅ | View service catalog |
+| `get_my_clinics` | ✅ | Own clinic data |
+| `get_clinic_today_summary` | ✅ | Today's schedule |
+| `view_clinic_bookings` | ✅ | Own clinic bookings |
+| `confirm_booking_manager` | ✅ | HITL required |
+| `cancel_booking_manager` | ✅ | HITL required |
+| `get_available_staff_for_reassign` | ✅ | Read-only |
+| `reassign_staff_for_service` | ✅ | HITL required |
+| `analyze_revenue_trends` | ✅ | Own clinic revenue |
+| `get_clinic_metrics` | ✅ | Aggregate metrics |
+| `get_staff_schedule` | ✅ | Staff shifts |
+| `get_slot_availability` | ✅ | Slot grid |
+| `analyze_customer_reviews` | ❌ | NOT YET IMPLEMENTED - requires backend API |
+| `generate_care_messages` | ❌ | NOT YET IMPLEMENTED - requires backend API |
+| `summarize_booking_trends` | ❌ | NOT YET IMPLEMENTED - requires backend API |
+| Owner-only tools (generate/update services) | ❌ | Forbidden |
+
+> ⚠️ **Note (2026-04-06):** The 3 tools listed as NOT YET IMPLEMENTED in `AI_ASSISTANT_ROLE_REQUIREMENTS.md` are documented use cases but have no corresponding tool implementation or backend API. They correspond to Phase 2 future scope.
 
 ---
 

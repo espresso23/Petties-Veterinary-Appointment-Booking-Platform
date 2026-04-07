@@ -30,6 +30,8 @@ class ComponentType(str, Enum):
     TEXT = "text"
     BADGE = "badge"
     BUTTON = "button"
+    WEB_RESULT_CARD = "web_result_card"
+    IMAGE_GALLERY = "image_gallery"
     EMPTY_STATE = "empty_state"
     ERROR_CARD = "error_card"
 

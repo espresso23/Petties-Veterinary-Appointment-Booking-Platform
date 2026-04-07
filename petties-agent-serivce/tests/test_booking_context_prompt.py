@@ -60,6 +60,44 @@ class TestBookingContextPrompt:
         assert "clinic_hint" in prompt
         assert "search_clinics_by_name" not in prompt
 
+    def test_create_think_prompt_pet_owner_does_not_include_clinic_copilot_tone(self):
+        prompt = create_think_prompt(
+            messages=[{"role": "user", "content": "Toi muon dat lich cho be nha toi"}],
+            context="",
+            agent_name="petties_agent",
+            agent_type="single_agent",
+            system_prompt="Base prompt",
+            tool_schemas=[],
+            enabled_tools_lower={
+                "get_user_pets",
+                "search_clinics_nearby",
+                "check_available_slots",
+            },
+            user_role="PET_OWNER",
+        )
+
+        assert "PET_OWNER CHATBOT" in prompt
+        assert "CLINIC COPILOT" not in prompt
+
+    def test_create_think_prompt_clinic_does_not_include_pet_owner_tone(self):
+        prompt = create_think_prompt(
+            messages=[{"role": "user", "content": "Tong quan lich hen hom nay"}],
+            context="",
+            agent_name="petties_agent",
+            agent_type="single_agent",
+            system_prompt="Base prompt",
+            tool_schemas=[],
+            enabled_tools_lower={
+                "get_my_clinics",
+                "get_clinic_today_summary",
+                "view_clinic_bookings",
+            },
+            user_role="CLINIC_MANAGER",
+        )
+
+        assert "CLINIC COPILOT" in prompt
+        assert "PET_OWNER CHATBOT" not in prompt
+
     def test_booking_validator_does_not_rewrite_create_booking_flow(self):
         parsed = {
             "thought": "Tao yeu cau booking cho user.",

@@ -45,7 +45,7 @@ It is the canonical runtime reference for:
 ## 3. Key Principles
 
 1. **No web search** in the doctor diagnostic flow.
-2. **Internal data first**: Knowledge Base (KB), Knowledge Graph (KG), Case Memory from confirmed EMR.
+2. **Internal data first**: Knowledge Base (KB), Case Memory from confirmed EMR.
 3. **Learning from real cases**: Protocol patterns are extracted from confirmed EMR records, not hardcoded.
 4. **Image understanding**: Gemini Vision analyzes clinical images for objective findings.
 5. **Safety guardrails**: No prescription suggestions without sufficient internal evidence.
@@ -138,7 +138,6 @@ The active doctor diagnosis flow only relies on data that truly exists in the cu
 - optional vitals such as weight when available
 - trusted booking and pet context from backend hydration
 - internal knowledge base
-- knowledge graph
 - Case Memory built from confirmed EMR records
 
 The current flow does not depend on a structured `test_results` field in the EMR workspace.
@@ -154,6 +153,8 @@ The current flow does not depend on a structured `test_results` field in the EMR
 7. The service builds a section-level grounding bundle for Subjective, Objective, Assessment, and Plan from request facts, vision findings, KB chunks, and similar confirmed EMR cases.
 8. LLM synthesis produces grounded differentials, SOAP suggestions, and optional prescription suggestions using the grounding bundle.
 9. The service stores an in-memory analysis cache keyed by `request_id` for possible `selected_only` reuse.
+
+Important runtime behavior: when internal retrieval evidence is weak, the service can still produce differential suggestions from current symptoms and available multimodal context so staff can continue EMR drafting flow quickly.
 
 ### 8.3 `selected_only` analysis
 
@@ -420,10 +421,9 @@ This section anticipates technical scrutiny and provides the architectural defen
 ### 12.3 Handling the Cold Start Problem
 **Question:** The system learns from confirmed EMRs. How does it handle a "Cold Start" when a new clinic has zero confirmed cases in its Case Memory?
 
-**Defense:** The system retrieves evidence from three primary sources:
+**Defense:** The system retrieves evidence from two primary sources:
 1. `Knowledge Base (KB)` (Internal clinical guidelines)
-2. `Knowledge Graph (KG)` (Disease-symptom relationships)
-3. `Case Memory` (Confirmed EMRs)
+2. `Case Memory` (Confirmed EMRs)
 
 In a Cold Start scenario, Case Memory yields 0 results. The hybrid RAG engine falls back gracefully and heavily relies on the KB and KG. The LLM synthesis will still generate valid differentials and SOAP drafts, though prescription patterns might rely on the safe `llm_fallback` mechanisms (with strict safety gates like weight/allergy checks) until enough real EMRs are ingested.
 

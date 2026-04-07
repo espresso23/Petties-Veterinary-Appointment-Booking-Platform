@@ -27,6 +27,8 @@ vi.mock('../../store/clinicStore', () => ({
         clinics: [mockClinic],
         getMyClinics: vi.fn(),
         isLoading: false,
+        selectedClinicId: 'clinic-1',
+        setSelectedClinicId: vi.fn(),
     }),
 }))
 

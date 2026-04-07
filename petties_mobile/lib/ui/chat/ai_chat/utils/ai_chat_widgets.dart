@@ -144,7 +144,14 @@ class AiBookingReadyBanner extends StatelessWidget {
 }
 
 class AiChatLoadingHero extends StatefulWidget {
-  const AiChatLoadingHero({super.key});
+  final Color backgroundColor;
+  final Color iconColor;
+
+  const AiChatLoadingHero({
+    super.key,
+    this.backgroundColor = AppColors.primarySurface,
+    this.iconColor = AppColors.primary,
+  });
 
   @override
   State<AiChatLoadingHero> createState() => _AiChatLoadingHeroState();
@@ -182,16 +189,16 @@ class _AiChatLoadingHeroState extends State<AiChatLoadingHero>
             width: 72,
             height: 72,
             decoration: BoxDecoration(
-              color: AppColors.primarySurface,
+              color: widget.backgroundColor,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: AppColors.stone900, width: 2),
               boxShadow: const [
                 BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
               ],
             ),
-            child: const Icon(
+            child: Icon(
               Icons.auto_awesome,
-              color: AppColors.primary,
+              color: widget.iconColor,
               size: 34,
             ),
           ),
@@ -420,6 +427,9 @@ class AiChatThinkingBubble extends StatelessWidget {
   final bool isExpanded;
   final VoidCallback? onToggleExpanded;
   final String? Function(String? toolName, dynamic result)? summarizeToolResult;
+  final IconData avatarIcon;
+  final Color avatarBackgroundColor;
+  final Color avatarIconColor;
 
   const AiChatThinkingBubble({
     super.key,
@@ -428,6 +438,9 @@ class AiChatThinkingBubble extends StatelessWidget {
     required this.isExpanded,
     required this.onToggleExpanded,
     this.summarizeToolResult,
+    this.avatarIcon = Icons.smart_toy_outlined,
+    this.avatarBackgroundColor = AppColors.primarySurface,
+    this.avatarIconColor = AppColors.primary,
   });
 
   @override
@@ -445,10 +458,10 @@ class AiChatThinkingBubble extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          const AiChatMessageAvatar(
-            icon: Icons.smart_toy_outlined,
-            backgroundColor: AppColors.primarySurface,
-            iconColor: AppColors.primary,
+          AiChatMessageAvatar(
+            icon: avatarIcon,
+            backgroundColor: avatarBackgroundColor,
+            iconColor: avatarIconColor,
           ),
           const SizedBox(width: 10),
           Flexible(

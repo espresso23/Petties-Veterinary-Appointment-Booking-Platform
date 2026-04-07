@@ -99,7 +99,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       SECRET_KEY: ${JWT_SECRET}
       # Spring Boot Backend (container-to-container)
-      SPRING_BACKEND_URL: http://backend-test:8080/api
+      SPRING_BACKEND_URL: http://backend-test:8080
       # AI Architecture: Cloud-Only (OpenRouter + Cohere)
       LLM_PROVIDER: openrouter
       # CORS - Test domain only

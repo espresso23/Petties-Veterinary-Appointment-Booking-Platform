@@ -109,6 +109,74 @@ def test_build_ui_schema_single_clinic():
     assert comp.actions[0].payload["item_type"] == "clinic"
 
 
+def test_build_ui_schema_clinic_card_uses_clinic_id_fallback_for_actions():
+    tool_results = [
+        {
+            "tool_name": "get_my_clinics",
+            "success": True,
+            "data": {
+                "clinics": [
+                    {
+                        "clinicId": "clinic-legacy-1",
+                        "name": "Petties Clinic Legacy",
+                        "address": "123 District 1",
+                    }
+                ]
+            },
+        }
+    ]
+
+    schema = build_ui_schema(tool_results)
+
+    assert schema is not None
+    assert len(schema.components) == 1
+    comp = schema.components[0]
+    assert comp.type == ComponentType.CLINIC_CARD
+    assert comp.data["id"] == "clinic-legacy-1"
+    assert comp.actions is not None
+    assert comp.actions[0].payload["item_id"] == "clinic-legacy-1"
+    assert comp.actions[0].payload["item_type"] == "clinic"
+
+
+def test_build_ui_schema_matched_clinic_avoids_redundant_manual_selection_action():
+    tool_results = [
+        {
+            "tool_name": "get_my_clinics",
+            "success": True,
+            "data": {
+                "clinics": [
+                    {
+                        "clinicId": "clinic-1",
+                        "name": "Petties Clinic",
+                        "address": "Q1",
+                    },
+                    {
+                        "clinicId": "clinic-2",
+                        "name": "Clinic B",
+                        "address": "Q2",
+                    },
+                ],
+                "matched_clinic": {
+                    "clinicId": "clinic-1",
+                    "name": "Petties Clinic",
+                    "address": "Q1",
+                },
+                "target_clinic_id": "clinic-1",
+                "needs_clarification": False,
+            },
+        }
+    ]
+
+    schema = build_ui_schema(tool_results)
+
+    assert schema is not None
+    assert len(schema.components) == 1
+    comp = schema.components[0]
+    assert comp.type == ComponentType.CLINIC_CARD
+    assert comp.data["id"] == "clinic-1"
+    assert comp.actions is None
+
+
 def test_build_ui_schema_service_group_supports_multi_select():
     tool_results = [
         {
@@ -142,6 +210,46 @@ def test_build_ui_schema_service_group_supports_multi_select():
     assert schema.components[2].actions[0].payload["clinic_id"] == "clinic-1"
     assert schema.components[0].actions[0].label == "Chọn"
     assert schema.components[2].actions[0].label == "Tiếp tục"
+
+
+def test_build_ui_schema_service_group_keeps_service_details_for_copilot():
+    tool_results = [
+        {
+            "tool_name": "get_clinic_services",
+            "success": True,
+            "data": {
+                "clinic_id": "clinic-1",
+                "services": [
+                    {
+                        "id": "svc-1",
+                        "name": "Tắm chó",
+                        "service_category": "GROOMING",
+                        "pet_type": "DOG",
+                        "base_price": 120000,
+                        "duration_minutes": 45,
+                        "slots_required": 2,
+                        "is_home_visit": False,
+                        "weight_prices": [
+                            {"min_weight": 0, "max_weight": 10, "price": 120000}
+                        ],
+                    }
+                ],
+            },
+        }
+    ]
+
+    schema = build_ui_schema(tool_results)
+
+    assert schema is not None
+    first_service_chip = schema.components[0]
+    assert first_service_chip.type == ComponentType.SERVICE_CHIP
+    assert first_service_chip.data["service_category"] == "GROOMING"
+    assert first_service_chip.data["pet_type"] == "DOG"
+    assert first_service_chip.data["base_price"] == 120000
+    assert first_service_chip.data["duration_minutes"] == 45
+    assert first_service_chip.data["slots_required"] == 2
+    assert first_service_chip.data["is_home_visit"] is False
+    assert first_service_chip.data["weight_prices"][0]["price"] == 120000
 
 
 def test_build_ui_schema_available_slots_include_booking_context():
@@ -277,6 +385,39 @@ def test_build_ui_schema_not_empty_when_one_list_has_data():
     assert schema.components[0].type == ComponentType.VACCINATION_CARD
 
 
+def test_build_ui_schema_skips_redundant_clinic_list_when_service_already_resolved():
+    tool_results = [
+        {
+            "tool_name": "get_clinic_services",
+            "success": True,
+            "data": {
+                "resolved_clinic_id": "clinic-1",
+                "services": [{"id": "svc-1", "name": "Khám tổng quát"}],
+                "total_services": 1,
+            },
+        },
+        {
+            "tool_name": "get_my_clinics",
+            "success": True,
+            "data": {
+                "clinics": [
+                    {"id": "clinic-1", "name": "Petties Clinic", "address": "Q1"}
+                ],
+                "matched_clinic": {"id": "clinic-1", "name": "Petties Clinic"},
+                "needs_clarification": False,
+                "target_clinic_id": "clinic-1",
+            },
+        },
+    ]
+
+    schema = build_ui_schema(tool_results)
+
+    assert schema is not None
+    component_types = [component.type for component in schema.components]
+    assert ComponentType.CLINIC_CARD not in component_types
+    assert ComponentType.SERVICE_CHIP in component_types
+
+
 def test_booking_preview_maps_to_native_confirm_not_chat_confirm():
     tool_results = [
         {
@@ -352,6 +493,48 @@ def test_generate_clinic_services_builds_service_cards_with_native_confirm():
     assert confirm_action["type"] == ActionType.CONFIRM_SERVICE_CREATE.value
     assert confirm_action["payload"]["base_price"] == 150000
     assert confirm_action["payload"]["slots_required"] == 1
+
+
+def test_generate_clinic_services_update_recommendation_maps_to_service_update_confirm():
+    tool_results = [
+        {
+            "tool_name": "generate_clinic_services",
+            "success": True,
+            "data": {
+                "suggestions": [
+                    {
+                        "service_id": "svc-1",
+                        "service_name": "Khám tổng quát",
+                        "name": "Khám tổng quát",
+                        "display_name": "Khám tổng quát",
+                        "description": "Đề xuất cập nhật",
+                        "basePrice": 180000,
+                        "slotsRequired": 2,
+                        "durationTime": 35,
+                        "serviceCategory": "HEALTHCARE",
+                        "petType": "DOG",
+                        "recommended_action": "update",
+                        "proposed_updates": {
+                            "base_price": 180000,
+                            "duration_time": 35,
+                            "slots_required": 2,
+                        },
+                    }
+                ]
+            },
+        }
+    ]
+
+    schema = build_ui_schema(tool_results)
+
+    assert schema is not None
+    component = schema.components[0]
+    assert component.type == ComponentType.SERVICE_CARD
+    assert component.actions is not None
+    confirm_action = component.actions[0].payload["confirm_action"]
+    assert confirm_action["type"] == ActionType.CONFIRM_SERVICE_UPDATE.value
+    assert confirm_action["payload"]["service_id"] == "svc-1"
+    assert confirm_action["payload"]["base_price"] == 180000
 
 
 def test_update_service_info_builds_confirmable_preview_card():

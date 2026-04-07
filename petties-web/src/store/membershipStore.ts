@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import { subscriptionService, type UserSubscription } from '../services/api/subscriptionService'
 
 const isDevMode = import.meta.env.VITE_APP_ENV === 'development' || import.meta.env.VITE_ENV === 'dev'
+const forceVipEnv = import.meta.env.VITE_FORCE_VIP === 'true'
+const shouldForceVip = isDevMode || forceVipEnv
 
 interface MembershipState {
     membership: UserSubscription | null
@@ -25,8 +27,8 @@ export const useMembershipStore = create<MembershipState>((set, get) => ({
     error: null,
 
     fetchMembershipStatus: async (clinicId?: string) => {
-        // DEV MODE BYPASS: Always return VIP in dev mode
-        if (isDevMode) {
+        // DEV MODE BYPASS: Always return VIP in dev mode or when VITE_FORCE_VIP=true
+        if (shouldForceVip) {
             set({
                 membership: {
                     subscriptionId: 'dev-subscription',
@@ -87,8 +89,8 @@ export const useMembershipStore = create<MembershipState>((set, get) => ({
     clearMembership: () => set({ membership: null, error: null }),
 
     isVIP: () => {
-        // DEV MODE: Always return true
-        if (isDevMode) return true
+        // DEV MODE / FORCE VIP: Always return true
+        if (shouldForceVip) return true
 
         const membership = get().membership
         if (!membership) return false
@@ -107,8 +109,8 @@ export const useMembershipStore = create<MembershipState>((set, get) => ({
     },
 
     getPlanName: () => {
-        // DEV MODE: Return DEV plan
-        if (isDevMode) return 'GÓI DEV'
+        // DEV MODE / FORCE VIP: Return DEV plan
+        if (shouldForceVip) return 'GÓI DEV'
 
         const membership = get().membership
         if (!get().isVIP()) return 'GÓI MIỄN PHÍ'

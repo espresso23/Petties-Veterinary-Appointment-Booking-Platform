@@ -2261,12 +2261,27 @@ public class BookingService {
          */
         @Transactional(readOnly = true)
         public List<ClinicTodayBookingResponse> getClinicTodayBookings(
-                        UUID clinicId, User currentStaff) {
-                log.info("Getting today's bookings for clinic {} by staff {}", clinicId, currentStaff.getUserId());
+                        UUID clinicId, User currentUser) {
+                log.info("Getting today's bookings for clinic {} by user {} with role {}",
+                                clinicId,
+                                currentUser.getUserId(),
+                                currentUser.getRole());
 
-                // Validate: Staff must belong to the clinic
-                if (currentStaff.getWorkingClinic() == null ||
-                                !currentStaff.getWorkingClinic().getClinicId().equals(clinicId)) {
+                boolean hasPermission = false;
+                Role role = currentUser.getRole();
+
+                if (role == Role.ADMIN) {
+                        hasPermission = true;
+                } else if (role == Role.STAFF || role == Role.CLINIC_MANAGER) {
+                        hasPermission = currentUser.getWorkingClinic() != null
+                                        && clinicId.equals(currentUser.getWorkingClinic().getClinicId());
+                } else if (role == Role.CLINIC_OWNER) {
+                        hasPermission = clinicRepository.existsByClinicIdAndOwnerUserId(
+                                        clinicId,
+                                        currentUser.getUserId());
+                }
+
+                if (!hasPermission) {
                         throw new ForbiddenException(
                                         "Bạn không có quyền xem lịch hẹn của phòng khám này");
                 }
@@ -2276,7 +2291,7 @@ public class BookingService {
 
                 return bookings.stream()
                                 .map(booking -> bookingMapper.mapToClinicTodayResponse(booking,
-                                                currentStaff.getUserId()))
+                                                currentUser.getUserId()))
                                 .collect(Collectors.toList());
         }
 

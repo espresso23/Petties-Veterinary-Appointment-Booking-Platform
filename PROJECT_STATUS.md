@@ -1,6 +1,6 @@
 # 🐾 PETTIES Project Status
 
-> **Last Updated:** 2026-04-06
+> **Last Updated:** 2026-04-07
 > **Current Sprint:** Post Sprint 13 - Production Hardening & AI Enhancement
 > **Overall Progress:** ~95% (code-based scan)
 
@@ -181,7 +181,7 @@
 - Single Agent (ReAct + LangGraph) - `single_agent.py`
 - Prompt Builder với Clinic Staff persona - `prompt_builder.py`
 - Tool Routing + Context Policy
-- RAG: Hybrid Engine (Knowledge Graph + Case Memory + Qdrant)
+- RAG: Hybrid Engine (RAG + Case Memory + Qdrant)
 - Vision: Gemini Vision Adapter (image diagnosis)
 - Staff Diagnosis: Protocol Service + LLM Synthesis
 - Pet Health Summary LLM Service
@@ -189,6 +189,31 @@
 - EMR Case Memory Sync Service
 - WebSocket Chat (streaming ReAct)
 - `fastmcp_app.py` single source of truth cho MCP server
+
+### Recent AI Copilot Hardening (Code-based Evidence - 2026-04-07)
+
+**Scope:** Clinic Copilot service-management quality, chat action stability, thinking stream safety.
+
+**Implemented changes:**
+- **Smart service recommendation mode**: compare clinic existing services with master templates and recommend **update-only** when service exists (no master write).
+- **Rich service update payload support**: expanded clinic service update/create flows to include reminder settings, weight pricing, vaccine dose pricing.
+- **UI action contract hardening**: extended WebSocket `confirm_service_create` and `confirm_service_update` validation/normalization for richer fields.
+- **Presentation mapping upgrades**: map update recommendations to `confirm_service_update`; preserve create flow only for create suggestions.
+- **Chat UX safety fix**: improved clinic item-id normalization and observation/thinking JSON leak suppression.
+
+**Changed files (evidence):**
+- `petties-agent-serivce/app/core/tools/mcp_tools/clinic_tools.py`
+- `petties-agent-serivce/app/services/backend_client.py`
+- `petties-agent-serivce/app/core/presentation/builder.py`
+- `petties-agent-serivce/app/api/websocket/chat.py`
+- `petties-agent-serivce/app/core/agents/thinking_formatter.py`
+- `petties-agent-serivce/tests/test_clinic_tools.py`
+- `petties-agent-serivce/tests/test_presentation_builder.py`
+- `petties-agent-serivce/tests/test_websocket_chat.py`
+
+**Validation evidence:**
+- Command: `python -m pytest tests/test_clinic_tools.py tests/test_presentation_builder.py tests/test_websocket_chat.py tests/test_context_policy.py -k "not test_handle_chat_message_end_to_end_booking_journey" -q`
+- Result: `59 passed, 1 deselected`.
 
 ---
 

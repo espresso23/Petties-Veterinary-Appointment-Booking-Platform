@@ -166,32 +166,3 @@ class KnowledgeBaseStatusResponse(BaseModel):
     storage_size_bytes: int
     last_updated: Optional[datetime] = None
     qdrant_info: Optional[Dict[str, Any]] = None
-
-
-# ===== Knowledge Graph Query Schemas =====
-
-
-class KGQueryRequest(BaseModel):
-    """Knowledge Graph query request"""
-
-    query: str = Field(..., min_length=2, max_length=500)
-    top_k: int = Field(5, ge=1, le=20)
-
-
-class KGQueryResultItem(BaseModel):
-    """Single result item from KG query"""
-
-    subject: str
-    predicate: str
-    object: str
-    score: float = 1.0
-    source_nodes: List[str] = []
-
-
-class KGQueryResponse(BaseModel):
-    """Knowledge Graph query response"""
-
-    success: bool
-    query: str
-    results: List[KGQueryResultItem]
-    message: Optional[str] = None

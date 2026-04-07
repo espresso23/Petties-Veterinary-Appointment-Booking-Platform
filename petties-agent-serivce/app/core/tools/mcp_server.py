@@ -21,6 +21,7 @@ import json
 logger = logging.getLogger(__name__)
 
 from app.core.tools.fastmcp_app import mcp_server
+from app.core.tools.contracts import normalize_tool_input, normalize_tool_output
 
 # ===== MCP TOOLS CACHE =====
 # Cache cho list_tools() để tránh gọi lại mỗi request
@@ -222,21 +223,56 @@ async def call_mcp_tool(tool_name: str, parameters: Dict[str, Any] = None) -> An
     # Get the tool metadata
     tool = await mcp_server.get_tool(tool_name)
 
+    # 1. Normalize input parameters (aliases, types)
+    normalized_params = normalize_tool_input(tool_name, parameters)
+
+    # 2. Filter parameters to match tool signature (avoid Pydantic "Unexpected keyword argument")
+    filtered_params = {}
+    valid_keys = set()
+    
+    # Try to get valid keys from FastMCP tool parameters
+    if hasattr(tool, "parameters") and tool.parameters:
+        if "properties" in tool.parameters:
+            valid_keys = set(tool.parameters["properties"].keys())
+        else:
+            # Fallback if properties not in dict
+            valid_keys = set(tool.parameters.keys())
+    elif hasattr(tool, "input_schema") and tool.input_schema:
+        if "properties" in tool.input_schema:
+            valid_keys = set(tool.input_schema["properties"].keys())
+            
+    if valid_keys:
+        dropped = []
+        for k, v in normalized_params.items():
+            if k in valid_keys:
+                filtered_params[k] = v
+            else:
+                dropped.append(k)
+        if dropped:
+            logger.debug(f"  ├─ 🧹 Dropped unexpected parameters: {dropped}")
+    else:
+        filtered_params = normalized_params
+
     logger.info(f"🔧 [MCP] ===== CALLING: {tool_name} =====")
-    logger.info(f"  ├─ Parameters: {json.dumps(parameters, ensure_ascii=False)[:500]}")
+    logger.info(f"  ├─ Parameters: {json.dumps(filtered_params, ensure_ascii=False)[:500]}")
 
     try:
-        # Execute the tool - FastMCP hiện tại expose call_tool trực tiếp
-        result = await mcp_server.call_tool(tool_name, parameters)
+        # Execute the tool
+        result = await mcp_server.call_tool(tool_name, filtered_params)
         logger.info(f"  ├─ Raw result type: {type(result).__name__}")
 
-        normalized_result = _normalize_mcp_result(result)
-        logger.info(
-            f"  ├─ Normalized result: {json.dumps(normalized_result, ensure_ascii=False)[:1000]}"
+        # 3. Standardize FastMCP output to JSON primitives
+        normalized_raw = _normalize_mcp_result(result)
+        
+        # 4. Final business-level normalization (Success/Error envelopes)
+        final_result = normalize_tool_output(tool_name, normalized_raw)
+        
+        logger.debug(
+            f"  ├─ Final result: {json.dumps(final_result, ensure_ascii=False)[:1000]}"
         )
 
         logger.info(f"  └─ ✅ Tool '{tool_name}' executed successfully")
-        return normalized_result
+        return final_result
 
     except TypeError as e:
         logger.error(f"  └─ ❌ Parameter error for '{tool_name}': {e}")

@@ -47,6 +47,36 @@ function renderSimpleValue(value: unknown): string {
   return String(value)
 }
 
+function pickFirst(data: Record<string, unknown>, keys: string[]): unknown {
+  for (const key of keys) {
+    const value = data[key]
+    if (value !== undefined && value !== null && value !== '') {
+      return value
+    }
+  }
+  return undefined
+}
+
+function toNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return undefined
+}
+
+function formatCurrency(value: unknown): string {
+  const amount = toNumber(value)
+  if (amount == null) return 'Chưa có'
+  return `${amount.toLocaleString('vi-VN')}đ`
+}
+
+function asRecordArray(value: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+}
+
 function renderClinicCard(
   component: UIComponent,
   onAction?: (action: UIAction, component: UIComponent) => void,
@@ -90,12 +120,17 @@ function renderServiceCard(
   onAction?: (action: UIAction, component: UIComponent) => void,
 ) {
   const data = component.data
-  const name = renderSimpleValue(data['name'])
+  const name = renderSimpleValue(pickFirst(data, ['name', 'service_name']))
   const description = renderSimpleValue(data['description'])
-  const basePrice = renderSimpleValue(data['base_price'])
-  const duration = renderSimpleValue(data['duration_time'])
-  const category = renderSimpleValue(data['service_category'])
-  const petType = renderSimpleValue(data['pet_type'])
+  const basePrice = pickFirst(data, ['base_price', 'basePrice'])
+  const duration = pickFirst(data, ['duration_time', 'duration_minutes', 'durationTime'])
+  const durationLabel = renderSimpleValue(duration)
+  const slotsRequired = pickFirst(data, ['slots_required', 'slotsRequired'])
+  const category = renderSimpleValue(pickFirst(data, ['service_category', 'category', 'serviceCategory']))
+  const petType = renderSimpleValue(pickFirst(data, ['pet_type', 'petType']))
+  const isHomeVisit = pickFirst(data, ['is_home_visit', 'isHomeVisit'])
+  const weightPrices = asRecordArray(pickFirst(data, ['weight_prices', 'weightPrices']))
+  const dosePrices = asRecordArray(pickFirst(data, ['dose_prices', 'dosePrices']))
 
   return (
     <div key={component.id} className="bg-white border-2 border-stone-900 rounded-xl p-4 shadow-[4px_4px_0_#1c1917]">
@@ -116,23 +151,56 @@ function renderServiceCard(
                 {petType}
               </span>
             )}
-          </div>
-          <div className="mt-3 flex items-center gap-4 text-xs font-bold">
-            {basePrice && basePrice !== 'Chưa có' && (
-              <span className="text-amber-600">{Number(basePrice).toLocaleString('vi-VN')}đ</span>
-            )}
-            {duration && duration !== 'Chưa có' && (
-              <span className="text-stone-500">{duration} phút</span>
+            {typeof isHomeVisit === 'boolean' && (
+              <span className="px-2 py-1 bg-blue-100 border border-stone-900 rounded text-[10px] font-bold text-stone-700 uppercase">
+                {isHomeVisit ? 'Khám tại nhà' : 'Khám tại phòng khám'}
+              </span>
             )}
           </div>
-        </div>
-        <div className="flex-shrink-0">
-          <input
-            type="checkbox"
-            id={`service-${component.id}`}
-            className="w-5 h-5 accent-amber-600 border-2 border-stone-900"
-            defaultChecked={data['selected'] === true}
-          />
+          <div className="mt-3 flex flex-wrap items-center gap-4 text-xs font-bold">
+            {basePrice != null && <span className="text-amber-600">{formatCurrency(basePrice)}</span>}
+            {duration != null && durationLabel !== 'Chưa có' && (
+              <span className="text-stone-500">{durationLabel} phút</span>
+            )}
+            {slotsRequired != null && (
+              <span className="text-stone-500">{renderSimpleValue(slotsRequired)} slot</span>
+            )}
+          </div>
+
+          {weightPrices.length > 0 && (
+            <div className="mt-3 border-2 border-stone-200 rounded-lg p-2 bg-stone-50">
+              <p className="text-[11px] font-black uppercase text-stone-700">Giá theo cân nặng</p>
+              <div className="mt-2 space-y-1">
+                {weightPrices.map((item, index) => {
+                  const minWeight = renderSimpleValue(item['min_weight'] ?? item['minWeight'])
+                  const maxWeight = renderSimpleValue(item['max_weight'] ?? item['maxWeight'])
+                  const price = formatCurrency(item['price'])
+                  return (
+                    <p key={`${component.id}-wp-${index}`} className="text-[11px] font-bold text-stone-700">
+                      {minWeight} - {maxWeight} kg: <span className="text-amber-700">{price}</span>
+                    </p>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {dosePrices.length > 0 && (
+            <div className="mt-3 border-2 border-stone-200 rounded-lg p-2 bg-stone-50">
+              <p className="text-[11px] font-black uppercase text-stone-700">Giá theo mũi tiêm</p>
+              <div className="mt-2 space-y-1">
+                {dosePrices.map((item, index) => {
+                  const label = renderSimpleValue(item['dose_label'] ?? item['doseLabel'] ?? item['dose_number'] ?? item['doseNumber'])
+                  const price = formatCurrency(item['price'])
+                  return (
+                    <p key={`${component.id}-dp-${index}`} className="text-[11px] font-bold text-stone-700">
+                      {label}: <span className="text-amber-700">{price}</span>
+                    </p>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
       <ActionButtons component={component} onAction={onAction} />
@@ -184,6 +252,83 @@ function renderChoiceChip(
     >
       {label}
     </button>
+  )
+}
+
+function renderServiceChip(
+  component: UIComponent,
+  onAction?: (action: UIAction, component: UIComponent) => void,
+) {
+  const data = component.data
+  const name = renderSimpleValue(pickFirst(data, ['name', 'service_name']))
+  const category = renderSimpleValue(pickFirst(data, ['service_category', 'category', 'serviceCategory']))
+  const petType = renderSimpleValue(pickFirst(data, ['pet_type', 'petType']))
+  const basePrice = pickFirst(data, ['base_price', 'basePrice'])
+  const duration = pickFirst(data, ['duration_minutes', 'duration_time', 'durationTime'])
+  const slotsRequired = pickFirst(data, ['slots_required', 'slotsRequired'])
+  const isHomeVisit = pickFirst(data, ['is_home_visit', 'isHomeVisit'])
+  const weightPrices = asRecordArray(pickFirst(data, ['weight_prices', 'weightPrices']))
+  const dosePrices = asRecordArray(pickFirst(data, ['dose_prices', 'dosePrices']))
+
+  return (
+    <div key={component.id} className="bg-white border-2 border-stone-900 rounded-lg p-3 shadow-[3px_3px_0_#1c1917]">
+      <div className="flex items-start justify-between gap-2">
+        <h5 className="text-sm font-black text-stone-900">{name}</h5>
+        {basePrice != null && <span className="text-xs font-black text-amber-700">{formatCurrency(basePrice)}</span>}
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-2">
+        {category && category !== 'Chưa có' && (
+          <span className="px-2 py-1 bg-amber-100 border border-stone-900 rounded text-[10px] font-bold uppercase text-stone-700">{category}</span>
+        )}
+        {petType && petType !== 'Chưa có' && (
+          <span className="px-2 py-1 bg-teal-100 border border-stone-900 rounded text-[10px] font-bold uppercase text-stone-700">{petType}</span>
+        )}
+        {typeof isHomeVisit === 'boolean' && (
+          <span className="px-2 py-1 bg-blue-100 border border-stone-900 rounded text-[10px] font-bold uppercase text-stone-700">
+            {isHomeVisit ? 'Tại nhà' : 'Tại phòng khám'}
+          </span>
+        )}
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-3 text-[11px] font-bold text-stone-600">
+        {duration != null && <span>Thời lượng: {renderSimpleValue(duration)} phút</span>}
+        {slotsRequired != null && <span>Slot: {renderSimpleValue(slotsRequired)}</span>}
+      </div>
+
+      {weightPrices.length > 0 && (
+        <div className="mt-2 text-[11px] font-bold text-stone-700">
+          <span className="font-black uppercase text-stone-600">Giá cân nặng:</span>{' '}
+          {weightPrices
+            .slice(0, 2)
+            .map((item) => {
+              const minWeight = renderSimpleValue(item['min_weight'] ?? item['minWeight'])
+              const maxWeight = renderSimpleValue(item['max_weight'] ?? item['maxWeight'])
+              const price = formatCurrency(item['price'])
+              return `${minWeight}-${maxWeight}kg: ${price}`
+            })
+            .join(' | ')}
+          {weightPrices.length > 2 ? ' ...' : ''}
+        </div>
+      )}
+
+      {dosePrices.length > 0 && (
+        <div className="mt-2 text-[11px] font-bold text-stone-700">
+          <span className="font-black uppercase text-stone-600">Giá mũi tiêm:</span>{' '}
+          {dosePrices
+            .slice(0, 2)
+            .map((item) => {
+              const label = renderSimpleValue(item['dose_label'] ?? item['doseLabel'] ?? item['dose_number'] ?? item['doseNumber'])
+              const price = formatCurrency(item['price'])
+              return `${label}: ${price}`
+            })
+            .join(' | ')}
+          {dosePrices.length > 2 ? ' ...' : ''}
+        </div>
+      )}
+
+      <ActionButtons component={component} onAction={onAction} />
+    </div>
   )
 }
 
@@ -319,6 +464,7 @@ function renderComponent(
     case 'pet_card':
       return renderPetCard(component, onAction)
     case 'service_chip':
+      return renderServiceChip(component, onAction)
     case 'slot_button':
       return renderChoiceChip(component, onAction)
     case 'booking_summary':

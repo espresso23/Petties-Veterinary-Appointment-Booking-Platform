@@ -10,11 +10,11 @@ from datetime import datetime, timezone, timedelta, date as date_cls
 from app.core.tools.contracts import (
     build_tool_success_response,
     build_tool_error_response,
+    classify_error_code,
 )
 from app.core.tools.mcp_server import mcp_server
-from app.core.tool_runtime_context import (
-    require_tool_runtime_context,
-)
+from app.core.tool_runtime_context import require_tool_runtime_context
+from app.core.tools.auth_deps import _require_auth_token
 from app.services.backend_client import BackendClientError, get_backend_client
 from app.core.tools.tool_policy import get_tool_policy
 
@@ -26,26 +26,21 @@ def _is_tool_available(tool_name: str) -> bool:
     return get_tool_policy(tool_name) is not None
 
 
-def _require_auth_token() -> str:
-    """Require JWT token - raise exception if none."""
-    context = require_tool_runtime_context()
-    if not context.auth_token:
-        raise RuntimeError(
-            "Yeu cau dang nhap de su dung chuc nang nay. Vui long dang nhap truoc."
-        )
-    return context.auth_token
+# Refactored: authentication helpers moved to app.core.tools.auth_deps
 
 
 @mcp_server.tool
 async def get_staff_schedule(
     date: Optional[str] = None,
     days: int = 1,
+    clinic_name_hint: Optional[str] = None,
     user_id: Optional[str] = None,
     session_id: Optional[str] = None,
     clinic_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Get the staff schedule for the clinic. Use this to check who is working today or this week.
+    Get the staff schedule for the clinic.
+    Can provide clinic_name_hint to automatically find the correct clinic ID.
 
     Args:
         date: Start date (YYYY-MM-DD). Default is today.
@@ -57,9 +52,9 @@ async def get_staff_schedule(
     if not _is_tool_available("get_staff_schedule"):
         return build_tool_error_response(
             error_code="TOOL_NOT_AVAILABLE",
-            message="Cong cu nay khong duoc phep su dung trong ngu canh hien tai.",
+            message="Chức năng này không được phép sử dụng trong ngữ cảnh hiện tại.",
             recoverable=False,
-            suggestion="Yeu cau dang nhap voi quyen chu phong kham hoac quan ly.",
+            suggestion="Yêu cầu đăng nhập với quyền chủ phòng khám hoặc quản lý.",
         )
 
     try:
@@ -71,16 +66,28 @@ async def get_staff_schedule(
             recoverable=False,
         )
 
-    if not ctx.clinic_id:
-        return build_tool_error_response(
-            error_code="CLINIC_NOT_FOUND",
-            message="Khong tim thay thong tin phong kham trong phien lam viec cua ban.",
-            recoverable=False,
-            suggestion="Yeu cau dang nhap voi quyen CLINIC_OWNER hoac CLINIC_MANAGER.",
-        )
-
     token = _require_auth_token()
     client = get_backend_client()
+
+    # Resolve clinic_id if hint provided
+    active_clinic_id = clinic_id or ctx.clinic_id
+    if clinic_name_hint:
+        try:
+            from app.core.tools.mcp_tools.clinic_tools import get_my_clinics
+
+            resp = await get_my_clinics(clinic_name_hint=clinic_name_hint)
+            if resp.get("success") and resp.get("target_clinic_id"):
+                active_clinic_id = resp["target_clinic_id"]
+        except Exception:
+            pass
+
+    if not active_clinic_id:
+        return build_tool_error_response(
+            error_code="CLINIC_NOT_FOUND",
+            message="Không tìm thấy thông tin phòng khám.",
+            recoverable=False,
+            suggestion="Yêu cầu đăng nhập với quyền CLINIC_OWNER hoặc CLINIC_MANAGER.",
+        )
 
     try:
         # Determine dates
@@ -106,8 +113,8 @@ async def get_staff_schedule(
         logger.info(
             f"Fetching shifts for clinic {ctx.clinic_id} from {start_date_str} to {end_date_str}"
         )
-        shifts = await client.get_clinic_staff_shifts(
-            token, ctx.clinic_id, start_date_str, end_date_str
+        shifts = await client.get_clinic_shifts(
+            token, active_clinic_id, start_date_str, end_date_str
         )
 
         if not isinstance(shifts, list):
@@ -166,17 +173,18 @@ async def get_staff_schedule(
         )
     except BackendClientError as e:
         logger.error(f"Error in get_staff_schedule: {e}")
+        error_code = classify_error_code(str(e))
         return build_tool_error_response(
-            error_code="INTERNAL_ERROR",
-            message=f"Khong the lay lich lam viec: {str(e)}",
+            error_code=error_code,
+            message=f"Không thể lấy lịch làm việc: {str(e)}",
             recoverable=True,
-            suggestion="Vui long thu lai sau.",
+            suggestion="Vui lòng thử lại sau.",
         )
     except Exception as e:
         logger.error(f"Error in get_staff_schedule: {e}")
         return build_tool_error_response(
             error_code="INTERNAL_ERROR",
-            message=f"Loi he thong khi lay lich lam viec: {str(e)}",
+            message=f"Lỗi hệ thống khi lấy lịch làm việc: {str(e)}",
             recoverable=True,
         )
 
@@ -185,12 +193,14 @@ async def get_staff_schedule(
 async def get_slot_availability(
     date: Optional[str] = None,
     staff_name: Optional[str] = None,
+    clinic_name_hint: Optional[str] = None,
     user_id: Optional[str] = None,
     session_id: Optional[str] = None,
     clinic_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Get detailed slot availability and booking status for the clinic's shifts.
+    Get detailed slot availability for the clinic.
+    Use clinic_name_hint to find IDs automatically.
     Use this when asking for empty slots or checking which pets are booked.
 
     Args:
@@ -203,9 +213,9 @@ async def get_slot_availability(
     if not _is_tool_available("get_slot_availability"):
         return build_tool_error_response(
             error_code="TOOL_NOT_AVAILABLE",
-            message="Cong cu nay khong duoc phep su dung trong ngu canh hien tai.",
+            message="Chức năng này không được phép sử dụng trong ngữ cảnh hiện tại.",
             recoverable=False,
-            suggestion="Yeu cau dang nhap voi quyen chu phong kham hoac quan ly.",
+            suggestion="Yêu cầu đăng nhập với quyền chủ phòng khám hoặc quản lý.",
         )
 
     try:
@@ -217,15 +227,27 @@ async def get_slot_availability(
             recoverable=False,
         )
 
-    if not ctx.clinic_id:
-        return build_tool_error_response(
-            error_code="CLINIC_NOT_FOUND",
-            message="Khong tim thay thong tin phong kham.",
-            recoverable=False,
-        )
-
     token = _require_auth_token()
     client = get_backend_client()
+
+    # Resolve clinic_id if hint provided
+    active_clinic_id = clinic_id or ctx.clinic_id
+    if clinic_name_hint:
+        try:
+            from app.core.tools.mcp_tools.clinic_tools import get_my_clinics
+
+            resp = await get_my_clinics(clinic_name_hint=clinic_name_hint)
+            if resp.get("success") and resp.get("target_clinic_id"):
+                active_clinic_id = resp["target_clinic_id"]
+        except Exception:
+            pass
+
+    if not active_clinic_id:
+        return build_tool_error_response(
+            error_code="CLINIC_NOT_FOUND",
+            message="Không tìm thấy thông tin phòng khám.",
+            recoverable=False,
+        )
 
     try:
         now = datetime.now(timezone.utc)
@@ -247,7 +269,7 @@ async def get_slot_availability(
             f"Fetching slot availability for clinic {ctx.clinic_id} on {target_date_str}"
         )
         shifts = await client.get_clinic_staff_shifts(
-            token, ctx.clinic_id, target_date_str, target_date_str
+            token, active_clinic_id, target_date_str, target_date_str
         )
 
         if not isinstance(shifts, list):
@@ -305,16 +327,17 @@ async def get_slot_availability(
         )
     except BackendClientError as e:
         logger.error(f"Error in get_slot_availability: {e}")
+        error_code = classify_error_code(str(e))
         return build_tool_error_response(
-            error_code="INTERNAL_ERROR",
-            message=f"Khong the lay danh sach slot: {str(e)}",
+            error_code=error_code,
+            message=f"Không thể lấy danh sách slot: {str(e)}",
             recoverable=True,
-            suggestion="Vui long thu lai sau.",
+            suggestion="Vui lòng thử lại sau.",
         )
     except Exception as e:
         logger.error(f"Error in get_slot_availability: {e}")
         return build_tool_error_response(
             error_code="INTERNAL_ERROR",
-            message=f"Loi he thong khi lay danh sach slot: {str(e)}",
+            message=f"Lỗi hệ thống khi lấy danh sách slot: {str(e)}",
             recoverable=True,
         )

@@ -7,6 +7,6 @@ class StaffAiChatScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const AiChatScreen();
+    return const AiChatScreen(bookingAssistantEnabled: false);
   }
 }

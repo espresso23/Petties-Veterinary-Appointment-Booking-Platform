@@ -140,6 +140,7 @@ export const CreateEmrPage = () => {
     }, [petId])
 
     const handleGenerateHealthSummary = async () => {
+        if (!isVipClinic) return
         if (!petId) return
 
         setIsSummarizingHistory(true)
@@ -156,6 +157,7 @@ export const CreateEmrPage = () => {
     }
 
     const handleToggleHistorySummary = async () => {
+        if (!isVipClinic) return
         if (showHistorySummaryPopover) {
             setShowHistorySummaryPopover(false)
             return
@@ -380,7 +382,9 @@ export const CreateEmrPage = () => {
 
                 reExaminationDate: hasReExam ? (reExaminationDate ? `${reExaminationDate}T00:00:00` : undefined) : undefined,
                 examinationDate,
-                aiDiagnosisContext: buildEmrAiDiagnosisContext(aiDiagnosisResult, selectedAiDiagnosis),
+                aiDiagnosisContext: isVipClinic
+                    ? buildEmrAiDiagnosisContext(aiDiagnosisResult, selectedAiDiagnosis)
+                    : undefined,
             }
 
             await emrService.createEmr(request)
@@ -471,11 +475,11 @@ export const CreateEmrPage = () => {
         setAssessment(diagnosis.displayName)
         if (errors.assessment) setErrors(prev => ({ ...prev, assessment: undefined }))
         setIsAiModalOpen(false)
-        setCurrentStep(2)
         showToast('success', 'Đã chọn chẩn đoán từ AI.')
     }
 
     const handleOpenAiModal = () => {
+        if (!isVipClinic) return
         if (aiDiagnosisResult) {
             setIsAiModalOpen(true)
         } else {
@@ -535,7 +539,7 @@ export const CreateEmrPage = () => {
                 </button>
             </div>
 
-            {selectedAiDiagnosis && aiDiagnosisResult?.prescription_suggestions?.length ? (
+            {isVipClinic && selectedAiDiagnosis && aiDiagnosisResult?.prescription_suggestions?.length ? (
                 <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50/80 p-3 shadow-sm">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
@@ -597,6 +601,93 @@ export const CreateEmrPage = () => {
                 >
                     <p className="text-xs font-semibold uppercase tracking-widest text-stone-500">Bấm để bắt đầu kê đơn</p>
                 </div>
+            )}
+        </div>
+    )
+
+    const renderObjectiveSection = () => (
+        <div className="rounded-2xl bg-white p-6 shadow-sm">
+            <div className="flex items-center gap-3 mb-2">
+                <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
+                <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">Khách quan / Chỉ số sinh tồn</h2>
+            </div>
+            <p className="text-xs text-stone-400 mb-4">Kết quả khám lâm sàng, chỉ số sinh tồn</p>
+
+            <div className="grid grid-cols-2 gap-3 mb-4">
+                <div>
+                    <label className="text-sm text-stone-500">Nhiệt độ (°C):</label>
+                    <input
+                        type="number"
+                        step="0.1"
+                        value={temperature}
+                        onChange={(e) => {
+                            setTemperature(e.target.value)
+                            if (errors.temperature) setErrors(prev => ({ ...prev, temperature: undefined }))
+                        }}
+                        placeholder="VD: 38.5"
+                        className={`w-full border rounded-lg p-2 text-sm mt-1 ${errors.temperature ? 'border-red-400' : 'border-stone-300'}`}
+                    />
+                    {errors.temperature && <p className="text-red-500 text-xs mt-1">{errors.temperature}</p>}
+                </div>
+                <div>
+                    <label className="text-sm text-stone-500">Nhịp tim (lần/phút):</label>
+                    <input
+                        type="number"
+                        value={heartRate}
+                        onChange={(e) => setHeartRate(e.target.value)}
+                        placeholder="120"
+                        className="w-full border border-stone-300 rounded-lg p-2 text-sm mt-1"
+                    />
+                </div>
+            </div>
+
+            <div className="mb-4">
+                <label className="text-sm text-stone-500 mb-2 block">BCS (Điểm thể trạng 1-9):</label>
+                <div className="flex gap-1">
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(score => (
+                        <button
+                            key={score}
+                            type="button"
+                            onClick={() => setBcs(score)}
+                            className={`w-8 h-8 rounded-full text-xs font-bold transition-all ${bcs === score
+                                ? 'bg-stone-900 text-white shadow-xl shadow-stone-200 scale-110'
+                                : 'bg-stone-50 text-stone-500 hover:bg-stone-100'
+                                }`}
+                        >
+                            {score}
+                        </button>
+                    ))}
+                </div>
+                <p className="text-xs text-stone-400 mt-1">1-3: Gầy | 4-5: Bình thường | 6-9: Thừa cân</p>
+            </div>
+
+            <textarea
+                value={objective}
+                onChange={(e) => setObjective(e.target.value)}
+                placeholder="Kết quả khám lâm sàng..."
+                rows={3}
+                className="w-full border border-stone-300 rounded-lg p-3 text-sm"
+            />
+            {isVipClinic ? (
+                aiDiagnosisResult?.soap_suggestions.objective_draft?.trim() ? (
+                    <AISuggestionInlineCard
+                        title="Gợi ý AI cho Khách quan"
+                        value={aiDiagnosisResult?.soap_suggestions.objective_draft}
+                        onAccept={() => handleApplyAiDraft('objective', aiDiagnosisResult?.soap_suggestions.objective_draft || '')}
+                    />
+                ) : aiDiagnosisResult ? (
+                    <p className="mt-3 text-xs font-semibold text-blue-700">
+                        AI chưa đủ dữ liệu để gợi ý Objective rõ ràng. Hãy bổ sung ảnh lâm sàng hoặc mô tả khám chi tiết hơn.
+                    </p>
+                ) : (
+                    <p className="mt-3 text-xs font-semibold text-stone-500">
+                        Bấm AI chẩn đoán để nhận gợi ý cho phần khách quan.
+                    </p>
+                )
+            ) : (
+                <p className="mt-3 text-xs font-semibold text-stone-500">
+                    Nhập kết quả khám lâm sàng và chỉ số sinh tồn của ca bệnh.
+                </p>
             )}
         </div>
     )
@@ -888,11 +979,8 @@ export const CreateEmrPage = () => {
                                             {isAiAnalyzing ? 'Đang phân tích...' : 'Mở AI chẩn đoán'}
                                         </button>
                                     )}
-                                    {!isVipClinic && (
-                                        <p className="text-xs text-stone-500">Phòng khám hiện dùng flow thường, không bật AI chẩn đoán.</p>
-                                    )}
                                 </div>
-                                {selectedAiDiagnosis ? (
+                                {isVipClinic && selectedAiDiagnosis ? (
                                     <AISuggestionInlineCard
                                         title="Gợi ý AI cho Triệu chứng"
                                         value={aiDiagnosisResult?.soap_suggestions.subjective_draft}
@@ -950,7 +1038,9 @@ export const CreateEmrPage = () => {
                                 <div>
                                     <h3 className="font-bold text-stone-700">Hình ảnh lâm sàng</h3>
                                     <p className="mt-1 text-xs text-stone-500">
-                                        AI sẽ đọc trực tiếp các ảnh đã tải lên trong mục này và ảnh preview mới chọn.
+                                        {isVipClinic
+                                            ? 'Hệ thống sẽ đọc trực tiếp các ảnh đã tải lên trong mục này và ảnh preview mới chọn.'
+                                            : 'Quản lý ảnh lâm sàng đã tải lên và ảnh preview mới chọn.'}
                                     </p>
                                 </div>
                                 {isVipClinic && (
@@ -1122,94 +1212,6 @@ export const CreateEmrPage = () => {
                                         ))}
                                     </div>
                                 </div>
-                            )}
-                        </div>
-                        )}
-
-                        {currentStep === 1 && (
-                        <div className="bg-white rounded-2xl p-6 shadow-sm">
-                            <div className="flex items-center gap-3 mb-2">
-                                <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
-                                <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">Khách quan / Chỉ số sinh tồn</h2>
-                            </div>
-                            <p className="text-xs text-stone-400 mb-4">Kết quả khám lâm sàng, chỉ số sinh tồn</p>
-
-                            <div className="grid grid-cols-2 gap-3 mb-4">
-                                <div>
-                                    <label className="text-sm text-stone-500">Nhiệt độ (°C):</label>
-                                    <input
-                                        type="number"
-                                        step="0.1"
-                                        value={temperature}
-                                        onChange={(e) => {
-                                            setTemperature(e.target.value)
-                                            if (errors.temperature) setErrors(prev => ({ ...prev, temperature: undefined }))
-                                        }}
-                                        placeholder="VD: 38.5"
-                                        className={`w-full border rounded-lg p-2 text-sm mt-1 ${errors.temperature ? 'border-red-400' : 'border-stone-300'}`}
-                                    />
-                                    {errors.temperature && <p className="text-red-500 text-xs mt-1">{errors.temperature}</p>}
-                                </div>
-                                <div>
-                                    <label className="text-sm text-stone-500">Nhịp tim (lần/phút):</label>
-                                    <input
-                                        type="number"
-                                        value={heartRate}
-                                        onChange={(e) => setHeartRate(e.target.value)}
-                                        placeholder="120"
-                                        className="w-full border border-stone-300 rounded-lg p-2 text-sm mt-1"
-                                    />
-                                </div>
-                            </div>
-
-                            {/* BCS Score */}
-                            <div className="mb-4">
-                                <label className="text-sm text-stone-500 mb-2 block">BCS (Điểm thể trạng 1-9):</label>
-                                <div className="flex gap-1">
-                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(score => (
-                                        <button
-                                            key={score}
-                                            type="button"
-                                            onClick={() => setBcs(score)}
-                                            className={`w-8 h-8 rounded-full text-xs font-bold transition-all ${bcs === score
-                                                ? 'bg-stone-900 text-white shadow-xl shadow-stone-200 scale-110'
-                                                : 'bg-stone-50 text-stone-500 hover:bg-stone-100'
-                                                }`}
-                                        >
-                                            {score}
-                                        </button>
-                                    ))}
-                                </div>
-                                <p className="text-xs text-stone-400 mt-1">1-3: Gầy | 4-5: Bình thường | 6-9: Thừa cân</p>
-                            </div>
-
-                            <textarea
-                                value={objective}
-                                onChange={(e) => setObjective(e.target.value)}
-                                placeholder="Kết quả khám lâm sàng..."
-                                rows={3}
-                                className="w-full border border-stone-300 rounded-lg p-3 text-sm"
-                            />
-                            {isVipClinic ? (
-                                aiDiagnosisResult?.soap_suggestions.objective_draft?.trim() ? (
-                                    <AISuggestionInlineCard
-                                        title="Gợi ý AI cho Khách quan"
-                                        value={aiDiagnosisResult?.soap_suggestions.objective_draft}
-                                        onAccept={() => handleApplyAiDraft('objective', aiDiagnosisResult?.soap_suggestions.objective_draft || '')}
-                                    />
-                                ) : aiDiagnosisResult ? (
-                                    <p className="mt-3 text-xs font-semibold text-blue-700">
-                                        AI chưa đủ dữ liệu để gợi ý Objective rõ ràng. Hãy bổ sung ảnh lâm sàng hoặc mô tả khám chi tiết hơn.
-                                    </p>
-                                ) : (
-                                    <p className="mt-3 text-xs font-semibold text-stone-500">
-                                        Bấm AI chẩn đoán để nhận gợi ý cho phần khách quan.
-                                    </p>
-                                )
-                            ) : (
-                                <p className="mt-3 text-xs font-semibold text-stone-500">
-                                    Nhập kết quả khám lâm sàng và chỉ số sinh tồn của ca bệnh.
-                                </p>
                             )}
                         </div>
                         )}
@@ -1509,6 +1511,12 @@ export const CreateEmrPage = () => {
 
 
                     </div>
+
+                    {currentStep === 1 && (
+                        <div className="min-w-0 mt-2 xl:col-start-2 xl:col-span-2 xl:-mt-16">
+                            {renderObjectiveSection()}
+                        </div>
+                    )}
                 </div>
 
                 <div className="mt-6 rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
@@ -1517,67 +1525,20 @@ export const CreateEmrPage = () => {
                             <h3 className="font-bold text-stone-800">Tóm tắt bệnh sử</h3>
                             <p className="mt-1 text-sm text-stone-500">Timeline ngang các mốc bệnh án gần đây. Bấm vào từng mốc để xem chi tiết.</p>
                         </div>
-                        <div className="relative flex items-center gap-2">
+                        <div className="flex items-center gap-2">
                             <span className="rounded-full border border-stone-200 bg-stone-50 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-stone-500">
                                 {medicalHistory.length} mốc
                             </span>
-                            <button
-                                type="button"
-                                onClick={() => void handleToggleHistorySummary()}
-                                disabled={isSummarizingHistory}
-                                className="group flex h-10 w-10 items-center justify-center rounded-full border border-amber-300 bg-amber-50 text-amber-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
-                                title="AI tóm tắt bệnh sử gần đây"
-                            >
-                                <SparklesIcon className={`h-4 w-4 ${isSummarizingHistory ? 'animate-pulse' : ''}`} />
-                            </button>
-
-                            {showHistorySummaryPopover && (
-                                <div className="absolute right-0 top-12 z-30 w-[360px] text-left">
-                                    <div className="absolute right-8 top-[-8px] h-4 w-4 rotate-45 border-l border-t border-amber-200 bg-white"></div>
-                                    <div className="rounded-2xl border border-amber-200 bg-white p-4 shadow-[6px_6px_0_#1c1917]">
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div>
-                                                <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700">AI tóm tắt bệnh sử</p>
-                                                <p className="mt-1 text-sm font-semibold text-stone-800">Tóm tắt nhanh theo template lâm sàng</p>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowHistorySummaryPopover(false)}
-                                                className="rounded-lg border border-stone-200 bg-stone-50 p-1 text-stone-500 transition-all hover:bg-stone-100"
-                                            >
-                                                <XMarkIcon className="h-4 w-4" />
-                                            </button>
-                                        </div>
-
-                                        {isSummarizingHistory ? (
-                                            <p className="mt-4 text-sm text-stone-600">AI đang tổng hợp bệnh sử gần đây...</p>
-                                        ) : healthSummary ? (
-                                            <div className="mt-4 space-y-3 text-sm text-stone-700">
-                                                <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
-                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500">Diễn tiến chính</p>
-                                                    <p className="mt-1 line-clamp-4">{healthSummary.aiInsights?.summary || 'Chưa có diễn tiến chính từ AI.'}</p>
-                                                </div>
-                                                <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
-                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500">Chẩn đoán gần đây</p>
-                                                    <p className="mt-1 line-clamp-3">{healthSummary.latestEmr?.diagnosis || 'Chưa có chẩn đoán gần đây.'}</p>
-                                                </div>
-                                                <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
-                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500">Điều trị gần nhất</p>
-                                                    <p className="mt-1 line-clamp-3">{healthSummary.latestEmr?.treatment || 'Chưa có dữ liệu điều trị gần nhất.'}</p>
-                                                </div>
-                                                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700">Lưu ý cho ca hiện tại</p>
-                                                    <p className="mt-1 line-clamp-4">{healthSummary.aiInsights?.advice || healthSummary.aiInsights?.trends || 'Chưa có lưu ý nổi bật từ AI.'}</p>
-                                                </div>
-                                                {healthSummary.disclaimer && (
-                                                    <p className="text-xs italic text-stone-500">{healthSummary.disclaimer}</p>
-                                                )}
-                                            </div>
-                                        ) : (
-                                            <p className="mt-4 text-sm text-stone-600">Bấm biểu tượng để AI tóm tắt nhanh bệnh sử gần đây theo mẫu lâm sàng.</p>
-                                        )}
-                                    </div>
-                                </div>
+                            {isVipClinic && (
+                                <button
+                                    type="button"
+                                    onClick={() => void handleToggleHistorySummary()}
+                                    disabled={isSummarizingHistory}
+                                    className="group flex h-10 w-10 items-center justify-center rounded-full border border-amber-300 bg-amber-50 text-amber-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                    title="AI tóm tắt bệnh sử gần đây"
+                                >
+                                    <SparklesIcon className={`h-4 w-4 ${isSummarizingHistory ? 'animate-pulse' : ''}`} />
+                                </button>
                             )}
                         </div>
                     </div>
@@ -1649,42 +1610,131 @@ export const CreateEmrPage = () => {
                 )
             }
 
+            {isVipClinic && (
+                <Modal
+                    isOpen={showHistorySummaryPopover}
+                    onClose={() => setShowHistorySummaryPopover(false)}
+                    title="Tóm tắt bệnh sử chi tiết"
+                    size="lg"
+                >
+                    {isSummarizingHistory ? (
+                        <p className="text-sm text-stone-600">AI đang tổng hợp bệnh sử gần đây...</p>
+                    ) : healthSummary ? (
+                        <div className="space-y-3 text-sm text-stone-700">
+                            <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500">Diễn tiến chính</p>
+                                <p className="mt-1 break-words leading-6">{healthSummary.aiInsights?.summary || 'Chưa có diễn tiến chính từ AI.'}</p>
+                            </div>
+                            <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500">Chẩn đoán gần đây</p>
+                                <p className="mt-1 break-words leading-6">{healthSummary.latestEmr?.diagnosis || 'Chưa có chẩn đoán gần đây.'}</p>
+                            </div>
+                            <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500">Điều trị gần nhất</p>
+                                <p className="mt-1 break-words leading-6">{healthSummary.latestEmr?.treatment || 'Chưa có dữ liệu điều trị gần nhất.'}</p>
+                            </div>
+                            {healthSummary.healthWarnings.length > 0 && (
+                                <div className="rounded-xl border border-red-200 bg-red-50 p-3">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-red-700">Cảnh báo sức khỏe</p>
+                                    <div className="mt-2 space-y-2">
+                                        {healthSummary.healthWarnings.slice(0, 4).map((warning, index) => (
+                                            <p key={`${warning.type}-${index}`} className="text-sm leading-6 text-red-800">
+                                                {index + 1}. {warning.message}
+                                            </p>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {healthSummary.medicationReminders.length > 0 && (
+                                <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500">Thuốc đang theo dõi</p>
+                                    <div className="mt-2 space-y-2">
+                                        {healthSummary.medicationReminders.slice(0, 4).map((reminder, index) => (
+                                            <p key={`${reminder.medication}-${index}`} className="text-sm leading-6 text-stone-700">
+                                                {index + 1}. {reminder.medication}
+                                                {reminder.dosage ? ` - ${reminder.dosage}` : ''}
+                                                {reminder.frequency ? ` (${reminder.frequency})` : ''}
+                                            </p>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {healthSummary.suggestedActions.length > 0 && (
+                                <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-blue-700">Đề xuất ưu tiên</p>
+                                    <div className="mt-2 space-y-2">
+                                        {healthSummary.suggestedActions.slice(0, 4).map((action, index) => (
+                                            <p key={`${action.label}-${index}`} className="text-sm leading-6 text-blue-900">
+                                                {index + 1}. {action.label}: {action.reason}
+                                            </p>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {healthSummary.aiInsights?.intakeNotes?.length ? (
+                                <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500">Ghi chú tiếp nhận</p>
+                                    <div className="mt-2 space-y-2">
+                                        {healthSummary.aiInsights.intakeNotes.slice(0, 5).map((note, index) => (
+                                            <p key={`${note}-${index}`} className="text-sm leading-6 text-stone-700">
+                                                {index + 1}. {note}
+                                            </p>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : null}
+                            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700">Lưu ý cho ca hiện tại</p>
+                                <p className="mt-1 break-words leading-6">{healthSummary.aiInsights?.advice || healthSummary.aiInsights?.trends || 'Chưa có lưu ý nổi bật từ AI.'}</p>
+                            </div>
+                            {healthSummary.disclaimer && (
+                                <p className="text-xs italic text-stone-500">{healthSummary.disclaimer}</p>
+                            )}
+                        </div>
+                    ) : (
+                        <p className="text-sm text-stone-600">Bấm biểu tượng để hệ thống tóm tắt nhanh bệnh sử gần đây theo mẫu lâm sàng.</p>
+                    )}
+                </Modal>
+            )}
+
             {/* AI Diagnosis Modal */}
-            <Modal
-                isOpen={isAiModalOpen}
-                onClose={handleCloseAiModal}
-                title="Hỗ trợ AI chẩn đoán"
-                size="xl"
-            >
-                <AIDiagnosisPanel
-                    isModal
-                    autoAnalyzeSignal={aiAnalyzeSignal}
-                    initialResult={aiDiagnosisResult}
-                    initialSelectedDiagnosis={selectedAiDiagnosis}
-                    hideNarrativeInput
-                    externalNarrative={subjective}
-                    petId={petInfo.id}
-                    bookingId={bookingId || undefined}
-                    species={petInfo.species}
-                    breed={petInfo.breed}
-                    ageMonths={estimateAgeMonths()}
-                    weightKg={getNormalizedWeightKg()}
-                    allergies={allergies.split(',').map((item) => item.trim()).filter(Boolean)}
-                    subjective={subjective}
-                    objective={objective}
-                    assessment={assessment}
-                    plan={plan}
-                    imageUrls={images.map((img) => img.url).filter(Boolean)}
-                    pendingImageUrls={pendingImages.map((item) => item.previewUrl)}
-                    onPendingImageDescriptionsChange={handlePendingImageDescriptionsChange}
-                    onDiagnosisResult={(result) => {
-                        setAiDiagnosisResult(result)
-                        if (!result) setSelectedAiDiagnosis(null)
-                    }}
-                    onSelectDiagnosis={handleSelectAiDiagnosis}
-                    onLoadingChange={setIsAiAnalyzing}
-                />
-            </Modal>
+            {isVipClinic && (
+                <Modal
+                    isOpen={isAiModalOpen}
+                    onClose={handleCloseAiModal}
+                    title="Hỗ trợ AI chẩn đoán"
+                    size="xl"
+                >
+                    <AIDiagnosisPanel
+                        isModal
+                        autoAnalyzeSignal={aiAnalyzeSignal}
+                        initialResult={aiDiagnosisResult}
+                        initialSelectedDiagnosis={selectedAiDiagnosis}
+                        hideNarrativeInput
+                        externalNarrative={subjective}
+                        petId={petInfo.id}
+                        bookingId={bookingId || undefined}
+                        species={petInfo.species}
+                        breed={petInfo.breed}
+                        ageMonths={estimateAgeMonths()}
+                        weightKg={getNormalizedWeightKg()}
+                        allergies={allergies.split(',').map((item) => item.trim()).filter(Boolean)}
+                        subjective={subjective}
+                        objective={objective}
+                        assessment={assessment}
+                        plan={plan}
+                        imageUrls={images.map((img) => img.url).filter(Boolean)}
+                        pendingImageUrls={pendingImages.map((item) => item.previewUrl)}
+                        onPendingImageDescriptionsChange={handlePendingImageDescriptionsChange}
+                        onDiagnosisResult={(result) => {
+                            setAiDiagnosisResult(result)
+                            if (!result) setSelectedAiDiagnosis(null)
+                        }}
+                        onSelectDiagnosis={handleSelectAiDiagnosis}
+                        onLoadingChange={setIsAiAnalyzing}
+                    />
+                </Modal>
+            )}
         </div>
     )
 }

@@ -49,6 +49,17 @@ def build_final_answer_from_tool_result(
             data,
         )
 
+    # Khi đã có UI schema, không auto-final bằng JSON text từ tool.
+    # Trả None để LLM tự tạo câu trả lời tiếng Việt tự nhiên.
+    if tool_name and tool_name.strip().lower() in {
+        "generate_clinic_services",
+        "list_clinic_services",
+        "get_clinic_today_summary",
+        "get_clinic_metrics",
+    }:
+        if isinstance(data, dict) and data:
+            return None
+
     return None
 
 

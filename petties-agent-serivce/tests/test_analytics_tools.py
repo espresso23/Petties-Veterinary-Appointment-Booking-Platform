@@ -32,10 +32,6 @@ async def test_analyze_revenue_trends_success(mock_context, mock_backend_client)
             return_value=mock_context,
         ),
         patch(
-            "app.core.tools.mcp_tools.analytics_tools.require_tool_runtime_context",
-            return_value=mock_context,
-        ),
-        patch(
             "app.core.tools.mcp_tools.analytics_tools.get_backend_client",
             return_value=mock_backend_client,
         ),
@@ -93,10 +89,6 @@ async def test_get_clinic_metrics_success(mock_context, mock_backend_client):
             return_value=mock_context,
         ),
         patch(
-            "app.core.tools.mcp_tools.analytics_tools.require_tool_runtime_context",
-            return_value=mock_context,
-        ),
-        patch(
             "app.core.tools.mcp_tools.analytics_tools.get_backend_client",
             return_value=mock_backend_client,
         ),
@@ -127,10 +119,6 @@ async def test_get_clinic_metrics_backend_error(mock_context, mock_backend_clien
     with (
         patch(
             "app.core.tools.mcp_tools.analytics_tools.get_tool_runtime_context",
-            return_value=mock_context,
-        ),
-        patch(
-            "app.core.tools.mcp_tools.analytics_tools.require_tool_runtime_context",
             return_value=mock_context,
         ),
         patch(

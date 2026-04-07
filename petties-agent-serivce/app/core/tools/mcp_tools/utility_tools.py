@@ -10,6 +10,7 @@ from loguru import logger
 from app.core.agents.booking_context import resolve_booking_datetime_inputs
 from app.core.agents.text_utils import normalize_vietnamese_text
 from app.core.tool_runtime_context import require_tool_runtime_context
+from app.core.tools.auth_deps import AuthenticationRequiredError, _require_auth_token
 from app.core.tools.contracts import (
     build_tool_error_response,
     build_tool_success_response,
@@ -180,6 +181,16 @@ async def resolve_date_time(
     description="Lấy runtime context hiện tại của phiên chat để hỗ trợ booking flow mà không phải đoán user/session metadata.",
 )
 async def resolve_booking_context() -> Dict[str, Any]:
+    try:
+        _require_auth_token()
+    except AuthenticationRequiredError as exc:
+        return build_tool_error_response(
+            error_code="UNAUTHORIZED",
+            message=str(exc),
+            recoverable=True,
+            suggestion="Vui long dang nhap lai roi thu lai.",
+        )
+
     try:
         ctx = require_tool_runtime_context()
         booking_state = ctx.booking_state or None

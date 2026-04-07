@@ -98,7 +98,7 @@ describe('Staff VIP Display Logic', () => {
         expect(screen.getByText(/GÓI CHUYÊN NGHIỆP/i)).toBeInTheDocument()
     })
 
-    it('TC-FRONT-VIP-002: Should NOT show VIP and LOCK AI for Non-VIP Staff', () => {
+    it('TC-FRONT-VIP-002: Should NOT show VIP badge for Non-VIP Staff', () => {
         mockMembership.isVIP.mockReturnValue(false)
 
         render(
@@ -109,10 +109,7 @@ describe('Staff VIP Display Logic', () => {
 
         // VIP badge should not exist
         expect(screen.queryByText(/VIP/i)).not.toBeInTheDocument()
-
-        // AI Sidebar should be locked with subscription guard
-        expect(screen.getByText(/Tính năng Trợ lý AI/i)).toBeInTheDocument()
-        expect(screen.getByText(/Gói Hội Viên/i)).toBeInTheDocument()
+        expect(screen.queryByText(/GÓI CHUYÊN NGHIỆP/i)).not.toBeInTheDocument()
     })
 
     it('TC-FRONT-VIP-003: Clinic Manager should NEVER see VIP badge', () => {

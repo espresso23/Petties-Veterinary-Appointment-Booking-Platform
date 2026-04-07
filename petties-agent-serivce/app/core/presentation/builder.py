@@ -28,6 +28,8 @@ INTENT_MAP: Dict[str, str] = {
     "update_service_info": "show_service_update_preview",
     "check_available_slots": "show_available_slots",
     "create_booking_for_user": "show_booking_summary",
+    "sync_booking_draft": "show_booking_summary",
+    "get_booking_session_info": "show_booking_summary",
     "start_booking_session": "show_booking_summary",
     "get_booking_session": "show_booking_summary",
     "update_booking_draft": "show_booking_summary",
@@ -35,11 +37,13 @@ INTENT_MAP: Dict[str, str] = {
     "resume_booking_session": "show_booking_summary",
     "get_patient_summary": "show_emr_summary",
     "check_vaccination_status": "show_vaccination_status",
-    "quick_booking_search": "show_quick_booking",
+    "web_search": "show_web_search_results",
 }
 
 BOOKING_SUMMARY_TOOLS = {
     "create_booking_for_user",
+    "sync_booking_draft",
+    "get_booking_session_info",
     "start_booking_session",
     "get_booking_session",
     "update_booking_draft",
@@ -69,6 +73,27 @@ def _normalize_list(values: Any) -> List[str]:
     return [str(value).strip() for value in (values or []) if str(value).strip()]
 
 
+def _resolve_clinic_id(clinic: Dict[str, Any]) -> str:
+    if not isinstance(clinic, dict):
+        return ""
+    for key in ("id", "clinic_id", "clinicId"):
+        value = clinic.get(key)
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return ""
+
+
+def _with_normalized_clinic_id(clinic: Dict[str, Any]) -> Dict[str, Any]:
+    normalized = dict(clinic or {})
+    clinic_id = _resolve_clinic_id(normalized)
+    if clinic_id:
+        normalized["id"] = clinic_id
+    return normalized
+
+
 def _is_empty_result(data: Dict[str, Any]) -> bool:
     if not data:
         return True
@@ -78,6 +103,8 @@ def _is_empty_result(data: Dict[str, Any]) -> bool:
         "pets",
         "clinics",
         "services",
+        "results",
+        "images",
         "available_slots",
         "history",
         "upcoming",
@@ -96,6 +123,8 @@ def _is_empty_result(data: Dict[str, Any]) -> bool:
         "pets",
         "clinics",
         "services",
+        "results",
+        "images",
         "available_slots",
         "history",
         "upcoming",
@@ -392,6 +421,11 @@ def _build_service_create_confirm_action(service: Dict[str, Any]) -> UIAction:
                     "is_home_visit": service.get("isHomeVisit", False),
                     "service_category": service.get("serviceCategory"),
                     "pet_type": service.get("petType"),
+                    "reminder_interval": service.get("reminderInterval"),
+                    "reminder_unit": service.get("reminderUnit"),
+                    "weight_prices": service.get("weightPrices") or [],
+                    "vaccine_template_id": service.get("vaccineTemplateId"),
+                    "dose_prices": service.get("dosePrices") or [],
                 },
                 "display_message": f"Xác nhận lưu dịch vụ {service_name}",
             },
@@ -399,11 +433,73 @@ def _build_service_create_confirm_action(service: Dict[str, Any]) -> UIAction:
     )
 
 
+def _build_service_update_confirm_action_from_suggestion(
+    suggestion: Dict[str, Any],
+) -> Optional[UIAction]:
+    service_id = str(suggestion.get("service_id") or "").strip()
+    proposed_updates = suggestion.get("proposed_updates") or {}
+    if not service_id or not isinstance(proposed_updates, dict) or not proposed_updates:
+        return None
+
+    service_name = str(
+        suggestion.get("service_name")
+        or suggestion.get("display_name")
+        or suggestion.get("name")
+        or "dịch vụ"
+    ).strip()
+
+    update_payload: Dict[str, Any] = {
+        "service_id": service_id,
+        "service_name": service_name,
+    }
+    for field_key, value in proposed_updates.items():
+        if value is None:
+            continue
+        update_payload[str(field_key)] = value
+
+    change_count = len([k for k in update_payload.keys() if k not in {"service_id", "service_name"}])
+    if change_count <= 0:
+        return None
+
+    return UIAction(
+        type=ActionType.OPEN_NATIVE_CONFIRM,
+        label="Áp dụng đề xuất",
+        payload={
+            "title": f"Cập nhật {service_name}",
+            "message": (
+                f"Bạn có chắc muốn áp dụng {change_count} thay đổi đề xuất cho '{service_name}' không?"
+            ),
+            "confirm_label": "Áp dụng",
+            "cancel_label": "Hủy",
+            "confirm_action": {
+                "type": ActionType.CONFIRM_SERVICE_UPDATE.value,
+                "label": "Áp dụng",
+                "payload": update_payload,
+                "display_message": f"Xác nhận áp dụng đề xuất cho dịch vụ {service_name}",
+            },
+        },
+    )
+
+
+def _build_service_suggestion_action(service: Dict[str, Any]) -> UIAction:
+    recommended_action = str(service.get("recommended_action") or "").strip().lower()
+    if recommended_action == "update":
+        update_action = _build_service_update_confirm_action_from_suggestion(service)
+        if update_action is not None:
+            return update_action
+    return _build_service_create_confirm_action(service)
+
+
 def _build_service_batch_create_component(
     suggestions: List[Dict[str, Any]],
 ) -> Optional[UIComponent]:
     valid_suggestions = [
-        item for item in suggestions if isinstance(item, dict) and item.get("name")
+        item
+        for item in suggestions
+        if isinstance(item, dict)
+        and item.get("name")
+        and str(item.get("recommended_action") or "create").strip().lower()
+        != "update"
     ]
     if not valid_suggestions:
         return None
@@ -454,6 +550,7 @@ def _build_service_update_confirm_action(data: Dict[str, Any]) -> UIAction:
                 "payload": {
                     "service_id": data.get("service_id"),
                     "service_name": data.get("service_name"),
+                    "name": (changes.get("name") or {}).get("new"),
                     "base_price": (changes.get("basePrice") or {}).get("new"),
                     "description": (changes.get("description") or {}).get("new"),
                     "is_active": (changes.get("isActive") or {}).get("new"),
@@ -464,6 +561,11 @@ def _build_service_update_confirm_action(data: Dict[str, Any]) -> UIAction:
                         "new"
                     ),
                     "pet_type": (changes.get("petType") or {}).get("new"),
+                    "reminder_interval": (changes.get("reminderInterval") or {}).get("new"),
+                    "reminder_unit": (changes.get("reminderUnit") or {}).get("new"),
+                    "weight_prices": (changes.get("weightPrices") or {}).get("new"),
+                    "vaccine_template_id": (changes.get("vaccineTemplateId") or {}).get("new"),
+                    "dose_prices": (changes.get("dosePrices") or {}).get("new"),
                 },
                 "display_message": f"Xác nhận cập nhật dịch vụ {service_name}",
             },
@@ -493,14 +595,26 @@ def _build_clinic_service_suggestion_components(
                 id=f"clinic_service_suggestion_{service_id}",
                 data={
                     "name": suggestion.get("display_name") or suggestion.get("name"),
-                    "description": suggestion.get("description"),
+                    "description": suggestion.get("description")
+                    or (
+                        "Đề xuất cập nhật: "
+                        + ", ".join(suggestion.get("change_summary") or [])
+                        if suggestion.get("recommended_action") == "update"
+                        else None
+                    ),
                     "base_price": suggestion.get("basePrice"),
                     "duration_time": suggestion.get("durationTime"),
+                    "slots_required": suggestion.get("slotsRequired"),
                     "service_category": suggestion.get("serviceCategory"),
                     "pet_type": suggestion.get("petType"),
+                    "is_home_visit": suggestion.get("isHomeVisit"),
+                    "weight_prices": suggestion.get("weightPrices") or [],
+                    "dose_prices": suggestion.get("dosePrices") or [],
+                    "service_id": suggestion.get("service_id"),
+                    "recommended_action": suggestion.get("recommended_action") or "create",
                     "selected": False,
                 },
-                actions=[_build_service_create_confirm_action(suggestion)],
+                actions=[_build_service_suggestion_action(suggestion)],
             )
         )
 
@@ -524,8 +638,12 @@ def _build_clinic_service_catalog_components(data: Dict[str, Any]) -> List[UICom
                     "description": service.get("description"),
                     "base_price": service.get("base_price"),
                     "duration_time": service.get("duration_time"),
+                    "slots_required": service.get("slots_required"),
                     "service_category": service.get("service_category"),
                     "pet_type": service.get("pet_type"),
+                    "is_home_visit": service.get("is_home_visit"),
+                    "weight_prices": service.get("weight_prices") or [],
+                    "dose_prices": service.get("dose_prices") or [],
                     "selected": bool(service.get("is_active", True)),
                 },
                 actions=None,
@@ -554,8 +672,12 @@ def _build_service_update_preview_components(data: Dict[str, Any]) -> List[UICom
                 "description": summary,
                 "base_price": (changes.get("basePrice") or {}).get("new"),
                 "duration_time": (changes.get("durationTime") or {}).get("new"),
+                "slots_required": (changes.get("slotsRequired") or {}).get("new"),
                 "service_category": (changes.get("serviceCategory") or {}).get("new"),
                 "pet_type": (changes.get("petType") or {}).get("new"),
+                "is_home_visit": (changes.get("isHomeVisit") or {}).get("new"),
+                "weight_prices": (changes.get("weightPrices") or {}).get("new"),
+                "dose_prices": (changes.get("dosePrices") or {}).get("new"),
                 "selected": True,
             },
             actions=[_build_service_update_confirm_action(data)],
@@ -749,6 +871,8 @@ def _build_quick_booking_components(data: Dict[str, Any]) -> List[UIComponent]:
 
     for idx, clinic_data in enumerate(clinics_with_slots):
         clinic = clinic_data.get("clinic", {})
+        clinic = _with_normalized_clinic_id(clinic)
+        clinic_id = _resolve_clinic_id(clinic)
         services = clinic_data.get("services", [])
         slots = clinic_data.get("slots", [])
         available_date = clinic_data.get("available_date")
@@ -769,7 +893,7 @@ def _build_quick_booking_components(data: Dict[str, Any]) -> List[UIComponent]:
                         type=ActionType.SELECT_ITEM,
                         label="Chọn phòng khám này",
                         payload={
-                            "item_id": clinic.get("id"),
+                            "item_id": clinic_id,
                             "item_type": "clinic",
                             "source": "quick_booking",
                         },
@@ -781,7 +905,7 @@ def _build_quick_booking_components(data: Dict[str, Any]) -> List[UIComponent]:
         if services:
             for s_idx, service in enumerate(services):
                 service_data = dict(service)
-                service_data["clinic_id"] = clinic.get("id")
+                service_data["clinic_id"] = clinic_id
                 service_data["clinic_name"] = clinic.get("name")
                 service_data["available_date"] = available_date
                 service_data["available_slots"] = slots
@@ -798,7 +922,7 @@ def _build_quick_booking_components(data: Dict[str, Any]) -> List[UIComponent]:
                                 payload={
                                     "service_id": service.get("id"),
                                     "service_name": service.get("name"),
-                                    "clinic_id": clinic.get("id"),
+                                    "clinic_id": clinic_id,
                                     "clinic_name": clinic.get("name"),
                                     "available_date": available_date,
                                     "slots": slots,
@@ -812,7 +936,7 @@ def _build_quick_booking_components(data: Dict[str, Any]) -> List[UIComponent]:
         if slots:
             for s_idx, slot in enumerate(slots):
                 slot_data = dict(slot)
-                slot_data["clinic_id"] = clinic.get("id")
+                slot_data["clinic_id"] = clinic_id
                 slot_data["clinic_name"] = clinic.get("name")
                 slot_data["service_ids"] = [s.get("id") for s in services]
                 slot_data["service_names"] = [s.get("name") for s in services]
@@ -822,7 +946,7 @@ def _build_quick_booking_components(data: Dict[str, Any]) -> List[UIComponent]:
                 components.append(
                     UIComponent(
                         type=ComponentType.SLOT_BUTTON,
-                        id=f"quick_slot_{clinic.get('id')}_{slot.get('date')}_{s_idx}",
+                        id=f"quick_slot_{clinic_id}_{slot.get('date')}_{s_idx}",
                         data=slot_data,
                         actions=[
                             UIAction(
@@ -832,7 +956,7 @@ def _build_quick_booking_components(data: Dict[str, Any]) -> List[UIComponent]:
                                     "slot_date": slot.get("date"),
                                     "slot_time": slot.get("startTime")
                                     or slot.get("time"),
-                                    "clinic_id": clinic.get("id"),
+                                    "clinic_id": clinic_id,
                                     "clinic_name": clinic.get("name"),
                                     "service_ids": [s.get("id") for s in services],
                                     "service_names": [s.get("name") for s in services],
@@ -852,6 +976,134 @@ def _build_quick_booking_components(data: Dict[str, Any]) -> List[UIComponent]:
             },
         )
     )
+
+    return components
+
+
+def _build_web_search_components(data: Dict[str, Any]) -> List[UIComponent]:
+    results = data.get("results") or []
+    images = data.get("images") or []
+    query = str(data.get("query") or "").strip()
+    answer = str(data.get("answer") or data.get("message") or "").strip()
+    follow_up_questions = _normalize_list(
+        data.get("follow_up_questions") or data.get("followUpQuestions")
+    )
+
+    normalized_results: List[Dict[str, Any]] = []
+    for idx, item in enumerate(results):
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title") or item.get("name") or "Nguồn tham khảo").strip()
+        snippet = str(item.get("snippet") or item.get("content") or "").strip()
+        url = str(item.get("url") or item.get("source") or "").strip()
+        source = str(item.get("source") or url).strip()
+        normalized_results.append(
+            {
+                "rank": idx + 1,
+                "title": title,
+                "snippet": snippet,
+                "url": url,
+                "source": source,
+                "score": item.get("score"),
+            }
+        )
+
+    normalized_images: List[Dict[str, Any]] = []
+    for item in images:
+        if isinstance(item, str):
+            url = item.strip()
+            if not url:
+                continue
+            normalized_images.append(
+                {
+                    "url": url,
+                    "title": "",
+                    "description": "",
+                }
+            )
+            continue
+
+        if not isinstance(item, dict):
+            continue
+
+        url = str(item.get("url") or "").strip()
+        if not url:
+            continue
+
+        normalized_images.append(
+            {
+                "url": url,
+                "title": str(item.get("title") or "").strip(),
+                "description": str(item.get("description") or "").strip(),
+            }
+        )
+
+    normalized_images = normalized_images[:6]
+
+    sources_used = data.get("sources_used")
+    source_count = (
+        int(sources_used)
+        if isinstance(sources_used, int)
+        else len(normalized_results)
+    )
+
+    summary_parts: List[str] = []
+    if query:
+        summary_parts.append(f"Chủ đề tìm kiếm: {query}")
+    if source_count > 0:
+        summary_parts.append(f"Đã tổng hợp từ {source_count} nguồn tham khảo.")
+    if follow_up_questions:
+        summary_parts.append("Bạn có thể chọn câu hỏi gợi ý để đào sâu thêm.")
+
+    summary_content = "\n\n".join(part for part in summary_parts if part.strip())
+    if not summary_content:
+        summary_content = "Mình đã tìm thông tin từ web nhưng chưa đủ dữ liệu để tổng hợp rõ ràng."
+
+    components: List[UIComponent] = [
+        UIComponent(
+            type=ComponentType.TEXT,
+            id="web_search_summary",
+            data={
+                "content": summary_content,
+                "query": query,
+                "answer": answer,
+                "follow_up_questions": follow_up_questions,
+            },
+        )
+    ]
+
+    for idx, result in enumerate(normalized_results):
+        actions = None
+        if result.get("url"):
+            actions = [
+                UIAction(
+                    type=ActionType.OPEN_DETAIL,
+                    label="Mở nguồn",
+                    payload={"url": result.get("url")},
+                )
+            ]
+
+        components.append(
+            UIComponent(
+                type=ComponentType.WEB_RESULT_CARD,
+                id=f"web_result_{idx}",
+                data=result,
+                actions=actions,
+            )
+        )
+
+    if normalized_images:
+        components.append(
+            UIComponent(
+                type=ComponentType.IMAGE_GALLERY,
+                id="web_search_images",
+                data={
+                    "title": "Hình ảnh minh họa",
+                    "images": normalized_images,
+                },
+                actions=None,
+            )
+        )
 
     return components
 
@@ -882,22 +1134,40 @@ def _build_components_for_intent(
             )
 
     elif intent == "show_clinic_list":
-        for idx, clinic in enumerate(data.get("clinics", [])):
+        matched_clinic = (
+            data.get("matched_clinic")
+            if isinstance(data.get("matched_clinic"), dict)
+            else None
+        )
+        clinics_source = data.get("clinics", [])
+        if matched_clinic and str(data.get("target_clinic_id") or "").strip():
+            clinics_source = [matched_clinic]
+        for idx, clinic in enumerate(clinics_source):
+            if not isinstance(clinic, dict):
+                continue
+            clinic = _with_normalized_clinic_id(clinic)
+            clinic_id = _resolve_clinic_id(clinic)
+            actions = None
+            if clinic_id and not (
+                matched_clinic
+                and str(data.get("target_clinic_id") or "").strip()
+            ):
+                actions = [
+                    UIAction(
+                        type=ActionType.SELECT_ITEM,
+                        label="Chọn",
+                        payload={
+                            "item_id": clinic_id,
+                            "item_type": "clinic",
+                        },
+                    )
+                ]
             components.append(
                 UIComponent(
                     type=ComponentType.CLINIC_CARD,
                     id=f"clinic_{clinic.get('id', idx)}",
                     data=clinic,
-                    actions=[
-                        UIAction(
-                            type=ActionType.SELECT_ITEM,
-                            label="Chọn",
-                            payload={
-                                "item_id": clinic.get("id"),
-                                "item_type": "clinic",
-                            },
-                        )
-                    ],
+                    actions=actions,
                 )
             )
 
@@ -942,6 +1212,9 @@ def _build_components_for_intent(
     elif intent == "show_quick_booking":
         components.extend(_build_quick_booking_components(data))
 
+    elif intent == "show_web_search_results":
+        components.extend(_build_web_search_components(data))
+
     elif intent == "show_text":
         content = (
             data.get("message")
@@ -959,6 +1232,85 @@ def _build_components_for_intent(
     return components
 
 
+def _has_successful_service_context(tool_results: List[Dict[str, Any]]) -> bool:
+    for tool_result in tool_results:
+        if str(tool_result.get("tool_name") or "") != "get_clinic_services":
+            continue
+        if not tool_result.get("success", True):
+            continue
+        payload = tool_result.get("data", tool_result)
+        if not isinstance(payload, dict):
+            continue
+        services = payload.get("services")
+        total_services = payload.get("total_services")
+        if isinstance(services, list) and len(services) > 0:
+            return True
+        if isinstance(total_services, int) and total_services > 0:
+            return True
+    return False
+
+
+def _should_skip_redundant_clinic_list(
+    tool_name: str,
+    data: Dict[str, Any],
+    *,
+    has_successful_service_context: bool,
+) -> bool:
+    if not has_successful_service_context:
+        return False
+
+    if tool_name not in {"get_my_clinics", "search_clinics_nearby"}:
+        return False
+
+    clinics = data.get("clinics")
+    if not isinstance(clinics, list) or len(clinics) == 0:
+        return False
+
+    if bool(data.get("needs_clarification")):
+        return False
+
+    matched_clinic = data.get("matched_clinic")
+    resolved_clinic = data.get("resolved_clinic")
+
+    if isinstance(matched_clinic, dict):
+        clinic_id = _resolve_clinic_id(matched_clinic)
+        clinic_name = str(
+            matched_clinic.get("name")
+            or matched_clinic.get("clinic_name")
+            or ""
+        ).strip()
+        if clinic_id and clinic_name:
+            return True
+
+    if isinstance(resolved_clinic, dict):
+        clinic_id = _resolve_clinic_id(resolved_clinic)
+        clinic_name = str(
+            resolved_clinic.get("name")
+            or resolved_clinic.get("clinic_name")
+            or ""
+        ).strip()
+        if clinic_id and clinic_name:
+            return True
+
+    target_clinic_id = str(data.get("target_clinic_id") or "").strip()
+    if not target_clinic_id:
+        return False
+
+    for clinic in clinics:
+        if not isinstance(clinic, dict):
+            continue
+        clinic_id = _resolve_clinic_id(clinic)
+        if clinic_id != target_clinic_id:
+            continue
+        clinic_name = str(
+            clinic.get("name") or clinic.get("clinic_name") or ""
+        ).strip()
+        if clinic_name:
+            return True
+
+    return False
+
+
 def build_ui_schema(tool_results: List[Dict[str, Any]]) -> Optional[UISchemaV1]:
     """Builds a composite UISchemaV1 from tool results in one agent turn."""
     if not tool_results:
@@ -967,6 +1319,7 @@ def build_ui_schema(tool_results: List[Dict[str, Any]]) -> Optional[UISchemaV1]:
     all_components: List[UIComponent] = []
     is_composite = len(tool_results) > 1
     final_layout = LayoutType.LIST
+    has_successful_service_context = _has_successful_service_context(tool_results)
 
     for index, tool_result in enumerate(tool_results):
         tool_name = str(tool_result.get("tool_name", "") or "")
@@ -976,6 +1329,17 @@ def build_ui_schema(tool_results: List[Dict[str, Any]]) -> Optional[UISchemaV1]:
             if success
             else tool_result.get("error", tool_result)
         )
+
+        if (
+            success
+            and isinstance(data, dict)
+            and _should_skip_redundant_clinic_list(
+                tool_name,
+                data,
+                has_successful_service_context=has_successful_service_context,
+            )
+        ):
+            continue
 
         std_result: Dict[str, Any] = {"success": success, "data": data}
         if not success and isinstance(data, dict):
@@ -1028,6 +1392,7 @@ def build_ui_schema(tool_results: List[Dict[str, Any]]) -> Optional[UISchemaV1]:
                 "show_emr_summary",
                 "show_vaccination_status",
                 "show_service_update_preview",
+                "show_web_search_results",
             ):
                 final_layout = LayoutType.CARD
 

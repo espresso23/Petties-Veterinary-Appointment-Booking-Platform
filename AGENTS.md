@@ -115,7 +115,7 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 - Single Agent: LangGraph với ReAct pattern (Thought -> Action -> Observation)
 - Config: DB-based dynamic configuration (prompt, parameters, tools)
 - Tools: FastMCP với @mcp.tool decorator
-  - `pet_knowledge_search` - Tra cứu cẩm nang/kiến thức thú y (Hybrid: RAG + Knowledge Graph + Case Memory)
+  - `pet_knowledge_search` - Tra cứu cẩm nang/kiến thức thú y (Hybrid: RAG + Case Memory)
   - `web_search` - Tìm thêm nguồn web khi knowledge base chưa đủ
   - `get_user_pets` - Lấy danh sách thú cưng của user để tư vấn/đặt lịch đúng
   - `search_clinics_nearby` - Tìm phòng khám gần vị trí
@@ -495,7 +495,7 @@ A skill is a set of local instructions to follow that is stored in a `SKILL.md` 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **petties** (14641 symbols, 37615 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **petties** (13525 symbols, 36133 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

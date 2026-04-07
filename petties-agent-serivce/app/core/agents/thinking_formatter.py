@@ -149,18 +149,30 @@ def summarize_observation(observation: str, max_length: int = 150) -> str:
     Returns:
         Summarized observation
     """
-    if not observation:
+    if not observation or str(observation).strip() == "":
         return ""
 
-    obs = observation.strip()
+    obs = str(observation).strip()
+    compact = re.sub(r"\s+", " ", obs)
+    if compact.startswith("{") or compact.startswith("["):
+        return ""
+    if re.search(r'"[A-Za-z0-9_\-]+"\s*:', compact):
+        return ""
 
     # If it's JSON-like, extract key fields
     if "{" in obs or "[" in obs:
-        # Try to extract meaningful parts
-        # This is a simple heuristic - could be improved
-        obs = re.sub(r"\{[^{}]*\}", "", obs)  # Remove JSON objects
-        obs = re.sub(r"\[[^\]]*\]", "", obs)  # Remove JSON arrays
-        obs = obs.strip()
+        for _ in range(4):
+            obs = re.sub(r"\{[^{}\n]{0,1000}\}", " ", obs)
+            obs = re.sub(r"\[[^\[\]\n]{0,1000}\]", " ", obs)
+        obs = re.sub(r'"[A-Za-z0-9_\-]+"\s*:\s*"[^\"]*"', " ", obs)
+        obs = re.sub(r'"[A-Za-z0-9_\-]+"\s*:\s*[^,}\]]+', " ", obs)
+
+    if "{" in obs or "[" in obs or re.search(r'"[A-Za-z0-9_\-]+"\s*:', obs):
+        return ""
+
+    obs = re.sub(r"\s+", " ", obs).strip(" .,:;-")
+    if not obs:
+        return ""
 
     # Take first few sentences
     sentences = re.split(r"[.!?]", obs)
@@ -298,8 +310,13 @@ def chunk_for_streaming(text: str, chunk_size: int = 20) -> List[str]:
         # Random-ish chunk size between chunk_size/2 and chunk_size
         import random
 
-        size = random.randint(max(1, chunk_size // 2), chunk_size)
-        chunks.append(text[i : i + size])
+        if not observation or observation.strip() == "":
+            return ""
+        compact = observation.strip()
+        if compact.startswith("{") or compact.startswith("["):
+            return ""
+        if re.search(r'"[A-Za-z0-9_\-]+"\s*:', compact):
+            return ""
         i += size
 
     return chunks

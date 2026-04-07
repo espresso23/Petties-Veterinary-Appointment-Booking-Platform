@@ -96,7 +96,6 @@ def test_build_fast_pet_care_tool_call_returns_pet_knowledge_search():
     assert tool_call is not None
     assert tool_call["name"] == "pet_knowledge_search"
     assert tool_call["arguments"]["pet_type"] == "dog"
-    assert tool_call["arguments"]["enable_kg"] is False
     assert tool_call["arguments"]["enable_case_memory"] is False
     assert tool_call["arguments"]["enable_query_expansion"] is False
 

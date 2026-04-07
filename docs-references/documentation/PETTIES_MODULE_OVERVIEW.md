@@ -48,10 +48,9 @@
 | 08 | **WebSocket Chat** | Real-time streaming responses | ✅ Done |
 | 09 | **AI Vision Analysis** | Image-based pet health analysis & alerts | ✅ In Scope |
 | 10 | **Query Expander** | LLM-based short query expansion trước khi search RAG | ✅ Done |
-| 11 | **Knowledge Graph** | LlamaIndex KGIndex + SimpleGraphStore, trích xuất quan hệ từ tài liệu | ✅ Done |
 | 12 | **Case Memory** | Confirmed case storage trong Qdrant với quality-gated re-ranking và disease support metrics | ✅ Done |
 | 13 | **Feedback Service** | Thu thập feedback, auto-classify, auto-embed positive cases | ✅ Done |
-| 14 | **Hybrid RAG Engine** | Tổng hợp RAG + KG + Case Memory với parallel search | ✅ Done |
+| 14 | **Hybrid RAG Engine** | Tổng hợp RAG + Case Memory với parallel search | ✅ Done |
 
 ---
 
@@ -199,7 +198,7 @@
 
 **Document Version:** 1.7.0
 **Last Updated:** 2026-03-11
-**Change Note:** Added 5 AI Service modules (Query Expander, Knowledge Graph, Case Memory, Feedback Service, Hybrid RAG Engine)
+**Change Note:** Added 4 AI Service modules (Query Expander, Case Memory, Feedback Service, Hybrid RAG Engine)
 **Prepared by:** Petties Development Team
 **References:**
 - `PETTIES_Features.md` - Feature specifications

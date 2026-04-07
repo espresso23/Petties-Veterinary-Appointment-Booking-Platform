@@ -83,6 +83,105 @@ class ClinicToolsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(suggestion["slotsRequired"], 1)
         self.assertEqual(suggestion["serviceCategory"], "HEALTHCARE")
 
+    async def test_tc_unit_005_001b_generate_clinic_services_recommends_updates_for_existing_only(
+        self,
+    ):
+        client = AsyncMock()
+        client.get_master_services.return_value = [
+            {
+                "masterServiceId": "ms-1",
+                "name": "Khám tổng quát",
+                "description": "Khám sức khỏe tổng quát chuẩn",
+                "defaultPrice": 180000,
+                "durationTime": 35,
+                "slotsRequired": 2,
+                "serviceCategory": "HEALTHCARE",
+                "petType": "DOG",
+            }
+        ]
+        client.get_my_clinic_services.return_value = [
+            {
+                "serviceId": "svc-1",
+                "masterServiceId": "ms-1",
+                "name": "Khám tổng quát",
+                "description": "Khám định kỳ",
+                "basePrice": 150000,
+                "durationTime": 30,
+                "slotsRequired": 1,
+                "serviceCategory": "HEALTHCARE",
+                "petType": "DOG",
+                "isHomeVisit": False,
+            }
+        ]
+
+        with patch(
+            "app.core.tools.mcp_tools.clinic_tools.get_backend_client",
+            return_value=client,
+        ):
+            result = await generate_clinic_services(
+                pet_types=["DOG"], service_scope=["HEALTHCARE"]
+            )
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["data"]["recommendation_mode"], "update_existing_only")
+        self.assertEqual(result["data"]["update_suggestions"], 1)
+        self.assertEqual(result["data"]["create_suggestions"], 0)
+        suggestion = result["data"]["suggestions"][0]
+        self.assertEqual(suggestion["recommended_action"], "update")
+        self.assertEqual(suggestion["service_id"], "svc-1")
+        self.assertEqual(suggestion["proposed_updates"]["base_price"], 180000)
+        self.assertEqual(suggestion["proposed_updates"]["duration_time"], 35)
+        self.assertEqual(suggestion["proposed_updates"]["slots_required"], 2)
+
+    async def test_tc_unit_005_001c_generate_clinic_services_prefers_missing_categories(
+        self,
+    ):
+        client = AsyncMock()
+        client.get_master_services.return_value = [
+            {
+                "id": "ms-1",
+                "name": "Khám tổng quát",
+                "defaultPrice": 150000,
+                "durationTime": 30,
+                "slotsRequired": 1,
+                "serviceCategory": "HEALTHCARE",
+                "petType": "DOG",
+            },
+            {
+                "id": "ms-2",
+                "name": "Spa chó",
+                "defaultPrice": 200000,
+                "durationTime": 40,
+                "slotsRequired": 1,
+                "serviceCategory": "GROOMING_SPA",
+                "petType": "DOG",
+            },
+        ]
+        client.get_my_clinic_services.return_value = [
+            {
+                "serviceId": "svc-1",
+                "name": "Khám tổng quát cơ bản",
+                "basePrice": 120000,
+                "durationTime": 20,
+                "slotsRequired": 1,
+                "serviceCategory": "HEALTHCARE",
+                "petType": "DOG",
+                "isHomeVisit": False,
+            }
+        ]
+
+        with patch(
+            "app.core.tools.mcp_tools.clinic_tools.get_backend_client",
+            return_value=client,
+        ):
+            result = await generate_clinic_services(pet_types=["DOG"])
+
+        self.assertTrue(result["success"])
+        self.assertGreaterEqual(result["data"]["total_suggestions"], 1)
+        top_suggestion = result["data"]["suggestions"][0]
+        self.assertEqual(top_suggestion["name"], "Spa chó")
+        self.assertIn(result["data"]["recommendation_mode"], ["mixed", "create"])
+
     async def test_tc_unit_005_002_list_clinic_services_formats_summary(self):
         client = AsyncMock()
         client.get_my_clinic_services.return_value = [

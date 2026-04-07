@@ -1,7 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '../../components/Toast'
-import { chatApi, createChatWebSocket, feedbackApi, type ChatContextType, type ChatSessionMessage, type ChatSessionSummary } from '../../services/agentService'
+import {
+  chatApi,
+  createChatWebSocket,
+  feedbackApi,
+  type ChatContextType,
+  type ChatSessionMessage,
+  type ChatSessionSummary,
+} from '../../services/agentService'
 import { ChatMessage } from '../../components/admin/ChatMessage'
 import { ConfirmModal } from '../../components/ConfirmModal'
 import {
@@ -10,6 +17,9 @@ import {
   TrashIcon,
   SparklesIcon,
   ComputerDesktopIcon,
+  ChartBarIcon,
+  CalendarIcon,
+  ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline'
 import type { UIAction, UISchemaV1 } from '../../types/chat-copilot'
 
@@ -17,8 +27,14 @@ type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 
 const MAX_RECONNECT_ATTEMPTS = 3
 const RECONNECT_INTERVAL_MS = 2000
-const WEBSOCKET_OPEN_STATE = typeof WebSocket !== 'undefined' && typeof WebSocket.OPEN === 'number' ? WebSocket.OPEN : 1
-const WEBSOCKET_CONNECTING_STATE = typeof WebSocket !== 'undefined' && typeof WebSocket.CONNECTING === 'number' ? WebSocket.CONNECTING : 0
+const WEBSOCKET_OPEN_STATE =
+  typeof WebSocket !== 'undefined' && typeof WebSocket.OPEN === 'number'
+    ? WebSocket.OPEN
+    : 1
+const WEBSOCKET_CONNECTING_STATE =
+  typeof WebSocket !== 'undefined' && typeof WebSocket.CONNECTING === 'number'
+    ? WebSocket.CONNECTING
+    : 0
 
 interface Message {
   id: string
@@ -64,7 +80,15 @@ const looksLikeJsonPayload = (value: unknown): boolean => {
   )
 }
 
-export const ClinicOwnerAIChatPage = () => {
+/** Quick-action prompt suggestions for Clinic Manager */
+const QUICK_ACTIONS = [
+  { label: 'Lịch hôm nay', prompt: 'Cho tôi xem lịch khám hôm nay', icon: CalendarIcon },
+  { label: 'Bookings chờ', prompt: 'Danh sách bookings đang chờ xác nhận', icon: ClipboardDocumentListIcon },
+  { label: 'Doanh thu tháng', prompt: 'Phân tích doanh thu tháng này', icon: ChartBarIcon },
+  { label: 'Lịch trực', prompt: 'Lịch làm việc nhân viên tuần này', icon: CalendarIcon },
+]
+
+export const ClinicManagerAIChatPage = () => {
   const toast = useToast()
   const navigate = useNavigate()
 
@@ -87,33 +111,39 @@ export const ClinicOwnerAIChatPage = () => {
   const [streamingContent, setStreamingContent] = useState('')
   const [liveReasoning, setLiveReasoning] = useState('')
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirmAction | null>(null)
-  const [, setReactSteps] = useState<Array<{
-    step_index: number
-    step_type: 'thought' | 'action' | 'observation'
-    content?: string
-    tool_name?: string
-    tool_params?: Record<string, unknown>
-    tool_result?: unknown
-    timestamp?: string
-  }>>([])
+  const [, setReactSteps] = useState<
+    Array<{
+      step_index: number
+      step_type: 'thought' | 'action' | 'observation'
+      content?: string
+      tool_name?: string
+      tool_params?: Record<string, unknown>
+      tool_result?: unknown
+      timestamp?: string
+    }>
+  >([])
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
-  const handleApiError = useCallback((err: unknown, fallbackMessage: string) => {
-    const errorData = (err as { response?: { data?: unknown } })?.response?.data
-    let message = fallbackMessage
-    if (errorData && typeof errorData === 'object' && 'detail' in errorData) {
-      const detail = (errorData as { detail: unknown }).detail
-      message = typeof detail === 'string' ? detail : JSON.stringify(detail)
-    } else if (err instanceof Error) {
-      message = err.message
-    }
-    toast.showToast('error', message)
-  }, [toast])
+  const handleApiError = useCallback(
+    (err: unknown, fallbackMessage: string) => {
+      const errorData = (err as { response?: { data?: unknown } })?.response?.data
+      let message = fallbackMessage
+      if (errorData && typeof errorData === 'object' && 'detail' in errorData) {
+        const detail = (errorData as { detail: unknown }).detail
+        message = typeof detail === 'string' ? detail : JSON.stringify(detail)
+      } else if (err instanceof Error) {
+        message = err.message
+      }
+      toast.showToast('error', message)
+    },
+    [toast],
+  )
 
   const buildDefaultGreeting = useCallback((): Message => ({
     id: `greeting-${Date.now()}`,
     role: 'assistant',
-    content: 'Xin chào, tôi là AI Copilot của phòng khám. Tôi có thể hỗ trợ bạn tra cứu thông tin dịch vụ, lịch hẹn và các thao tác vận hành.',
+    content:
+      'Xin chào, tôi là AI Copilot cho Quản lý phòng khám. Tôi có thể hỗ trợ bạn kiểm tra lịch trực, bookings, dịch vụ và chỉ số vận hành.',
     timestamp: new Date(),
     feedback: null,
   }), [])
@@ -124,15 +154,11 @@ export const ClinicOwnerAIChatPage = () => {
     const toolCalls: Array<{ tool: string; input: unknown; output?: unknown }> = []
 
     if (!isUser && msg.react_trace) {
-      msg.react_trace.forEach(step => {
+      msg.react_trace.forEach((step) => {
         if (step.step_type === 'thought' && step.content) {
           thoughts.push(step.content)
         } else if (step.step_type === 'action' && step.tool_name) {
-          toolCalls.push({
-            tool: step.tool_name,
-            input: step.tool_params || {},
-            output: null
-          })
+          toolCalls.push({ tool: step.tool_name, input: step.tool_params || {}, output: null })
         } else if (step.step_type === 'observation' && step.tool_result) {
           if (toolCalls.length > 0) {
             toolCalls[toolCalls.length - 1].output = step.tool_result
@@ -147,7 +173,7 @@ export const ClinicOwnerAIChatPage = () => {
       content: msg.content,
       timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
       thinkingProcess: thoughts,
-      toolCalls: toolCalls,
+      toolCalls,
       feedback: null,
       uiSchema: msg.metadata?.ui_schema as UISchemaV1 | undefined,
     }
@@ -181,47 +207,49 @@ export const ClinicOwnerAIChatPage = () => {
     }
   }, [handleApiError])
 
-  const handleSelectSession = useCallback(async (sessionId: string) => {
-    try {
-      disconnectWebSocket()
+  const handleSelectSession = useCallback(
+    async (sessionId: string) => {
+      try {
+        disconnectWebSocket()
+        setStreamingContent('')
+        setSending(false)
+        setReactSteps([])
+
+        const session = await chatApi.getSession(sessionId)
+        setSessionInfo({
+          sessionId: session.session_id,
+          contextType: session.context_type,
+          createdAt: session.created_at || new Date().toISOString(),
+          userRole: session.user_role || 'CLINIC_MANAGER',
+          clinicId: session.clinic_id,
+        })
+        const historyMessages = session.messages.map(mapHistoryMessage)
+        setMessages(historyMessages.length > 0 ? historyMessages : [buildDefaultGreeting()])
+      } catch (err) {
+        handleApiError(err, 'Không thể mở cuộc chat đã chọn')
+      }
+    },
+    [buildDefaultGreeting, disconnectWebSocket, handleApiError, mapHistoryMessage],
+  )
+
+  const sendUiAction = useCallback(
+    (action: UIAction, displayMessage?: string) => {
+      if (!wsRef.current || wsRef.current.readyState !== WEBSOCKET_OPEN_STATE) {
+        toast.showToast('error', 'Kết nối chat chưa sẵn sàng')
+        return
+      }
+      const payload = { type: action.type, ...action.payload }
+      wsRef.current.send(
+        JSON.stringify({ message: '', display_message: displayMessage, ui_action: payload }),
+      )
+      setSending(true)
       setStreamingContent('')
-      setSending(false)
-      setReactSteps([])
-
-      const session = await chatApi.getSession(sessionId)
-      setSessionInfo({
-        sessionId: session.session_id,
-        contextType: session.context_type,
-        createdAt: session.created_at || new Date().toISOString(),
-        userRole: session.user_role || 'CLINIC_OWNER',
-        clinicId: session.clinic_id,
-      })
-      const historyMessages = session.messages.map(mapHistoryMessage)
-      setMessages(historyMessages.length > 0 ? historyMessages : [buildDefaultGreeting()])
-    } catch (err) {
-      handleApiError(err, 'Không thể mở cuộc chat đã chọn')
-    }
-  }, [buildDefaultGreeting, disconnectWebSocket, handleApiError, mapHistoryMessage])
-
-  const sendUiAction = useCallback((action: UIAction, displayMessage?: string) => {
-    if (!wsRef.current || wsRef.current.readyState !== WEBSOCKET_OPEN_STATE) {
-      toast.showToast('error', 'Kết nối chat chưa sẵn sàng')
-      return
-    }
-
-    const payload = {
-      type: action.type,
-      ...action.payload,
-    }
-
-    wsRef.current.send(JSON.stringify({ message: '', display_message: displayMessage, ui_action: payload }))
-    setSending(true)
-    setStreamingContent('')
-  }, [toast])
+    },
+    [toast],
+  )
 
   const createSession = useCallback(async () => {
     if (creatingSession) return
-
     try {
       setCreatingSession(true)
       disconnectWebSocket()
@@ -243,7 +271,6 @@ export const ClinicOwnerAIChatPage = () => {
       setReactSteps([])
       setStreamingContent('')
       await loadSessions()
-
     } catch (err) {
       handleApiError(err, 'Không thể tạo cuộc chat mới')
       setConnectionStatus('disconnected')
@@ -252,148 +279,172 @@ export const ClinicOwnerAIChatPage = () => {
     }
   }, [buildDefaultGreeting, creatingSession, disconnectWebSocket, handleApiError, loadSessions])
 
-  const handleUiAction = useCallback((action: UIAction) => {
-    if (action.type === 'open_native_confirm') {
-      const payload = (action.payload || {}) as Record<string, unknown>
-      const confirmAction = payload.confirm_action as UIAction | undefined
-      if (!confirmAction) {
-        toast.showToast('error', 'Thiếu dữ liệu xác nhận để tiếp tục')
+  const handleUiAction = useCallback(
+    (action: UIAction) => {
+      if (action.type === 'open_native_confirm') {
+        const payload = (action.payload || {}) as Record<string, unknown>
+        const confirmAction = payload.confirm_action as UIAction | undefined
+        if (!confirmAction) {
+          toast.showToast('error', 'Thiếu dữ liệu xác nhận để tiếp tục')
+          return
+        }
+        setPendingConfirm({
+          title: String(payload.title || 'Xác nhận thao tác'),
+          message: String(payload.message || 'Bạn có chắc muốn tiếp tục thao tác này không?'),
+          confirmLabel: String(payload.confirm_label || 'Xác nhận'),
+          cancelLabel: String(payload.cancel_label || 'Hủy'),
+          action: confirmAction,
+        })
         return
       }
 
-      setPendingConfirm({
-        title: String(payload.title || 'Xác nhận thao tác'),
-        message: String(payload.message || 'Bạn có chắc muốn tiếp tục thao tác này không?'),
-        confirmLabel: String(payload.confirm_label || 'Xác nhận'),
-        cancelLabel: String(payload.cancel_label || 'Hủy'),
-        action: confirmAction,
-      })
-      return
-    }
+      const payload = (action.payload || {}) as Record<string, unknown>
+      const displayMessage =
+        typeof payload.display_message === 'string'
+          ? payload.display_message
+          : typeof (action as unknown as { display_message?: unknown }).display_message === 'string'
+            ? (action as unknown as { display_message?: string }).display_message
+            : undefined
+      sendUiAction(action, displayMessage)
+    },
+    [sendUiAction, toast],
+  )
 
-    const payload = (action.payload || {}) as Record<string, unknown>
-    const displayMessage = typeof payload.display_message === 'string'
-      ? payload.display_message
-      : typeof (action as unknown as { display_message?: unknown }).display_message === 'string'
-        ? (action as unknown as { display_message?: string }).display_message
-        : undefined
-    sendUiAction(action, displayMessage)
-  }, [sendUiAction, toast])
-
-  const handleWebSocketMessage = useCallback((data: {
-    type: string
-    messages?: ChatSessionMessage[]
-    content?: string
-    step_index?: number
-    tool_name?: string
-    tool_params?: Record<string, unknown>
-    result?: unknown
-    full_response?: string
-    react_trace?: Array<{
-      step_index: number
-      step_type: 'thought' | 'action' | 'observation'
+  const handleWebSocketMessage = useCallback(
+    (data: {
+      type: string
+      messages?: ChatSessionMessage[]
       content?: string
+      step_index?: number
       tool_name?: string
       tool_params?: Record<string, unknown>
-      tool_result?: unknown
-    }>
-    error?: string
-    error_code?: string
-    recoverable?: boolean
-    suggestion?: string
-    ui_schema?: UISchemaV1
-    stage?: 'IDLE' | 'COLLECTING' | 'PRESENTING' | 'CONFIRMING' | 'BOOKED'
-  }) => {
-    switch (data.type) {
-      case 'history': {
-        const newMessages = (data.messages || []).map(mapHistoryMessage)
-        setMessages(prev => {
-          const fallbackGreeting = prev.length > 0 ? prev : [buildDefaultGreeting()]
-          const nextMessages = newMessages.length > 0 ? newMessages : fallbackGreeting
-          if (JSON.stringify(prev) !== JSON.stringify(nextMessages)) {
-            return nextMessages
-          }
-          return prev
-        })
-        setStreamingContent('')
-        setLiveReasoning('')
-        setSending(false)
-        break
-      }
-      case 'ack':
-        setStreamingContent('')
-        setLiveReasoning('Đang suy luận: mình đã nhận yêu cầu và bắt đầu xử lý.')
-        setReactSteps([])
-        break
-      case 'thinking_stream':
-      case 'thinking':
-        setSending(true)
-        setLiveReasoning(data.content ?? 'Đang suy luận: mình đang phân tích yêu cầu của bạn.')
-        break
-      case 'tool_call':
-        setSending(true)
-        if (data.content?.trim()) setLiveReasoning(data.content)
-        setReactSteps(prev => [...prev, {
-          step_index: data.step_index ?? prev.length,
-          step_type: 'action',
-          content: data.content ?? `Calling ${data.tool_name}`,
-          tool_name: data.tool_name,
-          tool_params: data.tool_params,
-          timestamp: new Date().toISOString(),
-        }])
-        break
-      case 'tool_result':
-        setSending(true)
-        if (data.content?.trim()) setLiveReasoning(data.content)
-        setReactSteps(prev => [...prev, {
-          step_index: data.step_index ?? prev.length,
-          step_type: 'observation',
-          content: data.content ?? 'Tool result received',
-          tool_name: data.tool_name,
-          tool_result: data.result,
-          timestamp: new Date().toISOString(),
-        }])
-        break
-      case 'ui_schema':
-        setMessages(prev => [...prev, {
-          id: `ui-${Date.now()}`,
-          role: 'assistant',
-          content: '',
-          timestamp: new Date(),
-          uiSchema: data.ui_schema,
-          stage: data.stage,
-        }])
-        break
-      case 'stream':
-        setLiveReasoning('')
-        setStreamingContent(prev => prev + (data.content ?? ''))
-        break
-      case 'complete': {
-        setSending(false)
-        setStreamingContent('')
-        setLiveReasoning('')
-        const thinkingProcess: string[] = []
-        const toolCalls: Array<{ tool: string; input: unknown; output?: unknown }> = []
-
-        if (data.react_trace) {
-          for (const step of data.react_trace) {
-            if (step.step_type === 'thought' && step.content) thinkingProcess.push(step.content)
-            if (step.step_type === 'action' && step.tool_name) {
-              toolCalls.push({ tool: step.tool_name, input: step.tool_params ?? {}, output: undefined })
+      result?: unknown
+      full_response?: string
+      react_trace?: Array<{
+        step_index: number
+        step_type: 'thought' | 'action' | 'observation'
+        content?: string
+        tool_name?: string
+        tool_params?: Record<string, unknown>
+        tool_result?: unknown
+      }>
+      error?: string
+      ui_schema?: UISchemaV1
+      stage?: 'IDLE' | 'COLLECTING' | 'PRESENTING' | 'CONFIRMING' | 'BOOKED'
+    }) => {
+      switch (data.type) {
+        case 'history': {
+          const newMessages = (data.messages || []).map(mapHistoryMessage)
+          setMessages((prev) => {
+            const fallbackGreeting = prev.length > 0 ? prev : [buildDefaultGreeting()]
+            const nextMessages = newMessages.length > 0 ? newMessages : fallbackGreeting
+            if (JSON.stringify(prev) !== JSON.stringify(nextMessages)) {
+              return nextMessages
             }
-            if (step.step_type === 'observation' && toolCalls.length > 0) {
-              toolCalls[toolCalls.length - 1].output = step.tool_result
-            }
-          }
+            return prev
+          })
+          setStreamingContent('')
+          setLiveReasoning('')
+          setSending(false)
+          break
         }
+        case 'ack':
+          setStreamingContent('')
+          setLiveReasoning('Đang suy luận: đã nhận yêu cầu và bắt đầu xử lý.')
+          setReactSteps([])
+          break
+        case 'thinking_stream':
+        case 'thinking':
+          setSending(true)
+          setLiveReasoning(data.content ?? 'Đang suy luận: đang phân tích yêu cầu của bạn.')
+          break
+        case 'tool_call':
+          setSending(true)
+          if (data.content?.trim()) setLiveReasoning(data.content)
+          setReactSteps((prev) => [
+            ...prev,
+            {
+              step_index: data.step_index ?? prev.length,
+              step_type: 'action',
+              content: data.content ?? `Calling ${data.tool_name}`,
+              tool_name: data.tool_name,
+              tool_params: data.tool_params,
+              timestamp: new Date().toISOString(),
+            },
+          ])
+          break
+        case 'tool_result':
+          setSending(true)
+          if (data.content?.trim()) setLiveReasoning(data.content)
+          setReactSteps((prev) => [
+            ...prev,
+            {
+              step_index: data.step_index ?? prev.length,
+              step_type: 'observation',
+              content: data.content ?? 'Tool result received',
+              tool_name: data.tool_name,
+              tool_result: data.result,
+              timestamp: new Date().toISOString(),
+            },
+          ])
+          break
+        case 'ui_schema':
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `ui-${Date.now()}`,
+              role: 'assistant',
+              content: '',
+              timestamp: new Date(),
+              uiSchema: data.ui_schema,
+              stage: data.stage,
+            },
+          ])
+          break
+        case 'stream':
+          setLiveReasoning('')
+          setStreamingContent((prev) => prev + (data.content ?? ''))
+          break
+        case 'complete': {
+          setSending(false)
+          setStreamingContent('')
+          setLiveReasoning('')
+          const thinkingProcess: string[] = []
+          const toolCalls: Array<{ tool: string; input: unknown; output?: unknown }> = []
 
-        setMessages(prev => {
-          const last = prev[prev.length - 1]
-          if (last && last.role === 'assistant' && last.uiSchema && !last.content.trim()) {
+          if (data.react_trace) {
+            for (const step of data.react_trace) {
+              if (step.step_type === 'thought' && step.content) thinkingProcess.push(step.content)
+              if (step.step_type === 'action' && step.tool_name) {
+                toolCalls.push({ tool: step.tool_name, input: step.tool_params ?? {}, output: undefined })
+              }
+              if (step.step_type === 'observation' && toolCalls.length > 0) {
+                toolCalls[toolCalls.length - 1].output = step.tool_result
+              }
+            }
+          }
+
+          setMessages((prev) => {
+            const last = prev[prev.length - 1]
+            if (last && last.role === 'assistant' && last.uiSchema && !last.content.trim()) {
+              return [
+                ...prev.slice(0, -1),
+                {
+                  ...last,
+                  content: looksLikeJsonPayload(data.full_response)
+                    ? ''
+                    : (data.full_response ?? ''),
+                  timestamp: new Date(),
+                  thinkingProcess,
+                  toolCalls,
+                },
+              ]
+            }
             return [
-              ...prev.slice(0, -1),
+              ...prev,
               {
-                ...last,
+                id: (Date.now() + 1).toString(),
+                role: 'assistant',
                 content: looksLikeJsonPayload(data.full_response)
                   ? ''
                   : (data.full_response ?? ''),
@@ -402,94 +453,79 @@ export const ClinicOwnerAIChatPage = () => {
                 toolCalls,
               },
             ]
-          }
-
-          return [...prev, {
-            id: (Date.now() + 1).toString(),
-            role: 'assistant',
-            content: looksLikeJsonPayload(data.full_response)
-              ? ''
-              : (data.full_response ?? ''),
-            timestamp: new Date(),
-            thinkingProcess,
-            toolCalls,
-          }]
-        })
-        break
+          })
+          break
+        }
+        case 'error':
+          setSending(false)
+          setStreamingContent('')
+          setLiveReasoning('')
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: (Date.now() + 1).toString(),
+              role: 'assistant',
+              content: data.error ?? 'Đã có lỗi xảy ra',
+              timestamp: new Date(),
+            },
+          ])
+          break
       }
-      case 'error':
-        setSending(false)
-        setStreamingContent('')
-        setLiveReasoning('')
-        setMessages(prev => [...prev, {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: data.error ?? 'Đã có lỗi xảy ra',
-          timestamp: new Date(),
-        }])
-        break
-    }
-  }, [buildDefaultGreeting, mapHistoryMessage])
+    },
+    [buildDefaultGreeting, mapHistoryMessage],
+  )
 
-  const connectWebSocket = useCallback((sessionId: string, contextType?: ChatContextType) => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current)
-      reconnectTimeoutRef.current = null
-    }
-
-    if (
-      wsRef.current?.readyState === WEBSOCKET_OPEN_STATE ||
-      wsRef.current?.readyState === WEBSOCKET_CONNECTING_STATE
-    ) {
-      return
-    }
-
-    if (wsRef.current) {
-      wsRef.current = null
-    }
-
-    manualDisconnectRef.current = false
-    const ws = createChatWebSocket(sessionId, contextType)
-    wsRef.current = ws
-
-    ws.onopen = () => {
-      setConnectionStatus('connected')
-      reconnectAttemptsRef.current = 0
-    }
-
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        handleWebSocketMessage(data)
-      } catch (err) {
-        console.error('WebSocket message parse error:', err)
+  const connectWebSocket = useCallback(
+    (sessionId: string, contextType?: ChatContextType) => {
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current)
+        reconnectTimeoutRef.current = null
       }
-    }
-
-    ws.onerror = () => {
-      setConnectionStatus('error')
-    }
-
-    ws.onclose = () => {
-      wsRef.current = null
-
-      if (manualDisconnectRef.current || expectedSessionIdRef.current !== sessionId) {
-        setConnectionStatus('disconnected')
+      if (
+        wsRef.current?.readyState === WEBSOCKET_OPEN_STATE ||
+        wsRef.current?.readyState === WEBSOCKET_CONNECTING_STATE
+      ) {
         return
       }
+      if (wsRef.current) wsRef.current = null
 
-      const nextAttempts = reconnectAttemptsRef.current + 1
-      if (nextAttempts <= MAX_RECONNECT_ATTEMPTS) {
-        setConnectionStatus('connecting')
-        reconnectAttemptsRef.current = nextAttempts
-        reconnectTimeoutRef.current = setTimeout(() => {
-          connectWebSocket(sessionId, contextType)
-        }, RECONNECT_INTERVAL_MS)
-      } else {
-        setConnectionStatus('disconnected')
+      manualDisconnectRef.current = false
+      const ws = createChatWebSocket(sessionId, contextType)
+      wsRef.current = ws
+
+      ws.onopen = () => {
+        setConnectionStatus('connected')
+        reconnectAttemptsRef.current = 0
       }
-    }
-  }, [handleWebSocketMessage])
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          handleWebSocketMessage(data)
+        } catch (err) {
+          console.error('WebSocket message parse error:', err)
+        }
+      }
+      ws.onerror = () => setConnectionStatus('error')
+      ws.onclose = () => {
+        wsRef.current = null
+        if (manualDisconnectRef.current || expectedSessionIdRef.current !== sessionId) {
+          setConnectionStatus('disconnected')
+          return
+        }
+        const nextAttempts = reconnectAttemptsRef.current + 1
+        if (nextAttempts <= MAX_RECONNECT_ATTEMPTS) {
+          setConnectionStatus('connecting')
+          reconnectAttemptsRef.current = nextAttempts
+          reconnectTimeoutRef.current = setTimeout(() => {
+            connectWebSocket(sessionId, contextType)
+          }, RECONNECT_INTERVAL_MS)
+        } else {
+          setConnectionStatus('disconnected')
+        }
+      }
+    },
+    [handleWebSocketMessage],
+  )
 
   useEffect(() => {
     expectedSessionIdRef.current = sessionInfo?.sessionId ?? null
@@ -503,14 +539,11 @@ export const ClinicOwnerAIChatPage = () => {
   useEffect(() => {
     if (!sessionsHydrated || loadingSessions || creatingSession || sessionInfo) return
     if (autoBootstrapDoneRef.current) return
-
     autoBootstrapDoneRef.current = true
-
     if (sessionList.length > 0) {
       void handleSelectSession(sessionList[0].session_id)
       return
     }
-
     void createSession()
   }, [creatingSession, handleSelectSession, loadingSessions, sessionInfo, sessionList, createSession, sessionsHydrated])
 
@@ -527,37 +560,39 @@ export const ClinicOwnerAIChatPage = () => {
     }
   }, [messages, streamingContent, liveReasoning])
 
-  const sendMessage = useCallback(async () => {
-    if (!input.trim() || !sessionInfo?.sessionId || sending || connectionStatus !== 'connected') {
-      if (input.trim() && sessionInfo?.sessionId && connectionStatus !== 'connected') {
-        toast.showToast('error', 'Kết nối không sẵn sàng, đang thử lại...')
+  const sendMessage = useCallback(
+    async (text?: string) => {
+      const msg = text || input.trim()
+      if (!msg || !sessionInfo?.sessionId || sending || connectionStatus !== 'connected') {
+        if (msg && sessionInfo?.sessionId && connectionStatus !== 'connected') {
+          toast.showToast('error', 'Kết nối không sẵn sàng, đang thử lại...')
+        }
+        return
       }
-      return
-    }
+      if (!wsRef.current || wsRef.current.readyState !== WEBSOCKET_OPEN_STATE) {
+        toast.showToast('error', 'Kết nối không sẵn sàng, đang thử lại...')
+        return
+      }
 
-    if (!wsRef.current || wsRef.current.readyState !== WEBSOCKET_OPEN_STATE) {
-      toast.showToast('error', 'Kết nối không sẵn sàng, đang thử lại...')
-      return
-    }
-
-    const userMessage: Message = {
-      id: crypto.randomUUID(),
-      role: 'user',
-      content: input.trim(),
-      timestamp: new Date(),
-    }
-    setMessages(prev => [...prev, userMessage])
-    setInput('')
-    setSending(true)
-
-    wsRef.current.send(JSON.stringify({ message: input.trim() }))
-    setStreamingContent('')
-  }, [connectionStatus, input, sessionInfo, sending, toast])
+      const userMessage: Message = {
+        id: crypto.randomUUID(),
+        role: 'user',
+        content: msg,
+        timestamp: new Date(),
+      }
+      setMessages((prev) => [...prev, userMessage])
+      if (!text) setInput('')
+      setSending(true)
+      wsRef.current.send(JSON.stringify({ message: msg }))
+      setStreamingContent('')
+    },
+    [connectionStatus, input, sessionInfo, sending, toast],
+  )
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      sendMessage()
+      void sendMessage()
     }
   }
 
@@ -567,15 +602,12 @@ export const ClinicOwnerAIChatPage = () => {
         toast.showToast('error', 'Không tìm thấy phiên chat để gửi phản hồi')
         return
       }
-
       await feedbackApi.submitFeedback({
         message_id: messageId,
         session_id: sessionInfo.sessionId,
         feedback_type: feedback === 'good' ? 'thumbs_up' : 'thumbs_down',
       })
-      setMessages(prev => prev.map(msg => 
-        msg.id === messageId ? { ...msg, feedback } : msg
-      ))
+      setMessages((prev) => prev.map((msg) => (msg.id === messageId ? { ...msg, feedback } : msg)))
       toast.showToast('success', 'Đã gửi phản hồi')
     } catch (err) {
       handleApiError(err, 'Không thể gửi phản hồi')
@@ -586,7 +618,7 @@ export const ClinicOwnerAIChatPage = () => {
     e.stopPropagation()
     try {
       await chatApi.deleteSession(sessionId)
-      setSessionList(prev => prev.filter(s => s.session_id !== sessionId))
+      setSessionList((prev) => prev.filter((s) => s.session_id !== sessionId))
       if (sessionInfo?.sessionId === sessionId) {
         disconnectWebSocket()
         setSessionInfo(null)
@@ -601,17 +633,19 @@ export const ClinicOwnerAIChatPage = () => {
   return (
     <div className="h-full min-h-0 flex flex-col bg-stone-100 safe-area-padding">
       <div className="flex-1 flex overflow-hidden">
+        {/* Sidebar */}
         <div className="w-72 border-r-2 border-stone-900 bg-white flex flex-col">
           <div className="p-4 border-b-2 border-stone-900">
             <div className="flex items-center gap-2 mb-3">
               <ComputerDesktopIcon className="w-6 h-6 text-amber-600" />
               <h2 className="text-base font-black text-stone-900 uppercase">AI Copilot</h2>
             </div>
-            <p className="text-xs text-stone-500">Trợ lý thông minh cho quản lý phòng khám</p>
+            <p className="text-xs text-stone-500">Trợ lý vận hành phòng khám cho Quản lý</p>
           </div>
 
           <div className="p-3 border-b-2 border-stone-900">
             <button
+              id="btn-new-chat-manager"
               onClick={createSession}
               disabled={creatingSession}
               className="w-full py-2 bg-amber-500 hover:bg-amber-600 text-stone-900 border-2 border-stone-900 font-black uppercase text-xs shadow-[2px_2px_0_#1c1917] hover:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
@@ -628,7 +662,7 @@ export const ClinicOwnerAIChatPage = () => {
               <div className="p-4 text-center text-xs text-stone-500">Chưa có cuộc chat nào</div>
             ) : (
               <div className="divide-y divide-stone-200">
-                {sessionList.map(session => (
+                {sessionList.map((session) => (
                   <div
                     key={session.session_id}
                     onClick={() => handleSelectSession(session.session_id)}
@@ -638,9 +672,13 @@ export const ClinicOwnerAIChatPage = () => {
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-stone-900 truncate">{session.title || 'Cuộc chat'}</p>
+                        <p className="text-sm font-bold text-stone-900 truncate">
+                          {session.title || 'Cuộc chat'}
+                        </p>
                         <p className="text-[10px] text-stone-500">
-                          {session.created_at ? new Date(session.created_at).toLocaleDateString('vi-VN') : ''}
+                          {session.created_at
+                            ? new Date(session.created_at).toLocaleDateString('vi-VN')
+                            : ''}
                         </p>
                       </div>
                       <button
@@ -658,7 +696,7 @@ export const ClinicOwnerAIChatPage = () => {
 
           <div className="p-3 border-t-2 border-stone-900 bg-stone-50">
             <button
-              onClick={() => navigate('/clinic-owner')}
+              onClick={() => navigate('/clinic-manager')}
               className="w-full py-2 text-stone-600 hover:text-stone-900 text-xs font-bold uppercase"
             >
               Quay lại dashboard
@@ -666,7 +704,9 @@ export const ClinicOwnerAIChatPage = () => {
           </div>
         </div>
 
+        {/* Main chat area */}
         <div className="flex-1 flex flex-col bg-stone-50">
+          {/* Header */}
           <div className="p-4 border-b-2 border-stone-900 bg-white flex items-center justify-between">
             <div className="flex items-center gap-2">
               <SparklesIcon className="w-5 h-5 text-amber-600" />
@@ -675,18 +715,26 @@ export const ClinicOwnerAIChatPage = () => {
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${
-                connectionStatus === 'connected' ? 'bg-green-500' :
-                connectionStatus === 'connecting' ? 'bg-yellow-500 animate-pulse' :
-                'bg-red-500'
-              }`} />
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  connectionStatus === 'connected'
+                    ? 'bg-green-500'
+                    : connectionStatus === 'connecting'
+                      ? 'bg-yellow-500 animate-pulse'
+                      : 'bg-red-500'
+                }`}
+              />
               <span className="text-xs font-bold text-stone-500 uppercase">
-                {connectionStatus === 'connected' ? 'Đã kết nối' :
-                 connectionStatus === 'connecting' ? 'Đang kết nối' : 'Mất kết nối'}
+                {connectionStatus === 'connected'
+                  ? 'Đã kết nối'
+                  : connectionStatus === 'connecting'
+                    ? 'Đang kết nối'
+                    : 'Mất kết nối'}
               </span>
             </div>
           </div>
 
+          {/* Messages */}
           <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
             {!sessionInfo ? (
               <div className="flex items-center justify-center h-full">
@@ -696,13 +744,15 @@ export const ClinicOwnerAIChatPage = () => {
                   </div>
                   <h3 className="text-base font-black text-stone-900 mb-2 uppercase">AI Copilot</h3>
                   <p className="text-xs text-stone-600 mb-4">
-                    {creatingSession || loadingSessions ? 'Đang chuẩn bị phiên làm việc cho AI Copilot...' : 'Đang kết nối phiên làm việc...'}
+                    {creatingSession || loadingSessions
+                      ? 'Đang chuẩn bị phiên làm việc...'
+                      : 'Đang kết nối phiên làm việc...'}
                   </p>
                 </div>
               </div>
             ) : (
               <div className="space-y-4">
-                {messages.map(msg => (
+                {messages.map((msg) => (
                   <ChatMessage
                     key={msg.id}
                     role={msg.role}
@@ -734,20 +784,50 @@ export const ClinicOwnerAIChatPage = () => {
             )}
           </div>
 
+          {/* Quick actions */}
+          {sessionInfo && messages.length <= 1 && (
+            <div className="px-4 pb-2 flex gap-2 flex-wrap">
+              {QUICK_ACTIONS.map((qa) => (
+                <button
+                  key={qa.label}
+                  id={`btn-quick-${qa.label.replace(/\s+/g, '-').toLowerCase()}`}
+                  onClick={() => void sendMessage(qa.prompt)}
+                  disabled={sending || connectionStatus !== 'connected'}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border-2 border-stone-900 text-xs font-bold text-stone-700 shadow-[2px_2px_0_#1c1917] hover:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] transition-all disabled:opacity-50"
+                >
+                  <qa.icon className="w-3.5 h-3.5 text-amber-600" />
+                  {qa.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Input */}
           <div className="p-4 border-t-2 border-stone-900 bg-white">
             <div className="flex gap-2">
               <input
+                id="input-manager-ai-chat"
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder={sessionInfo?.sessionId ? 'Nhập yêu cầu cho AI Copilot...' : 'Chọn hoặc tạo chat trước'}
+                placeholder={
+                  sessionInfo?.sessionId
+                    ? 'Hỏi về lịch trực, bookings hoặc tình trạng vận hành...'
+                    : 'Chọn hoặc tạo chat trước'
+                }
                 disabled={!sessionInfo?.sessionId || sending}
                 className="flex-1 px-3 py-2 border-2 border-stone-900 font-bold text-sm focus:ring-0 outline-none shadow-[2px_2px_0_#1c1917] focus:shadow-none focus:translate-x-[1px] focus:translate-y-[1px] transition-all disabled:bg-stone-100 disabled:cursor-not-allowed"
               />
               <button
-                onClick={sendMessage}
-                disabled={!input.trim() || sending || connectionStatus !== 'connected' || !sessionInfo?.sessionId}
+                id="btn-send-manager-ai"
+                onClick={() => void sendMessage()}
+                disabled={
+                  !input.trim() ||
+                  sending ||
+                  connectionStatus !== 'connected' ||
+                  !sessionInfo?.sessionId
+                }
                 className="px-4 py-2 bg-amber-500 text-stone-900 border-2 border-stone-900 font-black uppercase text-sm shadow-[3px_3px_0_#1c1917] hover:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <PaperAirplaneIcon className="w-5 h-5" />
@@ -768,11 +848,12 @@ export const ClinicOwnerAIChatPage = () => {
           if (!pendingConfirm) return
           const action = pendingConfirm.action
           const payload = (action.payload || {}) as Record<string, unknown>
-          const displayMessage = typeof payload.display_message === 'string'
-            ? payload.display_message
-            : typeof (action as unknown as { display_message?: unknown }).display_message === 'string'
-              ? (action as unknown as { display_message?: string }).display_message
-              : undefined
+          const displayMessage =
+            typeof payload.display_message === 'string'
+              ? payload.display_message
+              : typeof (action as unknown as { display_message?: unknown }).display_message === 'string'
+                ? (action as unknown as { display_message?: string }).display_message
+                : undefined
           setPendingConfirm(null)
           sendUiAction(action, displayMessage)
         }}
@@ -781,4 +862,4 @@ export const ClinicOwnerAIChatPage = () => {
   )
 }
 
-export default ClinicOwnerAIChatPage
+export default ClinicManagerAIChatPage

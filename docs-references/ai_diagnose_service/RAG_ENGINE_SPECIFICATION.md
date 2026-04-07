@@ -13,7 +13,6 @@ RAG Engine (Retrieval-Augmented Generation) là hệ thống tìm kiếm thông 
 ### 1.1 Mục tiêu
 
 - Cung cấp thông tin thú y nội bộ cho AI Agent
-- Hỗ trợ multi-hop reasoning qua Knowledge Graph
 - Tích hợp case đã xác nhận từ EMR vào luồng tư vấn
 - Đảm bảo câu trả lời được grounding từ dữ liệu đáng tin cậy
 
@@ -22,7 +21,6 @@ RAG Engine (Retrieval-Augmented Generation) là hệ thống tìm kiếm thông 
 | Component | Storage | Purpose |
 |----------|---------|---------|
 | **Knowledge Base (KB)** | Qdrant Cloud | Document chunks với vector embeddings |
-| **Knowledge Graph (KG)** | MongoDB | Triplets (subject, predicate, object) cho multi-hop reasoning |
 | **Case Memory** | Qdrant Cloud | EMR confirmed cases với text + image embeddings |
 
 ---
@@ -63,113 +61,7 @@ flowchart LR
 
 - Tra cứu thông tin bệnh, triệu chứng, điều trị
 - Tìm kiếm theo ngữ nghĩa (semantic search)
-- Fallback khi KG không có kết quả
-
----
-
-## 3. Knowledge Graph (KG)
-
-### 3.1 Mô tả
-
-Knowledge Graph lưu trữ triplets (chủ thể, quan hệ, đối tượng) theo cấu trúc đồ thị, cho phép truy vấn multi-hop và reasoning chuỗi.
-
-### 3.2 Storage
-
-- **Database:** MongoDB
-- **Collection:** `knowledge_graph_triplets` (config: `MONGODB_KG_TRIPLETS_COLLECTION`)
-- **Persistence:** MongoDB volume (`mongodb_dev_data`) - persist qua container rebuilds
-
-### 3.3 Schema
-
-```json
-{
-  "_id": "ObjectId",
-  "subject": "string",
-  "predicate": "string",
-  "object": "string",
-  "source": "kb | case_memory",
-  "source_id": "string (document_id hoặc case_id)",
-  "triplet_hash": "string (MD5 hash để deduplicate)",
-  "metadata": {
-    "extracted_at": "datetime",
-    "confidence": "float (0-1)",
-    "created_by": "llm | admin",
-    "model_used": "string",
-    "batch_id": "uuid"
-  }
-}
-```
-
-### 3.4 Relation Types
-
-| Predicate | Vietnamese | Example |
-|-----------|-----------|---------|
-| `có_triệu_chứng` | Disease has symptom | (Parvo, có_triệu_chứng, Nôn ra máu) |
-| `điều_trị_bằng` | Disease treated by | (Parvo, điều_trị_bằng, Truyền dịch) |
-| `nguyên_nhân` | Disease caused by | (Viêm da, nguyên_nhân, Dị ứng) |
-| `thường_gặp_ở` | Common in species | (Bệnh Carre, thường_gặp_ở, Chó) |
-| `phòng_ngừa` | Prevention method | (Parvo, phòng_ngừa, Vaccine) |
-| `liều_dùng` | Drug dosage | (Amoxicillin, liều_dùng, 10-20mg/kg) |
-| `thuộc_nhóm` | Belongs to group | (Viêm phổi, thuộc_nhóm, Hô hấp) |
-
-### 3.5 Data Sources
-
-KG được tổng hợp từ 2 nguồn:
-
-#### 3.5.1 Knowledge Base (KB)
-
-- Admin build KG từ uploaded documents
-- LLM extract triplets từ document chunks
-- Endpoint: `POST /knowledge/build-kg`
-
-#### 3.5.2 Case Memory (EMR)
-
-- Sync định kỳ từ Case Memory
-- Extract triplets từ EMR confirmed cases
-- Endpoint: `POST /knowledge/sync-from-case-memory`
-
-### 3.6 Query Method
-
-KG sử dụng **BFS (Breadth-First Search)** traversal:
-
-```mermaid
-flowchart TB
-    Q[Query: triệu chứng của Parvo?] --> KW[Extract Keywords: Parvo, triệu chứng]
-    KW --> SN[Find Start Nodes: Parvo]
-    SN --> BFS[BFS Traversal]
-    BFS --> T1[(Parvo, có_triệu_chứng, Nôn ra máu)]
-    BFS --> T2[(Parvo, có_triệu_chứng, Tiêu chảy)]
-    BFS --> T3[(Parvo, điều_trị_bằng, Truyền dịch)]
-    T1 --> R[Return Subgraph Context]
-    T2 --> R
-    T3 --> R
-```
-
-### 3.7 API Endpoints
-
-| Endpoint | Method | Auth | Purpose |
-|----------|--------|------|---------|
-| `/knowledge/build-kg` | POST | Admin | Build KG từ KB documents |
-| `/knowledge/sync-from-case-memory` | POST | Admin | Sync KG từ Case Memory |
-| `/knowledge/kg-stats` | GET | Public | Thống kê KG |
-| `/knowledge/kg-visualize` | GET | Public | Dữ liệu visualize D3.js |
-| `/knowledge/kg-query` | POST | Public | Query KG |
-
-### 3.8 Implementation
-
-**File:** `petties-agent-serivce/app/core/rag/knowledge_graph.py`
-
-**Key Methods:**
-```python
-class KnowledgeGraphService:
-    async def initialize()                    # Khởi tạo MongoDB connection
-    async def build_from_documents()         # Build từ KB documents
-    async def build_from_case_memory()        # Sync từ Case Memory
-    async def query_graph()                  # BFS traversal query
-    async def get_graph_stats()              # Statistics
-    async def reset_knowledge_graph()        # Reset KG (all hoặc theo source)
-    async def get_graph_visualization_data() # D3.js data
-```
+- Fallback khi KB không có kết quả
 
 ---
 
@@ -233,7 +125,7 @@ service after retrieval, where confirmed cases are grouped by
 
 ### 5.1 Mô tả
 
-HybridRAGEngine là engine tổng hợp kết quả từ KB, KG, và Case Memory, merge thành context duy nhất cho LLM.
+HybridRAGEngine là engine tổng hợp kết quả từ KB và Case Memory, merge thành context duy nhất cho LLM.
 
 ### 5.2 Architecture
 
@@ -242,11 +134,9 @@ flowchart TB
     subgraph HybridRAG[HybridRAGEngine]
         Q[Query Input]
         Q --> RAG[RAG Engine<br/>KB Vector Search]
-        Q --> KG[KG Query<br/>BFS Traversal]
         Q --> CM[Case Memory<br/>Vector Search]
         
         RAG --> Merge[Score Merge]
-        KG --> Merge
         CM --> Merge
         
         Merge --> C[Combined Context]
@@ -256,7 +146,6 @@ flowchart TB
     
     subgraph Storage
         RAG --> QD_KB[Qdrant<br/>petties_knowledge_base]
-        KG --> MG[MongoDB<br/>knowledge_graph_triplets]
         CM --> QD_CM[Qdrant<br/>petties_case_memory_v2]
     end
 ```
@@ -266,7 +155,6 @@ flowchart TB
 | Source | Weight | Notes |
 |--------|--------|-------|
 | RAG (KB) | 1.0 | Base weight |
-| KG | 0.8 | Lower due to extraction quality variance |
 | Case Memory | 1.2 | Higher due to verified clinical data |
 
 ### 5.4 Merge Strategy
@@ -275,7 +163,6 @@ flowchart TB
 # Pseudocode
 results = []
 results.extend(rag_results * RAG_WEIGHT)
-results.extend(kg_results * KG_WEIGHT)
 results.extend(case_memory_results * CASE_MEMORY_WEIGHT)
 results.sort_by_score(descending=True)
 results.deduplicate_by_content()
@@ -299,7 +186,7 @@ async def pet_knowledge_search(
     min_score: float = 0.4
 ) -> dict:
     """
-    Truy vấn hybrid RAG: KB + KG + Case Memory
+    Truy vấn hybrid RAG: KB + Case Memory
     
     Returns:
         dict với keys:
@@ -317,20 +204,17 @@ sequenceDiagram
     participant Tool as pet_knowledge_search
     participant Hybrid as HybridRAGEngine
     participant RAG
-    participant KG
     participant CM
     
     Agent->>Tool: query="Con chó bị nôn..."
-    Tool->>Hybrid: query(enable_kg=True, enable_rag=True)
+    Tool->>Hybrid: query(enable_rag=True)
     
     par
         Hybrid->>RAG: Vector search KB
-        Hybrid->>KG: BFS traversal
         Hybrid->>CM: Vector search Case Memory
     end
     
     RAG-->>Hybrid: results_rag
-    KG-->>Hybrid: results_kg
     CM-->>Hybrid: results_cm
     
     Hybrid->>Hybrid: Merge & re-rank
@@ -340,12 +224,12 @@ sequenceDiagram
 
 ### 6.3 Role-based Behavior
 
-| Role | RAG | KG | Case Memory | Web Search |
-|------|-----|----|-------------|------------|
-| PET_OWNER | ✅ | ✅ | ✅ (if has pets) | ✅ fallback |
-| STAFF/VET | ✅ | ✅ | ✅ | ❌ |
-| CLINIC_MANAGER | ✅ | ✅ | ❌ | ❌ |
-| ADMIN | ✅ | ✅ | ❌ | ✅ |
+| Role | RAG | Case Memory | Web Search |
+|------|-----|-------------|------------|
+| PET_OWNER | ✅ | ✅ (if has pets) | ✅ fallback |
+| STAFF/VET | ✅ | ✅ | ❌ |
+| CLINIC_MANAGER | ✅ | ❌ | ❌ |
+| ADMIN | ✅ | ❌ | ✅ |
 
 ---
 
@@ -360,46 +244,17 @@ petties-agent-serivce/
 │   │   ├── rag/
 │   │   │   ├── __init__.py
 │   │   │   ├── rag_engine.py              # KB vector search
-│   │   │   ├── knowledge_graph.py         # KG service (MongoDB backend) ⭐
 │   │   │   ├── case_memory.py             # Case memory (Qdrant)
 │   │   │   └── hybrid_engine.py           # Hybrid merge logic
 │   │   ├── database/
-│   │   │   └── mongodb.py                # MongoDB indexes (KG collection)
 │   │   └── tools/
 │   │       └── mcp_tools/
 │   │           └── medical_tools.py       # pet_knowledge_search tool
 │   ├── api/
 │   │   └── routes/
-│   │       └── knowledge.py               # KB & KG endpoints ⭐
+│   │       └── knowledge.py               # KB endpoints
 │   └── config/
-│       └── settings.py                    # MONGODB_KG_TRIPLETS_COLLECTION ⭐
-```
-
-### 7.2 Configuration
-
-```python
-# settings.py
-MONGODB_KG_TRIPLETS_COLLECTION: str = Field(
-    default="knowledge_graph_triplets",
-    description="Collection name cho Knowledge Graph triplets (MongoDB)",
-)
-```
-
-### 7.3 MongoDB Indexes
-
-```javascript
-// mongodb.py - create_mongodb_indexes()
-db.knowledge_graph_triplets.createIndex(
-  { subject: 1, predicate: 1, object: 1 },
-  { unique: true }
-)
-db.knowledge_graph_triplets.createIndex({ subject: 1, predicate: 1 })
-db.knowledge_graph_triplets.createIndex({ object: 1, predicate: 1 })
-db.knowledge_graph_triplets.createIndex(
-  { subject: "text", object: "text" },
-  { weights: { subject: 2, object: 1 } }
-)
-db.knowledge_graph_triplets.createIndex({ source: 1 })
+│       └── settings.py
 ```
 
 ---
@@ -410,11 +265,9 @@ db.knowledge_graph_triplets.createIndex({ source: 1 })
 flowchart TB
     subgraph KB[Knowledge Base]
         A1[Admin Upload Documents]
-        A2[LLM Extract Triplets]
+        A2[Chunk & Embed]
         A3[Store in Qdrant]
-        A4[Store in MongoDB]
         A1 --> A2 --> A3
-        A2 --> A4
     end
     
     subgraph CM[Case Memory]
@@ -423,16 +276,7 @@ flowchart TB
         B1 --> B2
     end
     
-    subgraph KG[Knowledge Graph]
-        C1[Build from KB]
-        C2[Sync from Case Memory]
-        C3[MongoDB Collection]
-        C1 --> C3
-        C2 --> C3
-    end
-    
-    KG --> Query[pet_knowledge_search Tool]
-    KB --> Query
+    KB --> Query[pet_knowledge_search Tool]
     CM --> Query
     
     Query --> LLM[AI Agent Response]
@@ -442,75 +286,35 @@ flowchart TB
 
 ## 9. Roadmap
 
-### 9.1 Phase 1: MongoDB Migration ✅ (2026-03-21)
-
-- [x] Thêm collection `knowledge_graph_triplets` vào MongoDB
-- [x] Tạo indexes cho BFS query
-- [x] Refactor `knowledge_graph.py` dùng MongoDB thay SimpleGraphStore
-- [x] Thêm method `build_from_case_memory()`
-- [x] Thêm endpoint `POST /knowledge/sync-from-case-memory`
-- [x] KG data persist qua MongoDB volume mount
-
-### 9.2 Phase 2: Case Memory Sync
+### 9.1 Phase 1: Case Memory Sync
 
 - [ ] Auto-sync trigger on EMR confirmation
 - [ ] Implement incremental sync (chỉ sync new cases)
 
-### 9.3 Phase 3: Production Scale
+### 9.2 Phase 2: Production Scale
 
-- [ ] Thêm indexes tối ưu cho BFS
 - [ ] Implement caching layer
 - [ ] Monitoring & alerting
-
-### 9.4 Phase 4: Advanced Features
-
-- [ ] Neo4j migration (nếu cần scale lớn)
-- [ ] KG visualization improvements
-- [ ] KG editing UI cho admin
 
 ---
 
 ## 10. Best Practices
 
-### 10.1 Triplet Extraction
+### 10.1 Query Optimization
 
-- Sử dụng LLM với system prompt chuyên biệt cho thú y
-- Validate triplet length: subject ≤200, predicate ≤100, object ≤200
-- Filter garbage characters và duplicates (MD5 hash)
-- Store confidence score để filter low-quality triplets
-
-### 10.2 Query Optimization
-
-- Limit BFS depth (default: 2) để tránh context explosion
 - Use top_k limits để control response size
 - Deduplicate results before merging
-
-### 10.3 Data Quality
-
-- KG từ KB: phụ thuộc vào document quality
-- KG từ Case Memory: phụ thuộc vào EMR completeness
-- Regular cleanup của low-confidence triplets
 
 ---
 
 ## 11. Error Handling
 
-### 11.1 KG Service Errors
-
-| Error | Handling | User Message |
-|-------|----------|--------------|
-| MongoDB connection | Log error, return empty | "Knowledge Graph temporarily unavailable" |
-| Empty KG | Fallback to KB only | N/A - transparent |
-| LLM extraction failed | Skip triplet, log | N/A - silent skip |
-| Invalid triplet | Filter out | N/A - silent skip |
-
-### 11.2 Hybrid Engine Errors
+### 11.1 Hybrid Engine Errors
 
 | Error | Handling |
 |-------|----------|
-| KB unavailable | Query KG + CM only |
-| KG unavailable | Query KB + CM only |
-| CM unavailable | Query KB + KG only |
+| KB unavailable | Query CM only |
+| CM unavailable | Query KB only |
 | All unavailable | Return error to user |
 
 ---
@@ -519,34 +323,14 @@ flowchart TB
 
 ### 12.1 Metrics
 
-- KG triplet count (total, by source)
-- KG query latency
 - Case Memory sync count
 - Hybrid merge success rate
 
 ### 12.2 Logging
 
 ```python
-logger.info(f"KG query '{query[:50]}' returned {len(results)} triplets")
-logger.info(f"Synced {count} triplets from Case Memory")
-logger.warning(f"KG query failed: {e}, falling back to KB only")
-```
-
-### 12.3 Stats Endpoint
-
-```bash
-GET /knowledge/kg-stats
-Response:
-{
-  "initialized": true,
-  "triplet_count": 150,
-  "entity_count": 80,
-  "relation_types": ["có_triệu_chứng", "điều_trị_bằng", ...],
-  "by_source": {
-    "kb": 100,
-    "case_memory": 50
-  }
-}
+logger.info(f"Synced {count} cases from Case Memory")
+logger.warning(f"Hybrid query failed: {e}")
 ```
 
 ---
@@ -557,16 +341,12 @@ Response:
 
 | Endpoint | Auth | Purpose |
 |----------|------|---------|
-| `/knowledge/build-kg` | Admin | Build KG từ KB |
-| `/knowledge/sync-from-case-memory` | Admin | Sync KG từ Case Memory |
-| `/knowledge/kg-query` | Public | Read-only query |
-| `/knowledge/kg-stats` | Public | Statistics |
-| `/knowledge/kg-visualize` | Public | Visualization |
+| `/knowledge/upload` | Admin | Upload tài liệu lên KB |
+| `/knowledge/build-kb` | Admin | Index documents vào Qdrant |
 
 ### 13.2 Data Validation
 
 - Sanitize user input trong query
-- Validate triplet format trước insert
 - Rate limiting trên query endpoints
 
 ---

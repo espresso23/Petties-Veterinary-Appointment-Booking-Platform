@@ -3,7 +3,7 @@ Staff diagnosis synthesis service.
 
 This service combines:
 - Gemini Vision for image understanding
-- Hybrid RAG for internal knowledge-base and knowledge-graph evidence
+- Hybrid RAG for internal knowledge-base and case-memory evidence
 - Case Memory for confirmed EMR cases
 - DB-backed disease mapping
 - Diagnosis protocols so SOAP and prescriptions stay aligned
@@ -184,11 +184,11 @@ class StaffDiagnosisService:
         has_internal_evidence = bool(hybrid_result.chunks or similar_cases)
         if not has_internal_evidence:
             protocol_decision.summary = (
-                "Chưa có đủ bằng chứng nội bộ từ Knowledge Base hoặc Case Memory. "
-                "AI có thể dựa vào triệu chứng và kiến thức chung để gợi ý đơn thuốc tham khảo. "
+                "AI ưu tiên tổng hợp triệu chứng hiện tại để gợi ý hỗ trợ nhập EMR nhanh hơn. "
                 + protocol_decision.summary
             ).strip()
 
+        llm_synthesis: Optional[Dict[str, Any]] = None
         logger.info(
             f"Starting LLM synthesis with {len(top_differentials)} differentials, "
             f"{len(hybrid_result.chunks)} KB chunks, {len(similar_cases)} similar cases"
@@ -252,12 +252,22 @@ class StaffDiagnosisService:
         has_emr_pattern_prescriptions = has_selected_diagnosis and bool(
             effective_protocol_decision.prescriptions
         )
+        allow_llm_prescriptions_without_selected = (
+            not has_selected_diagnosis
+            and evidence_mode == "llm_fallback"
+            and bool(llm_prescriptions)
+        )
         if has_emr_pattern_prescriptions:
             final_prescriptions = effective_protocol_decision.prescriptions
-        elif has_selected_diagnosis and llm_prescriptions:
+        elif (
+            has_selected_diagnosis or allow_llm_prescriptions_without_selected
+        ) and llm_prescriptions:
             final_prescriptions = llm_prescriptions
         else:
             final_prescriptions = []
+        final_prescriptions = self._ensure_prescription_usage_instructions(
+            final_prescriptions
+        )
 
         has_llm_prescription = (
             bool(llm_prescriptions) and not has_emr_pattern_prescriptions
@@ -292,7 +302,7 @@ class StaffDiagnosisService:
             prescription_suggestions=final_prescriptions,
             disclaimer="Gợi ý từ tài liệu nội bộ. Bác sĩ cần xác nhận lại chẩn đoán."
             + (
-                " Chọn một chẩn đoán trong Top 3 để mở gợi ý điều trị và SOAP ở các bước sau."
+                " Chọn một chẩn đoán trong danh sách gợi ý để mở gợi ý điều trị và SOAP ở các bước sau."
                 if not has_selected_diagnosis
                 else ""
             )
@@ -399,6 +409,9 @@ class StaffDiagnosisService:
             final_prescriptions = llm_prescriptions
         else:
             final_prescriptions = []
+        final_prescriptions = self._ensure_prescription_usage_instructions(
+            final_prescriptions
+        )
 
         has_llm_prescription = (
             bool(llm_prescriptions) and not has_emr_pattern_prescriptions
@@ -428,7 +441,7 @@ class StaffDiagnosisService:
             prescription_suggestions=final_prescriptions,
             disclaimer="Gợi ý từ tài liệu nội bộ. Bác sĩ cần xác nhận lại chẩn đoán."
             + (
-                " Chọn một chẩn đoán trong Top 3 để mở gợi ý điều trị và SOAP ở các bước sau."
+                " Chọn một chẩn đoán trong danh sách gợi ý để mở gợi ý điều trị và SOAP ở các bước sau."
                 if not has_selected_diagnosis
                 else ""
             )
@@ -526,15 +539,48 @@ class StaffDiagnosisService:
         request: StaffDiagnosisRequest,
     ) -> HybridResult:
         try:
-            return await get_hybrid_rag_engine().query(
+            result = await get_hybrid_rag_engine().query(
                 query=query,
                 top_k=5,
                 min_score=0.45,
                 pet_type=request.species.value,
                 enable_rag=True,
-                enable_kg=True,
                 enable_case_memory=False,
             )
+
+            request_focus_tags = self._extract_request_focus_tags(request)
+            if request_focus_tags and result.chunks:
+                filtered_chunks: List[HybridChunk] = []
+                for chunk in result.chunks:
+                    metadata = chunk.metadata or {}
+                    evidence_text = " ".join(
+                        part
+                        for part in [
+                            str(metadata.get("document_name") or ""),
+                            chunk.content,
+                        ]
+                        if part
+                    )
+                    if self._is_evidence_focus_aligned(
+                        request=request,
+                        evidence_text=evidence_text,
+                    ):
+                        filtered_chunks.append(chunk)
+
+                if len(filtered_chunks) < len(result.chunks):
+                    logger.info(
+                        "Filtered {} KB/KG chunks by symptom focus alignment.",
+                        len(result.chunks) - len(filtered_chunks),
+                    )
+
+                result = HybridResult(
+                    chunks=filtered_chunks,
+                    expanded_query=result.expanded_query,
+                    original_query=result.original_query,
+                    sources_used=result.sources_used,
+                )
+
+            return result
         except Exception as exc:
             logger.warning("Hybrid RAG query failed in staff diagnosis: {}", exc)
             return HybridResult(
@@ -551,12 +597,55 @@ class StaffDiagnosisService:
         request: StaffDiagnosisRequest,
     ) -> List[CaseResult]:
         try:
-            return await get_case_memory_service().search_similar(
+            raw_cases = await get_case_memory_service().search_similar(
                 query=query,
                 top_k=3,
                 min_score=0.6,
                 image_urls=request.image_urls or None,
             )
+
+            confirmed_cases = [
+                case
+                for case in raw_cases
+                if self._is_confirmed_case_payload(case.payload)
+            ]
+            if len(confirmed_cases) < len(raw_cases):
+                logger.info(
+                    "Filtered {} provisional case-memory matches from diagnosis ranking.",
+                    len(raw_cases) - len(confirmed_cases),
+                )
+
+            request_focus_tags = self._extract_request_focus_tags(request)
+            if request_focus_tags and confirmed_cases:
+                focus_aligned_cases: List[CaseResult] = []
+                for case in confirmed_cases:
+                    payload = case.payload or {}
+                    evidence_text = " ".join(
+                        part
+                        for part in [
+                            str(payload.get("chief_complaint") or ""),
+                            str(payload.get("clinical_notes") or ""),
+                            str(payload.get("display_name_vi") or ""),
+                            str(payload.get("final_diagnosis_text") or ""),
+                            case.content,
+                        ]
+                        if part
+                    )
+                    if self._is_evidence_focus_aligned(
+                        request=request,
+                        evidence_text=evidence_text,
+                    ):
+                        focus_aligned_cases.append(case)
+
+                if len(focus_aligned_cases) < len(confirmed_cases):
+                    logger.info(
+                        "Filtered {} case-memory matches by symptom focus alignment.",
+                        len(confirmed_cases) - len(focus_aligned_cases),
+                    )
+
+                confirmed_cases = focus_aligned_cases
+
+            return confirmed_cases
         except Exception as exc:
             logger.warning("Case memory search failed in staff diagnosis: {}", exc)
             return []
@@ -650,6 +739,53 @@ class StaffDiagnosisService:
             }
             for rx in prescriptions
         ]
+
+    def _build_default_prescription_instruction(
+        self,
+        prescription: PrescriptionSuggestion,
+    ) -> str:
+        parts: List[str] = []
+        if prescription.dosage:
+            parts.append(f"Liều mỗi lần: {prescription.dosage}")
+        if prescription.frequency:
+            parts.append(f"Tần suất: {prescription.frequency}")
+        if prescription.duration_days:
+            parts.append(f"Thời gian dùng: {prescription.duration_days} ngày")
+        if prescription.route:
+            parts.append(f"Đường dùng: {prescription.route}")
+
+        instruction = (
+            ". ".join(parts) + "."
+            if parts
+            else "Dùng theo chỉ định của bác sĩ thú y và theo dõi đáp ứng lâm sàng."
+        )
+
+        caution = str(prescription.caution or "").strip()
+        if caution:
+            instruction = f"{instruction} Lưu ý: {caution}"
+
+        return instruction.strip()
+
+    def _ensure_prescription_usage_instructions(
+        self,
+        prescriptions: List[PrescriptionSuggestion],
+    ) -> List[PrescriptionSuggestion]:
+        normalized: List[PrescriptionSuggestion] = []
+        for rx in prescriptions or []:
+            if not isinstance(rx, PrescriptionSuggestion):
+                continue
+
+            existing_instruction = str(rx.instructions or "").strip()
+            if existing_instruction:
+                normalized.append(rx)
+                continue
+
+            fallback_instruction = self._build_default_prescription_instruction(rx)
+            normalized.append(
+                rx.model_copy(update={"instructions": fallback_instruction})
+            )
+
+        return normalized
 
     def _extract_protocol_test_names(self, tests: Any) -> List[str]:
         if not isinstance(tests, list):
@@ -956,7 +1092,8 @@ class StaffDiagnosisService:
             "grounding_bundle": grounding_bundle.to_dict(),
         }
         return f"""Bạn là trợ lý AI nội bộ hỗ trợ staff/vet tổng hợp ca bệnh cho Petties.
-Chỉ dùng dữ liệu nội bộ đã cho. Nếu dữ liệu ảnh rỗng thì không được bịa thêm mô tả ảnh.
+    Ưu tiên dùng dữ liệu nội bộ đã cho. Nếu dữ liệu nội bộ chưa đủ, được phép dùng kiến thức thú y tổng quát để đề xuất chẩn đoán phân biệt theo triệu chứng hiện tại.
+    Nếu dữ liệu ảnh rỗng thì không được bịa thêm mô tả ảnh.
 Nếu Case Memory đã đủ mạnh thì ưu tiên tổng hợp từ Case Memory và Knowledge Base, không cần giả định rằng vision đã chạy.
 
 QUY TẮC GROUNDED SOAP:
@@ -974,6 +1111,7 @@ QUAN TRỌNG về đơn thuốc:
   - BẮT BUỘC phải gợi ý ít nhất 1-2 loại thuốc phổ biến, phù hợp với triệu chứng/chẩn đoán
   - Dựa vào kiến thức thú y chung để suggest thuốc điều trị triệu chứng
   - Ghi rõ disclaimer là "Cần xác nhận từ bác sĩ" vì không có trong data nội bộ
+- Mỗi phần tử trong `prescription_suggestions` BẮT BUỘC có `instructions` không rỗng để staff biết cách dùng thuốc.
 
 QUAN TRỌNG về safety:
 - Được phép đề xuất `safety_suggestions` gồm `missing_inputs` và `cautions`
@@ -985,6 +1123,11 @@ QUAN TRỌNG về tên chẩn đoán:
 - ĐÚNG: "Viêm ruột cấp tính" hoặc "Viêm da do vi khuẩn"
 - SAI: "Viêm ruột cấp tính, nghi do thay đổi thức ăn hoặc ăn phải thức ăn không phù hợp. Theo dõi thêm triệu chứng."
 - Nếu chưa chắc chắn, dùng tên chung như "Rối loạn tiêu hóa" thay vì mô tả dài dòng
+
+QUAN TRỌNG về differential:
+- Nếu `top_differentials` đầu vào chỉ có mục generic như "Cần phân biệt thêm...", bạn ĐƯỢC PHÉP đề xuất tối đa 3 chẩn đoán phân biệt dựa trên triệu chứng hiện tại.
+- Không bắt buộc 100% phải khớp bệnh trong KB/Case Memory ở tình huống này.
+- Tuy nhiên vẫn phải giữ tính lâm sàng và nhất quán với triệu chứng chính; không đề xuất bệnh lệch cơ quan rõ rệt.
 
 Viết hoàn toàn bằng tiếng Việt, ngắn gọn, lâm sàng, không thêm markdown. Chỉ trả về JSON hợp lệ.
 Ưu tiên câu ngắn, trực tiếp, phù hợp để chèn vào EMR.
@@ -1073,6 +1216,9 @@ JSON:
                 canonical_code = fallback.canonical_code if fallback else None
                 if fallback is not None:
                     fallback_label = (fallback.display_name_vi or "").strip().lower()
+                    fallback_is_generic = self._is_generic_fallback_differential(
+                        fallback
+                    )
                     if display_name.strip().lower() != fallback_label:
                         mapped = mapper.map_label(
                             raw_label=display_name,
@@ -1089,8 +1235,11 @@ JSON:
                             canonical_code = mapped.canonical_code
                             display_name = mapped.display_name_vi or display_name
                         else:
-                            canonical_code = fallback.canonical_code
-                            display_name = fallback.display_name_vi
+                            if fallback_is_generic:
+                                canonical_code = None
+                            else:
+                                canonical_code = fallback.canonical_code
+                                display_name = fallback.display_name_vi
                 else:
                     mapped = mapper.map_label(
                         raw_label=display_name,
@@ -1109,17 +1258,41 @@ JSON:
                 reasons = item.get("supporting_reasons") or []
                 if not isinstance(reasons, list):
                     reasons = []
+
+                fallback_is_generic = (
+                    self._is_generic_fallback_differential(fallback)
+                    if fallback is not None
+                    else False
+                )
+                use_llm_confidence = (
+                    fallback_is_generic
+                    and display_name.strip().lower()
+                    != (fallback.display_name_vi or "").strip().lower()
+                )
+
                 normalized.append(
                     DiagnosisSuggestion(
                         canonical_code=canonical_code,
                         display_name_vi=display_name,
                         rank=fallback.rank if fallback else index + 1,
-                        score_percent=fallback.score_percent if fallback else 0,
-                        score_basis=fallback.score_basis if fallback else "",
+                        score_percent=(
+                            0
+                            if use_llm_confidence
+                            else (fallback.score_percent if fallback else 0)
+                        ),
+                        score_basis=(
+                            "llm_reference"
+                            if use_llm_confidence
+                            else (fallback.score_basis if fallback else "")
+                        ),
                         confidence_note=(
-                            fallback.confidence_note
-                            if fallback
-                            else "Độ tự tin (tham khảo): 0%"
+                            "Độ tự tin (tham khảo): 0%"
+                            if use_llm_confidence
+                            else (
+                                fallback.confidence_note
+                                if fallback
+                                else "Độ tự tin (tham khảo): 0%"
+                            )
                         ),
                         supporting_reasons=[
                             str(reason).strip()
@@ -1187,6 +1360,18 @@ JSON:
                 result["prescription_suggestions"] = parsed_rx
 
         return result or None
+
+    def _is_generic_fallback_differential(
+        self,
+        differential: Optional[DiagnosisSuggestion],
+    ) -> bool:
+        if differential is None:
+            return False
+        label = (differential.display_name_vi or "").strip().lower()
+        return (
+            differential.canonical_code is None
+            and "cần phân biệt" in label
+        )
 
     def _merge_safety_suggestions(
         self,
@@ -1344,12 +1529,6 @@ JSON:
             for reason in shared_reasons:
                 candidate.add_reason(reason)
 
-        self._backfill_candidates_from_catalog(
-            candidates=candidates,
-            request=request,
-            minimum=3,
-        )
-
         sorted_candidates = sorted(
             candidates.values(),
             key=lambda item: item.score,
@@ -1448,6 +1627,21 @@ JSON:
             label = (item.display_name_vi or "").strip()
             if not label:
                 return
+
+            candidate_text = " ".join(
+                [label]
+                + self._sanitize_text_list(
+                    item.supporting_reasons,
+                    max_items=4,
+                    max_length=220,
+                )
+            )
+            if not self._is_evidence_focus_aligned(
+                request=request,
+                evidence_text=candidate_text,
+            ):
+                return
+
             key = (item.canonical_code or label).strip().lower()
             if key in seen:
                 return
@@ -1481,31 +1675,11 @@ JSON:
                 break
             append_item(
                 item,
-                extra_reason="Giữ lại để đảm bảo bác sĩ có đủ Top 3 chẩn đoán khả thi để so sánh.",
+                extra_reason="Giữ lại để đảm bảo bác sĩ có thêm lựa chọn đối chiếu lâm sàng.",
             )
-
-        if len(merged) < 3:
-            supplemental_candidates: Dict[str, DifferentialCandidate] = {}
-            self._backfill_candidates_from_catalog(
-                candidates=supplemental_candidates,
-                request=request,
-                minimum=6,
-            )
-            for candidate in supplemental_candidates.values():
-                if len(merged) >= 3:
-                    break
-                append_item(
-                    DiagnosisSuggestion(
-                        canonical_code=candidate.canonical_code,
-                        display_name_vi=candidate.display_name_vi,
-                        score_percent=0,
-                        supporting_reasons=candidate.supporting_reasons,
-                    ),
-                    extra_reason="Cần khám và đối chiếu thêm trước khi kết luận.",
-                )
 
         if not merged:
-            return []
+            return self._fallback_differentials(request)
 
         return self._rank_top_differentials(
             differentials=merged[:3],
@@ -1718,9 +1892,62 @@ JSON:
             reasons.append(
                 f"Đã đối chiếu với {self._format_chunk_source(best_kb_chunk).lower()} nội bộ."
             )
-        if similar_cases:
+        if any(self._is_confirmed_case_payload(case.payload) for case in similar_cases):
             reasons.append("Đã tìm thấy ca EMR xác nhận tương tự trong Case Memory.")
         return reasons
+
+    def _is_confirmed_case_payload(self, payload: Any) -> bool:
+        if not isinstance(payload, dict):
+            return True
+        return str(payload.get("mapping_status") or "").strip().lower() != "provisional"
+
+    def _extract_request_focus_tags(self, request: StaffDiagnosisRequest) -> set[str]:
+        parts: List[str] = []
+        if request.body_part:
+            parts.append(request.body_part)
+        if request.doctor_description:
+            parts.append(request.doctor_description)
+        if request.symptoms:
+            parts.extend(request.symptoms)
+
+        return self._extract_focus_tags(" ".join(parts))
+
+    def _extract_focus_tags(self, text: str) -> set[str]:
+        normalized = (text or "").lower()
+        if not normalized:
+            return set()
+
+        tags: set[str] = set()
+        keyword_map: Dict[str, tuple[str, ...]] = {
+            "eye": ("mắt", "mat", "ghèn", "ghem"),
+            "nose": ("mũi", "mui", "sổ mũi", "so mui", "chảy mũi", "chay mui"),
+            "ear": ("tai", "ráy tai", "ray tai", "otitis"),
+            "skin": ("da", "lông", "long", "ngứa", "ngua", "mẩn", "mun", "mụn"),
+            "gi": ("nôn", "non", "ói", "oi", "tiêu chảy", "tieu chay", "phân", "phan"),
+            "resp": ("ho", "khò khè", "kho khe", "khó thở", "kho tho"),
+        }
+
+        for tag, keywords in keyword_map.items():
+            if any(keyword in normalized for keyword in keywords):
+                tags.add(tag)
+
+        return tags
+
+    def _is_evidence_focus_aligned(
+        self,
+        *,
+        request: StaffDiagnosisRequest,
+        evidence_text: str,
+    ) -> bool:
+        request_tags = self._extract_request_focus_tags(request)
+        if not request_tags:
+            return True
+
+        evidence_tags = self._extract_focus_tags(evidence_text)
+        if not evidence_tags:
+            return True
+
+        return bool(request_tags & evidence_tags)
 
     def _format_hybrid_evidence(self, hybrid_result: HybridResult) -> List[str]:
         evidence: List[str] = []
@@ -1874,8 +2101,6 @@ JSON:
         metadata = chunk.metadata or {}
         if chunk.source == "rag":
             return metadata.get("document_name") or "Kho tri thức nội bộ"
-        if chunk.source == "kg":
-            return "Knowledge Graph nội bộ"
         if chunk.source == "case_memory":
             return "Case Memory EMR xác nhận"
         return "Nguồn nội bộ"
@@ -2149,18 +2374,13 @@ JSON:
         return "llm_fallback"
 
     def _resolve_evidence_labels(self, evidence_mode: str) -> tuple[str, str]:
-        if evidence_mode == "internal_grounded":
+        if evidence_mode in {"internal_grounded", "vlm_fallback", "llm_fallback"}:
             return (
-                "Đã đối chiếu dữ liệu nội bộ",
-                "Độ tự tin (%)",
-            )
-        if evidence_mode == "vlm_fallback":
-            return (
-                "Fallback theo VLM do thiếu dữ liệu nội bộ đủ gần",
+                "Gợi ý AI hỗ trợ nhập EMR",
                 "Độ tự tin (%)",
             )
         return (
-            "Fallback tham khảo do thiếu bằng chứng nội bộ và ảnh",
+            "Gợi ý AI hỗ trợ nhập EMR",
             "Độ tự tin (%)",
         )
 

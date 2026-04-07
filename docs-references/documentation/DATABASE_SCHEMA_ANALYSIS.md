@@ -102,7 +102,6 @@ The AI service PostgreSQL schema is now focused on runtime governance, not chat 
 | `ai_chat_messages` | ReAct traces, thought metadata, tool calls, and streamed content are document-shaped |
 | `ai_proactive_notifications` | Log-style notification payloads are flexible and append-heavy |
 | `chat_feedback` | Feedback payloads vary by moderation and analytics context |
-| `knowledge_graph_triplets` | Triplet storage is graph-like and benefits from document-level indexing patterns |
 
 ### 3.3 MongoDB indexing expectations
 
@@ -112,7 +111,6 @@ The active AI MongoDB code creates indexes for:
 - `ai_chat_messages`: `message_id`, `session_id`, `timestamp`, `user_id`, `tool_calls.tool_name`
 - `ai_proactive_notifications`: `user_id`, `timestamp`, `read_status`
 - `chat_feedback`: `message_id`, `user_id`, `timestamp`
-- `knowledge_graph_triplets`: unique triplet index and traversal indexes
 
 ## 4. Qdrant Schema
 

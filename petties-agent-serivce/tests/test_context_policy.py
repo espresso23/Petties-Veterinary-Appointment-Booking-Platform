@@ -103,10 +103,9 @@ class ContextPolicyTests(unittest.TestCase):
             user_role="PET_OWNER",
             context_type=BUSINESS_CHAT,
             available_tools=[
-                "start_booking_session",
-                "get_booking_session",
-                "update_booking_draft",
-                "end_booking_session",
+                "sync_booking_draft",
+                "get_booking_session_info",
+                "close_booking_session",
                 "get_patient_summary",
             ],
         )
@@ -114,10 +113,9 @@ class ContextPolicyTests(unittest.TestCase):
         self.assertEqual(
             allowed,
             [
-                "start_booking_session",
-                "get_booking_session",
-                "update_booking_draft",
-                "end_booking_session",
+                "sync_booking_draft",
+                "get_booking_session_info",
+                "close_booking_session",
             ],
         )
 
@@ -172,6 +170,38 @@ class ContextPolicyTests(unittest.TestCase):
             ],
             msg=f"CLINIC_OWNER allowed tools mismatch: {allowed}",
         )
+
+    def test_clinic_roles_do_not_receive_pet_owner_consumer_tools(self):
+        consumer_tools = [
+            "pet_knowledge_search",
+            "web_search",
+            "get_user_pets",
+            "search_clinics_nearby",
+            "check_available_slots",
+            "create_booking_for_user",
+        ]
+
+        for role in ["STAFF", "CLINIC_MANAGER", "CLINIC_OWNER"]:
+            allowed = ContextPolicyService.get_allowed_tools(
+                user_role=role,
+                context_type=BUSINESS_CHAT,
+                available_tools=consumer_tools,
+            )
+            self.assertEqual(
+                allowed,
+                [],
+                msg=f"{role} should not receive consumer tools but got: {allowed}",
+            )
+
+    def test_pet_owner_prompt_guardrail_blocks_clinic_operations_mode(self):
+        prompt = ContextPolicyService.build_system_prompt(
+            base_prompt="Base prompt",
+            user_role="PET_OWNER",
+            context_type=BUSINESS_CHAT,
+            allowed_tools=["pet_knowledge_search", "web_search"],
+        )
+
+        self.assertIn("khong phai pham vi PET_OWNER chatbot", prompt)
 
 
 if __name__ == "__main__":

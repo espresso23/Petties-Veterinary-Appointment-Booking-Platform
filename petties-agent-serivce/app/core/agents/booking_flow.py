@@ -7,7 +7,7 @@ This module intentionally stays thin:
 - avoid keyword-based booking intent detection or rigid flow control
 """
 
-from typing import Any, List, Set
+from typing import Any, List, Optional, Set
 
 
 BOOKING_TOOL_NAMES: Set[str] = {
@@ -17,20 +17,33 @@ BOOKING_TOOL_NAMES: Set[str] = {
     "search_clinics_nearby",
     "check_available_slots",
     "create_booking_for_user",
-    # Booking State MCP Tools
-    "start_booking_session",
-    "get_booking_session",
-    "end_booking_session",
-    "update_booking_draft",
-    "get_booking_draft_summary",
-    "suspend_booking_session",
-    "resume_booking_session",
+    # Booking State MCP Tools (Consolidated)
+    "sync_booking_draft",
+    "get_booking_session_info",
+    "close_booking_session",
     # Utility MCP Tools
-    "resolve_date_time",
+    "get_current_datetime",
     "resolve_booking_context",
-    # Fast Booking Tools
-    "quick_booking_search",
 }
+
+
+CLINIC_COPILOT_ROLES: Set[str] = {
+    "STAFF",
+    "CLINIC_MANAGER",
+    "CLINIC_OWNER",
+}
+
+
+def normalize_agent_role(user_role: Optional[str]) -> str:
+    return str(user_role or "PET_OWNER").strip().upper()
+
+
+def is_clinic_copilot_role(user_role: Optional[str]) -> bool:
+    return normalize_agent_role(user_role) in CLINIC_COPILOT_ROLES
+
+
+def is_pet_owner_chat_role(user_role: Optional[str]) -> bool:
+    return not is_clinic_copilot_role(user_role)
 
 
 def has_booking_tools_enabled(enabled_tools_lower: Set[str]) -> bool:
@@ -42,6 +55,7 @@ def build_booking_prompt_guidance(
     messages: List[Any],
     context: str,
     enabled_tools_lower: Set[str],
+    user_role: Optional[str] = None,
 ) -> str:
     """Return semantic booking guidance without forcing a hardcoded flow."""
     if not has_booking_tools_enabled(enabled_tools_lower):
@@ -52,78 +66,56 @@ def build_booking_prompt_guidance(
 
     lines = ["=== BOOKING TOOLS ==="]
 
-    # Fast Booking Flow Guidance (NEW)
-    if "quick_booking_search" in enabled_tools_lower:
+    if is_clinic_copilot_role(user_role):
         lines.append(
-            "- FAST BOOKING: Khi user muon dat lich nhanh, dung quick_booking_search de tim clinic + service + slot trong 1 lan goi"
+            "- Ban dang o che do clinic copilot. Cac tool booking chi la nang luc tra cuu noi bo, khong phai consumer booking wizard cho PET_OWNER."
         )
         lines.append(
-            "- Sau khi co ket qua tu quick_booking_search, neu co clinic phu hop thi goi start_booking_session(initial_draft=...) de tao draft ngay"
+            "- Khong tu dong mo flow hoi pet -> dich vu -> phong kham -> gio nhu dang dat lich thay cho chu nuoi."
         )
         lines.append(
-            "- Neu chua co day du thong tin (pet, clinic, service, date, time), van co the tao draft voi thong tin co san va de user tu dien them"
+            "- Neu nguoi dung hoi slot, dich vu hoac lich hen, tra loi nhu dong nghiep noi bo: uu tien tra cuu, tom tat, de xuat thao tac tiep theo."
+        )
+    else:
+        # PET_OWNER Guidance - FAST DRAFT FLOW
+        lines.append(
+            "- FAST DRAFT FLOW: Khi user muon dat lich, luon uu tien goi sync_booking_draft de tao/cap nhat ban nhap NGAY TRONG 1 LUOT."
         )
         lines.append(
-            "- Sau khi tao draft, thong bao cho user: 'Da tao lich so bo, cac thong tin da co: [...], can them: [...]' va hoi xem co can giup gi khong"
+            "- Neu co thong tin (pet, clinic, service, date, time) tu message dau tiên, hay truyen het vao sync_booking_draft."
         )
         lines.append(
-            "- Khi user hoi 'lich cua toi' hoac 'thong tin dat lich', hien thi full draft voi get_booking_draft_summary"
+            "- SERVICE MAPPING: Truyen ten dich vu vao service_names; tool se tu anh xa sang ID thuc cho ban (dung service_ids neu da biet ID)."
+        )
+        lines.append(
+            "- Sau khi goi sync_booking_draft, hay chao moi nguoi dung xem va hoan thien Form tren UI Card thay vi tiep tuc hoi text."
+        )
+        lines.append(
+            "- Luon dung get_booking_session_info neu can nho lai trang thai hien tai cua ban nhap."
         )
 
-    session_tools = {
-        "start_booking_session",
-        "get_booking_session",
-        "update_booking_draft",
-        "end_booking_session",
-        "suspend_booking_session",
-        "resume_booking_session",
-    }
-    if enabled_tools_lower.intersection(session_tools):
-        lines.append(
-            "- Khi co initial_draft tu prompt (pet, clinic, service, date), ưu tien goi start_booking_session(..., initial_draft=...) de tao draft NGAY"
-        )
-        lines.append(
-            "- Neu dang co booking session active, uu tien tiep tuc session do thay vi hoi lai thong tin da co"
-        )
-    if "get_booking_session" in enabled_tools_lower:
-        lines.append(
-            "- Dung get_booking_session de doc draft hien tai khi can nho lai state"
-        )
-    if "update_booking_draft" in enabled_tools_lower:
-        lines.append(
-            "- Dung update_booking_draft moi khi user doi pet, phong kham, dich vu, ngay, gio, hoac loai booking"
-        )
-    if {
-        "suspend_booking_session",
-        "resume_booking_session",
-    }.issubset(enabled_tools_lower):
-        lines.append(
-            "- Neu user tam hoi sang viec khac trong luc booking dang mo, co the dung suspend_booking_session va resume_booking_session"
-        )
     if "search_clinics_nearby" in enabled_tools_lower:
-        lines.append(
-            "- Dung search_clinics_nearby la tool clinic discovery chinh; neu user neu ten phong kham cu the thi truyen clinic_hint thay vi doi sang tool khac"
-        )
-        lines.append(
-            "- Khi user mô ta nhu câu 'tim phòng khám có dịch vụ X', truyền service_hint=X để lọc clinic"
-        )
+        if is_clinic_copilot_role(user_role):
+            lines.append(
+                "- Dung search_clinics_nearby chi khi can so sanh hoac tra cuu theo vi tri thuc te."
+            )
+        else:
+            lines.append(
+                "- Dung search_clinics_nearby de tim phong kham; neu user da neu ten cu the, dung clinic_hint."
+            )
+            lines.append(
+                "- Khi user mo ta nhu cau 'tim phong kham co dich vu X', truyen service_hint=X de loc clinic."
+            )
+
     if "check_available_slots" in enabled_tools_lower:
         lines.append(
-            "- Dung check_available_slots khi can xac nhan slot that su cho mot phong kham da biet hoac da resolve duoc; khong dung search_clinics_nearby de gia lap slot"
+            "- Dung check_available_slots de kiem tra lich trong thuc te cho phong kham da chon."
         )
-        lines.append(
-            "- Khi user hoi 'ngày nào còn slot' hoặc 'có lịch không', ưu tiên gọi check_available_slots"
-        )
-    lines.append(
-        "- Dung semantic params: clinic_hint, service_hint, date_expression, time_preference"
-    )
-    if "create_booking_for_user" in enabled_tools_lower:
-        lines.append("- Chi goi create_booking khi user da xac nhan ro rang")
-        lines.append(
-            "- Conditional booking: 'neu con slot thi tao' -> auto_create_if_available=True"
-        )
-        lines.append(
-            "- Khi tao booking thanh cong, goi end_booking_session(reason='COMPLETED') de danh dau hoan tat"
-        )
+
+    if "create_booking_for_user" in enabled_tools_lower and is_pet_owner_chat_role(user_role):
+        lines.append("- Chi goi create_booking_for_user khi user da xac nhan hoan tat tren UI Card.")
+        lines.append("- Sau khi thanh cong, luon goi close_booking_session(status='COMPLETED') de danh dau hoan tat.")
+
+    lines.append("- Dung semantic params: clinic_hint, service_hint, date_expression, time_preference.")
 
     return "\n".join(lines) + "\n"

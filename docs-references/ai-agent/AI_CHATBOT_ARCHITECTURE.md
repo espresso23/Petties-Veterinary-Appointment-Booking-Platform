@@ -892,7 +892,7 @@ create_booking_for_user(
 ### 11.6 Symptom Q&A Fast Path
 
 - For simple PET_OWNER or ADMIN-playground symptom/care questions with explicit pet type and no booking/record intent, runtime may bypass the full tool-selection loop.
-- Direct call `pet_knowledge_search` first with fast profile: `top_k=2`, `enable_kg=False`, `enable_case_memory=False`, `enable_query_expansion=False`.
+- Direct call `pet_knowledge_search` first with fast profile: `top_k=2`, `enable_rag=True`, `enable_case_memory=False`, `enable_query_expansion=False`.
 - If knowledge base returns no useful results, auto-fallback to `web_search` when enabled.
 - Final synthesis should prefer direct first-aid guidance first, then red flags / when-to-see-vet.
 
