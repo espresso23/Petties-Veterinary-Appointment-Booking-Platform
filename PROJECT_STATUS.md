@@ -215,6 +215,54 @@
 - Command: `python -m pytest tests/test_clinic_tools.py tests/test_presentation_builder.py tests/test_websocket_chat.py tests/test_context_policy.py -k "not test_handle_chat_message_end_to_end_booking_journey" -q`
 - Result: `59 passed, 1 deselected`.
 
+### Recent AI Copilot Permission & Suggestion Quality Update (Code-based Evidence - 2026-04-07)
+
+**Scope:** Role-permission parity for Clinic Copilot, secure response rendering, and flexible structured service suggestions.
+
+**Implemented changes:**
+- **Role permission sync (Manager/Owner)**: aligned Booking endpoint authorization so Clinic Manager/Owner can access clinic booking operations consistent with dashboard behavior.
+- **Service-layer authorization hardening**: `getClinicTodayBookings` now validates by role+clinic ownership/membership (ADMIN, STAFF, CLINIC_MANAGER, CLINIC_OWNER) and blocks out-of-scope access.
+- **Tool identity safety**: Clinic/medical/booking tools now default to runtime `context.user_id` (ignore mismatched user_id from LLM input).
+- **Error-code parity improvement**: standardized 403/permission-denied backend errors to tool-level `FORBIDDEN` instead of generic `INTERNAL_ERROR`.
+- **JSON payload leak prevention (Web)**: assistant text bubble now suppresses raw JSON payload dump when UI schema cards are present.
+- **Service suggestion flexibility**: `generate_clinic_services` supports mixed create+update strategy and LLM-structured suggestion expansion when catalog is sparse.
+- **Master data safety**: suggestion flow remains clinic-service only (create/update clinic services), no master service mutation.
+
+**Changed files (evidence):**
+- `backend-spring/petties/src/main/java/com/petties/petties/controller/BookingController.java`
+- `backend-spring/petties/src/main/java/com/petties/petties/service/BookingService.java`
+- `backend-spring/petties/src/test/java/com/petties/petties/controller/BookingControllerUnitTest.java`
+- `petties-agent-serivce/app/core/tools/mcp_tools/booking_tools.py`
+- `petties-agent-serivce/app/core/tools/mcp_tools/medical_tools.py`
+- `petties-agent-serivce/app/core/tools/mcp_tools/analytics_tools.py`
+- `petties-agent-serivce/app/core/tools/mcp_tools/staff_tools.py`
+- `petties-agent-serivce/app/core/tools/mcp_tools/clinic_tools.py`
+- `petties-agent-serivce/app/core/tools/tool_policy.py`
+- `petties-agent-serivce/app/core/tools/contracts.py`
+- `petties-agent-serivce/tests/test_booking_tools.py`
+- `petties-agent-serivce/tests/test_medical_tools.py`
+- `petties-agent-serivce/tests/test_tool_contracts.py`
+- `petties-agent-serivce/tests/test_clinic_tools.py`
+- `petties-web/src/pages/clinic-manager/AIChatPage.tsx`
+- `petties-web/src/pages/clinic-owner/AIChatPage.tsx`
+- `petties-web/src/pages/staff/StaffAIChatPage.tsx`
+
+**Validation evidence:**
+- Command: `mvn -Dtest=BookingControllerUnitTest test`
+- Result: pass.
+- Command: `mvn -Dtest=BookingServiceUnitTest test`
+- Result: pass.
+- Command: `python -m pytest tests/test_booking_tools.py -k "ignores_input_user_id" -q`
+- Result: `3 passed`.
+- Command: `python -m pytest tests/test_medical_tools.py -k "get_pet_health_summary" -q`
+- Result: `2 passed`.
+- Command: `python -m pytest tests/test_tool_contracts.py -q`
+- Result: `10 passed`.
+- Command: `python -m pytest tests/test_clinic_tools.py -q`
+- Result: `10 passed`.
+- Command: `npm run test -- UISchemaRenderer`
+- Result: `2 passed`.
+
 ---
 
 ## 🔄 In Progress

@@ -327,8 +327,15 @@ def _build_service_selection_components(data: Dict[str, Any]) -> List[UIComponen
     clinic_id = str(
         data.get("resolved_clinic_id") or data.get("clinic_id") or ""
     ).strip()
+    resolved_clinic = data.get("resolved_clinic") if isinstance(data.get("resolved_clinic"), dict) else {}
+    clinic_name = str(
+        resolved_clinic.get("name")
+        or data.get("clinic_name")
+        or data.get("clinicName")
+        or ""
+    ).strip()
     pet_id = str(data.get("resolved_pet_id") or data.get("pet_id") or "").strip()
-    services = data.get("matched_services") or data.get("services") or []
+    services = data.get("services") or data.get("matched_services") or []
     ordered_services = _dedupe_services(
         [
             service
@@ -343,7 +350,7 @@ def _build_service_selection_components(data: Dict[str, Any]) -> List[UIComponen
     group_id = f"service_group_{clinic_id or 'default'}"
     components: List[UIComponent] = []
 
-    for idx, service in enumerate(ordered_services[:8]):
+    for idx, service in enumerate(ordered_services):
         service_id = str(service.get("id") or idx)
         components.append(
             UIComponent(
@@ -353,6 +360,7 @@ def _build_service_selection_components(data: Dict[str, Any]) -> List[UIComponen
                     **service,
                     "group_id": group_id,
                     "clinic_id": clinic_id,
+                    **({"clinic_name": clinic_name} if clinic_name else {}),
                 },
                 actions=[
                     UIAction(
@@ -363,6 +371,7 @@ def _build_service_selection_components(data: Dict[str, Any]) -> List[UIComponen
                             "item_type": "service",
                             "group_id": group_id,
                             "clinic_id": clinic_id,
+                            **({"clinic_name": clinic_name} if clinic_name else {}),
                             "service_name": service.get("name"),
                         },
                     )

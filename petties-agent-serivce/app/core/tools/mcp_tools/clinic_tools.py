@@ -11,6 +11,8 @@ from app.services.backend_client import (
     get_backend_client,
     BackendClientError,
 )
+from app.services.llm_client import get_llm_client
+from app.services.llm_client import get_llm_client
 
 
 def _normalize_text(value: Optional[str]) -> str:
@@ -131,6 +133,186 @@ def _score_create_suggestion(
     if mapped_master.get("isHomeVisit"):
         score += 1
     return score
+
+
+def _extract_json_object(raw_text: str) -> Optional[Dict[str, Any]]:
+    text = str(raw_text or "").strip()
+    if not text:
+        return None
+
+    if text.startswith("```"):
+        text = text.strip("`")
+        if text.lower().startswith("json"):
+            text = text[4:].strip()
+
+    try:
+        parsed = json.loads(text)
+        return parsed if isinstance(parsed, dict) else None
+    except Exception:
+        pass
+
+    start = text.find("{")
+    end = text.rfind("}")
+    if start >= 0 and end > start:
+        try:
+            parsed = json.loads(text[start : end + 1])
+            return parsed if isinstance(parsed, dict) else None
+        except Exception:
+            return None
+    return None
+
+
+async def _generate_service_suggestions_with_llm(
+    *,
+    existing_services: List[Dict[str, Any]],
+    pet_type_filters: set[str],
+    category_filters: set[str],
+    limit: int,
+) -> List[Dict[str, Any]]:
+    """Generate structured clinic-service suggestions from LLM.
+
+    Note: only returns clinic service draft payloads; does not modify master services.
+    """
+    try:
+        llm = get_llm_client()
+    except Exception as exc:
+        logger.warning(f"Không khởi tạo được LLM client cho gợi ý dịch vụ: {exc}")
+        return []
+
+    existing_compact = [
+        {
+            "service_id": item.get("service_id"),
+            "name": item.get("name"),
+            "service_category": item.get("service_category"),
+            "pet_type": item.get("pet_type"),
+            "base_price": item.get("base_price"),
+            "duration_time": item.get("duration_time"),
+            "is_home_visit": item.get("is_home_visit"),
+        }
+        for item in existing_services[:40]
+    ]
+
+    pet_filter_text = ", ".join(sorted(pet_type_filters)) if pet_type_filters else "ALL"
+    category_filter_text = (
+        ", ".join(sorted(category_filters)) if category_filters else "ALL"
+    )
+
+    prompt = (
+        "Bạn là AI tư vấn danh mục dịch vụ cho phòng khám thú y.\n"
+        "Mục tiêu: đề xuất dịch vụ linh hoạt để BỔ SUNG hoặc CẬP NHẬT danh mục hiện có của clinic.\n"
+        "Tuyệt đối KHÔNG đề xuất thay đổi master service. Chỉ đề xuất payload cho clinic service.\n"
+        "Ưu tiên:\n"
+        "1) Bù khoảng trống danh mục (service_category/pet_type chưa có),\n"
+        "2) Tránh trùng lặp tên dịch vụ hiện có,\n"
+        "3) Đa dạng dịch vụ, không lặp lại 3 mẫu cứng.\n\n"
+        f"PET_TYPE filter: {pet_filter_text}\n"
+        f"CATEGORY filter: {category_filter_text}\n"
+        f"Số lượng cần trả: tối đa {limit}\n\n"
+        "Danh sách dịch vụ clinic hiện có (compact JSON):\n"
+        f"{json.dumps(existing_compact, ensure_ascii=False)}\n\n"
+        "Trả về CHÍNH XÁC JSON object theo schema:\n"
+        "{\n"
+        '  "suggestions": [\n'
+        "    {\n"
+        '      "name": "string",\n'
+        '      "display_name": "string",\n'
+        '      "description": "string",\n'
+        '      "basePrice": 0,\n'
+        '      "durationTime": 0,\n'
+        '      "slotsRequired": 1,\n'
+        '      "isActive": true,\n'
+        '      "isHomeVisit": false,\n'
+        '      "serviceCategory": "KHAM|GROOMING_SPA|VACCINATION|CHECK_UP|SURGERY|DENTAL|DERMATOLOGY|OTHER",\n'
+        '      "petType": "DOG|CAT|OTHER",\n'
+        '      "recommended_action": "create"\n'
+        "    }\n"
+        "  ]\n"
+        "}\n"
+        "Không thêm text giải thích, không markdown, chỉ JSON."
+    )
+
+    try:
+        llm_resp = await llm.generate(
+            prompt=prompt,
+            temperature=0.85,
+            max_tokens=1400,
+        )
+    except Exception as exc:
+        logger.warning(f"LLM generate gợi ý dịch vụ thất bại: {exc}")
+        return []
+
+    parsed = _extract_json_object(getattr(llm_resp, "content", "")) or {}
+    raw_suggestions = parsed.get("suggestions") if isinstance(parsed, dict) else None
+    if not isinstance(raw_suggestions, list):
+        return []
+
+    valid_categories = {
+        "KHAM",
+        "GROOMING_SPA",
+        "VACCINATION",
+        "CHECK_UP",
+        "SURGERY",
+        "DENTAL",
+        "DERMATOLOGY",
+        "OTHER",
+    }
+    valid_pet_types = {"DOG", "CAT", "OTHER"}
+    existing_names = {
+        _normalize_text(str(item.get("name") or ""))
+        for item in existing_services
+        if str(item.get("name") or "").strip()
+    }
+
+    normalized: List[Dict[str, Any]] = []
+    for item in raw_suggestions:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        if not name:
+            continue
+        norm_name = _normalize_text(name)
+        if norm_name in existing_names:
+            continue
+
+        category = str(item.get("serviceCategory") or "OTHER").strip().upper()
+        pet_type = str(item.get("petType") or "OTHER").strip().upper()
+        if category not in valid_categories:
+            category = "OTHER"
+        if pet_type not in valid_pet_types:
+            pet_type = "OTHER"
+
+        if pet_type_filters and pet_type not in pet_type_filters:
+            continue
+        if category_filters and category not in category_filters:
+            continue
+
+        normalized.append(
+            {
+                "name": name,
+                "display_name": str(item.get("display_name") or name),
+                "description": item.get("description"),
+                "basePrice": item.get("basePrice"),
+                "durationTime": item.get("durationTime"),
+                "slotsRequired": item.get("slotsRequired"),
+                "isActive": True
+                if item.get("isActive") is None
+                else bool(item.get("isActive")),
+                "isHomeVisit": bool(item.get("isHomeVisit")),
+                "serviceCategory": category,
+                "petType": pet_type,
+                "reminderInterval": item.get("reminderInterval"),
+                "reminderUnit": item.get("reminderUnit"),
+                "weightPrices": _to_list(item.get("weightPrices")),
+                "vaccineTemplateId": item.get("vaccineTemplateId"),
+                "dosePrices": _to_list(item.get("dosePrices")),
+                "recommended_action": "create",
+                "master_service_id": None,
+            }
+        )
+        if len(normalized) >= limit:
+            break
+
+    return normalized
 
 
 def _match_existing_service(
@@ -869,6 +1051,18 @@ async def generate_clinic_services(
         str(item).upper() for item in (service_scope or []) if str(item).strip()
     }
 
+    if not category_filters:
+        category_filters = {
+            "KHAM",
+            "GROOMING_SPA",
+            "VACCINATION",
+            "CHECK_UP",
+            "SURGERY",
+            "DENTAL",
+            "DERMATOLOGY",
+            "OTHER",
+        }
+
     update_suggestions: List[Dict[str, Any]] = []
     create_suggestions: List[Dict[str, Any]] = []
     for service in services if isinstance(services, list) else []:
@@ -973,6 +1167,27 @@ async def generate_clinic_services(
         *create_suggestions,
         *update_suggestions,
     ]
+
+    llm_generated: List[Dict[str, Any]] = []
+    if len(suggestions) < 6:
+        llm_generated = await _generate_service_suggestions_with_llm(
+            existing_services=existing_services,
+            pet_type_filters=pet_type_filters,
+            category_filters=category_filters,
+            limit=max(0, 8 - len(suggestions)),
+        )
+        if llm_generated:
+            existing_suggested_names = {
+                _normalize_text(str(item.get("name") or ""))
+                for item in suggestions
+                if str(item.get("name") or "").strip()
+            }
+            for item in llm_generated:
+                norm_name = _normalize_text(str(item.get("name") or ""))
+                if norm_name and norm_name not in existing_suggested_names:
+                    suggestions.append(item)
+                    existing_suggested_names.add(norm_name)
+
     if len(suggestions) > 12:
         suggestions = suggestions[:12]
 
@@ -1023,6 +1238,7 @@ async def generate_clinic_services(
             "recommendation_mode": recommendation_mode,
             "update_suggestions": update_suggestions_count,
             "create_suggestions": create_suggestions_count,
+            "llm_generated": len(llm_generated),
         },
         "ui_card": "clinic_service_suggestion_card",
         "message": message,

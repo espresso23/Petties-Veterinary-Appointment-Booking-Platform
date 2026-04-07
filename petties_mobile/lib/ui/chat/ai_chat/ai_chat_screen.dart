@@ -768,8 +768,22 @@ class _AiChatScreenState extends State<AiChatScreen> {
           }
           final clinicId =
               data['clinic_id']?.toString() ?? data['clinicId']?.toString();
+          final clinicName =
+              data['clinic_name']?.toString() ?? data['clinicName']?.toString();
           if ((clinicId ?? '').trim().isNotEmpty) {
             serviceClinicId = clinicId!.trim();
+          }
+          final normalizedClinicId = (clinicId ?? '').trim();
+          final normalizedClinicName = (clinicName ?? '').trim();
+          if (normalizedClinicId.isNotEmpty ||
+              normalizedClinicName.isNotEmpty) {
+            clinics.add(
+              AiClinic(
+                id: normalizedClinicId,
+                name: normalizedClinicName,
+                address: '',
+              ),
+            );
           }
           break;
         case 'slot_button':
@@ -1342,9 +1356,29 @@ class _AiChatScreenState extends State<AiChatScreen> {
         ? summaryClinicName
         : (trackerClinicName.isNotEmpty ? trackerClinicName : '');
     for (final clinicId in clinicIds) {
-      final inferredName = fallbackName.isNotEmpty && clinicIds.length == 1
-          ? fallbackName
-          : 'Phòng khám $clinicId';
+      String knownName = '';
+      for (final clinic in merged) {
+        if (clinic.id.trim().toLowerCase() == clinicId.toLowerCase() &&
+            clinic.name.trim().isNotEmpty) {
+          knownName = clinic.name.trim();
+          break;
+        }
+      }
+      if (knownName.isEmpty) {
+        for (final clinic in _latestClinicOptions) {
+          if (clinic.id.trim().toLowerCase() == clinicId.toLowerCase() &&
+              clinic.name.trim().isNotEmpty) {
+            knownName = clinic.name.trim();
+            break;
+          }
+        }
+      }
+
+      final inferredName = knownName.isNotEmpty
+          ? knownName
+          : (fallbackName.isNotEmpty && clinicIds.length == 1
+              ? fallbackName
+              : 'Phòng khám $clinicId');
       inferredFromServices.add(
         AiClinic(
           id: clinicId,
@@ -1563,14 +1597,16 @@ class _AiChatScreenState extends State<AiChatScreen> {
       }
     }
 
+    final hasSlotSignals = values.isNotEmpty;
+
     final trackerTime = (_bookingTracker.startTime ?? '').trim();
-    if (trackerTime.isNotEmpty) {
+    if (!hasSlotSignals && trackerTime.isNotEmpty) {
       values.add(trackerTime);
     }
     final summaryTime =
         ((summary?.startTime ?? message.bookingSummary?.startTime) ?? '')
             .trim();
-    if (summaryTime.isNotEmpty) {
+    if (!hasSlotSignals && summaryTime.isNotEmpty) {
       values.add(summaryTime);
     }
 
@@ -1607,6 +1643,42 @@ class _AiChatScreenState extends State<AiChatScreen> {
                 bookingTypeInClinic)
             .trim();
 
+    Future<void> requestSlotRefresh({required String reason}) async {
+      final bookingDate = payload['booking_date']?.toString().trim() ?? '';
+      if (bookingDate.isEmpty) {
+        return;
+      }
+      await _sendStructuredBookingAction(
+        userMessage: reason,
+        uiAction: <String, dynamic>{
+          'type': 'select_date',
+          'booking_date': bookingDate,
+          if ((payload['clinic_id']?.toString().trim().isNotEmpty ?? false))
+            'clinic_id': payload['clinic_id'],
+          if ((payload['service_ids'] as List<dynamic>? ?? const []).isNotEmpty)
+            'service_ids': payload['service_ids'],
+          if ((payload['pet_id']?.toString().trim().isNotEmpty ?? false))
+            'pet_id': payload['pet_id'],
+          if (selectedBookingType.isNotEmpty)
+            'booking_type': selectedBookingType,
+        },
+      );
+    }
+
+    if (field == 'refresh_slot') {
+      await requestSlotRefresh(reason: 'Tải lại khung giờ rảnh');
+      return;
+    }
+
+    if (field == 'booking_type' ||
+        field == 'clinic' ||
+        field == 'service' ||
+        field == 'date') {
+      setState(() {
+        _latestStartTimeOptions = const <String>[];
+      });
+    }
+
     if (field == 'booking_type' || field == 'clinic') {
       await _sendStructuredBookingAction(
         userMessage: 'Cập nhật thông tin booking',
@@ -1628,6 +1700,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
           includeLocation: true,
         );
       }
+      await requestSlotRefresh(reason: 'Cập nhật lại khung giờ rảnh');
       return;
     }
 
@@ -1649,20 +1722,12 @@ class _AiChatScreenState extends State<AiChatScreen> {
           },
         );
       }
+      await requestSlotRefresh(reason: 'Cập nhật lại khung giờ theo dịch vụ');
       return;
     }
 
     if (field == 'date') {
-      final bookingDate = payload['booking_date']?.toString().trim() ?? '';
-      if (bookingDate.isNotEmpty) {
-        await _sendStructuredBookingAction(
-          userMessage: 'Cập nhật ngày khám đã chọn',
-          uiAction: <String, dynamic>{
-            'type': 'select_date',
-            'booking_date': bookingDate,
-          },
-        );
-      }
+      await requestSlotRefresh(reason: 'Cập nhật ngày khám đã chọn');
       return;
     }
 
@@ -3028,6 +3093,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
                           formatBookingDate: _formatBookingDate,
                           onFormChanged: (updatedSummary, field) =>
                               _handleBookingFormChanged(updatedSummary, field),
+                          onRequestSlotRefresh: (updatedSummary) =>
+                              _handleBookingFormChanged(
+                            updatedSummary,
+                            'refresh_slot',
+                          ),
                           onConfirm: (editedSummary) =>
                               _confirmBookingSummary(editedSummary, message.id),
                         ),
@@ -3357,6 +3427,20 @@ class _AiChatScreenState extends State<AiChatScreen> {
       return false;
     }
 
+    bool looksLikeClinicIdentifier(String candidate) {
+      final normalized = candidate.trim();
+      if (normalized.isEmpty || normalized.contains(' ')) {
+        return false;
+      }
+      if (normalized.contains('-') || normalized.contains('_')) {
+        return true;
+      }
+      if (RegExp(r'\d').hasMatch(normalized)) {
+        return true;
+      }
+      return normalized.length >= 12;
+    }
+
     if (rawSummaryClinicId.isNotEmpty) {
       if (isKnownClinicId(rawSummaryClinicId)) {
         return rawSummaryClinicId;
@@ -3384,9 +3468,19 @@ class _AiChatScreenState extends State<AiChatScreen> {
       if (rawSummaryClinicId.isEmpty && rawSummaryClinicName.isEmpty) {
         return trackerClinicId;
       }
+      if (!isKnownClinicId(rawSummaryClinicId) &&
+          findClinicIdByName(rawSummaryClinicId) == null &&
+          !looksLikeClinicIdentifier(rawSummaryClinicId)) {
+        return trackerClinicId;
+      }
     }
 
-    return rawSummaryClinicId.isNotEmpty ? rawSummaryClinicId : null;
+    if (rawSummaryClinicId.isNotEmpty &&
+        looksLikeClinicIdentifier(rawSummaryClinicId)) {
+      return rawSummaryClinicId;
+    }
+
+    return null;
   }
 
   String? _normalizeBookingDateForAction(String? raw) {

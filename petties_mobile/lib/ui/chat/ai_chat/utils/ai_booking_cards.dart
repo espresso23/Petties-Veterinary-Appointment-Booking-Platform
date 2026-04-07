@@ -207,6 +207,7 @@ class AiStructuredBookingSummaryCard extends StatefulWidget {
   final String Function(String? value) formatBookingDate;
   final void Function(AiBookingSummaryPayload summary, String field)?
       onFormChanged;
+  final ValueChanged<AiBookingSummaryPayload>? onRequestSlotRefresh;
   final ValueChanged<AiBookingSummaryPayload> onConfirm;
 
   const AiStructuredBookingSummaryCard({
@@ -220,6 +221,7 @@ class AiStructuredBookingSummaryCard extends StatefulWidget {
     required this.startTimeOptions,
     required this.formatBookingDate,
     this.onFormChanged,
+    this.onRequestSlotRefresh,
     required this.onConfirm,
   });
 
@@ -442,7 +444,8 @@ class _AiStructuredBookingSummaryCardState
             isEnabled: !widget.isBusy && !widget.isConfirmed,
             hintText: 'Chọn giờ bắt đầu',
             emptyMessage: 'Chưa có danh sách khung giờ',
-            onRequestOptions: null,
+            onRequestOptions:
+                _canRequestSlotRefresh() ? _requestSlotRefresh : null,
             onChanged: (nextValue) {
               setState(() {
                 _selectedStartTime = nextValue;
@@ -512,6 +515,27 @@ class _AiStructuredBookingSummaryCardState
   }
 
   void _confirmWithCurrentForm() {
+    final payload = _buildCurrentSummaryPayload();
+    widget.onConfirm(payload);
+  }
+
+  bool _canRequestSlotRefresh() {
+    return ((widget.summary.bookingDate ?? _selectedBookingDate ?? '')
+            .trim()
+            .isNotEmpty) &&
+        !widget.isBusy &&
+        !widget.isConfirmed;
+  }
+
+  void _requestSlotRefresh() {
+    final callback = widget.onRequestSlotRefresh;
+    if (callback == null) {
+      return;
+    }
+    callback(_buildCurrentSummaryPayload());
+  }
+
+  AiBookingSummaryPayload _buildCurrentSummaryPayload() {
     final selectedServiceIds = _selectedServiceIds
         .map((item) => item.trim())
         .where((item) => item.isNotEmpty)
@@ -524,27 +548,25 @@ class _AiStructuredBookingSummaryCardState
         .where((name) => name.isNotEmpty)
         .toList();
 
-    widget.onConfirm(
-      AiBookingSummaryPayload(
-        petId: widget.summary.petId,
-        petName: widget.summary.petName,
-        clinicId: _selectedClinicId,
-        clinicName: _selectedClinicName,
-        bookingDate: _selectedBookingDate,
-        startTime: _selectedStartTime,
-        serviceIds: selectedServiceIds,
-        serviceNames: selectedServiceNames,
-        bookingType: _selectedBookingType,
-        notes: widget.summary.notes,
-        homeAddress: _homeAddress,
-        homeLat: _homeLat,
-        homeLong: _homeLong,
-        distanceKm: widget.summary.distanceKm,
-        message: widget.summary.message,
-        missingFields: widget.summary.missingFields,
-        readyToCreate: widget.summary.readyToCreate,
-        nextBestAction: widget.summary.nextBestAction,
-      ),
+    return AiBookingSummaryPayload(
+      petId: widget.summary.petId,
+      petName: widget.summary.petName,
+      clinicId: _selectedClinicId,
+      clinicName: _selectedClinicName,
+      bookingDate: _selectedBookingDate,
+      startTime: _selectedStartTime,
+      serviceIds: selectedServiceIds,
+      serviceNames: selectedServiceNames,
+      bookingType: _selectedBookingType,
+      notes: widget.summary.notes,
+      homeAddress: _homeAddress,
+      homeLat: _homeLat,
+      homeLong: _homeLong,
+      distanceKm: widget.summary.distanceKm,
+      message: widget.summary.message,
+      missingFields: widget.summary.missingFields,
+      readyToCreate: widget.summary.readyToCreate,
+      nextBestAction: widget.summary.nextBestAction,
     );
   }
 

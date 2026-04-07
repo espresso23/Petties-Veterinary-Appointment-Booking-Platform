@@ -252,6 +252,69 @@ def test_build_ui_schema_service_group_keeps_service_details_for_copilot():
     assert first_service_chip.data["weight_prices"][0]["price"] == 120000
 
 
+def test_build_ui_schema_service_group_prefers_full_services_over_matched_subset():
+    tool_results = [
+        {
+            "tool_name": "get_clinic_services",
+            "success": True,
+            "data": {
+                "clinic_id": "clinic-1",
+                "matched_services": [
+                    {"id": "svc-1", "name": "Tắm chó"},
+                ],
+                "services": [
+                    {"id": "svc-1", "name": "Tắm chó"},
+                    {"id": "svc-2", "name": "Cắt móng"},
+                    {"id": "svc-3", "name": "Vệ sinh tai"},
+                ],
+            },
+        }
+    ]
+
+    schema = build_ui_schema(tool_results)
+
+    assert schema is not None
+    service_chips = [
+        component for component in schema.components if component.type == ComponentType.SERVICE_CHIP
+    ]
+    assert len(service_chips) == 3
+    assert {chip.data["name"] for chip in service_chips} == {
+        "Tắm chó",
+        "Cắt móng",
+        "Vệ sinh tai",
+    }
+
+
+def test_build_ui_schema_service_group_includes_resolved_clinic_name_from_db():
+    tool_results = [
+        {
+            "tool_name": "get_clinic_services",
+            "success": True,
+            "data": {
+                "clinic_id": "clinic-petcare-1",
+                "resolved_clinic_id": "clinic-petcare-1",
+                "resolved_clinic": {
+                    "id": "clinic-petcare-1",
+                    "name": "Phòng khám thú y Petcare",
+                },
+                "services": [
+                    {"id": "svc-1", "name": "Tắm chó"},
+                ],
+            },
+        }
+    ]
+
+    schema = build_ui_schema(tool_results)
+
+    assert schema is not None
+    service_chip = next(
+        component for component in schema.components if component.type == ComponentType.SERVICE_CHIP
+    )
+    assert service_chip.data["clinic_id"] == "clinic-petcare-1"
+    assert service_chip.data["clinic_name"] == "Phòng khám thú y Petcare"
+    assert service_chip.actions[0].payload["clinic_name"] == "Phòng khám thú y Petcare"
+
+
 def test_build_ui_schema_available_slots_include_booking_context():
     tool_results = [
         {
