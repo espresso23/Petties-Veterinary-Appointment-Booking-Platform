@@ -913,44 +913,42 @@ async def generate_clinic_services(
 
         if existing_services:
             matched_existing = _match_existing_service(existing_services, mapped)
-            if not matched_existing:
+            if matched_existing:
+                proposed_updates = _build_proposed_updates(matched_existing, mapped)
+                if proposed_updates:
+                    change_summary = [
+                        FIELD_SPECS[ALIASES_TO_FIELD[key]]["label"]
+                        for key in proposed_updates.keys()
+                        if key in ALIASES_TO_FIELD
+                    ]
+                    update_suggestion = {
+                        **mapped,
+                        "recommended_action": "update",
+                        "service_id": matched_existing.get("service_id"),
+                        "service_name": matched_existing.get("name"),
+                        "current_values": {
+                            "base_price": matched_existing.get("base_price"),
+                            "duration_time": matched_existing.get("duration_time"),
+                            "slots_required": matched_existing.get("slots_required"),
+                            "is_home_visit": matched_existing.get("is_home_visit"),
+                            "service_category": matched_existing.get(
+                                "service_category"
+                            ),
+                            "pet_type": matched_existing.get("pet_type"),
+                        },
+                        "proposed_updates": proposed_updates,
+                        "change_summary": change_summary,
+                    }
+                    update_suggestion["display_name"] = (
+                        matched_existing.get("name")
+                        or mapped.get("display_name")
+                        or mapped.get("name")
+                    )
+                    update_suggestion["description"] = mapped.get(
+                        "description"
+                    ) or matched_existing.get("description")
+                    update_suggestions.append(update_suggestion)
                 continue
-
-            proposed_updates = _build_proposed_updates(matched_existing, mapped)
-            if not proposed_updates:
-                continue
-
-            change_summary = [
-                FIELD_SPECS[ALIASES_TO_FIELD[key]]["label"]
-                for key in proposed_updates.keys()
-                if key in ALIASES_TO_FIELD
-            ]
-            update_suggestion = {
-                **mapped,
-                "recommended_action": "update",
-                "service_id": matched_existing.get("service_id"),
-                "service_name": matched_existing.get("name"),
-                "current_values": {
-                    "base_price": matched_existing.get("base_price"),
-                    "duration_time": matched_existing.get("duration_time"),
-                    "slots_required": matched_existing.get("slots_required"),
-                    "is_home_visit": matched_existing.get("is_home_visit"),
-                    "service_category": matched_existing.get("service_category"),
-                    "pet_type": matched_existing.get("pet_type"),
-                },
-                "proposed_updates": proposed_updates,
-                "change_summary": change_summary,
-            }
-            update_suggestion["display_name"] = (
-                matched_existing.get("name")
-                or mapped.get("display_name")
-                or mapped.get("name")
-            )
-            update_suggestion["description"] = mapped.get(
-                "description"
-            ) or matched_existing.get("description")
-            update_suggestions.append(update_suggestion)
-            continue
 
         mapped["recommended_action"] = "create"
         mapped["priority_score"] = _score_create_suggestion(mapped, existing_services)
