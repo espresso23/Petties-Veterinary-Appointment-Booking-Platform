@@ -84,16 +84,38 @@ public class EmrService {
                 Pet pet = petRepository.findById(request.getPetId())
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thú cưng"));
 
-                // Map prescriptions
+                // Map prescriptions (new schema, still accepts legacy dosage/frequency for conversion)
                 List<Prescription> prescriptions = request.getPrescriptions() != null
                                 ? request.getPrescriptions().stream()
-                                                .map(p -> Prescription.builder()
-                                                                .medicineName(p.getMedicineName())
-                                                                .dosage(p.getDosage())
-                                                                .frequency(p.getFrequency())
-                                                                .durationDays(p.getDurationDays())
-                                                                .instructions(p.getInstructions())
-                                                                .build())
+                                                .map(p -> {
+                                                        Prescription.PrescriptionBuilder builder = Prescription.builder()
+                                                                        .medicineName(p.getMedicineName())
+                                                                        .timesOfDay(p.getTimesOfDay())
+                                                                        .beforeAfterMeal(p.getBeforeAfterMeal())
+                                                                        .frequencyNote(p.getFrequencyNote())
+                                                                        .durationDays(p.getDurationDays())
+                                                                        .instructions(p.getInstructions())
+                                                                        .dosage(p.getDosage())
+                                                                        .frequency(p.getFrequency());
+
+                                                        // Nếu instructions trống nhưng có dosage/frequency cũ, convert sang hướng dẫn
+                                                        if ((p.getInstructions() == null || p.getInstructions().isBlank())
+                                                                        && (p.getDosage() != null || p.getFrequency() != null)) {
+                                                                StringBuilder legacyNote = new StringBuilder();
+                                                                if (p.getDosage() != null && !p.getDosage().isBlank()) {
+                                                                        legacyNote.append("Liều cũ: ").append(p.getDosage());
+                                                                }
+                                                                if (p.getFrequency() != null && !p.getFrequency().isBlank()) {
+                                                                        if (!legacyNote.isEmpty()) {
+                                                                                legacyNote.append(" | ");
+                                                                        }
+                                                                        legacyNote.append("Tần suất cũ: ").append(p.getFrequency());
+                                                                }
+                                                                builder.instructions(legacyNote.toString());
+                                                        }
+
+                                                        return builder.build();
+                                                })
                                                 .collect(Collectors.toList())
                                 : List.of();
 
@@ -186,13 +208,34 @@ public class EmrService {
                 // Update prescriptions if provided
                 if (request.getPrescriptions() != null) {
                         List<Prescription> prescriptions = request.getPrescriptions().stream()
-                                        .map(p -> Prescription.builder()
-                                                        .medicineName(p.getMedicineName())
-                                                        .dosage(p.getDosage())
-                                                        .frequency(p.getFrequency())
-                                                        .durationDays(p.getDurationDays())
-                                                        .instructions(p.getInstructions())
-                                                        .build())
+                                        .map(p -> {
+                                                Prescription.PrescriptionBuilder builder = Prescription.builder()
+                                                                .medicineName(p.getMedicineName())
+                                                                .timesOfDay(p.getTimesOfDay())
+                                                                .beforeAfterMeal(p.getBeforeAfterMeal())
+                                                                .frequencyNote(p.getFrequencyNote())
+                                                                .durationDays(p.getDurationDays())
+                                                                .instructions(p.getInstructions())
+                                                                .dosage(p.getDosage())
+                                                                .frequency(p.getFrequency());
+
+                                                if ((p.getInstructions() == null || p.getInstructions().isBlank())
+                                                                && (p.getDosage() != null || p.getFrequency() != null)) {
+                                                        StringBuilder legacyNote = new StringBuilder();
+                                                        if (p.getDosage() != null && !p.getDosage().isBlank()) {
+                                                                legacyNote.append("Liều cũ: ").append(p.getDosage());
+                                                        }
+                                                        if (p.getFrequency() != null && !p.getFrequency().isBlank()) {
+                                                                if (!legacyNote.isEmpty()) {
+                                                                        legacyNote.append(" | ");
+                                                                }
+                                                                legacyNote.append("Tần suất cũ: ").append(p.getFrequency());
+                                                        }
+                                                        builder.instructions(legacyNote.toString());
+                                                }
+
+                                                return builder.build();
+                                        })
                                         .collect(Collectors.toList());
                         emr.setPrescriptions(prescriptions);
                 }

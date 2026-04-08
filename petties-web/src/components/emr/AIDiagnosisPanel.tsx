@@ -318,13 +318,20 @@ export const AIDiagnosisPanel = ({
         return {
             url,
             order: analysisItem?.order ?? index + 1,
-            description: analysisItem?.description || fallbackDescription || 'AI đang chờ mô tả cho ảnh này.',
+            description: analysisItem?.description || fallbackDescription || 'Đang chờ AI mô tả ảnh này.',
         }
     })
 
     const handleImageClick = (index: number) => {
         setLightboxIndex(index)
         setLightboxOpen(true)
+    }
+
+    const formatConfidenceText = (scorePercent?: number) => {
+        if (typeof scorePercent === 'number' && Number.isFinite(scorePercent)) {
+            return `Độ tự tin: ${scorePercent}%`
+        }
+        return 'Độ tự tin: --'
     }
 
     const imageGalleryContent = isModal ? (
@@ -466,8 +473,6 @@ export const AIDiagnosisPanel = ({
                                 Gợi ý đơn thuốc sẽ mở sau khi bác sĩ chọn 1 chẩn đoán trong Top 3.
                             </p>
                         )}
-                        <p className="mt-1 text-xs font-semibold text-stone-700">{result.evidence_banner}</p>
-
                     </div>
                     {!isModal && (
                         <button
@@ -485,7 +490,6 @@ export const AIDiagnosisPanel = ({
                 <>
                     <div>
                         <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-stone-700">Chẩn đoán phân biệt</h4>
-                        <p className="mb-2 text-[11px] font-semibold text-stone-600">{result.score_label}</p>
                         <div className="space-y-2">
                             {result.top_differentials.slice(0, 3).map((item, idx) => {
                                 const isCurrentSelection = (item.canonical_code && item.canonical_code === selectedDiagnosisCode)
@@ -504,7 +508,7 @@ export const AIDiagnosisPanel = ({
                                             <div className="flex flex-wrap items-center gap-2">
                                                 <p className="text-sm font-bold text-stone-900">#{item.rank || idx + 1} - {item.display_name_vi}</p>
                                             </div>
-                                            <p className="text-xs text-stone-600">{item.confidence_note}</p>
+                                            <p className="text-xs text-stone-600">{formatConfidenceText(item.score_percent)}</p>
                                         </div>
                                         <span className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-black text-amber-700">
                                             {item.score_percent}%
@@ -583,8 +587,7 @@ export const AIDiagnosisPanel = ({
                         <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-3">
                             <h4 className="mb-1 text-xs font-bold uppercase tracking-wide text-amber-800">Đơn thuốc AI chưa sẵn sàng</h4>
                             <p className="text-xs text-amber-800">
-                                AI chưa đề xuất đơn thuốc nháp cho ca này. Nguyên nhân thường gặp là chưa có đủ evidence nội bộ
-                                hoặc còn thiếu dữ liệu như cân nặng để tính liều an toàn.
+                                AI chưa đề xuất đơn thuốc nháp cho ca này. Vui lòng bổ sung thêm dữ liệu lâm sàng và thử phân tích lại.
                             </p>
                         </div>
                     ) : (

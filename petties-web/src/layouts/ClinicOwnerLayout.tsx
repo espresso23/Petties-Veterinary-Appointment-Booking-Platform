@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useNotificationStore } from '../store/notificationStore'
 import { Sidebar } from '../components/Sidebar/Sidebar'
+import MascotProvider from '../components/mascot/MascotProvider'
 import type { NavGroup } from '../components/Sidebar/Sidebar'
 import { useSidebar } from '../hooks/useSidebar'
 import { useSseNotification } from '../hooks/useSseNotification'
@@ -20,7 +21,6 @@ import {
     BellIcon,
     PresentationChartLineIcon,
     UserCircleIcon,
-    SparklesIcon
 } from '@heroicons/react/24/outline'
 import '../styles/brutalist.css'
 
@@ -62,7 +62,6 @@ export const ClinicOwnerLayout = () => {
             items: [
                 { path: '/clinic-owner', label: 'BẢNG ĐIỀU KHIỂN', icon: Squares2X2Icon, end: true },
                 { path: '/clinic-owner/clinics', label: 'QUẢN LÝ PHÒNG KHÁM', icon: HomeModernIcon },
-                { path: '/clinic-owner/ai-copilot', label: 'AI COPILOT', icon: SparklesIcon },
                 { path: '/clinic-owner/subscriptions', label: 'GÓI DỊCH VỤ', icon: CreditCardIcon },
                 { path: '/clinic-owner/staff', label: 'NHÂN SỰ', icon: UserGroupIcon },
             ]
@@ -110,6 +109,8 @@ export const ClinicOwnerLayout = () => {
                     <Outlet />
                 </div>
             </main>
+
+            <MascotProvider />
         </div>
     )
 }

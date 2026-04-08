@@ -122,6 +122,9 @@ export const EditEmrPage = () => {
         { id: 2 as const, title: 'Bước 2', label: 'Kết luận & Điều trị' },
     ]
 
+const mealLabel = (value?: string) => (value === 'BEFORE_MEAL' ? 'Trước ăn' : 'Sau ăn')
+const timeLabel = (value: string) => ({ sang: 'Sáng', trua: 'Trưa', chieu: 'Chiều' }[value] || value)
+
     const goToNextStep = () => setCurrentStep((prev) => (prev < 2 ? ((prev + 1) as 1 | 2) : prev))
     const goToPreviousStep = () => setCurrentStep((prev) => (prev > 1 ? ((prev - 1) as 1 | 2) : prev))
 
@@ -271,15 +274,36 @@ export const EditEmrPage = () => {
 
     // Prescription Modal Handlers
     const handleOpenPrescriptionModal = () => {
-        setTempPrescriptions(prescriptions.length > 0 ? [...prescriptions] : [{ medicineName: '', frequency: '', durationDays: 0, dosage: '', instructions: '' }])
+        setTempPrescriptions(
+            prescriptions.length > 0
+                ? [...prescriptions]
+                : [
+                    {
+                        medicineName: '',
+                        timesOfDay: [],
+                        beforeAfterMeal: 'AFTER_MEAL',
+                        durationDays: 0,
+                        instructions: '',
+                    },
+                ]
+        )
         setShowPrescriptionModal(true)
     }
 
     const handleAddPrescriptionRow = () => {
-        setTempPrescriptions([...tempPrescriptions, { medicineName: '', frequency: '', durationDays: 0, dosage: '', instructions: '' }])
+        setTempPrescriptions([
+            ...tempPrescriptions,
+            {
+                medicineName: '',
+                timesOfDay: [],
+                beforeAfterMeal: 'AFTER_MEAL',
+                durationDays: 0,
+                instructions: '',
+            },
+        ])
     }
 
-    const handleUpdatePrescription = (index: number, field: string, value: string | number) => {
+    const handleUpdatePrescription = (index: number, field: keyof Prescription, value: unknown) => {
         const updated = [...tempPrescriptions]
         updated[index] = { ...updated[index], [field]: value }
         setTempPrescriptions(updated)
@@ -677,17 +701,17 @@ export const EditEmrPage = () => {
                                             {/* Table Header */}
                                             <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-orange-50/50 border border-orange-100 rounded-xl text-[11px] font-bold text-orange-800 uppercase tracking-widest text-center">
                                                 <div className="col-span-3">Tên thuốc</div>
-                                                <div className="col-span-1">Liều</div>
-                                                <div className="col-span-1">T.Suất</div>
+                                                <div className="col-span-3">Thời điểm uống</div>
+                                                <div className="col-span-2">Trước/Sau ăn</div>
                                                 <div className="col-span-1">Ngày</div>
-                                                <div className="col-span-5">Hướng dẫn sử dụng</div>
+                                                <div className="col-span-2">Hướng dẫn</div>
                                                 <div className="col-span-1"></div>
                                             </div>
 
                                             {/* Rows */}
                                             <div className="space-y-2">
                                                 {tempPrescriptions.map((p, i) => (
-                                                    <div key={i} className="grid grid-cols-12 gap-2 items-center p-2 rounded-2xl hover:bg-stone-50 transition-all border border-transparent hover:border-stone-100 group">
+                                                    <div key={i} className="grid grid-cols-12 gap-2 items-start p-2 rounded-2xl hover:bg-stone-50 transition-all border border-transparent hover:border-stone-100 group">
                                                         <div className="col-span-3">
                                                             <input
                                                                 type="text"
@@ -699,25 +723,42 @@ export const EditEmrPage = () => {
                                                                 className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm font-bold text-stone-700 focus:ring-4 focus:ring-orange-500/10 focus:border-orange-600 outline-none transition-all placeholder:font-normal placeholder:text-stone-300 disabled:bg-stone-50 disabled:text-stone-400"
                                                             />
                                                         </div>
-                                                        <div className="col-span-1">
-                                                            <input
-                                                                type="text"
-                                                                value={p.dosage || ''}
-                                                                onChange={(e) => handleUpdatePrescription(i, 'dosage', e.target.value)}
-                                                                placeholder="1"
-                                                                disabled={isExpired}
-                                                                className="w-full bg-white border border-stone-200 rounded-xl px-2 py-2 text-sm text-center font-medium focus:ring-4 focus:ring-orange-500/10 focus:border-orange-600 outline-none transition-all placeholder:text-stone-300 disabled:bg-stone-50 disabled:text-stone-400"
-                                                            />
+                                                        <div className="col-span-3">
+                                                            <div className="grid grid-cols-3 gap-2">
+                                                                {(['sang', 'trua', 'chieu'] as const).map((slot) => {
+                                                                    const active = (p.timesOfDay || []).includes(slot)
+                                                                    return (
+                                                                        <button
+                                                                            key={slot}
+                                                                            type="button"
+                                                                            disabled={isExpired}
+                                                                            onClick={() => {
+                                                                                const next = active
+                                                                                    ? (p.timesOfDay || []).filter((x) => x !== slot)
+                                                                                    : [...(p.timesOfDay || []), slot]
+                                                                                handleUpdatePrescription(i, 'timesOfDay', next)
+                                                                            }}
+                                                                            className={`w-full rounded-full border px-3 py-1 text-center text-[11px] font-bold uppercase tracking-wide transition-all active:scale-95 disabled:opacity-50 ${active
+                                                                                ? 'border-orange-400 bg-orange-50 text-orange-700'
+                                                                                : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
+                                                                                }`}
+                                                                        >
+                                                                            {timeLabel(slot)}
+                                                                        </button>
+                                                                    )
+                                                                })}
+                                                            </div>
                                                         </div>
-                                                        <div className="col-span-1">
-                                                            <input
-                                                                type="text"
-                                                                value={p.frequency}
-                                                                onChange={(e) => handleUpdatePrescription(i, 'frequency', e.target.value)}
-                                                                placeholder="2"
+                                                        <div className="col-span-2">
+                                                            <select
+                                                                value={p.beforeAfterMeal || 'AFTER_MEAL'}
+                                                                onChange={(e) => handleUpdatePrescription(i, 'beforeAfterMeal', e.target.value)}
                                                                 disabled={isExpired}
-                                                                className="w-full bg-white border border-stone-200 rounded-xl px-2 py-2 text-sm text-center font-medium focus:ring-4 focus:ring-orange-500/10 focus:border-orange-600 outline-none transition-all placeholder:text-stone-300 disabled:bg-stone-50 disabled:text-stone-400"
-                                                            />
+                                                                className="w-full bg-white border border-stone-200 rounded-xl px-2 py-2 text-sm font-medium focus:ring-4 focus:ring-orange-500/10 focus:border-orange-600 outline-none transition-all disabled:bg-stone-50 disabled:text-stone-400"
+                                                            >
+                                                                <option value="BEFORE_MEAL">Trước ăn</option>
+                                                                <option value="AFTER_MEAL">Sau ăn</option>
+                                                            </select>
                                                         </div>
                                                         <div className="col-span-1">
                                                             <input
@@ -729,14 +770,14 @@ export const EditEmrPage = () => {
                                                                 className="w-full bg-white border border-stone-200 rounded-xl px-2 py-2 text-sm text-center font-bold text-orange-600 focus:ring-4 focus:ring-orange-500/10 focus:border-orange-600 outline-none transition-all disabled:bg-stone-50 disabled:text-orange-800/30"
                                                             />
                                                         </div>
-                                                        <div className="col-span-5">
+                                                        <div className="col-span-2">
                                                             <input
                                                                 type="text"
                                                                 value={p.instructions || ''}
                                                                 onChange={(e) => handleUpdatePrescription(i, 'instructions', e.target.value)}
-                                                                placeholder="Hướng dẫn sử dụng chi tiết..."
+                                                                placeholder="Hướng dẫn..."
                                                                 disabled={isExpired}
-                                                                className="w-full bg-white border border-stone-200 rounded-xl px-4 py-2 text-sm font-medium focus:ring-4 focus:ring-orange-500/10 focus:border-orange-600 outline-none transition-all placeholder:font-normal placeholder:text-stone-300 italic disabled:bg-stone-50 disabled:text-stone-400"
+                                                                className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm font-medium focus:ring-4 focus:ring-orange-500/10 focus:border-orange-600 outline-none transition-all placeholder:font-normal placeholder:text-stone-300 italic disabled:bg-stone-50 disabled:text-stone-400"
                                                             />
                                                         </div>
                                                         <div className="col-span-1 flex justify-center">
@@ -870,7 +911,7 @@ export const EditEmrPage = () => {
                                 <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
                                 <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">O - KHÁCH QUAN (Objective)</h2>
                             </div>
-                            <p className="text-xs text-stone-400 mb-4">Kết quả khám lâm sàng, chỉ số sinh tồn</p>
+                            <p className="text-xs text-stone-400 mb-4">Kết quả khám lâm sàng, chỉ số sức khỏe</p>
                             {isVipClinic && (
                                 <p className="mb-3 text-xs font-semibold text-stone-600">
                                     {isAiAnalyzing
@@ -993,7 +1034,11 @@ export const EditEmrPage = () => {
                                             <div className="min-w-0 pl-2">
                                                 <div className="text-sm font-bold text-stone-800">{p.medicineName}</div>
                                                 <div className="mt-1 break-words text-[10px] font-medium uppercase tracking-wide text-stone-500">
-                                                    {p.dosage || 'Theo chỉ định'} | {p.frequency || 'Theo chỉ định'} | {p.durationDays} ngày
+                                                    {(p.timesOfDay && p.timesOfDay.length > 0) ? p.timesOfDay.map(timeLabel).join(', ') : ((p.frequency || '').trim() || 'Theo chỉ định')}
+                                                    {' | '}
+                                                    {mealLabel(p.beforeAfterMeal)}
+                                                    {' | '}
+                                                    {p.durationDays ?? '-'} ngày
                                                 </div>
                                                 {p.instructions && <p className="mt-1 line-clamp-2 text-[11px] text-stone-600">{p.instructions}</p>}
                                             </div>

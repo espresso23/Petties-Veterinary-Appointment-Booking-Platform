@@ -43,6 +43,30 @@ export const NotificationsPage = () => {
     await refreshUnreadCount()
   }, [refreshUnreadCount])
 
+  const extractBookingId = (notification: ClinicNotification): string | null => {
+    const raw = notification.actionData?.trim()
+    if (!raw) return null
+
+    try {
+      const parsed = JSON.parse(raw) as unknown
+      if (typeof parsed === 'string' && parsed.trim()) {
+        return parsed.trim()
+      }
+      if (
+        parsed &&
+        typeof parsed === 'object' &&
+        'bookingId' in parsed &&
+        typeof (parsed as { bookingId?: unknown }).bookingId === 'string'
+      ) {
+        return ((parsed as { bookingId: string }).bookingId || '').trim() || null
+      }
+    } catch {
+      // actionData can be raw UUID string; keep fallback below.
+    }
+
+    return raw
+  }
+
   // SSE hook for real-time notifications
   useSseNotification({
     silent: true,
@@ -90,6 +114,7 @@ export const NotificationsPage = () => {
       case 'STAFF_SHIFT_UPDATED':
       case 'STAFF_SHIFT_DELETED':
         return '/staff/schedule'
+      case 'BOOKING_CREATED':
       case 'BOOKING_CONFIRMED':
       case 'BOOKING_CANCELLED':
         return '/staff/bookings'
@@ -106,6 +131,13 @@ export const NotificationsPage = () => {
     }
     // Navigate to relevant page
     const route = getNavigationRoute(notification)
+    const bookingId = extractBookingId(notification)
+
+    if (route === '/staff/bookings' && bookingId) {
+      navigate('/staff/bookings', { state: { focusBookingId: bookingId } })
+      return
+    }
+
     if (route) {
       navigate(route)
     }

@@ -79,9 +79,11 @@ class DiagnosisProtocolServiceTests(unittest.TestCase):
                 "common_prescriptions": [
                     {
                         "medicine": "Thuoc A",
-                        "dosage": "10 mg",
-                        "frequency": "2 lan/ngay",
-                        "duration": 7,
+                        "times_of_day": ["sang", "trua", "chieu"],
+                        "before_after_meal": "AFTER_MEAL",
+                        "frequency_note": "2 lần/ngày",
+                        "duration_days": 7,
+                        "instructions": "Dùng theo chỉ định.",
                     }
                 ],
                 "common_tests": [{"test": "Cytology da"}],
@@ -97,9 +99,11 @@ class DiagnosisProtocolServiceTests(unittest.TestCase):
                 "common_prescriptions": [
                     {
                         "medicine": "Thuoc B",
-                        "dosage": "12 mg",
-                        "frequency": "2 lan/ngay",
-                        "duration": 7,
+                        "times_of_day": ["sang", "trua", "chieu"],
+                        "before_after_meal": "AFTER_MEAL",
+                        "frequency_note": "2 lần/ngày",
+                        "duration_days": 7,
+                        "instructions": "Dùng theo chỉ định.",
                     }
                 ],
                 "common_tests": [{"test": "Cytology da"}, {"test": "Nhuộm soi"}],

@@ -89,6 +89,7 @@ class SoapGroundingBundle:
 
 class StaffDiagnosisService:
     """Build staff diagnosis response from multimodal input and internal evidence."""
+    _MAX_MEDICATION_RETRY = 2
 
     def __init__(self) -> None:
         self._llm_client: Optional[BaseLLMClient] = None
@@ -200,6 +201,7 @@ class StaffDiagnosisService:
             similar_cases=similar_cases,
             protocol_decision=protocol_decision,
             vision_response=vision_response,
+            force_medication=False,
         )
         logger.info(
             f"LLM synthesis completed: {'success' if llm_synthesis else 'failed/empty'}"
@@ -217,6 +219,21 @@ class StaffDiagnosisService:
                 fallback=[],
                 request=request,
                 evidence_mode=evidence_mode,
+            )
+
+        requires_medication = self._requires_medication(
+            selected_primary=selected_primary,
+            protocol_decision=protocol_decision,
+        )
+        if requires_medication:
+            llm_synthesis = await self._retry_llm_until_medication_complete(
+                request=request,
+                top_differentials=top_differentials,
+                hybrid_result=hybrid_result,
+                similar_cases=similar_cases,
+                protocol_decision=protocol_decision,
+                vision_response=vision_response,
+                initial_synthesis=llm_synthesis,
             )
 
         image_analysis = self._build_image_analysis(request.image_urls, vision_response)
@@ -252,22 +269,27 @@ class StaffDiagnosisService:
         has_emr_pattern_prescriptions = has_selected_diagnosis and bool(
             effective_protocol_decision.prescriptions
         )
-        allow_llm_prescriptions_without_selected = (
-            not has_selected_diagnosis
-            and evidence_mode == "llm_fallback"
-            and bool(llm_prescriptions)
-        )
         if has_emr_pattern_prescriptions:
             final_prescriptions = effective_protocol_decision.prescriptions
-        elif (
-            has_selected_diagnosis or allow_llm_prescriptions_without_selected
-        ) and llm_prescriptions:
+        elif llm_prescriptions:
             final_prescriptions = llm_prescriptions
         else:
             final_prescriptions = []
         final_prescriptions = self._ensure_prescription_usage_instructions(
             final_prescriptions
         )
+        payload_status = "ok"
+        payload_warnings: List[str] = []
+        if requires_medication:
+            is_payload_ok, payload_errors = self._validate_emr_payload_completeness(
+                requires_medication=True,
+                prescription_suggestions=final_prescriptions,
+                top_differentials=top_differentials,
+                soap_suggestions=soap_suggestions,
+            )
+            if not is_payload_ok:
+                payload_status = "incomplete"
+                payload_warnings = payload_errors
 
         has_llm_prescription = (
             bool(llm_prescriptions) and not has_emr_pattern_prescriptions
@@ -300,6 +322,8 @@ class StaffDiagnosisService:
             or self._build_follow_up_questions(request, effective_protocol_decision),
             soap_suggestions=soap_suggestions,
             prescription_suggestions=final_prescriptions,
+            payload_status=payload_status,
+            payload_warnings=payload_warnings,
             disclaimer="Gợi ý từ tài liệu nội bộ. Bác sĩ cần xác nhận lại chẩn đoán."
             + (
                 " Chọn một chẩn đoán trong danh sách gợi ý để mở gợi ý điều trị và SOAP ở các bước sau."
@@ -357,16 +381,15 @@ class StaffDiagnosisService:
                 request=request,
             )
 
-        llm_synthesis: Optional[Dict[str, Any]] = None
-        if has_selected_diagnosis:
-            llm_synthesis = await self._synthesize_with_llm(
-                request=request,
-                top_differentials=cached_top_differentials,
-                hybrid_result=cached.hybrid_result,
-                similar_cases=cached.similar_cases,
-                protocol_decision=protocol_decision,
-                vision_response=cached.vision_response,
-            )
+        llm_synthesis: Optional[Dict[str, Any]] = await self._synthesize_with_llm(
+            request=request,
+            top_differentials=cached_top_differentials,
+            hybrid_result=cached.hybrid_result,
+            similar_cases=cached.similar_cases,
+            protocol_decision=protocol_decision,
+            vision_response=cached.vision_response,
+            force_medication=False,
+        )
 
         response_top_differentials = cached_top_differentials
         if llm_synthesis and llm_synthesis.get("top_differentials"):
@@ -381,6 +404,24 @@ class StaffDiagnosisService:
             protocol_decision=protocol_decision,
             llm_synthesis=llm_synthesis,
         )
+        requires_medication = self._requires_medication(
+            selected_primary=selected_primary,
+            protocol_decision=protocol_decision,
+        )
+        if requires_medication:
+            llm_synthesis = await self._retry_llm_until_medication_complete(
+                request=request,
+                top_differentials=response_top_differentials,
+                hybrid_result=cached.hybrid_result,
+                similar_cases=cached.similar_cases,
+                protocol_decision=effective_protocol_decision,
+                vision_response=cached.vision_response,
+                initial_synthesis=llm_synthesis,
+            )
+            effective_protocol_decision = self._merge_safety_suggestions(
+                protocol_decision=protocol_decision,
+                llm_synthesis=llm_synthesis,
+            )
 
         base_soap_suggestions = self._build_soap_suggestions(
             request=request,
@@ -405,13 +446,25 @@ class StaffDiagnosisService:
         )
         if has_emr_pattern_prescriptions:
             final_prescriptions = effective_protocol_decision.prescriptions
-        elif has_selected_diagnosis and llm_prescriptions:
+        elif llm_prescriptions:
             final_prescriptions = llm_prescriptions
         else:
             final_prescriptions = []
         final_prescriptions = self._ensure_prescription_usage_instructions(
             final_prescriptions
         )
+        payload_status = "ok"
+        payload_warnings: List[str] = []
+        if requires_medication:
+            is_payload_ok, payload_errors = self._validate_emr_payload_completeness(
+                requires_medication=True,
+                prescription_suggestions=final_prescriptions,
+                top_differentials=response_top_differentials,
+                soap_suggestions=soap_suggestions,
+            )
+            if not is_payload_ok:
+                payload_status = "incomplete"
+                payload_warnings = payload_errors
 
         has_llm_prescription = (
             bool(llm_prescriptions) and not has_emr_pattern_prescriptions
@@ -439,6 +492,8 @@ class StaffDiagnosisService:
             ),
             soap_suggestions=soap_suggestions,
             prescription_suggestions=final_prescriptions,
+            payload_status=payload_status,
+            payload_warnings=payload_warnings,
             disclaimer="Gợi ý từ tài liệu nội bộ. Bác sĩ cần xác nhận lại chẩn đoán."
             + (
                 " Chọn một chẩn đoán trong danh sách gợi ý để mở gợi ý điều trị và SOAP ở các bước sau."
@@ -730,12 +785,12 @@ class StaffDiagnosisService:
         return [
             {
                 "medicine_name": rx.medicine_name,
-                "dosage": rx.dosage,
-                "frequency": rx.frequency,
+                "times_of_day": self._normalize_times_of_day(rx.times_of_day),
+                "before_after_meal": rx.before_after_meal,
+                "frequency_note": rx.frequency_note,
                 "duration_days": rx.duration_days,
                 "instructions": rx.instructions,
                 "caution": rx.caution,
-                "route": rx.route,
             }
             for rx in prescriptions
         ]
@@ -745,14 +800,14 @@ class StaffDiagnosisService:
         prescription: PrescriptionSuggestion,
     ) -> str:
         parts: List[str] = []
-        if prescription.dosage:
-            parts.append(f"Liều mỗi lần: {prescription.dosage}")
-        if prescription.frequency:
-            parts.append(f"Tần suất: {prescription.frequency}")
+        if prescription.times_of_day:
+            parts.append("Thời điểm: " + ", ".join(prescription.times_of_day))
+        if prescription.before_after_meal:
+            parts.append(f"Bữa ăn: {prescription.before_after_meal}")
+        if prescription.frequency_note:
+            parts.append(f"Ghi chú tần suất: {prescription.frequency_note}")
         if prescription.duration_days:
             parts.append(f"Thời gian dùng: {prescription.duration_days} ngày")
-        if prescription.route:
-            parts.append(f"Đường dùng: {prescription.route}")
 
         instruction = (
             ". ".join(parts) + "."
@@ -827,10 +882,15 @@ class StaffDiagnosisService:
             evidence.append(
                 {
                     "medicine_name": medicine,
-                    "dosage": str(item.get("dosage") or "").strip(),
-                    "frequency": str(item.get("frequency") or "").strip(),
-                    "duration": item.get("duration") or item.get("duration_days"),
-                    "route": str(item.get("route") or "").strip(),
+                    "times_of_day": item.get("times_of_day") or item.get("timesOfDay") or [],
+                    "before_after_meal": item.get("before_after_meal") or item.get("beforeAfterMeal"),
+                    "frequency_note": str(
+                        item.get("frequency_note") or item.get("frequencyNote") or ""
+                    ).strip(),
+                    "duration_days": item.get("duration_days")
+                    or item.get("durationDays")
+                    or item.get("duration"),
+                    "instructions": str(item.get("instructions") or "").strip(),
                 }
             )
         return evidence
@@ -920,12 +980,10 @@ class StaffDiagnosisService:
                 "current_draft": request.soap_draft.subjective.strip(),
                 "doctor_description": request.doctor_description.strip(),
                 "symptoms": self._sanitize_text_list(request.symptoms, max_items=6),
-                "allergies": self._sanitize_text_list(request.allergies, max_items=5),
             },
             objective={
                 "current_draft": request.soap_draft.objective.strip(),
                 "body_part": (request.body_part or "").strip(),
-                "weight_kg": request.weight_kg,
                 "visual_findings": self._sanitize_text_list(
                     vision_response.visual_findings,
                     max_items=5,
@@ -993,6 +1051,7 @@ class StaffDiagnosisService:
         similar_cases: List[CaseResult],
         protocol_decision: ProtocolDecision,
         vision_response: GeminiVisionDiagnosisResponse,
+        force_medication: bool = False,
     ) -> Optional[Dict[str, Any]]:
         try:
             llm_client = await self._get_llm_client()
@@ -1004,6 +1063,7 @@ class StaffDiagnosisService:
                     similar_cases=similar_cases,
                     protocol_decision=protocol_decision,
                     vision_response=vision_response,
+                    force_medication=force_medication,
                 ),
                 temperature=0.2,
                 max_tokens=1800,
@@ -1038,6 +1098,7 @@ class StaffDiagnosisService:
         similar_cases: List[CaseResult],
         protocol_decision: ProtocolDecision,
         vision_response: GeminiVisionDiagnosisResponse,
+        force_medication: bool = False,
     ) -> str:
         grounding_bundle = self._build_soap_grounding_bundle(
             request=request,
@@ -1090,6 +1151,7 @@ class StaffDiagnosisService:
                 protocol_decision.recommended_actions, max_items=5, max_length=200
             ),
             "grounding_bundle": grounding_bundle.to_dict(),
+            "requires_medication": force_medication,
         }
         return f"""Bạn là trợ lý AI nội bộ hỗ trợ staff/vet tổng hợp ca bệnh cho Petties.
     Ưu tiên dùng dữ liệu nội bộ đã cho. Nếu dữ liệu nội bộ chưa đủ, được phép dùng kiến thức thú y tổng quát để đề xuất chẩn đoán phân biệt theo triệu chứng hiện tại.
@@ -1098,10 +1160,12 @@ Nếu Case Memory đã đủ mạnh thì ưu tiên tổng hợp từ Case Memory
 
 QUY TẮC GROUNDED SOAP:
 - `soap_suggestions.subjective_draft` chỉ được dùng dữ liệu từ `grounding_bundle.subjective`.
+- `subjective_draft` KHÔNG liệt kê thông tin dị ứng; phần dị ứng để bác sĩ ghi riêng khi cần.
 - `soap_suggestions.objective_draft` chỉ được dùng dữ liệu từ `grounding_bundle.objective`; không được bịa xét nghiệm, chỉ số sinh tồn, hay phát hiện hình ảnh không tồn tại.
+- `objective_draft` KHÔNG được liệt kê cân nặng (kg); cân nặng được hiển thị/nhập ở trường chỉ số riêng.
 - `soap_suggestions.assessment_draft` chỉ được dùng các chẩn đoán trong `top_differentials` hoặc chẩn đoán đã chọn; không được tạo ra diagnosis mới ngoài bundle.
 - `soap_suggestions.plan_draft` chỉ nói về hành động lâm sàng tiếp theo: thăm khám, xét nghiệm, theo dõi, tái khám, dặn dò.
-- `plan_draft` KHÔNG được nhắc tên thuốc, liều, tần suất, đường dùng, hoặc bất kỳ thông tin nào thuộc về đơn thuốc, vì đơn thuốc đã có phần `prescription_suggestions` riêng.
+- `plan_draft` KHÔNG được nhắc tên thuốc, liều, tần suất, hoặc bất kỳ thông tin nào thuộc về đơn thuốc, vì đơn thuốc đã có phần `prescription_suggestions` riêng.
 - Nếu dữ liệu chưa đủ cho plan, phải ghi rõ kiểu an toàn như `Cần bổ sung thêm dữ liệu trước khi chốt hướng xử trí`.
 - Không nhắc tới từ khóa `KB`, `Knowledge Base`, `Case Memory`, `RAG`, hay `bundle` trong SOAP cuối cùng.
 
@@ -1112,6 +1176,7 @@ QUAN TRỌNG về đơn thuốc:
   - Dựa vào kiến thức thú y chung để suggest thuốc điều trị triệu chứng
   - Ghi rõ disclaimer là "Cần xác nhận từ bác sĩ" vì không có trong data nội bộ
 - Mỗi phần tử trong `prescription_suggestions` BẮT BUỘC có `instructions` không rỗng để staff biết cách dùng thuốc.
+- Nếu `requires_medication=true`: `prescription_suggestions` TUYỆT ĐỐI không được rỗng.
 
 QUAN TRỌNG về safety:
 - Được phép đề xuất `safety_suggestions` gồm `missing_inputs` và `cautions`
@@ -1158,8 +1223,9 @@ JSON:
   "prescription_suggestions": [
     {{
       "medicine_name": "Tên thuốc",
-      "dosage": "Liều dùng",
-      "frequency": "Tần suất",
+      "times_of_day": ["sang", "trua", "chieu"],
+      "before_after_meal": "AFTER_MEAL|BEFORE_MEAL|WITH_MEAL|NONE",
+      "frequency_note": "Ghi chú tần suất (tuỳ chọn)",
       "duration_days": Số_ngày,
       "instructions": "Hướng dẫn sử dụng",
       "caution": "Lưu ý (nếu có)"
@@ -1167,6 +1233,11 @@ JSON:
   ],
   "prescription_disclaimer": "Cần xác nhận từ bác sĩ|Đã kiểm chứng"
 }}
+
+RÀNG BUỘC CỰC KỲ QUAN TRỌNG về đơn thuốc:
+- TUYỆT ĐỐI KHÔNG được trả về các field `dosage` hoặc `frequency` (đã bị loại bỏ khỏi schema).
+- Nếu model suy luận ra liều/tần suất, hãy diễn đạt bằng `times_of_day`, `before_after_meal`, `frequency_note`, và `instructions`.
+- `times_of_day` chỉ được dùng giá trị trong tập: `sang`, `trua`, `chieu`.
 """
 
     def _parse_llm_synthesis_response(
@@ -1335,20 +1406,45 @@ JSON:
             )
 
         prescriptions = payload.get("prescription_suggestions")
+        if not prescriptions:
+            prescriptions = payload.get("prescriptions")
         if isinstance(prescriptions, list) and prescriptions:
             parsed_rx: List[PrescriptionSuggestion] = []
             for rx in prescriptions:
                 if not isinstance(rx, dict):
                     continue
-                medicine = str(rx.get("medicine_name") or "").strip()
+                medicine = str(
+                    rx.get("medicine_name")
+                    or rx.get("medicineName")
+                    or rx.get("medicine")
+                    or ""
+                ).strip()
                 if not medicine:
                     continue
+                raw_times = (
+                    rx.get("times_of_day")
+                    if rx.get("times_of_day") is not None
+                    else rx.get("timesOfDay")
+                )
+                if isinstance(raw_times, str):
+                    raw_times = [x.strip() for x in raw_times.split(",") if x.strip()]
                 parsed_rx.append(
                     PrescriptionSuggestion(
                         medicine_name=medicine,
-                        dosage=str(rx.get("dosage") or ""),
-                        frequency=str(rx.get("frequency") or ""),
-                        duration_days=rx.get("duration_days"),
+                        times_of_day=self._normalize_times_of_day(raw_times),
+                        before_after_meal=(
+                            str(
+                                rx.get("before_after_meal")
+                                or rx.get("beforeAfterMeal")
+                                or ""
+                            ).strip()
+                            or None
+                        ),
+                        frequency_note=str(
+                            rx.get("frequency_note") or rx.get("frequencyNote") or ""
+                        ),
+                        duration_days=rx.get("duration_days")
+                        or rx.get("durationDays"),
                         instructions=str(rx.get("instructions") or ""),
                         caution=rx.get("caution"),
                         source="llm_fallback",
@@ -1360,6 +1456,117 @@ JSON:
                 result["prescription_suggestions"] = parsed_rx
 
         return result or None
+
+    def _requires_medication(
+        self,
+        *,
+        selected_primary: Optional[DiagnosisSuggestion],
+        protocol_decision: ProtocolDecision,
+    ) -> bool:
+        if protocol_decision.prescriptions:
+            return True
+        if selected_primary is None:
+            return False
+        return not self._is_generic_fallback_differential(selected_primary)
+
+    def _is_valid_prescription_payload_item(
+        self,
+        prescription: PrescriptionSuggestion,
+    ) -> bool:
+        if not str(prescription.medicine_name or "").strip():
+            return False
+        if not self._normalize_times_of_day(prescription.times_of_day):
+            return False
+        if not str(prescription.instructions or "").strip():
+            return False
+        return True
+
+    def _validate_emr_payload_completeness(
+        self,
+        *,
+        requires_medication: bool,
+        prescription_suggestions: List[PrescriptionSuggestion],
+        top_differentials: List[DiagnosisSuggestion],
+        soap_suggestions: SoapSuggestions,
+    ) -> tuple[bool, List[str]]:
+        errors: List[str] = []
+        if not top_differentials:
+            errors.append("Thiếu chẩn đoán phân biệt.")
+        if not (soap_suggestions.subjective_draft or "").strip():
+            errors.append("Thiếu nội dung phần chủ quan.")
+        if requires_medication:
+            if not prescription_suggestions:
+                errors.append("Thiếu đơn thuốc cho ca cần dùng thuốc.")
+            else:
+                invalid_count = sum(
+                    1
+                    for item in prescription_suggestions
+                    if not self._is_valid_prescription_payload_item(item)
+                )
+                if invalid_count > 0:
+                    errors.append("Đơn thuốc chưa đúng schema bắt buộc.")
+        return len(errors) == 0, errors
+
+    async def _retry_llm_until_medication_complete(
+        self,
+        *,
+        request: StaffDiagnosisRequest,
+        top_differentials: List[DiagnosisSuggestion],
+        hybrid_result: HybridResult,
+        similar_cases: List[CaseResult],
+        protocol_decision: ProtocolDecision,
+        vision_response: GeminiVisionDiagnosisResponse,
+        initial_synthesis: Optional[Dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        synthesis = initial_synthesis
+        if synthesis and synthesis.get("prescription_suggestions"):
+            first_pass = self._ensure_prescription_usage_instructions(
+                synthesis.get("prescription_suggestions") or []
+            )
+            if first_pass and all(
+                self._is_valid_prescription_payload_item(item) for item in first_pass
+            ):
+                return synthesis
+        for attempt in range(self._MAX_MEDICATION_RETRY):
+            synthesis = await self._synthesize_with_llm(
+                request=request,
+                top_differentials=top_differentials,
+                hybrid_result=hybrid_result,
+                similar_cases=similar_cases,
+                protocol_decision=protocol_decision,
+                vision_response=vision_response,
+                force_medication=True,
+            )
+            if synthesis and synthesis.get("prescription_suggestions"):
+                retry_pass = self._ensure_prescription_usage_instructions(
+                    synthesis.get("prescription_suggestions") or []
+                )
+                if not retry_pass or not all(
+                    self._is_valid_prescription_payload_item(item)
+                    for item in retry_pass
+                ):
+                    continue
+                logger.info(
+                    "Medication retry success at attempt {}",
+                    attempt + 1,
+                )
+                return synthesis
+        logger.warning("Medication retry exhausted without valid prescriptions")
+        return synthesis
+
+    def _normalize_times_of_day(self, raw_times: Any) -> List[str]:
+        if not isinstance(raw_times, list):
+            return []
+        allowed = {"sang", "trua", "chieu"}
+        normalized: List[str] = []
+        seen: set[str] = set()
+        for value in raw_times:
+            slot = str(value or "").strip().lower()
+            if slot not in allowed or slot in seen:
+                continue
+            seen.add(slot)
+            normalized.append(slot)
+        return normalized
 
     def _is_generic_fallback_differential(
         self,
@@ -1427,6 +1634,8 @@ JSON:
         objective = self._sanitize_draft_text(llm_soap.objective_draft)
         assessment = self._sanitize_draft_text(llm_soap.assessment_draft)
         plan = self._sanitize_draft_text(llm_soap.plan_draft)
+        subjective = self._strip_allergy_mentions_from_subjective(subjective)
+        objective = self._strip_weight_mentions_from_objective(objective)
 
         if selected_primary is not None:
             merged_plan = self._coerce_plan_for_selected_diagnosis(
@@ -1496,6 +1705,28 @@ JSON:
         lines = [" ".join(line.split()) for line in (value or "").splitlines()]
         text = "\n".join(line for line in lines if line).strip()
         return text[:max_length].rstrip()
+
+    def _strip_allergy_mentions_from_subjective(self, text: str) -> str:
+        if not text:
+            return text
+        cleaned = []
+        for line in text.splitlines():
+            line_l = line.lower()
+            if "dị ứng" in line_l or "di ung" in line_l or "allerg" in line_l:
+                continue
+            cleaned.append(line)
+        return "\n".join(cleaned).strip()
+
+    def _strip_weight_mentions_from_objective(self, text: str) -> str:
+        if not text:
+            return text
+        cleaned = []
+        for line in text.splitlines():
+            line_l = line.lower()
+            if "cân nặng" in line_l or "can nang" in line_l or "kg" in line_l:
+                continue
+            cleaned.append(line)
+        return "\n".join(cleaned).strip()
 
     def _build_top_differentials(
         self,
@@ -2208,12 +2439,6 @@ JSON:
             parts.append(request.doctor_description.strip())
         if request.symptoms:
             parts.append("Triệu chứng ghi nhận: " + ", ".join(request.symptoms[:6]))
-        if request.allergies:
-            allergy_text = ", ".join(
-                item.strip() for item in request.allergies if item and item.strip()
-            )
-            if allergy_text:
-                parts.append(f"Tiền sử dị ứng đã biết: {allergy_text}.")
 
         return " ".join(part for part in parts if part).strip()
 
@@ -2239,9 +2464,6 @@ JSON:
 
         if request.body_part:
             parts.insert(0, f"Vùng khám: {request.body_part}.")
-
-        if request.weight_kg is not None and request.weight_kg > 0:
-            parts.insert(0, f"Cân nặng ghi nhận: {request.weight_kg:.1f} kg.")
 
         if not parts:
             if request.image_urls:

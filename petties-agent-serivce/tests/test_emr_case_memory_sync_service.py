@@ -45,8 +45,9 @@ class EmrCaseMemorySyncServiceTests(unittest.IsolatedAsyncioTestCase):
             "prescriptions": [
                 {
                     "medicine_name": "Cephalexin",
-                    "dosage": "250 mg",
-                    "frequency": "2 lan/ngay",
+                    "times_of_day": ["sang", "trua", "chieu"],
+                    "before_after_meal": "AFTER_MEAL",
+                    "frequency_note": "2 lần/ngày",
                     "duration_days": 14,
                     "instructions": "Uong sau an",
                 }
@@ -81,6 +82,24 @@ class EmrCaseMemorySyncServiceTests(unittest.IsolatedAsyncioTestCase):
             payload["protocol_pattern"]["common_prescriptions"][0]["medicine"],
             "Cephalexin",
         )
+        self.assertEqual(
+            payload["protocol_pattern"]["common_prescriptions"][0]["times_of_day"],
+            ["sang", "trua", "chieu"],
+        )
+        self.assertEqual(
+            payload["protocol_pattern"]["common_prescriptions"][0]["before_after_meal"],
+            "AFTER_MEAL",
+        )
+        self.assertEqual(
+            payload["protocol_pattern"]["common_prescriptions"][0]["frequency_note"],
+            "2 lần/ngày",
+        )
+        self.assertNotIn(
+            "dosage", payload["protocol_pattern"]["common_prescriptions"][0]
+        )
+        self.assertNotIn(
+            "frequency", payload["protocol_pattern"]["common_prescriptions"][0]
+        )
         self.assertNotIn("common_tests", payload["protocol_pattern"])
         self.assertEqual(
             payload["protocol_pattern"]["common_recommendations"],
@@ -114,8 +133,9 @@ class EmrCaseMemorySyncServiceTests(unittest.IsolatedAsyncioTestCase):
             "prescriptions": [
                 {
                     "medicine_name": "Cephalexin",
-                    "dosage": "250 mg",
-                    "frequency": "2 lan/ngay",
+                    "times_of_day": ["sang", "trua", "chieu"],
+                    "before_after_meal": "AFTER_MEAL",
+                    "frequency_note": "2 lần/ngày",
                     "duration_days": 14,
                     "instructions": "Uong sau an",
                 }

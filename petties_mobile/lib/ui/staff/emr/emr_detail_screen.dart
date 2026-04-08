@@ -396,7 +396,7 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
           // Khách quan - Vitals
           Row(
             children: [
-              Text('Khách quan / Chỉ số sinh tồn',
+              Text('Khách quan / Chỉ số sức khỏe',
                   style: TextStyle(
                       color: Colors.teal,
                       fontWeight: FontWeight.w800,
@@ -598,7 +598,10 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
                           child: Row(
                             children: [
                               Text(
-                                '${p.dosage ?? "0"} viên/lần',
+                                (p.timesOfDay != null &&
+                                        p.timesOfDay!.isNotEmpty)
+                                    ? p.timesOfDay!.join(', ')
+                                    : 'Theo chỉ định',
                                 style: const TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w700,
@@ -611,7 +614,12 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
                                         TextStyle(color: AppColors.stone300)),
                               ),
                               Text(
-                                '${p.frequency} lần/ngày',
+                                (p.beforeAfterMeal == null ||
+                                        p.beforeAfterMeal!.isEmpty)
+                                    ? 'Sau ăn'
+                                    : (p.beforeAfterMeal == 'BEFORE_MEAL'
+                                        ? 'Trước ăn'
+                                        : 'Sau ăn'),
                                 style: const TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w700,

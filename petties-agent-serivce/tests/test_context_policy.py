@@ -193,6 +193,25 @@ class ContextPolicyTests(unittest.TestCase):
                 msg=f"{role} should not receive consumer tools but got: {allowed}",
             )
 
+    def test_clinic_roles_do_not_receive_unimplemented_shift_tools(self):
+        removed_tools = [
+            "get_clinic_staff",
+            "get_clinic_shifts",
+            "check_booking_availability",
+        ]
+
+        for role in ["CLINIC_MANAGER", "CLINIC_OWNER"]:
+            allowed = ContextPolicyService.get_allowed_tools(
+                user_role=role,
+                context_type=BUSINESS_CHAT,
+                available_tools=removed_tools,
+            )
+            self.assertEqual(
+                allowed,
+                [],
+                msg=f"{role} should not receive unimplemented tools but got: {allowed}",
+            )
+
     def test_pet_owner_prompt_guardrail_blocks_clinic_operations_mode(self):
         prompt = ContextPolicyService.build_system_prompt(
             base_prompt="Base prompt",

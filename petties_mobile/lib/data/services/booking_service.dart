@@ -28,14 +28,8 @@ class BookingService {
     return BookingResponse.fromJson(response.data);
   }
 
-  /// Complete booking (Staff action: IN_PROGRESS → COMPLETED)
-  Future<BookingResponse> complete(String bookingId) async {
-    final response = await _apiClient.post('/bookings/$bookingId/complete');
-    return BookingResponse.fromJson(response.data);
-  }
-
-  /// Checkout booking (Staff action: COMPLETED → finalize payment)
-  /// Only callable when status is COMPLETED
+  /// Checkout booking (Staff action)
+  /// Backend chuẩn hoá hoàn tất + thanh toán qua endpoint /checkout.
   /// @param bookingId Booking UUID
   /// @param overriddenSosFee Optional: Override SOS fee (for staff adjustment)
   /// @param paymentMethod Payment method: QR or CASH (default QR)

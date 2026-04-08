@@ -250,28 +250,6 @@ DEFAULT_POLICIES = {
         allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
         description="Hủy lịch hẹn (chỉ dành cho Quản lý/Chủ phòng khám)",
     ),
-    # Clinic Staff & Shift Tools
-    "get_clinic_staff": ToolPolicy(
-        allow_empty_params=True,
-        requires_context=True,
-        requires_auth=True,
-        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
-        description="Lấy danh sách nhân viên của phòng khám hiện tại",
-    ),
-    "get_clinic_shifts": ToolPolicy(
-        allow_empty_params=True,
-        requires_context=True,
-        requires_auth=True,
-        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
-        description="Lấy lịch làm việc (shifts) của phòng khám trong khoảng thời gian",
-    ),
-    "check_booking_availability": ToolPolicy(
-        allow_empty_params=False,
-        requires_context=True,
-        requires_auth=True,
-        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
-        description="Kiểm tra tình trạng nhân viên cho một lịch hẹn cụ thể",
-    ),
 }
 
 

@@ -22,6 +22,7 @@ export const EmrDetailPage = () => {
     const [error, setError] = useState<string | null>(null)
     const [previewImage, setPreviewImage] = useState<EmrImage | null>(null)
     const [allergies, setAllergies] = useState('')
+    const timeLabel = (value: string) => ({ sang: 'Sáng', trua: 'Trưa', chieu: 'Chiều' }[value] || value)
 
     const [petInfo, setPetInfo] = useState<{
         name: string;
@@ -297,7 +298,7 @@ export const EmrDetailPage = () => {
 
                             {/* O - Objective / Vitals */}
                             <div className="mt-4 pt-4 border-t border-stone-100">
-                                <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-3">Khách quan / Chỉ số sinh tồn</p>
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-3">Khách quan / Chỉ số sức khỏe</p>
                                 <div className="grid grid-cols-3 gap-3 mb-3">
                                     <div className="bg-stone-50 p-3 rounded-xl border border-stone-100">
                                         <p className="text-xs text-stone-500 uppercase font-bold">Nhiệt độ</p>
@@ -363,7 +364,11 @@ export const EmrDetailPage = () => {
                                                 <div className="min-w-0 pl-2">
                                                     <div className="text-sm font-bold text-stone-800">{p.medicineName}</div>
                                                     <div className="mt-1 break-words text-[10px] font-medium uppercase tracking-wide text-stone-500">
-                                                        Liều: {(p.dosage || '').trim() || 'Theo chỉ định'} | {(p.frequency || '').trim() || 'Theo chỉ định'} | {p.durationDays ?? '-'} ngày
+                                                        {(p.timesOfDay && p.timesOfDay.length > 0) ? p.timesOfDay.map(timeLabel).join(', ') : ((p.frequency || '').trim() || 'Theo chỉ định')}
+                                                        {' | '}
+                                                        {p.beforeAfterMeal === 'BEFORE_MEAL' ? 'Trước ăn' : 'Sau ăn'}
+                                                        {' | '}
+                                                        {p.durationDays ?? '-'} ngày
                                                     </div>
                                                     {p.instructions && <p className="mt-1 line-clamp-2 text-[11px] text-stone-600">{p.instructions}</p>}
                                                 </div>

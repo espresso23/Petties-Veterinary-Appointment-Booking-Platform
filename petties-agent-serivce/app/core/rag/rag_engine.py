@@ -159,7 +159,19 @@ class LlamaIndexRAGEngine:
                 )
 
             # Configure chunking
-            Settings.node_parser = SentenceSplitter(chunk_size=512, chunk_overlap=50)
+            # Use settings-based chunk size so it can be tuned from env/DB.
+            # Fallback to sensible defaults if not configured.
+            try:
+                chunk_size = getattr(settings, "CHUNK_SIZE", 512) or 512
+                chunk_overlap = getattr(settings, "CHUNK_OVERLAP", 50) or 50
+            except Exception:
+                chunk_size = 512
+                chunk_overlap = 50
+
+            Settings.node_parser = SentenceSplitter(
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+            )
 
             # Initialize Qdrant client
             if qdrant_url and qdrant_api_key:
@@ -172,11 +184,34 @@ class LlamaIndexRAGEngine:
                 self.qdrant_client = QdrantClient(host="localhost", port=6333)
 
             # Create vector store
-            self.vector_store = QdrantVectorStore(
-                client=self.qdrant_client,
-                collection_name=self._collection_name,
-                enable_hybrid=False,  # Can enable for BM25 + Vector
-            )
+            # Prefer hybrid search (BM25 + Vector) for better retrieval on
+            # medical terms/abbreviations. If FastEmbed is unavailable, gracefully
+            # fallback to dense-only vector search so query endpoints still work.
+            try:
+                self.vector_store = QdrantVectorStore(
+                    client=self.qdrant_client,
+                    collection_name=self._collection_name,
+                    enable_hybrid=True,
+                )
+                logger.info("Qdrant hybrid search is enabled")
+            except Exception as hybrid_error:
+                error_text = str(hybrid_error).lower()
+                if "fastembed" in error_text:
+                    logger.warning(
+                        "FastEmbed is not available; fallback to dense-only retrieval. "
+                        "Install dependency `fastembed` to re-enable hybrid search."
+                    )
+                else:
+                    logger.warning(
+                        f"Hybrid search initialization failed ({hybrid_error}); "
+                        "fallback to dense-only retrieval."
+                    )
+
+                self.vector_store = QdrantVectorStore(
+                    client=self.qdrant_client,
+                    collection_name=self._collection_name,
+                    enable_hybrid=False,
+                )
 
             # Create or load index
             storage_context = StorageContext.from_defaults(

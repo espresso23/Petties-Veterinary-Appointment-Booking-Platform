@@ -1,6 +1,6 @@
 # 🐾 PETTIES Project Status
 
-> **Last Updated:** 2026-04-07
+> **Last Updated:** 2026-04-08
 > **Current Sprint:** Post Sprint 13 - Production Hardening & AI Enhancement
 > **Overall Progress:** ~95% (code-based scan)
 
@@ -44,6 +44,117 @@
 | 🔄 In Progress | 5 | ~4% |
 | ❌ Not Started | 5 | ~4% |
 | **Total** | **123** | **100%** |
+
+---
+
+### Recent Mascot Copilot Rollout (Code-based Evidence - 2026-04-08)
+
+### Knowledge Base FastEmbed Hotfix (Code-based Evidence - 2026-04-08)
+
+**Scope:** Fix runtime failure on `POST /knowledge/query` when Qdrant hybrid retrieval requires FastEmbed.
+
+**Implemented changes:**
+- Added missing dependency `fastembed` into AI service dependency manifest so Docker/local install includes required runtime package.
+- Hardened RAG initialization in `LlamaIndexRAGEngine.initialize()` with graceful fallback:
+  - Try `enable_hybrid=True` first.
+  - If FastEmbed (or hybrid init) fails, auto fallback to `enable_hybrid=False` and continue serving dense retrieval.
+- Added explicit logging for hybrid enabled/fallback scenarios to speed up production diagnostics.
+
+**Changed files (evidence):**
+- `petties-agent-serivce/requirements.txt`
+- `petties-agent-serivce/app/core/rag/rag_engine.py`
+
+**Validation plan:**
+- Rebuild/reinstall AI service dependencies.
+- Verify endpoints:
+  - `POST /knowledge/query`
+  - `GET /knowledge/status`
+  - `GET /knowledge/debug/qdrant`
+
+---
+
+### Recent Mascot Copilot Rollout (Code-based Evidence - 2026-04-08)
+
+**Scope:** Start migration from route-based AI pages to global mascot copilot for internal clinic roles.
+
+**Implemented changes:**
+- Mounted global mascot panel + floating launcher in internal layouts: `STAFF`, `CLINIC_MANAGER`, `CLINIC_OWNER`.
+- Removed AI sidebar entries for owner/manager to avoid page-centric navigation.
+- Replaced dedicated AI routes with redirects back to role dashboards (`/staff`, `/clinic-owner`, `/clinic-manager`).
+- Updated Staff dashboard quick action to open mascot panel directly (event-based trigger), not navigate to a chat page.
+- Added context injection baseline in global panel requests: role, active route, clinic_id, user_id.
+
+**Changed files (evidence):**
+- `petties-web/src/components/mascot/MascotLauncher.tsx`
+- `petties-web/src/components/mascot/MascotDockPanel.tsx`
+- `petties-web/src/components/mascot/MascotProvider.tsx`
+- `petties-web/src/hooks/useMascotPanel.ts`
+- `petties-web/src/layouts/StaffLayout.tsx`
+- `petties-web/src/layouts/ClinicManagerLayout.tsx`
+- `petties-web/src/layouts/ClinicOwnerLayout.tsx`
+- `petties-web/src/pages/staff/DashboardPage.tsx`
+- `petties-web/src/App.tsx`
+
+**Validation evidence:**
+- Command: `cd petties-web && npm run build`
+- Result: `tsc -b && vite build` completed successfully.
+
+---
+
+### Recent Clinic Copilot Governance Sync (Code-based Evidence - 2026-04-08)
+
+**Scope:** Align clinic-operation copilot tool governance with real MCP implementation and close test coverage gaps.
+
+**Implemented changes:**
+- Removed non-implemented tool names from clinic role whitelist to prevent runtime drift:
+   - `get_clinic_staff`
+   - `get_clinic_shifts`
+   - `check_booking_availability`
+- Synchronized default tool policy registry with implemented tools only.
+- Synchronized startup tool scanner managed set with implemented tools only.
+- Added regression policy test to prevent re-introducing removed tool names into clinic roles.
+- Added new clinic operation test suite covering:
+   - booking list/confirm/cancel
+   - staff reassignment (available staff + reassign action)
+   - staff schedule and slot availability tools
+
+**Changed files (evidence):**
+- `petties-agent-serivce/app/core/context_policy.py`
+- `petties-agent-serivce/app/core/tools/tool_policy.py`
+- `petties-agent-serivce/app/core/tools/scanner.py`
+- `petties-agent-serivce/tests/test_context_policy.py`
+- `petties-agent-serivce/tests/test_clinic_operation_tools.py`
+
+**Validation evidence:**
+- Command: `cd petties-agent-serivce && python -m pytest tests/test_context_policy.py tests/test_clinic_operation_tools.py tests/test_clinic_tools.py -q`
+- Result: `30 passed`.
+
+---
+
+### AI Assistant Function Catalog Sync (Docs Evidence - 2026-04-08)
+
+**Scope:** Đồng bộ naming chuẩn AI Assistant theo 14 function trên Features, SRS, SDD.
+
+**Updated docs:**
+- `docs-references/documentation/PETTIES_Features.md` (AI Assistant Function Catalog - standardized)
+- `docs-references/documentation/SRS/PETTIES_SRS.md` (section `3.11.0` + implementation status synchronization)
+- `docs-references/documentation/SDD/REPORT_4_SDD_SYSTEM_DESIGN.md` (section `3.2.7` + API mapping sync)
+
+**Function coverage baseline (14):**
+- Interact with ChatBot
+- Config Agent Parameter
+- Test Agent Playground
+- Turn On/Off Agent Tools
+- Upload Document To Knowledge Base
+- Delete Document from Knowledge Base
+- View Case Memory
+- Delete Case Memory
+- Use AI-Assisted Clinic Setup, Operation
+- Use Summarize patient info & EMR
+- Use Summarize pet's EMR
+- View aggregate feedback stats
+- Provide AI's Response Feedback
+- Use AI Diagnostic Support
 
 ---
 

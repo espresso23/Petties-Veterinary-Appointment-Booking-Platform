@@ -47,6 +47,7 @@ motor>=3.6.0  # MongoDB async driver for chat history storage
 
 # ==================== Vector Database ====================
 qdrant-client>=1.12.1  # Qdrant Cloud for vector storage
+fastembed>=0.3.6  # Required for Qdrant hybrid search (BM25 + vector)
 
 # ==================== Document Processing ====================
 pypdf2>=3.0.1  # PDF text extraction

@@ -1,12 +1,13 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useGlobalHotkey } from '../../hooks/useGlobalHotkey'
 import { useSpotlight } from '../../hooks/useSpotlight'
-import { SpotlightModal, type AIAction } from './SpotlightModal'
+import { type AIAction } from './SpotlightModal'
 import { useAuthStore } from '../../store/authStore'
 import { useAIChatStore } from '../../store/aiChatStore'
-import { useNavigate } from 'react-router-dom'
-import { useMembershipStore } from '../../store/membershipStore'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useToast } from '../Toast'
+import { MascotLauncher } from './MascotLauncher'
+import { MascotDockPanel } from './MascotDockPanel'
 
 interface SpotlightProviderProps {
     children?: React.ReactNode
@@ -14,10 +15,10 @@ interface SpotlightProviderProps {
 
 export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {
     const navigate = useNavigate()
-    const { isOpen, position, context, open, close } = useSpotlight()
+    const location = useLocation()
+    const { isOpen, context, open, close } = useSpotlight()
     const accessToken = useAuthStore((state) => state.accessToken)
-    const isVIP = useMembershipStore(state => state.isVIP())
-    const loadingMembership = useMembershipStore(state => state.isLoading)
+    const user = useAuthStore((state) => state.user)
     const { showToast } = useToast()
 
     const {
@@ -38,6 +39,44 @@ export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {
     const wsRef = useRef<WebSocket | null>(null)
     const streamBufferRef = useRef('')
     const AGENT_WS_BASE_URL = import.meta.env.VITE_AGENT_WS_BASE_URL || 'ws://localhost:8000'
+    const canUseMascot = Boolean(
+        accessToken &&
+        user &&
+        ['STAFF', 'CLINIC_MANAGER', 'CLINIC_OWNER'].includes(user.role),
+    )
+
+    const buildBaseContext = useCallback((): Record<string, unknown> => {
+        return {
+            source: 'global_mascot_panel',
+            role: user?.role,
+            route: location.pathname,
+            clinic_id: user?.workingClinicId ?? null,
+            user_id: user?.userId,
+        }
+    }, [location.pathname, user?.role, user?.workingClinicId, user?.userId])
+
+    const openMascot = useCallback((extraContext?: Record<string, unknown>) => {
+        if (!canUseMascot) {
+            showToast('error', 'Bạn không có quyền sử dụng trợ lý Petties ở khu vực này.')
+            return
+        }
+
+        const mergedContext = {
+            ...buildBaseContext(),
+            ...(extraContext || {}),
+        }
+
+        open(undefined, mergedContext)
+    }, [buildBaseContext, canUseMascot, open, showToast])
+
+    const toggleMascot = useCallback(() => {
+        if (isOpen) {
+            close()
+            return
+        }
+
+        openMascot()
+    }, [close, isOpen, openMascot])
 
     // Connect to WebSocket
     const connectWebSocket = (sid: string) => {
@@ -154,7 +193,10 @@ export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${accessToken}`
                     },
-                    body: JSON.stringify({ context_type: 'BUSINESS_CHAT' })
+                    body: JSON.stringify({
+                        context_type: 'BUSINESS_CHAT',
+                        context_data: buildBaseContext(),
+                    })
                 })
 
                 if (response.ok) {
@@ -171,7 +213,7 @@ export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {
         if (isOpen && !sessionId) {
             initSpotlightSession()
         }
-    }, [isOpen, accessToken, sessionId])
+    }, [isOpen, accessToken, sessionId, buildBaseContext])
 
     // Reconnect WebSocket when session becomes available
     useEffect(() => {
@@ -205,20 +247,29 @@ export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {
     // Handle global hotkey
     useGlobalHotkey({
         enabled: true,
-        onTrigger: () => {
-            if (isOpen) {
-                close()
-            } else {
-                if (!isVIP && !loadingMembership) {
-                    showToast('error', 'Tính năng trợ lý AI (Spotlight) yêu cầu gói hội viên VIP.')
-                    return
-                }
-                open()
-            }
-        }
+        onTrigger: toggleMascot,
     })
 
-    // Listen for action confirmations from SpotlightModal
+    useEffect(() => {
+        if (!canUseMascot && isOpen) {
+            close()
+        }
+    }, [canUseMascot, close, isOpen])
+
+    useEffect(() => {
+        const handleExternalOpen = (event: Event) => {
+            const customEvent = event as CustomEvent<Record<string, unknown> | undefined>
+            openMascot(customEvent.detail)
+        }
+
+        window.addEventListener('petties-open-mascot', handleExternalOpen as EventListener)
+
+        return () => {
+            window.removeEventListener('petties-open-mascot', handleExternalOpen as EventListener)
+        }
+    }, [openMascot])
+
+    // Listen for action confirmations from AI panel
     useEffect(() => {
         const handleActionConfirm = (event: CustomEvent<AIAction>) => {
             const action = event.detail
@@ -294,7 +345,11 @@ export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({
                 message,
-                ...additionalContext
+                context_data: {
+                    ...buildBaseContext(),
+                    ...(context || {}),
+                    ...(additionalContext || {}),
+                },
             }))
             console.log('[Spotlight] Sent via existing WebSocket')
         } else {
@@ -313,14 +368,17 @@ export const SpotlightProvider = ({ children }: SpotlightProviderProps) => {
         <>
             {children}
 
-            <SpotlightModal
+            {canUseMascot && (
+                <MascotLauncher isOpen={isOpen} onToggle={toggleMascot} />
+            )}
+
+            <MascotDockPanel
                 isOpen={isOpen}
                 onClose={close}
-                position={position || undefined}
                 onSendMessage={handleSendMessage}
-                initialContext={context || undefined}
                 messages={messages}
                 connectionStatus={connectionStatus}
+                routePath={location.pathname}
             />
         </>
     )

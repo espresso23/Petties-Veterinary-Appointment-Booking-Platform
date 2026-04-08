@@ -1,6 +1,6 @@
 # Data Models
 
-> Last Updated: 2026-04-02
+> Last Updated: 2026-04-08
 > Scope: Qdrant Case Memory, Disease Catalog, EMR schemas, Case Memory document schema
 
 ---
@@ -25,6 +25,8 @@
   "species": "dog",
   "chief_complaint": "Ghèn vàng mắt trái 3 ngày",
   "clinical_notes": "Red eye with yellow discharge",
+  "clinical_image_urls": ["https://..."],
+  "image_urls": ["https://..."],
   "final_diagnosis_text": "Viêm kết mạc",
   "canonical_code": "ocular_infection",
   "mapping_status": "mapped",
@@ -41,6 +43,10 @@
 ```
 
 **Runtime rule:** the stored point payload is now runtime-focused. Fields that are not directly used by `ai-diagnose` retrieval, ranking, or grounded synthesis should not remain in the Case Memory point payload.
+
+**Image reference rule:**
+- Only URL-based image references are stored in payload (`clinical_image_urls` and `image_urls` alias).
+- Raw/base64 image payloads must not be stored in Qdrant payload.
 
 ---
 
@@ -140,10 +146,12 @@ Schema for extracting confirmed EMR records into Case Memory:
   "prescriptions": [
     {
       "medicine_name": "string",
-      "dosage": "string|null",
-      "frequency": "string|null",
+      "times_of_day": ["sang", "trua", "chieu", "toi"],
+      "before_after_meal": "BEFORE_MEAL | AFTER_MEAL | WITH_MEAL | NONE",
       "duration_days": 7,
-      "instructions": "string|null"
+      "route": "PO | SC | IV | IM | topical | other",
+      "frequency_note": "string|null",
+      "instructions": "string (ưu tiên mô tả rõ cách dùng: trước/sau ăn, chia lần uống, lưu ý tác dụng phụ, ...)"
     }
   ],
   "ai_diagnosis_context": {
@@ -171,6 +179,7 @@ Projection returned by Case Memory admin APIs:
   "species": "dog",
   "chief_complaint": "string",
   "clinical_notes": "string|null",
+  "clinical_image_urls": ["https://..."],
   "display_name_vi": "string|null",
   "final_diagnosis_text": "string",
   "canonical_code": "string|null",
@@ -219,10 +228,12 @@ Canonical persisted AI context saved inside EMR (snake_case):
   "suggested_prescriptions": [
     {
       "medicine_name": "Cephalexin",
-      "dosage": "250 mg",
-      "frequency": "2 times/day",
+      "times_of_day": ["sang", "toi"],
+      "before_after_meal": "AFTER_MEAL",
       "duration_days": 14,
-      "instructions": "Take after food",
+      "route": "PO",
+      "frequency_note": "2 lần/ngày, cách nhau khoảng 12 giờ",
+      "instructions": "Cho uống sau ăn với nước sạch; không uống chung với sữa; theo dõi nôn, tiêu chảy và liên hệ lại nếu có dấu hiệu bất thường.",
       "source": "llm_fallback",
       "source_detail": "selected_only fallback"
     }

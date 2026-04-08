@@ -4,6 +4,7 @@
 > Lưu ý cập nhật ngày 2026-03-22:
 > - **Tool Self-Contained UI Cards (v2.0):** Tools định nghĩa `ui_card` trong return value, chat.py dùng generic dispatcher. Không còn hardcoded extraction logic. Xem [AI_SERVICE_TECHNICAL_SPECIFICATION.md](D:/SEP490/petties/docs-references/documentation/AI_SERVICE_TECHNICAL_SPECIFICATION.md).
 > - Các mục cũ liên quan Visual Case Memory từ feedback ảnh, `analyze_pet_image` hoặc AI Diagnose admin flow chỉ còn giá trị lịch sử.
+> - **2026-04-08:** Chuẩn hóa danh mục function AI Assistant theo 14 function chuẩn (đồng bộ với SRS 3.11.0 và SDD 3.2.7).
 
 ---
 
@@ -150,6 +151,26 @@
 > **Note:** MVP sử dụng **Single Agent** với nhiều skills/tools, có thể config bởi Admin.
 
 ### AI Chatbot - Pet Care Assistant
+
+#### AI Assistant Function Catalog (Standardized 2026-04-08)
+
+| Function (Standardized Name) | Primary Roles | Reference (SRS/SDD) | Status |
+|---|---|---|---|
+| Interact with ChatBot | PET_OWNER, STAFF, CLINIC_MANAGER, CLINIC_OWNER | SRS 3.11.1, 3.11.2, 3.11.13, 3.11.14 | 🔄 In Progress (booking path hardening) |
+| Config Agent Parameter | ADMIN | SRS 3.11.3, SDD 3.2.2 | ✅ Done |
+| Test Agent Playground | ADMIN | SRS 3.11.4, SDD 3.2.2 | ✅ Done |
+| Turn On/Off Agent Tools | ADMIN | SRS 3.11.3, SDD 3.2.3 | ✅ Done |
+| Upload Document To Knowledge Base | ADMIN | SRS 3.11.3, SDD 3.2.4 | ✅ Done |
+| Delete Document from Knowledge Base | ADMIN | SRS 3.11.3, SDD 3.2.4 | ✅ Done |
+| View Case Memory | ADMIN | SRS 3.11.7, 3.11.11; SDD 3.2.6 | ✅ Done |
+| Delete Case Memory | ADMIN | SRS 3.11.7, 3.11.11; SDD 3.2.6 | ✅ Done |
+| Use AI-Assisted Clinic Setup, Operation | CLINIC_OWNER, CLINIC_MANAGER | SRS 3.13.1, 3.11.14 | 🔄 Mixed (operation done, setup planned) |
+| Use Summarize patient info & EMR | STAFF | SRS 3.11.13, SDD 4.23 | ✅ Done |
+| Use Summarize pet's EMR | PET_OWNER | SRS 3.11.12, SDD 4.22 | ✅ Done |
+| View aggregate feedback stats | ADMIN | SRS 3.11.7, SDD 3.2.5 | ✅ Done |
+| Provide AI's Response Feedback | Authenticated Users | SRS 3.11.7, SDD 3.2.5 | ✅ Done |
+| Use AI Diagnostic Support | STAFF | SRS 3.11.11, SDD 4.21 | ✅ Done |
+
 - 🤖 Chat với AI Chatbot thông minh ✅
 - 🤖 Tư vấn chăm sóc thú cưng ✅
 - 🤖 Hỗ trợ tra cứu triệu chứng qua knowledge base ✅

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import type { EmrAiDraft, EmrAiSoapField } from '../utils/emrAiDraftBridge'
+import type { ChatStage, UISchemaV1 } from '../types/chat-copilot'
 
 export interface AISessionMessage {
     id: string
@@ -11,6 +12,8 @@ export interface AISessionMessage {
     isLoading?: boolean
     thinkingProcess?: string[]
     toolCalls?: Array<{ tool: string; input: unknown; output?: unknown }>
+    uiSchema?: UISchemaV1
+    stage?: ChatStage
 }
 
 interface AIChatState {
@@ -21,7 +24,7 @@ interface AIChatState {
     emrDraft: EmrAiDraft | null
     
     setSessionId: (sessionId: string | null) => void
-    setMessages: (messages: AISessionMessage[]) => void
+    setMessages: (messages: AISessionMessage[] | ((prev: AISessionMessage[]) => AISessionMessage[])) => void
     addMessage: (message: AISessionMessage) => void
     updateLastMessage: (content: string, isLoading?: boolean) => void
     appendThinkingToLastMessage: (content: string) => void
@@ -45,7 +48,9 @@ export const useAIChatStore = create<AIChatState>()(
 
             setSessionId: (sessionId) => set({ sessionId }),
             
-            setMessages: (messages) => set({ messages }),
+            setMessages: (messages) => set((state) => ({
+                messages: typeof messages === 'function' ? messages(state.messages) : messages
+            })),
             
             addMessage: (message) => set((state) => ({
                 messages: [...state.messages, message]

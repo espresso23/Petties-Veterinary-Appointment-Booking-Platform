@@ -374,6 +374,13 @@ class CaseMemoryService:
             **payload,
         }
 
+        # Persist clinical image references for case detail view (admin).
+        # Do NOT store base64 payloads to avoid bloating Qdrant payload size.
+        if image_urls_clean:
+            full_payload["clinical_image_urls"] = image_urls_clean
+            # Backward/interop alias (some producers use `attachments.image_urls`)
+            full_payload["image_urls"] = image_urls_clean
+
         # Chuẩn bị vectors cho named vectors (text luôn có, image nếu tồn tại)
         vectors: Dict[str, Any] = {"text": text_vector}
         if image_vector is not None:
@@ -894,6 +901,9 @@ class CaseMemoryService:
 
             point = points[0]
             payload = point.payload or {}
+            clinical_images = payload.get("clinical_image_urls") or payload.get("image_urls") or []
+            if not isinstance(clinical_images, list):
+                clinical_images = []
             return {
                 "case_id": payload.get("case_id", str(point.id)),
                 "text_content": payload.get("text_content", ""),
@@ -901,6 +911,7 @@ class CaseMemoryService:
                 "chief_complaint": payload.get("chief_complaint", ""),
                 "display_name_vi": payload.get("display_name_vi"),
                 "clinical_notes": payload.get("clinical_notes"),
+                "clinical_image_urls": clinical_images,
                 "final_diagnosis_text": payload.get("final_diagnosis_text", ""),
                 "canonical_code": payload.get("canonical_code"),
                 "mapping_status": payload.get("mapping_status"),

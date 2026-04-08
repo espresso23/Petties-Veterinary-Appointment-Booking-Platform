@@ -181,15 +181,29 @@ class EmrCaseMemorySyncService:
             prescription_lines = []
             for rx in prescriptions:
                 medicine = str(
-                    rx.get("medicine_name") or rx.get("medicine") or ""
+                    rx.get("medicine_name")
+                    or rx.get("medicineName")
+                    or rx.get("medicine")
+                    or ""
                 ).strip()
                 if not medicine:
                     continue
                 details = []
-                for key in ("dosage", "frequency", "duration_days", "instructions"):
-                    value = rx.get(key)
-                    if value not in (None, ""):
-                        details.append(str(value))
+                times_of_day = rx.get("times_of_day") or rx.get("timesOfDay")
+                if isinstance(times_of_day, list) and times_of_day:
+                    details.append("times_of_day=" + ",".join(str(x) for x in times_of_day if x))
+                before_after_meal = rx.get("before_after_meal") or rx.get("beforeAfterMeal")
+                if before_after_meal not in (None, ""):
+                    details.append("before_after_meal=" + str(before_after_meal))
+                frequency_note = rx.get("frequency_note") or rx.get("frequencyNote")
+                if frequency_note not in (None, ""):
+                    details.append("frequency_note=" + str(frequency_note))
+                duration_days = rx.get("duration_days") or rx.get("durationDays") or rx.get("duration")
+                if duration_days not in (None, ""):
+                    details.append("duration_days=" + str(duration_days))
+                instructions = rx.get("instructions")
+                if instructions not in (None, ""):
+                    details.append("instructions=" + str(instructions))
                 prescription_lines.append(
                     medicine if not details else f"{medicine} - {' | '.join(details)}"
                 )
@@ -241,13 +255,35 @@ class EmrCaseMemorySyncService:
             for rx in prescriptions:
                 if not isinstance(rx, dict):
                     continue
+                # Normalize camelCase/snake_case (Spring payload vs AI payload)
+                times_of_day = rx.get("times_of_day") or rx.get("timesOfDay")
+                if not isinstance(times_of_day, list):
+                    times_of_day = None
+                before_after_meal = rx.get("before_after_meal") or rx.get("beforeAfterMeal")
+                frequency_note = rx.get("frequency_note") or rx.get("frequencyNote")
+                instructions = rx.get("instructions")
+                # Backward-compat: if EMR legacy still has dosage/frequency, fold into instructions
+                legacy_dosage = rx.get("dosage")
+                legacy_frequency = rx.get("frequency")
+                if (not instructions) and (legacy_dosage or legacy_frequency):
+                    merged = []
+                    if legacy_dosage:
+                        merged.append(f"Liều cũ: {legacy_dosage}")
+                    if legacy_frequency:
+                        merged.append(f"Tần suất cũ: {legacy_frequency}")
+                    instructions = " | ".join(merged)
+
                 rx_entry = {
-                    "medicine": rx.get("medicine_name") or rx.get("medicine"),
-                    "dosage": rx.get("dosage"),
-                    "frequency": rx.get("frequency"),
-                    "duration": rx.get("duration") or rx.get("duration_days"),
-                    "route": rx.get("route"),
-                    "instructions": rx.get("instructions"),
+                    "medicine": rx.get("medicine_name")
+                    or rx.get("medicineName")
+                    or rx.get("medicine"),
+                    "times_of_day": times_of_day,
+                    "before_after_meal": before_after_meal,
+                    "frequency_note": frequency_note,
+                    "duration_days": rx.get("duration_days")
+                    or rx.get("durationDays")
+                    or rx.get("duration"),
+                    "instructions": instructions,
                 }
                 if any(rx_entry.values()):
                     extracted_rx.append(rx_entry)

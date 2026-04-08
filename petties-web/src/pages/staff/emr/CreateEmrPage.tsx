@@ -214,6 +214,8 @@ export const CreateEmrPage = () => {
     const [errors, setErrors] = useState<FieldErrors>({})
     const [previewImage, setPreviewImage] = useState<EmrImage | null>(null)
     const [currentStep, setCurrentStep] = useState<1 | 2>(1)
+    const mealLabel = (value?: string) => (value === 'BEFORE_MEAL' ? 'Trước ăn' : 'Sau ăn')
+    const timeLabel = (value: string) => ({ sang: 'Sáng', trua: 'Trưa', chieu: 'Chiều' }[value] || value)
     const [isAiAnalyzing, setIsAiAnalyzing] = useState(false)
 
     // Prescription modal
@@ -247,15 +249,36 @@ export const CreateEmrPage = () => {
 
     // Prescription Modal Handlers (Internal to Modal)
     const handleOpenPrescriptionModal = () => {
-        setTempPrescriptions(prescriptions.length > 0 ? [...prescriptions] : [{ medicineName: '', frequency: '', durationDays: 0, dosage: '', instructions: '' }])
+        setTempPrescriptions(
+            prescriptions.length > 0
+                ? [...prescriptions]
+                : [
+                    {
+                        medicineName: '',
+                        timesOfDay: [],
+                        beforeAfterMeal: 'AFTER_MEAL',
+                        durationDays: 0,
+                        instructions: '',
+                    },
+                ]
+        )
         setShowPrescriptionModal(true)
     }
 
     const handleAddPrescriptionRow = () => {
-        setTempPrescriptions([...tempPrescriptions, { medicineName: '', frequency: '', durationDays: 0, dosage: '', instructions: '' }])
+        setTempPrescriptions([
+            ...tempPrescriptions,
+            {
+                medicineName: '',
+                timesOfDay: [],
+                beforeAfterMeal: 'AFTER_MEAL',
+                durationDays: 0,
+                instructions: '',
+            },
+        ])
     }
 
-    const handleUpdatePrescription = (index: number, field: keyof Prescription, value: string | number) => {
+    const handleUpdatePrescription = (index: number, field: keyof Prescription, value: unknown) => {
         const updated = [...tempPrescriptions]
         updated[index] = { ...updated[index], [field]: value }
         setTempPrescriptions(updated)
@@ -459,9 +482,9 @@ export const CreateEmrPage = () => {
 
         const nextPrescriptions: Prescription[] = aiDiagnosisResult.prescription_suggestions.map((item) => ({
             medicineName: item.medicine_name,
-            dosage: item.dosage || '',
-            frequency: item.frequency || '',
-            durationDays: item.duration_days || 0,
+            timesOfDay: (item.times_of_day || item.timesOfDay || []) as Prescription['timesOfDay'],
+            beforeAfterMeal: (item.before_after_meal || item.beforeAfterMeal || 'AFTER_MEAL') as Prescription['beforeAfterMeal'],
+            durationDays: item.duration_days || item.durationDays || 0,
             instructions: item.instructions || item.caution || '',
         }))
 
@@ -512,9 +535,9 @@ export const CreateEmrPage = () => {
             ...prev,
             {
                 medicineName: suggestion.medicine_name,
-                dosage: suggestion.dosage || '',
-                frequency: suggestion.frequency || '',
-                durationDays: suggestion.duration_days || 0,
+                timesOfDay: (suggestion.times_of_day || suggestion.timesOfDay || []) as Prescription['timesOfDay'],
+                beforeAfterMeal: (suggestion.before_after_meal || suggestion.beforeAfterMeal || 'AFTER_MEAL') as Prescription['beforeAfterMeal'],
+                durationDays: suggestion.duration_days || suggestion.durationDays || 0,
                 instructions: suggestion.instructions || suggestion.caution || '',
             },
         ])
@@ -561,7 +584,13 @@ export const CreateEmrPage = () => {
                                 <div className="flex flex-wrap items-start justify-between gap-3">
                                     <div className="min-w-0">
                                         <p className="break-words text-sm font-bold text-stone-900">{item.medicine_name}</p>
-                                        <p className="mt-1 break-words text-[11px] text-stone-600">{item.dosage || 'Theo toa'} | {item.frequency || 'Theo chỉ định'} | {item.duration_days ?? '-'} ngày</p>
+                                        <p className="mt-1 break-words text-[11px] text-stone-600">
+                                            {(item.times_of_day || item.timesOfDay || []).length ? (item.times_of_day || item.timesOfDay).map(timeLabel).join(', ') : 'Theo chỉ định'}
+                                            {' | '}
+                                            {mealLabel(item.before_after_meal || item.beforeAfterMeal)}
+                                            {' | '}
+                                            {item.duration_days ?? item.durationDays ?? '-'} ngày
+                                        </p>
                                         {item.instructions && <p className="mt-1 break-words text-[11px] text-stone-600 line-clamp-3">{item.instructions}</p>}
                                         {item.caution && <p className="mt-1 break-words text-[11px] font-semibold text-red-600 line-clamp-3">{item.caution}</p>}
                                     </div>
@@ -587,7 +616,11 @@ export const CreateEmrPage = () => {
                             <div className="min-w-0 pl-2.5">
                                 <div className="break-words text-sm font-bold text-stone-800">{p.medicineName}</div>
                                 <div className="mt-1 text-[10px] font-medium uppercase tracking-wide text-stone-500 break-words">
-                                    {p.dosage || 'Theo chỉ định'} | {p.frequency || 'Theo chỉ định'} | {p.durationDays} ngày
+                                    {(p.timesOfDay && p.timesOfDay.length > 0) ? p.timesOfDay.map(timeLabel).join(', ') : 'Theo chỉ định'}
+                                    {' | '}
+                                    {mealLabel(p.beforeAfterMeal)}
+                                    {' | '}
+                                    {p.durationDays ?? '-'} ngày
                                 </div>
                                 {p.instructions && <p className="mt-1 break-words text-[11px] text-stone-600 line-clamp-3">{p.instructions}</p>}
                             </div>
@@ -609,9 +642,9 @@ export const CreateEmrPage = () => {
         <div className="rounded-2xl bg-white p-6 shadow-sm">
             <div className="flex items-center gap-3 mb-2">
                 <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
-                <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">Khách quan / Chỉ số sinh tồn</h2>
+                <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">Khách quan / Chỉ số sức khỏe</h2>
             </div>
-            <p className="text-xs text-stone-400 mb-4">Kết quả khám lâm sàng, chỉ số sinh tồn</p>
+            <p className="text-xs text-stone-400 mb-4">Kết quả khám lâm sàng, chỉ số sức khỏe</p>
 
             <div className="grid grid-cols-2 gap-3 mb-4">
                 <div>
@@ -686,7 +719,7 @@ export const CreateEmrPage = () => {
                 )
             ) : (
                 <p className="mt-3 text-xs font-semibold text-stone-500">
-                    Nhập kết quả khám lâm sàng và chỉ số sinh tồn của ca bệnh.
+                    Nhập kết quả khám lâm sàng và chỉ số sức khỏe của ca bệnh.
                 </p>
             )}
         </div>
@@ -1289,10 +1322,10 @@ export const CreateEmrPage = () => {
 
                                             <div className="flex-1 overflow-y-auto bg-white px-4 py-5 sm:px-6 lg:px-8">
                                                 <div className="space-y-4">
-                                                    <div className="hidden gap-3 rounded-xl border border-orange-100 bg-orange-50/50 px-4 py-2 text-center text-[11px] font-bold uppercase tracking-widest text-orange-800 lg:grid lg:grid-cols-[minmax(220px,2fr)_80px_90px_90px_minmax(280px,3fr)_48px]">
+                                                    <div className="hidden gap-3 rounded-xl border border-orange-100 bg-orange-50/50 px-4 py-2 text-center text-[11px] font-bold uppercase tracking-widest text-orange-800 lg:grid lg:grid-cols-[minmax(220px,2fr)_minmax(180px,1.2fr)_130px_90px_minmax(280px,3fr)_48px]">
                                                         <div>Tên thuốc</div>
-                                                        <div>Liều</div>
-                                                        <div>T.Suất</div>
+                                                        <div>Thời điểm uống</div>
+                                                        <div>Trước/Sau ăn</div>
                                                         <div>Ngày</div>
                                                         <div>Hướng dẫn sử dụng</div>
                                                         <div></div>
@@ -1300,7 +1333,7 @@ export const CreateEmrPage = () => {
 
                                                     <div className="space-y-2">
                                                         {tempPrescriptions.map((p, i) => (
-                                                            <div key={i} className="group grid gap-3 rounded-2xl border border-transparent p-3 transition-all hover:border-stone-100 hover:bg-stone-50 lg:grid-cols-[minmax(220px,2fr)_80px_90px_90px_minmax(280px,3fr)_48px] lg:items-center">
+                                                            <div key={i} className="group grid gap-3 rounded-2xl border border-transparent p-3 transition-all hover:border-stone-100 hover:bg-stone-50 lg:grid-cols-[minmax(220px,2fr)_minmax(180px,1.2fr)_130px_90px_minmax(280px,3fr)_48px] lg:items-center">
                                                                 <div>
                                                                     <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-stone-400 lg:hidden">Tên thuốc</p>
                                                                     <input
@@ -1313,24 +1346,41 @@ export const CreateEmrPage = () => {
                                                                     />
                                                                 </div>
                                                                 <div>
-                                                                    <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-stone-400 lg:hidden">Liều</p>
-                                                                    <input
-                                                                        type="text"
-                                                                        value={p.dosage || ''}
-                                                                        onChange={(e) => handleUpdatePrescription(i, 'dosage', e.target.value)}
-                                                                        placeholder="1"
-                                                                        className="w-full rounded-xl border border-stone-200 bg-white px-1 py-1.5 text-center text-sm font-medium outline-none transition-all placeholder:text-stone-300 focus:border-amber-600 focus:ring-4 focus:ring-amber-500/10"
-                                                                    />
+                                                                    <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-stone-400 lg:hidden">Thời điểm uống</p>
+                                                                    <div className="grid grid-cols-3 gap-2">
+                                                                        {(['sang', 'trua', 'chieu'] as const).map((slot) => {
+                                                                            const active = (p.timesOfDay || []).includes(slot)
+                                                                            return (
+                                                                                <button
+                                                                                    key={slot}
+                                                                                    type="button"
+                                                                                    onClick={() => {
+                                                                                        const next = active
+                                                                                            ? (p.timesOfDay || []).filter((x) => x !== slot)
+                                                                                            : [...(p.timesOfDay || []), slot]
+                                                                                        handleUpdatePrescription(i, 'timesOfDay', next)
+                                                                                    }}
+                                                                                    className={`w-full rounded-full border px-3 py-1 text-center text-[11px] font-bold uppercase tracking-wide transition-all active:scale-95 ${active
+                                                                                        ? 'border-orange-400 bg-orange-50 text-orange-700'
+                                                                                        : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
+                                                                                        }`}
+                                                                                >
+                                                                                    {timeLabel(slot)}
+                                                                                </button>
+                                                                            )
+                                                                        })}
+                                                                    </div>
                                                                 </div>
                                                                 <div>
-                                                                    <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-stone-400 lg:hidden">Tần suất</p>
-                                                                    <input
-                                                                        type="text"
-                                                                        value={p.frequency}
-                                                                        onChange={(e) => handleUpdatePrescription(i, 'frequency', e.target.value)}
-                                                                        placeholder="2"
-                                                                        className="w-full rounded-xl border border-stone-200 bg-white px-1 py-1.5 text-center text-sm font-medium outline-none transition-all placeholder:text-stone-300 focus:border-amber-600 focus:ring-4 focus:ring-amber-500/10"
-                                                                    />
+                                                                    <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-stone-400 lg:hidden">Trước/Sau ăn</p>
+                                                                    <select
+                                                                        value={p.beforeAfterMeal || 'AFTER_MEAL'}
+                                                                        onChange={(e) => handleUpdatePrescription(i, 'beforeAfterMeal', e.target.value)}
+                                                                        className="w-full rounded-xl border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium outline-none transition-all focus:border-amber-600 focus:ring-4 focus:ring-amber-500/10"
+                                                                    >
+                                                                        <option value="BEFORE_MEAL">Trước ăn</option>
+                                                                        <option value="AFTER_MEAL">Sau ăn</option>
+                                                                    </select>
                                                                 </div>
                                                                 <div>
                                                                     <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-stone-400 lg:hidden">Số ngày</p>
@@ -1348,7 +1398,7 @@ export const CreateEmrPage = () => {
                                                                         type="text"
                                                                         value={p.instructions || ''}
                                                                         onChange={(e) => handleUpdatePrescription(i, 'instructions', e.target.value)}
-                                                                        placeholder="Hướng dẫn sử dụng chi tiết..."
+                                                                        placeholder="VD: Cho uống sau ăn, với nước; theo dõi nôn/tiêu chảy..."
                                                                         className="w-full rounded-xl border border-stone-200 bg-white px-4 py-1.5 text-sm font-medium italic outline-none transition-all placeholder:text-stone-300 focus:border-amber-600 focus:ring-4 focus:ring-amber-500/10"
                                                                     />
                                                                 </div>

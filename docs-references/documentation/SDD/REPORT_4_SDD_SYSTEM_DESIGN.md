@@ -3,8 +3,8 @@
 > Update note dated 2026-04-01: older sections describing `analyze_pet_image`, legacy feedback-driven Case Memory, polling-based confirmed EMR sync, or the previous feedback loop are no longer the deployed architecture. The active AI diagnosis runtime reference is defined in [ai_diagnose_service/01_RUNTIME_FLOW.md](D:/SEP490/petties/docs-references/ai_diagnose_service/01_RUNTIME_FLOW.md), the active requirements are in [PETTIES_SRS.md](D:/SEP490/petties/docs-references/documentation/SRS/PETTIES_SRS.md) section `3.11.11`, and the trust-boundary rules are in [AI_SERVICE_TECHNICAL_SPECIFICATION.md](D:/SEP490/petties/docs-references/documentation/AI_SERVICE_TECHNICAL_SPECIFICATION.md).
 
 **Project:** Petties - Veterinary Appointment Booking Platform
-**Version:** 3.3.12 (Removed image indexing from Knowledge Base - unused feature cleanup)
-**Last Updated:** 2026-04-03
+**Version:** 3.3.13 (Standardized AI Assistant function catalog and API mapping)
+**Last Updated:** 2026-04-08
 **Document Status:** In Progress
 
 ## TABLE OF CONTENTS
@@ -2697,6 +2697,9 @@ Use separate vectors for text and image retrieval:
 | POST | `/ai/knowledge/upload` | Upload PDF/Docx | Admin |
 | POST | `/ai/knowledge/documents/{id}/process` | Index to Qdrant (Cohere Embedding) | Admin |
 | GET | `/ai/knowledge/documents` | List documents status | Admin |
+| GET | `/ai/knowledge/documents/{id}` | Get document detail | Admin |
+| GET | `/ai/knowledge/documents/{id}/download` | Download document file | Admin |
+| DELETE | `/ai/knowledge/documents/{id}` | Delete document and related vectors | Admin |
 | POST | `/ai/knowledge/query` | Test RAG Retrieval | Admin |
 | GET | `/ai/knowledge/status` | KB Status & Stats | Admin |
 
@@ -2711,6 +2714,29 @@ Use separate vectors for text and image retrieval:
 |--------|----------|-------------|--------|
 | POST | `/ai/knowledge/embed-confirmed-cases` | Legacy endpoint note; active Case Memory sync is EMR-driven | Admin |
 | GET | `/ai/knowledge/case-memory/stats` | Get Case Memory statistics (total cases, categories) | Admin |
+| POST | `/ai/knowledge/case-memory/prune` | Prune stale or low-score cases | Admin |
+| GET | `/ai/knowledge/case-memory` | List Case Memory records | Admin |
+| GET | `/ai/knowledge/case-memory/{case_id}` | Get Case Memory detail | Admin |
+| DELETE | `/ai/knowledge/case-memory/{case_id}` | Delete a Case Memory record | Admin |
+| POST | `/ai/knowledge/case-memory/sync-emr-confirmed` | Trigger on-demand EMR confirmed sync | Admin |
+
+#### 3.2.7 AI Assistant Function Catalog (Standardized)
+| Function (Standardized Name) | Primary API/Module Mapping | SRS Ref | Status |
+|---|---|---|---|
+| Interact with ChatBot | `POST /ai/chat/sessions`, `WS /ws/chat/{session_id}` | 3.11.1, 3.11.2, 3.11.13, 3.11.14 | 🔄 In Progress (booking path hardening) |
+| Config Agent Parameter | `PUT /ai/agents/{id}` | 3.11.3 | ✅ Done |
+| Test Agent Playground | `POST /ai/agents/{id}/test` | 3.11.4 | ✅ Done |
+| Turn On/Off Agent Tools | `PUT /ai/tools/{id}/enable` | 3.11.3 | ✅ Done |
+| Upload Document To Knowledge Base | `POST /ai/knowledge/upload`, `POST /ai/knowledge/documents/{id}/process` | 3.11.3 | ✅ Done |
+| Delete Document from Knowledge Base | `DELETE /ai/knowledge/documents/{id}` | 3.11.3 | ✅ Done |
+| View Case Memory | `GET /ai/knowledge/case-memory/stats`, `GET /ai/knowledge/case-memory` | 3.11.7, 3.11.11 | ✅ Done |
+| Delete Case Memory | `DELETE /ai/knowledge/case-memory/{case_id}`, `POST /ai/knowledge/case-memory/prune` | 3.11.7, 3.11.11 | ✅ Done |
+| Use AI-Assisted Clinic Setup, Operation | Module `4.25 AI Copilot Manager Analytics` + clinic setup scope in SRS | 3.11.14, 3.13.1 | 🔄 Mixed (operation done, setup planned) |
+| Use Summarize patient info & EMR | Module `4.23 Staff AI Chat Panel` (`get_patient_summary`, `get_emr_history`) | 3.11.13 | ✅ Done |
+| Use Summarize pet's EMR | Module `4.22 AI Health Summary for Pet Owner` | 3.11.12 | ✅ Done |
+| View aggregate feedback stats | `GET /ai/chat/feedback/stats` | 3.11.7 | ✅ Done |
+| Provide AI's Response Feedback | `POST /ai/chat/feedback` | 3.11.7 | ✅ Done |
+| Use AI Diagnostic Support | Module `4.21 Staff AI Diagnosis in EMR Workspace` | 3.11.11 | ✅ Done |
 
 ### 3.3 Implemented Modules (Backend) - Previously Planned
 

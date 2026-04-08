@@ -8,8 +8,8 @@
 
 **Project:** Petties - Veterinary Appointment Booking Platform
 
-**Version:** 2.4.0 (Aligned staff AI diagnosis with grounded SOAP synthesis)
-**Last Updated:** 2026-04-02
+**Version:** 2.4.1 (Standardized AI Assistant function catalog across Features/SRS/SDD)
+**Last Updated:** 2026-04-08
 **Document Status:** In Progress
 
 
@@ -708,25 +708,25 @@ This SRS uses the approved 20-module checklist as the minimum documentation base
 
 |---|----------|-------|---------|---------|----------|--------|
 
-| 36 | Booking With ChatBot | UC-PO-14c | 3.11.1 | ✅ Agent Service | ✅ Mobile | 🔄 In Progress |
+| 36 | Interact with ChatBot | UC-PO-14a, UC-PO-14c, UC-PO-14d | 3.11.1, 3.11.2 | ✅ Agent Service | ✅ Mobile/Web | 🔄 In Progress |
 
-| 37 | Ask ChatBot To Pet Care | UC-PO-14a | 3.11.1 | ✅ Agent Service | ✅ Mobile | ✅ Done |
+| 98 | Provide AI's Response Feedback | UC-AD-11 | 3.11.7 | ✅ Agent Service | ✅ Mobile/Web | ✅ Done |
 
-| 38 | Chat | UC-PO-14d | 3.11.2 | ✅ ChatController | ✅ Mobile | ✅ Done |
+| 99 | View aggregate feedback stats | UC-AD-11 | 3.11.7 | ✅ Agent Service | ✅ Web | ✅ Done |
 
-| 107 | Staff Diagnostic Support | UC-STAFF-11 | 3.11.11 | ✅ Agent Service | ✅ Mobile/Web | ✅ Done |
+| 107 | Use AI Diagnostic Support | UC-STAFF-11 | 3.11.11 | ✅ Agent Service | ✅ Mobile/Web | ✅ Done |
 
-| 108 | AI Medical Image Diagnosis | UC-AI-01 | 3.11.11 | ✅ Agent Service | ✅ Mobile/Web | ✅ Covered by UC-STAFF-11 |
+| 108 | Use Summarize patient info & EMR | UC-STAFF-12 | 3.11.13 | ✅ Agent Service | ✅ Web | ✅ Done |
 
-| 98 | Real-time Chat WebSocket | UC-PO-20 | - | ✅ ChatWebSocketController | ✅ Mobile/Web | ✅ Done |
+| 109 | Use Summarize pet's EMR | UC-PO-EMR-01 | 3.11.12 | ✅ Agent Service | ✅ Mobile | ✅ Done |
 
-| 99 | Chat Images Gallery | UC-PO-23 | - | ✅ ChatController | ✅ Mobile | ✅ Done |
-
-| 123 | AI Feedback Audit | UC-AD-11 | 3.11.7 | ✅ Agent Service | ✅ Web | ✅ Done |
+| 110 | Use AI-Assisted Clinic Setup, Operation | UC-CM-10, UC-CO-14 | 3.11.14, 3.13.1 | ✅/📋 Mixed | ✅/📋 Mixed | 🔄 Mixed |
 
 
 
 
+
+> Standardized naming baseline for AI Assistant functions is defined in section **3.11.0 AI Assistant Function Catalog (Standardized)**.
 
 #### Rating & Reporting
 
@@ -764,6 +764,8 @@ This SRS uses the approved 20-module checklist as the minimum documentation base
 
 | 47 | Upload Document To Knowledge Base | UC-AD-06 | - | ✅ Agent Service | ✅ Web | ✅ Done |
 
+| 53 | Delete Document from Knowledge Base | UC-AD-06 | - | ✅ Agent Service | ✅ Web | ✅ Done |
+
 | 48 | Accept/ Reject User Reports | UC-AD-09 | - | ❌ | ❌ | ❌ Not Started |
 
 | 49 | View User Report | UC-AD-08 | - | ❌ | ❌ | ❌ Not Started |
@@ -773,6 +775,10 @@ This SRS uses the approved 20-module checklist as the minimum documentation base
 | 51 | Config Agent Parameter | UC-AD-05 | - | ✅ Agent Service | ✅ Web | ✅ Done |
 
 | 52 | Test Agent Playground | UC-AD-07 | - | ✅ Agent Service | ✅ Web | ✅ Done |
+
+| 54 | View Case Memory | UC-AD-11 | 3.11.7 | ✅ Agent Service | ✅ Web | ✅ Done |
+
+| 55 | Delete Case Memory | UC-AD-11 | 3.11.7 | ✅ Agent Service | ✅ Web | ✅ Done |
 
 | 100 | SSE Real-time Notifications | UC-AD-10 | - | ✅ SseController | ✅ Web | ✅ Done |
 
@@ -816,7 +822,7 @@ This SRS uses the approved 20-module checklist as the minimum documentation base
 
 | 103 | Bulk Price Per KM Update | UC-CO-13 | - | ✅ ClinicServiceController | ✅ Web | ✅ Done |
 
-| 104 | AI Generate Clinic Services | UC-CO-14 | 3.13.1 | ❌ | ❌ | 📋 Documented |
+| 104 | Use AI-Assisted Clinic Setup, Operation (Clinic setup scope) | UC-CO-14 | 3.13.1 | ❌ | ❌ | 📋 Documented |
 
 
 
@@ -1136,38 +1142,24 @@ Bảng tham chiếu giữa Use Cases trong SRS và các Module Implementation tr
 
 
 
-#### AI Assistance Mapping
+#### AI Assistant Function Mapping (Standardized)
 
- 
-
-| UC-ID | Use Case Name | SDD Module | SDD Section |
-
-|-------|---------------|------------|-------------|
-
-| UC-AI-01 | Ask Pet Care Advice (RAG) | AI Agent Service | 3.11.1 |
-
-| UC-AI-02 | Symptom Check | AI Agent Tools | 3.11.2 |
-
-| UC-AI-03 | AI Booking Assistant | AI Agent Tools | 3.11.2 |
-
-| UC-AI-04 | Real-time Chat (WebSocket) | Chat Management | 3.11.3 |
-
-| UC-AI-05 | Chat Images Gallery | Chat Management | 3.11.3 |
-
-| UC-AI-06 | Manage Agent Tools | Agent Configuration | 3.11.4 |
-
-| UC-AI-07 | Manage Knowledge Base | Knowledge Base | 3.11.5 |
-
-| UC-AI-08 | Test Agent Playground | Agent Testing | 3.11.4 |
-
-| UC-AI-09 | EMR Analysis with Image Support | AI Agent Service | 3.11.11 |
-
-| UC-STAFF-11 | AI Staff Diagnostic Support | AI Agent Service | 3.11.11 |
-
-| UC-AI-10 | AI Feedback Audit | AI Agent Service | 3.11.7 |
-
-
-| UC-CO-14 | AI Generate Clinic Services | AI Agent Service | 3.13.1 |
+| Function (Standardized Name) | UC-ID / Scope | SDD Module | SDD Section |
+|---|---|---|---|
+| Interact with ChatBot | UC-PO-14a, UC-PO-14c, UC-PO-14d | Chat & Sessions | 3.2.1 |
+| Config Agent Parameter | UC-AD-05 | Agent Management | 3.2.2 |
+| Test Agent Playground | UC-AD-07 | Agent Management | 3.2.2 |
+| Turn On/Off Agent Tools | UC-AD-05 | Tool Registry | 3.2.3 |
+| Upload Document To Knowledge Base | UC-AD-06 | Knowledge Base RAG | 3.2.4 |
+| Delete Document from Knowledge Base | UC-AD-06 | Knowledge Base RAG | 3.2.4 |
+| View Case Memory | UC-AD-11, UC-STAFF-11 | Case Memory | 3.2.6 |
+| Delete Case Memory | UC-AD-11, UC-STAFF-11 | Case Memory | 3.2.6 |
+| Use AI-Assisted Clinic Setup, Operation | UC-CM-10, UC-CO-14 | AI Copilot Manager Analytics + Clinic Setup scope | 4.25 |
+| Use Summarize patient info & EMR | UC-STAFF-12 | Staff AI Chat Panel | 4.23 |
+| Use Summarize pet's EMR | UC-PO-EMR-01 | AI Health Summary for Pet Owner | 4.22 |
+| View aggregate feedback stats | UC-AD-11 | Feedback & Data Improvement | 3.2.5 |
+| Provide AI's Response Feedback | UC-AD-11 | Feedback & Data Improvement | 3.2.5 |
+| Use AI Diagnostic Support | UC-STAFF-11 | Staff AI Diagnosis in EMR Workspace | 4.21 |
 
 
 
@@ -7043,7 +7035,28 @@ Figure 47. SOS Fee Override Dialog (Mobile - Staff App)
 
 
 
- #### *3.11.1 Consult AI Assistant (UC-PO-14a / UC-PO-14b / UC-PO-14c)*
+#### *3.11.0 AI Assistant Function Catalog (Standardized)*
+
+The following catalog is the official naming baseline for the **AI Assistant** feature and must be used consistently across Features, SRS, and SDD.
+
+| Function (Standardized Name) | UC-ID / Scope | SRS Section | Status |
+|---|---|---|---|
+| Interact with ChatBot | UC-PO-14a, UC-PO-14c, UC-PO-14d | 3.11.1, 3.11.2 | 🔄 In Progress (booking path hardening) |
+| Config Agent Parameter | UC-AD-05 | 3.11.3 | ✅ Done |
+| Test Agent Playground | UC-AD-07 | 3.11.4 | ✅ Done |
+| Turn On/Off Agent Tools | UC-AD-05 | 3.11.3 | ✅ Done |
+| Upload Document To Knowledge Base | UC-AD-06 | 3.11.3 | ✅ Done |
+| Delete Document from Knowledge Base | UC-AD-06 | 3.11.3 | ✅ Done |
+| View Case Memory | UC-AD-11, UC-STAFF-11 (admin governance + diagnosis evidence) | 3.11.7, 3.11.11 | ✅ Done |
+| Delete Case Memory | UC-AD-11, UC-STAFF-11 (admin governance + diagnosis evidence) | 3.11.7, 3.11.11 | ✅ Done |
+| Use AI-Assisted Clinic Setup, Operation | UC-CO-14, UC-CM-10 | 3.13.1, 3.11.14 | 🔄 Mixed (operation done, setup planned) |
+| Use Summarize patient info & EMR | UC-STAFF-12 | 3.11.13 | ✅ Done |
+| Use Summarize pet's EMR | UC-PO-EMR-01 | 3.11.12 | ✅ Done |
+| View aggregate feedback stats | UC-AD-11 | 3.11.7 | ✅ Done |
+| Provide AI's Response Feedback | UC-AD-11 (cross-role input channel) | 3.11.7 | ✅ Done |
+| Use AI Diagnostic Support | UC-STAFF-11 | 3.11.11 | ✅ Done |
+
+#### *3.11.1 Consult AI Assistant (UC-PO-14a / UC-PO-14b / UC-PO-14c)*
 
 **User Story:**
 
@@ -7069,7 +7082,7 @@ Figure 47. SOS Fee Override Dialog (Mobile - Staff App)
 
     - **Chat Window:** Real-time streaming interface.
 
-    - **Intelligent Prompts:** Quick action buttons (e.g., "Kiểm tra triệu chứng", "Tìm phòng khám", "Đặt lịch khám").
+    - **Intelligent Prompts:** Quick action buttons (e.g., "Check Symptoms", "Find Clinics", "Book Appointment").
 
     - **Multi-modal Support:** Text input, future support for clinical photos.
 
@@ -7077,29 +7090,29 @@ Figure 47. SOS Fee Override Dialog (Mobile - Staff App)
 
 
 
-> **Implementation status (2026-03-19):** `Ask ChatBot To Pet Care` da hoat dong on dinh tren mobile business chat. `Booking With ChatBot` tiep tuc duoc nang cap theo huong `Semantic ReAct + Thin Validator + Deterministic Context Snapshot`: agent van chon tool dua tren nghia prompt va schema, nhung truoc khi goi booking tool he thong phai chuan hoa context booking tu `latest_message`, `transcript`, runtime datetime, va runtime location de giam tinh mong manh cua LLM khi xu ly ngay gio tu nhien nhu `thu bay nay`, `sang mai`, hoac cac turn override context. Use case nay van duoc giu `In Progress` cho den khi pass E2E validation va acceptance checklist cho cac kich ban kham tai phong kham, tiem chung, kham tai nha, va cac truong hop loi quan trong.
+> **Implementation status (2026-03-19):** `Ask ChatBot To Pet Care` is stable in mobile business chat. `Booking With ChatBot` is still being hardened under the `Semantic ReAct + Thin Validator + Deterministic Context Snapshot` approach: tool selection remains semantics-first, while booking context is normalized from `latest_message`, `transcript`, runtime datetime, and runtime location before booking tool calls. This use case remains `In Progress` until it passes E2E validation and the acceptance checklist for in-clinic booking, vaccination booking, home-visit booking, and major failure scenarios.
 
 
 
-**UC-PO-14: Chi tiết Use Case Trợ lý AI (Smart AI Assistant)**
+**UC-PO-14: Smart AI Assistant Detailed Use Case**
 
 
 
-| Thành phần | Đặc tả chi tiết |
+| Component | Detailed Specification |
 
 |:---|:---|
 
-| **Mục tiêu** | Cung cấp các khả năng thông minh qua hội thoại: Tra cứu cẩm nang thú y, gợi ý xử lý triệu chứng và thực hiện đặt lịch khám tự động. |
+| **Goal** | Provide conversational intelligence for veterinary knowledge lookup, symptom support, and AI-assisted booking creation. |
 
-| **Tác nhân** | Pet Owner (Chủ thú cưng) |
+| **Actor** | Pet Owner |
 
-| **Tiền điều kiện** | 1. Người dùng đã đăng nhập vào ứng dụng mobile.<br/>2. Thiết bị có kết nối Internet.<br/>3. AI Agent Service đang hoạt động (Status: ENABLED). |
+| **Preconditions** | 1. The user is logged into the mobile app.<br/>2. The device has internet connectivity.<br/>3. AI Agent Service is running (Status: ENABLED). |
 
-| **Luồng xử lý chính** | 1. Người dùng chọn chức năng "AI Assistant" trên mobile app.<br/>2. Hệ thống hiển thị khung chat và các gợi ý thông minh.<br/>3. Người dùng nhập tin nhắn hoặc chọn nút gợi ý nhanh.<br/>4. AI Agent (ReAct Pattern) phân tích ý định (intent) và thực hiện:<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Tra cứu kiến thức (RAG) nếu là câu hỏi tư vấn.<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Gọi Tool (FastMCP) nếu cần tìm phòng khám hoặc đặt lịch.<br/>5. Hệ thống hiển thị phản hồi theo dạng streaming (từng từ) để tăng trải nghiệm.<br/>6. Người dùng nhận câu trả lời và có thể tiếp tục hỏi (Multi-turn conversation). |
+| **Main Flow** | 1. The user opens the "AI Assistant" feature in the mobile app.<br/>2. The system displays the chat panel and intelligent quick actions.<br/>3. The user enters a message or selects a quick action.<br/>4. The AI Agent (ReAct Pattern) analyzes intent and executes:<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Knowledge retrieval (RAG) for advisory questions.<br/>&nbsp;&nbsp;&nbsp;&nbsp;- FastMCP tool calls for clinic search or booking tasks.<br/>5. The system streams responses in real time to improve user experience.<br/>6. The user receives the answer and can continue with multi-turn conversation. |
 
-| **Hậu điều kiện** | 1. Lịch sử trò chuyện được lưu trữ.<br/>2. Nếu người dùng cung cấp đủ dữ liệu và xác nhận rõ ràng, hệ thống có thể tạo đơn đặt lịch thành công qua AI booking tools.<br/>3. Việc đánh dấu use case `Booking With ChatBot` là hoàn thành chỉ được thực hiện sau khi pass acceptance checklist và E2E validation. |
+| **Postconditions** | 1. Chat history is persisted.<br/>2. If enough data is provided and explicit confirmation is received, the system can create a booking request through AI booking tools.<br/>3. The `Booking With ChatBot` use case can be marked complete only after acceptance checklist and E2E validation pass. |
 
-| **Quy tắc nghiệp vụ** | BR-42; BR-43; BR-21 |
+| **Business Rules** | BR-42; BR-43; BR-21 |
 
 
 
@@ -7111,13 +7124,13 @@ Figure 47. SOS Fee Override Dialog (Mobile - Staff App)
 
 |----------|--------------|-------------------------|-----------------|
 
-| **General Pet Care** | User asks: "Mèo con 2 tháng tuổi nên tiêm phòng gì?" | Agent calls `pet_knowledge_search` tool to search the veterinary knowledge base (RAG). | Agent provides a list of recommended vaccines with citations from veterinary documents. |
+| **General Pet Care** | User asks: "What vaccines should a 2-month-old kitten receive?" | Agent calls `pet_knowledge_search` tool to search the veterinary knowledge base (RAG). | Agent provides a list of recommended vaccines with citations from veterinary documents. |
 
-| **Symptom Lookup** | User describes: "Chó nhà tôi bỏ ăn và bị nôn, có sao không?" | Agent calls `pet_knowledge_search` to retrieve relevant symptom and care information from the knowledge base. | Agent suggests possible causes (e.g., gastritis, poisoning) and strongly advises visiting a vet. |
+| **Symptom Lookup** | User describes: "My dog has stopped eating and is vomiting. Is this serious?" | Agent calls `pet_knowledge_search` to retrieve relevant symptom and care information from the knowledge base. | Agent suggests possible causes (e.g., gastritis, poisoning) and strongly advises visiting a vet. |
 
-| **Clinic Discovery** | User asks: "Tìm phòng khám thú y ở Quận 7." | Agent calls `search_clinics_nearby` with location-aware parameters and optional service filters. | Agent displays nearby clinics with address, distance and relevant services. |
+| **Clinic Discovery** | User asks: "Find veterinary clinics in District 7." | Agent calls `search_clinics_nearby` with location-aware parameters and optional service filters. | Agent displays nearby clinics with address, distance and relevant services. |
 
-| **Booking Search** | User says: "Tôi muốn đặt lịch ở phòng khám ABC ngày mai." | Agent calls `get_user_pets`, `get_clinic_services`, then `check_available_slots` for the selected clinic/date/services. | Agent lists available slots (e.g., 09:00, 14:30) and asks User to pick one. |
+| **Booking Search** | User says: "I want to book at ABC Clinic tomorrow." | Agent calls `get_user_pets`, `get_clinic_services`, then `check_available_slots` for the selected clinic/date/services. | Agent lists available slots (e.g., 09:00, 14:30) and asks User to pick one. |
 
 | **Guided Booking (Interactive Components)** | The user selects a Pet Card, then a service option, then a Clinic Card, then available time slot chips, and finally reviews the Booking Summary Card before pressing **CONFIRM BOOKING**. | The agent calls tools step by step: `get_user_pets` -> `search_clinics_nearby` -> `get_clinic_services` -> `check_available_slots`. Before creating a booking, the system must render a Booking Summary Card. Only after the user explicitly presses **CONFIRM BOOKING** may the agent call `create_booking_for_user` to create a **PENDING** booking request, which still requires clinic manager confirmation. | The agent returns the booking code and status. The clinic manager may confirm the booking or propose another time if the requested slot is no longer suitable. |
 
@@ -7195,13 +7208,13 @@ Figure 43. AI Chat Interface with Streaming Response (Mobile)
 
 - **Safety Constraints:**
 
-    - Must include a disclaimer: "Đây là thông tin tham khảo, không thay thế chẩn đoán của nhân viên."
+    - Must include a disclaimer: "This information is for reference only and does not replace diagnosis by clinical staff."
 
     - Block medical advice related to controlled narcotics or illegal dosages.
 
 - **Abnormal Cases:**
 
-    - A1. Tool failure: System notifies "Máy chủ đang quá tải, vui lòng thử lại sau".
+  - A1. Tool failure: System notifies "The server is overloaded. Please try again later".
 
     - A2. Ambiguous query: Agent asks follow-up questions to narrow down the intent.
 
@@ -7217,289 +7230,47 @@ Figure 43. AI Chat Interface with Streaming Response (Mobile)
 
 **User Story:**
 
-> *As a Pet Owner, I want to upload photos of my pet for AI analysis so that I can identify potential health issues and get booking recommendations.*
-
-
+> *As a Pet Owner, I want to upload my pet's photos for AI analysis so that I can detect potential health issues and receive booking recommendations when needed.*
 
 **Function trigger**
 
-- **Navigation path:** Mobile Home → "AI Assistant" → Gửi hình ảnh thú cưng qua chat.
-
-- **Timing frequency:** On demand (24/7), đặc biệt khi phát hiện dấu hiệu bất thường trên thú cưng.
-
-
+- **Navigation path:** Mobile Home -> "AI Assistant" -> send pet image in chat.
+- **Timing frequency:** On demand (24/7), especially when users notice abnormal pet symptoms.
 
 **Function description**
 
 - **Actors/Roles:** Pet Owner.
-
-- **Purpose:** Planned capability cho phép AI phân tích hình ảnh thú cưng để nhận diện các vấn đề sức khỏe tiềm ẩn, đưa ra cảnh báo và đề xuất hướng xử lý phù hợp.
-
+- **Purpose:** Planned capability for image-based pet health analysis with severity guidance and booking recommendations.
 - **Interface:**
+  - Image upload action in chat input (camera/gallery).
+  - Image preview before sending.
+  - Analysis result card: detected issues, severity, and urgent warning (if applicable).
+  - Booking suggestion card: nearest clinic, suggested service, suggested slot, and "Book Now" action.
+  - Pet selection dialog when users own multiple pets.
 
-    - **Image Upload Button:** Nút camera/gallery trong chat input để chọn hình ảnh.
-
-    - **Image Preview:** Hiển thị preview ảnh trước khi gửi.
-
-    - **Analysis Results:** AI response với:
-
-        - Danh sách vấn đề phát hiện được (detected issues)
-
-        - Mức độ nghiêm trọng (severity indicator)
-
-        - Cảnh báo khẩn cấp (nếu nghiêm trọng)
-
-    - **Booking Suggestion Card:** Card đề xuất booking với:
-
-        - Tên clinic gần nhất
-
-        - Dịch vụ được chọn sẵn
-
-        - Ngày/giờ gợi ý
-
-        - Nút "Đặt lịch ngay"
-
-    - **Pet Selection Dialog:** Popup cho user chọn pet khi có nhiều pet.
-
-
-
-> **Implementation status:** Chưa được implement trong codebase AI service hiện tại. Giữ section này như future scope để định hướng phát triển sau MVP.
-
-
-
-**UC-PO-14d: Chi tiết Use Case AI Vision Pet Health Analysis**
-
-
-
-| Thành phần | Đặc tả chi tiết |
-
-|:---|:---|
-
-| **Mục tiêu** | Phân tích hình ảnh thú cưng để phát hiện bệnh/triệu chứng, cảnh báo người dùng và tự động đề xuất booking. |
-
-| **Tác nhân** | Pet Owner (Chủ thú cưng) |
-
-| **Tiền điều kiện** | 1. Người dùng đã đăng nhập vào ứng dụng mobile.<br/>2. Thiết bị có kết nối Internet.<br/>3. AI Agent Service đang hoạt động với Vision Model enabled.<br/>4. App đã có quyền truy cập Camera/Gallery.<br/>5. GPS permission đã được cấp để tìm clinic gần nhất. |
-
-| **Luồng chính** | 1. User mở AI Assistant chat.<br/>2. User nhấn nút camera/gallery để chọn hình ảnh thú cưng.<br/>3. Hình ảnh được upload và gửi vào luồng AI chat.<br/>4. Vision-capable AI workflow phân tích hình ảnh và phát hiện vấn đề sức khỏe tiềm ẩn.<br/>5. Nếu mức độ nghiêm trọng cao, hệ thống có thể gợi ý clinic nearby và booking flow phù hợp.<br/>6. AI trả về response với cảnh báo và hướng dẫn tiếp theo.<br/>7. User có thể tiếp tục sang booking flow nếu tính năng này được implement trong tương lai. |
-
-| **Luồng thay thế** | A1. Hình ảnh không rõ ràng → AI yêu cầu gửi lại ảnh rõ hơn.<br/>A2. Không phát hiện vấn đề (severity: mild) → AI thông báo "Không phát hiện vấn đề nghiêm trọng" và khuyên theo dõi thêm.<br/>A3. User có nhiều pet → AI hiển thị Pet Selection Dialog để chọn.<br/>A4. Không tìm được clinic trong bán kính → AI mở rộng tìm kiếm hoặc thông báo. |
-
-| **Hậu điều kiện** | 1. Lịch sử chat được lưu trữ (bao gồm image URL).<br/>2. Nếu user confirm booking → Đơn đặt lịch được tạo trong hệ thống. |
-
-| **Quy tắc nghiệp vụ** | BR-42; BR-43; BR-45 |
-
-
-
-**Use Case: AI Vision Interaction Scenarios**
-
-
-
-| Scenario | User Actions | AI Agent Logic (ReAct) | System Response |
-
-|----------|--------------|-------------------------|-----------------|
-
-| **Skin Disease Detection** | User uploads photo of dog with skin rash. | Agent calls `analyze_pet_image(image_url, pet_type="dog")`. Vision LLM analyzes image and detects "dermatitis, fungal infection suspected". | Agent responds: "⚠️ CẢNH BÁO: Phát hiện dấu hiệu viêm da, nghi ngờ nhiễm nấm. Nên đưa đến nhân viên thú y trong 24-48h." + Booking Suggestion Card. |
-
-| **Eye Infection** | User uploads photo of cat with red, watery eyes. | Agent analyzes and detects "conjunctivitis, eye infection". Severity: moderate. | Agent warns about eye infection and suggests ophthalmology service. |
-
-| **Wound Assessment** | User uploads photo of bleeding wound on pet. | Agent detects "open wound, bleeding". Severity: urgent. | Agent shows URGENT WARNING: "Vết thương hở, cần xử lý NGAY LẬP TỨC!" + SOS booking suggestion. |
-
-| **Normal Health Check** | User uploads photo of healthy-looking pet asking "Bé có khỏe không?". | Agent analyzes and finds no visible issues. Severity: mild. | Agent responds: "Nhìn bé có vẻ khỏe mạnh! Không phát hiện vấn đề đáng lo ngại. Nhớ tiêm phòng định kỳ nhé." |
-
-| **Multiple Pets Selection** | After analysis, AI needs to create booking but user has 3 pets. | Agent calls `get_user_pets` → returns 3 pets. | Agent asks: "Bạn muốn đặt lịch cho bé nào: 🐕 Lucky, 🐱 Mimi, hay 🐕 Bella?" User selects → Continue booking flow. |
-
-
+> **Implementation status:** Not yet implemented in the current AI service codebase. This section remains future scope guidance after MVP.
 
 **Data processing**
 
-1. **Image Upload:** User selects image → Upload to Cloudinary → Receive public URL.
-
-2. **WebSocket Message:** App sends `{type: "image", image_url: "...", latitude: 10.xxx, longitude: 106.xxx}`.
-
-3. **Vision Analysis:** Planned AI workflow phân tích hình ảnh và:
-
-   - Sends image URL to Vision LLM (Gemini 2.0 Flash via OpenRouter).
-
-   - Vision LLM analyzes and returns structured findings.
-
-4. **Severity Assessment:** Agent evaluates severity:
-
-   - `mild`: No action needed, just advice.
-
-   - `moderate`: Suggest booking within 24-48h.
-
-   - `severe`/`urgent`: Strong warning + immediate booking suggestion.
-
-5. **Clinic Discovery:** If booking is recommended, hệ thống sẽ cần clinic discovery flow phù hợp với vị trí người dùng.
-
-6. **Pet Selection:** Agent calls `get_user_pets` → If multiple pets, asks user to choose.
-
-7. **Booking Suggestion:** Planned booking suggestion flow prepares pre-filled booking data.
-
-8. **Response Delivery:** AI streams response with warning message + BookingSuggestionCard component.
-
-9. **User Confirmation:** User taps "Đặt lịch ngay" → App navigates to BookingScreen with pre-filled params.
-
-
-
-**Screen layout**
-
-Figure 45. AI Vision Chat Flow - Image Upload and Analysis (Mobile)
-
-Figure 46. Booking Suggestion Card after Disease Detection (Mobile)
-
-Figure 47. Pet Selection Dialog (Mobile)
-
-
-
-**Function details**
-
-- **Data Objects:**
-
-    - `ImageMessage`: `{type: "image", image_url: string, latitude: float, longitude: float}`
-
-    - `VisionAnalysisResult`: `{detected_issues: [], severity: string, recommended_services: [], urgent_warning: string}`
-
-    - `BookingSuggestion`: `{clinic_id, clinic_name, services: [], suggested_date, suggested_time, estimated_price, urgency}`
-
-- **Validation:**
-
-    - Image format: JPEG, PNG (max 10MB).
-
-    - GPS coordinates: Valid latitude (-90 to 90) and longitude (-180 to 180).
-
-    - Image must contain visible pet content (reject non-pet images).
-
-- **Safety Constraints:**
-
-    - Disclaimer: "Phân tích hình ảnh chỉ mang tính tham khảo. Vui lòng đến phòng khám để được chẩn đoán chính xác."
-
-    - Do not provide definitive medical diagnosis.
-
-    - For `urgent` severity, always recommend immediate vet visit.
-
-- **Normal case:**
-
-    1. Pet Owner uploads photo of pet with skin rash via chat.
-
-    2. Vision-capable AI workflow analyzes the uploaded image.
-
-    3. Vision LLM analyzes and detects "dermatitis, fungal infection".
-
-    4. Agent evaluates severity as "moderate".
-
-    5. Hệ thống gợi ý clinic phù hợp gần owner nếu mức độ nghiêm trọng đủ cao.
-
-    6. Agent responds with warning + BookingSuggestionCard.
-
-    7. Owner taps "Đặt lịch ngay" → App navigates to booking screen.
-
-- **Abnormal/Exception Cases:**
-
-    - A1. Blurry/unclear image — Show "Hình ảnh không rõ ràng, vui lòng chụp lại."
-
-    - A2. Non-pet image — Show "Không phát hiện thú cưng trong hình ảnh."
-
-    - A3. User declines booking suggestion — Agent offers alternative care advice.
-
-    - E1. Image upload fails — Show "Không thể tải ảnh lên, vui lòng thử lại."
-
-    - E2. Vision LLM error - fallback to text-based `pet_knowledge_search` if possible.
-
-    - E3. No clinics found nearby — Expand search radius or show "Không tìm thấy phòng khám trong khu vực."
-
-    - A4. GPS unavailable: Ask user to enable location or enter address manually.
-
-- **Business rules:**
-
-    - BR-42
-
-    - BR-43
-
-    - BR-45
-
-
-
-**Feedback & Learning from Confirmed Vision Cases (Case Memory)**
-
-
-
-- **Overview:**  
-
-  - Historical note: this feedback-driven Case Memory approach is no longer active in runtime and is kept here only for design history.
-
-  - The active implementation uses confirmed EMR records as the source for Case Memory retrieval.
-
-
-
-- **Current scope (Phase 1 - Updated 2026-03-17):**
-
-  > **⚠️ Lưu ý quan trọng:** Nguồn cũ từ thumbs up/down feedback đã bị loại bỏ. Case memory hiện tại được cập nhật theo hướng EMR-driven (xem [ai_diagnose_service/01_RUNTIME_FLOW.md](./ai_diagnose_service/01_RUNTIME_FLOW.md)).
-
-
-
-  - **Image storage:**  
-
-    - All pet health images are uploaded to **Cloudinary** via the Spring Boot backend.  
-
-    - Only the **Cloudinary image URL** is stored in the AI service; no raw image files are stored locally.
-
-  - **Vision analysis:**  
-
-    - The AI Agent sends the **image_url + text context** to OpenRouter vision-capable models (e.g. Gemini 2.0 Flash), receives a structured analysis (visual description, suspected diagnosis, severity, recommendations).
-
-  - **Feedback loop:**  
-
-    - ~~Pet Owner can rate each AI answer as *helpful* / *not helpful* and optionally provide a free-text explanation.~~  
-
-    - ~~The AI service exposes `POST /api/v1/chat/feedback`, which is handled by `FeedbackService`.~~  
-
-    - ~~`FeedbackService` classifies interactions (medical, booking, clinic_ops, general) and decides whether a feedback is **positive/trustworthy** enough to be learned from.~~  
-
-    - **Feedback service đã bị loại bỏ** khỏi pipeline học tập. Chỉ còn lưu trữ feedback để phân tích UX, không dùng làm ground truth.
-
-  - **Case Memory (EMR-driven):**
-
-    - **Nguồn mới:** EMR confirmed (final_diagnosis từ bác sĩ), không còn từ thumbs up/down.
-
-    - Khi EMR được tạo/sửa với final_diagnosis, `EmrCaseMemorySyncService` extract case và upsert vào Qdrant.
-
-    - Case memory phục vụ staff diagnosis flow: tra cứu ca tương tự để hỗ trợ chẩn đoán phân biệt.
-
-    - Metadata lưu trữ: species, breed, symptoms, final_diagnosis, image_urls (nếu có).
-
-
-
-- **Planned extension (Phase 2 — Gemini Vision + EMR-driven):**
-
-  - Staff diagnosis flow không dùng web_search, chỉ dùng:
-
-    - Knowledge base nội bộ
-
-    - EMR confirmed / case memory
-
-    - Gemini Vision cho phân tích ảnh
-
-  - Nếu không tìm thấy thông tin trong nguồn nội bộ, trả lời: "Hiện chưa có thông tin về bệnh này trong hệ thống tri thức nội bộ."
-
-
-
-> **📝 Implementation Update (2026-04-01):** Kiến trúc đã được cập nhật theo consolidated ai_diagnose_service/ documentation
-
-> - **Vision:** Gemini Vision thay thế custom vision model
-
-> - **Case Memory:** EMR-driven (thay thế feedback-driven)
-
-> - **Feedback:** Chỉ còn lưu trữ để phân tích UX, không dùng làm ground truth
-
-> 
-
-> Reference: SDD Section 4.18.7a
-
-
-
-| BR-45 | Urgent Severity Handling: Khi phát hiện vấn đề nghiêm trọng (urgent), hệ thống phải hiển thị cảnh báo nổi bật và ưu tiên đề xuất SOS hoặc booking trong ngày. |
+1. User uploads image to Cloudinary and receives public URL.
+2. App sends image payload through WebSocket.
+3. Vision-capable LLM analyzes image and returns structured findings.
+4. Agent evaluates severity (`mild`, `moderate`, `severe/urgent`).
+5. If booking is recommended, agent prepares clinic discovery and booking suggestion context.
+6. Agent streams result and warning (if needed).
+7. User may continue to booking flow using pre-filled context.
+
+**Safety constraints**
+
+- Always include disclaimer: "Image analysis is advisory only. Please visit a clinic for definitive diagnosis."
+- Do not provide definitive medical diagnosis.
+- For urgent severity, always recommend immediate veterinary care.
+
+**Business rules**
+
+- BR-42
+- BR-43
+- BR-45
 
 
 
@@ -7507,41 +7278,28 @@ Figure 47. Pet Selection Dialog (Mobile)
 
 **User Story:**
 
-> *As a Platform Admin, I want to manage AI tools, system prompts, and the knowledge documents so that the AI remains accurate and helpful.*
-
-
+> *As a Platform Admin, I want to manage AI tools, system prompts, and knowledge documents so that AI behavior stays accurate and controllable.*
 
 **Function trigger**
 
-- **Navigation path:** Admin Dashboard → AI Management.
-
+- **Navigation path:** Admin Dashboard -> AI Management.
 - **Timing frequency:** Periodic updates.
-
-
 
 **Function description**
 
 - **Actors/Roles:** Platform Admin.
-
-- **Purpose:** Control the behavior and knowledge of the Pet Care AI.
-
-- **Interface:** 
-
-    - Knowledge Base (Upload PDF/Markdown)
-
-    - Prompt Editor (Update system instructions)
-
-    - Tool Toggle (Enable/Disable specific functions like "Appointment Booking Tool")
-
-
+- **Purpose:** Control AI behavior and knowledge assets.
+- **Interface:**
+  - Knowledge Base management (upload/process/list/delete documents).
+  - Prompt and agent parameter management.
+  - Tool toggles for runtime governance.
 
 **Data processing**
 
-1. Admin uploads a document.
-
-2. System processes text, generates vectors, stores metadata in PostgreSQL `knowledge_documents`, and upserts vectors to Qdrant.
-
-3. Admin updates agent parameters or tool policy. The system persists the change in PostgreSQL `agents`, `tools`, or `system_settings`, depending on the setting being changed.
+1. Admin uploads or manages knowledge documents.
+2. System processes documents into vectors and persists metadata.
+3. Admin updates runtime agent parameters and tool policies.
+4. System persists these changes in governance storage.
 
 
 
@@ -7549,65 +7307,33 @@ Figure 47. Pet Selection Dialog (Mobile)
 
 **User Story:**
 
-> *As a Platform Admin, I want to test the AI's behavior and tool-calling capabilities in a safe environment before deploying updates.*
-
-
+> *As a Platform Admin, I want to test AI behavior and tool-calling in a safe sandbox before deploying updates.*
 
 **Function trigger**
 
-- **Navigation path:** Admin Dashboard → AI Management → Playground.
-
-- **Timing frequency:** During development/configuration.
-
-
+- **Navigation path:** Admin Dashboard -> AI Management -> Playground.
+- **Timing frequency:** During development, configuration, and release verification.
 
 **Function description**
 
 - **Actors/Roles:** Platform Admin.
-
-- **Purpose:** Sandbox for AI interaction testing.
-
-- **Interface:** Chat interface with developer logs showing raw JSON tool calls.
-
-
+- **Purpose:** Isolated AI test sandbox.
+- **Interface:** Chat UI with trace visibility for tool calls and responses.
 
 **Data processing**
 
-1. Admin mở Playground từ Web Dashboard.
+1. Admin opens playground.
+2. System creates/resumes a `PLAYGROUND_TEST` session.
+3. Runtime loads the allowed testing tool set and prompt configuration.
+4. ReAct traces and tool calls are streamed in real time.
+5. Session data is stored separately from business chat sessions.
 
-2. Hệ thống tạo hoặc khôi phục session test với `context_type=PLAYGROUND_TEST`.
+**Validation and rules**
 
-3. WebSocket chỉ nạp tool và prompt nằm trong phạm vi admin governance/testing.
-
-4. Hệ thống stream ReAct trace, tool call và final answer theo thời gian thực.
-
-5. Tất cả test messages được lưu riêng vào MongoDB với metadata session test, không được trộn vào business chat history.
-
-6. Admin có thể xóa hoặc reset session test mà không ảnh hưởng hội thoại nghiệp vụ của người dùng thật.
-
-
-
-**Function details**
-
-- **Data:**
-
-    - **Input fields:** `playgroundSessionId`, `adminUserId`, `contextType`, `agentId`, optional `providerOverride`, optional `modelOverride`.
-
-    - **Output fields:** `reactTrace`, tool-call log, streamed messages, and isolated playground session metadata.
-
-- **Validation:** Chỉ `ADMIN` mới được tạo/kết nối Playground session; token không hợp lệ phải bị từ chối kết nối.
-
-- **Business rules:**
-
-    - Playground không được đọc business chat history.
-
-    - Lịch sử Playground không được hiển thị trong mobile/web AI chat của Pet Owner, Staff, Clinic Manager, Clinic Owner.
-
-    - Tool test trong Playground phải tuân theo tool governance hiện hành nhưng được log đầy đủ để audit.
-
-- **Normal case:** Admin gửi prompt thử nghiệm, xem trace tool call, điều chỉnh prompt hoặc model và chạy lại.
-
-- **Abnormal case:** Nếu model/tool lỗi, hệ thống vẫn log đầy đủ lỗi trong session test để phục vụ debug.
+- Only `ADMIN` can create/connect playground sessions.
+- Invalid token or unauthorized access must be rejected.
+- Playground must not read business chat history.
+- Playground history must not appear in end-user business chat UI.
 
 
 
@@ -7615,89 +7341,39 @@ Figure 47. Pet Selection Dialog (Mobile)
 
 **User Story:**
 
-> *As a platform user or administrator, I want AI conversations to be isolated by business context, role, and ownership so that chat history remains secure, accurate, and auditable.*
-
-
+> *As a platform user or administrator, I want AI sessions to be isolated by role, ownership, and context type so that chat history remains secure, correct, and auditable.*
 
 **Function trigger**
 
 - **Navigation path:**
-
-    - Mobile/Web Business AI Chat → mở hội thoại AI nghiệp vụ.
-
-    - Admin Dashboard → AI Management → Playground.
-
-- **Timing frequency:** Every time a new AI session is created, resumed, listed, or cleared.
-
-
+  - Mobile/Web Business AI Chat.
+  - Admin Dashboard -> AI Management -> Playground.
+- **Timing frequency:** Whenever sessions are created, resumed, listed, or cleared.
 
 **Function description**
 
 - **Actors/Roles:** Pet Owner, Staff, Clinic Manager, Clinic Owner, Platform Admin.
-
-- **Purpose:** Bảo đảm mỗi phiên AI được cô lập đúng theo mục đích sử dụng: hội thoại nghiệp vụ (`BUSINESS_CHAT`) hoặc kiểm thử quản trị (`PLAYGROUND_TEST`).
-
+- **Purpose:** Enforce strict context isolation between `BUSINESS_CHAT` and `PLAYGROUND_TEST`.
 - **Interface:**
+  - Business chat session list per user.
+  - Separate admin playground session list.
+  - No cross-visibility across context types.
 
-    - Business AI chat history list cho từng người dùng.
+**Validation and business rules**
 
-    - Admin Playground session list riêng.
+- Only session owners can access their business sessions.
+- `PLAYGROUND_TEST` sessions are accessible only by the creating admin.
+- If `clinic_id` is present, clinic scope must be validated against token/role.
+- WebSocket session access must be closed for unauthorized `session_id`.
+- `BUSINESS_CHAT` and `PLAYGROUND_TEST` must remain strictly separated.
+- Session history persists in MongoDB for context-safe multi-turn continuity.
 
-    - Không hiển thị chéo session giữa hai context.
+**Abnormal cases**
 
-
-
-**Screen layout:** *(Business AI Chat History / Admin Playground Session List)*
-
-
-
-**Function details**
-
-- **Data:**
-
-    - Session metadata: `session_id`, `user_id`, `user_role`, `clinic_id`, `context_type`, `agent_id`, `created_at`, `updated_at`.
-
-    - Message metadata: `message_id`, `session_id`, `role`, `content`, `react_trace`, `tool_calls`, `sources`, `timestamp`.
-
-- **Validation:**
-
-    - Chỉ owner của session mới được truy cập session nghiệp vụ của mình.
-
-    - Session `PLAYGROUND_TEST` chỉ thuộc về admin tạo ra nó.
-
-    - Nếu `clinic_id` tồn tại, hệ thống phải xác thực session đang dùng đúng clinic scope của user.
-
-    - Kết nối WebSocket phải bị đóng khi `session_id` không thuộc quyền truy cập của token hiện tại.
-
-- **Business rules:**
-
-    - `BUSINESS_CHAT` và `PLAYGROUND_TEST` là hai context bắt buộc và không được trộn lẫn.
-
-    - Business chat của Pet Owner không được nhìn thấy bởi Staff/Clinic Manager/Clinic Owner/Admin, trừ khi có chức năng audit riêng được thiết kế sau.
-
-    - Tool whitelist và context prompt phải được áp dụng theo `user_role`.
-
-    - Session history phải được lưu tại MongoDB để tiếp tục multi-turn conversation đúng context.
-
-- **Normal case:**
-
-    1. User mở AI chat nghiệp vụ.
-
-    2. Hệ thống tạo session `BUSINESS_CHAT` với owner metadata.
-
-    3. Khi user quay lại, hệ thống chỉ nạp lại history đúng session thuộc user đó.
-
-    4. Agent trả lời dựa trên context, role và tool policy tương ứng.
-
-- **Abnormal case:**
-
-    - A1. User cố truy cập session của người khác → trả về `403` hoặc đóng WebSocket.
-
-    - A2. Session context không khớp role/token → từ chối nạp history.
-
-    - A3. Nếu session cần clinic scope, hệ thống phải validate `clinic_id` phù hợp với token và context nghiệp vụ; nếu không hợp lệ thì từ chối truy cập hoặc từ chối nạp history.
-
-    - A4. MongoDB unavailable → không tạo session mới, trả thông báo lỗi an toàn và không fallback sang in-memory production path.
+- Unauthorized session access -> return `403` or close WebSocket.
+- Context mismatch with token/role -> deny history loading.
+- Clinic-scope mismatch -> deny access/load.
+- MongoDB unavailable -> do not create fallback production session.
 
 
 
@@ -7869,7 +7545,7 @@ Figure 49. AI Clinic and Slot Suggestion Cards Rendered from Internal Tool APIs 
 
 - **Normal case:**
 
-    1. Pet Owner sends: Dat lich cho Hadine tai phong kham gan toi o Ngu Hanh Son vao sang thu bay nay.
+    1. Pet Owner sends: "Book an appointment for Hadine at the nearest clinic in Ngu Hanh Son this Saturday morning."
 
     2. AI resolves pet, location, booking type, and service intent from chat context.
 
@@ -7992,7 +7668,7 @@ Figure 49. AI Clinic and Slot Suggestion Cards Rendered from Internal Tool APIs 
 
 
 
-#### *3.11.12 AI Health Summary cho Pet Owner (UC-PO-EMR-01)*
+#### *3.11.12 AI Health Summary for Pet Owner (UC-PO-EMR-01)*
 
 
 **User Story:**
@@ -8003,9 +7679,9 @@ Figure 49. AI Clinic and Slot Suggestion Cards Rendered from Internal Tool APIs 
 
 **Function trigger**
 
-- **Navigation path:** Mobile Pet Detail → Auto-load on page enter
+- **Navigation path:** Mobile Pet Detail -> Auto-load on page entry
 
-- **Timing frequency:** Mỗi khi Pet Owner mở trang Pet Detail
+- **Timing frequency:** Every time the Pet Owner opens the Pet Detail screen
 
 
 
@@ -8013,59 +7689,19 @@ Figure 49. AI Clinic and Slot Suggestion Cards Rendered from Internal Tool APIs 
 
 - **Actors/Roles:** PET_OWNER
 
-- **Purpose:** Tự động tổng hợp và hiển thị thông tin sức khỏe của pet bao gồm EMR gần nhất, cảnh báo nghiêm trọng (nếu có), và gợi ý hành động.
+- **Purpose:** Automatically summarize and display the pet's health context, including the latest EMR, severity alerts (if any), and suggested actions.
 
 - **Interface:**
 
-  - **AI Health Summary Card:** Hiển thị ngay trên Pet Detail page
+  - **AI Health Summary Card:** Displayed directly on the Pet Detail page
 
-  - **Nội dung:** Pet info, last visit, latest diagnosis, warnings, medication reminders
+  - **Content:** Pet info, last visit, latest diagnosis, warnings, medication reminders
 
-  - **Actions:** [Xem chi tiết EMR] [Hỏi AI thêm] [Đặt lịch khám]
+  - **Actions:** [View EMR Details] [Ask AI More] [Book Appointment]
 
 
 
-**Screen layout:**
-
-```
-
-┌─────────────────────────────────────────┐
-
-│ Pet Detail Page (PET_OWNER)              │
-
-├─────────────────────────────────────────┤
-
-│ ┌─ Pet Info ──────────────────────────┐ │
-
-│ │ 🐕 Max - Golden - 3 tuổi - 25kg    │ │
-
-│ └─────────────────────────────────────┘ │
-
-│                                         │
-
-│ ┌─ AI Health Summary ─────────────────┐ │
-
-│ │ 📋 Lần khám gần nhất: 15/03/2026  │ │
-
-│ │ 🏥 Chẩn đoán: Viêm da dị ứng     │ │
-
-│ │ ⚠️ Cảnh báo: Cần tái khám 30 ngày│ │
-
-│ │ 💊 Đang dùng: Thuốc kháng histamine│ │
-
-│ │                                     │ │
-
-│ │ [Xem chi tiết] [Hỏi AI] [Đặt lịch]│ │
-
-│ └─────────────────────────────────────┘ │
-
-│                                         │
-
-│ Actions: [Lịch sử khám] [Sổ tiêm]     │
-
-└─────────────────────────────────────────┘
-
-```
+**Screen layout:** *(Pet Detail page with an embedded AI Health Summary card)*
 
 
 
@@ -8073,90 +7709,77 @@ Figure 49. AI Clinic and Slot Suggestion Cards Rendered from Internal Tool APIs 
 
 - **Data:**
 
-  - **Input:** `petId` (từ URL params)
+  - **Input:** `petId` (from URL params)
 
   - **Output:** `petInfo`, `latestEmrSummary`, `healthWarnings[]`, `medicationReminders[]`, `suggestedActions[]`, `disclaimer`
 
 - **Validation:**
 
-  - Chỉ PET_OWNER sở hữu pet mới được xem health summary
+  - Only the owning PET_OWNER can view the pet health summary
 
-  - Nếu pet không có EMR nào, hiển thị "Chưa có lịch sử khám"
+  - If no EMR exists for the pet, show "No medical history available"
 
-  - AI summary chỉ mang tính tham khảo, không thay thế tư vấn bác sĩ
+  - AI summary is advisory only and does not replace veterinarian consultation
 
 - **Business rules:**
-  - Tự động gọi AI synthesis khi vào Pet Detail (không cần user click)
-  - Ưu tiên hiển thị cảnh báo nghiêm trọng (tái khám bắt buộc, dị ứng thuốc)
-  - Bao gồm thông tin pet: species, breed, age, weight
+  - Trigger AI synthesis automatically on Pet Detail load (no user click required)
+  - Prioritize high-severity alerts (mandatory revisit, drug allergy)
+  - Include pet context: species, breed, age, and weight
 
-#### *3.11.13 Staff AI Chat Panel cho hỏi đáp nghiệp vụ và hồ sơ bệnh nhân (UC-STAFF-12)*
+#### *3.11.13 Staff AI Chat Panel for Operational Q&A and Patient EMR Context (UC-STAFF-12)*
 **Function trigger:**
-- **Navigation path:** Web Staff -> mở `Trợ lý AI` từ sidebar toàn cục; hoặc Web Staff -> Create EMR -> mở `Chat AI trong sidebar`.
-- **Timing Frequency:** Bất cứ lúc nào staff cần hỏi nhanh về bệnh nhân, lịch sử EMR, thông tin thú cưng, hoặc cần AI tóm tắt dữ liệu nội bộ trong quá trình làm việc.
+- **Navigation path:** Web Staff -> open `AI Assistant` from global sidebar; or Web Staff -> Create EMR -> open `AI Chat` in side panel.
+- **Timing Frequency:** Any time staff need quick access to patient context, EMR history, pet information, or internal summary support during clinical work.
 
 **Function description:**
 - **Actors/Roles:** Staff.
-- **Purpose:** Cung cấp một chat panel bình thường cho `STAFF` để hỏi đáp nghiệp vụ hằng ngày bằng dữ liệu nội bộ, đồng thời có thể tự nhận context bệnh nhân hiện tại khi mở từ màn Create EMR.
+- **Purpose:** Provide a standard staff chat panel for day-to-day operational Q&A using internal data, while auto-attaching active patient context when opened from Create EMR.
 - **Interface:**
-  - **Chat panel:** Giao diện hội thoại chuẩn với lịch sử phiên, ô nhập tin nhắn, thao tác nhanh và trạng thái kết nối WebSocket.
-  - **Thinking trace:** Hiển thị tóm tắt `Analyzing`, `Tool call`, `Observation` theo thời gian thực để staff thấy AI đang truy vấn dữ liệu nào.
-  - **EMR context card:** Khi panel mở từ Create EMR, hiển thị bản nháp SOAP hiện tại và thông tin pet/booking đang xử lý.
-  - **Kết quả nội bộ:** Có thể hiển thị các nhóm nội dung như `Danh sách bệnh nhân`, `Tóm tắt hồ sơ`, `Lịch sử EMR`, `Khuyến nghị cần hỏi thêm`, `Gợi ý SOAP`.
+  - **Chat panel:** Standard conversation UI with session history, message input, quick actions, and WebSocket connection status.
+  - **Thinking trace:** Safe summaries of `Analyzing`, `Tool call`, and `Observation` in real time so staff can see what data is being queried.
+  - **EMR context card:** When opened from Create EMR, display the current SOAP draft and active pet/booking context.
+  - **Internal result cards:** Optional groups such as `Patient List`, `Patient Summary`, `EMR History`, `Follow-up Questions`, and `SOAP Suggestions`.
 - **Data processing:**
-  1. Staff mở chat panel từ màn làm việc bất kỳ.
-  2. Hệ thống tạo hoặc tiếp tục `BUSINESS_CHAT` session dành riêng cho role `STAFF`.
-  3. Nếu đang ở Create EMR, web đính kèm context nội bộ gồm `petId`, `bookingId`, SOAP draft và ảnh lâm sàng hiện có.
-  4. Agent xác định câu hỏi thuộc loại nào: kiến thức nội bộ, danh sách bệnh nhân, tóm tắt hồ sơ, lịch sử EMR, hay hỗ trợ chẩn đoán.
-  5. Agent chỉ dùng các tool nội bộ phù hợp như `get_staff_patients`, `get_patient_summary`, `get_emr_history`, `pet_knowledge_search`, và chỉ dùng luồng diagnosis khi thực sự cần.
-  6. Kết quả được stream về chat panel kèm `thinking/tool/observation` và nội dung trả lời cuối cùng bằng tiếng Việt.
-  7. Nếu có gợi ý SOAP phù hợp với bản nháp EMR hiện tại, staff có thể áp dụng thủ công hoặc qua các hành động chèn nội dung vào form bệnh án.
+  1. Staff opens the chat panel from any working screen.
+  2. The system creates or resumes a `BUSINESS_CHAT` session scoped to role `STAFF`.
+  3. If Create EMR is active, the web app attaches internal context: `petId`, `bookingId`, SOAP draft, and current clinical images.
+  4. The agent classifies the question type: internal knowledge, patient list, patient summary, EMR history, or diagnosis support.
+  5. The agent uses only appropriate internal tools such as `get_staff_patients`, `get_patient_summary`, `get_emr_history`, `pet_knowledge_search`, and enters diagnosis flow only when needed.
+  6. Results are streamed to the panel with `thinking/tool/observation` summaries and a final answer.
+  7. If SOAP suggestions match the active draft, staff can apply them manually or through insert actions.
 
 **Screen layout:** *(Add screen UI here)*
-- Side panel dock bên phải màn hình staff.
-- Phần trên gồm tiêu đề, quản lý session và nút đóng panel.
-- Phần giữa là lịch sử chat, thẻ thinking trace và các card dữ liệu nội bộ trả về từ tool.
-- Phần dưới là ô nhập tin nhắn, đính kèm ảnh và thao tác gửi.
-- Nếu có EMR context, card `Bệnh án đang soạn` xuất hiện ở đầu panel.
+- Side panel docked on the right side of the staff workspace.
+- Top area contains title, session controls, and close action.
+- Middle area shows chat history, thinking-trace cards, and internal result cards.
+- Bottom area contains message input, image attachment, and send action.
+- When EMR context exists, an `Active EMR Draft` card is shown at the top.
 
 **Function details:**
 - **Data:**
-  - **Input fields:** `message`, `sessionId`, `contextType=BUSINESS_CHAT`, tùy chọn `petId`, `bookingId`, `subjective`, `objective`, `assessment`, `plan`, `imageUrls[]`.
+  - **Input fields:** `message`, `sessionId`, `contextType=BUSINESS_CHAT`, optional `petId`, `bookingId`, `subjective`, `objective`, `assessment`, `plan`, `imageUrls[]`.
   - **Output fields:** `assistantMessage`, `reactTrace[]`, `toolCalls[]`, `patientSummary`, `emrHistory[]`, `staffPatientList[]`, `soapSuggestions`, `disclaimer`.
 - **Validation:**
-  - Chỉ role `STAFF` được dùng nhóm tool tra cứu hồ sơ nội bộ trong chat panel này.
-  - Staff chỉ được xem bệnh nhân và EMR thuộc clinic mà staff có quyền truy cập.
-  - Với câu hỏi chẩn đoán cho staff, AI không được dùng `web_search`.
-  - Nếu không xác định được pet mục tiêu, AI phải hỏi lại ngắn gọn hoặc gợi ý gọi tool tìm bệnh nhân trước.
+  - Only role `STAFF` can use internal medical-record lookup tools in this panel.
+  - Staff can only access patients and EMRs within their authorized clinic scope.
+  - For staff diagnosis questions, AI must not use `web_search`.
+  - If the target pet cannot be identified, AI must ask a short clarification or suggest patient lookup first.
 - **Business rules:**
-  - Chat panel này là kênh hỏi đáp nghiệp vụ thường ngày cho staff, không thay thế màn hình Create EMR.
-  - Khi có context từ Create EMR, AI phải ưu tiên dùng context hiện tại trước khi hỏi lại thông tin đã có.
-  - `thinking/tool/observation` chỉ là bản tóm tắt an toàn cho người dùng, không lộ full chain-of-thought.
-  - Tool trả dữ liệu nội bộ phải phản ánh dữ liệu thật từ Spring Boot, không dùng mock data.
-  - Session chat của staff phải tách biệt với `PET_OWNER`, `CLINIC_MANAGER`, `ADMIN`.
+  - This chat panel is an operational support channel and does not replace the Create EMR screen.
+  - When Create EMR context exists, AI must prioritize that context before asking repeated questions.
+  - `thinking/tool/observation` must remain safe summaries and must not expose full chain-of-thought.
+  - Internal tool outputs must reflect real Spring Boot data (no mock responses).
+  - Staff chat sessions must remain isolated from `PET_OWNER`, `CLINIC_MANAGER`, and `ADMIN` sessions.
 - **Normal case:**
-  1. Staff mở Create EMR cho pet Rocky và bật chat panel.
-  2. Staff hỏi: `Tóm tắt lịch sử EMR của bé này giúp tôi`.
-  3. AI dùng context `petId` hiện tại, gọi `get_patient_summary` hoặc `get_emr_history`.
-  4. Chat panel stream `Đang phân tích`, `Đang truy vấn hồ sơ`, `Đã nhận kết quả`.
-  5. AI trả về bản tóm tắt nội bộ ngắn gọn để staff tiếp tục khám.
+  1. Staff opens Create EMR for pet Rocky and opens the chat panel.
+  2. Staff asks: `Summarize this pet's EMR history for me`.
+  3. AI uses current `petId` context and calls `get_patient_summary` or `get_emr_history`.
+  4. The panel streams states such as `Analyzing`, `Querying records`, and `Result received`.
+  5. AI returns a concise internal summary for clinical continuation.
 - **Abnormal case:**
-  - Không có context bệnh nhân: AI vẫn hoạt động như chat panel bình thường và hỏi rõ pet/bệnh nhân cần tra cứu.
-  - Backend tool lỗi hoặc timeout: hiển thị lỗi tiếng Việt, giữ nguyên session để staff thử lại.
-  - Staff hỏi thông tin ngoài phạm vi dữ liệu nội bộ của clinic: AI từ chối an toàn hoặc hướng dẫn cách tìm đúng dữ liệu.
-  - Gợi ý hành động dựa trên EMR gần nhất
-
-- **Normal case:**
-
-  - Pet Owner mở Pet Detail → AI tổng hợp EMR gần nhất + pet info → Hiển thị summary card
-
-  - User có thể click "Hỏi AI thêm" để mở chat với context pet
-
-- **Abnormal case:**
-
-  - Không có EMR: Hiển thị "Chưa có lịch sử khám. Đặt lịch ngay!"
-
-  - AI lỗi: Hiển thị pet info cơ bản, ẩn phần AI summary, log lỗi
+  - No patient context: AI still works as standard chat and asks which patient/pet to query.
+  - Backend tool failure or timeout: show a clear error message and keep session state for retry.
+  - Out-of-scope data request: AI safely refuses or guides staff to valid internal data paths.
 
 
 
@@ -8180,33 +7803,33 @@ Figure 49. AI Clinic and Slot Suggestion Cards Rendered from Internal Tool APIs 
 
 - **Actors/Roles:** Clinic Manager (CLINIC_MANAGER).
 
-- **Purpose:** Cung cấp trợ lý AI chuyên biệt cho quản lý phòng khám (AI Copilot Clinic) để thực hiện các thao tác vận hành hàng ngày thông qua chat.
+- **Purpose:** Provide a clinic-operations AI Copilot for daily manager workflows through conversational commands.
 
 - **Features:**
 
-  - **Xem tổng quan phòng khám trong ngày (Daily Summary):** AI tóm tắt số lượng ca khám, doanh thu dự kiến, nhân sự đang làm việc.
+  - **Daily Summary:** AI summarizes appointment volume, projected revenue, and active staffing.
 
-  - **Xem và Lọc lịch khám của phòng khám (Booking List):** Tra cứu lịch khám theo ngày, theo trạng thái, hoặc theo bác sĩ.
+  - **Booking List and Filters:** Retrieve bookings by date, status, or assigned staff.
 
-  - **Phân công lại nhân sự cho một ca khám (Reassign Staff):** Yêu cầu AI chuyển ca khám từ bác sĩ A sang bác sĩ B.
+  - **Reassign Staff:** Request reassignment from one staff member to another for a booking.
 
-  - **Xác nhận hoặc Hủy ca khám (Confirm / Cancel Booking):** Duyệt các ca khám đang ở trạng thái PENDING hoặc hủy ca khám khi có yêu cầu.
+  - **Confirm or Cancel Booking:** Approve pending bookings or cancel when needed.
 
-  - **Quản lý dịch vụ phòng khám (List, Update, Create Services):** Tra cứu danh sách dịch vụ, cập nhật giá hoặc thêm dịch vụ mới thông qua lệnh chat.
+  - **Clinic Service Operations (List, Update, Create):** Query service catalog, adjust pricing, or create service entries via chat commands.
 
 
 
 **Data processing**
 
-1. Clinic Manager mở AI Copilot và nhập yêu cầu (ví dụ: "Hôm nay có bao nhiêu ca khám chưa phân công?").
+1. Clinic Manager opens AI Copilot and enters an operational request (for example: "How many appointments are unassigned today?").
 
-2. AI Copilot (LangGraph ReAct) phân tích intent và gọi các tool tương ứng.
+2. AI Copilot (LangGraph ReAct) analyzes intent and invokes the corresponding tools.
 
-3. Dữ liệu trả về từ hệ thống được AI tổng hợp thành định dạng dễ đọc (bảng, danh sách) kèm theo các Nút hành động nhanh (Quick Actions).
+3. Returned data is summarized in readable formats (tables/lists) with quick actions.
 
-4. Khi Manager yêu cầu thực hiện hành động (như chuyển ca khám, duyệt/hủy ca khám), AI yêu cầu xác nhận trước khi gọi tool ghi dữ liệu.
+4. For write actions (for example reassignment, confirm/cancel), AI asks for confirmation before invoking write tools.
 
-5. Kết quả thao tác được phản hồi trực tiếp trong chat và đồng bộ realtime lên Dashboard.
+5. Action results are returned in chat and synchronized to the dashboard in near real time.
 
 
 

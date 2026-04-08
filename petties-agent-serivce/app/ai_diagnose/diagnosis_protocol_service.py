@@ -169,17 +169,19 @@ class DiagnosisProtocolService:
             )
             for rx in rx_list:
                 if isinstance(rx, dict) and rx.get("medicine"):
-                    dosage = rx.get("dosage") or ""
-                    adjusted_dosage = self._adjust_dosage_for_weight(
-                        dosage, request.weight_kg
-                    )
-
                     prescription = PrescriptionSuggestion(
                         medicine_name=rx.get("medicine", ""),
-                        dosage=adjusted_dosage,
-                        frequency=rx.get("frequency"),
-                        duration_days=self._parse_duration(rx.get("duration")),
-                        route=rx.get("route"),
+                        times_of_day=(
+                            rx.get("times_of_day")
+                            if isinstance(rx.get("times_of_day"), list)
+                            else []
+                        ),
+                        before_after_meal=rx.get("before_after_meal"),
+                        frequency_note=str(rx.get("frequency_note") or "").strip(),
+                        duration_days=self._parse_duration(
+                            rx.get("duration_days") or rx.get("duration")
+                        ),
+                        instructions=str(rx.get("instructions") or "").strip(),
                         source="emr_pattern",
                         source_detail=f"Học từ {pattern.get('case_id', 'EMR')} (n={sample_count}{support_suffix})",
                     )

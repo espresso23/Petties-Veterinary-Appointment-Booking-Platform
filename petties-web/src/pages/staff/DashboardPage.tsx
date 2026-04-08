@@ -297,12 +297,21 @@ export const StaffDashboardPage = () => {
                     >
                         Bệnh nhân
                     </Link>
-                    <Link
-                        to="/staff/ai-chat"
+                    <button
+                        type="button"
+                        onClick={() => {
+                            window.dispatchEvent(
+                                new CustomEvent('petties-open-mascot', {
+                                    detail: {
+                                        source: 'staff_dashboard_quick_link',
+                                    },
+                                }),
+                            )
+                        }}
                         className="inline-block px-4 py-3 font-bold uppercase text-sm border-4 border-stone-900 bg-white shadow-[4px_4px_0_#1c1917]"
                     >
                         Trợ lý AI
-                    </Link>
+                    </button>
                 </div>
             </DashboardSection>
         </div>

@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
-/* Spotlight Modal Animations */
+/* Mascot Panel Animations */
 @keyframes fadeIn {
   from {
     opacity: 0;

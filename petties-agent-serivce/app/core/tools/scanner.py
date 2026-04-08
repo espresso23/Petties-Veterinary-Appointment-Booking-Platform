@@ -58,10 +58,6 @@ SYSTEM_MANAGED_TOOLS = {
     "get_my_clinics",
     "analyze_revenue_trends",
     "get_clinic_metrics",
-    # Clinic Staff & Shift Tools
-    "get_clinic_staff",
-    "get_clinic_shifts",
-    "check_booking_availability",
     # Booking Management Tools
     "view_clinic_bookings",
     "get_clinic_today_summary",

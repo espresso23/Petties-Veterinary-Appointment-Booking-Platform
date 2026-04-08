@@ -1,6 +1,6 @@
 # AI Chatbot Production Readiness Plan
 
-Last Updated: 2026-03-31
+Last Updated: 2026-04-08
 
 ## Objective
 
@@ -24,7 +24,7 @@ This plan is based on current code behavior, not architecture documents only.
 - `petties-agent-serivce/app/api/websocket/chat.py`
 - `petties-agent-serivce/app/api/routes/chat.py`
 - `petties-agent-serivce/app/core/presentation/`
-- `petties-web/src/components/spotlight/SpotlightProvider.tsx`
+- `petties-web/src/components/mascot/MascotProvider.tsx`
 - `petties-web/src/pages/staff/StaffAIChatPage.tsx`
 - `petties_mobile/lib/data/models/ai_chat.dart`
 - `petties_mobile/lib/ui/chat/ai_chat/ai_chat_screen.dart`
@@ -45,6 +45,34 @@ This plan is based on current code behavior, not architecture documents only.
   - observability/redaction is below production standard
   - state recovery is only partially durable (`MemorySaver` + Mongo `booking_state`)
   - frontend/backend contract conformance is improved but not fully locked down
+
+## Delta Update - 2026-04-08 (Clinic Operation Copilot)
+
+### Completed in this delta
+
+- Removed non-implemented clinic-operation tool names from runtime role whitelist:
+  - `get_clinic_staff`
+  - `get_clinic_shifts`
+  - `check_booking_availability`
+- Removed the same non-implemented tool names from default tool policy registry.
+- Removed the same non-implemented tool names from startup scanner managed set to avoid sync drift.
+- Added regression guard test for role whitelist drift.
+- Added clinic operation test suite for booking operations and staff schedule/slot tools.
+
+### Evidence files
+
+- `petties-agent-serivce/app/core/context_policy.py`
+- `petties-agent-serivce/app/core/tools/tool_policy.py`
+- `petties-agent-serivce/app/core/tools/scanner.py`
+- `petties-agent-serivce/tests/test_context_policy.py`
+- `petties-agent-serivce/tests/test_clinic_operation_tools.py`
+
+### Validation run
+
+- Command:
+  - `cd petties-agent-serivce`
+  - `python -m pytest tests/test_context_policy.py tests/test_clinic_operation_tools.py tests/test_clinic_tools.py -q`
+- Result: `30 passed`.
 
 ## Delivery Strategy
 
@@ -209,7 +237,7 @@ Target files:
 
 - `petties-agent-serivce/app/api/schemas/websocket_schemas.py`
 - `petties-agent-serivce/tests/test_websocket_chat.py`
-- `petties-web/src/components/spotlight/SpotlightProvider.tsx`
+- `petties-web/src/components/mascot/MascotProvider.tsx`
 - `petties-web/src/pages/staff/StaffAIChatPage.tsx`
 - `petties_mobile/lib/data/models/ai_chat.dart`
 - `petties_mobile/lib/ui/chat/ai_chat/ai_chat_screen.dart`
@@ -350,7 +378,7 @@ Backend:
 Web:
 
 - `npm run build`
-- `npx eslint src/components/spotlight/SpotlightProvider.tsx src/pages/staff/StaffAIChatPage.tsx`
+- `npx eslint src/components/mascot/MascotProvider.tsx src/pages/staff/StaffAIChatPage.tsx`
 
 Mobile:
 

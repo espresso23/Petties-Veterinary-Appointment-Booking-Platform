@@ -76,14 +76,27 @@ class DiagnosisSuggestion(BaseModel):
 
 class PrescriptionSuggestion(BaseModel):
     medicine_name: str
-    dosage: str = ""
-    frequency: str = ""
+    times_of_day: List[str] = Field(
+        default_factory=list,
+        description="Danh sách thời điểm dùng thuốc: sang|trua|chieu",
+    )
+    before_after_meal: Optional[str] = Field(
+        default=None,
+        description="BEFORE_MEAL|AFTER_MEAL|WITH_MEAL|NONE",
+    )
+    frequency_note: str = Field(
+        default="",
+        description="Ghi chú tần suất (ví dụ: 2 lần/ngày, cách nhau ~12 giờ)",
+    )
     duration_days: Optional[int] = None
     instructions: str = ""
     caution: Optional[str] = None
-    route: Optional[str] = None
     source: Optional[str] = None
     source_detail: Optional[str] = None
+
+    # Legacy fields (deprecated). Keep for tolerant parsing, but never return to clients.
+    dosage: str = Field(default="", exclude=True)
+    frequency: str = Field(default="", exclude=True)
 
 
 class SoapDraft(BaseModel):
@@ -145,6 +158,8 @@ class DoctorDiagnosisSynthesisResponse(BaseModel):
     suggested_questions: List[str] = Field(default_factory=list)
     soap_suggestions: SoapSuggestions = Field(default_factory=SoapSuggestions)
     prescription_suggestions: List[PrescriptionSuggestion] = Field(default_factory=list)
+    payload_status: str = "ok"
+    payload_warnings: List[str] = Field(default_factory=list)
     disclaimer: str = (
         "Đây là gợi ý hỗ trợ tham khảo từ dữ liệu nội bộ. "
         "Cần kết hợp thăm khám lâm sàng trước khi chốt chẩn đoán và đơn thuốc cho thú cưng."

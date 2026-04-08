@@ -1,9 +1,10 @@
 import { Outlet, useNavigate } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useNotificationStore } from '../store/notificationStore'
 import { useBookingStore } from '../store/bookingStore'
 import { Sidebar } from '../components/Sidebar/Sidebar'
+import MascotProvider from '../components/mascot/MascotProvider'
 import type { NavGroup } from '../components/Sidebar/Sidebar'
 import { useSidebar } from '../hooks/useSidebar'
 import { useSseNotification } from '../hooks/useSseNotification'
@@ -28,6 +29,7 @@ export const StaffLayout = () => {
     const assignedBookingCount = useBookingStore((state) => state.assignedBookingCount)
     const refreshAssignedBookingCount = useBookingStore((state) => state.refreshAssignedBookingCount)
     const { state, toggleSidebar, isMobile } = useSidebar()
+    const lastAutoOpenBookingRef = useRef<string>('')
 
     // Membership state
     const fetchMembership = useMembershipStore(state => state.fetchMembershipStatus)
@@ -56,6 +58,27 @@ export const StaffLayout = () => {
                 // Refresh on completion/cancellation
                 if (user?.userId) {
                     refreshAssignedBookingCount(user.userId)
+                }
+            }
+
+            const shouldAutoOpenMascot =
+                data.action === 'CONFIRMED' ||
+                (data.action === 'STAFF_REASSIGNED' && data.newStaffId === user?.userId)
+
+            if (shouldAutoOpenMascot && data.bookingId) {
+                const autoOpenKey = `${data.action}:${data.bookingId}`
+                if (lastAutoOpenBookingRef.current !== autoOpenKey) {
+                    lastAutoOpenBookingRef.current = autoOpenKey
+                    window.dispatchEvent(
+                        new CustomEvent('petties-open-mascot', {
+                            detail: {
+                                source: 'staff_booking_update_auto_open',
+                                booking_id: data.bookingId,
+                                booking_code: data.bookingCode,
+                                booking_action: data.action,
+                            },
+                        }),
+                    )
                 }
             }
         }
@@ -122,6 +145,8 @@ export const StaffLayout = () => {
                     <Outlet />
                 </div>
             </main>
+
+            <MascotProvider />
         </div>
     )
 }

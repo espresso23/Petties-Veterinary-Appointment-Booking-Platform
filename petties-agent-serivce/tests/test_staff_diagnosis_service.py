@@ -87,8 +87,9 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
             prescriptions=[
                 PrescriptionSuggestion(
                     medicine_name="Cephalexin",
-                    dosage="22 mg/kg",
-                    frequency="BID",
+                    times_of_day=["sang", "trua", "chieu"],
+                    before_after_meal="AFTER_MEAL",
+                    frequency_note="2 lần/ngày",
                     duration_days=14,
                     instructions="Uong sau an",
                 )
@@ -214,8 +215,9 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
                         "prescription_suggestions": [
                             PrescriptionSuggestion(
                                 medicine_name="Chlorhexidine shampoo",
-                                dosage="Tắm 2 lần/tuần",
-                                frequency="2 lần/tuần",
+                                times_of_day=["sang"],
+                                before_after_meal="NONE",
+                                frequency_note="2 lần/tuần",
                                 duration_days=14,
                                 instructions="Tắm ngoài da và theo dõi đáp ứng.",
                                 caution="Cần bác sĩ xác nhận trước khi kê đơn",
@@ -295,8 +297,9 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
             prescriptions=[
                 PrescriptionSuggestion(
                     medicine_name="Cephalexin",
-                    dosage="22 mg/kg",
-                    frequency="BID",
+                    times_of_day=["sang", "trua", "chieu"],
+                    before_after_meal="AFTER_MEAL",
+                    frequency_note="2 lần/ngày",
                     duration_days=14,
                     instructions="",
                 )
@@ -330,7 +333,7 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(len(response.prescription_suggestions), 1)
         self.assertTrue(response.prescription_suggestions[0].instructions.strip())
-        self.assertIn("Liều mỗi lần", response.prescription_suggestions[0].instructions)
+        self.assertIn("Thời điểm", response.prescription_suggestions[0].instructions)
 
     def test_select_diagnosis_prefers_doctor_selected_code(self):
         service = StaffDiagnosisService()
@@ -479,10 +482,11 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
                             "common_prescriptions": [
                                 {
                                     "medicine": "Nước mắt nhân tạo",
-                                    "dosage": "1-2 giọt",
-                                    "frequency": "3 lần/ngày",
+                                    "times_of_day": ["sang", "trua", "chieu"],
+                                    "before_after_meal": "NONE",
+                                    "frequency_note": "3 lần/ngày",
                                     "duration": 5,
-                                    "route": "nhỏ mắt",
+                                    "instructions": "Nhỏ mắt và theo dõi đáp ứng.",
                                 }
                             ],
                         },
@@ -639,9 +643,11 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
                             "common_prescriptions": [
                                 {
                                     "medicine": "Cephalexin",
-                                    "dosage": "22 mg/kg",
-                                    "frequency": "BID",
-                                    "duration": 14,
+                                    "times_of_day": ["sang", "trua", "chieu"],
+                                    "before_after_meal": "AFTER_MEAL",
+                                    "frequency_note": "2 lần/ngày",
+                                    "duration_days": 14,
+                                    "instructions": "Dùng theo chỉ định và theo dõi đáp ứng.",
                                 }
                             ],
                             "common_tests": [{"test": "Cytology da"}],
@@ -721,6 +727,43 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
             parsed["safety_suggestions"]["cautions"],
             ["Theo dõi đáp ứng 48 giờ"],
         )
+
+    def test_parse_llm_synthesis_response_accepts_legacy_prescriptions_key(self):
+        service = StaffDiagnosisService()
+        fallback = [
+            DiagnosisSuggestion(
+                canonical_code="bacterial_dermatosis",
+                display_name_vi="Viêm da do vi khuẩn",
+                rank=1,
+                score_percent=70,
+                score_basis="matching_internal",
+                confidence_note="Độ tự tin: 70%",
+                supporting_reasons=["Khớp tổn thương da."],
+            )
+        ]
+
+        payload = """{
+          "top_differentials": [
+            {"display_name_vi": "Viêm da do vi khuẩn"}
+          ],
+          "prescriptions": [
+            {
+              "medicine": "Cephalexin",
+              "timesOfDay": ["sang", "toi", "chieu"],
+              "beforeAfterMeal": "AFTER_MEAL",
+              "durationDays": 7,
+              "instructions": "Dùng sau ăn"
+            }
+          ]
+        }"""
+
+        parsed = service._parse_llm_synthesis_response(payload, fallback, "dog")
+
+        self.assertIsNotNone(parsed)
+        self.assertEqual(len(parsed["prescription_suggestions"]), 1)
+        rx = parsed["prescription_suggestions"][0]
+        self.assertEqual(rx.medicine_name, "Cephalexin")
+        self.assertEqual(rx.times_of_day, ["sang", "chieu"])
 
         def test_parse_llm_synthesis_response_keeps_llm_label_when_fallback_is_generic(self):
                 service = StaffDiagnosisService()
@@ -1227,8 +1270,9 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
             "prescription_suggestions": [
                 PrescriptionSuggestion(
                     medicine_name="Dung dịch nhỏ mũi NaCl 0.9%",
-                    dosage="2-3 giọt",
-                    frequency="3 lần/ngày",
+                    times_of_day=["sang", "trua", "chieu"],
+                    before_after_meal="NONE",
+                    frequency_note="3 lần/ngày",
                     duration_days=5,
                     instructions="Nhỏ mũi và theo dõi đáp ứng lâm sàng.",
                     source="llm_fallback",
@@ -1645,6 +1689,96 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
             "Không tìm thấy ca EMR xác nhận",
             response.similar_confirmed_cases[0],
         )
+
+    def test_validate_emr_payload_completeness_flags_missing_required_medication(self):
+        service = StaffDiagnosisService()
+        ok, errors = service._validate_emr_payload_completeness(
+            requires_medication=True,
+            prescription_suggestions=[],
+            top_differentials=[
+                DiagnosisSuggestion(
+                    canonical_code="ocular_infection",
+                    display_name_vi="Viêm kết mạc",
+                    rank=1,
+                    score_percent=80,
+                    score_basis="matching_internal",
+                    confidence_note="Độ tự tin: 80%",
+                    supporting_reasons=["Khớp triệu chứng mắt."],
+                )
+            ],
+            soap_suggestions=service._build_soap_suggestions(
+                request=StaffDiagnosisRequest(
+                    species=Species.DOG,
+                    doctor_description="Đỏ mắt, chảy ghèn.",
+                ),
+                top_differentials=[],
+                primary_diagnosis=None,
+                vision_response=GeminiVisionDiagnosisResponse(request_id="req-1"),
+                hybrid_result=HybridResult(
+                    chunks=[],
+                    expanded_query="",
+                    original_query="",
+                    sources_used={},
+                ),
+                similar_cases=[],
+                protocol_decision=ProtocolDecision(
+                    diagnosis_code=None,
+                    diagnosis_display_name="Chưa xác định",
+                ),
+            ),
+        )
+        self.assertFalse(ok)
+        self.assertTrue(any("Thiếu đơn thuốc" in item for item in errors))
+
+    async def test_retry_llm_until_medication_complete_retries_and_returns_valid_result(self):
+        service = StaffDiagnosisService()
+        request = StaffDiagnosisRequest(
+            species=Species.DOG,
+            doctor_description="Viêm da mủ, ngứa nhiều.",
+        )
+        protocol_decision = ProtocolDecision(
+            diagnosis_code="bacterial_dermatosis",
+            diagnosis_display_name="Viêm da do vi khuẩn",
+        )
+
+        with patch.object(
+            service,
+            "_synthesize_with_llm",
+            new=AsyncMock(
+                side_effect=[
+                    None,
+                    {
+                        "prescription_suggestions": [
+                            PrescriptionSuggestion(
+                                medicine_name="Cephalexin",
+                                times_of_day=["sang", "trua", "chieu"],
+                                before_after_meal="AFTER_MEAL",
+                                duration_days=7,
+                                instructions="Uống sau ăn.",
+                            )
+                        ]
+                    },
+                ]
+            ),
+        ) as mock_llm:
+            result = await service._retry_llm_until_medication_complete(
+                request=request,
+                top_differentials=[],
+                hybrid_result=HybridResult(
+                    chunks=[],
+                    expanded_query="",
+                    original_query="",
+                    sources_used={},
+                ),
+                similar_cases=[],
+                protocol_decision=protocol_decision,
+                vision_response=GeminiVisionDiagnosisResponse(request_id="req-retry"),
+                initial_synthesis=None,
+            )
+
+        self.assertIsNotNone(result)
+        self.assertEqual(len(result.get("prescription_suggestions", [])), 1)
+        self.assertEqual(mock_llm.await_count, 2)
 
 
 if __name__ == "__main__":

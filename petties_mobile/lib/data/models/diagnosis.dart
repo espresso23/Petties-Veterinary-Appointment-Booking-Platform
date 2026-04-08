@@ -149,30 +149,44 @@ class StaffDiagnosisSuggestion {
 
 class StaffDiagnosisPrescriptionSuggestion {
   final String medicineName;
-  final String dosage;
-  final String frequency;
+  final List<String>? timesOfDay;
+  final String? beforeAfterMeal;
   final int? durationDays;
   final String instructions;
   final String? caution;
 
   StaffDiagnosisPrescriptionSuggestion({
     required this.medicineName,
-    required this.dosage,
-    required this.frequency,
+    this.timesOfDay,
+    this.beforeAfterMeal,
     this.durationDays,
     required this.instructions,
     this.caution,
+
+    // legacy
+    this.dosage,
+    this.frequency,
   });
+
+  // legacy (backward-compat)
+  final String? dosage;
+  final String? frequency;
 
   factory StaffDiagnosisPrescriptionSuggestion.fromJson(
       Map<String, dynamic> json) {
     return StaffDiagnosisPrescriptionSuggestion(
       medicineName: json['medicine_name'] as String,
-      dosage: json['dosage'] as String? ?? '',
-      frequency: json['frequency'] as String? ?? '',
+      timesOfDay: (json['times_of_day'] as List<dynamic>?)
+          ?.map((e) => e.toString())
+          .toList(),
+      beforeAfterMeal: json['before_after_meal'] as String?,
       durationDays: json['duration_days'] as int?,
       instructions: json['instructions'] as String? ?? '',
       caution: json['caution'] as String?,
+
+      // legacy
+      dosage: json['dosage'] as String?,
+      frequency: json['frequency'] as String?,
     );
   }
 }

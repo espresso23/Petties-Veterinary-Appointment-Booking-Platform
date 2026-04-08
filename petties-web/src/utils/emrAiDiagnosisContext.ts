@@ -31,6 +31,9 @@ export const buildEmrAiDiagnosisContext = (
   if (!aiDiagnosisResult) {
     return undefined
   }
+  if (aiDiagnosisResult.payload_status === 'incomplete') {
+    return undefined
+  }
 
   return {
     request_id: aiDiagnosisResult.request_id,

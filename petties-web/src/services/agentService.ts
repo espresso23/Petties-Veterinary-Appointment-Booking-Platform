@@ -208,7 +208,6 @@ export interface CaseMemoryPrescription {
     duration_days?: number
     duration?: string | number
     instructions?: string
-    route?: string
     source?: string
     source_detail?: string
 }
@@ -224,6 +223,7 @@ export interface CaseMemoryProtocolPattern {
 
 export interface CaseMemoryDetailItem extends CaseMemoryItem {
     clinical_notes?: string
+    clinical_image_urls?: string[]
     text_content: string
     protocol_pattern?: CaseMemoryProtocolPattern
 }
@@ -382,6 +382,8 @@ export interface StaffDiagnosisResponse {
         plan_draft: string
     }
     prescription_suggestions: StaffDiagnosisPrescriptionSuggestion[]
+    payload_status?: 'ok' | 'incomplete'
+    payload_warnings?: string[]
     disclaimer: string
 }
 

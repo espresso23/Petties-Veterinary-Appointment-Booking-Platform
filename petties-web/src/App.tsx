@@ -1,5 +1,5 @@
 import { Suspense, lazy, type ComponentType, useEffect } from 'react'
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { ToastProvider } from './components/Toast'
 import { ProtectedRoute } from './components/common/ProtectedRoute'
 import { useAuthStore } from './store/authStore'
@@ -13,8 +13,6 @@ import { RegisterPage } from './pages/auth/RegisterPage'
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage'
 import { ResetPasswordPage } from './pages/auth/ResetPasswordPage'
 import './styles/global.css'
-
-const SpotlightProvider = lazy(() => import('./components/spotlight/SpotlightProvider'))
 
 const AdminLayout = lazy(() => import('./layouts/AdminLayout'))
 const StaffLayout = lazy(() => import('./layouts/StaffLayout'))
@@ -30,6 +28,7 @@ const KnowledgePage = lazy(() => import('./pages/admin/knowledge/KnowledgePage')
 const PlaygroundPage = lazy(() => import('./pages/admin/playground/PlaygroundPage'))
 const AIInsightsPage = lazy(() => import('./pages/admin/insights/AIInsightsPage'))
 const ClinicApprovalPage = lazy(() => import('./pages/admin/clinics/ClinicApprovalPage'))
+const ClinicRegistryPage = lazy(() => import('./pages/admin/clinics/ClinicRegistryPage'))
 const AdminReportsPage = lazyNamed(() => import('./pages/admin/ReportsPage'), 'ReportsPage')
 const AdminRefundApplicationsPage = lazyNamed(
   () => import('./pages/admin/refunds/AdminRefundApplicationsPage'),
@@ -49,9 +48,6 @@ const StaffDashboardPage = lazy(() => import('./pages/staff/DashboardPage'))
 const StaffSchedulePage = lazy(() => import('./pages/staff/StaffSchedulePage'))
 const StaffBookingsPage = lazy(() => import('./pages/staff/StaffBookingsPage'))
 const StaffPatientsPage = lazy(() => import('./pages/staff/patients/StaffPatientsPage'))
-const StaffAIChatPage = lazyNamed(() => import('./pages/staff/StaffAIChatPage'), 'StaffAIChatPage')
-const ClinicOwnerAIChatPage = lazyNamed(() => import('./pages/clinic-owner/AIChatPage'), 'ClinicOwnerAIChatPage')
-const ClinicManagerAIChatPage = lazyNamed(() => import('./pages/clinic-manager/AIChatPage'), 'ClinicManagerAIChatPage')
 const StaffNotificationsPage = lazy(() => import('./pages/staff/NotificationsPage'))
 const CreateEmrPage = lazy(() => import('./pages/staff/emr/CreateEmrPage'))
 const EditEmrPage = lazyNamed(() => import('./pages/staff/emr/EditEmrPage'), 'EditEmrPage')
@@ -186,6 +182,7 @@ function App() {
               <Route path="playground" element={<PlaygroundPage />} />
               <Route path="ai-insights" element={<AIInsightsPage />} />
               <Route path="clinics" element={<ClinicApprovalPage />} />
+              <Route path="clinics/registry" element={<ClinicRegistryPage />} />
               <Route path="reports" element={<AdminReportsPage />} />
               <Route path="refunds" element={<AdminRefundApplicationsPage />} />
               <Route path="vouchers" element={<AdminVoucherPage />} />
@@ -209,7 +206,7 @@ function App() {
               <Route path="schedule" element={<StaffSchedulePage />} />
               <Route path="bookings" element={<StaffBookingsPage />} />
               <Route path="patients" element={<StaffPatientsPage />} />
-              <Route path="ai-chat" element={<StaffAIChatPage />} />
+              <Route path="ai-chat" element={<Navigate to="/staff" replace />} />
               <Route path="notifications" element={<StaffNotificationsPage />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="emr/create/:petId" element={<CreateEmrPage />} />
@@ -238,7 +235,7 @@ function App() {
               <Route path="master-services" element={<MasterServicesPage />} />
               <Route path="revenue" element={<ClinicOwnerRevenuePage />} />
               <Route path="subscriptions" element={<MySubscriptionPage />} />
-              <Route path="ai-copilot" element={<ClinicOwnerAIChatPage />} />
+              <Route path="ai-copilot" element={<Navigate to="/clinic-owner" replace />} />
             </Route>
 
             <Route
@@ -256,7 +253,7 @@ function App() {
               <Route path="shifts" element={<StaffShiftPage />} />
               <Route path="services" element={<ServicesViewPage />} />
               <Route path="chat" element={<ClinicManagerChatPage />} />
-              <Route path="ai-copilot" element={<ClinicManagerAIChatPage />} />
+              <Route path="ai-copilot" element={<Navigate to="/clinic-manager" replace />} />
               <Route path="refunds" element={<RefundsPage />} />
               <Route path="revenue" element={<RevenuePage />} />
               <Route path="notifications" element={<ClinicManagerNotificationsPage />} />
@@ -265,10 +262,6 @@ function App() {
               <Route path="vouchers" element={<ClinicManagerVoucherPage />} />
             </Route>
           </Routes>
-        </Suspense>
-
-        <Suspense fallback={null}>
-          <SpotlightProvider />
         </Suspense>
       </BrowserRouter>
     </ToastProvider>
