@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -100,16 +101,7 @@ public class QrPaymentService {
             transactionDateMin = paymentCreatedAt.format(SEPAY_TIME_FORMATTER);
         }
 
-        String accountNumber = (sepayAccountNumber != null && !sepayAccountNumber.isBlank()) ? sepayAccountNumber
-                : null;
-        SePayTransactionsListResponseDto sepayResponse = sePayClient.listTransactions(
-                200,
-                accountNumber,
-                transactionDateMin,
-                null,
-                null);
-
-        List<SePayTransactionDto> transactions = sepayResponse.getTransactions();
+        List<SePayTransactionDto> transactions = loadTransactionsWithFallback(transactionDateMin);
         if (transactions == null || transactions.isEmpty()) {
             return QrStatusResult.pending("Chưa tìm thấy giao dịch phù hợp", null);
         }
@@ -138,7 +130,7 @@ public class QrPaymentService {
                     continue;
                 }
 
-                if (amountIn.compareTo(expectedAmount) != 0) {
+                if (!isAmountMatched(expectedAmount, amountIn)) {
                     continue;
                 }
             }
@@ -215,16 +207,7 @@ public class QrPaymentService {
             transactionDateMin = paymentCreatedAt.format(SEPAY_TIME_FORMATTER);
         }
 
-        String accountNumber = (sepayAccountNumber != null && !sepayAccountNumber.isBlank()) ? sepayAccountNumber
-                : null;
-        SePayTransactionsListResponseDto sepayResponse = sePayClient.listTransactions(
-                200,
-                accountNumber,
-                transactionDateMin,
-                null,
-                null);
-
-        List<SePayTransactionDto> transactions = sepayResponse.getTransactions();
+        List<SePayTransactionDto> transactions = loadTransactionsWithFallback(transactionDateMin);
         if (transactions == null || transactions.isEmpty()) {
             return QrStatusResult.pending("Chưa tìm thấy giao dịch phù hợp", null);
         }
@@ -252,7 +235,7 @@ public class QrPaymentService {
                     continue;
                 }
 
-                if (amountIn.compareTo(expectedAmount) != 0) {
+                if (!isAmountMatched(expectedAmount, amountIn)) {
                     continue;
                 }
             }
@@ -315,6 +298,51 @@ public class QrPaymentService {
         }
         String cleaned = rawAmount.replace(",", "").trim();
         return new BigDecimal(cleaned);
+    }
+
+    private List<SePayTransactionDto> loadTransactionsWithFallback(String transactionDateMin) {
+        String accountNumber = (sepayAccountNumber != null && !sepayAccountNumber.isBlank()) ? sepayAccountNumber
+                : null;
+
+        SePayTransactionsListResponseDto sepayResponse = sePayClient.listTransactions(
+                200,
+                accountNumber,
+                transactionDateMin,
+                null,
+                null);
+
+        List<SePayTransactionDto> transactions = sepayResponse.getTransactions();
+
+        if (transactions == null || transactions.isEmpty()) {
+            if (accountNumber != null) {
+                log.warn("No SePay transactions found with account_number='{}'. Retrying without account filter.",
+                        accountNumber);
+                SePayTransactionsListResponseDto fallbackResponse = sePayClient.listTransactions(
+                        200,
+                        null,
+                        transactionDateMin,
+                        null,
+                        null);
+                return fallbackResponse.getTransactions();
+            }
+        }
+
+        return transactions;
+    }
+
+    private boolean isAmountMatched(BigDecimal expectedAmount, BigDecimal amountIn) {
+        if (expectedAmount == null || amountIn == null) {
+            return false;
+        }
+
+        if (amountIn.compareTo(expectedAmount) == 0) {
+            return true;
+        }
+
+        // Bank transfer is VND-based, so allow matching on rounded integer VND.
+        BigDecimal expectedRounded = expectedAmount.setScale(0, RoundingMode.HALF_UP);
+        BigDecimal amountRounded = amountIn.setScale(0, RoundingMode.HALF_UP);
+        return expectedRounded.compareTo(amountRounded) == 0;
     }
 
     public record QrStatusResult(String status, String message, String matchedTransactionId) {
