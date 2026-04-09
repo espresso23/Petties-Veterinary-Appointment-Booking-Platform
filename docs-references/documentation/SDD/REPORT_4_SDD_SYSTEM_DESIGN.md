@@ -2600,6 +2600,9 @@ Use separate vectors for text and image retrieval:
 | PUT | `/api/users/profile/password` | Change password | Auth |
 | POST | `/api/users/profile/email/request-change` | Request email change (Step 1) | Auth |
 | POST | `/api/users/profile/email/verify-change` | Verify email change (Step 2) | Auth |
+| GET | `/api/admin/users` | Admin user registry list with filters | Admin |
+| POST | `/api/admin/users/{userId}/restrict` | Manually apply user restriction | Admin |
+| POST | `/api/admin/users/{userId}/lift-strike` | Lift active user restriction | Admin |
 
 #### 3.1.3 Clinic Management (`/clinics`)
 | Method | Endpoint | Description | Access |
@@ -11726,4 +11729,175 @@ sequenceDiagram
 - Không còn feed nội bộ batch/cursor.
 - Nếu AI service lỗi, Spring chỉ log cảnh báo và không rollback EMR.
 - `case_id` luôn là `emr:{emr_id}`.
+
+### 4.24 Admin User Management
+
+This module implements centralized user governance tools for administrators, including filtered registry browsing and manual restrict/lift-strike actions.
+
+#### 4.24.1 Class Diagram
+```mermaid
+classDiagram
+    class AdminUserController {
+        -UserService userService
+        +getUsersForAdmin(Role, String, LocalDate, LocalDate, String, int, int) ResponseEntity
+        +restrictUser(UUID, AdminUserRestrictRequest) ResponseEntity
+        +liftUserStrike(UUID) ResponseEntity
+    }
+
+    class UserService {
+        -UserRepository userRepository
+        -UserStrikeService userStrikeService
+        +searchUsersForAdmin(Role, String, LocalDate, LocalDate, String, Pageable) Page~AdminUserSummaryResponse~
+        +restrictUserForAdmin(UUID, AdminUserRestrictRequest) AdminUserSummaryResponse
+        +liftUserStrikeForAdmin(UUID) AdminUserSummaryResponse
+    }
+
+    class UserStrikeService {
+        +isPermanentStrike(LocalDateTime) boolean
+        +calculateManualStrikeUntil(boolean, Integer) LocalDateTime
+    }
+
+    class UserRepository {
+        <<interface>>
+        +findById(UUID) Optional~User~
+        +findAll(Specification, Pageable) Page~User~
+        +save(User) User
+    }
+
+    class AdminUserSummaryResponse {
+        +UUID userId
+        +String username
+        +String fullName
+        +String email
+        +Role role
+        +LocalDateTime createdAt
+        +LocalDateTime strikeUntil
+    }
+
+    class AdminUserRestrictRequest {
+        +String reason
+        +Boolean isPermanent
+        +Integer days
+    }
+
+    class User {
+        +UUID userId
+        +String username
+        +String email
+        +Role role
+        +LocalDateTime strikeUntil
+        +LocalDateTime deletedAt
+    }
+
+    class Role {
+        <<enumeration>>
+        PET_OWNER
+        STAFF
+        CLINIC_MANAGER
+        CLINIC_OWNER
+        ADMIN
+    }
+
+    AdminUserController --> UserService
+    UserService --> UserRepository
+    UserService --> UserStrikeService
+    UserService --> AdminUserSummaryResponse
+    UserService --> AdminUserRestrictRequest
+    UserRepository --> User
+    AdminUserSummaryResponse --> Role
+    User --> Role
+```
+
+#### 4.24.2 Class Specifications
+**1. AdminUserController**
+- **Responsibility:** Expose admin-only user registry and moderation actions over REST APIs.
+- **Key Methods:**
+  - `getUsersForAdmin(...)`: returns paginated users with role/search/date/restriction filters.
+  - `restrictUser(...)`: applies manual restriction to a target user.
+  - `liftUserStrike(...)`: removes an active restriction from a target user.
+
+**2. UserService**
+- **Responsibility:** Build query specifications for admin listing and coordinate moderation business rules.
+- **Key Methods:**
+  - `searchUsersForAdmin(...)`: merges role/search/date/restriction predicates.
+  - `restrictUserForAdmin(...)`: validates request and sets `strikeUntil`.
+  - `liftUserStrikeForAdmin(...)`: clears valid active strike.
+
+**3. UserStrikeService**
+- **Responsibility:** Encapsulate strike-related calculations and constants (including permanent strike marker).
+- **Key Methods:**
+  - `isPermanentStrike(...)`: identifies permanent restriction marker.
+  - `calculateManualStrikeUntil(...)`: computes temporary/permanent strike target.
+
+#### 4.24.3 Sequence Diagram: Admin Restrict/Lift User Flow
+```mermaid
+sequenceDiagram
+    actor Admin as ADMIN
+    participant UI as AdminUsersPage
+    participant AUC as AdminUserController
+    participant US as UserService
+    participant USS as UserStrikeService
+    participant UR as UserRepository
+    participant DB as Database
+
+    Admin->>UI: 1. Open users registry
+    UI->>AUC: 2. GET /api/admin/users?role&search&strikeStatus&page
+    activate AUC
+    AUC->>US: 3. searchUsersForAdmin(...)
+    activate US
+    US->>UR: 4. findAll(specification, pageable)
+    activate UR
+    UR->>DB: 5. SELECT users with filters and paging
+    DB-->>UR: 6. Result page
+    UR-->>US: 7. Page<User>
+    deactivate UR
+    US-->>AUC: 8. Page<AdminUserSummaryResponse>
+    deactivate US
+    AUC-->>UI: 9. 200 OK
+    deactivate AUC
+
+    Admin->>UI: 10. Click Restrict user
+    UI->>AUC: 11. POST /api/admin/users/{userId}/restrict
+    activate AUC
+    AUC->>US: 12. restrictUserForAdmin(userId, request)
+    activate US
+    US->>UR: 13. findById(userId)
+    UR->>DB: 14. SELECT user by id
+    DB-->>UR: 15. User row
+    UR-->>US: 16. User
+    US->>USS: 17. calculateManualStrikeUntil(isPermanent, days)
+    USS-->>US: 18. strikeUntil
+    US->>UR: 19. save(user with new strikeUntil)
+    UR->>DB: 20. UPDATE users SET strike_until = ?
+    DB-->>UR: 21. Updated row
+    UR-->>US: 22. User updated
+    US-->>AUC: 23. AdminUserSummaryResponse
+    deactivate US
+    AUC-->>UI: 24. 200 OK
+    deactivate AUC
+
+    Admin->>UI: 25. Click Lift restriction
+    UI->>AUC: 26. POST /api/admin/users/{userId}/lift-strike
+    activate AUC
+    AUC->>US: 27. liftUserStrikeForAdmin(userId)
+    activate US
+    US->>UR: 28. findById(userId)
+    UR->>DB: 29. SELECT user by id
+    DB-->>UR: 30. User row
+    UR-->>US: 31. User
+    US->>UR: 32. save(user with strikeUntil = null)
+    UR->>DB: 33. UPDATE users SET strike_until = NULL
+    DB-->>UR: 34. Updated row
+    UR-->>US: 35. User updated
+    US-->>AUC: 36. AdminUserSummaryResponse
+    deactivate US
+    AUC-->>UI: 37. 200 OK
+    deactivate AUC
+```
+
+#### 4.24.4 Cross-Reference to SRS
+| SDD Section | SRS Reference | Description |
+|-------------|---------------|-------------|
+| 4.24.1 Class Diagram | 3.12.5 Admin User Management | Core controller/service/repository structure |
+| 4.24.3 Restrict/Lift Flow | 3.12.5 Admin User Management | Manual moderation actions |
 

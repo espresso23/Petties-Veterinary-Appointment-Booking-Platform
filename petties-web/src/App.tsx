@@ -31,6 +31,7 @@ import { ClinicApprovalPage, ClinicRegistryPage } from './pages/admin/clinics'
 import { ReportsPage as AdminReportsPage } from './pages/admin/ReportsPage'
 import { AdminRefundApplicationsPage } from './pages/admin/refunds/AdminRefundApplicationsPage'
 import AdminNotificationsManagePage from './pages/admin/AdminNotificationsManagePage'
+import AdminUsersPage from './pages/admin/AdminUsersPage'
 import { AdminVoucherPage } from './pages/admin/vouchers/AdminVoucherPage'
 import { SubscriptionListPage as AdminSubscriptionListPage, UserSubscriptionHistoryPage as AdminSubscriptionHistoryPage } from './pages/admin/subscriptions'
 
@@ -118,6 +119,7 @@ function App() {
             <Route path="ai-insights" element={<AIInsightsPage />} />
             <Route path="clinics" element={<ClinicApprovalPage />} />
             <Route path="clinics/registry" element={<ClinicRegistryPage />} />
+            <Route path="users" element={<AdminUsersPage />} />
             <Route path="reports" element={<AdminReportsPage />} />
             <Route path="refunds" element={<AdminRefundApplicationsPage />} />
             <Route path="vouchers" element={<AdminVoucherPage />} />
