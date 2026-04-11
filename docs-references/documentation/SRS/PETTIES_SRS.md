@@ -8,8 +8,8 @@
 
 **Project:** Petties - Veterinary Appointment Booking Platform
 
-**Version:** 2.3.9 (Aligned documentation baseline with approved 20-module checklist)
-**Last Updated:** 2026-03-25
+**Version:** 2.4.0 (Added Admin User Management requirement scope)
+**Last Updated:** 2026-04-09
 **Document Status:** In Progress
 
 
@@ -8512,6 +8512,63 @@ Figure 44. Screen Platform Violation Reporting (Mobile)
 - **Purpose:** Content management for site-wide legal text.
 
 - **Interface:** Rich text editor.
+
+
+ #### *3.12.5 Admin User Management (UC-AD-10)*
+
+**Function trigger:**
+- **Navigation path:** Admin Dashboard -> Users (`/admin/users`).
+- **Timing Frequency:** On demand, primarily during moderation and governance operations.
+
+**Function description:**
+- **Actors/Roles:** Admin.
+- **Purpose:** Quản lý danh sách người dùng toàn nền tảng, lọc dữ liệu vận hành, và áp dụng hoặc gỡ hạn chế thủ công khi có vi phạm.
+- **Interface:**
+  - Bảng danh sách user với các cột: userId, username, fullName, email, role, createdAt, trạng thái hạn chế.
+  - Bộ lọc: vai trò, trạng thái hạn chế (`ALL`, `ACTIVE`, `NONE`, `PERMANENT`), từ khóa tìm kiếm.
+  - Điều khiển phân trang.
+  - Nút thao tác theo từng dòng: `Hạn chế` và `Gỡ hạn chế`.
+  - Modal nhập lý do hạn chế và chọn kiểu hạn chế (tạm thời hoặc vĩnh viễn).
+- **Data processing:**
+  1. Admin mở trang quản lý user, hệ thống tải danh sách theo filter mặc định.
+  2. Khi admin thay đổi filter/search/page, UI gửi request mới đến API `/admin/users`.
+  3. Hệ thống trả danh sách có thông tin strike để xác định trạng thái hạn chế.
+  4. Khi admin chọn `Hạn chế`, hệ thống validate lý do và tham số hạn chế, sau đó gọi endpoint hạn chế.
+  5. Khi admin chọn `Gỡ hạn chế`, hệ thống yêu cầu xác nhận rồi gọi endpoint gỡ hạn chế.
+  6. Sau thao tác thành công, danh sách được tải lại và hiển thị trạng thái mới.
+
+**Screen layout:** *(Add screen UI here - Admin Users Registry page with filter row, table, action modal, confirmation modal)*
+
+**Function details:**
+- **Data:**
+  - `GET /admin/users`:
+    - Query: `role`, `search`, `createdFrom`, `createdTo`, `strikeStatus`, `page`, `size`.
+    - Response: `Page<AdminUserSummaryResponse>` có `strikeUntil`.
+  - `POST /admin/users/{userId}/restrict`:
+    - Body: `reason`, `isPermanent`, `days`.
+  - `POST /admin/users/{userId}/lift-strike`:
+    - Body: rỗng.
+- **Validation:**
+  - Chỉ `ADMIN` được truy cập các endpoint quản lý user cấp nền tảng.
+  - `reason` khi hạn chế phải đủ độ dài tối thiểu.
+  - Không cho phép hạn chế user đã bị hạn chế vĩnh viễn nếu chưa gỡ hạn chế.
+  - Không cho phép gỡ hạn chế khi user không có hạn chế còn hiệu lực.
+- **Business rules:**
+  - Trạng thái hạn chế được suy ra từ `strikeUntil`:
+    - `null` -> `NONE`
+    - `> now` -> `ACTIVE`
+    - mốc `9999-12-31T23:59` -> `PERMANENT`
+  - Hạn chế thủ công không thay đổi role của user.
+  - Toàn bộ thông báo lỗi trả về client phải bằng tiếng Việt.
+- **Normal case:**
+  1. Admin lọc theo `STAFF` và `ACTIVE`, xem danh sách kết quả.
+  2. Admin hạn chế tạm thời user vi phạm với lý do hợp lệ.
+  3. Hệ thống cập nhật `strikeUntil`, trả thành công, UI reload đúng dữ liệu.
+- **Abnormal case:**
+  - Thiếu lý do hoặc dữ liệu không hợp lệ -> trả lỗi validation tiếng Việt.
+  - User không tồn tại -> trả lỗi không tìm thấy.
+  - Gỡ hạn chế khi không có hạn chế đang hiệu lực -> trả lỗi nghiệp vụ tiếng Việt.
+  - Lỗi hệ thống hoặc timeout -> UI hiển thị toast lỗi và giữ trạng thái form để admin thử lại.
 
 
 
