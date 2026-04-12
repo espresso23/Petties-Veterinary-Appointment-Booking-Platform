@@ -38,8 +38,7 @@ class DocumentResponse(BaseModel):
     file_type: Optional[str] = None
     file_size: Optional[int] = None
     processed: bool = False
-    vector_count: int = 0  # Text vectors
-    image_count: int = 0  # Image vectors (from PDF)
+    vector_count: int = 0
     uploaded_by: Optional[str] = None
     notes: Optional[str] = None
     uploaded_at: Optional[datetime] = None
@@ -103,8 +102,7 @@ class ProcessDocumentResponse(BaseModel):
     success: bool
     message: str
     document_id: int
-    chunks_created: int  # Text vectors
-    images_indexed: int = 0  # Image vectors (from PDF)
+    chunks_created: int
     processing_time_ms: int
 
 
@@ -165,73 +163,6 @@ class KnowledgeBaseStatusResponse(BaseModel):
     processed_documents: int
     pending_documents: int
     total_vectors: int
-    total_image_vectors: int = 0
     storage_size_bytes: int
     last_updated: Optional[datetime] = None
-    qdrant_info: Optional[Dict[str, Any]] = None  # Qdrant collection stats
-
-
-# ===== Knowledge Graph Query Schemas =====
-
-
-class KGQueryRequest(BaseModel):
-    """Knowledge Graph query request"""
-
-    query: str = Field(..., min_length=2, max_length=500)
-    top_k: int = Field(5, ge=1, le=20)
-
-
-class KGQueryResultItem(BaseModel):
-    """Single result item from KG query"""
-
-    subject: str
-    predicate: str
-    object: str
-    score: float = 1.0
-    source_nodes: List[str] = []
-
-
-class KGQueryResponse(BaseModel):
-    """Knowledge Graph query response"""
-
-    success: bool
-    query: str
-    results: List[KGQueryResultItem]
-    message: Optional[str] = None
-
-
-# ===== Hybrid Search Schemas =====
-
-
-class HybridQueryRequest(BaseModel):
-    """Hybrid query request (text + image search)"""
-
-    query: str = Field(..., min_length=2, max_length=500)
-    image_urls: Optional[List[str]] = Field(
-        default=None, description="Image URLs for image search"
-    )
-    top_k: int = Field(5, ge=1, le=20)
-    min_score: float = Field(0.5, ge=0.0, le=1.0)
-
-
-class ImageSearchResult(BaseModel):
-    """Image search result"""
-
-    document_id: int
-    filename: str
-    image_id: str
-    score: float
-    payload: Optional[Dict[str, Any]] = None
-
-
-class HybridQueryResponse(BaseModel):
-    """Hybrid query response"""
-
-    success: bool
-    query: str
-    text_results: List[RetrievedChunk]
-    image_results: List[ImageSearchResult]
-    has_image_query: bool
-    total_text_results: int
-    total_image_results: int
-    retrieval_time_ms: int
+    qdrant_info: Optional[Dict[str, Any]] = None

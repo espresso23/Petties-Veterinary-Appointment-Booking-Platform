@@ -173,7 +173,6 @@ class KnowledgeDocument(Base):
     # Processing status
     processed = Column(Boolean, default=False)
     vector_count = Column(Integer, default=0)  # Text vectors
-    image_count = Column(Integer, default=0)  # Image vectors from PDF
 
     # Metadata
     uploaded_by = Column(String(100))
@@ -195,7 +194,6 @@ class DiseaseCatalog(Base):
 
     Purpose:
     - Keep one canonical disease code shared by KB, KG, EMR and vision outputs
-    - Attach protocol metadata for doctor diagnosis flow
     """
 
     __tablename__ = "disease_catalog"
@@ -204,8 +202,6 @@ class DiseaseCatalog(Base):
     canonical_code = Column(String(100), unique=True, nullable=False, index=True)
     display_name_vi = Column(String(255), nullable=False)
     species = Column(String(50), default="all", nullable=False)
-    body_system = Column(String(100))
-    protocol_key = Column(String(100))
     is_active = Column(Boolean, default=True, nullable=False)
     notes = Column(Text)
 
@@ -230,7 +226,7 @@ class DiseaseAlias(Base):
 
     Purpose:
     - Store per-source aliases that map back to one canonical disease code
-    - Support DB-backed review and expansion without code deploy
+    - Support autonomous alias learning without changing code
     """
 
     __tablename__ = "disease_aliases"
@@ -254,7 +250,6 @@ class DiseaseAlias(Base):
     alias_text = Column(String(255), nullable=False)
     normalized_alias = Column(String(255), nullable=False, index=True)
     species = Column(String(50), default="all", nullable=False)
-    review_status = Column(String(50), default="approved", nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -271,46 +266,6 @@ class DiseaseAlias(Base):
         )
 
 
-class DiseaseMappingReviewItem(Base):
-    """
-    Queue for unmapped diagnosis labels that need review.
-
-    Purpose:
-    - Persist labels from EMR/vision that cannot be mapped yet
-    - Avoid silent skips during EMR -> case memory sync
-    """
-
-    __tablename__ = "disease_mapping_review_items"
-    __table_args__ = (
-        UniqueConstraint(
-            "source_type",
-            "normalized_label",
-            "species",
-            name="uq_disease_mapping_review_source_normalized_species",
-        ),
-    )
-
-    id = Column(Integer, primary_key=True, index=True)
-    raw_label = Column(String(255), nullable=False)
-    normalized_label = Column(String(255), nullable=False, index=True)
-    source_type = Column(String(50), nullable=False, index=True)
-    species = Column(String(50), default="all", nullable=False)
-    status = Column(String(50), default="pending", nullable=False)
-    hit_count = Column(Integer, default=1, nullable=False)
-    sample_payload = Column(JSON)
-
-    first_seen_at = Column(DateTime(timezone=True), server_default=func.now())
-    last_seen_at = Column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
-    )
-
-    def __repr__(self):
-        return (
-            f"<DiseaseMappingReviewItem(raw_label={self.raw_label}, "
-            f"source={self.source_type}, species={self.species})>"
-        )
-
-
 # ===== SYSTEM SETTINGS TABLE =====
 class SettingCategory(str, enum.Enum):
     """Setting categories for admin dashboard"""
@@ -321,6 +276,25 @@ class SettingCategory(str, enum.Enum):
     VECTOR_DB = "vector_db"  # Qdrant settings
     GENERAL = "general"  # General settings
     WEB_SEARCH = "web_search"  # Web search (Tavily)
+
+
+def normalize_setting_category(value) -> SettingCategory:
+    """Normalize string or enum input to SettingCategory."""
+
+    if isinstance(value, SettingCategory):
+        return value
+
+    text = str(value or "").strip()
+    if not text:
+        return SettingCategory.GENERAL
+
+    try:
+        return SettingCategory(text.lower())
+    except ValueError:
+        try:
+            return SettingCategory[text.upper()]
+        except KeyError as exc:
+            raise ValueError(f"Unsupported setting category: {value}") from exc
 
 
 class SystemSetting(Base):

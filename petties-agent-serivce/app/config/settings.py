@@ -151,10 +151,6 @@ class Settings(BaseSettings):
         default="chat_feedback",
         description="Collection name cho user feedback (thumbs up/down)",
     )
-    MONGODB_KG_TRIPLETS_COLLECTION: str = Field(
-        default="knowledge_graph_triplets",
-        description="Collection name cho Knowledge Graph triplets (MongoDB)",
-    )
 
     # ==================== AI/LLM Configuration ====================
     LLM_PROVIDER: str = Field(

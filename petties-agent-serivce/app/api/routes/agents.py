@@ -157,6 +157,11 @@ async def update_agent(
         await db.commit()
         await db.refresh(agent)
 
+        # Invalidate agent cache so next request picks up new config
+        from app.core.agents.factory import AgentFactory
+
+        AgentFactory.clear_cache()
+
         return UpdateAgentResponse(
             success=True,
             message=f"Agent '{agent.name}' updated successfully",

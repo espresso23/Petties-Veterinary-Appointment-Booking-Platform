@@ -17,7 +17,6 @@ class AiChatMessageAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
     return Container(
       width: 34,
       height: 34,
@@ -47,7 +46,6 @@ class AiBookingMetaPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
@@ -130,7 +128,7 @@ class AiBookingReadyBanner extends StatelessWidget {
           SizedBox(width: 8),
           Expanded(
             child: Text(
-              'AI đã tổng hợp đủ thông tin để bạn xác nhận đặt lịch ngay trong đoạn chat này.',
+              'AI đã chuẩn bị đủ thông tin để mở màn xác nhận đặt lịch chuẩn.',
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
@@ -146,7 +144,14 @@ class AiBookingReadyBanner extends StatelessWidget {
 }
 
 class AiChatLoadingHero extends StatefulWidget {
-  const AiChatLoadingHero({super.key});
+  final Color backgroundColor;
+  final Color iconColor;
+
+  const AiChatLoadingHero({
+    super.key,
+    this.backgroundColor = AppColors.primarySurface,
+    this.iconColor = AppColors.primary,
+  });
 
   @override
   State<AiChatLoadingHero> createState() => _AiChatLoadingHeroState();
@@ -184,16 +189,16 @@ class _AiChatLoadingHeroState extends State<AiChatLoadingHero>
             width: 72,
             height: 72,
             decoration: BoxDecoration(
-              color: AppColors.primarySurface,
+              color: widget.backgroundColor,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: AppColors.stone900, width: 2),
               boxShadow: const [
                 BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
               ],
             ),
-            child: const Icon(
+            child: Icon(
               Icons.auto_awesome,
-              color: AppColors.primary,
+              color: widget.iconColor,
               size: 34,
             ),
           ),
@@ -341,7 +346,7 @@ class AiChatTracePanel extends StatelessWidget {
         collapsedIconColor: AppColors.stone500,
         iconColor: AppColors.stone700,
         title: const Text(
-          'Chi tiết xử lý',
+          'Diễn giải suy luận',
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w700,
@@ -353,16 +358,17 @@ class AiChatTracePanel extends StatelessWidget {
             return const SizedBox.shrink();
           }
 
-          final rawStepType =
-              step['step_type']?.toString() ?? step['type']?.toString() ?? 'step';
+          final rawStepType = step['step_type']?.toString() ??
+              step['type']?.toString() ??
+              'step';
           final stepType = rawStepType.toLowerCase();
           final content = step['content']?.toString() ?? '';
           final toolName = step['tool_name']?.toString();
 
           var label = rawStepType.toUpperCase();
-          if (stepType == 'thought') label = 'SUY LUẬN';
-          if (stepType == 'action') label = 'GỌI CÔNG CỤ';
-          if (stepType == 'observation') label = 'NHẬN KẾT QUẢ';
+          if (stepType == 'thought') label = 'NHẬN ĐỊNH';
+          if (stepType == 'action') label = 'HÀNH ĐỘNG';
+          if (stepType == 'observation') label = 'TỔNG HỢP';
 
           return Container(
             width: double.infinity,
@@ -420,8 +426,10 @@ class AiChatThinkingBubble extends StatelessWidget {
   final List<Map<String, dynamic>> trace;
   final bool isExpanded;
   final VoidCallback? onToggleExpanded;
-  final String? Function(String? toolName, dynamic result)?
-      summarizeToolResult;
+  final String? Function(String? toolName, dynamic result)? summarizeToolResult;
+  final IconData avatarIcon;
+  final Color avatarBackgroundColor;
+  final Color avatarIconColor;
 
   const AiChatThinkingBubble({
     super.key,
@@ -430,6 +438,9 @@ class AiChatThinkingBubble extends StatelessWidget {
     required this.isExpanded,
     required this.onToggleExpanded,
     this.summarizeToolResult,
+    this.avatarIcon = Icons.smart_toy_outlined,
+    this.avatarBackgroundColor = AppColors.primarySurface,
+    this.avatarIconColor = AppColors.primary,
   });
 
   @override
@@ -437,16 +448,20 @@ class AiChatThinkingBubble extends StatelessWidget {
     final canExpand = trace.isNotEmpty;
     final width = MediaQuery.of(context).size.width;
 
+    String cleanLabel = label;
+    cleanLabel = cleanLabel.replaceAll(RegExp(r'\n?\{"location":[^}]+\}'), '');
+    cleanLabel = cleanLabel.replaceAll(RegExp(r'\n?\{"ui_action":[^}]+\}'), '');
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          const AiChatMessageAvatar(
-            icon: Icons.smart_toy_outlined,
-            backgroundColor: AppColors.primarySurface,
-            iconColor: AppColors.primary,
+          AiChatMessageAvatar(
+            icon: avatarIcon,
+            backgroundColor: avatarBackgroundColor,
+            iconColor: avatarIconColor,
           ),
           const SizedBox(width: 10),
           Flexible(
@@ -485,10 +500,10 @@ class AiChatThinkingBubble extends StatelessWidget {
                         AiChatTypingDots(),
                       ],
                     ),
-                    if (label.trim().isNotEmpty) ...[
+                    if (cleanLabel.trim().isNotEmpty) ...[
                       const SizedBox(height: 6),
                       Text(
-                        label.trim(),
+                        cleanLabel.trim(),
                         style: const TextStyle(
                           fontSize: 12,
                           height: 1.45,
@@ -508,9 +523,7 @@ class AiChatThinkingBubble extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                isExpanded
-                                    ? 'ẨN CHI TIẾT'
-                                    : 'XEM CHI TIẾT',
+                                isExpanded ? 'ẨN SUY LUẬN' : 'XEM SUY LUẬN',
                                 style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w800,
@@ -686,59 +699,80 @@ class AiClinicSuggestionCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    if (clinic.distanceKm != null) ...[
-                      const Icon(
-                        Icons.location_on,
-                        size: 14,
-                        color: AppColors.primary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${clinic.distanceKm!.toStringAsFixed(1)} km',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                if (clinic.distanceKm != null || clinic.rating != null)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (clinic.distanceKm != null) ...[
+                        const Icon(
+                          Icons.location_on,
+                          size: 14,
                           color: AppColors.primary,
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                    ],
-                    if (clinic.rating != null) ...[
-                      const Icon(
-                        Icons.star,
-                        size: 14,
-                        color: Color(0xFFFBBF24),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${clinic.rating!.toStringAsFixed(1)} (${clinic.totalReviews ?? 0})',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.stone700,
+                        const SizedBox(width: 4),
+                        Text(
+                          '${clinic.distanceKm!.toStringAsFixed(1)} km',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primary,
+                          ),
                         ),
-                      ),
+                        if (clinic.rating != null) const SizedBox(width: 12),
+                      ],
+                      if (clinic.rating != null) ...[
+                        const Icon(
+                          Icons.star,
+                          size: 14,
+                          color: Color(0xFFFBBF24),
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            '${clinic.rating!.toStringAsFixed(1)} (${clinic.totalReviews ?? 0})',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.stone700,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ],
-                    if (clinic.operatingHours != null) ...[
-                      const SizedBox(width: 12),
-                      const Icon(
-                        Icons.access_time,
-                        size: 14,
-                        color: AppColors.stone500,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        clinic.operatingHours!,
-                        style: const TextStyle(
-                          fontSize: 12,
+                  ),
+                if (clinic.operatingHours != null &&
+                    clinic.operatingHours!.trim().isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Icon(
+                          Icons.access_time,
+                          size: 14,
                           color: AppColors.stone500,
                         ),
                       ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          clinic.operatingHours!,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.stone500,
+                            height: 1.35,
+                          ),
+                          maxLines: 5,
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: true,
+                        ),
+                      ),
                     ],
-                  ],
-                ),
+                  ),
+                ],
                 if (clinic.reasonMatched != null &&
                     clinic.reasonMatched!.trim().isNotEmpty) ...[
                   const SizedBox(height: 8),
@@ -850,8 +884,7 @@ class AiClinicSuggestionCard extends StatelessWidget {
 
 class _AiChatInlineThinkingTrace extends StatelessWidget {
   final List<Map<String, dynamic>> trace;
-  final String? Function(String? toolName, dynamic result)?
-      summarizeToolResult;
+  final String? Function(String? toolName, dynamic result)? summarizeToolResult;
 
   const _AiChatInlineThinkingTrace({
     required this.trace,
@@ -876,7 +909,11 @@ class _AiChatInlineThinkingTrace extends StatelessWidget {
         children: steps.map((step) {
           final stepType = (step['step_type']?.toString() ?? '').toLowerCase();
           final toolName = step['tool_name']?.toString();
-          final content = step['content']?.toString() ?? '';
+          String content = step['content']?.toString() ?? '';
+
+          content = content.replaceAll(RegExp(r'\n?\{"location":[^}]+\}'), '');
+          content = content.replaceAll(RegExp(r'\n?\{"ui_action":[^}]+\}'), '');
+
           final result = step['tool_result'];
 
           var icon = Icons.bolt;
@@ -922,7 +959,7 @@ class _AiChatInlineThinkingTrace extends StatelessWidget {
                       if (hasDetail) ...[
                         const SizedBox(height: 2),
                         Text(
-                          detail!,
+                          detail,
                           style: const TextStyle(
                             fontSize: 11,
                             height: 1.35,
@@ -942,4 +979,3 @@ class _AiChatInlineThinkingTrace extends StatelessWidget {
     );
   }
 }
-

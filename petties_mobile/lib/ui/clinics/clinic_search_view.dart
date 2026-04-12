@@ -821,7 +821,7 @@ class _ClinicSearchViewState extends State<ClinicSearchView>
                         ),
                         const SizedBox(height: 12),
                         const Text(
-                          'ĐÃ HIỂN THỊ TẤT CẢ',
+                          'Đà HIỂN THỊ TẤT CẢ',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,

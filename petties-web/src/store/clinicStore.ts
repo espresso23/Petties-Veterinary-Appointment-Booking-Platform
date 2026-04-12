@@ -11,6 +11,7 @@ interface ClinicState {
   // State
   clinics: ClinicResponse[]
   currentClinic: ClinicResponse | null
+  selectedClinicId: string | null
   totalElements: number
   totalPages: number
   currentPage: number
@@ -28,6 +29,7 @@ interface ClinicState {
   deleteClinic: (clinicId: string) => Promise<void>
   searchClinics: (name: string) => Promise<void>
   getMyClinics: () => Promise<void>
+  setSelectedClinicId: (clinicId: string | null) => void
   approveClinic: (clinicId: string) => Promise<void>
   rejectClinic: (clinicId: string, reason: string) => Promise<void>
   fetchPendingCount: () => Promise<void>
@@ -40,6 +42,7 @@ interface ClinicState {
 const initialState = {
   clinics: [],
   currentClinic: null,
+  selectedClinicId: null,
   totalElements: 0,
   totalPages: 0,
   currentPage: 0,
@@ -168,11 +171,15 @@ export const useClinicStore = create<ClinicState>((set, get) => ({
     set({ isLoading: true, error: null })
     try {
       const response = await clinicService.getMyClinics(get().currentPage, get().pageSize)
+      const newClinics = response.content
+      const currentSelected = get().selectedClinicId
+      const stillExists = newClinics.some(c => c.clinicId === currentSelected)
       set({
-        clinics: response.content,
+        clinics: newClinics,
         totalElements: response.totalElements,
         totalPages: response.totalPages,
         currentPage: response.number,
+        selectedClinicId: stillExists ? currentSelected : (newClinics.length > 0 ? newClinics[0].clinicId : null),
         isLoading: false,
       })
     } catch (error: unknown) {
@@ -184,6 +191,10 @@ export const useClinicStore = create<ClinicState>((set, get) => ({
         isLoading: false,
       })
     }
+  },
+
+  setSelectedClinicId: (clinicId: string | null) => {
+    set({ selectedClinicId: clinicId })
   },
 
   approveClinic: async (clinicId: string) => {
@@ -240,7 +251,7 @@ export const useClinicStore = create<ClinicState>((set, get) => ({
   },
 
   reset: () => {
-    set(initialState)
+    set({ ...initialState, selectedClinicId: null })
   },
 }))
 

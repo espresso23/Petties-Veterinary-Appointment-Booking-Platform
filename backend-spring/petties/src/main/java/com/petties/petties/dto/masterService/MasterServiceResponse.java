@@ -22,7 +22,6 @@ public class MasterServiceResponse {
     private Integer durationTime;
     private Integer slotsRequired;
     private Boolean isHomeVisit;
-    private BigDecimal defaultPricePerKm;
     private String serviceCategory;
     private String petType;
     private String icon;

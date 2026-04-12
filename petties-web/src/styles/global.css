@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
-/* Spotlight Modal Animations */
+/* Mascot Panel Animations */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -14,11 +14,11 @@
 @keyframes scaleIn {
   from {
     opacity: 0;
-    transform: translate(-50%, 10px) scale(0.95);
+    transform: translateY(12px) scale(0.96);
   }
   to {
     opacity: 1;
-    transform: translate(-50%, 0) scale(1);
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -43,6 +43,42 @@
 
 .animate-slideUp {
   animation: slideUp 0.2s ease-out forwards;
+}
+
+@keyframes aiWaterfallBar {
+  0% {
+    transform: translateY(60%) scaleY(0.45);
+    opacity: 0.3;
+  }
+  50% {
+    transform: translateY(0) scaleY(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(18%) scaleY(0.72);
+    opacity: 0.65;
+  }
+}
+
+@keyframes aiWaterfallCard {
+  0% {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.ai-waterfall-bar {
+  height: 100%;
+  transform-origin: bottom;
+  animation: aiWaterfallBar 1.15s ease-in-out infinite alternate;
+}
+
+.ai-waterfall-card {
+  animation: aiWaterfallCard 0.45s ease-out both;
 }
 
 @layer base {

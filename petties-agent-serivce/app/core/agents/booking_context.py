@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from datetime import date as date_cls, datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from app.core.agents.text_utils import normalize_vietnamese_text
 
@@ -234,7 +234,7 @@ def resolve_booking_datetime_inputs(
 def parse_conditional_intent(
     user_message: str,
     transcript: Optional[str] = None,
-) -> Optional[Dict[str, any]]:
+) -> Optional[Dict[str, Any]]:
     """Parse 'nếu...thì...' conditional intents from user message.
 
     Returns dict with:

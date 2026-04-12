@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, status
 from loguru import logger
 
 from app.api.schemas.internal_case_memory_schemas import (

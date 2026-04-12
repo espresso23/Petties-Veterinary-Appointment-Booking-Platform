@@ -1,21 +1,20 @@
 """
 PETTIES AI SERVICE - Hybrid RAG Engine
 
-Kết hợp 3 nguồn tri thức:
+Kết hợp 2 nguồn tri thức:
     1. RAG (Qdrant petties_knowledge_base) - tài liệu thú y
-    2. Knowledge Graph (SimpleGraphStore) - suy luận chuỗi
-    3. Case Memory (Qdrant petties_case_memory) - case đã xác nhận
+    2. Case Memory (Qdrant petties_case_memory) - case đã xác nhận
 
 Trước khi search, query được mở rộng bởi QueryExpander (nếu ngắn).
 
 Package: app.core.rag
-Purpose: Unified query interface merging RAG + KG + Case Memory
-Version: v1.0.0
+Purpose: Unified query interface merging RAG + Case Memory
+Version: v2.0.0 (KG removed)
 
 Flow:
     User query
     -> QueryExpander (nếu ngắn)
-    -> Song song: [RAG search, KG query, CaseMemory search]
+    -> Song song: [RAG search, CaseMemory search]
     -> Gộp & sắp xếp lại
     -> Trả về HybridResult
 """
@@ -23,6 +22,7 @@ Flow:
 from __future__ import annotations
 
 import asyncio
+import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -38,7 +38,6 @@ DEFAULT_MIN_SCORE = 0.5
 
 # Trọng số khi gộp kết quả từ các nguồn khác nhau
 RAG_WEIGHT = 1.0
-KG_WEIGHT = 0.8
 CASE_MEMORY_WEIGHT = 1.2  # Case Memory với feedback boost được ưu tiên cao hơn
 
 
@@ -53,18 +52,19 @@ class HybridChunk:
 
     content: str
     score: float
-    source: str  # "rag", "kg", "case_memory"
+    source: str  # "rag", "case_memory"
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class HybridResult:
-    """Kết quả tổng hợp từ hybrid RAG + KG + Case Memory search."""
+    """Kết quả tổng hợp từ hybrid RAG + Case Memory search."""
 
     chunks: List[HybridChunk]
     expanded_query: str
     original_query: str
-    sources_used: Dict[str, int]  # {"rag": 3, "kg": 1, "case_memory": 2}
+    sources_used: Dict[str, int]  # {"rag": 3, "case_memory": 2}
+    timings_ms: Dict[str, int] = field(default_factory=dict)
 
 
 # ============================================================
@@ -74,11 +74,11 @@ class HybridResult:
 
 class HybridRAGEngine:
     """
-    Giao diện truy vấn thống nhất kết hợp RAG, Knowledge Graph và Case Memory.
+    Giao diện truy vấn thống nhất kết hợp RAG và Case Memory.
 
     Pipeline:
         1. QueryExpander: mở rộng query ngắn với từ đồng nghĩa + thuật ngữ y khoa
-        2. Tìm kiếm song song qua 3 nguồn
+        2. Tìm kiếm song song qua 2 nguồn
         3. Gộp, chuẩn hóa điểm, và sắp xếp lại
         4. Trả về HybridResult thống nhất
 
@@ -95,7 +95,6 @@ class HybridRAGEngine:
         """Initialize the hybrid engine."""
         if HybridRAGEngine._initialized:
             return
-        # Initialization logic (if any)
         HybridRAGEngine._initialized = True
 
     # ----------------------------------------------------------
@@ -110,8 +109,8 @@ class HybridRAGEngine:
         image_urls: Optional[List[str]] = None,
         pet_type: Optional[str] = None,
         enable_rag: bool = True,
-        enable_kg: bool = True,
         enable_case_memory: bool = True,
+        enable_query_expansion: bool = True,
     ) -> HybridResult:
         """
         Thực hiện truy vấn hybrid qua tất cả các nguồn tri thức.
@@ -122,33 +121,45 @@ class HybridRAGEngine:
             min_score: Ngưỡng similarity tối thiểu (cho RAG & Case Memory).
             pet_type: Gợi ý loài vật (tùy chọn) cho query expansion.
             enable_rag: Có tìm kiếm RAG knowledge base không.
-            enable_kg: Có truy vấn Knowledge Graph không.
             enable_case_memory: Có tìm kiếm Case Memory không.
 
         Returns:
             HybridResult với các chunks đã gộp & sắp xếp lại.
         """
         original_query = query.strip()
+        total_started = time.perf_counter()
+        timings_ms: Dict[str, int] = {}
 
         # Step 1: Query Expansion
-        expanded_query = await self._expand(original_query, pet_type)
+        expand_started = time.perf_counter()
+        if enable_query_expansion:
+            expanded_query = await self._expand(original_query, pet_type)
+        else:
+            expanded_query = original_query
+        timings_ms["query_expansion"] = int(
+            (time.perf_counter() - expand_started) * 1000
+        )
 
         # Step 2: Parallel search across sources
         tasks = []
         source_labels = []
 
         if enable_rag:
-            tasks.append(self._search_rag(expanded_query, top_k, min_score))
+            tasks.append(
+                self._timed_source_call(
+                    "rag",
+                    self._search_rag(expanded_query, top_k, min_score),
+                )
+            )
             source_labels.append("rag")
-
-        if enable_kg:
-            tasks.append(self._search_kg(expanded_query, top_k))
-            source_labels.append("kg")
 
         if enable_case_memory:
             tasks.append(
-                self._search_case_memory(
-                    expanded_query, top_k, min_score, image_urls=image_urls
+                self._timed_source_call(
+                    "case_memory",
+                    self._search_case_memory(
+                        expanded_query, top_k, min_score, image_urls=image_urls
+                    ),
                 )
             )
             source_labels.append("case_memory")
@@ -159,6 +170,7 @@ class HybridRAGEngine:
                 expanded_query=expanded_query,
                 original_query=original_query,
                 sources_used={},
+                timings_ms=timings_ms,
             )
 
         # Execute in parallel
@@ -173,9 +185,15 @@ class HybridRAGEngine:
                 logger.warning(f"Hybrid search source '{label}' failed: {result}")
                 sources_used[label] = 0
                 continue
-            if isinstance(result, list):
-                sources_used[label] = len(result)
-                all_chunks.extend(result)
+            if isinstance(result, tuple) and len(result) == 2:
+                raw_items, duration_ms = result
+                timings_ms[label] = int(duration_ms)
+            else:
+                raw_items = result
+
+            if isinstance(raw_items, list):
+                sources_used[label] = len(raw_items)
+                all_chunks.extend(raw_items)
             else:
                 sources_used[label] = 0
 
@@ -186,7 +204,6 @@ class HybridRAGEngine:
         seen_contents = {}
         unique_chunks = []
         for chunk in all_chunks:
-            # Use content as key for basic deduplication
             content_key = chunk.content.strip()
             if content_key not in seen_contents:
                 seen_contents[content_key] = True
@@ -197,15 +214,28 @@ class HybridRAGEngine:
 
         logger.info(
             f"Hybrid query '{original_query[:50]}...' "
-            f"-> {len(unique_chunks)} results from {sources_used}"
+            f"-> {len(unique_chunks)} results from {sources_used} in "
+            f"{int((time.perf_counter() - total_started) * 1000)}ms"
         )
+
+        timings_ms["total"] = int((time.perf_counter() - total_started) * 1000)
 
         return HybridResult(
             chunks=unique_chunks,
             expanded_query=expanded_query,
             original_query=original_query,
             sources_used=sources_used,
+            timings_ms=timings_ms,
         )
+
+    async def _timed_source_call(
+        self, label: str, coro
+    ) -> tuple[List[HybridChunk], int]:
+        started = time.perf_counter()
+        result = await coro
+        duration_ms = int((time.perf_counter() - started) * 1000)
+        logger.info("Hybrid source '{}' completed in {}ms", label, duration_ms)
+        return result, duration_ms
 
     # ----------------------------------------------------------
     # Nội bộ: Mở rộng truy vấn
@@ -254,36 +284,6 @@ class HybridRAGEngine:
             return []
 
     # ----------------------------------------------------------
-    # Nội bộ: Truy vấn Knowledge Graph
-    # ----------------------------------------------------------
-
-    async def _search_kg(self, query: str, top_k: int) -> List[HybridChunk]:
-        """Truy vấn Knowledge Graph để tìm quan hệ có cấu trúc."""
-        try:
-            from app.core.rag.knowledge_graph import get_knowledge_graph_service
-
-            kg = get_knowledge_graph_service()
-            results = await kg.query_graph(query, top_k=top_k)
-
-            return [
-                HybridChunk(
-                    content=r.content,
-                    score=r.score * KG_WEIGHT,
-                    source="kg",
-                    metadata={
-                        "source_nodes": r.source_nodes,
-                        "triplets_used": [list(t) for t in r.triplets_used]
-                        if r.triplets_used
-                        else [],
-                    },
-                )
-                for r in results
-            ]
-        except Exception as e:
-            logger.warning(f"KG query failed: {e}")
-            return []
-
-    # ----------------------------------------------------------
     # Nội bộ: Tìm kiếm Case Memory
     # ----------------------------------------------------------
 
@@ -294,7 +294,7 @@ class HybridRAGEngine:
         min_score: float,
         image_urls: Optional[List[str]] = None,
     ) -> List[HybridChunk]:
-        """Tìm kiếm Case Memory cho các case đã xác nhận với feedback-weighted scoring."""
+        """Tìm kiếm Case Memory cho các case đã xác nhận với quality-gated scoring."""
         try:
             from app.core.rag.case_memory import get_case_memory_service
 
@@ -313,7 +313,6 @@ class HybridRAGEngine:
                     source="case_memory",
                     metadata={
                         "case_id": r.case_id,
-                        "confirmation_count": r.payload.get("confirmation_count", 0),
                         "species": r.payload.get("species", ""),
                     },
                 )

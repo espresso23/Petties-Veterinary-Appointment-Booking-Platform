@@ -586,14 +586,16 @@ class _BookingSelectServicesScreenState
                 decoration: BoxDecoration(
                   color: AppColors.blue100.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.blue600.withValues(alpha: 0.3)),
+                  border: Border.all(
+                      color: AppColors.blue600.withValues(alpha: 0.3)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.vaccines, size: 14, color: AppColors.blue600),
+                        const Icon(Icons.vaccines,
+                            size: 14, color: AppColors.blue600),
                         const SizedBox(width: 4),
                         Text(
                           'Giá theo mũi tiêm',
@@ -607,28 +609,28 @@ class _BookingSelectServicesScreenState
                     ),
                     const SizedBox(height: 6),
                     ...service.dosePrices.map((dp) => Padding(
-                      padding: const EdgeInsets.only(bottom: 2),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            dp.doseLabel,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: AppColors.blue600,
-                            ),
+                          padding: const EdgeInsets.only(bottom: 2),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                dp.doseLabel,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.blue600,
+                                ),
+                              ),
+                              Text(
+                                dp.formattedPrice,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.blue600,
+                                ),
+                              ),
+                            ],
                           ),
-                          Text(
-                            dp.formattedPrice,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.blue600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )),
+                        )),
                   ],
                 ),
               ),

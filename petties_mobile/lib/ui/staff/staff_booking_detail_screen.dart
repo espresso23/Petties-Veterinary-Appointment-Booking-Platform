@@ -49,6 +49,9 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
   StreamSubscription<Position>? _positionSubscription;
   bool _isTracking = false;
   final _trackingService = trackingWebsocket;
+  DateTime? _movingStartedAt;
+  Timer? _movingTimer;
+  Duration _movingElapsed = Duration.zero;
 
   @override
   void initState() {
@@ -60,6 +63,37 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
   void dispose() {
     _stopTracking();
     super.dispose();
+  }
+
+  void _startMovingTimerIfNeeded() {
+    if (_movingTimer != null) return;
+    final startedAt = _movingStartedAt;
+    if (startedAt == null) return;
+
+    _movingTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {
+        _movingElapsed = DateTime.now().difference(startedAt);
+      });
+    });
+  }
+
+  void _stopMovingTimer({bool reset = false}) {
+    _movingTimer?.cancel();
+    _movingTimer = null;
+    if (reset) {
+      _movingStartedAt = null;
+      _movingElapsed = Duration.zero;
+    }
+  }
+
+  String _formatDuration(Duration d) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60);
+    final s = d.inSeconds.remainder(60);
+    if (h > 0) return '${two(h)}:${two(m)}:${two(s)}';
+    return '${two(m)}:${two(s)}';
   }
 
   Future<void> _fetchBookingDetail() async {
@@ -82,6 +116,10 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
         _existingEmr = emr;
         _error = null;
       });
+      // If tracking already started before, keep timer running
+      if (_isTracking && _movingStartedAt != null) {
+        _startMovingTimerIfNeeded();
+      }
       // Auto resume tracking for active SOS/HOME_VISIT bookings
       await _autoStartTrackingIfNeeded();
     } catch (e) {
@@ -212,7 +250,11 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
         await _fetchBookingDetail(); // Reload to update status in UI
       }
 
-      setState(() => _isTracking = true);
+      setState(() {
+        _isTracking = true;
+        _movingStartedAt ??= DateTime.now();
+      });
+      _startMovingTimerIfNeeded();
 
       // Set access token for WebSocket before sending any location updates
       final storage = StorageService();
@@ -273,6 +315,7 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
   void _stopTracking() {
     _positionSubscription?.cancel();
     _positionSubscription = null;
+    _stopMovingTimer(reset: false);
     if (mounted) {
       setState(() => _isTracking = false);
     }
@@ -304,6 +347,7 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
     try {
       await _bookingService.arrived(widget.bookingId);
       _stopTracking();
+      _stopMovingTimer(reset: true);
       await _fetchBookingDetail();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -352,57 +396,8 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
   }
 
   Future<void> _handleComplete() async {
-    final booking = _booking;
-    if (booking == null) return;
-
-    final isQr = booking.paymentMethod?.toUpperCase() == 'QR';
-
-    if (isQr) {
-      final confirm = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Xác nhận hoàn tất đơn'),
-          content: const Text('Bạn chắc chắn hoàn thành đơn?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Hủy'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Xác nhận'),
-            ),
-          ],
-        ),
-      );
-
-      if (confirm != true) return;
-    }
-
-    setState(() => _isActionLoading = true);
-    try {
-      await _bookingService.complete(widget.bookingId);
-      await _fetchBookingDetail();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã hoàn tất đơn thành công'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Không thể hoàn tất đơn: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isActionLoading = false);
-    }
+    // Backend đã ngừng hỗ trợ /complete, chuẩn hoá dùng /checkout cho mọi loại booking.
+    await _handleCheckout();
   }
 
   Future<void> _handleCheckout() async {
@@ -876,7 +871,17 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
                     Icons.phone, 'SĐT', _booking!.ownerPhone ?? 'N/A'),
                 if (_booking!.homeAddress != null)
                   _buildInfoRow(
-                      Icons.location_on, 'Địa chỉ', _booking!.homeAddress!),
+                    Icons.location_on,
+                    'Địa chỉ',
+                    _booking!.homeAddress!,
+                    onTap: () => _openMap(
+                      _booking!.homeLat,
+                      _booking!.homeLong,
+                      _booking!.homeAddress ?? '',
+                    ),
+                    trailing: Icon(Icons.map_outlined,
+                        size: 18, color: AppColors.stone600),
+                  ),
               ],
             ),
           ),
@@ -1251,8 +1256,8 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
   }
 
   Widget _buildInfoRow(IconData icon, String label, String value,
-      {Color? valueColor}) {
-    return Padding(
+      {Color? valueColor, VoidCallback? onTap, Widget? trailing}) {
+    final content = Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
@@ -1261,13 +1266,28 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
           Text('$label: ',
               style: TextStyle(color: AppColors.stone500, fontSize: 13)),
           Expanded(
-              child: Text(value,
-                  style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: valueColor ?? AppColors.stone900,
-                      fontSize: 13))),
+            child: Text(
+              value,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: valueColor ?? AppColors.stone900,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          if (trailing != null) ...[
+            const SizedBox(width: 8),
+            trailing,
+          ],
         ],
       ),
+    );
+
+    if (onTap == null) return content;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: content,
     );
   }
 
@@ -1337,6 +1357,85 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
     // 2. Logic for IN_PROGRESS bookings (Active care)
     else if (status == 'IN_PROGRESS') {
       final actions = <Widget>[
+        if ((_booking!.type == 'SOS' || _booking!.type == 'HOME_VISIT') &&
+            _booking!.homeAddress != null) ...[
+          _buildInfoCard(
+            title: 'Điểm đến',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildInfoRow(
+                  Icons.location_on,
+                  'Địa chỉ',
+                  _booking!.homeAddress!,
+                  onTap: () => _openMap(
+                    _booking!.homeLat,
+                    _booking!.homeLong,
+                    _booking!.homeAddress ?? '',
+                  ),
+                  trailing: Icon(Icons.map_outlined,
+                      size: 18, color: AppColors.stone600),
+                ),
+                if (_booking!.type == 'SOS' && _booking!.arrivedAt == null) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: AppColors.primarySurface,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: AppColors.primary, width: 1),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.directions_walk,
+                              size: 16,
+                              color: AppColors.primary,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _isTracking && _movingStartedAt != null
+                                  ? 'Đang di chuyển • ${_formatDuration(_movingElapsed)}'
+                                  : 'Đang di chuyển',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                                color: AppColors.stone900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Spacer(),
+                      TextButton.icon(
+                        onPressed: () => _openMap(
+                          _booking!.homeLat,
+                          _booking!.homeLong,
+                          _booking!.homeAddress ?? '',
+                        ),
+                        icon: const Icon(Icons.directions, size: 18),
+                        label: const Text('Mở bản đồ'),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (_booking!.type == 'SOS' && _booking!.arrivedAt == null) ...[
+            _buildActionButton(
+              label: 'ĐÃ ĐẾN NƠI',
+              icon: Icons.flag,
+              color: Colors.orange,
+              onPressed: _handleArrived,
+            ),
+            const SizedBox(height: 12),
+          ],
+        ],
         _buildActionButton(
           label: _existingEmr != null ? 'XEM BỆNH ÁN' : 'TẠO BỆNH ÁN',
           icon: _existingEmr != null
@@ -1446,14 +1545,14 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
           ),
         ]);
       } else {
-        // Các loại khác: Staff chủ động hoàn tất đơn khi đã đủ điều kiện.
+        // Các loại khác: dùng chung flow checkout để hoàn tất + chọn phương thức thanh toán.
         actions.addAll([
           const SizedBox(height: 12),
           _buildActionButton(
             label: 'HOÀN TẤT KHÁM',
             icon: Icons.check_circle_outline,
             color: Colors.green,
-            onPressed: _handleComplete,
+            onPressed: _handleCheckout,
           ),
         ]);
       }

@@ -14,14 +14,22 @@ class ConfirmedEmrSyncRequest(BaseModel):
     doctor_id: Optional[str] = None
     species: Optional[str] = None
     breed: Optional[str] = None
+    age_months: Optional[int] = None
+    sex: Optional[str] = None
+    allergies: Optional[str] = None
     chief_complaint: Optional[str] = None
     symptoms: List[str] = Field(default_factory=list)
     physical_exam: List[str] = Field(default_factory=list)
     clinical_notes: Optional[str] = None
     final_diagnosis_text: str
+    soap: Dict[str, Any] = Field(default_factory=dict)
+    vitals: Dict[str, Any] = Field(default_factory=dict)
+    prescriptions: List[Dict[str, Any]] = Field(default_factory=list)
+    ai_diagnosis_context: Optional[Dict[str, Any]] = None
     verified: bool = True
     exam_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    re_examination_date: Optional[datetime] = None
     attachments: Dict[str, Any] = Field(default_factory=dict)
 
 

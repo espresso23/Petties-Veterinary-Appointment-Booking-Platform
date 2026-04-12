@@ -126,7 +126,7 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // SOAP Content styled like Create Form
+                // EMR Content styled like Create Form
                 _buildSoapContent(emr),
 
                 const SizedBox(height: 16),
@@ -380,7 +380,7 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Chi tiết khám (SOAP)',
+            'Chi tiết bệnh án',
             style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w900,
@@ -388,16 +388,15 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
           ),
           const SizedBox(height: 20),
 
-          // S
-          _buildContextSection(
-              'S - Chủ quan (Subjective)', Colors.blue, emr.subjective),
+          // Triệu chứng
+          _buildContextSection('Triệu chứng', Colors.blue, emr.subjective),
 
           const SizedBox(height: 20),
 
-          // O - Vitals
+          // Khách quan - Vitals
           Row(
             children: [
-              Text('O - Khách quan (Objective)',
+              Text('Khách quan / Chỉ số sức khỏe',
                   style: TextStyle(
                       color: Colors.teal,
                       fontWeight: FontWeight.w800,
@@ -455,14 +454,13 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
 
           const SizedBox(height: 20),
 
-          // A
-          _buildContextSection(
-              'A - Đánh giá (Assessment)', Colors.purple, emr.assessment),
+          // Chẩn đoán
+          _buildContextSection('Chẩn đoán', Colors.purple, emr.assessment),
 
           const SizedBox(height: 20),
 
-          // P
-          _buildContextSection('P - Kế hoạch (Plan)', Colors.orange, emr.plan),
+          // Kế hoạch điều trị
+          _buildContextSection('Kế hoạch điều trị', Colors.orange, emr.plan),
 
           const SizedBox(height: 20),
 
@@ -600,7 +598,10 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
                           child: Row(
                             children: [
                               Text(
-                                '${p.dosage ?? "0"} viên/lần',
+                                (p.timesOfDay != null &&
+                                        p.timesOfDay!.isNotEmpty)
+                                    ? p.timesOfDay!.join(', ')
+                                    : 'Theo chỉ định',
                                 style: const TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w700,
@@ -613,7 +614,12 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
                                         TextStyle(color: AppColors.stone300)),
                               ),
                               Text(
-                                '${p.frequency} lần/ngày',
+                                (p.beforeAfterMeal == null ||
+                                        p.beforeAfterMeal!.isEmpty)
+                                    ? 'Sau ăn'
+                                    : (p.beforeAfterMeal == 'BEFORE_MEAL'
+                                        ? 'Trước ăn'
+                                        : 'Sau ăn'),
                                 style: const TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w700,

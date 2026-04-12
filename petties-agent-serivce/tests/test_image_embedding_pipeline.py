@@ -31,13 +31,15 @@ from app.core.embeddings.jina_image_embeddings import (
 class TestJinaImageEmbeddings(unittest.IsolatedAsyncioTestCase):
     async def test_embed_image_urls_filters_non_https_only(self):
         class _FakeResponse:
+            def __init__(self, input_count=1):
+                self.input_count = input_count
+
             def raise_for_status(self):
                 return None
 
             def json(self):
-                # Jina CLIP v2 trả về 1024 dim; test cần dim đúng để pass validation
                 emb = [0.1] * EXPECTED_IMAGE_DIMENSION
-                return {"data": [{"embedding": emb}]}
+                return {"data": [{"embedding": emb} for _ in range(self.input_count)]}
 
         class _FakeClient:
             async def __aenter__(self):
@@ -47,7 +49,8 @@ class TestJinaImageEmbeddings(unittest.IsolatedAsyncioTestCase):
                 return False
 
             async def post(self, *args, **kwargs):
-                return _FakeResponse()
+                input_count = len(kwargs.get("json", {}).get("input", [1]))
+                return _FakeResponse(input_count)
 
         with patch(
             "app.core.embeddings.jina_image_embeddings._get_jina_config",

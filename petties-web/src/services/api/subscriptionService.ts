@@ -42,6 +42,12 @@ export interface SubscribeRequest {
     paymentMethod: PaymentMethod
 }
 
+export interface PaymentStatusResponse {
+    status: 'PENDING' | 'COMPLETED' | 'FAILED'
+    paidAt?: string
+    transactionId?: string
+}
+
 export const subscriptionService = {
     getAllPlans: async (): Promise<SubscriptionPlan[]> => {
         const response = await apiClient.get('/subscriptions/plans')
@@ -108,7 +114,7 @@ export const subscriptionService = {
         return response.data
     },
 
-    checkPaymentStatus: async (subscriptionId: string): Promise<any> => {
+    checkPaymentStatus: async (subscriptionId: string): Promise<PaymentStatusResponse> => {
         const response = await apiClient.get(`/payments/subscription/${subscriptionId}/status`)
         return response.data
     },

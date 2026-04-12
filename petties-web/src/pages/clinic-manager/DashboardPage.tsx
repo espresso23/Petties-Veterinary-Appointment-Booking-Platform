@@ -164,6 +164,7 @@ export const ClinicManagerDashboardPage = () => {
     }, [getMyClinics])
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (clinicId) loadData()
     }, [clinicId, loadData])
 

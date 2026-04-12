@@ -1,0 +1,71 @@
+"Function Name","Module","Description","Pre-conditions"
+"Interact with ChatBot","AI Assistant","Chat with AI assistant for pet care advice booking support and clinic operations","- User is authenticated (PET_OWNER STAFF CLINIC_MANAGER or CLINIC_OWNER)
+- Valid JWT token is present
+- WebSocket connection is established
+- AI service is reachable and enabled
+- Active chat session exists or can be created"
+"Config Agent Parameter","AI Assistant","Admin configures AI model parameters (model type temperature max tokens) to control agent behavior","- User is authenticated with ADMIN role
+- AI agent is enabled and active
+- Admin AI configuration page is accessible
+- Database connection is available for saving changes
+- OpenRouter API is configured with available models"
+"Test Agent Playground","AI Assistant","Admin tests AI agent in isolated environment to verify behavior and tune parameters","- User is authenticated with ADMIN role
+- AI agent is enabled and active
+- Playground session is isolated from business chat
+- AI service is reachable and responsive
+- Trace visibility is enabled for inspection"
+"Turn On/Off Agent Tools","AI Assistant","Admin enables/disables individual AI tools (Knowledge Search Booking Clinic Search) as needed","- User is authenticated with ADMIN role
+- Tool registry is loaded from database
+- At least one tool remains active
+- System can persist tool state changes immediately
+- AI agent can receive updated configuration"
+"Upload Document To Knowledge Base","AI Assistant","Admin uploads documents (PDF DOCX TXT) to knowledge base for AI RAG retrieval","- User is authenticated with ADMIN role
+- Document file format is valid (PDF DOCX TXT or MD)
+- Document size is under 10 MB
+- Document storage service is available
+- Qdrant Cloud vector database is connected"
+"Delete Document from Knowledge Base","AI Assistant","Admin removes outdated or incorrect documents from knowledge base to prevent AI retrieval errors","- User is authenticated with ADMIN role
+- Document exists and is fully indexed
+- Document is not currently being indexed
+- Vector database connection is available for cleanup
+- Confirmation modal can be displayed before deletion"
+"View Case Memory","AI Assistant","Admin views confirmed medical cases to monitor AI learning quality","- User is authenticated with ADMIN role
+- Confirmed medical cases exist in Qdrant
+- AI Insights page is accessible
+- Case memory storage is reachable
+- Pagination is available if case count exceeds limit"
+"Delete Case Memory","AI Assistant","Admin removes incorrect or low-quality cases from memory to prevent AI from learning noisy data","- User is authenticated with ADMIN role
+- Case exists and is identifiable in memory pool
+- Case is not referenced by active diagnosis session
+- Extra confirmation is available for high-quality cases (score > 0.9)
+- Audit logging system is operational"
+"Use AI-Assisted Clinic Setup and Operation","AI Assistant","CLINIC_OWNER or CLINIC_MANAGER uses AI to assist with clinic service setup and daily operations","- User is authenticated as CLINIC_OWNER or CLINIC_MANAGER
+- User is assigned to an active clinic
+- Clinic data is loaded (bookings staff services)
+- Mascot panel is functional on dashboard
+- AI tools for clinic operations are enabled"
+"Use Summarize patient info and EMR","AI Assistant","STAFF requests AI summary of patient medical history to support consultation and handover","- User is authenticated with STAFF role
+- User is authorized to view patient clinic records
+- Patient belongs to staff clinic or current booking
+- Patient EMR or vaccination records are accessible
+- AI summary generation service is operational"
+"Use Summarize pet's EMR","AI Assistant","PET_OWNER views friendly health overview of their pet with reminders and visit highlights","- User is authenticated with PET_OWNER role
+- User is the registered owner of the pet
+- Pet profile exists and is accessible
+- Pet has at least one EMR or vaccination record
+- AI Health Card component is rendered on Pet Details screen"
+"View Aggregate Feedback Stats","AI Assistant","Admin reviews AI feedback statistics to track performance and identify improvement areas","- User is authenticated with ADMIN role
+- User feedback data exists in database
+- AI Insights analytics page is accessible
+- Aggregation query service is operational
+- Chart rendering components are functional"
+"Provide AI Response Feedback","AI Assistant","Users rate AI responses (positive/negative) to help the system improve answer quality","- User is authenticated (any registered role)
+- AI response message is visible in chat thread
+- User has not rated this message before
+- Feedback submission service is operational
+- Reason selection UI is available for negative ratings"
+"Use AI Diagnostic Support","AI Assistant","STAFF uses AI for differential diagnosis suggestions and SOAP drafting during EMR entry","- User is authenticated with STAFF role
+- EMR editor is open with active patient visit
+- Staff has permission to edit the EMR record
+- Clinical findings (symptoms observations) are entered
+- Case Memory and Knowledge Base are available for retrieval"

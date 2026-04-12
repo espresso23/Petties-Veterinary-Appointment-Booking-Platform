@@ -25,6 +25,7 @@ from app.services.llm_client import (
     OpenRouterClient,
 )
 from app.db.postgres.models import Agent as AgentModel, Tool
+from app.core.tools.mcp_resources import list_resources_metadata
 
 
 class AgentFactory:
@@ -42,6 +43,10 @@ class AgentFactory:
         response = await agent.invoke("Con meo bi sot")
         ```
     """
+
+    # Cache: key = (provider, model, user_role, context_type) -> SingleAgent
+    _agent_cache: dict[str, SingleAgent] = {}
+    _cache_config_hash: Optional[str] = None
 
     @staticmethod
     async def get_agent(
@@ -68,6 +73,19 @@ class AgentFactory:
         Raises:
             ValueError: Neu khong tim thay agent enabled trong DB
         """
+        # Build cache key
+        effective_provider = provider_override or "openrouter"
+        effective_model = model_override or "default"
+        cache_key = (
+            f"{effective_provider}:{effective_model}:"
+            f"{user_role or 'none'}:{context_type or 'none'}"
+        )
+
+        # Check cache first
+        if cache_key in AgentFactory._agent_cache:
+            logger.debug(f"Agent cache hit: {cache_key}")
+            return AgentFactory._agent_cache[cache_key]
+
         # 1. Load enabled agent tu DB
         result = await db_session.execute(
             select(AgentModel).where(AgentModel.enabled == True).limit(1)
@@ -112,6 +130,12 @@ class AgentFactory:
         ]
 
         logger.info(f"Enabled tools: {enabled_tools}")
+        available_resources = [item["name"] for item in list_resources_metadata()]
+        allowed_resources = ContextPolicyService.get_allowed_resources(
+            user_role=user_role,
+            context_type=context_type,
+            available_resources=available_resources,
+        )
 
         # System prompt is hardcoded in single_agent.py - no longer load from DB
         # Role guardrails and tool whitelist are added via ContextPolicyService
@@ -122,6 +146,7 @@ class AgentFactory:
             user_role=user_role,
             context_type=context_type,
             allowed_tools=enabled_tools,
+            allowed_resources=allowed_resources,
         )
 
         # 5. Build Single Agent voi ReAct pattern
@@ -136,12 +161,19 @@ class AgentFactory:
             enabled_tools=enabled_tools,
             tool_schemas=tool_schemas,
         )
+        agent.allowed_resources = allowed_resources
 
         actual_model = model_override or agent_config.model
         logger.info(
             f"SingleAgent created: {agent_config.name} | "
             f"model={actual_model} | "
             f"tools={len(enabled_tools)}"
+        )
+
+        # Cache the agent
+        AgentFactory._agent_cache[cache_key] = agent
+        logger.info(
+            f"Agent cached: {cache_key} (total cached: {len(AgentFactory._agent_cache)})"
         )
 
         return agent
@@ -170,6 +202,19 @@ class AgentFactory:
         Raises:
             ValueError: Neu khong tim thay agent
         """
+        # Build cache key
+        effective_provider = provider_override or "openrouter"
+        effective_model = model_override or "default"
+        cache_key = (
+            f"id:{agent_id}:{effective_provider}:{effective_model}:"
+            f"{user_role or 'none'}:{context_type or 'none'}"
+        )
+
+        # Check cache first
+        if cache_key in AgentFactory._agent_cache:
+            logger.debug(f"Agent cache hit: {cache_key}")
+            return AgentFactory._agent_cache[cache_key]
+
         result = await db_session.execute(
             select(AgentModel).where(AgentModel.id == agent_id)
         )
@@ -209,6 +254,12 @@ class AgentFactory:
             }
             for t in tools_list
         ]
+        available_resources = [item["name"] for item in list_resources_metadata()]
+        allowed_resources = ContextPolicyService.get_allowed_resources(
+            user_role=user_role,
+            context_type=context_type,
+            available_resources=available_resources,
+        )
 
         # System prompt is hardcoded in single_agent.py - no longer load from DB
         from app.core.agents.single_agent import DEFAULT_SYSTEM_PROMPT
@@ -218,6 +269,7 @@ class AgentFactory:
             user_role=user_role,
             context_type=context_type,
             allowed_tools=enabled_tools,
+            allowed_resources=allowed_resources,
         )
 
         # Build agent
@@ -231,6 +283,13 @@ class AgentFactory:
             top_p=agent_config.top_p or 0.9,
             enabled_tools=enabled_tools,
             tool_schemas=tool_schemas,
+        )
+        agent.allowed_resources = allowed_resources
+
+        # Cache the agent
+        AgentFactory._agent_cache[cache_key] = agent
+        logger.info(
+            f"Agent cached: {cache_key} (total cached: {len(AgentFactory._agent_cache)})"
         )
 
         return agent
@@ -258,6 +317,13 @@ class AgentFactory:
         allowed_lookup = {tool_name.lower() for tool_name in allowed_names}
 
         return [tool for tool in tools_list if tool.name.lower() in allowed_lookup]
+
+    @staticmethod
+    def clear_cache() -> None:
+        """Clear all cached agents. Call when agent config changes."""
+        count = len(AgentFactory._agent_cache)
+        AgentFactory._agent_cache.clear()
+        logger.info(f"Agent cache cleared ({count} agents removed)")
 
     @staticmethod
     async def get_agent_config(db_session: AsyncSession) -> dict:

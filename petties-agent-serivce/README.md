@@ -534,7 +534,6 @@ Response:
 | ID | Feature | Status | Notes |
 |----|---------|--------|-------|
 | **KB-01** | Cloud Vector Sync (RAG) | ✅ Done | Qdrant Cloud integration (LlamaIndex) |
-| **KB-02** | Knowledge Graph Integration | 🔴 TODO | Petagraph integration (Post-MVP) |
 
 ### Playground & Monitoring
 

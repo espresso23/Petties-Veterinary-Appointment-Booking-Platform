@@ -1,0 +1,1 @@
+"""AI Diagnose domain package."""

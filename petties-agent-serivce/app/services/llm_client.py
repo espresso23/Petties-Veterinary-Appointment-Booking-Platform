@@ -137,7 +137,12 @@ class OpenRouterClient(BaseLLMClient):
 
         self.client = httpx.AsyncClient(
             base_url=self.BASE_URL,
-            timeout=120.0,
+            timeout=httpx.Timeout(
+                connect=10.0,
+                read=90.0,
+                write=10.0,
+                pool=10.0,
+            ),
             headers={
                 "Authorization": f"Bearer {self.api_key}",
                 "HTTP-Referer": "https://petties.world",

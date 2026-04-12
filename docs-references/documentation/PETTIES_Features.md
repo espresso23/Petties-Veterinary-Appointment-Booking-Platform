@@ -1,9 +1,10 @@
-> Legacy Note (2026-03-25): This document may contain historical references to `prompt_versions`, editable system-prompt versioning, or older AI schema/ERD counts. It is retained for historical or presentation context only. For current database truth and active AI storage architecture, use `docs-references/database/PETTIES_DBML.dbml`, `docs-references/documentation/PETTIES_ERD_DIAGRAM.md`, `docs-references/documentation/DATABASE_SCHEMA_ANALYSIS.md`, `docs-references/documentation/SRS/PETTIES_SRS.md`, and `docs-references/documentation/SDD/REPORT_4_SDD_SYSTEM_DESIGN.md`.
+> Legacy Note (2026-03-25): This document may contain historical references to `prompt_versions`, editable system-prompt versioning, or older AI schema/ERD counts. It is retained for historical or presentation context only. For current database truth and active AI storage architecture, use `docs-references/database/PETTIES_DBML.dbml`, `docs-references/documentation/PETTIES_ERD_DIAGRAM.md`, `docs-references/documentation/DATABASE_SCHEMA_ANALYSIS.md`, `docs-references/documentation/SRS/PETTIES_SRS.md`, and `docs-references/documentation/SDD/PETTIES_SDD.md`.
 # PETTIES V0.0.1 - FEATURES & HAPPY FLOWS
 
 > Lưu ý cập nhật ngày 2026-03-22:
 > - **Tool Self-Contained UI Cards (v2.0):** Tools định nghĩa `ui_card` trong return value, chat.py dùng generic dispatcher. Không còn hardcoded extraction logic. Xem [AI_SERVICE_TECHNICAL_SPECIFICATION.md](D:/SEP490/petties/docs-references/documentation/AI_SERVICE_TECHNICAL_SPECIFICATION.md).
 > - Các mục cũ liên quan Visual Case Memory từ feedback ảnh, `analyze_pet_image` hoặc AI Diagnose admin flow chỉ còn giá trị lịch sử.
+> - **2026-04-08:** Chuẩn hóa danh mục function AI Assistant theo 14 function chuẩn (đồng bộ với SRS 3.11.0 và SDD 3.2.7).
 
 ---
 
@@ -121,11 +122,9 @@
 
 9. **Knowledge Base Management (RAG)**
     - Upload tài liệu (PDF, DOCX, TXT, MD)
-    - Tự động extract ảnh từ PDF và tạo image embeddings (Jina CLIP v2)
-    - Theo dõi trạng thái indexing (chunking & vectorization + image count)
+    - Theo dõi trạng thái indexing (chunking & vectorization)
     - Test RAG retrieval với query examples
-    - Hybrid search (text + image similarity) qua `/query-hybrid`
-    - Xem vector count và image count
+    - Xem vector count
 
 10. **Agent Testing & Debugging**
     - Interactive Chat Simulator để test agent
@@ -152,12 +151,40 @@
 > **Note:** MVP sử dụng **Single Agent** với nhiều skills/tools, có thể config bởi Admin.
 
 ### AI Chatbot - Pet Care Assistant
+
+#### AI Assistant Function Catalog (Standardized 2026-04-08)
+
+| Function (Standardized Name) | Primary Roles | Reference (SRS/SDD) | Status |
+|---|---|---|---|
+| Interact with ChatBot | PET_OWNER, STAFF, CLINIC_MANAGER, CLINIC_OWNER | SRS 3.11.1, 3.11.2, 3.11.13, 3.11.14 | 🔄 In Progress (booking path hardening) |
+| Config Agent Parameter | ADMIN | SRS 3.11.3, SDD 3.2.2 | ✅ Done |
+| Test Agent Playground | ADMIN | SRS 3.11.4, SDD 3.2.2 | ✅ Done |
+| Turn On/Off Agent Tools | ADMIN | SRS 3.11.3, SDD 3.2.3 | ✅ Done |
+| Upload Document To Knowledge Base | ADMIN | SRS 3.11.3, SDD 3.2.4 | ✅ Done |
+| Delete Document from Knowledge Base | ADMIN | SRS 3.11.3, SDD 3.2.4 | ✅ Done |
+| View Case Memory | ADMIN | SRS 3.11.7, 3.11.11; SDD 3.2.6 | ✅ Done |
+| Delete Case Memory | ADMIN | SRS 3.11.7, 3.11.11; SDD 3.2.6 | ✅ Done |
+| Use AI-Assisted Clinic Setup, Operation | CLINIC_OWNER, CLINIC_MANAGER | SRS 3.13.1, 3.11.14 | 🔄 Mixed (operation done, setup planned) |
+| Use Summarize patient info & EMR | STAFF | SRS 3.11.13, SDD 4.23 | ✅ Done |
+| Use Summarize pet's EMR | PET_OWNER | SRS 3.11.12, SDD 4.22 | ✅ Done |
+| View aggregate feedback stats | ADMIN | SRS 3.11.7, SDD 3.2.5 | ✅ Done |
+| Provide AI's Response Feedback | Authenticated Users | SRS 3.11.7, SDD 3.2.5 | ✅ Done |
+| Use AI Diagnostic Support | STAFF | SRS 3.11.11, SDD 4.21 | ✅ Done |
+
+#### Web Mascot Interactive Flow (Embedded Copilot)
+
+- **Entry point:** Global mascot launcher + dock panel embedded in web layouts for `STAFF`, `CLINIC_MANAGER`, and `CLINIC_OWNER`.
+- **Route policy:** Legacy dedicated AI routes are deprecated on web; interaction is centralized through mascot panel in current workspace.
+- **Interactive cards:** WebSocket `ui_schema` cards are rendered directly in mascot panel and support `ui_action` dispatch for operational flows.
+- **Confirm flow:** `open_native_confirm` actions trigger `ConfirmModal` before executing create/update service actions.
+- **Context injection:** Requests include role, active route, clinic scope, and user scope to keep answers context-aware.
+
 - 🤖 Chat với AI Chatbot thông minh ✅
 - 🤖 Tư vấn chăm sóc thú cưng ✅
 - 🤖 Hỗ trợ tra cứu triệu chứng qua knowledge base ✅
 - 🤖 **AI Vision Analysis - Phân tích hình ảnh sức khỏe thú cưng** ✅
 - 🤖 RAG Engine - Tra cứu kiến thức y tế thú y (LlamaIndex + Qdrant) ✅
-- 🤖 Booking via Chat - Đặt lịch qua hội thoại 🔄 (đã có tool + mobile confirmation, đang chờ E2E validation)
+- 🤖 Booking via Chat - Đặt lịch qua hội thoại ✅ (main WebSocket flow + booking confirmation gate đã hoạt động; vẫn đang tiếp tục hardening edge cases)
 - 🤖 Citation & Attribution - Trích dẫn nguồn
 - 🤖 Web Search - Tìm kiếm realtime 🔄
 - 🤖 EMR Integration - Xem bệnh án điện tử ✅ (FE/BE)
@@ -193,14 +220,13 @@
 │  ├── RAG Engine: LlamaIndex + Qdrant Cloud + Cohere Embeddings     │
 │  ├── KB Images: Extract images from PDF + Jina CLIP embeddings      │
 │  ├── Query Expander: LLM-based short query expansion               │
-│  ├── Knowledge Graph: LlamaIndex KGIndex + SimpleGraphStore        │
-│  ├── Case Memory: Confirmed cases + feedback-weighted re-ranking    │
-│  └── Parallel Search: RAG + KG + KB Images + Case Memory         │
+│  ├── Case Memory: Confirmed cases + quality-gated re-ranking        │
+│  └── Parallel Search: RAG + KB Images + Case Memory         │
 │                                                                     │
-│  💬 Feedback Loop                                                    │
+│  💬 Feedback & Analytics                                             │
 │  ├── User Feedback Collection (1-5 rating per message)             │
-│  ├── Auto-embed positive cases into Case Memory                    │
-│  └── Role-based feedback weights (STAFF=1.0, PET_OWNER=0.6)       │
+│  ├── Analytics / monitoring only                                    │
+│  └── Case Memory is enriched from confirmed EMR, not chat feedback │
 │                                                                     │
 │  ⚙️ Admin Config                                                    │
 │  ├── Enable/Disable Agent                                           │
@@ -208,7 +234,6 @@
 │  ├── Parameters: Temperature, Max Tokens, Top-P                     │
 │  ├── Tool Management: Enable/Disable individual tools              │
 │  ├── Knowledge Base: Upload/Remove documents                        │
-│  ├── Knowledge Graph: Build/Stats                                   │
 │  └── Case Memory: Stats/Prune                                       │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
@@ -256,18 +281,11 @@
 - 🔍 Tích hợp vào `pet_knowledge_search` MCP tool
 - 🔍 File: `app/core/rag/query_expander.py`
 
-#### Knowledge Graph (Đồ thị tri thức) ✅
-- 🧠 **LlamaIndex KnowledgeGraphIndex** - Trích xuất quan hệ (entity → relation → entity) từ tài liệu
-- 🧠 **SimpleGraphStore** - Lưu trữ graph trong file JSON (phù hợp MVP)
-- 🧠 Build từ Admin API (`POST /knowledge/build-kg`)
-- 🧠 Cung cấp ngữ cảnh quan hệ bổ sung cho RAG retrieval
-- 🧠 File: `app/core/rag/knowledge_graph.py`
-
 #### Case Memory từ EMR xác nhận (thay cho hướng cũ)
-- 📋 **Confirmed Case Storage** - Lưu các ca bệnh đã xác nhận từ feedback tích cực vào Qdrant
-- 📋 **Confirmation-weighted Re-ranking** - Score = cosine_similarity + min(confirmation_count/100, 0.3)
-- 📋 **Role-based Weights** - STAFF=1.0, CLINIC_MANAGER/OWNER=0.7, PET_OWNER=0.6
-- 📋 Auto-embed khi nhận feedback tích cực (rating >= 4)
+- 📋 **Confirmed Case Storage** - Lưu các ca bệnh đã xác nhận từ EMR confirmed vào Qdrant
+- 📋 **Quality-gated Re-ranking** - Score = cosine_similarity + quality_boost, ưu tiên case có quality gate tốt
+- 📋 **Disease Support Metrics** - Tăng độ tin cậy khi nhiều EMR confirmed cùng `(canonical_code, species)`
+- 📋 Đồng bộ tự động sau khi EMR được xác nhận, không phụ thuộc thumbs-up feedback
 - 📋 Admin prune endpoint (`POST /knowledge/case-memory/prune`)
 - 📋 File: `app/core/rag/case_memory.py`
 
@@ -280,9 +298,9 @@
 - 💬 File: `app/core/services/feedback_service.py`, `app/api/schemas/feedback_schemas.py`
 
 #### Hybrid RAG Engine (Tổng hợp) ✅
-- 🔗 **Parallel Search** - Chạy đồng thời RAG + Knowledge Graph + Case Memory
-- 🔗 **Merged Results** - Gộp và deduplicate kết quả từ 3 nguồn
-- 🔗 **Graceful Degradation** - Nếu KG hoặc Case Memory lỗi, vẫn trả kết quả RAG
+- 🔗 **Parallel Search** - Chạy đồng thời RAG + Case Memory
+- 🔗 **Merged Results** - Gộp và deduplicate kết quả từ 2 nguồn
+- 🔗 **Graceful Degradation** - Nếu Case Memory lỗi, vẫn trả kết quả RAG
 - 🔗 File: `app/core/rag/hybrid_engine.py`
 
 ---
@@ -393,8 +411,7 @@
 ✅ **Admin Agent Config** (Prompt, Parameters, Tools, Knowledge Base)  
 ✅ **Knowledge Base RAG** (LlamaIndex + Qdrant Cloud)  
 ✅ **Query Expansion** (LLM-based short query expansion)  
-✅ **Knowledge Graph** (LlamaIndex KGIndex + SimpleGraphStore)  
-✅ **Case Memory** (Confirmed cases + feedback-weighted re-ranking)  
+✅ **Case Memory** (Confirmed cases + quality-gated re-ranking)
 ✅ **Feedback Loop** (User feedback → auto-embed positive cases)
 
 ### ❌ DEFERRED (Phase 2)

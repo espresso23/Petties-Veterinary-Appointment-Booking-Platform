@@ -4,6 +4,7 @@ class PetHealthSummary {
   final List<HealthWarning> healthWarnings;
   final List<MedicationReminder> medicationReminders;
   final List<SuggestedAction> suggestedActions;
+  final AiInsights? aiInsights;
   final String? disclaimer;
   final String? error;
 
@@ -13,26 +14,40 @@ class PetHealthSummary {
     this.healthWarnings = const [],
     this.medicationReminders = const [],
     this.suggestedActions = const [],
+    this.aiInsights,
     this.disclaimer,
     this.error,
   });
 
   factory PetHealthSummary.fromJson(Map<String, dynamic> json) {
+    final petInfoJson = json['pet_info'] ?? json['petInfo'];
+    final latestEmrJson = json['latest_emr'] ?? json['latestEmr'];
+    final healthWarningsJson =
+        json['health_warnings'] ?? json['healthWarnings'];
+    final medicationRemindersJson =
+        json['medication_reminders'] ?? json['medicationReminders'];
+    final suggestedActionsJson =
+        json['suggested_actions'] ?? json['suggestedActions'];
+    final aiInsightsJson = json['ai_insights'] ?? json['aiInsights'];
+
     return PetHealthSummary(
-      petInfo: json['pet_info'] != null ? PetInfo.fromJson(json['pet_info']) : null,
-      latestEmr: json['latest_emr'] != null ? LatestEmr.fromJson(json['latest_emr']) : null,
-      healthWarnings: (json['health_warnings'] as List<dynamic>?)
+      petInfo: petInfoJson != null ? PetInfo.fromJson(petInfoJson) : null,
+      latestEmr:
+          latestEmrJson != null ? LatestEmr.fromJson(latestEmrJson) : null,
+      healthWarnings: (healthWarningsJson as List<dynamic>?)
               ?.map((e) => HealthWarning.fromJson(e))
               .toList() ??
           [],
-      medicationReminders: (json['medication_reminders'] as List<dynamic>?)
+      medicationReminders: (medicationRemindersJson as List<dynamic>?)
               ?.map((e) => MedicationReminder.fromJson(e))
               .toList() ??
           [],
-      suggestedActions: (json['suggested_actions'] as List<dynamic>?)
+      suggestedActions: (suggestedActionsJson as List<dynamic>?)
               ?.map((e) => SuggestedAction.fromJson(e))
               .toList() ??
           [],
+      aiInsights:
+          aiInsightsJson != null ? AiInsights.fromJson(aiInsightsJson) : null,
       disclaimer: json['disclaimer'],
       error: json['error'],
     );
@@ -58,12 +73,12 @@ class PetInfo {
 
   factory PetInfo.fromJson(Map<String, dynamic> json) {
     return PetInfo(
-      petId: json['pet_id'] ?? '',
+      petId: json['pet_id'] ?? json['petId'] ?? '',
       name: json['name'] ?? '',
       species: json['species'],
       breed: json['breed'],
-      ageMonths: json['age_months'],
-      weightKg: json['weight_kg']?.toDouble(),
+      ageMonths: json['age_months'] ?? json['ageMonths'],
+      weightKg: (json['weight_kg'] ?? json['weightKg'])?.toDouble(),
     );
   }
 
@@ -95,9 +110,24 @@ class LatestEmr {
   });
 
   factory LatestEmr.fromJson(Map<String, dynamic> json) {
+    DateTime? parsedExamDate;
+    final examDateStr = json['exam_date'] ?? json['examDate'];
+    if (examDateStr != null) {
+      parsedExamDate = DateTime.tryParse(examDateStr);
+      if (parsedExamDate == null &&
+          examDateStr is String &&
+          examDateStr.contains('/')) {
+        final parts = examDateStr.split('/');
+        if (parts.length == 3) {
+          parsedExamDate =
+              DateTime.tryParse('${parts[2]}-${parts[1]}-${parts[0]}');
+        }
+      }
+    }
+
     return LatestEmr(
-      examDate: json['exam_date'] != null ? DateTime.tryParse(json['exam_date']) : null,
-      clinicName: json['clinic_name'],
+      examDate: parsedExamDate,
+      clinicName: json['clinic_name'] ?? json['clinicName'],
       diagnosis: json['diagnosis'],
       treatment: json['treatment'],
       subjective: json['subjective'],
@@ -171,4 +201,41 @@ class SuggestedAction {
       reason: json['reason'] ?? '',
     );
   }
+}
+
+class AiInsights {
+  final String? summary;
+  final String? trends;
+  final String? advice;
+  final List<String> intakeNotes;
+
+  AiInsights({
+    this.summary,
+    this.trends,
+    this.advice,
+    this.intakeNotes = const [],
+  });
+
+  factory AiInsights.fromJson(Map<String, dynamic> json) {
+    List<String> parseNotes = [];
+    final rawNotes = json['intake_notes'] ?? json['intakeNotes'];
+    if (rawNotes is List) {
+      parseNotes = rawNotes.map((e) => e.toString()).toList();
+    } else if (rawNotes is String && rawNotes.trim().isNotEmpty) {
+      parseNotes = [rawNotes.trim()];
+    }
+
+    return AiInsights(
+      summary: json['summary'],
+      trends: json['trends'],
+      advice: json['advice'],
+      intakeNotes: parseNotes,
+    );
+  }
+
+  bool get hasAnyContent =>
+      (summary != null && summary!.trim().isNotEmpty) ||
+      (trends != null && trends!.trim().isNotEmpty) ||
+      (advice != null && advice!.trim().isNotEmpty) ||
+      intakeNotes.isNotEmpty;
 }

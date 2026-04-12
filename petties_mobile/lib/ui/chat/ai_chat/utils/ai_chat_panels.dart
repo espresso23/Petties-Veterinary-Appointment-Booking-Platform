@@ -7,6 +7,13 @@ import '../../../../config/constants/app_colors.dart';
 import '../../../../data/models/ai_chat.dart';
 import 'ai_booking_tracker.dart';
 
+const double _composerRadius = 18;
+const double _composerBorderWidth = 1.6;
+const double _composerActionSize = 34;
+const double _composerActionSizeCompact = 32;
+const double _composerSendSize = 42;
+const double _composerSendSizeCompact = 39;
+
 Future<void> showAiChatSessionListSheet({
   required BuildContext context,
   required List<AiChatSession> sessions,
@@ -301,10 +308,22 @@ class AiBookingTrackerCard extends StatelessWidget {
           icon: Icons.schedule,
           label: tracker.startTime ?? '',
         ),
+      if ((tracker.status ?? '').trim().isNotEmpty)
+        _AiTrackerChip(
+          icon: Icons.info_outline,
+          label: _mapStatusToVietnamese(tracker.status!),
+          backgroundColor: _getStatusColor(tracker.status!),
+        ),
       if (tracker.serviceNames.isNotEmpty)
         _AiTrackerChip(
           icon: Icons.medical_services_outlined,
           label: tracker.serviceNames.join(', '),
+        ),
+      if ((tracker.notes ?? '').trim().isNotEmpty)
+        _AiTrackerChip(
+          icon: Icons.note_alt_outlined,
+          label: tracker.notes!,
+          backgroundColor: AppColors.infoLight,
         ),
     ];
 
@@ -343,45 +362,59 @@ class AiBookingTrackerCard extends StatelessWidget {
 class AiChatComposerSuggestions extends StatelessWidget {
   final List<String> suggestions;
   final ValueChanged<String> onSuggestionTap;
+  final Color backgroundColor;
+  final Color borderColor;
+  final Color textColor;
 
   const AiChatComposerSuggestions({
     super.key,
     required this.suggestions,
     required this.onSuggestionTap,
+    this.backgroundColor = AppColors.primarySurface,
+    this.borderColor = AppColors.stone900,
+    this.textColor = AppColors.stone900,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: suggestions
-            .map(
-              (suggestion) => GestureDetector(
-                onTap: () => onSuggestionTap(suggestion),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: AppColors.primarySurface,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: AppColors.stone900, width: 1.5),
-                  ),
-                  child: Text(
-                    suggestion,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.stone900,
-                    ),
+    final screenWidth = MediaQuery.of(context).size.width;
+    final maxChipWidth = screenWidth * 0.65;
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 72),
+      child: SingleChildScrollView(
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: suggestions.map((suggestion) {
+            final displayText = suggestion.length > 55
+                ? '${suggestion.substring(0, 55)}...'
+                : suggestion;
+            return GestureDetector(
+              onTap: () => onSuggestionTap(suggestion),
+              child: Container(
+                constraints: BoxConstraints(maxWidth: maxChipWidth),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: backgroundColor,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: borderColor, width: 1.5),
+                ),
+                child: Text(
+                  displayText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: textColor,
                   ),
                 ),
               ),
-            )
-            .toList(),
+            );
+          }).toList(),
+        ),
       ),
     );
   }
@@ -390,6 +423,7 @@ class AiChatComposerSuggestions extends StatelessWidget {
 class AiChatComposer extends StatelessWidget {
   final double horizontalPadding;
   final AiBookingTrackerSnapshot tracker;
+  final bool showTracker;
   final List<String> suggestions;
   final String? errorText;
   final TextEditingController controller;
@@ -399,11 +433,18 @@ class AiChatComposer extends StatelessWidget {
   final bool isReconnecting;
   final ValueChanged<List<String>>? onImagesSelected;
   final List<String>? selectedImages;
+  final String hintText;
+  final Color accentColor;
+  final Color suggestionBackgroundColor;
+  final Color suggestionTextColor;
+  final VoidCallback? onSettingsTap;
+  final FocusNode? focusNode;
 
   const AiChatComposer({
     super.key,
     required this.horizontalPadding,
     required this.tracker,
+    this.showTracker = true,
     required this.suggestions,
     required this.errorText,
     required this.controller,
@@ -413,237 +454,343 @@ class AiChatComposer extends StatelessWidget {
     required this.isReconnecting,
     this.onImagesSelected,
     this.selectedImages,
+    this.hintText = 'Nhập câu hỏi cho trợ lý AI...',
+    this.accentColor = AppColors.primary,
+    this.suggestionBackgroundColor = AppColors.primarySurface,
+    this.suggestionTextColor = AppColors.stone900,
+    this.onSettingsTap,
+    this.focusNode,
   });
 
   Future<void> _pickImages(BuildContext context) async {
     if (onImagesSelected == null) return;
-    
+
     final picker = ImagePicker();
     final pickedFiles = await picker.pickMultiImage(
       maxWidth: 1024,
       maxHeight: 1024,
       imageQuality: 85,
     );
-    
+
     if (pickedFiles.isEmpty) return;
-    
+
     final imagePaths = <String>[];
     for (final file in pickedFiles) {
       final bytes = await File(file.path).readAsBytes();
       final base64 = base64Encode(bytes);
       imagePaths.add('data:image/jpeg;base64,$base64');
     }
-    
+
     onImagesSelected!(imagePaths);
   }
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompact = screenWidth <= 360;
     final isBusy = isSending || isReconnecting;
+    final hasDraftToSend =
+        controller.text.trim().isNotEmpty || (selectedImages?.isNotEmpty ?? false);
+    final canSend = !isBusy && hasDraftToSend;
     final hasImages = selectedImages != null && selectedImages!.isNotEmpty;
+    final isKeyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
+    final shouldShowSuggestions = suggestions.isNotEmpty && !isKeyboardVisible;
+    final shouldShowTracker =
+        showTracker && tracker.hasData && !isKeyboardVisible;
+    final shouldShowError = errorText != null && !isKeyboardVisible;
+    final shouldShowImages = hasImages && !isKeyboardVisible;
+    // Khi bàn phím mở, giảm maxLines / khung để tránh overflow cột cha trên màn nhỏ.
+    final composerMaxLines = isKeyboardVisible ? (isCompact ? 4 : 5) : 9;
+    final textFieldBoxMaxHeight = isKeyboardVisible
+        ? (isCompact ? 160.0 : 180.0)
+        : (isCompact ? 200.0 : 220.0);
+    final verticalPadding = isKeyboardVisible ? 6.0 : 8.0;
 
     return Container(
-      padding: EdgeInsets.fromLTRB(horizontalPadding, 8, horizontalPadding, 8),
-      decoration: const BoxDecoration(
-        color: AppColors.white,
-        border: Border(
-          top: BorderSide(color: AppColors.stone900, width: 2),
-        ),
+      padding: EdgeInsets.fromLTRB(
+        horizontalPadding,
+        verticalPadding,
+        horizontalPadding,
+        verticalPadding + 4,
       ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (tracker.hasData) AiBookingTrackerCard(tracker: tracker),
-            if (suggestions.isNotEmpty)
-              AiChatComposerSuggestions(
-                suggestions: suggestions,
-                onSuggestionTap: onSuggestionTap,
+      decoration: BoxDecoration(
+        color: AppColors.white.withValues(alpha: isKeyboardVisible ? 0.9 : 0.94),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (shouldShowTracker) AiBookingTrackerCard(tracker: tracker),
+          if (shouldShowSuggestions)
+            AiChatComposerSuggestions(
+              suggestions: suggestions,
+              onSuggestionTap: onSuggestionTap,
+              backgroundColor: suggestionBackgroundColor,
+              borderColor: AppColors.stone900,
+              textColor: suggestionTextColor,
+            ),
+          if (shouldShowError) ...[
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.errorLight,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.error, width: 1.5),
               ),
-            if (errorText != null) ...[
-              Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(bottom: 8),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppColors.errorLight,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.error, width: 1.5),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.warning_amber_rounded,
-                      color: AppColors.error,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        errorText!,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.errorDark,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            if (hasImages) ...[
-              SizedBox(
-                height: 80,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: selectedImages!.length,
-                  itemBuilder: (context, index) {
-                    final imageData = selectedImages![index];
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: Stack(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.memory(
-                              Uri.parse(imageData).data!.contentAsBytes(),
-                              width: 60,
-                              height: 60,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                          Positioned(
-                            top: 0,
-                            right: 0,
-                            child: GestureDetector(
-                              onTap: () {
-                                final newList = List<String>.from(selectedImages!)..removeAt(index);
-                                onImagesSelected!(newList);
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.all(2),
-                                decoration: const BoxDecoration(
-                                  color: AppColors.error,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.close,
-                                  size: 14,
-                                  color: AppColors.white,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 8),
-            ],
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                if (onImagesSelected != null)
-                  GestureDetector(
-                    onTap: isBusy ? null : () => _pickImages(context),
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: AppColors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.stone900, width: 2),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: AppColors.stone900,
-                            offset: Offset(2, 2),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.add_photo_alternate_outlined,
-                        color: AppColors.stone900,
-                        size: 20,
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.warning_amber_rounded,
+                    color: AppColors.error,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      errorText!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.errorDark,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
-                if (onImagesSelected != null) const SizedBox(width: 8),
-                Expanded(
-                  child: Container(
-                    constraints: const BoxConstraints(maxHeight: 100),
-                    decoration: BoxDecoration(
-                      color: AppColors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.stone900, width: 2),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: AppColors.stone900,
-                          offset: Offset(2, 2),
+                ],
+              ),
+            ),
+          ],
+          if (shouldShowImages) ...[
+            SizedBox(
+              height: 80,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: selectedImages!.length,
+                itemBuilder: (context, index) {
+                  final imageData = selectedImages![index];
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.memory(
+                            Uri.parse(imageData).data!.contentAsBytes(),
+                            width: 60,
+                            height: 60,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        Positioned(
+                          top: 0,
+                          right: 0,
+                          child: GestureDetector(
+                            onTap: () {
+                              final newList = List<String>.from(selectedImages!)
+                                ..removeAt(index);
+                              onImagesSelected!(newList);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: const BoxDecoration(
+                                color: AppColors.error,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.close,
+                                size: 14,
+                                color: AppColors.white,
+                              ),
+                            ),
+                          ),
                         ),
                       ],
                     ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+          Container(
+            constraints: BoxConstraints(maxHeight: textFieldBoxMaxHeight),
+            decoration: BoxDecoration(
+              color: AppColors.white.withValues(alpha: 0.98),
+              borderRadius: BorderRadius.circular(_composerRadius),
+              border: Border.all(
+                color: AppColors.stone900,
+                width: _composerBorderWidth,
+              ),
+              boxShadow: const [
+                BoxShadow(color: AppColors.stone900, offset: Offset(2, 2)),
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (onImagesSelected != null) ...[
+                  _ComposerActionButton(
+                    icon: Icons.add,
+                    tooltip: 'Đính kèm ảnh',
+                    onTap: isBusy ? null : () => _pickImages(context),
+                    accentColor: accentColor,
+                  ),
+                ],
+                _ComposerActionButton(
+                  icon: Icons.tune,
+                  tooltip: 'Tùy chọn phản hồi',
+                  onTap: isBusy ? null : onSettingsTap,
+                  accentColor: accentColor,
+                ),
+                Expanded(
+                  child: Scrollbar(
                     child: TextField(
                       controller: controller,
+                      focusNode: focusNode,
+                      keyboardType: TextInputType.multiline,
+                      textCapitalization: TextCapitalization.sentences,
                       minLines: 1,
-                      maxLines: 3,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => onSend(),
-                      style: const TextStyle(fontSize: 14),
-                      decoration: const InputDecoration(
-                        hintText: 'Nhập câu hỏi cho trợ lý AI...',
+                      maxLines: composerMaxLines,
+                      scrollPadding: const EdgeInsets.symmetric(vertical: 8),
+                      textInputAction: TextInputAction.newline,
+                        style: TextStyle(
+                          fontSize: isCompact ? 13 : 14,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.stone900,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: hintText,
                         hintStyle: TextStyle(
-                          fontSize: 13,
+                          fontSize: isCompact ? 12 : 13,
                           fontWeight: FontWeight.w600,
                           color: AppColors.stone400,
                         ),
                         border: InputBorder.none,
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: isCompact ? 6 : 8,
+                          vertical: isCompact ? 10 : 12,
+                        ),
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: isBusy ? null : onSend,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: isBusy ? AppColors.stone300 : AppColors.primary,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.stone900, width: 2),
-                      boxShadow: isSending
-                          ? null
-                          : const [
-                              BoxShadow(
-                                color: AppColors.stone900,
-                                offset: Offset(2, 2),
-                              ),
-                            ],
-                    ),
-                    child: Icon(
-                      isReconnecting
-                          ? Icons.sync
-                          : isSending
-                              ? Icons.hourglass_top
-                              : Icons.send_rounded,
-                      color: AppColors.white,
-                      size: 20,
+                Padding(
+                  padding: EdgeInsets.only(
+                    right: isCompact ? 5 : 6,
+                    bottom: isCompact ? 5 : 6,
+                    left: 4,
+                  ),
+                  child: GestureDetector(
+                    onTap: canSend ? onSend : null,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      width: isCompact
+                          ? _composerSendSizeCompact
+                          : _composerSendSize,
+                      height: isCompact
+                          ? _composerSendSizeCompact
+                          : _composerSendSize,
+                      decoration: BoxDecoration(
+                        color: isBusy
+                            ? AppColors.stone300
+                            : (hasDraftToSend
+                                ? accentColor
+                                : AppColors.stone500.withValues(alpha: 0.7)),
+                        borderRadius: BorderRadius.circular(13),
+                        border: Border.all(color: AppColors.stone900, width: 1.8),
+                        boxShadow: isSending
+                            ? null
+                            : const [
+                                BoxShadow(
+                                  color: AppColors.stone900,
+                                  offset: Offset(1.5, 1.5),
+                                ),
+                              ],
+                      ),
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 160),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        child: Icon(
+                          isReconnecting
+                              ? Icons.sync
+                              : isSending
+                                  ? Icons.hourglass_top
+                                  : Icons.arrow_upward_rounded,
+                          key: ValueKey<String>(
+                            isReconnecting
+                                ? 'reconnecting'
+                                : isSending
+                                    ? 'sending'
+                                    : 'idle',
+                          ),
+                          color: AppColors.white,
+                          size: isCompact ? 17 : 18,
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ComposerActionButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onTap;
+  final Color accentColor;
+
+  const _ComposerActionButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    required this.accentColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompact = screenWidth <= 360;
+    return Padding(
+      padding: EdgeInsets.only(
+        left: isCompact ? 4 : 6,
+        right: 2,
+        bottom: isCompact ? 5 : 6,
+      ),
+      child: Tooltip(
+        message: tooltip,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(isCompact ? 10 : 11),
+            onTap: onTap,
+            child: Container(
+              width: isCompact
+                  ? _composerActionSizeCompact
+                  : _composerActionSize,
+              height: isCompact
+                  ? _composerActionSizeCompact
+                  : _composerActionSize,
+              decoration: BoxDecoration(
+                color: AppColors.stone100,
+                borderRadius: BorderRadius.circular(isCompact ? 10 : 11),
+                border: Border.all(color: AppColors.stone300, width: 1.2),
+              ),
+              child: Icon(
+                icon,
+                size: isCompact ? 17 : 18,
+                color: onTap == null ? AppColors.stone400 : accentColor,
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -653,10 +800,12 @@ class AiChatComposer extends StatelessWidget {
 class _AiTrackerChip extends StatelessWidget {
   final IconData icon;
   final String label;
+  final Color? backgroundColor;
 
   const _AiTrackerChip({
     required this.icon,
     required this.label,
+    this.backgroundColor,
   });
 
   @override
@@ -664,7 +813,7 @@ class _AiTrackerChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.white,
+        color: backgroundColor ?? AppColors.white,
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: AppColors.stone900, width: 1.5),
       ),
@@ -702,4 +851,38 @@ String _formatBookingDateLabel(String? value) {
   }
 
   return value;
+}
+
+String _mapStatusToVietnamese(String status) {
+  switch (status.toUpperCase()) {
+    case 'DRAFT':
+      return 'Đang dự thảo';
+    case 'PENDING':
+      return 'Chờ xác nhận';
+    case 'SUSPENDED':
+      return 'Chờ thêm thông tin';
+    case 'COMPLETED':
+      return 'Hoàn tất';
+    case 'CANCELLED':
+      return 'Đã hủy';
+    default:
+      return status;
+  }
+}
+
+Color _getStatusColor(String status) {
+  switch (status.toUpperCase()) {
+    case 'DRAFT':
+      return AppColors.primarySurface;
+    case 'PENDING':
+      return AppColors.successLight;
+    case 'SUSPENDED':
+      return AppColors.infoLight;
+    case 'COMPLETED':
+      return AppColors.success;
+    case 'CANCELLED':
+      return AppColors.errorLight;
+    default:
+      return AppColors.white;
+  }
 }

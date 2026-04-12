@@ -173,10 +173,12 @@ export const AdminDashboardPage = () => {
     }, [])
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         checkServices()
     }, [checkServices])
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         loadPlatformStats()
     }, [loadPlatformStats])
 

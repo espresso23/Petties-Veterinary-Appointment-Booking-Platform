@@ -1,6 +1,7 @@
 package com.petties.petties.controller;
 
 import com.petties.petties.dto.subscription.ClinicSubscriptionStatusDto;
+import com.petties.petties.dto.subscription.MySubscriptionStatusDto;
 import com.petties.petties.dto.subscription.SubscribeRequestDto;
 import com.petties.petties.dto.subscription.UserSubscriptionResponseDto;
 import com.petties.petties.model.User;
@@ -103,15 +104,9 @@ public class UserSubscriptionController {
      */
     @GetMapping("/my-status")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<UserSubscriptionResponseDto> getMySubscriptionStatus() {
+    public ResponseEntity<MySubscriptionStatusDto> getMySubscriptionStatus() {
         User currentUser = authService.getCurrentUser();
-        if (currentUser.getWorkingClinic() == null) {
-            // If ADMIN, they might not have a working clinic, but they don't need
-            // subscriptions usually
-            // However, for UI purposes, we return 404 or empty
-            return ResponseEntity.notFound().build();
-        }
-        return ResponseEntity
-                .ok(userSubscriptionService.getClinicSubscription(currentUser.getWorkingClinic().getClinicId()));
+        log.info("Getting subscription status for user: {} with role: {}", currentUser.getUserId(), currentUser.getRole());
+        return ResponseEntity.ok(userSubscriptionService.getMySubscriptionStatus(currentUser));
     }
 }

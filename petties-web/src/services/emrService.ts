@@ -33,10 +33,16 @@ export interface EmrRecord {
 
 export interface Prescription {
     medicineName: string
-    dosage?: string
-    frequency: string
+    // ===== New schema fields (preferred) =====
+    timesOfDay?: Array<'sang' | 'trua' | 'chieu'>
+    beforeAfterMeal?: 'BEFORE_MEAL' | 'AFTER_MEAL' | 'WITH_MEAL' | 'NONE'
+    frequencyNote?: string
     durationDays?: number
     instructions?: string
+
+    // ===== Legacy fields (backward-compat only) =====
+    dosage?: string
+    frequency?: string
 }
 
 export interface EmrImage {
@@ -60,6 +66,41 @@ export interface CreateEmrRequest {
     images?: EmrImage[]
     reExaminationDate?: string
     examinationDate?: string
+    aiDiagnosisContext?: AiDiagnosisContext
+}
+
+export interface AiDiagnosisContextPrescription {
+    medicine_name?: string
+    medicineName?: string
+    times_of_day?: Array<'sang' | 'trua' | 'chieu'>
+    timesOfDay?: Array<'sang' | 'trua' | 'chieu'>
+    before_after_meal?: 'BEFORE_MEAL' | 'AFTER_MEAL' | 'WITH_MEAL' | 'NONE'
+    beforeAfterMeal?: 'BEFORE_MEAL' | 'AFTER_MEAL' | 'WITH_MEAL' | 'NONE'
+    frequency_note?: string
+    frequencyNote?: string
+    duration_days?: number
+    durationDays?: number
+    instructions?: string
+    source?: string
+    source_detail?: string
+    sourceDetail?: string
+
+    // Legacy (for reading old context)
+    dosage?: string
+    frequency?: string
+}
+
+export interface AiDiagnosisContext {
+    request_id?: string
+    requestId?: string
+    selected_diagnosis_code?: string
+    selectedDiagnosisCode?: string
+    selected_diagnosis_label?: string
+    selectedDiagnosisLabel?: string
+    suggested_prescriptions?: AiDiagnosisContextPrescription[]
+    suggestedPrescriptions?: AiDiagnosisContextPrescription[]
+    generated_at?: string
+    generatedAt?: string
 }
 
 export interface UploadResponse {

@@ -25,7 +25,3 @@ def normalize_context_type(value: Optional[str], default: str = BUSINESS_CHAT) -
 def default_context_for_user(is_admin: bool) -> str:
     """Admin mặc định vào playground, user khác mặc định business chat."""
     return PLAYGROUND_TEST if is_admin else BUSINESS_CHAT
-
-
-def is_playground_context(context_type: str) -> bool:
-    return normalize_context_type(context_type) == PLAYGROUND_TEST

@@ -32,13 +32,6 @@ async def lifespan(app: FastAPI):
     logger.info(f"Debug mode: {settings.APP_DEBUG}")
 
     try:
-        from app.core.sentry import init_sentry
-
-        init_sentry()
-    except Exception as exc:
-        logger.warning(f"Sentry init skipped: {exc}")
-
-    try:
         from app.db.postgres.session import AsyncSessionLocal, init_db
 
         await init_db()
@@ -184,14 +177,8 @@ async def root():
     }
 
 
-from app.api.routes import (
-    agents,
-    chat,
-    internal_case_memory,
-    knowledge,
-    staff_diagnosis,
-    tools,
-)
+from app.ai_diagnose.routes import router as staff_diagnosis_router
+from app.api.routes import agents, chat, internal_case_memory, knowledge, tools
 from app.api.routes import pet_health_summary
 from app.api.routes import settings as settings_routes
 from app.api.websocket import websocket_chat_endpoint
@@ -201,7 +188,7 @@ app.include_router(agents.router, prefix="/api/v1")
 app.include_router(knowledge.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(settings_routes.router, prefix="/api/v1")
-app.include_router(staff_diagnosis.router, prefix="/api/v1")
+app.include_router(staff_diagnosis_router, prefix="/api/v1")
 app.include_router(pet_health_summary.router, prefix="/api/v1")
 app.include_router(internal_case_memory.router, prefix="/api/v1")
 

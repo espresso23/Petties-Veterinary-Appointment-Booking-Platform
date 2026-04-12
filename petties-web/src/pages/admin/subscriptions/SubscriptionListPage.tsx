@@ -56,7 +56,7 @@ export const SubscriptionListPage: React.FC = () => {
             await subscriptionService.deactivatePlan(planToDeactivate)
             showToast('success', 'Đã ẩn gói thành công')
             fetchPlans()
-        } catch (error) {
+        } catch {
             showToast('error', 'Có lỗi xảy ra khi ẩn gói')
         } finally {
             setIsConfirmDeactivateOpen(false)

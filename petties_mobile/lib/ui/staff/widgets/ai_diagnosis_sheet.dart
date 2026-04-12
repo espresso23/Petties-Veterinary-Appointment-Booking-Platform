@@ -19,9 +19,14 @@ class AiDiagnosisSheet {
     String? initialAssessment,
     String? initialPlan,
     List<String>? imageUrls,
+    StaffDiagnosisResponse? initialResult,
+    String? initialSelectedDiagnosisLabel,
+    String? initialSelectedDiagnosisCode,
     void Function(StaffDiagnosisResponse?)? onDiagnosisResult,
     void Function(SoapSuggestions)? onApplyDraft,
     void Function(StaffDiagnosisResponse, List<String>)? onApplyDiagnosis,
+    void Function(StaffDiagnosisResponse, List<String>, String, String?)?
+        onDiagnosisLocked,
   }) {
     return showModalBottomSheet(
       context: context,
@@ -60,9 +65,24 @@ class AiDiagnosisSheet {
                         initialAssessment: initialAssessment,
                         initialPlan: initialPlan,
                         imageUrls: imageUrls,
+                        initialResult: initialResult,
+                        initialSelectedDiagnosisLabel:
+                            initialSelectedDiagnosisLabel,
+                        initialSelectedDiagnosisCode:
+                            initialSelectedDiagnosisCode,
                         onDiagnosisResult: onDiagnosisResult,
                         onApplyDraft: onApplyDraft,
                         onApplyDiagnosis: onApplyDiagnosis,
+                        onDiagnosisLocked:
+                            (result, diagnosisImageUrls, label, code) {
+                          onDiagnosisLocked?.call(
+                            result,
+                            diagnosisImageUrls,
+                            label,
+                            code,
+                          );
+                          Navigator.of(context).pop();
+                        },
                       ),
                     ),
                   ),

@@ -17,7 +17,7 @@ Based on the current project status, the following business flows have been comp
 *   **AI Assistant Integration:**
     *   Advising on general pet care knowledge.
     *   Context-aware automated booking consultation.
-    *   Submitting SOS cases / Querying the Knowledge Graph.
+    *   Submitting SOS cases.
 
 ## 3. Distinguishing System Test and Unit Test
 *   **Unit Test:** (Programming Level) Written by Developers to test individual functions/methods in isolation. Runs in the background within the codebase.

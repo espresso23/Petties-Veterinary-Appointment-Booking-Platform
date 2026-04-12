@@ -61,7 +61,7 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ErrorResponse> handleIllegalStateException(
                         IllegalStateException ex,
                         HttpServletRequest request) {
-                log.info("IllegalStateException at {}: {}", request.getRequestURI(), ex.getMessage());
+                log.info("IllegalStateException at {}", request.getRequestURI());
                 ErrorResponse error = ErrorResponse.builder()
                                 .timestamp(LocalDateTime.now())
                                 .status(HttpStatus.BAD_REQUEST.value())
@@ -119,7 +119,7 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ErrorResponse> handleUnauthorized(
                         UnauthorizedException ex,
                         HttpServletRequest request) {
-                log.warn("Unauthorized access to {}: {}", request.getRequestURI(), ex.getMessage());
+                log.warn("Unauthorized access to {}", request.getRequestURI());
                 ErrorResponse error = ErrorResponse.builder()
                                 .timestamp(LocalDateTime.now())
                                 .status(HttpStatus.UNAUTHORIZED.value())
@@ -148,7 +148,7 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ErrorResponse> handleForbidden(
                         ForbiddenException ex,
                         HttpServletRequest request) {
-                log.warn("Forbidden access to {}: {}", request.getRequestURI(), ex.getMessage());
+                log.warn("Forbidden access to {}", request.getRequestURI());
 
                 // Fallback to Vietnamese if message is null/empty
                 String message = ex.getMessage();
@@ -170,7 +170,7 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ErrorResponse> handleAccessDenied(
                         AccessDeniedException ex,
                         HttpServletRequest request) {
-                log.warn("Access Denied to {}: {}", request.getRequestURI(), ex.getMessage());
+                log.warn("Access denied to {}", request.getRequestURI());
                 ErrorResponse error = ErrorResponse.builder()
                                 .timestamp(LocalDateTime.now())
                                 .status(HttpStatus.FORBIDDEN.value())
@@ -200,7 +200,7 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ErrorResponse> handleAuthenticationException(
                         AuthenticationException ex,
                         HttpServletRequest request) {
-                log.warn("Authentication failed at {}: {}", request.getRequestURI(), ex.getMessage());
+                log.warn("Authentication failed at {}", request.getRequestURI());
 
                 // Fallback to Vietnamese if message is null/empty
                 String message = ex.getMessage();
@@ -313,7 +313,7 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(
                         DataIntegrityViolationException ex,
                         HttpServletRequest request) {
-                log.warn("Data integrity violation at {}: {}", request.getRequestURI(), ex.getMessage());
+                log.warn("Data integrity violation at {}", request.getRequestURI());
 
                 // Parse specific constraint violations for user-friendly messages
                 String message = "Dữ liệu đã tồn tại trong hệ thống";
@@ -357,7 +357,7 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ErrorResponse> handleOptimisticLockingFailure(
                         ObjectOptimisticLockingFailureException ex,
                         HttpServletRequest request) {
-                log.warn("Optimistic locking failure at {}: {}", request.getRequestURI(), ex.getMessage());
+                log.warn("Optimistic locking failure at {}", request.getRequestURI());
 
                 ErrorResponse error = ErrorResponse.builder()
                                 .timestamp(LocalDateTime.now())
@@ -433,7 +433,7 @@ public class GlobalExceptionHandler {
                                 .path(request.getRequestURI())
                                 .build();
 
-                log.warn("Resource not found at {}: {}", request.getRequestURI(), ex.getMessage());
+                log.warn("Resource not found at {}", request.getRequestURI());
                 return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
         }
 

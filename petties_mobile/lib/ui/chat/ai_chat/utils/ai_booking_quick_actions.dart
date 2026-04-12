@@ -18,6 +18,10 @@ List<AiBookingQuickAction> buildBookingSummaryQuickActions(
   AiBookingSummaryPayload summary,
 ) {
   final actions = <AiBookingQuickAction>[];
+  final missingFields = summary.missingFields
+      .map((value) => value.trim().toLowerCase())
+      .where((value) => value.isNotEmpty)
+      .toSet();
   final clinicId = _clean(summary.clinicId);
   final clinicName = _clean(summary.clinicName);
   final petId = _clean(summary.petId);
@@ -60,12 +64,18 @@ List<AiBookingQuickAction> buildBookingSummaryQuickActions(
     );
   }
 
-  if (clinicId != null || clinicName != null) {
+  if (clinicId != null ||
+      clinicName != null ||
+      missingFields.contains('clinic_id')) {
     actions.add(
       AiBookingQuickAction(
         key: 'change_clinic',
-        label: 'Đổi phòng khám',
-        userMessage: 'Đổi phòng khám',
+        label: clinicId == null && clinicName == null
+            ? 'Chọn phòng khám'
+            : 'Đổi phòng khám',
+        userMessage: clinicId == null && clinicName == null
+            ? 'Chọn phòng khám'
+            : 'Đổi phòng khám',
         uiAction: <String, dynamic>{
           'type': 'change_clinic',
           ...basePayload(),
@@ -74,12 +84,15 @@ List<AiBookingQuickAction> buildBookingSummaryQuickActions(
     );
   }
 
-  if (serviceIds.isNotEmpty || serviceNames.isNotEmpty) {
+  if (serviceIds.isNotEmpty ||
+      serviceNames.isNotEmpty ||
+      missingFields.contains('service_ids')) {
+    final isMissingServices = serviceIds.isEmpty && serviceNames.isEmpty;
     actions.add(
       AiBookingQuickAction(
         key: 'change_service',
-        label: 'Đổi dịch vụ',
-        userMessage: 'Đổi dịch vụ',
+        label: isMissingServices ? 'Thêm dịch vụ' : 'Đổi dịch vụ',
+        userMessage: isMissingServices ? 'Thêm dịch vụ' : 'Đổi dịch vụ',
         uiAction: <String, dynamic>{
           'type': 'change_service',
           ...basePayload(),
@@ -88,12 +101,12 @@ List<AiBookingQuickAction> buildBookingSummaryQuickActions(
     );
   }
 
-  if (bookingDate != null) {
+  if (bookingDate != null || missingFields.contains('booking_date')) {
     actions.add(
       AiBookingQuickAction(
         key: 'change_date',
-        label: 'Đổi ngày',
-        userMessage: 'Đổi ngày khám',
+        label: bookingDate == null ? 'Chọn ngày' : 'Đổi ngày',
+        userMessage: bookingDate == null ? 'Chọn ngày khám' : 'Đổi ngày khám',
         uiAction: <String, dynamic>{
           'type': 'change_date',
           ...basePayload(),
@@ -102,12 +115,15 @@ List<AiBookingQuickAction> buildBookingSummaryQuickActions(
     );
   }
 
-  if (bookingDate != null || startTime != null) {
+  if (bookingDate != null ||
+      startTime != null ||
+      missingFields.contains('start_time')) {
+    final isMissingTime = startTime == null;
     actions.add(
       AiBookingQuickAction(
         key: 'change_time',
-        label: 'Đổi giờ',
-        userMessage: 'Đổi giờ khám',
+        label: isMissingTime ? 'Chọn giờ' : 'Đổi giờ',
+        userMessage: isMissingTime ? 'Chọn giờ khám' : 'Đổi giờ khám',
         uiAction: <String, dynamic>{
           'type': 'change_time',
           ...basePayload(),

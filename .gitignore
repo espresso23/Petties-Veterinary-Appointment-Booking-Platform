@@ -9,6 +9,9 @@
 .env.*
 *.env
 .env.production
+!/.env.example
+!/.env.prod.example
+!/.env.test.example
 petties-key.pem
 devpetties.pem
 *.txt
@@ -28,3 +31,4 @@ module_screen
 .agents
 .m2repo
 .m2
+.gitnexus

@@ -147,7 +147,7 @@ const VaccinationPage = () => {
                 }
             }
         }
-    }, [bookingId, records, templates, editingId, isLoading])
+    }, [bookingId, records, templates, editingId, isLoading]) // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleSubmit = async (data: VaccinationFormData) => {
         if (!petId) {

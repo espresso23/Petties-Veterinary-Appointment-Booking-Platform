@@ -2,74 +2,130 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petties_mobile/data/models/ai_chat.dart';
 import 'package:petties_mobile/ui/chat/ai_chat/utils/ai_booking_cards.dart';
-import 'package:petties_mobile/ui/chat/ai_chat/utils/ai_booking_quick_actions.dart';
 
 void main() {
   group('AiStructuredBookingSummaryCard', () {
-    testWidgets('bat nut xac nhan khi summary confirmable', (tester) async {
-      var tapped = false;
-
+    Future<void> pumpCard(
+      WidgetTester tester,
+      AiBookingSummaryPayload summary, {
+      List<AiClinic> clinicOptions = const <AiClinic>[],
+      List<AiBookingServiceOption> serviceOptions =
+          const <AiBookingServiceOption>[],
+      List<String> bookingDateOptions = const <String>[],
+      List<String> startTimeOptions = const <String>[],
+      ValueChanged<AiBookingSummaryPayload>? onRequestSlotRefresh,
+    }) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: AiStructuredBookingSummaryCard(
-              summary: const AiBookingSummaryPayload(
-                petName: 'Bella',
-                clinicName: 'Petties Q1',
-                bookingDate: '2026-03-21',
-                startTime: '09:00',
-                serviceNames: ['Tiem phong'],
-                isConfirmable: true,
+            body: SingleChildScrollView(
+              child: AiStructuredBookingSummaryCard(
+                summary: summary,
+                isConfirmed: false,
+                isBusy: false,
+                clinicOptions: clinicOptions,
+                serviceOptions: serviceOptions,
+                bookingDateOptions: bookingDateOptions,
+                startTimeOptions: startTimeOptions,
+                formatBookingDate: (value) => value ?? '',
+                onRequestSlotRefresh: onRequestSlotRefresh,
+                onConfirm: (_) {},
               ),
-              isConfirmed: false,
-              isBusy: false,
-              quickActions: const <AiBookingQuickAction>[],
-              formatBookingDate: _echoBookingDate,
-              onQuickAction: (_) {},
-              onConfirm: () {
-                tapped = true;
-              },
             ),
           ),
         ),
       );
+    }
 
-      await tester.tap(find.byType(ElevatedButton));
-      await tester.pump();
+    testWidgets(
+      'hiển thị CTA mở form khi draft còn thiếu trường',
+      (tester) async {
+        final summary = AiBookingSummaryPayload(
+          clinicId: 'clinic-1',
+          clinicName: 'Petties Clinic',
+          petId: 'pet-1',
+          bookingDate: '2026-04-04',
+          serviceNames: const ['Khám tổng quát'],
+          missingFields: const ['start_time', 'service_ids'],
+          nextBestAction: 'fill_booking_form',
+          readyToCreate: false,
+        );
 
-      expect(tapped, isTrue);
-    });
+        await pumpCard(tester, summary);
 
-    testWidgets('tat nut xac nhan va hien missing fields khi summary chua du',
-        (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: AiStructuredBookingSummaryCard(
-              summary: const AiBookingSummaryPayload(
-                clinicName: 'Petties Q1',
-                bookingDate: '2026-03-21',
-                isConfirmable: false,
-                missingFields: ['gio kham', 'dich vu'],
-              ),
-              isConfirmed: false,
-              isBusy: false,
-              quickActions: const <AiBookingQuickAction>[],
-              formatBookingDate: _echoBookingDate,
-              onQuickAction: (_) {},
-              onConfirm: () {},
+        expect(find.text('Phòng khám'), findsOneWidget);
+        expect(find.text('Petties Clinic'), findsOneWidget);
+        expect(find.text('Ngày khám'), findsOneWidget);
+        expect(find.text('XÁC NHẬN ĐẶT LỊCH'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'hiển thị CTA mở màn xác nhận khi dữ liệu đã đủ',
+      (tester) async {
+        final summary = AiBookingSummaryPayload(
+          clinicId: 'clinic-1',
+          clinicName: 'Petties Clinic',
+          petId: 'pet-1',
+          bookingDate: '2026-04-04',
+          startTime: '09:00',
+          serviceIds: const ['svc-1'],
+          serviceNames: const ['Khám tổng quát'],
+          nextBestAction: 'confirm_booking',
+          readyToCreate: true,
+        );
+
+        await pumpCard(tester, summary);
+
+        expect(find.text('XÁC NHẬN ĐẶT LỊCH'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'cho phép tải lại khung giờ rảnh từ form',
+      (tester) async {
+        var refreshCalled = false;
+        AiBookingSummaryPayload? latestRefreshPayload;
+
+        final summary = AiBookingSummaryPayload(
+          clinicId: 'clinic-1',
+          clinicName: 'Petties Clinic',
+          petId: 'pet-1',
+          bookingDate: '2026-04-04',
+          serviceIds: const ['svc-1'],
+          serviceNames: const ['Khám tổng quát'],
+          readyToCreate: false,
+        );
+
+        await pumpCard(
+          tester,
+          summary,
+          clinicOptions: const [
+            AiClinic(id: 'clinic-1', name: 'Petties Clinic', address: 'Q1'),
+          ],
+          serviceOptions: const [
+            AiBookingServiceOption(
+              id: 'svc-1',
+              name: 'Khám tổng quát',
+              clinicId: 'clinic-1',
             ),
-          ),
-        ),
-      );
+          ],
+          bookingDateOptions: const ['2026-04-04'],
+          startTimeOptions: const ['09:00'],
+          onRequestSlotRefresh: (payload) {
+            refreshCalled = true;
+            latestRefreshPayload = payload;
+          },
+        );
 
-      final button = tester.widget<ElevatedButton>(find.byType(ElevatedButton));
+        expect(find.text('Xem thêm lựa chọn'), findsOneWidget);
+        await tester.tap(find.text('Xem thêm lựa chọn'));
+        await tester.pumpAndSettle();
 
-      expect(button.onPressed, isNull);
-      expect(find.textContaining('gio kham'), findsOneWidget);
-      expect(find.textContaining('dich vu'), findsOneWidget);
-    });
+        expect(refreshCalled, isTrue);
+        expect(latestRefreshPayload?.bookingDate, '2026-04-04');
+        expect(latestRefreshPayload?.clinicId, 'clinic-1');
+      },
+    );
   });
 }
-
-String _echoBookingDate(String? value) => value ?? '';

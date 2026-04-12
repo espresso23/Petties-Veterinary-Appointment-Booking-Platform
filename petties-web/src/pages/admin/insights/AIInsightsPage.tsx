@@ -1,17 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
-import { feedbackApi, kgApi, caseMemoryApi } from '../../../services/agentService'
+import { feedbackApi, caseMemoryApi } from '../../../services/agentService'
 import type {
   FeedbackStatsResponse,
   FeedbackListResponse,
   FeedbackItem,
   FeedbackListParams,
-  KGStatsResponse,
-  KGBuildResponse,
-  KGVisualizeResponse,
-  KGQueryResultItem,
   CaseMemoryStatsResponse,
-  CaseMemoryPruneResponse,
   CaseMemoryItem,
+  CaseMemoryDetailItem,
   CaseMemoryListParams,
 } from '../../../services/agentService'
 import {
@@ -20,9 +16,7 @@ import {
   HandThumbDownIcon,
   ChartBarIcon,
   CircleStackIcon,
-  CubeTransparentIcon,
   TrashIcon,
-  ArrowPathRoundedSquareIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
   ClockIcon,
@@ -31,22 +25,18 @@ import {
   ChevronRightIcon,
   TableCellsIcon,
   XMarkIcon,
-  ArrowsPointingOutIcon,
-  MagnifyingGlassIcon,
   EyeIcon,
   DocumentTextIcon,
 } from '@heroicons/react/24/outline'
 import { useToast } from '../../../components/Toast'
-import { GraphVisualizer } from '../../../components/admin/GraphVisualizer'
 import { ConfirmModal } from '../../../components/ConfirmModal'
 
 /**
  * AI Insights Page - Neobrutalism Edition
  *
- * 3 sections:
- * 1. Feedback Dashboard - stats, by_type, by_category with period selector
- * 2. Knowledge Graph - stats + build trigger
- * 3. Case Memory - stats + prune trigger
+ * 2 sections:
+ * 1. Feedback Dashboard - focus vào chất lượng phản hồi
+ * 2. Kho ca bệnh AI - stats + prune trigger
  */
 export const AIInsightsPage = () => {
   const { showToast } = useToast()
@@ -58,20 +48,9 @@ export const AIInsightsPage = () => {
   const [feedbackStats, setFeedbackStats] = useState<FeedbackStatsResponse | null>(null)
   const [feedbackLoading, setFeedbackLoading] = useState(true)
 
-  // --- Section 2: Knowledge Graph ---
-  const [kgStats, setKgStats] = useState<KGStatsResponse | null>(null)
-  const [kgLoading, setKgLoading] = useState(true)
-  const [kgBuilding, setKgBuilding] = useState(false)
-  const [kgBuildResult, setKgBuildResult] = useState<KGBuildResponse | null>(null)
-  const [kgVisualizeData, setKgVisualizeData] = useState<KGVisualizeResponse | null>(null)
-  const [showKgGraph, setShowKgGraph] = useState(false)
-
-  // --- Section 3: Case Memory ---
+  // --- Section 2: Case Memory ---
   const [caseStats, setCaseStats] = useState<CaseMemoryStatsResponse | null>(null)
   const [caseLoading, setCaseLoading] = useState(true)
-  const [casePruning, setCasePruning] = useState(false)
-  const [casePruneResult, setCasePruneResult] = useState<CaseMemoryPruneResponse | null>(null)
-  const [pruneOlderThanDays, setPruneOlderThanDays] = useState(90)
 
   // --- Section 3b: Case Memory List ---
 
@@ -86,13 +65,16 @@ export const AIInsightsPage = () => {
   const [showCaseFilters, setShowCaseFilters] = useState(false)
 
   // --- Case Detail Modal ---
-  const [selectedCase, setSelectedCase] = useState<CaseMemoryItem | null>(null)
+  const [selectedCase, setSelectedCase] = useState<CaseMemoryDetailItem | null>(null)
   const [showCaseDetail, setShowCaseDetail] = useState(false)
+  const [caseDetailLoading, setCaseDetailLoading] = useState(false)
 
   // --- Delete Confirmation ---
   const [deleteCaseId, setDeleteCaseId] = useState<string | null>(null)
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
+  const [selectedCaseIds, setSelectedCaseIds] = useState<Set<string>>(new Set())
 
-  // --- Section 4: Feedback Detail List ---
+  // --- Section 3: Feedback Detail List ---
   const [feedbackList, setFeedbackList] = useState<FeedbackListResponse | null>(null)
   const [feedbackListLoading, setFeedbackListLoading] = useState(false)
   const [feedbackListPage, setFeedbackListPage] = useState(1)
@@ -101,27 +83,6 @@ export const AIInsightsPage = () => {
   })
   const [showFilters, setShowFilters] = useState(false)
   const [showDetailSection, setShowDetailSection] = useState(false)
-  // Knowledge Graph Query
-  const [kgSearchQuery, setKgSearchQuery] = useState('')
-  const [kgSearchResults, setKgSearchResults] = useState<KGQueryResultItem[]>([])
-  const [kgSearching, setKgSearching] = useState(false)
-
-  const handleQueryKG = async () => {
-    if (!kgSearchQuery.trim()) return
-    setKgSearching(true)
-    try {
-      const res = await kgApi.queryKG({ query: kgSearchQuery })
-      setKgSearchResults(res.results)
-      if (res.results.length === 0) {
-        showToast('info', 'Không tìm thấy thông tin liên quan trong Knowledge Graph')
-      }
-    } catch (error) {
-      const err = error as Error
-      showToast('error', err.message || 'Lỗi khi truy vấn Knowledge Graph')
-    } finally {
-      setKgSearching(false)
-    }
-  }
 
   // --- Load Feedback Stats ---
   const loadFeedbackStats = useCallback(async () => {
@@ -136,19 +97,6 @@ export const AIInsightsPage = () => {
       setFeedbackLoading(false)
     }
   }, [periodDays, showToast])
-
-  // --- Load KG Stats ---
-  const loadKGStats = useCallback(async () => {
-    try {
-      setKgLoading(true)
-      const data = await kgApi.getStats()
-      setKgStats(data)
-    } catch (err) {
-      console.error('Failed to load KG stats:', err)
-    } finally {
-      setKgLoading(false)
-    }
-  }, [])
 
   // --- Load Case Memory Stats ---
   const loadCaseStats = useCallback(async () => {
@@ -202,6 +150,74 @@ export const AIInsightsPage = () => {
     }
   }
 
+  const handleToggleCaseSelection = (caseId: string) => {
+    setSelectedCaseIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(caseId)) {
+        next.delete(caseId)
+      } else {
+        next.add(caseId)
+      }
+      return next
+    })
+  }
+
+  const handleToggleSelectAllVisible = () => {
+    setSelectedCaseIds((prev) => {
+      const next = new Set(prev)
+      const visibleIds = caseList.map((item) => item.case_id)
+      const isAllSelected = visibleIds.length > 0 && visibleIds.every((id) => next.has(id))
+      if (isAllSelected) {
+        visibleIds.forEach((id) => next.delete(id))
+      } else {
+        visibleIds.forEach((id) => next.add(id))
+      }
+      return next
+    })
+  }
+
+  const handleBulkDeleteCases = async () => {
+    const idsToDelete = Array.from(selectedCaseIds)
+    if (idsToDelete.length === 0) return
+
+    try {
+      const results = await Promise.allSettled(idsToDelete.map((id) => caseMemoryApi.delete(id)))
+      const successCount = results.filter((result) => result.status === 'fulfilled').length
+      const failedCount = results.length - successCount
+
+      if (successCount > 0) {
+        showToast('success', `Đã xóa ${successCount} ca bệnh.`)
+      }
+      if (failedCount > 0) {
+        showToast('warning', `${failedCount} ca bệnh xóa không thành công. Vui lòng thử lại.`)
+      }
+
+      setSelectedCaseIds(new Set())
+      setShowBulkDeleteConfirm(false)
+      await loadCaseList(caseListPage)
+      await loadCaseStats()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Lỗi không xác định'
+      showToast('error', `Xóa hàng loạt thất bại: ${message}`)
+    }
+  }
+
+  const handleOpenCaseDetail = useCallback(async (item: CaseMemoryItem) => {
+    try {
+      setCaseDetailLoading(true)
+      setShowCaseDetail(true)
+      const data = await caseMemoryApi.get(item.case_id)
+      setSelectedCase(data.case)
+    } catch (err) {
+      console.error('Failed to load case detail:', err)
+      setShowCaseDetail(false)
+      setSelectedCase(null)
+      showToast('error', 'Không thể tải chi tiết case')
+    } finally {
+      setCaseDetailLoading(false)
+    }
+  }, [showToast])
+
   // --- Load Feedback Detail List ---
   const loadFeedbackList = useCallback(async (page: number = 1) => {
     try {
@@ -226,10 +242,9 @@ export const AIInsightsPage = () => {
   }, [loadFeedbackStats])
 
   useEffect(() => {
-    loadKGStats()
     loadCaseStats()
     loadCaseList(1)
-  }, [loadKGStats, loadCaseStats, loadCaseList])
+  }, [loadCaseStats, loadCaseList])
 
   // Load feedback list when detail section is opened or filters change
   useEffect(() => {
@@ -238,58 +253,12 @@ export const AIInsightsPage = () => {
     }
   }, [showDetailSection, loadFeedbackList])
 
-  // --- Actions ---
-  const handleBuildKG = async () => {
-    try {
-      setKgBuilding(true)
-      setKgBuildResult(null)
-      const result = await kgApi.build()
-      setKgBuildResult(result)
-      showToast('success', `Đã xây dựng Knowledge Graph: ${result.triplets_extracted} bộ ba`)
-      await loadKGStats()
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Lỗi không xác định'
-      showToast('error', `Xây dựng KG thất bại: ${message}`)
-    } finally {
-      setKgBuilding(false)
-    }
-  }
-
-  const handleShowKgGraph = async () => {
-    if (showKgGraph) {
-      setShowKgGraph(false)
-      return
-    }
-    try {
-      const data = await kgApi.visualize()
-      setKgVisualizeData(data)
-      setShowKgGraph(true)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Lỗi không xác định'
-      showToast('error', `Không thể tải graph: ${message}`)
-    }
-  }
-
-  const handlePruneCaseMemory = async () => {
-    try {
-      setCasePruning(true)
-      setCasePruneResult(null)
-      const result = await caseMemoryApi.prune(pruneOlderThanDays)
-      setCasePruneResult(result)
-      showToast('success', `Đã dọn dẹp ${result.pruned_count} ca cũ`)
-      await loadCaseStats()
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Lỗi không xác định'
-      showToast('error', `Dọn dẹp thất bại: ${message}`)
-    } finally {
-      setCasePruning(false)
-    }
-  }
-
   // --- Helpers ---
   const positiveRate = feedbackStats ? Math.round(feedbackStats.positive_rate * 100) : 0
   const thumbsUp = feedbackStats?.by_type?.thumbs_up ?? 0
   const thumbsDown = feedbackStats?.by_type?.thumbs_down ?? 0
+  const positiveCount = thumbsUp + (feedbackStats?.by_type?.confirmed ?? 0) + (feedbackStats?.by_type?.vet_confirmed ?? 0)
+  const negativeCount = thumbsDown + (feedbackStats?.by_type?.report ?? 0)
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -300,13 +269,12 @@ export const AIInsightsPage = () => {
             <div>
               <h1 className="text-4xl font-black text-black uppercase italic tracking-tighter">AI INSIGHTS</h1>
               <p className="text-sm font-bold text-black mt-1 uppercase">
-                Feedback, Knowledge Graph & Case Memory
+                Feedback & Kho ca bệnh AI
               </p>
             </div>
             <button
               onClick={() => {
                 loadFeedbackStats()
-                loadKGStats()
                 loadCaseStats()
               }}
               className="inline-flex items-center gap-2 px-4 py-2 text-sm font-black uppercase bg-white text-stone-900 border-4 border-black shadow-[4px_4px_0_#1c1917] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all cursor-pointer"
@@ -326,7 +294,7 @@ export const AIInsightsPage = () => {
            ============================================ */}
         <section>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-black text-stone-900 uppercase tracking-tight">Phản hồi người dùng</h2>
+            <h2 className="text-2xl font-black text-stone-900 uppercase tracking-tight">Chất lượng phản hồi AI</h2>
             {/* Period selector */}
             <div className="flex items-center gap-2">
               {[7, 30, 90].map((days) => (
@@ -381,45 +349,16 @@ export const AIInsightsPage = () => {
                 />
               </div>
 
-              {/* Breakdowns */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* By Type */}
+              <div className="grid grid-cols-1 gap-6">
                 <div className="bg-white border-2 border-stone-900 rounded-xl shadow-[4px_4px_0_#1c1917] p-6">
-                  <h3 className="text-sm font-black uppercase text-stone-700 mb-4">Theo loại phản hồi</h3>
-                  {feedbackStats?.by_type && Object.keys(feedbackStats.by_type).length > 0 ? (
+                  <h3 className="text-sm font-black uppercase text-stone-700 mb-4">Tổng quan chất lượng</h3>
+                  {feedbackStats?.total ? (
                     <div className="space-y-3">
-                      {Object.entries(feedbackStats.by_type).map(([type, count]) => (
-                        <BarRow
-                          key={type}
-                          label={feedbackTypeLabel(type)}
-                          count={count}
-                          total={feedbackStats.total}
-                          color={type === 'thumbs_up' ? 'bg-green-500' : type === 'thumbs_down' ? 'bg-red-400' : 'bg-amber-500'}
-                        />
-                      ))}
+                      <BarRow label="Tích cực" count={positiveCount} total={feedbackStats.total} color="bg-green-500" />
+                      <BarRow label="Tiêu cực" count={negativeCount} total={feedbackStats.total} color="bg-red-400" />
                     </div>
                   ) : (
                     <EmptyState text="Chưa có dữ liệu phản hồi" />
-                  )}
-                </div>
-
-                {/* By Category */}
-                <div className="bg-white border-2 border-stone-900 rounded-xl shadow-[4px_4px_0_#1c1917] p-6">
-                  <h3 className="text-sm font-black uppercase text-stone-700 mb-4">Theo danh mục</h3>
-                  {feedbackStats?.by_category && Object.keys(feedbackStats.by_category).length > 0 ? (
-                    <div className="space-y-3">
-                      {Object.entries(feedbackStats.by_category).map(([cat, count]) => (
-                        <BarRow
-                          key={cat}
-                          label={categoryLabel(cat)}
-                          count={count}
-                          total={feedbackStats.total}
-                          color={categoryColor(cat)}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <EmptyState text="Chưa có dữ liệu danh mục" />
                   )}
                 </div>
               </div>
@@ -442,7 +381,7 @@ export const AIInsightsPage = () => {
             <div className="mt-6">
               <div className="bg-white border-2 border-stone-900 rounded-xl shadow-[4px_4px_0_#1c1917] overflow-hidden">
                 {/* Header + Filters */}
-                <div className="p-4 border-b-2 border-stone-900 bg-stone-50">
+                <div className="p-4 pr-14 sm:pr-16 border-b-2 border-stone-900 bg-stone-50">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-black uppercase text-stone-700 flex items-center gap-2">
                       <TableCellsIcon className="w-4 h-4" />
@@ -473,7 +412,7 @@ export const AIInsightsPage = () => {
 
                   {/* Filter Bar */}
                   {showFilters && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 p-3 bg-amber-50 border-2 border-stone-900 rounded-lg">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-3 p-3 bg-amber-50 border-2 border-stone-900 rounded-lg">
                       <div>
                         <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Loại</label>
                         <select
@@ -487,36 +426,6 @@ export const AIInsightsPage = () => {
                           <option value="report">Báo cáo</option>
                           <option value="confirmed">Xác nhận</option>
                           <option value="vet_confirmed">Bác sĩ xác nhận</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Danh mục</label>
-                        <select
-                          value={feedbackListFilters.feedback_category || ''}
-                          onChange={(e) => setFeedbackListFilters(prev => ({ ...prev, feedback_category: e.target.value || undefined }))}
-                          className="w-full px-2 py-1.5 text-xs border-2 border-stone-900 rounded-lg bg-white font-bold shadow-[2px_2px_0_#1c1917] cursor-pointer"
-                        >
-                          <option value="">Tất cả</option>
-                          <option value="medical">Y tế</option>
-                          <option value="booking">Đặt lịch</option>
-                          <option value="clinic_ops">Vận hành PK</option>
-                          <option value="knowledge">Kiến thức</option>
-                          <option value="general">Chung</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Vai trò</label>
-                        <select
-                          value={feedbackListFilters.user_role || ''}
-                          onChange={(e) => setFeedbackListFilters(prev => ({ ...prev, user_role: e.target.value || undefined }))}
-                          className="w-full px-2 py-1.5 text-xs border-2 border-stone-900 rounded-lg bg-white font-bold shadow-[2px_2px_0_#1c1917] cursor-pointer"
-                        >
-                          <option value="">Tất cả</option>
-                          <option value="PET_OWNER">Chủ thú cưng</option>
-                          <option value="STAFF">Nhân viên</option>
-                          <option value="CLINIC_MANAGER">Quản lý PK</option>
-                          <option value="CLINIC_OWNER">Chủ PK</option>
-                          <option value="ADMIN">Admin</option>
                         </select>
                       </div>
                       <div>
@@ -560,15 +469,12 @@ export const AIInsightsPage = () => {
                   </div>
                 ) : feedbackList && feedbackList.items.length > 0 ? (
                   <>
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto pr-14 sm:pr-16">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="bg-stone-100 border-b-2 border-stone-900">
                             <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Thời gian</th>
                             <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Loại</th>
-                            <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Danh mục</th>
-                            <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Vai trò</th>
-                            <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Tool</th>
                             <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Nội dung</th>
                             <th className="text-right px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Trọng số</th>
                             <th className="text-center px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Trạng thái</th>
@@ -617,211 +523,13 @@ export const AIInsightsPage = () => {
         </section>
 
         {/* ============================================
-           SECTION 2: KNOWLEDGE GRAPH
+           SECTION 2: CASE MEMORY
            ============================================ */}
         <section>
-          <h2 className="text-2xl font-black text-stone-900 uppercase tracking-tight mb-4">Knowledge Graph</h2>
-
-          {kgLoading ? (
-            <LoadingCard label="Đang tải thống kê Knowledge Graph..." />
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* KG Stats Cards */}
-              <StatCard
-                icon={<CubeTransparentIcon className="w-5 h-5 text-purple-600" />}
-                value={kgStats?.triplet_count ?? 0}
-                label="Tổng bộ ba"
-                bgColor="bg-purple-50"
-                valueColor="text-purple-600"
-              />
-              <StatCard
-                icon={<CircleStackIcon className="w-5 h-5 text-indigo-600" />}
-                value={kgStats?.entity_count ?? 0}
-                label="Thực thể duy nhất"
-                bgColor="bg-indigo-50"
-                valueColor="text-indigo-600"
-              />
-              <StatCard
-                icon={<ArrowPathRoundedSquareIcon className="w-5 h-5 text-teal-600" />}
-                value={kgStats?.relation_types?.length ?? 0}
-                label="Loại quan hệ"
-                bgColor="bg-teal-50"
-                valueColor="text-teal-600"
-              />
-
-              {/* Build KG Card */}
-              <div className="lg:col-span-3 bg-white border-2 border-stone-900 rounded-xl shadow-[4px_4px_0_#1c1917] p-6">
-                <div className="flex items-center justify-between gap-4 mb-4">
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-black uppercase text-stone-700">Xây dựng Knowledge Graph</h3>
-                    <p className="text-xs text-stone-500 mt-1">
-                      Trích xuất bộ ba (subject-predicate-object) từ tất cả tài liệu đã xử lý
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                      onClick={handleBuildKG}
-                      disabled={kgBuilding}
-                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-black uppercase bg-purple-600 text-white border-2 border-stone-900 rounded-lg shadow-[3px_3px_0_#1c1917] hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {kgBuilding ? (
-                        <>
-                          <ArrowPathIcon className="w-4 h-4 animate-spin" />
-                          Đang xây dựng...
-                        </>
-                      ) : (
-                        <>
-                          <CubeTransparentIcon className="w-4 h-4" />
-                          Xây dựng KG
-                        </>
-                      )}
-                    </button>
-                    <button
-                      onClick={handleShowKgGraph}
-                      disabled={!kgStats?.triplet_count}
-                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-black uppercase bg-teal-600 text-white border-2 border-stone-900 rounded-lg shadow-[3px_3px_0_#1c1917] hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <ArrowsPointingOutIcon className="w-4 h-4" />
-                      {showKgGraph ? 'Ẩn Graph' : 'Xem Graph'}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Graph Visualization */}
-                {showKgGraph && kgVisualizeData && (
-                  <div className="mt-4">
-                    <GraphVisualizer data={kgVisualizeData} width={700} height={450} />
-                  </div>
-                )}
-                {/* Build result */}
-                {kgBuildResult && (
-                  <div className="mt-4 p-4 bg-green-50 border-2 border-green-600 rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircleIcon className="w-5 h-5 text-green-600" />
-                      <span className="text-sm font-bold text-green-800">{kgBuildResult.message}</span>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs text-stone-700">
-                      <div>
-                        <span className="font-bold uppercase">Tài liệu xử lý:</span>{' '}
-                        {kgBuildResult.documents_processed}
-                      </div>
-                      <div>
-                        <span className="font-bold uppercase">Bộ ba trích xuất:</span>{' '}
-                        {kgBuildResult.triplets_extracted}
-                      </div>
-                      <div>
-                        <span className="font-bold uppercase">Tài liệu bỏ qua:</span>{' '}
-                        {kgBuildResult.documents_skipped?.length ?? 0}
-                      </div>
-                      <div>
-                        <span className="font-bold uppercase">Thời gian:</span>{' '}
-                        {(kgBuildResult.processing_time_ms / 1000).toFixed(1)}s
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* KG Query Section */}
-                <div className="mt-8 pt-8 border-t-2 border-stone-100">
-                  <div className="flex items-center gap-2 mb-4">
-                    <MagnifyingGlassIcon className="w-5 h-5 text-purple-600" />
-                    <h4 className="text-sm font-black uppercase text-stone-700">Test Truy vấn Knowledge Graph</h4>
-                  </div>
-
-                  <div className="flex gap-3 mb-6">
-                    <div className="flex-1 relative">
-                      <input
-                        type="text"
-                        value={kgSearchQuery}
-                        onChange={(e) => setKgSearchQuery(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleQueryKG()}
-                        placeholder="Nhập câu hỏi hoặc từ khóa thú y (vídụ: Triệu chứng bệnh dại)..."
-                        className="w-full px-4 py-2 bg-stone-50 border-2 border-stone-900 rounded-lg shadow-[2px_2px_0_#1c1917] focus:outline-none focus:ring-2 focus:ring-purple-500 placeholder:text-stone-400"
-                      />
-                    </div>
-                    <button
-                      onClick={handleQueryKG}
-                      disabled={kgSearching || !kgSearchQuery.trim()}
-                      className="px-6 py-2 bg-stone-900 text-white font-black uppercase rounded-lg shadow-[3px_3px_0_#d97706] hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px] transition-all disabled:opacity-50"
-                    >
-                      {kgSearching ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : 'Truy vấn'}
-                    </button>
-                  </div>
-
-                  {kgSearchResults.length > 0 && (
-                    <div className="space-y-4">
-                      <div className="overflow-x-auto border-2 border-stone-900 rounded-xl overflow-hidden shadow-[4px_4px_0_#1c1917]">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="bg-stone-50 border-b-2 border-stone-900">
-                              <th className="px-4 py-3 text-left font-black uppercase text-xs text-stone-600">Thông tin liên quan tìm được</th>
-                              <th className="px-4 py-3 text-right font-black uppercase text-xs text-stone-600 w-24">Độ khớp</th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y border-stone-200">
-                            {kgSearchResults.map((res, i) => (
-                              <tr key={i} className="hover:bg-purple-50 transition-colors">
-                                <td className="px-4 py-3">
-                                  <div className="font-medium text-stone-900 mb-1">{res.object}</div>
-                                  <div className="flex flex-wrap gap-2">
-                                    {res.source_nodes?.map((node, ni) => (
-                                      <span key={ni} className="px-2 py-0.5 bg-stone-100 text-stone-600 rounded text-[10px] font-bold border border-stone-200">
-                                        {node}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </td>
-                                <td className="px-4 py-3 text-right font-mono font-bold text-purple-600">
-                                  {(res.score || 1).toFixed(2)}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Sample triplets */}
-                {kgStats?.sample_triplets && kgStats.sample_triplets.length > 0 && (
-                  <div className="mt-4">
-                    <h4 className="text-xs font-black uppercase text-stone-500 mb-2">Bộ ba mẫu</h4>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm border-2 border-stone-900 rounded-lg overflow-hidden">
-                        <thead>
-                          <tr className="bg-purple-50">
-                            <th className="text-left px-3 py-2 text-xs font-black uppercase border-b-2 border-stone-900">Chủ thể</th>
-                            <th className="text-left px-3 py-2 text-xs font-black uppercase border-b-2 border-stone-900">Quan hệ</th>
-                            <th className="text-left px-3 py-2 text-xs font-black uppercase border-b-2 border-stone-900">Đối tượng</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {kgStats.sample_triplets.map((t, i) => (
-                            <tr key={i} className="border-b border-stone-200 last:border-b-0 hover:bg-stone-50">
-                              <td className="px-3 py-2 font-medium">{t.subject}</td>
-                              <td className="px-3 py-2 text-purple-700 font-bold">{t.predicate}</td>
-                              <td className="px-3 py-2">{t.object}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* ============================================
-           SECTION 3: CASE MEMORY
-           ============================================ */}
-        <section>
-          <h2 className="text-2xl font-black text-stone-900 uppercase tracking-tight mb-4">Case Memory</h2>
+          <h2 className="text-2xl font-black text-stone-900 uppercase tracking-tight mb-4">Kho ca bệnh AI</h2>
 
           {caseLoading ? (
-            <LoadingCard label="Đang tải thống kê Case Memory..." />
+            <LoadingCard label="Đang tải thống kê kho ca bệnh AI..." />
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Case Stats */}
@@ -833,74 +541,6 @@ export const AIInsightsPage = () => {
                 valueColor="text-amber-600"
               />
               <CollectionStatusBadge status={caseStats?.status} />
-
-              {/* Prune Card */}
-              <div className="lg:col-span-2 bg-white border-2 border-stone-900 rounded-xl shadow-[4px_4px_0_#1c1917] p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-sm font-black uppercase text-stone-700">Dọn dẹp Case Memory</h3>
-                    <p className="text-xs text-stone-500 mt-1">
-                      Xóa các ca cũ có lần xác nhận thấp để giữ chất lượng dữ liệu
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-end gap-4 mb-4">
-                  <div className="flex-1 max-w-xs">
-                    <label className="block text-xs font-black uppercase text-stone-600 mb-1">
-                      Xóa ca cũ hơn (ngày)
-                    </label>
-                    <input
-                      type="number"
-                      value={pruneOlderThanDays}
-                      onChange={(e) => setPruneOlderThanDays(Number(e.target.value))}
-                      min={7}
-                      max={365}
-                      className="w-full px-3 py-2 border-2 border-stone-900 rounded-lg text-sm font-medium shadow-[2px_2px_0_#1c1917] focus:outline-none focus:border-amber-600"
-                    />
-                  </div>
-                  <button
-                    onClick={handlePruneCaseMemory}
-                    disabled={casePruning}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-black uppercase bg-red-500 text-white border-2 border-stone-900 rounded-lg shadow-[3px_3px_0_#1c1917] hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {casePruning ? (
-                      <>
-                        <ArrowPathIcon className="w-4 h-4 animate-spin" />
-                        Đang dọn dẹp...
-                      </>
-                    ) : (
-                      <>
-                        <TrashIcon className="w-4 h-4" />
-                        Dọn dẹp
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {/* Prune result */}
-                {casePruneResult && (
-                  <div className="p-4 bg-green-50 border-2 border-green-600 rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircleIcon className="w-5 h-5 text-green-600" />
-                      <span className="text-sm font-bold text-green-800">{casePruneResult.message}</span>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs text-stone-700">
-                      <div>
-                        <span className="font-bold uppercase">Đã xóa:</span> {casePruneResult.pruned_count} ca
-                      </div>
-                      <div>
-                        <span className="font-bold uppercase">Ít xác nhận hơn:</span>{' '}
-                        {casePruneResult.criteria.max_feedback_below}
-                      </div>
-                      <div>
-                        <span className="font-bold uppercase">Cũ hơn:</span>{' '}
-                        {casePruneResult.criteria.older_than_days} ngày
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
           )}
         </section>
@@ -912,10 +552,10 @@ export const AIInsightsPage = () => {
           <div className="bg-white border-2 border-stone-900 rounded-xl shadow-[4px_4px_0_#1c1917] overflow-hidden">
             {/* Header + Filters */}
             <div className="p-4 border-b-2 border-stone-900 bg-stone-50">
-              <div className="flex items-center justify-between mb-3">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
                 <h3 className="text-sm font-black uppercase text-stone-700 flex items-center gap-2">
                   <DocumentTextIcon className="w-4 h-4" />
-                  Danh sách Cases
+                  Danh sách ca bệnh
                   {caseListTotal > 0 && (
                     <span className="text-xs font-bold text-stone-400 normal-case">
                       ({caseListTotal} kết quả)
@@ -923,6 +563,14 @@ export const AIInsightsPage = () => {
                   )}
                 </h3>
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowBulkDeleteConfirm(true)}
+                    disabled={selectedCaseIds.size === 0}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-black uppercase border-2 border-stone-900 rounded-lg bg-red-100 text-red-700 shadow-[2px_2px_0_#1c1917] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+                  >
+                    <TrashIcon className="w-3.5 h-3.5" />
+                    Xóa đã chọn ({selectedCaseIds.size})
+                  </button>
                   <button
                     onClick={() => setShowCaseFilters(!showCaseFilters)}
                     className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-black uppercase border-2 border-stone-900 rounded-lg transition-all cursor-pointer ${showCaseFilters ? 'bg-amber-400 shadow-none' : 'bg-white shadow-[2px_2px_0_#1c1917]'
@@ -941,24 +589,40 @@ export const AIInsightsPage = () => {
               </div>
 
               {/* Search */}
-              <div className="flex gap-3 mb-3">
+              <div className="mb-3 flex flex-col gap-3 sm:flex-row">
                 <div className="flex-1 relative">
                   <input
                     type="text"
                     value={caseListSearch}
                     onChange={(e) => setCaseListSearch(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && loadCaseList(1)}
-                    placeholder="Tìm kiếm trong nội dung case..."
+                    placeholder="Tìm kiếm trong nội dung ca bệnh..."
                     className="w-full px-4 py-2 bg-white border-2 border-stone-900 rounded-lg shadow-[2px_2px_0_#1c1917] focus:outline-none focus:ring-2 focus:ring-amber-500 placeholder:text-stone-400 text-sm"
                   />
                 </div>
                 <button
                   onClick={() => loadCaseList(1)}
-                  className="px-4 py-2 bg-amber-600 text-white font-black uppercase rounded-lg shadow-[3px_3px_0_#1c1917] hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px] transition-all"
+                  className="w-full sm:w-auto px-4 py-2 bg-amber-600 text-white font-black uppercase rounded-lg shadow-[3px_3px_0_#1c1917] hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px] transition-all"
                 >
                   Tìm kiếm
                 </button>
               </div>
+
+              {selectedCaseIds.size > 0 && (
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border-2 border-stone-900 bg-amber-50 px-3 py-2">
+                  <p className="text-xs font-bold text-stone-700">
+                    Đã chọn <span className="font-black text-stone-900">{selectedCaseIds.size}</span> ca bệnh
+                    {' '} (bao gồm các trang đã duyệt).
+                  </p>
+                  <button
+                    onClick={() => setSelectedCaseIds(new Set())}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-black uppercase border-2 border-stone-900 rounded-lg bg-white text-stone-700 shadow-[2px_2px_0_#1c1917] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all cursor-pointer"
+                  >
+                    <XMarkIcon className="h-3.5 w-3.5" />
+                    Bỏ chọn tất cả
+                  </button>
+                </div>
+              )}
 
               {/* Filter Bar */}
               {showCaseFilters && (
@@ -1005,7 +669,7 @@ export const AIInsightsPage = () => {
             {/* Table */}
             {caseListLoading ? (
               <div className="p-8">
-                <LoadingCard label="Đang tải danh sách cases..." />
+                <LoadingCard label="Đang tải danh sách ca bệnh..." />
               </div>
             ) : caseList.length > 0 ? (
               <>
@@ -1013,13 +677,20 @@ export const AIInsightsPage = () => {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-stone-100 border-b-2 border-stone-900">
+                        <th className="text-center px-3 py-2.5">
+                          <input
+                            type="checkbox"
+                            checked={caseList.length > 0 && caseList.every((item) => selectedCaseIds.has(item.case_id))}
+                            onChange={handleToggleSelectAllVisible}
+                            className="h-4 w-4 cursor-pointer accent-amber-600"
+                            aria-label="Chọn tất cả ca bệnh đang hiển thị"
+                          />
+                        </th>
                         <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Loài</th>
                         <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Chủ đề chính</th>
                         <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Chẩn đoán</th>
-                        <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Triệu chứng</th>
-                        <th className="text-center px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Lần xác nhận</th>
-                        <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Ngày tạo</th>
-                        <th className="text-center px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Thao tác</th>
+                        <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Ngày khám</th>
+                        <th className="text-center px-3 py-2.5 text-[10px] font-black uppercase text-stone-600 min-w-[96px]">Thao tác</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1027,10 +698,9 @@ export const AIInsightsPage = () => {
                         <CaseRow
                           key={item.case_id}
                           item={item}
-                          onView={() => {
-                            setSelectedCase(item)
-                            setShowCaseDetail(true)
-                          }}
+                          selected={selectedCaseIds.has(item.case_id)}
+                          onToggleSelect={() => handleToggleCaseSelection(item.case_id)}
+                          onView={() => void handleOpenCaseDetail(item)}
                           onDelete={() => setDeleteCaseId(item.case_id)}
                         />
                       ))}
@@ -1039,7 +709,7 @@ export const AIInsightsPage = () => {
                 </div>
 
                 {/* Pagination */}
-                <div className="flex items-center justify-between px-4 py-3 border-t-2 border-stone-900 bg-stone-50">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-4 py-3 border-t-2 border-stone-900 bg-stone-50">
                   <span className="text-xs font-bold text-stone-500">
                     Trang {caseListPage} / {Math.ceil(caseListTotal / (caseListFilters.page_size || 15)) || 1}
                     ({caseListTotal} kết quả)
@@ -1064,16 +734,17 @@ export const AIInsightsPage = () => {
               </>
             ) : (
               <div className="p-8">
-                <EmptyState text="Chưa có case nào" />
+                  <EmptyState text="Chưa có ca bệnh nào" />
               </div>
             )}
           </div>
         </section>
 
         {/* Case Detail Modal */}
-        {showCaseDetail && selectedCase && (
+        {showCaseDetail && (
           <CaseDetailModal
             case={selectedCase}
+            isLoading={caseDetailLoading}
             onClose={() => {
               setShowCaseDetail(false)
               setSelectedCase(null)
@@ -1085,11 +756,21 @@ export const AIInsightsPage = () => {
         <ConfirmModal
           isOpen={deleteCaseId !== null}
           title="Xác nhận xóa"
-          message="Bạn có chắc muốn xóa case này? Hành động này không thể hoàn tác."
+          message="Bạn có chắc muốn xóa ca bệnh này? Hành động này không thể hoàn tác."
           confirmLabel="Xóa"
           cancelLabel="Hủy"
           onConfirm={handleDeleteCase}
           onCancel={() => setDeleteCaseId(null)}
+          isDanger
+        />
+        <ConfirmModal
+          isOpen={showBulkDeleteConfirm}
+          title="Xác nhận xóa hàng loạt"
+          message={`Bạn có chắc muốn xóa ${selectedCaseIds.size} ca bệnh đã chọn? Hành động này không thể hoàn tác.`}
+          confirmLabel="Xóa tất cả đã chọn"
+          cancelLabel="Hủy"
+          onConfirm={handleBulkDeleteCases}
+          onCancel={() => setShowBulkDeleteConfirm(false)}
           isDanger
         />
       </div>
@@ -1115,17 +796,6 @@ function FeedbackRow({ item }: { item: FeedbackItem }) {
         <td className="px-3 py-2.5">
           <FeedbackTypeBadge type={item.feedback_type} />
         </td>
-        <td className="px-3 py-2.5">
-          <span className={`inline-block px-2 py-0.5 text-[10px] font-black uppercase border-2 border-stone-900 rounded-lg ${categoryBadgeColor(item.feedback_category)}`}>
-            {categoryLabel(item.feedback_category)}
-          </span>
-        </td>
-        <td className="px-3 py-2.5 text-xs font-bold text-stone-700">
-          {roleLabel(item.user_role)}
-        </td>
-        <td className="px-3 py-2.5 text-xs font-mono text-stone-600">
-          {item.tool_used || '--'}
-        </td>
         <td className="px-3 py-2.5 text-xs text-stone-700 max-w-[200px] truncate">
           {item.feedback_text || item.message_content || item.feedback_reason || '--'}
         </td>
@@ -1142,7 +812,7 @@ function FeedbackRow({ item }: { item: FeedbackItem }) {
       </tr>
       {expanded && hasDetail && (
         <tr className="bg-amber-50 border-b border-stone-200">
-          <td colSpan={8} className="px-4 py-3">
+          <td colSpan={5} className="px-4 py-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               {item.feedback_reason && (
                 <div>
@@ -1273,61 +943,6 @@ function FeedbackTypeBadge({ type }: { type: string }) {
   )
 }
 
-function feedbackTypeLabel(type: string): string {
-  const map: Record<string, string> = {
-    thumbs_up: 'Hài lòng',
-    thumbs_down: 'Chưa hài lòng',
-    report: 'Báo cáo',
-    confirmed: 'Xác nhận',
-    vet_confirmed: 'Bác sĩ xác nhận',
-  }
-  return map[type] ?? type
-}
-
-function categoryLabel(cat: string): string {
-  const map: Record<string, string> = {
-    medical: 'Y tế',
-    booking: 'Đặt lịch',
-    clinic_ops: 'Vận hành PK',
-    knowledge: 'Kiến thức',
-    general: 'Chung',
-  }
-  return map[cat] ?? cat
-}
-
-function categoryColor(cat: string): string {
-  const map: Record<string, string> = {
-    medical: 'bg-teal-500',
-    booking: 'bg-blue-500',
-    clinic_ops: 'bg-amber-500',
-    knowledge: 'bg-purple-500',
-    general: 'bg-stone-500',
-  }
-  return map[cat] ?? 'bg-stone-400'
-}
-
-function categoryBadgeColor(cat: string): string {
-  const map: Record<string, string> = {
-    medical: 'bg-teal-100 text-teal-700',
-    booking: 'bg-blue-100 text-blue-700',
-    clinic_ops: 'bg-amber-100 text-amber-700',
-    knowledge: 'bg-purple-100 text-purple-700',
-    general: 'bg-stone-100 text-stone-700',
-  }
-  return map[cat] ?? 'bg-stone-100 text-stone-700'
-}
-
-function roleLabel(role: string): string {
-  const map: Record<string, string> = {
-    PET_OWNER: 'Chủ thú cưng',
-    STAFF: 'Nhân viên',
-    CLINIC_MANAGER: 'Quản lý PK',
-    CLINIC_OWNER: 'Chủ PK',
-    ADMIN: 'Admin',
-  }
-  return map[role] ?? role
-}
-
 function feedbackReasonLabel(reason: string): string {
   const map: Record<string, string> = {
     incorrect_info: 'Thông tin không chính xác',
@@ -1355,15 +970,164 @@ function formatFeedbackDate(isoStr: string): string {
   }
 }
 
+function buildPrescriptionMeta(rx: {
+  times_of_day?: string[]
+  before_after_meal?: string
+  frequency_note?: string
+  duration_days?: number
+  duration?: string | number
+  instructions?: string
+}): string {
+  const parts: string[] = []
+  if (rx.times_of_day?.length) parts.push(`Thời điểm: ${rx.times_of_day.join(', ')}`)
+  if (rx.before_after_meal) parts.push(`Bữa ăn: ${rx.before_after_meal}`)
+  if (rx.frequency_note) parts.push(`Ghi chú tần suất: ${rx.frequency_note}`)
+  if (rx.duration_days !== undefined && rx.duration_days !== null) {
+    parts.push(`Thời gian: ${rx.duration_days} ngày`)
+  } else if (rx.duration !== undefined && rx.duration !== null && rx.duration !== '') {
+    parts.push(`Thời gian: ${rx.duration}`)
+  }
+  if (rx.instructions) parts.push(`Hướng dẫn: ${rx.instructions}`)
+  return parts.join(' | ') || '--'
+}
+
+function renderTextBlock(label: string, value?: string, extraClassName = '') {
+  return (
+    <div>
+      <label className="mb-1 block text-[10px] font-black uppercase text-stone-500">{label}</label>
+      <div className={`rounded-lg border-2 border-stone-200 bg-stone-50 p-3 whitespace-pre-wrap text-stone-700 ${extraClassName}`.trim()}>
+        {value?.trim() || '--'}
+      </div>
+    </div>
+  )
+}
+
+function formatCaseMemorySpeciesVi(species?: string | null): string {
+  const s = (species || '').toLowerCase()
+  if (s === 'dog') return 'Chó'
+  if (s === 'cat') return 'Mèo'
+  if (s === 'other') return 'Khác'
+  return species?.trim() || '--'
+}
+
+function formatCaseMemorySexVi(raw?: string | null): string {
+  if (!raw?.trim()) return '--'
+  const u = raw.trim().toUpperCase()
+  if (u === 'MALE' || u === 'ĐỰC' || u === 'DUC') return 'Đực'
+  if (u === 'FEMALE' || u === 'CÁI' || u === 'CAI') return 'Cái'
+  if (u === 'UNKNOWN') return 'Chưa rõ'
+  return raw.trim()
+}
+
+function CaseMemoryPatientContextSection({ item }: { item: CaseMemoryDetailItem }) {
+  const vitals =
+    item.vitals && typeof item.vitals === 'object' && !Array.isArray(item.vitals)
+      ? (item.vitals as Record<string, unknown>)
+      : {}
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+  const weightKg = num(vitals.weight_kg)
+  const tempC = num(vitals.temperature_c)
+  const heartRate = num(vitals.heart_rate)
+  const bcs = num(vitals.bcs)
+  const symptoms = (item.symptoms || []).filter((s) => Boolean(s?.trim()))
+  const physical = (item.physical_exam || []).filter((s) => Boolean(s?.trim()))
+
+  const hasStructured =
+    Boolean(item.breed?.trim()) ||
+    item.age_months != null ||
+    Boolean(item.sex?.trim()) ||
+    Boolean(item.allergies?.trim()) ||
+    symptoms.length > 0 ||
+    physical.length > 0 ||
+    weightKg != null ||
+    tempC != null ||
+    heartRate != null ||
+    bcs != null ||
+    Boolean(item.pet_id?.trim()) ||
+    Boolean(item.emr_id?.trim()) ||
+    Boolean(item.booking_id?.trim())
+
+  if (!hasStructured) {
+    return (
+      <div className="rounded-xl border-2 border-dashed border-stone-300 bg-stone-50/90 p-4">
+        <p className="text-[10px] font-black uppercase text-stone-600 mb-1">Ngữ cảnh bệnh nhân</p>
+        <p className="text-xs text-stone-600">
+          Ca được tạo trước khi lưu đủ trường cấu trúc (giống, tuổi, sinh hiệu, dị ứng…). Xem phần nội dung đầy đủ
+          bên dưới hoặc đồng bộ lại từ EMR đã xác nhận.
+        </p>
+      </div>
+    )
+  }
+
+  const field = (label: string, value: string) => (
+    <div className="min-w-0">
+      <p className="text-[10px] font-black uppercase text-teal-900/80">{label}</p>
+      <p className="font-bold text-stone-900 break-words">{value}</p>
+    </div>
+  )
+
+  return (
+    <div className="rounded-xl border-2 border-stone-900 bg-teal-50/90 p-4 shadow-[4px_4px_0_#1c1917]">
+      <h4 className="text-xs font-black uppercase tracking-wide text-stone-900 mb-3">Ngữ cảnh bệnh nhân</h4>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 text-xs">
+        {field('Loài', formatCaseMemorySpeciesVi(item.species))}
+        {field('Giống', item.breed?.trim() || '--')}
+        {field('Tuổi (tháng)', item.age_months != null ? String(item.age_months) : '--')}
+        {field('Giới tính', formatCaseMemorySexVi(item.sex))}
+        {field('Cân nặng lúc khám (kg)', weightKg != null ? String(weightKg) : '--')}
+        {field('Nhiệt độ (°C)', tempC != null ? String(tempC) : '--')}
+        {field('Mạch (nhịp/phút)', heartRate != null ? String(heartRate) : '--')}
+        {field('BCS', bcs != null ? String(bcs) : '--')}
+        {field('Dị ứng (hồ sơ)', item.allergies?.trim() || '--')}
+        {field('Mã EMR', item.emr_id?.trim() || '--')}
+        {field('Mã thú cưng', item.pet_id?.trim() || '--')}
+        {field('Mã booking', item.booking_id?.trim() || '--')}
+      </div>
+      {symptoms.length > 0 && (
+        <div className="mt-3">
+          <p className="text-[10px] font-black uppercase text-teal-900/80 mb-1.5">Triệu chứng / tín hiệu (tách)</p>
+          <div className="flex flex-wrap gap-1.5">
+            {symptoms.map((s) => (
+              <span
+                key={s}
+                className="rounded-lg border-2 border-stone-900 bg-white px-2 py-0.5 text-[11px] font-semibold text-stone-800 shadow-[2px_2px_0_#1c1917]"
+              >
+                {s}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      {physical.length > 0 && (
+        <div className="mt-3">
+          <p className="text-[10px] font-black uppercase text-teal-900/80 mb-1.5">Khám lâm sàng (tách)</p>
+          <div className="flex flex-wrap gap-1.5">
+            {physical.map((s) => (
+              <span
+                key={s}
+                className="rounded-lg border-2 border-stone-800 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-stone-800"
+              >
+                {s}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ===== CASE MEMORY COMPONENTS =====
 
 interface CaseRowProps {
   item: CaseMemoryItem
+  selected: boolean
+  onToggleSelect: () => void
   onView: () => void
   onDelete: () => void
 }
 
-function CaseRow({ item, onView, onDelete }: CaseRowProps) {
+function CaseRow({ item, selected, onToggleSelect, onView, onDelete }: CaseRowProps) {
   const speciesLabel = {
     dog: 'Chó',
     cat: 'Mèo',
@@ -1377,45 +1141,29 @@ function CaseRow({ item, onView, onDelete }: CaseRowProps) {
   }[item.species] || 'bg-stone-100 text-stone-700'
 
   return (
-    <tr className="border-b border-stone-200 hover:bg-amber-50 transition-colors">
+    <tr className="group border-b border-stone-200 hover:bg-amber-50 transition-colors">
+      <td className="px-3 py-2.5 text-center">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggleSelect}
+          className="h-4 w-4 cursor-pointer accent-amber-600"
+          aria-label={`Chọn ca bệnh ${item.case_id}`}
+        />
+      </td>
       <td className="px-3 py-2.5">
         <span className={`inline-block px-2 py-0.5 text-[10px] font-black uppercase border-2 border-stone-900 rounded-lg ${speciesColor}`}>
           {speciesLabel}
         </span>
-        {item.breed && (
-          <div className="text-[10px] text-stone-500 mt-0.5">{item.breed}</div>
-        )}
       </td>
       <td className="px-3 py-2.5 text-xs font-medium text-stone-700 max-w-[200px] truncate">
         {item.chief_complaint || '--'}
       </td>
       <td className="px-3 py-2.5 text-xs font-bold text-stone-900 max-w-[200px] truncate">
-        {item.final_diagnosis_text || '--'}
-      </td>
-      <td className="px-3 py-2.5 text-xs text-stone-600 max-w-[150px]">
-        <div className="flex flex-wrap gap-1">
-          {item.symptoms?.slice(0, 2).map((s, i) => (
-            <span key={i} className="px-1.5 py-0.5 bg-stone-100 text-stone-600 rounded text-[10px] border border-stone-200">
-              {s}
-            </span>
-          ))}
-          {item.symptoms && item.symptoms.length > 2 && (
-            <span className="px-1.5 py-0.5 text-[10px] text-stone-400">
-              +{item.symptoms.length - 2}
-            </span>
-          )}
-        </div>
-      </td>
-      <td className="px-3 py-2.5 text-center">
-        <span className={`inline-block px-2 py-0.5 text-xs font-black border-2 border-stone-900 rounded-lg ${item.confirmation_count > 0
-          ? 'bg-green-100 text-green-700'
-          : 'bg-stone-100 text-stone-500'
-          }`}>
-          {item.confirmation_count}
-        </span>
+        {item.display_name_vi || item.final_diagnosis_text || '--'}
       </td>
       <td className="px-3 py-2.5 text-xs font-medium text-stone-600 whitespace-nowrap">
-        {item.created_at ? formatFeedbackDate(item.created_at) : '--'}
+        {item.exam_at ? formatFeedbackDate(item.exam_at) : '--'}
       </td>
       <td className="px-3 py-2.5 text-center">
         <div className="flex items-center justify-center gap-1">
@@ -1429,7 +1177,7 @@ function CaseRow({ item, onView, onDelete }: CaseRowProps) {
           <button
             onClick={onDelete}
             className="p-1.5 border-2 border-stone-900 rounded-lg bg-white shadow-[2px_2px_0_#1c1917] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all cursor-pointer"
-            title="Xóa case"
+            title="Xóa ca bệnh"
           >
             <TrashIcon className="w-3.5 h-3.5 text-red-500" />
           </button>
@@ -1440,17 +1188,20 @@ function CaseRow({ item, onView, onDelete }: CaseRowProps) {
 }
 
 interface CaseDetailModalProps {
-  case: CaseMemoryItem
+  case: CaseMemoryDetailItem | null
+  isLoading: boolean
   onClose: () => void
 }
 
-function CaseDetailModal({ case: item, onClose }: CaseDetailModalProps) {
+function CaseDetailModal({ case: item, isLoading, onClose }: CaseDetailModalProps) {
+  const imageUrls = (item?.clinical_image_urls || []).filter((url) => Boolean(url?.trim()))
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="bg-white border-4 border-stone-900 rounded-xl shadow-[8px_8px_0_#1c1917] w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b-2 border-stone-900 bg-amber-50">
-          <h3 className="text-lg font-black uppercase text-stone-900">Chi tiết Case</h3>
+          <h3 className="text-lg font-black uppercase text-stone-900">Chi tiết ca bệnh</h3>
           <button
             onClick={onClose}
             className="p-1.5 border-2 border-stone-900 rounded-lg bg-white shadow-[2px_2px_0_#1c1917] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all cursor-pointer"
@@ -1461,120 +1212,124 @@ function CaseDetailModal({ case: item, onClose }: CaseDetailModalProps) {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {/* Pet Info */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Loài</label>
-              <p className="font-bold text-stone-900 capitalize">{item.species}</p>
-            </div>
-            {item.breed && (
+          {isLoading ? (
+              <LoadingCard label="Đang tải chi tiết ca bệnh..." />
+            ) : !item ? (
+              <EmptyState text="Không có dữ liệu ca bệnh" />
+            ) : (
+            <>
+              <CaseMemoryPatientContextSection item={item} />
+
               <div>
-                <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Giống</label>
-                <p className="font-bold text-stone-900">{item.breed}</p>
+                    <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Mã ca bệnh (Case Memory)</label>
+                  <p className="font-mono text-xs text-stone-700">{item.case_id}</p>
+                </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Chẩn đoán dùng cho AI</label>
+                <p className="font-bold text-stone-900">{item.display_name_vi || item.final_diagnosis_text || '--'}</p>
+                {item.canonical_code && (
+                  <p className="mt-1 text-xs text-stone-500">Mã chuẩn: {item.canonical_code}</p>
+                )}
               </div>
-            )}
-          </div>
 
-          {/* Chief Complaint */}
-          <div>
-            <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Chủ đề chính</label>
-            <p className="font-medium text-stone-700">{item.chief_complaint || '--'}</p>
-          </div>
+              {renderTextBlock('Nguồn triệu chứng chính dùng cho retrieval', item.chief_complaint)}
+              {renderTextBlock('Ghi chú lâm sàng dùng cho retrieval', item.clinical_notes)}
 
-          {/* Diagnosis */}
-          <div>
-            <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Chẩn đoán</label>
-            <p className="font-bold text-stone-900">{item.final_diagnosis_text || '--'}</p>
-            {item.canonical_code && (
-              <p className="text-xs text-stone-500 mt-1">Mã: {item.canonical_code}</p>
-            )}
-          </div>
-
-          {/* Symptoms */}
-          <div>
-            <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Triệu chứng</label>
-            <div className="flex flex-wrap gap-2">
-              {item.symptoms && item.symptoms.length > 0 ? (
-                item.symptoms.map((s, i) => (
-                  <span key={i} className="px-2 py-1 bg-stone-100 text-stone-700 rounded-lg text-sm border border-stone-200">
-                    {s}
-                  </span>
-                ))
-              ) : (
-                <span className="text-stone-400">--</span>
-              )}
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="p-3 bg-stone-50 border-2 border-stone-300 rounded-lg">
-              <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Lần xác nhận</label>
-              <p className="text-xl font-black text-amber-600">{item.confirmation_count}</p>
-            </div>
-            <div className="p-3 bg-stone-50 border-2 border-stone-300 rounded-lg">
-              <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Ngày tạo</label>
-              <p className="text-sm font-bold text-stone-700">
-                {item.created_at ? new Date(item.created_at).toLocaleDateString('vi-VN') : '--'}
-              </p>
-            </div>
-          </div>
-
-          {/* Image URLs */}
-          {item.image_urls && item.image_urls.length > 0 && (
-            <div>
-              <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Hình ảnh ({item.image_urls.length})</label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {item.image_urls.map((url, i) => (
-                  <div
-                    key={i}
-                    className="overflow-hidden rounded-xl border-2 border-stone-200 bg-stone-50"
-                  >
-                    <img
-                      src={url}
-                      alt={`Hình case ${i + 1}`}
-                      className="h-40 w-full object-cover bg-white"
-                      loading="lazy"
-                    />
-                    <div className="flex items-center justify-between gap-2 border-t border-stone-200 px-3 py-2">
-                      <span className="text-xs font-bold text-stone-700">Hình {i + 1}</span>
+              <div>
+                <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Hình ảnh lâm sàng</label>
+                {imageUrls.length > 0 ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {imageUrls.map((url) => (
                       <a
+                        key={url}
                         href={url}
                         target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[11px] font-bold uppercase text-blue-600 hover:text-blue-700"
+                        rel="noreferrer"
+                        className="block overflow-hidden rounded-lg border-2 border-stone-900 bg-white shadow-[2px_2px_0_#1c1917] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+                        title="Mở ảnh ở tab mới"
                       >
-                        Mở lớn
+                        <img
+                          src={url}
+                          alt="Hình ảnh lâm sàng"
+                          className="h-24 w-full object-cover"
+                          loading="lazy"
+                        />
                       </a>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-stone-400">--</span>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Ngày khám dùng để đối chiếu</label>
+                <p className="font-medium text-stone-700">{item.exam_at ? formatFeedbackDate(item.exam_at) : '--'}</p>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Protocol pattern AI dùng</label>
+                {item.protocol_pattern ? (
+                  <div className="space-y-3 rounded-lg border-2 border-stone-200 bg-amber-50 p-4">
+                    {item.protocol_pattern.soap_template
+                      ? renderTextBlock('Mẫu đánh giá chuẩn hóa', item.protocol_pattern.soap_template.assessment)
+                      : null}
+
+                    <div>
+                      <p className="mb-2 text-[10px] font-black uppercase text-stone-500">Đơn thuốc thường gặp AI học từ ca đã xác nhận</p>
+                      {item.protocol_pattern.common_prescriptions && item.protocol_pattern.common_prescriptions.length > 0 ? (
+                        <div className="space-y-2">
+                          {item.protocol_pattern.common_prescriptions.map((rx, index) => (
+                            <div key={`${rx.medicine_name || rx.medicine || 'pattern-rx'}-${index}`} className="rounded-lg border border-stone-200 bg-white p-3 text-xs text-stone-700">
+                              <p className="font-black text-stone-900">{rx.medicine_name || rx.medicine || '--'}</p>
+                              <p className="mt-1 whitespace-pre-wrap">{buildPrescriptionMeta(rx)}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-stone-400">--</span>
+                      )}
                     </div>
-                    {item.image_descriptions?.[i]?.trim() && (
-                      <div className="border-t border-stone-200 px-3 py-2">
-                        <p className="text-xs leading-5 text-stone-600">
-                          {item.image_descriptions[i]}
-                        </p>
+
+                    {item.protocol_pattern.common_tests?.some((test) => Boolean(test?.test?.trim())) && (
+                      <div>
+                        <p className="mb-2 text-[10px] font-black uppercase text-stone-500">Xét nghiệm thường gặp</p>
+                        <div className="flex flex-wrap gap-2">
+                          {item.protocol_pattern.common_tests
+                            .filter((test) => Boolean(test?.test?.trim()))
+                            .map((test, idx) => (
+                              <span key={`${test.test || 'test'}-${idx}`} className="px-2 py-1 bg-white text-stone-700 rounded-lg text-xs border border-stone-200">
+                                {test.result ? `${test.test}: ${test.result}` : test.test}
+                              </span>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {item.protocol_pattern.common_recommendations?.some((recommendation) => Boolean(recommendation?.trim())) && (
+                      <div>
+                        <p className="mb-2 text-[10px] font-black uppercase text-stone-500">Khuyến nghị thường gặp</p>
+                        <div className="flex flex-wrap gap-2">
+                          {item.protocol_pattern.common_recommendations
+                            .filter((recommendation) => Boolean(recommendation?.trim()))
+                            .map((recommendation, idx) => (
+                              <span key={`${recommendation}-${idx}`} className="px-2 py-1 bg-white text-stone-700 rounded-lg text-xs border border-stone-200">
+                                {recommendation}
+                              </span>
+                            ))}
+                        </div>
                       </div>
                     )}
                   </div>
-                ))}
+                ) : (
+                  <span className="text-stone-400">--</span>
+                )}
               </div>
-            </div>
-          )}
 
-          {/* EMR ID */}
-          {item.emr_id && (
-            <div>
-              <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">EMR ID</label>
-              <p className="text-xs font-mono text-stone-600">{item.emr_id}</p>
-            </div>
+              {renderTextBlock('Nội dung đầy đủ', item.text_content, 'max-h-40 overflow-y-auto text-sm')}
+            </>
           )}
-
-          {/* Full Content */}
-          <div>
-            <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Nội dung đầy đủ</label>
-            <div className="p-3 bg-stone-50 border-2 border-stone-200 rounded-lg text-sm text-stone-700 max-h-40 overflow-y-auto">
-              {item.text_content || '--'}
-            </div>
-          </div>
         </div>
 
         {/* Footer */}
@@ -1615,10 +1370,10 @@ function CollectionStatusBadge({ status }: CollectionStatusBadgeProps) {
           </span>
         )}
         <div className={`text-2xl font-black ${isActive ? 'text-green-600' : 'text-red-500'}`}>
-          {isActive ? 'ACTIVE' : 'INACTIVE'}
+          {isActive ? 'Hoạt động' : 'Không hoạt động'}
         </div>
       </div>
-      <div className="text-xs font-bold text-stone-500 uppercase">Trạng thái collection</div>
+      <div className="text-xs font-bold text-stone-500 uppercase">Trạng thái kho dữ liệu</div>
     </div>
   )
 }

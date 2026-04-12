@@ -22,7 +22,7 @@ Use this document together with:
 | Storage | Role | Canonical scope |
 |---|---|---|
 | PostgreSQL | Relational source of truth | Spring Boot transactional schema + AI configuration/governance schema |
-| MongoDB | Flexible document store | EMR, vaccination history, owner-clinic chat, AI chat runtime, AI feedback, KG triplets |
+| MongoDB | Flexible document store | EMR, vaccination history, owner-clinic chat, AI chat runtime, AI feedback |
 | Qdrant | Vector database | Knowledge base vectors, KB image vectors, EMR-confirmed case memory |
 
 ### Current logical inventory
@@ -32,7 +32,7 @@ Use this document together with:
 | Spring Boot PostgreSQL | 30 tables |
 | AI Service PostgreSQL | 7 tables |
 | Spring Boot MongoDB | 4 collections |
-| AI Service MongoDB | 5 collections |
+| AI Service MongoDB | 4 collections |
 | Qdrant | 3 collections |
 
 > Optional operational note: `langgraph_checkpoints` may be created at runtime by the AI service checkpointer, but it is not currently part of the migration-backed canonical schema package.
@@ -56,7 +56,7 @@ Use this document together with:
 | Domain | Tables |
 |---|---|
 | Runtime configuration | `agents`, `tools`, `knowledge_documents`, `system_settings` |
-| Disease normalization | `disease_catalog`, `disease_aliases`, `disease_mapping_review_items` |
+| Disease normalization | `disease_catalog`, `disease_aliases` |
 
 ### 2.3 Relational ERD
 
@@ -125,7 +125,6 @@ erDiagram
 | `ai_chat_messages` | Assistant/user messages with trace metadata | unique `message_id`, `session_id`, `timestamp` |
 | `ai_proactive_notifications` | AI proactive notification log | `user_id`, `timestamp`, `read_status` |
 | `chat_feedback` | Feedback and moderation data | `message_id`, `user_id`, `timestamp` |
-| `knowledge_graph_triplets` | Knowledge graph edge storage | unique `(subject, predicate, object)` and traversal indexes |
 
 ### 3.3 Document model overview
 
@@ -143,7 +142,6 @@ flowchart LR
         AIM["ai_chat_messages"]
         AIP["ai_proactive_notifications"]
         FDB["chat_feedback"]
-        KGT["knowledge_graph_triplets"]
     end
 
     USER["users"] --> CONV
@@ -165,12 +163,12 @@ flowchart LR
 |---|---|---|
 | `petties_knowledge_base` | text only, 1024-dim | RAG text chunks from uploaded knowledge documents |
 | `petties_case_memory_v2` | named vectors `text` + `image`, both 1024-dim | Confirmed EMR case memory for diagnosis support |
-| `petties_kb_images` | named vectors `text` + `image`, both 1024-dim | Extracted PDF image retrieval for hybrid KB search |
+
+**Note:** `petties_kb_images` was removed (migration 010) - PDF image extraction was never used in production.
 
 ```mermaid
 flowchart LR
     KD["knowledge_documents (PostgreSQL)"] --> KB["petties_knowledge_base"]
-    KD --> KBI["petties_kb_images"]
     EMR["confirmed EMR data"] --> CM["petties_case_memory_v2"]
 ```
 

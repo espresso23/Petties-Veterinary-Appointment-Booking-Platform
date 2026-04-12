@@ -18,6 +18,7 @@ void main() {
           bodyPart: 'eyes',
           symptoms: ['redness', 'discharge', 'squinting'],
           imageUrls: ['https://example.com/img1.jpg'],
+          imageAnalysisMode: DiagnosisImageAnalysisMode.describeOnly,
           soapDraft: SoapDraft(
             subjective: 'Owner reports eye discharge',
             objective: 'Conjunctival redness',
@@ -40,6 +41,7 @@ void main() {
         expect(json['body_part'], 'eyes');
         expect(json['symptoms'], ['redness', 'discharge', 'squinting']);
         expect(json['image_urls'], ['https://example.com/img1.jpg']);
+        expect(json['image_analysis_mode'], 'describe_only');
         expect(json['soap_draft'], isNotNull);
         expect(json['soap_draft']['subjective'], 'Owner reports eye discharge');
         expect(json['soap_draft']['assessment'], 'Conjunctivitis');

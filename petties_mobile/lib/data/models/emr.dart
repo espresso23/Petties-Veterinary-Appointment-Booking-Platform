@@ -106,36 +106,54 @@ class EmrRecord {
 /// Prescription model
 class Prescription {
   final String medicineName;
-  final String? dosage;
-  final String frequency;
+  final List<String>? timesOfDay; // e.g. ["sang","trua","chieu"]
+  final String? beforeAfterMeal; // BEFORE_MEAL | AFTER_MEAL | WITH_MEAL | NONE
   final int? durationDays;
   final String? instructions;
 
   Prescription({
     required this.medicineName,
-    this.dosage,
-    required this.frequency,
+    this.timesOfDay,
+    this.beforeAfterMeal,
     this.durationDays,
     this.instructions,
+
+    // legacy
+    this.dosage,
+    this.frequency,
   });
+
+  // legacy fields (backward-compat only)
+  final String? dosage;
+  final String? frequency;
 
   factory Prescription.fromJson(Map<String, dynamic> json) {
     return Prescription(
       medicineName: json['medicineName'] ?? '',
-      dosage: json['dosage'],
-      frequency: json['frequency'] ?? '',
+      timesOfDay: (json['timesOfDay'] ?? json['times_of_day']) is List
+          ? List<String>.from((json['timesOfDay'] ?? json['times_of_day']) as List)
+          : null,
+      beforeAfterMeal: json['beforeAfterMeal'] ?? json['before_after_meal'],
       durationDays: json['durationDays'],
       instructions: json['instructions'],
+
+      // legacy
+      dosage: json['dosage'],
+      frequency: json['frequency'],
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'medicineName': medicineName,
-      'dosage': dosage,
-      'frequency': frequency,
+      if (timesOfDay != null) 'timesOfDay': timesOfDay,
+      if (beforeAfterMeal != null) 'beforeAfterMeal': beforeAfterMeal,
       'durationDays': durationDays,
       'instructions': instructions,
+
+      // legacy (only send if still set)
+      if (dosage != null) 'dosage': dosage,
+      if (frequency != null) 'frequency': frequency,
     };
   }
 }

@@ -25,31 +25,14 @@ mvn spring-boot:run
 
 Server sẽ chạy trên `http://localhost:8080`
 
-## 📊 Test Data được tạo tự động
+## 📊 Test Data
 
-Khi start ứng dụng, DataInitializer sẽ tạo:
+Hiện tại backend đã **tắt hoàn toàn cơ chế seeding tự động**.  
+Bạn cần chuẩn bị data test bằng một trong các cách sau:
 
-### **Users**
-- `petOwner` / `owner` - Pet Owner
-- `clinicOwner` / `123456` - Clinic Owner  
-- `clinicManager` / `123456` - Clinic Manager
-- `vet` / `123456` - Vet
-
-### **Clinic**
-- **Petties Central Hospital** - thuộc clinicOwner
-
-### **Pet**
-- **Test Dog** (Corgi, 10.5kg) - thuộc petOwner
-
-### **Services**
-- **General Check-up** (500,000 VND) - tại clinic
-
-### **Bookings với Payment Methods**
-| Booking Code | Payment Method | Total Price | Type | Status |
-|--------------|----------------|-------------|-------|---------|
-| `BK-20240101-0001` | **QR** | 500,000 VND | IN_CLINIC | PENDING |
-| `BK-20240101-0002` | **CASH** | 300,000 VND | IN_CLINIC | PENDING |
-| `BK-20240101-0003` | **CARD** | 750,000 VND | HOME_VISIT | PENDING |
+- Import trực tiếp vào database (PostgreSQL)
+- Tạo dữ liệu qua API trước khi chạy bộ test transaction
+- Dùng script SQL/manual fixture trong môi trường local
 
 ## 🧪 API Testing Steps
 
@@ -158,7 +141,7 @@ JOIN bookings b ON p.booking_id = b.booking_id;
 
 ### **1. Booking Not Found**
 - **Cause:** Test data chưa được tạo
-- **Fix:** Restart application để chạy DataInitializer
+- **Fix:** Tạo booking/payment test data trước khi gọi API
 
 ### **2. Payment Description Null**
 - **Cause:** Booking không có payment method QR

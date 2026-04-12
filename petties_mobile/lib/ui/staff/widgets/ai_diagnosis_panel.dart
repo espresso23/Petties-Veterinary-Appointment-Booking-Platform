@@ -20,9 +20,23 @@ class AiDiagnosisPanel extends StatefulWidget {
   final String? initialAssessment;
   final String? initialPlan;
   final List<String>? imageUrls;
+  final StaffDiagnosisResponse? initialResult;
+  final String? initialSelectedDiagnosisLabel;
+  final String? initialSelectedDiagnosisCode;
+  final bool autoAnalyzeOnOpen;
+  final DiagnosisService? diagnosisService;
+  final ImagePicker? imagePicker;
+  final Future<List<XFile>> Function()? pickImagesOverride;
   final void Function(StaffDiagnosisResponse?)? onDiagnosisResult;
   final void Function(SoapSuggestions)? onApplyDraft;
   final void Function(StaffDiagnosisResponse, List<String>)? onApplyDiagnosis;
+  final void Function(
+    StaffDiagnosisResponse,
+    List<String>,
+    String,
+    String?,
+  )?
+      onDiagnosisLocked;
 
   const AiDiagnosisPanel({
     super.key,
@@ -38,9 +52,17 @@ class AiDiagnosisPanel extends StatefulWidget {
     this.initialAssessment,
     this.initialPlan,
     this.imageUrls,
+    this.initialResult,
+    this.initialSelectedDiagnosisLabel,
+    this.initialSelectedDiagnosisCode,
+    this.autoAnalyzeOnOpen = true,
+    this.diagnosisService,
+    this.imagePicker,
+    this.pickImagesOverride,
     this.onDiagnosisResult,
     this.onApplyDraft,
     this.onApplyDiagnosis,
+    this.onDiagnosisLocked,
   });
 
   @override
@@ -48,17 +70,21 @@ class AiDiagnosisPanel extends StatefulWidget {
 }
 
 class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
-  final DiagnosisService _diagnosisService = DiagnosisService();
+  late final DiagnosisService _diagnosisService;
   final TextEditingController _narrativeController = TextEditingController();
   final List<String> _selectedImages = [];
   final Map<String, String> _imageDescriptions = {};
   final Set<String> _imagesLoading = {};
   final Map<String, TextEditingController> _imageDescriptionControllers = {};
-  final ImagePicker _imagePicker = ImagePicker();
+  late final ImagePicker _imagePicker;
 
   bool _isLoading = false;
   String? _error;
   StaffDiagnosisResponse? _result;
+  String _selectedDiagnosisCode = '';
+  String _selectedDiagnosisLabel = '';
+  String _baseRequestId = '';
+  bool _autoAnalyzeTriggered = false;
 
   DiagnosisSpecies get _mappedSpecies {
     final species = (widget.species ?? '').toLowerCase();
@@ -77,10 +103,59 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
         (widget.imageUrls?.isNotEmpty ?? false);
   }
 
+  List<String> get _allImagesForDiagnosis {
+    return [
+      ...?widget.imageUrls?.where((url) => url.isNotEmpty),
+      ..._selectedImages,
+    ];
+  }
+
   int get _totalImages {
-    final existing =
-        widget.imageUrls?.where((url) => url.isNotEmpty).length ?? 0;
-    return existing + _selectedImages.length;
+    return _allImagesForDiagnosis.length;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _diagnosisService = widget.diagnosisService ?? DiagnosisService();
+    _imagePicker = widget.imagePicker ?? ImagePicker();
+
+    if ((widget.initialSubjective ?? '').trim().isNotEmpty) {
+      _narrativeController.text = widget.initialSubjective!.trim();
+    }
+
+    if (widget.initialResult != null) {
+      _result = widget.initialResult;
+      _baseRequestId = widget.initialResult!.requestId;
+      _selectedDiagnosisCode = widget.initialSelectedDiagnosisCode ?? '';
+      _selectedDiagnosisLabel = widget.initialSelectedDiagnosisLabel ?? '';
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _triggerAutoAnalyzeIfNeeded();
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant AiDiagnosisPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.initialSubjective != widget.initialSubjective &&
+        _narrativeController.text.trim().isEmpty &&
+        (widget.initialSubjective ?? '').trim().isNotEmpty) {
+      _narrativeController.text = widget.initialSubjective!.trim();
+    }
+
+    if (oldWidget.initialResult != widget.initialResult &&
+        widget.initialResult != null) {
+      setState(() {
+        _result = widget.initialResult;
+        _baseRequestId = widget.initialResult!.requestId;
+        _selectedDiagnosisCode = widget.initialSelectedDiagnosisCode ?? '';
+        _selectedDiagnosisLabel = widget.initialSelectedDiagnosisLabel ?? '';
+      });
+    }
   }
 
   @override
@@ -107,6 +182,7 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
             ? _narrativeController.text.trim()
             : 'Mô tả ảnh lâm sàng này',
         imageUrls: [imageUrl],
+        imageAnalysisMode: DiagnosisImageAnalysisMode.describeOnly,
       );
 
       if (response.imageDescriptions.isNotEmpty) {
@@ -122,20 +198,33 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
     }
   }
 
+  void _triggerAutoAnalyzeIfNeeded() {
+    if (_autoAnalyzeTriggered || !widget.autoAnalyzeOnOpen) {
+      return;
+    }
+    if (widget.initialResult != null || !_canAnalyze) {
+      return;
+    }
+    _autoAnalyzeTriggered = true;
+    _analyze();
+  }
+
   Future<void> _pickImages() async {
     try {
-      final pickedFiles = await _imagePicker.pickMultiImage(
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 85,
-      );
+      final files = widget.pickImagesOverride != null
+          ? await widget.pickImagesOverride!.call()
+          : await _imagePicker.pickMultiImage(
+              maxWidth: 1024,
+              maxHeight: 1024,
+              imageQuality: 85,
+            );
 
-      if (pickedFiles.isEmpty) {
+      if (files.isEmpty) {
         return;
       }
 
       final newImages = <String>[];
-      for (final file in pickedFiles) {
+      for (final file in files) {
         final bytes = await file.readAsBytes();
         final base64Image = base64Encode(bytes);
         final dataUrl = 'data:image/jpeg;base64,$base64Image';
@@ -200,10 +289,10 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
     });
 
     try {
-      final allImages = [
-        ...?widget.imageUrls?.where((url) => url.isNotEmpty),
-        ..._selectedImages,
-      ];
+      _selectedDiagnosisCode = '';
+      _selectedDiagnosisLabel = '';
+      final allImages = _allImagesForDiagnosis;
+      final narrative = _narrativeController.text.trim();
 
       final response = await _diagnosisService.analyzeCase(
         species: _mappedSpecies,
@@ -214,20 +303,25 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
         weightKg: widget.weightKg,
         sex: DiagnosisSex.unknown,
         allergies: widget.allergies,
-        doctorDescription: _narrativeController.text.trim(),
+        doctorDescription:
+            narrative.isNotEmpty ? narrative : 'Mô tả lâm sàng từ hình ảnh',
         imageUrls: allImages.isNotEmpty ? allImages : null,
-        soapDraft: widget.initialAssessment != null || widget.initialPlan != null
-            ? SoapDraft(
-                subjective: widget.initialSubjective,
-                objective: widget.initialObjective,
-                assessment: widget.initialAssessment,
-                plan: widget.initialPlan,
-              )
-            : null,
+        imageAnalysisMode: DiagnosisImageAnalysisMode.full,
+        synthesisMode: 'full',
+        soapDraft:
+            widget.initialAssessment != null || widget.initialPlan != null
+                ? SoapDraft(
+                    subjective: widget.initialSubjective,
+                    objective: widget.initialObjective,
+                    assessment: widget.initialAssessment,
+                    plan: widget.initialPlan,
+                  )
+                : null,
       );
 
       setState(() {
         _result = response;
+        _baseRequestId = response.requestId;
       });
 
       widget.onDiagnosisResult?.call(response);
@@ -247,6 +341,77 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _selectDiagnosis(StaffDiagnosisSuggestion item) async {
+    if (_isLoading) return;
+    final allImages = _allImagesForDiagnosis;
+    final narrative = _narrativeController.text.trim();
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+      _selectedDiagnosisCode = item.canonicalCode ?? '';
+      _selectedDiagnosisLabel = item.displayNameVi;
+    });
+
+    try {
+      final response = await _diagnosisService.analyzeCase(
+        species: _mappedSpecies,
+        previousRequestId:
+            _baseRequestId.isNotEmpty ? _baseRequestId : _result?.requestId,
+        petId: widget.petId,
+        bookingId: widget.bookingId,
+        breed: widget.breed,
+        ageMonths: widget.ageMonths,
+        weightKg: widget.weightKg,
+        sex: DiagnosisSex.unknown,
+        allergies: widget.allergies,
+        doctorDescription:
+            narrative.isNotEmpty ? narrative : 'Mô tả lâm sàng từ hình ảnh',
+        imageUrls: allImages.isNotEmpty ? allImages : null,
+        imageAnalysisMode: DiagnosisImageAnalysisMode.full,
+        synthesisMode: 'selected_only',
+        selectedDiagnosisCode: item.canonicalCode,
+        selectedDiagnosisLabel: item.displayNameVi,
+        soapDraft:
+            widget.initialAssessment != null || widget.initialPlan != null
+                ? SoapDraft(
+                    subjective: widget.initialSubjective,
+                    objective: widget.initialObjective,
+                    assessment: item.displayNameVi,
+                    plan: widget.initialPlan,
+                  )
+                : null,
+      );
+
+      setState(() {
+        _result = response;
+      });
+
+      widget.onDiagnosisResult?.call(response);
+      widget.onApplyDraft?.call(response.soapSuggestions);
+      widget.onDiagnosisLocked?.call(
+        response,
+        allImages,
+        item.displayNameVi,
+        item.canonicalCode,
+      );
+    } on DiagnosisException catch (error) {
+      setState(() {
+        _error = error.message;
+      });
+    } catch (_) {
+      setState(() {
+        _error = 'Không thể khóa chẩn đoán đã chọn.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -319,6 +484,10 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
     return TextField(
       controller: _narrativeController,
       maxLines: 4,
+      onChanged: (_) {
+        if (!mounted) return;
+        setState(() {});
+      },
       decoration: InputDecoration(
         hintText:
             'Mô tả ngắn tình trạng của bé tại đây. Có thể ghi triệu chứng, vùng nghi ngờ, diễn tiến và nhận định ban đầu.',
@@ -378,8 +547,7 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
                   decoration: BoxDecoration(
                     color: AppColors.primary,
                     borderRadius: BorderRadius.circular(6),
-                    border:
-                        Border.all(color: AppColors.stone900, width: 1.5),
+                    border: Border.all(color: AppColors.stone900, width: 1.5),
                   ),
                   child: const Text(
                     '+ Thêm ảnh',
@@ -401,8 +569,37 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
               color: AppColors.stone600,
             ),
           ),
+          if ((widget.imageUrls?.where((url) => url.isNotEmpty).isNotEmpty ??
+              false)) ...[
+            const SizedBox(height: 8),
+            const Text(
+              'Ảnh bệnh án hiện có',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AppColors.stone700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            ...List.generate(widget.imageUrls!.length, (index) {
+              final imageUrl = widget.imageUrls![index];
+              if (imageUrl.isEmpty) {
+                return const SizedBox.shrink();
+              }
+              return _buildExistingImageTile(imageUrl, index + 1);
+            }),
+          ],
           if (_selectedImages.isNotEmpty) ...[
             const SizedBox(height: 8),
+            const Text(
+              'Ảnh mới vừa thêm',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AppColors.stone700,
+              ),
+            ),
+            const SizedBox(height: 6),
             ...List.generate(_selectedImages.length, (index) {
               final imageData = _selectedImages[index];
               final isLoading = _imagesLoading.contains(imageData);
@@ -437,7 +634,8 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
                               Positioned.fill(
                                 child: Container(
                                   decoration: BoxDecoration(
-                                    color: AppColors.stone900.withValues(alpha: 0.5),
+                                    color: AppColors.stone900
+                                        .withValues(alpha: 0.5),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: const Center(
@@ -475,7 +673,8 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
                                     color: AppColors.stone500,
                                   ),
                                 )
-                              else if (description != null && description.isNotEmpty)
+                              else if (description != null &&
+                                  description.isNotEmpty)
                                 const Text(
                                   'Đã có mô tả',
                                   style: TextStyle(
@@ -531,11 +730,13 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
                           ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: AppColors.stone200),
+                            borderSide:
+                                const BorderSide(color: AppColors.stone200),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: AppColors.stone200),
+                            borderSide:
+                                const BorderSide(color: AppColors.stone200),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
@@ -560,6 +761,91 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
             }),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildExistingImageTile(String imageUrl, int order) {
+    final imageAnalysis = _result?.imageAnalysis.firstWhere(
+      (item) => item.url == imageUrl,
+      orElse: () => ImageAnalysisResult(url: imageUrl, description: '', order: order),
+    );
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.stone200),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: _buildImagePreview(imageUrl),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Ảnh bệnh án #$order',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.stone800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  imageAnalysis != null && imageAnalysis.description.trim().isNotEmpty
+                      ? imageAnalysis.description
+                      : 'Ảnh hiện có sẽ được AI sử dụng khi phân tích.',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.stone500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImagePreview(String imageUrl) {
+    if (imageUrl.startsWith('data:')) {
+      final bytes = Uri.parse(imageUrl).data?.contentAsBytes();
+      if (bytes != null) {
+        return Image.memory(
+          bytes,
+          width: 60,
+          height: 60,
+          fit: BoxFit.cover,
+        );
+      }
+    }
+
+    return Image.network(
+      imageUrl,
+      width: 60,
+      height: 60,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => Container(
+        width: 60,
+        height: 60,
+        color: AppColors.stone200,
+        alignment: Alignment.center,
+        child: const Icon(
+          Icons.broken_image_outlined,
+          size: 18,
+          color: AppColors.stone500,
+        ),
       ),
     );
   }
@@ -646,6 +932,27 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
         const SizedBox(height: 8),
         if (_result!.topDifferentials.isNotEmpty) ...[
           _buildSectionTitle('Chẩn đoán phân biệt'),
+          if (_selectedDiagnosisCode.isNotEmpty ||
+              _selectedDiagnosisLabel.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Đã chọn: ${_selectedDiagnosisLabel.isNotEmpty ? _selectedDiagnosisLabel : _selectedDiagnosisCode}',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AppColors.teal600,
+              ),
+            ),
+          ],
+          const SizedBox(height: 4),
+          Text(
+            _result!.scoreLabel,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: AppColors.stone600,
+            ),
+          ),
           const SizedBox(height: 8),
           ...List.generate(
             _result!.topDifferentials.take(3).length,
@@ -663,7 +970,7 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      item.displayNameVi,
+                      '#${item.rank > 0 ? item.rank : index + 1} - ${item.displayNameVi}',
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -671,12 +978,35 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      item.confidenceNote,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.stone600,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item.confidenceNote,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.stone600,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.orange.shade200),
+                          ),
+                          child: Text(
+                            '${item.scorePercent}%',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.orange.shade700,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     if (item.supportingReasons.isNotEmpty) ...[
                       const SizedBox(height: 6),
@@ -694,6 +1024,52 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
                         ),
                       ),
                     ],
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Builder(
+                        builder: (_) {
+                          final isSelected =
+                              (item.canonicalCode?.isNotEmpty == true &&
+                                      item.canonicalCode ==
+                                          _selectedDiagnosisCode) ||
+                                  item.displayNameVi == _selectedDiagnosisLabel;
+
+                          return GestureDetector(
+                            onTap: _isLoading ? null : () => _selectDiagnosis(item),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? Colors.green.shade50
+                                    : Colors.orange.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? Colors.green.shade200
+                                      : Colors.orange.shade200,
+                                ),
+                              ),
+                              child: Text(
+                                isSelected
+                                    ? 'Đã chọn'
+                                    : (_isLoading
+                                        ? 'Đang xử lý...'
+                                        : 'Chọn chẩn đoán này'),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: isSelected
+                                      ? Colors.green.shade700
+                                      : Colors.orange.shade700,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
                   ],
                 ),
               );
@@ -875,13 +1251,7 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
       child: GestureDetector(
         onTap: () {
           widget.onApplyDraft?.call(_result!.soapSuggestions);
-          widget.onApplyDiagnosis?.call(
-            _result!,
-            [
-              ...?widget.imageUrls?.where((url) => url.isNotEmpty),
-              ..._selectedImages,
-            ],
-          );
+          widget.onApplyDiagnosis?.call(_result!, _allImagesForDiagnosis);
         },
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 14),

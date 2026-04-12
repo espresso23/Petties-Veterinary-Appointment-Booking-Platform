@@ -1,6 +1,7 @@
 package com.petties.petties.service;
 
 import com.petties.petties.dto.emr.CreateEmrRequest;
+import com.petties.petties.dto.emr.CaseMemoryResyncResponse;
 import com.petties.petties.dto.emr.EmrResponse;
 import com.petties.petties.exception.BadRequestException;
 import com.petties.petties.exception.ForbiddenException;
@@ -26,6 +27,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -183,5 +185,47 @@ class EmrServiceUnitTest {
         when(emrRecordRepository.findById(emrId)).thenReturn(Optional.of(emr));
 
         assertThrows(BadRequestException.class, () -> emrService.updateEmr(emrId, new CreateEmrRequest(), vetId));
+    }
+
+    @Test
+    @DisplayName("Resync Case Memory - Chi dong bo EMR co chan doan va tra tong ket")
+    void resyncConfirmedCaseMemory_onlySyncsEligibleRecords() {
+        EmrRecord eligibleOne = new EmrRecord();
+        eligibleOne.setId("emr-1");
+        eligibleOne.setPetId(UUID.randomUUID());
+        eligibleOne.setStaffId(UUID.randomUUID());
+        eligibleOne.setAssessment("Viem da");
+        eligibleOne.setCreatedAt(LocalDateTime.now().minusDays(2));
+        eligibleOne.setUpdatedAt(LocalDateTime.now().minusHours(2));
+
+        EmrRecord eligibleTwo = new EmrRecord();
+        eligibleTwo.setId("emr-2");
+        eligibleTwo.setPetId(UUID.randomUUID());
+        eligibleTwo.setStaffId(UUID.randomUUID());
+        eligibleTwo.setAssessment("Viem tai");
+        eligibleTwo.setCreatedAt(LocalDateTime.now().minusDays(1));
+        eligibleTwo.setUpdatedAt(LocalDateTime.now().minusHours(1));
+
+        EmrRecord skipped = new EmrRecord();
+        skipped.setId("emr-3");
+        skipped.setPetId(UUID.randomUUID());
+        skipped.setAssessment("   ");
+
+        Pet pet = new Pet();
+        pet.setId(eligibleOne.getPetId());
+        pet.setSpecies(com.petties.petties.model.enums.PetSpecies.DOG);
+        when(petRepository.findById(eligibleOne.getPetId())).thenReturn(Optional.of(pet));
+        when(petRepository.findById(eligibleTwo.getPetId())).thenReturn(Optional.of(pet));
+        when(emrRecordRepository.findAll()).thenReturn(java.util.List.of(eligibleOne, eligibleTwo, skipped));
+        when(aiCaseMemorySyncService.syncConfirmedEmr(any())).thenReturn(true, false);
+
+        CaseMemoryResyncResponse response = emrService.resyncConfirmedCaseMemory(10);
+
+        assertEquals(2, response.getTotalEligible());
+        assertEquals(2, response.getProcessedCount());
+        assertEquals(1, response.getSyncedCount());
+        assertEquals(1, response.getFailedCount());
+        verify(aiCaseMemorySyncService).syncConfirmedEmr(argThat(payload -> "emr-2".equals(payload.getEmrId())));
+        verify(aiCaseMemorySyncService).syncConfirmedEmr(argThat(payload -> "emr-1".equals(payload.getEmrId())));
     }
 }

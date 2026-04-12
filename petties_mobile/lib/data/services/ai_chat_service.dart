@@ -41,13 +41,15 @@ class AiChatException implements Exception {
     final statusCode = error.response?.statusCode;
     final responseData = error.response?.data;
     final detail = responseData is Map<String, dynamic>
-        ? responseData['detail']?.toString() ?? responseData['message']?.toString()
+        ? responseData['detail']?.toString() ??
+            responseData['message']?.toString()
         : null;
 
     if (statusCode == 401) {
       return const AiChatException(
         type: AiChatErrorType.unauthorized,
-        message: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để dùng trợ lý AI.',
+        message:
+            'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để dùng trợ lý AI.',
       );
     }
 
@@ -103,11 +105,13 @@ class AiChatException implements Exception {
         reason.contains('Invalid authentication')) {
       return const AiChatException(
         type: AiChatErrorType.unauthorized,
-        message: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để tiếp tục dùng trợ lý AI.',
+        message:
+            'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để tiếp tục dùng trợ lý AI.',
       );
     }
 
-    if (reason == _wsReasonSessionForbidden || reason.contains('Session does not belong')) {
+    if (reason == _wsReasonSessionForbidden ||
+        reason.contains('Session does not belong')) {
       return const AiChatException(
         type: AiChatErrorType.forbidden,
         message: 'Phiên chat AI hiện tại không hợp lệ với tài khoản của bạn.',
@@ -138,7 +142,8 @@ class AiChatException implements Exception {
 }
 
 class AiChatService {
-  AiChatService({StorageService? storage}) : _storage = storage ?? StorageService();
+  AiChatService({StorageService? storage})
+      : _storage = storage ?? StorageService();
 
   static const String _contextType = 'BUSINESS_CHAT';
   static const String _lastSessionKey = 'ai_chat_last_session_id';
@@ -157,7 +162,8 @@ class AiChatService {
   String get _apiBaseUrl => '$_rootUrl/api/v1';
 
   Dio _buildDio(String token) {
-    debugPrint('[AiChat] REST baseUrl=$_apiBaseUrl (root=$_rootUrl, raw=${Environment.aiServiceUrl})');
+    debugPrint(
+        '[AiChat] REST baseUrl=$_apiBaseUrl (root=$_rootUrl, raw=${Environment.aiServiceUrl})');
     return Dio(
       BaseOptions(
         baseUrl: _apiBaseUrl,
@@ -214,10 +220,11 @@ class AiChatService {
       throw AiChatException.fromDio(error);
     }
 
-    final sessions = (sessionsResponse.data['sessions'] as List<dynamic>? ?? const [])
-        .whereType<Map<String, dynamic>>()
-        .map(AiChatSession.fromJson)
-        .toList();
+    final sessions =
+        (sessionsResponse.data['sessions'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(AiChatSession.fromJson)
+            .toList();
 
     if (sessions.isNotEmpty) {
       for (final session in sessions) {
@@ -274,6 +281,9 @@ class AiChatService {
         createdAt: data['created_at'] != null
             ? DateTime.tryParse(data['created_at'].toString())
             : null,
+        bookingState: data['booking_state'] is Map
+            ? Map<String, dynamic>.from(data['booking_state'] as Map)
+            : null,
         messages: const [],
       );
     }
@@ -326,7 +336,8 @@ class AiChatService {
     } on DioException catch (error) {
       throw AiChatException.fromDio(error);
     }
-    final session = AiChatSession.fromJson(response.data as Map<String, dynamic>);
+    final session =
+        AiChatSession.fromJson(response.data as Map<String, dynamic>);
     if (session.sessionId.isNotEmpty) {
       await _storage.setString(_lastSessionKey, session.sessionId);
     }
@@ -393,7 +404,9 @@ class AiChatService {
     final uri = Uri.parse(
       '$wsBase/ws/chat/$sessionId?token=${Uri.encodeComponent(token)}&context_type=$_contextType',
     );
-    debugPrint('[AiChat] WebSocket uri=$uri');
+    debugPrint(
+      '[AiChat] WebSocket connecting: /ws/chat/$sessionId?context_type=$_contextType',
+    );
 
     try {
       return IOWebSocketChannel.connect(
@@ -411,6 +424,7 @@ class AiChatService {
 
   String encodeOutgoingPayload({
     String? message,
+    String? displayMessage,
     Map<String, dynamic>? uiAction,
     Map<String, dynamic>? location,
     List<String>? images,
@@ -418,6 +432,9 @@ class AiChatService {
     final payload = <String, dynamic>{};
     if (message != null) {
       payload['message'] = message;
+    }
+    if (displayMessage != null && displayMessage.trim().isNotEmpty) {
+      payload['display_message'] = displayMessage.trim();
     }
     if (uiAction != null) {
       payload['ui_action'] = uiAction;
@@ -429,10 +446,6 @@ class AiChatService {
       payload['images'] = images;
     }
     return jsonEncode(payload);
-  }
-
-  String encodeOutgoingMessage(String message) {
-    return encodeOutgoingPayload(message: message);
   }
 
   AiChatSocketEvent parseSocketEvent(dynamic payload) {
@@ -460,4 +473,3 @@ class AiChatService {
     );
   }
 }
-

@@ -125,7 +125,7 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
         boolean existsByVoucher_VoucherId(UUID voucherId);
 
         /**
-         * Delete all bookings for a pet owner (for cleanup/seeding)
+         * Delete all bookings for a pet owner (for cleanup/testing).
          */
         void deleteAllByPetOwner_UserId(UUID userId);
 
@@ -278,7 +278,6 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
 
         /**
          * Check if booking exists for a specific pet, clinic, date and time.
-         * Used by BookingDataSeeder to avoid duplicate key violations.
          */
         @Query("SELECT COUNT(b) > 0 FROM Booking b WHERE b.pet.id = :petId " +
                         "AND b.clinic.clinicId = :clinicId " +

@@ -14,8 +14,11 @@ import com.petties.petties.exception.BadRequestException;
 import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.exception.ResourceNotFoundException;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -83,16 +86,38 @@ public class EmrService {
                 Pet pet = petRepository.findById(request.getPetId())
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thú cưng"));
 
-                // Map prescriptions
+                // Map prescriptions (new schema, still accepts legacy dosage/frequency for conversion)
                 List<Prescription> prescriptions = request.getPrescriptions() != null
                                 ? request.getPrescriptions().stream()
-                                                .map(p -> Prescription.builder()
-                                                                .medicineName(p.getMedicineName())
-                                                                .dosage(p.getDosage())
-                                                                .frequency(p.getFrequency())
-                                                                .durationDays(p.getDurationDays())
-                                                                .instructions(p.getInstructions())
-                                                                .build())
+                                                .map(p -> {
+                                                        Prescription.PrescriptionBuilder builder = Prescription.builder()
+                                                                        .medicineName(p.getMedicineName())
+                                                                        .timesOfDay(p.getTimesOfDay())
+                                                                        .beforeAfterMeal(p.getBeforeAfterMeal())
+                                                                        .frequencyNote(p.getFrequencyNote())
+                                                                        .durationDays(p.getDurationDays())
+                                                                        .instructions(p.getInstructions())
+                                                                        .dosage(p.getDosage())
+                                                                        .frequency(p.getFrequency());
+
+                                                        // Nếu instructions trống nhưng có dosage/frequency cũ, convert sang hướng dẫn
+                                                        if ((p.getInstructions() == null || p.getInstructions().isBlank())
+                                                                        && (p.getDosage() != null || p.getFrequency() != null)) {
+                                                                StringBuilder legacyNote = new StringBuilder();
+                                                                if (p.getDosage() != null && !p.getDosage().isBlank()) {
+                                                                        legacyNote.append("Liều cũ: ").append(p.getDosage());
+                                                                }
+                                                                if (p.getFrequency() != null && !p.getFrequency().isBlank()) {
+                                                                        if (!legacyNote.isEmpty()) {
+                                                                                legacyNote.append(" | ");
+                                                                        }
+                                                                        legacyNote.append("Tần suất cũ: ").append(p.getFrequency());
+                                                                }
+                                                                builder.instructions(legacyNote.toString());
+                                                        }
+
+                                                        return builder.build();
+                                                })
                                                 .collect(Collectors.toList())
                                 : List.of();
 
@@ -124,6 +149,7 @@ public class EmrService {
                                 .heartRate(request.getHeartRate())
                                 .bcs(request.getBcs())
                                 .prescriptions(prescriptions)
+                                .aiDiagnosisContext(request.getAiDiagnosisContext())
                                 .images(images)
                                 .examinationDate(request.getExaminationDate() != null
                                                 ? request.getExaminationDate()
@@ -179,17 +205,39 @@ public class EmrService {
                 emr.setBcs(request.getBcs());
                 emr.setReExaminationDate(request.getReExaminationDate());
                 emr.setUpdatedAt(LocalDateTime.now());
+                emr.setAiDiagnosisContext(request.getAiDiagnosisContext());
 
                 // Update prescriptions if provided
                 if (request.getPrescriptions() != null) {
                         List<Prescription> prescriptions = request.getPrescriptions().stream()
-                                        .map(p -> Prescription.builder()
-                                                        .medicineName(p.getMedicineName())
-                                                        .dosage(p.getDosage())
-                                                        .frequency(p.getFrequency())
-                                                        .durationDays(p.getDurationDays())
-                                                        .instructions(p.getInstructions())
-                                                        .build())
+                                        .map(p -> {
+                                                Prescription.PrescriptionBuilder builder = Prescription.builder()
+                                                                .medicineName(p.getMedicineName())
+                                                                .timesOfDay(p.getTimesOfDay())
+                                                                .beforeAfterMeal(p.getBeforeAfterMeal())
+                                                                .frequencyNote(p.getFrequencyNote())
+                                                                .durationDays(p.getDurationDays())
+                                                                .instructions(p.getInstructions())
+                                                                .dosage(p.getDosage())
+                                                                .frequency(p.getFrequency());
+
+                                                if ((p.getInstructions() == null || p.getInstructions().isBlank())
+                                                                && (p.getDosage() != null || p.getFrequency() != null)) {
+                                                        StringBuilder legacyNote = new StringBuilder();
+                                                        if (p.getDosage() != null && !p.getDosage().isBlank()) {
+                                                                legacyNote.append("Liều cũ: ").append(p.getDosage());
+                                                        }
+                                                        if (p.getFrequency() != null && !p.getFrequency().isBlank()) {
+                                                                if (!legacyNote.isEmpty()) {
+                                                                        legacyNote.append(" | ");
+                                                                }
+                                                                legacyNote.append("Tần suất cũ: ").append(p.getFrequency());
+                                                        }
+                                                        builder.instructions(legacyNote.toString());
+                                                }
+
+                                                return builder.build();
+                                        })
                                         .collect(Collectors.toList());
                         emr.setPrescriptions(prescriptions);
                 }
@@ -218,6 +266,49 @@ public class EmrService {
                 syncConfirmedCase(saved);
 
                 return mapToResponse(saved, pet);
+        }
+
+        @org.springframework.transaction.annotation.Transactional(readOnly = true)
+        public CaseMemoryResyncResponse resyncConfirmedCaseMemory(int limit) {
+                if (limit < 1 || limit > 2000) {
+                        throw new BadRequestException("Giới hạn đồng bộ phải từ 1 đến 2000 bệnh án");
+                }
+
+                List<EmrRecord> eligibleRecords = emrRecordRepository.findAll().stream()
+                                .filter(this::isEligibleForCaseMemorySync)
+                                .sorted(Comparator.comparing(
+                                                this::resolveCaseMemorySortTime,
+                                                Comparator.nullsLast(Comparator.naturalOrder()))
+                                                .reversed())
+                                .collect(Collectors.toList());
+
+                int totalEligible = eligibleRecords.size();
+                int processedCount = 0;
+                int syncedCount = 0;
+
+                for (EmrRecord emr : eligibleRecords.stream().limit(limit).toList()) {
+                        processedCount++;
+                        try {
+                                if (aiCaseMemorySyncService.syncConfirmedEmr(mapToInternalConfirmedItem(emr))) {
+                                        syncedCount++;
+                                }
+                        } catch (Exception ex) {
+                                log.warn("Failed to resync EMR {} to AI case memory: {}", emr.getId(), ex.getMessage());
+                        }
+                }
+
+                int failedCount = processedCount - syncedCount;
+                return CaseMemoryResyncResponse.builder()
+                                .success(failedCount == 0)
+                                .totalEligible(totalEligible)
+                                .processedCount(processedCount)
+                                .syncedCount(syncedCount)
+                                .failedCount(failedCount)
+                                .message(String.format(
+                                                "Đã đồng bộ %d/%d bệnh án đủ điều kiện vào Case Memory",
+                                                syncedCount,
+                                                processedCount))
+                                .build();
         }
 
         /**
@@ -353,6 +444,34 @@ public class EmrService {
                 attachments.put("image_urls", imageUrls);
                 attachments.put("image_descriptions", imageDescriptions);
 
+                Map<String, Object> soap = new LinkedHashMap<>();
+                soap.put("subjective", emr.getSubjective());
+                soap.put("objective", emr.getObjective());
+                soap.put("assessment", emr.getAssessment());
+                soap.put("plan", emr.getPlan());
+                soap.put("notes", emr.getNotes());
+
+                Map<String, Object> vitals = new LinkedHashMap<>();
+                vitals.put("weight_kg", emr.getWeightKg());
+                vitals.put("temperature_c", emr.getTemperatureC());
+                vitals.put("heart_rate", emr.getHeartRate());
+                vitals.put("bcs", emr.getBcs());
+
+                List<Map<String, Object>> prescriptions = emr.getPrescriptions() != null
+                                ? emr.getPrescriptions().stream()
+                                                .filter(prescription -> prescription != null)
+                                                .map(prescription -> {
+                                                        Map<String, Object> rx = new LinkedHashMap<>();
+                                                        rx.put("medicine_name", prescription.getMedicineName());
+                                                        rx.put("dosage", prescription.getDosage());
+                                                        rx.put("frequency", prescription.getFrequency());
+                                                        rx.put("duration_days", prescription.getDurationDays());
+                                                        rx.put("instructions", prescription.getInstructions());
+                                                        return rx;
+                                                })
+                                                .collect(Collectors.toList())
+                                : List.of();
+
                 return InternalConfirmedEmrItemDto.builder()
                                 .emrId(emr.getId())
                                 .petId(emr.getPetId())
@@ -361,14 +480,24 @@ public class EmrService {
                                 .doctorId(emr.getStaffId())
                                 .species(resolvePetSpecies(pet))
                                 .breed(pet != null ? pet.getBreed() : null)
+                                .ageMonths(resolvePetAgeMonths(pet))
+                                .sex(pet != null && pet.getGender() != null ? pet.getGender().trim() : null)
+                                .allergies(pet != null && pet.getAllergies() != null && !pet.getAllergies().isBlank()
+                                                ? pet.getAllergies().trim()
+                                                : null)
                                 .chiefComplaint(firstNonBlank(emr.getSubjective(), emr.getNotes()))
                                 .symptoms(toSignalList(emr.getSubjective()))
                                 .physicalExam(toSignalList(emr.getObjective()))
                                 .clinicalNotes(firstNonBlank(emr.getNotes(), emr.getPlan(), emr.getObjective()))
                                 .finalDiagnosisText(emr.getAssessment())
+                                .soap(soap)
+                                .vitals(vitals)
+                                .prescriptions(prescriptions)
+                                .aiDiagnosisContext(emr.getAiDiagnosisContext() != null ? emr.getAiDiagnosisContext() : Map.of())
                                 .verified(true)
                                 .examAt(emr.getExaminationDate())
                                 .updatedAt(emr.getUpdatedAt() != null ? emr.getUpdatedAt() : emr.getCreatedAt())
+                                .reExaminationDate(emr.getReExaminationDate())
                                 .attachments(attachments)
                                 .build();
         }
@@ -385,11 +514,44 @@ public class EmrService {
                 }
         }
 
+        private boolean isEligibleForCaseMemorySync(EmrRecord emr) {
+                return emr != null
+                                && emr.getAssessment() != null
+                                && !emr.getAssessment().isBlank();
+        }
+
+        private LocalDateTime resolveCaseMemorySortTime(EmrRecord emr) {
+                if (emr == null) {
+                        return null;
+                }
+                if (emr.getUpdatedAt() != null) {
+                        return emr.getUpdatedAt();
+                }
+                if (emr.getExaminationDate() != null) {
+                        return emr.getExaminationDate();
+                }
+                return emr.getCreatedAt();
+        }
+
         private String resolvePetSpecies(Pet pet) {
                 if (pet == null || pet.getSpecies() == null) {
                         return null;
                 }
                 return pet.getSpecies().name().toLowerCase();
+        }
+
+        private Integer resolvePetAgeMonths(Pet pet) {
+                if (pet == null || pet.getDateOfBirth() == null) {
+                        return null;
+                }
+                long months = ChronoUnit.MONTHS.between(pet.getDateOfBirth(), LocalDate.now());
+                if (months < 0L) {
+                        return 0;
+                }
+                if (months > Integer.MAX_VALUE) {
+                        return Integer.MAX_VALUE;
+                }
+                return (int) months;
         }
 
         private List<String> toSignalList(String value) {

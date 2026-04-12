@@ -47,125 +47,34 @@ cp .env.test.example .env.test
 sudo nano .env.test
 ```
 
-**Cập nhật các giá trị:**
-- `DB_HOST_TEST`: Neon test branch host
-- `DB_PASSWORD_TEST`: Neon test branch password
-- `DATABASE_URL_TEST`: Full connection string
-- `MONGO_URI_TEST`: MongoDB test database
+**Cập nhật các giá trị (chuẩn thống nhất):**
+- `DB_HOST`: Neon test branch host
+- `DB_PASSWORD`: Neon test branch password
+- `DATABASE_URL`: Full connection string
+- `MONGO_URI`: MongoDB test database
+- `MONGODB_URL`: MongoDB URL cho AI service
+- `MONGODB_DATABASE`: tên DB test
 
 ---
 
-## 4️⃣ Tạo Nginx Config cho Test
+## 4️⃣ Nginx Template (không config thủ công)
+
+Test stack dùng nginx container render tự động từ template `nginx/templates/default.conf.template` bằng biến môi trường.
+
+Chỉ cần đặt các biến trong `.env.test`:
 
 ```bash
-sudo nano /etc/nginx/sites-available/api-test.petties.world
+NGINX_SERVER_NAME=api-test.petties.world
+NGINX_FRONTEND_UPSTREAM=https://test.petties.world
+NGINX_FRONTEND_HOST=test.petties.world
+NGINX_HOST_PORT=81
 ```
 
-**Paste nội dung:**
-
-```nginx
-server {
-    listen 80;
-    server_name api-test.petties.world;
-    return 301 https://$host$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name api-test.petties.world;
-    
-    # SSL - managed by Certbot
-    ssl_certificate /etc/letsencrypt/live/api-test.petties.world/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/api-test.petties.world/privkey.pem;
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-
-    client_max_body_size 15M;
-
-    # ============================================
-    # BACKEND API (Spring Boot - Port 8081)
-    # ============================================
-    location /api/ {
-        proxy_pass http://127.0.0.1:8081/api/;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 300s;
-    }
-
-    # Backend WebSocket (Spring Boot)
-    location /ws/ {
-        proxy_pass http://127.0.0.1:8081/ws/;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 86400s;
-    }
-
-    # Health check
-    location /api/actuator/health {
-        proxy_pass http://127.0.0.1:8081/api/actuator/health;
-        access_log off;
-    }
-
-    # ============================================
-    # AI SERVICE (FastAPI - Port 8001)
-    # ============================================
-    # AI WebSocket PHẢI ĐẶT TRƯỚC /ai/ (specific route first)
-    location /ai/ws/ {
-        proxy_pass http://127.0.0.1:8001/ws/;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 3600s;
-        proxy_send_timeout 3600s;
-        proxy_buffering off;
-    }
-
-    # AI REST API
-    location /ai/ {
-        proxy_pass http://127.0.0.1:8001/;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 300s;
-    }
-}
-```
+Không cần tạo `nginx.test.conf` hoặc chỉnh tay file nginx theo môi trường.
 
 ---
 
-## 5️⃣ Enable Site và tạo SSL
-
-```bash
-# Enable site
-sudo ln -s /etc/nginx/sites-available/api-test.petties.world /etc/nginx/sites-enabled/
-
-# Test config (sẽ lỗi SSL, bỏ qua)
-sudo nginx -t
-
-# Tạo SSL certificate
-sudo certbot --nginx -d api-test.petties.world
-
-# Reload Nginx
-sudo systemctl reload nginx
-```
-
----
-
-## 6️⃣ Start Test Containers
+## 5️⃣ Start Test Containers
 
 ```bash
 cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
@@ -174,16 +83,16 @@ cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
 git checkout develop
 git pull origin develop
 
-# Start test containers
-docker-compose -f docker-compose.test.yml --env-file .env.test up -d --build
+# Start test containers (compose chung)
+docker compose -p petties-test -f docker-compose.prod.yml --env-file .env.test up -d --build
 
 # Check status
-docker-compose -f docker-compose.test.yml ps
+docker compose -p petties-test -f docker-compose.prod.yml --env-file .env.test ps
 ```
 
 ---
 
-## 7️⃣ Verify
+## 6️⃣ Verify
 
 ```bash
 # Health checks
@@ -196,7 +105,7 @@ curl https://api-test.petties.world/api/actuator/health
 
 ---
 
-## 8️⃣ Configure Vercel for Test FE
+## 7️⃣ Configure Vercel for Test FE
 
 1. Vào [Vercel Dashboard](https://vercel.com/dashboard)
 2. Chọn project **petties-web**
@@ -221,8 +130,7 @@ curl https://api-test.petties.world/api/actuator/health
 - [ ] DNS records trỏ đúng IP
 - [ ] Neon test branch đã tạo
 - [ ] `.env.test` đã cấu hình trên EC2
-- [ ] Nginx config đã enable
-- [ ] SSL cert đã tạo
+- [ ] `.env.test` có Nginx vars (`NGINX_SERVER_NAME`, `NGINX_FRONTEND_UPSTREAM`, `NGINX_FRONTEND_HOST`)
 - [ ] Test containers running
 - [ ] `https://api-test.petties.world/api/actuator/health` trả về UP
 - [ ] Vercel preview với domain `test.petties.world`
@@ -233,13 +141,13 @@ curl https://api-test.petties.world/api/actuator/health
 
 ```bash
 # View test logs
-docker-compose -f docker-compose.test.yml logs -f
+docker compose -p petties-test -f docker-compose.prod.yml --env-file .env.test logs -f
 
 # Restart test containers
-docker-compose -f docker-compose.test.yml restart
+docker compose -p petties-test -f docker-compose.prod.yml --env-file .env.test restart
 
 # Stop test containers (giữ prod running)
-docker-compose -f docker-compose.test.yml down
+docker compose -p petties-test -f docker-compose.prod.yml --env-file .env.test down
 
 # View all running containers
 docker ps

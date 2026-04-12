@@ -1,28 +1,29 @@
 """
 PETTIES AGENT SERVICE - Tool Scanner Service
 Synchronize FastMCP tools into PostgreSQL for the single-agent runtime.
+
+Auto-sync behavior:
+- Runs automatically on every service startup (main.py lifespan)
+- Only updates tools that actually changed (compares description + schema)
+- SYSTEM_MANAGED_TOOLS are always enabled
+- ADMIN_CONFIGURABLE_TOOLS can be toggled by admin without being auto-disabled
+- Any DB tool not present in current FastMCP registry is removed
 """
 
+import hashlib
+import json
 from typing import Any, Dict, List
 import logging
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.tools.mcp_server import get_mcp_tools_metadata
+from app.core.tools.mcp_server import get_mcp_resources_metadata, get_mcp_tools_metadata
 from app.db.postgres.models import Tool, ToolType
 from app.db.postgres.session import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
 
-
-LEGACY_TOOL_RENAMES = {
-    "pet_care_qa": "pet_knowledge_search",
-    "symptom_search": "pet_knowledge_search",
-    "search_clinics": "search_clinics_nearby",
-    "check_slots": "check_available_slots",
-    "create_booking": "create_booking_for_user",
-}
 
 ADMIN_CONFIGURABLE_TOOLS = {
     "pet_knowledge_search",
@@ -30,13 +31,52 @@ ADMIN_CONFIGURABLE_TOOLS = {
 }
 
 SYSTEM_MANAGED_TOOLS = {
+    "read_resource",
     "get_user_pets",
     "search_clinics_nearby",
+    "get_clinic_detail",
     "get_clinic_services",
     "check_vaccination_status",
     "check_available_slots",
     "create_booking_for_user",
+    "get_my_booking_info",
+    "list_my_bookings",
+    "get_current_datetime",
+    "resolve_booking_context",
+    "get_staff_patients",
+    "get_patient_summary",
+    "get_emr_history",
+    "get_pet_health_summary",
+    # Phase 0: Clinic Setup AI
+    "generate_clinic_services",
+    "list_clinic_services",
+    "update_service_info",
+    "execute_update_service_confirmed",
+    "create_clinic_service",
+    "get_my_clinics",
+    "analyze_revenue_trends",
+    "get_clinic_metrics",
+    # Booking Management Tools
+    "view_clinic_bookings",
+    "get_clinic_today_summary",
+    "get_staff_schedule",
+    "get_slot_availability",
+    "get_available_staff_for_reassign",
+    "reassign_staff_for_service",
+    "confirm_booking_manager",
+    "cancel_booking_manager",
 }
+
+
+def _compute_tool_fingerprint(tool_meta: Dict[str, Any]) -> str:
+    """Compute a hash of tool metadata to detect changes."""
+    fingerprint_data = {
+        "description": tool_meta.get("description", ""),
+        "input_schema": tool_meta.get("input_schema"),
+        "output_schema": tool_meta.get("output_schema"),
+    }
+    fingerprint_str = json.dumps(fingerprint_data, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(fingerprint_str.encode("utf-8")).hexdigest()[:16]
 
 
 class ToolScanner:
@@ -47,28 +87,36 @@ class ToolScanner:
 
     async def scan_and_sync_tools(self) -> Dict[str, Any]:
         mcp_tools = await get_mcp_tools_metadata()
+        mcp_resources = await get_mcp_resources_metadata()
         total_tools = len(mcp_tools)
 
         self.logger.info("Found %s tools in FastMCP server", total_tools)
 
         async with AsyncSessionLocal() as session:
-            new_count, updated_count = await self._sync_tools_to_db(session, mcp_tools)
+            new_count, updated_count, unchanged_count = await self._sync_tools_to_db(
+                session, mcp_tools
+            )
 
         return {
             "total_tools": total_tools,
+            "total_resources": len(mcp_resources),
             "new_tools": new_count,
             "updated_tools": updated_count,
+            "unchanged_tools": unchanged_count,
             "tool_list": [tool["name"] for tool in mcp_tools],
+            "resource_list": [resource["name"] for resource in mcp_resources],
+            "resource_metadata": mcp_resources,
         }
 
     async def _sync_tools_to_db(
         self, session: AsyncSession, mcp_tools: List[Dict[str, Any]]
-    ) -> tuple[int, int]:
+    ) -> tuple[int, int, int]:
         new_count = 0
         updated_count = 0
-        mcp_tool_map = {tool["name"]: tool for tool in mcp_tools}
+        unchanged_count = 0
+        mcp_tool_names = {tool["name"] for tool in mcp_tools}
 
-        await self._migrate_legacy_tools(session, mcp_tool_map)
+        await self._remove_non_mcp_tools(session, mcp_tool_names)
 
         for tool_meta in mcp_tools:
             tool_name = tool_meta["name"]
@@ -76,13 +124,29 @@ class ToolScanner:
             existing_tool = result.scalar_one_or_none()
 
             if existing_tool:
-                existing_tool.description = tool_meta.get("description", "")
-                existing_tool.input_schema = tool_meta.get("input_schema")
-                existing_tool.output_schema = tool_meta.get("output_schema")
-                if tool_name in SYSTEM_MANAGED_TOOLS:
-                    existing_tool.enabled = True
-                updated_count += 1
-                self.logger.info("Updated tool: %s", tool_name)
+                # Check if anything actually changed
+                has_changes = (
+                    existing_tool.description != tool_meta.get("description", "")
+                    or existing_tool.input_schema != tool_meta.get("input_schema")
+                    or existing_tool.output_schema != tool_meta.get("output_schema")
+                )
+
+                if has_changes:
+                    existing_tool.description = tool_meta.get("description", "")
+                    existing_tool.input_schema = tool_meta.get("input_schema")
+                    existing_tool.output_schema = tool_meta.get("output_schema")
+                    if tool_name in SYSTEM_MANAGED_TOOLS:
+                        existing_tool.enabled = True
+                    updated_count += 1
+                    self.logger.info("Updated tool (changed): %s", tool_name)
+                else:
+                    # Still ensure SYSTEM_MANAGED_TOOLS are enabled
+                    if tool_name in SYSTEM_MANAGED_TOOLS and not existing_tool.enabled:
+                        existing_tool.enabled = True
+                        updated_count += 1
+                        self.logger.info("Updated tool (re-enabled): %s", tool_name)
+                    else:
+                        unchanged_count += 1
                 continue
 
             new_tool = Tool(
@@ -99,65 +163,33 @@ class ToolScanner:
             self.logger.info("Discovered new tool: %s", tool_name)
 
         await session.commit()
-        return new_count, updated_count
 
-    async def _migrate_legacy_tools(
+        # Invalidate tool executor cache so next execution uses updated tools
+        from app.core.tools.executor import ToolExecutor
+
+        ToolExecutor.invalidate_tool_cache()
+
+        return new_count, updated_count, unchanged_count
+
+    async def _remove_non_mcp_tools(
         self,
         session: AsyncSession,
-        mcp_tool_map: Dict[str, Dict[str, Any]],
+        mcp_tool_names: set[str],
     ) -> None:
-        """Rename legacy tool rows in DB to canonical FastMCP tool names."""
+        """Delete tool rows that are not registered in current FastMCP metadata."""
         existing_result = await session.execute(select(Tool))
-        existing_tools = {tool.name: tool for tool in existing_result.scalars().all()}
+        stale_tools = [
+            tool
+            for tool in existing_result.scalars().all()
+            if tool.name not in mcp_tool_names
+        ]
 
-        for legacy_name, canonical_name in LEGACY_TOOL_RENAMES.items():
-            legacy_tool = existing_tools.get(legacy_name)
-            if not legacy_tool:
-                continue
+        if not stale_tools:
+            return
 
-            canonical_meta = mcp_tool_map.get(canonical_name)
-            if not canonical_meta:
-                self.logger.warning(
-                    "Skipping legacy tool migration '%s' -> '%s' because canonical tool is not registered in MCP.",
-                    legacy_name,
-                    canonical_name,
-                )
-                continue
-
-            canonical_tool = existing_tools.get(canonical_name)
-            merged_enabled = legacy_tool.enabled or (
-                canonical_tool.enabled if canonical_tool else False
-            )
-            if canonical_name in SYSTEM_MANAGED_TOOLS:
-                merged_enabled = True
-
-            if canonical_tool:
-                canonical_tool.description = canonical_meta.get("description", "")
-                canonical_tool.input_schema = canonical_meta.get("input_schema")
-                canonical_tool.output_schema = canonical_meta.get("output_schema")
-                canonical_tool.enabled = merged_enabled
-                self.logger.info(
-                    "Merged legacy tool '%s' into existing '%s'",
-                    legacy_name,
-                    canonical_name,
-                )
-            else:
-                legacy_tool.name = canonical_name
-                legacy_tool.description = canonical_meta.get("description", "")
-                legacy_tool.input_schema = canonical_meta.get("input_schema")
-                legacy_tool.output_schema = canonical_meta.get("output_schema")
-                legacy_tool.enabled = merged_enabled
-                canonical_tool = legacy_tool
-                existing_tools[canonical_name] = canonical_tool
-                self.logger.info(
-                    "Migrated legacy tool '%s' -> '%s'",
-                    legacy_name,
-                    canonical_name,
-                )
-
-            if canonical_tool is not legacy_tool:
-                await session.delete(legacy_tool)
-            existing_tools.pop(legacy_name, None)
+        for stale_tool in stale_tools:
+            self.logger.info("Removing stale tool row: %s", stale_tool.name)
+            await session.delete(stale_tool)
 
         await session.flush()
 
@@ -208,6 +240,7 @@ if __name__ == "__main__":
         print(f"Total: {result['total_tools']}")
         print(f"New: {result['new_tools']}")
         print(f"Updated: {result['updated_tools']}")
+        print(f"Unchanged: {result['unchanged_tools']}")
 
         new_tools = await tool_scanner.get_new_tools()
         print(f"New tools: {len(new_tools)}")

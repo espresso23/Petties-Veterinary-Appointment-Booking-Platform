@@ -356,10 +356,10 @@ wscat -c wss://ai.petties.world/ws/chat/test-session-123
 - **Giải pháp**: 
   ```bash
   # Kiểm tra containers
-  docker-compose -f docker-compose.prod.yml ps
+hello    docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod ps
   
   # Kiểm tra logs
-  docker-compose -f docker-compose.prod.yml logs ai-service
+    docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod logs ai-service
   ```
 
 ## Sau khi cập nhật Nginx config

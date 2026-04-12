@@ -23,6 +23,8 @@ PLAYGROUND_TOOLS = {
     "web_search",
 }
 
+PLAYGROUND_RESOURCES = set()
+
 ROLE_RESPONSE_STYLES = {
     "PET_OWNER": (
         "Cách trả lời cho PET_OWNER: dùng ngôn ngữ thân thiện, dễ hiểu, tránh thuật ngữ quá chuyên môn. "
@@ -45,12 +47,34 @@ ROLE_RESPONSE_STYLES = {
     ),
 }
 
+ROLE_PRODUCT_MODES = {
+    "PET_OWNER": (
+        "Chế độ sản phẩm: AI chat cho chủ nuôi. Có thể tư vấn, giải thích và hỗ trợ booking ở mức độ chat assistant."
+    ),
+    "STAFF": (
+        "Chế độ sản phẩm: trợ lý AI cho STAFF. Ưu tiên thao tác nghiệp vụ, EMR, bệnh nhân và vận hành, không đóng vai consumer chatbot. "
+        "Có thể xem lịch khám trong ngày (get_clinic_today_summary) và kiểm tra tiêm chủng (check_vaccination_status)."
+    ),
+    "CLINIC_MANAGER": (
+        "Chế độ sản phẩm: trợ lý AI cho CLINIC_MANAGER. Ưu tiên vận hành, lịch hẹn, nhân sự và điều phối, không đóng vai consumer chatbot. "
+        "Có thể xem doanh thu, lịch làm việc, slot, xác nhận/hủy booking và phân công lại nhân viên."
+    ),
+    "CLINIC_OWNER": (
+        "Chế độ sản phẩm: trợ lý AI cho CLINIC_OWNER. Ưu tiên góc nhìn điều hành và kinh doanh, không đóng vai consumer chatbot. "
+        "Có thể tạo dịch vụ, cập nhật giá, xem thống kê doanh thu và quản lý toàn bộ phòng khám."
+    ),
+    "ADMIN": (
+        "Chế độ sản phẩm: AI control assistant cho ADMIN, ưu tiên kiểm soát hệ thống và cấu hình."
+    ),
+}
+
 
 class ContextPolicyService:
     """Service xây dựng tool whitelist và prompt guardrails theo role/context."""
 
     ROLE_BUSINESS_TOOLS = {
         "PET_OWNER": {
+            "read_resource",
             "pet_knowledge_search",
             "web_search",
             "get_user_pets",
@@ -59,43 +83,91 @@ class ContextPolicyService:
             "check_available_slots",
             "create_booking_for_user",
             "get_clinic_services",
+            "list_my_bookings",
+            "get_my_booking_info",
             "check_vaccination_status",
+            "get_current_datetime",
+            "resolve_booking_context",
         },
         "STAFF": {
-            "pet_knowledge_search",
+            "read_resource",
             "get_staff_patients",
             "get_patient_summary",
             "get_emr_history",
+            "get_my_clinics",
+            "get_clinic_today_summary",
             "check_vaccination_status",
         },
         "CLINIC_MANAGER": {
-            "pet_knowledge_search",
-            "web_search",
-            "get_user_pets",
-            "search_clinics_nearby",
-            "check_available_slots",
-            "create_booking_for_user",
+            "read_resource",
+            "list_clinic_services",
             "get_clinic_services",
-            "check_vaccination_status",
-            # NOTE: get_patient_summary, get_emr_history, analyze_revenue_trends,
-            # suggest_staff_assignments, create_staff_shifts — disabled until MCP implementation ready
+            "get_my_clinics",
+            "get_clinic_today_summary",
+            "analyze_revenue_trends",
+            "get_clinic_metrics",
+            "get_staff_schedule",
+            "get_slot_availability",
+            "view_clinic_bookings",
+            "get_available_staff_for_reassign",
+            "reassign_staff_for_service",
+            "confirm_booking_manager",
+            "cancel_booking_manager",
         },
         "CLINIC_OWNER": {
-            "pet_knowledge_search",
-            "web_search",
-            "get_user_pets",
-            "search_clinics_nearby",
-            "check_available_slots",
-            "create_booking_for_user",
+            "read_resource",
+            "list_clinic_services",
             "get_clinic_services",
-            "check_vaccination_status",
-            # NOTE: get_patient_summary, get_emr_history, analyze_revenue_trends,
-            # suggest_staff_assignments, create_staff_shifts, generate_clinic_services
-            # — disabled until MCP implementation ready
+            "create_clinic_service",
+            "update_service_info",
+            "execute_update_service_confirmed",
+            "generate_clinic_services",
+            "get_my_clinics",
+            "view_clinic_bookings",
+            "get_clinic_today_summary",
+            "confirm_booking_manager",
+            "cancel_booking_manager",
+            "get_available_staff_for_reassign",
+            "reassign_staff_for_service",
+            "analyze_revenue_trends",
+            "get_clinic_metrics",
+            "get_owner_stats_overview",
+            "get_staff_schedule",
+            "get_slot_availability",
         },
-        "ADMIN": set(PUBLIC_BUSINESS_TOOLS),
+        "ADMIN": {"read_resource", *PUBLIC_BUSINESS_TOOLS},
     }
-
+    ROLE_BUSINESS_RESOURCES = {
+        "PET_OWNER": {"user_pets", "pet_health_summary"},
+        "STAFF": {"my_clinics", "patient_summary", "patient_emr_history"},
+        "CLINIC_MANAGER": {
+            "my_clinics",
+            "clinic_services",
+            "clinic_metrics",
+            "staff_schedule",
+            "slot_availability",
+        },
+        "CLINIC_OWNER": {
+            "my_clinics",
+            "clinic_services",
+            "clinic_metrics",
+            "owner_stats_overview",
+            "staff_schedule",
+            "slot_availability",
+        },
+        "ADMIN": {
+            "user_pets",
+            "pet_health_summary",
+            "patient_summary",
+            "patient_emr_history",
+            "my_clinics",
+            "clinic_services",
+            "clinic_metrics",
+            "owner_stats_overview",
+            "staff_schedule",
+            "slot_availability",
+        },
+    }
 
     @classmethod
     def get_allowed_tools(
@@ -141,6 +213,7 @@ class ContextPolicyService:
         user_role: Optional[str],
         context_type: Optional[str],
         allowed_tools: Optional[Iterable[str]] = None,
+        allowed_resources: Optional[Iterable[str]] = None,
     ) -> str:
         """Append prompt guardrails để agent nhìn thấy đúng context và whitelist hiện tại."""
         prompt = (base_prompt or "").rstrip()
@@ -151,10 +224,18 @@ class ContextPolicyService:
         normalized_role = cls.normalize_role(user_role)
         normalized_context = normalize_context_type(context_type, BUSINESS_CHAT)
         tool_list = list(dict.fromkeys(allowed_tools or []))
+        resource_list = list(dict.fromkeys(allowed_resources or []))
         tool_text = ", ".join(tool_list) if tool_list else "không có tool nào"
+        resource_text = (
+            ", ".join(resource_list) if resource_list else "không có resource nào"
+        )
         role_style = ROLE_RESPONSE_STYLES.get(
             normalized_role,
             ROLE_RESPONSE_STYLES["PET_OWNER"],
+        )
+        product_mode = ROLE_PRODUCT_MODES.get(
+            normalized_role,
+            ROLE_PRODUCT_MODES["PET_OWNER"],
         )
 
         if normalized_context == PLAYGROUND_TEST:
@@ -162,16 +243,20 @@ class ContextPolicyService:
                 "Bạn đang chạy trong PLAYGROUND_TEST dành riêng cho ADMIN. "
                 "Chỉ được dùng đúng các tool trong whitelist hiện tại: "
                 f"{tool_text}. "
+                "Resource read-only hiện tại: "
+                f"{resource_text}. "
                 "Nếu một tool không nằm trong danh sách này thì không được tự ý gọi. "
-                f"{role_style}"
+                f"{role_style} {product_mode}"
             )
         else:
             guardrail = (
                 f"Bạn đang phục vụ hội thoại BUSINESS_CHAT cho role {normalized_role}. "
                 "Chỉ được dùng các tool nghiệp vụ đã được whitelist cho role này: "
                 f"{tool_text}. "
+                "Với truy vấn read-only, ưu tiên Resource trước rồi mới fallback sang tool read-only nếu cần: "
+                f"{resource_text}. "
                 "Nếu câu hỏi nằm ngoài các tool được phép thì hãy trả lời an toàn hoặc hướng dẫn người dùng liên hệ đúng bộ phận. "
-                f"{role_style}"
+                f"{role_style} {product_mode}"
             )
 
         if normalized_role == "STAFF":
@@ -189,6 +274,18 @@ class ContextPolicyService:
                 "Nếu là HOME_VISIT thì còn phải có địa chỉ, tọa độ và khoảng cách di chuyển. "
                 "Nếu dịch vụ là tiêm chủng, hãy giữ cách tư vấn giống flow thủ công: có thể nêu giá theo mũi/dose cho người dùng biết và chọn, "
                 "nhưng không tự tạo flow riêng hoặc yêu cầu thông tin chuyên sâu không cần thiết."
+            )
+
+        if normalized_role in {"STAFF", "CLINIC_MANAGER", "CLINIC_OWNER"}:
+            guardrail = (
+                f"{guardrail} Không được tự động dẫn hội thoại theo consumer booking wizard của PET_OWNER "
+                "(ví dụ: tự mở flow hỏi pet -> dịch vụ -> phòng khám -> giờ) trừ khi người dùng đang yêu cầu rõ ràng một thao tác booking nội bộ và tool đó được whitelist."
+            )
+
+        if normalized_role == "PET_OWNER":
+            guardrail = (
+                f"{guardrail} Tuyệt đối không xử lý như copilot vận hành clinic (doanh thu, điều phối staff, booking manager actions). "
+                "Nếu người dùng hỏi vận hành nội bộ clinic, hãy thông báo rõ ràng đây không phải phạm vi PET_OWNER chatbot."
             )
 
         if not prompt:
@@ -217,3 +314,39 @@ class ContextPolicyService:
             seen.add(lowered)
             normalized.append(clean_name)
         return normalized
+
+    @classmethod
+    def get_allowed_resources(
+        cls,
+        user_role: Optional[str],
+        context_type: Optional[str],
+        available_resources: Optional[Sequence[str]] = None,
+    ) -> List[str]:
+        normalized_context = normalize_context_type(context_type, BUSINESS_CHAT)
+        normalized_role = cls.normalize_role(user_role)
+        normalized_available = cls._normalize_tool_names(available_resources)
+
+        if normalized_context == PLAYGROUND_TEST:
+            if normalized_role != "ADMIN":
+                return []
+            if not normalized_available:
+                return list(PLAYGROUND_RESOURCES)
+            return [
+                resource
+                for resource in normalized_available
+                if resource.lower() in PLAYGROUND_RESOURCES
+            ]
+
+        allowed_lookup = {
+            resource.lower()
+            for resource in cls.ROLE_BUSINESS_RESOURCES.get(normalized_role, set())
+        }
+
+        if not normalized_available:
+            return list(cls.ROLE_BUSINESS_RESOURCES.get(normalized_role, set()))
+
+        return [
+            resource
+            for resource in normalized_available
+            if resource.lower() in allowed_lookup
+        ]

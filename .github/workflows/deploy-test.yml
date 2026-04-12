@@ -25,6 +25,8 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
+            ENV_FILE=.env.test
+            COMPOSE_FILE=docker-compose.prod.yml
             
             echo "🧪 ============================================"
             echo "🧪 Deploying TEST environment..."
@@ -45,31 +47,46 @@ jobs:
             git log --oneline -1
             
             # Check if test environment file exists
-            if [ ! -f .env.test ]; then
-              echo "⚠️ .env.test not found! Please create it first."
+            if [ ! -f "$ENV_FILE" ]; then
+              echo "⚠️ $ENV_FILE not found! Please create it first."
               exit 1
             fi
+
+            set -a
+            . "$ENV_FILE"
+            set +a
+
+            export COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-petties-test}
+            export BACKEND_HOST_PORT=${BACKEND_HOST_PORT:-8081}
+            export AI_HOST_PORT=${AI_HOST_PORT:-8001}
+            export NGINX_HOST_PORT=${NGINX_HOST_PORT:-81}
+            export NGINX_SERVER_NAME=${NGINX_SERVER_NAME:-api-test.petties.world}
+            export NGINX_FRONTEND_UPSTREAM=${NGINX_FRONTEND_UPSTREAM:-https://test.petties.world}
+            export NGINX_FRONTEND_HOST=${NGINX_FRONTEND_HOST:-test.petties.world}
+            export NGINX_RESOLVER=${NGINX_RESOLVER:-8.8.8.8}
+
+            COMPOSE_PROJECT=${COMPOSE_PROJECT_NAME:-petties-test}
             
             # Stop existing test containers
             echo "🛑 Stopping test containers..."
-            docker-compose -f docker-compose.test.yml --env-file .env.test down 2>/dev/null || true
+            docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" down 2>/dev/null || true
             
             # Build and start test containers
             echo "🔨 Building and starting test containers..."
-            docker-compose -f docker-compose.test.yml --env-file .env.test up -d --build
+            docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build
             
             echo "⏳ Waiting for services to start..."
             sleep 20
             
-            # Health checks for Test environment (ports 8081/8001)
-            echo "🏥 Checking test backend health (port 8081)..."
-            curl -f http://127.0.0.1:8081/api/actuator/health || echo "⚠️ Backend Test health check failed"
+            # Health checks for Test environment
+            echo "🏥 Checking test backend health (port ${BACKEND_HOST_PORT:-8081})..."
+            curl -f "http://127.0.0.1:${BACKEND_HOST_PORT:-8081}/api/actuator/health" || echo "⚠️ Backend Test health check failed"
             
-            echo "🤖 Checking test AI service health (port 8001)..."
-            curl -f http://127.0.0.1:8001/health || echo "⚠️ AI Test health check failed"
+            echo "🤖 Checking test AI service health (port ${AI_HOST_PORT:-8001})..."
+            curl -f "http://127.0.0.1:${AI_HOST_PORT:-8001}/health" || echo "⚠️ AI Test health check failed"
             
             echo "📜 Showing recent test logs..."
-            docker-compose -f docker-compose.test.yml logs --tail=20
+            docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs --tail=20
             
             echo "🧪 ============================================"
             echo "✅ Test Deployment complete!"

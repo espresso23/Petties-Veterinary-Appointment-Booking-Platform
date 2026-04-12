@@ -75,6 +75,7 @@ async def synthesize_pet_health_summary(
         pet_info=pet_info_dict,
         emr_records=emr_records_list,
         user_name=user.full_name or "",
+        user_role=role,
     )
 
     return PetHealthSummaryResponse(**result)

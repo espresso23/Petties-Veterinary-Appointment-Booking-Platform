@@ -1,6 +1,6 @@
 """
 Sentry Error Tracking Configuration
-Auto-reports errors to Slack via Sentry integration
+Auto-reports errors to Discord via Sentry integration
 """
 
 import sentry_sdk
@@ -17,7 +17,7 @@ def init_sentry():
     """
     Initialize Sentry SDK for error tracking
 
-    Errors will be automatically sent to Sentry and forwarded to Slack
+    Errors will be automatically sent to Sentry and forwarded to Discord
     based on alert rules configured in Sentry dashboard.
     """
 

@@ -22,9 +22,8 @@ Usage:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from functools import wraps
-from typing import Any, Callable, Dict, List, Optional, Set
+from dataclasses import dataclass
+from typing import Callable, Dict, List, Optional
 
 
 @dataclass
@@ -56,6 +55,12 @@ _tool_policies: Dict[str, ToolPolicy] = {}
 
 # Default policies for all tools
 DEFAULT_POLICIES = {
+    "read_resource": ToolPolicy(
+        allow_empty_params=False,
+        requires_context=True,
+        requires_auth=True,
+        description="Read-only resource access gateway with role/context guardrails",
+    ),
     # Booking Tools
     "get_user_pets": ToolPolicy(
         allow_empty_params=True,
@@ -118,8 +123,120 @@ DEFAULT_POLICIES = {
     "get_pet_health_summary": ToolPolicy(
         allow_empty_params=False,
         requires_context=True,
+        description="Get pet health summary - requires pet_id or pet_name_hint",
+    ),
+    # Clinic Owner Tools (Phase 0)
+    "generate_clinic_services": ToolPolicy(
+        allow_empty_params=True,
+        requires_context=True,
         requires_auth=True,
-        description="Get pet health summary - requires pet_id and user_id",
+        allowed_roles=["CLINIC_OWNER"],
+        description="Generate clinic service suggestions from master services - for clinic setup",
+    ),
+    "list_clinic_services": ToolPolicy(
+        allow_empty_params=True,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
+        description="List all clinic services - for viewing service catalog",
+    ),
+    "update_service_info": ToolPolicy(
+        allow_empty_params=False,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER"],
+        description="Update service info - returns preview for confirmation (HITL)",
+    ),
+    "execute_update_service_confirmed": ToolPolicy(
+        allow_empty_params=False,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER"],
+        description="Apply confirmed clinic service update after HITL confirmation",
+    ),
+    "create_clinic_service": ToolPolicy(
+        allow_empty_params=False,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER"],
+        description="Create new clinic service - requires service_data and confirmation (HITL)",
+    ),
+    "get_my_clinics": ToolPolicy(
+        allow_empty_params=True,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER", "STAFF"],
+        description="Lấy danh sách các phòng khám mà người dùng hiện tại quản lý hoặc làm việc",
+    ),
+    "view_clinic_bookings": ToolPolicy(
+        allow_empty_params=False,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
+        description="Xem danh sách lịch hẹn của phòng khám (dành cho Quản lý/Chủ phòng khám)",
+    ),
+    "get_clinic_today_summary": ToolPolicy(
+        allow_empty_params=True,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER", "STAFF"],
+        description="Tổng quan lịch khám trong ngày của phòng khám",
+    ),
+    "analyze_revenue_trends": ToolPolicy(
+        allow_empty_params=True,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
+        description="Analyze revenue trends for the current clinic",
+    ),
+    "get_clinic_metrics": ToolPolicy(
+        allow_empty_params=True,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
+        description="Get overall performance metrics for the clinic",
+    ),
+    "get_staff_schedule": ToolPolicy(
+        allow_empty_params=True,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
+        description="Get staff schedule for the clinic",
+    ),
+    "get_slot_availability": ToolPolicy(
+        allow_empty_params=True,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
+        description="Get detailed slot availability and booking status for the clinic",
+    ),
+    "get_available_staff_for_reassign": ToolPolicy(
+        allow_empty_params=False,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
+        description="Get available staff for service reassignment",
+    ),
+    "reassign_staff_for_service": ToolPolicy(
+        allow_empty_params=False,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
+        description="Reassign staff for a booking service",
+    ),
+    "confirm_booking_manager": ToolPolicy(
+        allow_empty_params=False,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
+        description="Xác nhận lịch hẹn (chỉ dành cho Quản lý/Chủ phòng khám)",
+    ),
+    "cancel_booking_manager": ToolPolicy(
+        allow_empty_params=False,
+        requires_context=True,
+        requires_auth=True,
+        allowed_roles=["CLINIC_OWNER", "CLINIC_MANAGER"],
+        description="Hủy lịch hẹn (chỉ dành cho Quản lý/Chủ phòng khám)",
     ),
 }
 
@@ -264,136 +381,3 @@ def get_timeout(tool_name: str) -> int:
     """
     policy = get_tool_policy(tool_name)
     return policy.timeout_seconds if policy else 30
-
-
-# ============================================================================
-# TOOL POLICY VALIDATOR
-# ============================================================================
-
-
-class ToolPolicyValidator:
-    """
-    Validates tool execution against policies.
-    """
-
-    def __init__(self):
-        self.policies = get_all_policies()
-
-    def validate_params(
-        self,
-        tool_name: str,
-        params: Dict[str, Any],
-    ) -> Tuple[bool, Optional[str]]:
-        """
-        Validate parameters against tool policy.
-
-        Args:
-            tool_name: Name of the tool
-            params: Tool parameters
-
-        Returns:
-            Tuple of (valid, error_message)
-        """
-        policy = get_tool_policy(tool_name)
-
-        # Check empty params
-        is_empty = not params or len(params) == 0
-        if is_empty and policy and not policy.allow_empty_params:
-            return False, f"Tool '{tool_name}' requires parameters"
-
-        # Check required params (if policy specifies)
-        if policy and policy.allowed_roles is not None:
-            if not params:
-                return (
-                    False,
-                    f"Tool '{tool_name}' requires parameters for authorization",
-                )
-
-        return True, None
-
-    def validate_execution(
-        self,
-        tool_name: str,
-        params: Dict[str, Any],
-        has_context: bool,
-        role: Optional[str] = None,
-    ) -> Tuple[bool, Optional[str]]:
-        """
-        Validate full execution against policies.
-
-        Args:
-            tool_name: Name of the tool
-            params: Tool parameters
-            has_context: Whether tool runtime context is available
-            role: User role
-
-        Returns:
-            Tuple of (allowed, error_message)
-        """
-        # Check params
-        valid, error = self.validate_params(tool_name, params)
-        if not valid:
-            return False, error
-
-        policy = get_tool_policy(tool_name)
-
-        # Check context requirement
-        if policy and policy.requires_context and not has_context:
-            return False, f"Tool '{tool_name}' requires runtime context"
-
-        # Check role access
-        if role and not check_role_access(tool_name, role):
-            return False, f"Role '{role}' is not allowed to use tool '{tool_name}'"
-
-        return True, None
-
-
-# ============================================================================
-# SYNC DECORATOR
-# ============================================================================
-
-
-def with_tool_policy(
-    tool_name: str,
-    default_params: Optional[Dict[str, Any]] = None,
-) -> Callable:
-    """
-    Decorator to wrap tool execution with policy checks.
-
-    Usage:
-        @with_tool_policy("get_user_pets", default_params={"limit": 10})
-        async def get_user_pets_impl(params):
-            # Execute tool
-            ...
-    """
-
-    def decorator(func: Callable) -> Callable:
-        @wraps(func)
-        async def wrapper(params: Dict[str, Any]) -> Dict[str, Any]:
-            # Merge with defaults
-            merged = {**(default_params or {}), **params}
-
-            # Validate
-            validator = ToolPolicyValidator()
-            allowed, error = validator.validate_execution(
-                tool_name=tool_name,
-                params=merged,
-                has_context=True,  # Assumed true in wrapper context
-            )
-
-            if not allowed:
-                return {
-                    "success": False,
-                    "error": error,
-                    "policy_violation": True,
-                }
-
-            # Execute
-            return await func(merged)
-
-        return wrapper
-
-    return decorator
-
-
-from typing import Tuple

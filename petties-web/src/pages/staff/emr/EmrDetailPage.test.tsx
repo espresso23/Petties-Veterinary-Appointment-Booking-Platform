@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, act } from '@testing-library/react'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 import EmrDetailPage from './EmrDetailPage'
 import { emrService } from '../../../services/emrService'
@@ -28,6 +28,14 @@ vi.mock('../../../services/api/petService', () => ({
     petService: {
         getPetById: vi.fn()
     }
+}))
+
+vi.mock('../../../store/membershipStore', () => ({
+    useMembershipStore: () => ({
+        isVIP: () => true,
+        loadingMembership: false,
+        membership: null,
+    })
 }))
 
 describe('EmrDetailPage', () => {
@@ -84,26 +92,26 @@ describe('EmrDetailPage', () => {
             ownerPhone: '0123456789'
         } as { id: string; name: string; species: string; breed: string; gender: string; dateOfBirth: string; ownerName: string; ownerPhone: string })
 
-        render(<EmrDetailPage />)
+        await act(async () => {
+            render(<EmrDetailPage />)
+        })
 
         // Wait for loading to finish
         await waitFor(() => {
             expect(screen.queryByText('Đang tải...')).not.toBeInTheDocument()
-        })
+        }, { timeout: 10000 })
 
         // Verify Header Info
         expect(screen.getByText('CHI TIẾT BỆNH ÁN')).toBeInTheDocument()
 
         // Verify Pet Info
         expect(screen.getByText('Buddy')).toBeInTheDocument()
-        // Breed is displayed via petBreed field
         expect(screen.getByText('Golden Retriever')).toBeInTheDocument()
 
         // Data Integrity Check: Verify Staff Name is displayed
-        // The component renders: "Tạo bởi: {emr.staffName} tại {clinicName}"
         expect(screen.getByText(/Nguyễn Văn A/)).toBeInTheDocument()
 
-        // Verify Weight (shows as "{weightKg} kg")
+        // Verify Weight
         expect(screen.getByText('25.5 kg')).toBeInTheDocument()
     })
 

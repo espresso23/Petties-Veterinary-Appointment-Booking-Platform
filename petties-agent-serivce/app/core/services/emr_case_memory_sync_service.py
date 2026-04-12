@@ -10,7 +10,7 @@ This service:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+import re
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
@@ -46,57 +46,53 @@ class EmrCaseMemorySyncService:
         self,
         emr_record: Dict[str, Any],
     ) -> EmrCaseMemorySyncResult:
-        mapping_result = self._map_diagnosis(emr_record)
+        mapping_result = await self._map_diagnosis(emr_record)
         mapping_status = "mapped" if mapping_result.mapped else "provisional"
         if not mapping_result.mapped:
             logger.warning(
-                "EMR {} has unmapped diagnosis, ingest as provisional: {}",
+                "EMR {} keeps provisional diagnosis after autonomous mapping: {}",
                 emr_record.get("emr_id", ""),
                 emr_record.get("final_diagnosis_text", ""),
-            )
-            await get_disease_mapping_service().record_unmapped_label(
-                raw_label=str(emr_record.get("final_diagnosis_text", "")),
-                source_type="emr",
-                species=str(emr_record.get("species") or "all"),
-                sample_payload={
-                    "emr_id": emr_record.get("emr_id"),
-                    "species": emr_record.get("species"),
-                    "chief_complaint": emr_record.get("chief_complaint"),
-                },
             )
 
         case_id = f"emr:{emr_record.get('emr_id', '')}".strip()
         search_text = self._build_search_text(emr_record, mapping_result)
         image_urls = self._extract_image_urls(emr_record)
-        image_descriptions = self._extract_image_descriptions(emr_record)
-        protocol_pattern = self._extract_protocol_pattern(emr_record, mapping_result)
+        protocol_pattern = self._extract_protocol_pattern(
+            emr_record,
+            mapping_result,
+        )
+
+        vitals = emr_record.get("vitals") if isinstance(emr_record.get("vitals"), dict) else {}
+        symptoms = emr_record.get("symptoms", []) or []
+        if not isinstance(symptoms, list):
+            symptoms = []
+        physical_exam = emr_record.get("physical_exam", []) or []
+        if not isinstance(physical_exam, list):
+            physical_exam = []
 
         payload = {
-            "source_type": "confirmed_emr",
-            "verified": True,
-            "clinic_id": emr_record.get("clinic_id"),
-            "pet_id": emr_record.get("pet_id"),
-            "booking_id": emr_record.get("booking_id"),
-            "doctor_id": emr_record.get("doctor_id"),
+            "emr_id": emr_record.get("emr_id"),
+            "pet_id": str(emr_record.get("pet_id") or "").strip() or None,
+            "booking_id": str(emr_record.get("booking_id") or "").strip() or None,
+            "clinic_id": str(emr_record.get("clinic_id") or "").strip() or None,
             "species": emr_record.get("species"),
             "breed": emr_record.get("breed"),
+            "age_months": emr_record.get("age_months"),
+            "sex": emr_record.get("sex"),
+            "allergies": emr_record.get("allergies"),
             "chief_complaint": emr_record.get("chief_complaint"),
-            "symptoms": emr_record.get("symptoms", []),
-            "physical_exam": emr_record.get("physical_exam", []),
+            "symptoms": symptoms,
+            "physical_exam": physical_exam,
+            "vitals": vitals,
             "clinical_notes": emr_record.get("clinical_notes"),
             "final_diagnosis_text": emr_record.get("final_diagnosis_text"),
             "canonical_code": mapping_result.canonical_code,
             "display_name_vi": mapping_result.display_name_vi
             or emr_record.get("final_diagnosis_text"),
             "mapping_status": mapping_status,
-            "provisional_label": None
-            if mapping_result.mapped
-            else emr_record.get("final_diagnosis_text"),
-            "emr_updated_at": emr_record.get("updated_at") or emr_record.get("exam_at"),
             "exam_at": emr_record.get("exam_at"),
-            "synced_at": datetime.now(timezone.utc).isoformat(),
             "protocol_pattern": protocol_pattern,
-            "image_descriptions": image_descriptions,
         }
 
         result_case_id = await get_case_memory_service().upsert_case(
@@ -132,11 +128,19 @@ class EmrCaseMemorySyncService:
             return False
         return True
 
-    def _map_diagnosis(self, emr_record: Dict[str, Any]) -> DiseaseMappingResult:
-        return get_disease_mapping_service().map_label(
+    async def _map_diagnosis(self, emr_record: Dict[str, Any]) -> DiseaseMappingResult:
+        context_parts = [
+            str(emr_record.get("chief_complaint") or "").strip(),
+            str(emr_record.get("clinical_notes") or "").strip(),
+            str((emr_record.get("soap") or {}).get("assessment") or "").strip(),
+            str((emr_record.get("soap") or {}).get("plan") or "").strip(),
+        ]
+        context_text = "\n".join(part for part in context_parts if part)
+        return await get_disease_mapping_service().resolve_label(
             raw_label=str(emr_record.get("final_diagnosis_text", "")),
             source_type="emr",
             species=str(emr_record.get("species") or "all"),
+            context_text=context_text or None,
         )
 
     def _build_search_text(
@@ -149,6 +153,31 @@ class EmrCaseMemorySyncService:
             value = emr_record.get(key)
             if value:
                 parts.append(str(value))
+
+        soap = self._extract_soap(emr_record)
+        for label, key in (
+            ("Subjective", "subjective"),
+            ("Objective", "objective"),
+            ("Assessment", "assessment"),
+            ("Plan", "plan"),
+            ("Notes", "notes"),
+        ):
+            value = soap.get(key)
+            if value:
+                parts.append(f"{label}: {value}")
+
+        vitals = self._extract_vitals(emr_record)
+        vital_parts = []
+        if vitals.get("weight_kg") not in (None, ""):
+            vital_parts.append(f"weight_kg={vitals.get('weight_kg')}")
+        if vitals.get("temperature_c") not in (None, ""):
+            vital_parts.append(f"temperature_c={vitals.get('temperature_c')}")
+        if vitals.get("heart_rate") not in (None, ""):
+            vital_parts.append(f"heart_rate={vitals.get('heart_rate')}")
+        if vitals.get("bcs") not in (None, ""):
+            vital_parts.append(f"bcs={vitals.get('bcs')}")
+        if vital_parts:
+            parts.append("Vitals: " + ", ".join(vital_parts))
 
         symptoms = emr_record.get("symptoms", []) or []
         if isinstance(symptoms, list) and symptoms:
@@ -165,6 +194,41 @@ class EmrCaseMemorySyncService:
             parts.append(f"Diagnosis: {diagnosis_text}")
         else:
             parts.append(f"Provisional diagnosis: {diagnosis_text}")
+
+        prescriptions = self._extract_prescriptions(emr_record)
+        if prescriptions:
+            prescription_lines = []
+            for rx in prescriptions:
+                medicine = str(
+                    rx.get("medicine_name")
+                    or rx.get("medicineName")
+                    or rx.get("medicine")
+                    or ""
+                ).strip()
+                if not medicine:
+                    continue
+                details = []
+                times_of_day = rx.get("times_of_day") or rx.get("timesOfDay")
+                if isinstance(times_of_day, list) and times_of_day:
+                    details.append("times_of_day=" + ",".join(str(x) for x in times_of_day if x))
+                before_after_meal = rx.get("before_after_meal") or rx.get("beforeAfterMeal")
+                if before_after_meal not in (None, ""):
+                    details.append("before_after_meal=" + str(before_after_meal))
+                frequency_note = rx.get("frequency_note") or rx.get("frequencyNote")
+                if frequency_note not in (None, ""):
+                    details.append("frequency_note=" + str(frequency_note))
+                duration_days = rx.get("duration_days") or rx.get("durationDays") or rx.get("duration")
+                if duration_days not in (None, ""):
+                    details.append("duration_days=" + str(duration_days))
+                instructions = rx.get("instructions")
+                if instructions not in (None, ""):
+                    details.append("instructions=" + str(instructions))
+                prescription_lines.append(
+                    medicine if not details else f"{medicine} - {' | '.join(details)}"
+                )
+            if prescription_lines:
+                parts.append("Prescriptions: " + "; ".join(prescription_lines))
+
         return "\n".join(parts).strip()
 
     def _extract_image_urls(self, emr_record: Dict[str, Any]) -> List[str]:
@@ -183,20 +247,6 @@ class EmrCaseMemorySyncService:
                 clean_urls.append(value)
         return clean_urls
 
-    def _extract_image_descriptions(self, emr_record: Dict[str, Any]) -> List[str]:
-        attachments = emr_record.get("attachments", {}) or {}
-        if not isinstance(attachments, dict):
-            return []
-
-        descriptions = attachments.get("image_descriptions", []) or []
-        if not isinstance(descriptions, list):
-            return []
-
-        return [
-            item.strip() if isinstance(item, str) else ""
-            for item in descriptions
-        ]
-
     def _extract_protocol_pattern(
         self,
         emr_record: Dict[str, Any],
@@ -207,58 +257,177 @@ class EmrCaseMemorySyncService:
 
         Không hardcode gì - hoàn toàn học từ dữ liệu EMR thực tế.
         """
-        protocol_pattern = {
-            "extracted_from": f"emr:{emr_record.get('emr_id')}",
-            "confirmed_at": emr_record.get("exam_at")
-            or datetime.now(timezone.utc).isoformat(),
-        }
+        protocol_pattern: Dict[str, Any] = {}
 
-        soap = emr_record.get("soap", {})
-        if isinstance(soap, dict):
+        soap = self._extract_soap(emr_record)
+        assessment_text = soap.get("assessment") or emr_record.get(
+            "final_diagnosis_text"
+        )
+        if assessment_text:
             protocol_pattern["soap_template"] = {
-                "subjective": soap.get("subjective")
-                or emr_record.get("chief_complaint"),
-                "objective": soap.get("objective") or "",
-                "assessment": soap.get("assessment")
-                or emr_record.get("final_diagnosis_text"),
-                "plan": soap.get("plan") or "",
+                "assessment": assessment_text,
             }
 
-        prescriptions = emr_record.get("prescriptions", [])
+        prescriptions = self._extract_prescriptions(emr_record)
         if isinstance(prescriptions, list) and prescriptions:
             extracted_rx = []
             for rx in prescriptions:
                 if not isinstance(rx, dict):
                     continue
+                # Normalize camelCase/snake_case (Spring payload vs AI payload)
+                times_of_day = rx.get("times_of_day") or rx.get("timesOfDay")
+                if not isinstance(times_of_day, list):
+                    times_of_day = None
+                before_after_meal = rx.get("before_after_meal") or rx.get("beforeAfterMeal")
+                frequency_note = rx.get("frequency_note") or rx.get("frequencyNote")
+                instructions = rx.get("instructions")
+                # Backward-compat: if EMR legacy still has dosage/frequency, fold into instructions
+                legacy_dosage = rx.get("dosage")
+                legacy_frequency = rx.get("frequency")
+                if (not instructions) and (legacy_dosage or legacy_frequency):
+                    merged = []
+                    if legacy_dosage:
+                        merged.append(f"Liều cũ: {legacy_dosage}")
+                    if legacy_frequency:
+                        merged.append(f"Tần suất cũ: {legacy_frequency}")
+                    instructions = " | ".join(merged)
+
                 rx_entry = {
-                    "medicine": rx.get("medicine_name") or rx.get("medicine"),
-                    "dosage": rx.get("dosage"),
-                    "frequency": rx.get("frequency"),
-                    "duration": rx.get("duration"),
-                    "route": rx.get("route"),
+                    "medicine": rx.get("medicine_name")
+                    or rx.get("medicineName")
+                    or rx.get("medicine"),
+                    "times_of_day": times_of_day,
+                    "before_after_meal": before_after_meal,
+                    "frequency_note": frequency_note,
+                    "duration_days": rx.get("duration_days")
+                    or rx.get("durationDays")
+                    or rx.get("duration"),
+                    "instructions": instructions,
                 }
                 if any(rx_entry.values()):
                     extracted_rx.append(rx_entry)
             if extracted_rx:
                 protocol_pattern["common_prescriptions"] = extracted_rx
 
-        test_results = emr_record.get("test_results", []) or []
-        if isinstance(test_results, list) and test_results:
-            extracted_tests = [
-                {"test": t.get("test"), "result": t.get("result")}
-                for t in test_results
-                if isinstance(t, dict) and t.get("test")
-            ]
-            if extracted_tests:
-                protocol_pattern["common_tests"] = extracted_tests
+        extracted_recommendations = self._extract_plan_recommendations(soap)
+        if extracted_recommendations:
+            protocol_pattern["common_recommendations"] = extracted_recommendations
 
-        recommendations = emr_record.get("recommendations", []) or []
-        if isinstance(recommendations, list) and recommendations:
-            protocol_pattern["common_recommendations"] = [
-                r for r in recommendations if isinstance(r, str) and r.strip()
+        extracted_tests = self._extract_common_tests(soap)
+        if extracted_tests:
+            protocol_pattern["common_tests"] = [
+                {"test": test_name} for test_name in extracted_tests
             ]
 
         return protocol_pattern
+
+    def _extract_soap(self, emr_record: Dict[str, Any]) -> Dict[str, Any]:
+        soap = emr_record.get("soap")
+        if not isinstance(soap, dict):
+            soap = {}
+        return {
+            "subjective": soap.get("subjective")
+            or emr_record.get("chief_complaint")
+            or "",
+            "objective": soap.get("objective") or "",
+            "assessment": soap.get("assessment")
+            or emr_record.get("final_diagnosis_text")
+            or "",
+            "plan": soap.get("plan") or "",
+            "notes": soap.get("notes") or emr_record.get("clinical_notes") or "",
+        }
+
+    def _extract_plan_recommendations(self, soap: Dict[str, Any]) -> List[str]:
+        recommendations: List[str] = []
+        seen: set[str] = set()
+
+        for key in ("plan", "notes"):
+            raw_value = soap.get(key)
+            if not isinstance(raw_value, str):
+                continue
+
+            normalized = raw_value.strip()
+            if not normalized:
+                continue
+
+            parts = re.split(r"[\r\n;]+", normalized)
+            cleaned_parts = [
+                re.sub(r"^[-*\u2022\d.)\s]+", "", part).strip() for part in parts
+            ]
+            meaningful_parts = [part for part in cleaned_parts if len(part) >= 3]
+            if not meaningful_parts and normalized:
+                meaningful_parts = [normalized]
+
+            for part in meaningful_parts:
+                dedupe_key = " ".join(part.lower().split())
+                if dedupe_key in seen:
+                    continue
+                seen.add(dedupe_key)
+                recommendations.append(part)
+
+        return recommendations[:5]
+
+    def _extract_common_tests(self, soap: Dict[str, Any]) -> List[str]:
+        tests: List[str] = []
+        seen: set[str] = set()
+        diagnostic_keywords = (
+            "xét nghiệm",
+            "xet nghiem",
+            "test",
+            "cbc",
+            "siêu âm",
+            "sieu am",
+            "x-quang",
+            "x quang",
+            "pcr",
+            "cytology",
+            "nuôi cấy",
+            "nuoi cay",
+            "soi",
+            "fluorescein",
+            "wood",
+            "scrape",
+        )
+
+        for key in ("plan", "notes"):
+            raw_value = soap.get(key)
+            if not isinstance(raw_value, str):
+                continue
+
+            parts = re.split(r"[\r\n;]+", raw_value.strip())
+            for part in parts:
+                normalized = re.sub(r"^[-*\u2022\d.)\s]+", "", part).strip()
+                if len(normalized) < 3:
+                    continue
+                lower_value = normalized.lower()
+                if not any(keyword in lower_value for keyword in diagnostic_keywords):
+                    continue
+                dedupe_key = " ".join(lower_value.split())
+                if dedupe_key in seen:
+                    continue
+                seen.add(dedupe_key)
+                tests.append(normalized)
+
+        return tests[:5]
+
+    def _extract_vitals(self, emr_record: Dict[str, Any]) -> Dict[str, Any]:
+        vitals = emr_record.get("vitals")
+        if not isinstance(vitals, dict):
+            vitals = {}
+        return {
+            "weight_kg": vitals.get("weight_kg"),
+            "temperature_c": vitals.get("temperature_c"),
+            "heart_rate": vitals.get("heart_rate"),
+            "bcs": vitals.get("bcs"),
+        }
+
+    def _extract_prescriptions(
+        self, emr_record: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        prescriptions = emr_record.get("prescriptions")
+        if not isinstance(prescriptions, list):
+            return []
+        return [item for item in prescriptions if isinstance(item, dict)]
 
 
 _emr_case_memory_sync_service: Optional[EmrCaseMemorySyncService] = None

@@ -12,7 +12,6 @@ import {
     getAvailableStaffForConfirm,
     removeServiceFromBooking,
     cancelBooking,
-    checkoutBooking,
     type StaffOption,
 } from '../../../services/bookingService';
 import type { Booking, BookingStatus, BookingServiceItem, StaffAvailabilityCheckResponse } from '../../../types/booking';
@@ -1088,44 +1087,6 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
         isOpen: false,
         serviceId: null,
     });
-    const [confirmCheckoutModal, setConfirmCheckoutModal] = useState<Booking | null>(null);
-    const [confirmCheckoutCashModal, setConfirmCheckoutCashModal] = useState<Booking | null>(null);
-
-    const handleCheckout = async () => {
-        if (!confirmCheckoutModal) return;
-        try {
-            await checkoutBooking(confirmCheckoutModal.bookingId);
-            showToast('success', 'Hoàn thành lịch hẹn thành công');
-            setConfirmCheckoutModal(null);
-            if (onBookingUpdated) onBookingUpdated();
-            onClose();
-        } catch (error: unknown) {
-            console.error('Failed to checkout:', error);
-            const errorMessage =
-                isAxiosError(error) && error.response?.data && typeof error.response.data === 'object' && 'message' in error.response.data
-                    ? String((error.response.data as { message?: unknown }).message)
-                    : 'Không thể chốt đơn. Vui lòng thử lại.';
-            showToast('error', errorMessage);
-        }
-    };
-
-    const handleCheckoutCash = async () => {
-        if (!confirmCheckoutCashModal) return;
-        try {
-            await checkoutBooking(confirmCheckoutCashModal.bookingId, { paymentMethod: 'CASH' });
-            showToast('success', 'Thu tiền mặt và hoàn thành lịch hẹn thành công');
-            setConfirmCheckoutCashModal(null);
-            if (onBookingUpdated) onBookingUpdated();
-            onClose();
-        } catch (error: unknown) {
-            console.error('Failed to checkout cash:', error);
-            const errorMessage =
-                isAxiosError(error) && error.response?.data && typeof error.response.data === 'object' && 'message' in error.response.data
-                    ? String((error.response.data as { message?: unknown }).message)
-                    : 'Không thể thu tiền. Vui lòng thử lại.';
-            showToast('error', errorMessage);
-        }
-    };
 
     // Fetch available staff when modal opens with PENDING booking
     useEffect(() => {
@@ -1921,8 +1882,6 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
                         {booking.status === 'IN_PROGRESS' && (
                             <>
                                 <button onClick={onAddService} className="px-6 py-2 font-bold uppercase bg-amber-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Thêm dịch vụ</button>
-                                <button onClick={() => setConfirmCheckoutModal(booking)} className="px-6 py-2 font-bold uppercase bg-stone-100 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Hoàn Thành (App)</button>
-                                <button onClick={() => setConfirmCheckoutCashModal(booking)} className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Thu Tiền Mặt</button>
                             </>
                         )}
                     </div>
@@ -1930,25 +1889,6 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
             </div>
 
             {/* Sub-Modals */}
-            <ConfirmModal
-                isOpen={!!confirmCheckoutModal}
-                title={`Hoàn thành: ${confirmCheckoutModal?.bookingCode}`}
-                message={`Xác nhận chỉ chốt hoàn thành Đơn khám, và khoản tiền ${confirmCheckoutModal?.totalPrice.toLocaleString('vi-VN')} đ sẽ do người dùng thanh toán qua app (QR/Online)?`}
-                confirmLabel="Chốt Hoàn Thành Đơn"
-                cancelLabel="Hủy"
-                onConfirm={handleCheckout}
-                onCancel={() => setConfirmCheckoutModal(null)}
-            />
-
-            <ConfirmModal
-                isOpen={!!confirmCheckoutCashModal}
-                title={`Thu Tiền Mặt: ${confirmCheckoutCashModal?.bookingCode}`}
-                message={`Xác nhận đã thu ${confirmCheckoutCashModal?.totalPrice.toLocaleString('vi-VN')} đ TIỀN MẶT trực tiếp từ khách hàng?`}
-                confirmLabel="Xác nhận Thu Tiền"
-                cancelLabel="Hủy"
-                onConfirm={handleCheckoutCash}
-                onCancel={() => setConfirmCheckoutCashModal(null)}
-            />
             {confirmRemoveModal.isOpen && (
                 <div className="fixed inset-0 bg-stone-900/80 flex items-center justify-center z-[70] p-4 backdrop-blur-sm">
                     <div className="bg-white border-4 border-stone-900 shadow-[8px_8px_0_#1c1917] max-w-sm w-full p-6">

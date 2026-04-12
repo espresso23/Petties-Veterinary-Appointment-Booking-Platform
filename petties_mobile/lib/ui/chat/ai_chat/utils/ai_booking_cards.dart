@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../config/constants/app_colors.dart';
 import '../../../../data/models/ai_chat.dart';
-import 'ai_booking_confirmation.dart';
-import 'ai_booking_quick_actions.dart';
+import 'ai_booking_service_merge.dart';
 import 'ai_chat_widgets.dart';
 
 class AiServiceOptionCard extends StatelessWidget {
@@ -32,11 +31,11 @@ class AiServiceOptionCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.primaryBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.stone900, width: 2),
+        color: AppColors.white.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.stone900, width: 1.5),
         boxShadow: const [
-          BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
+          BoxShadow(color: AppColors.stone300, blurRadius: 12, offset: Offset(0, 4)),
         ],
       ),
       child: Column(
@@ -97,10 +96,10 @@ class AiServiceOptionCard extends StatelessWidget {
                 disabledForegroundColor: AppColors.stone500,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                   side: const BorderSide(
                     color: AppColors.stone900,
-                    width: 2,
+                    width: 1.5,
                   ),
                 ),
               ),
@@ -127,6 +126,7 @@ class AiSlotGridCard extends StatelessWidget {
   final bool isBusy;
   final String Function(String? value) formatBookingDate;
   final ValueChanged<AiBookingSlotOption> onSelectSlot;
+  final String? selectedSlotId;
 
   const AiSlotGridCard({
     super.key,
@@ -134,6 +134,7 @@ class AiSlotGridCard extends StatelessWidget {
     required this.isBusy,
     required this.formatBookingDate,
     required this.onSelectSlot,
+    this.selectedSlotId,
   });
 
   @override
@@ -148,11 +149,11 @@ class AiSlotGridCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.primaryBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.stone900, width: 2),
+        color: AppColors.white.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.stone900, width: 1.5),
         boxShadow: const [
-          BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
+          BoxShadow(color: AppColors.stone300, blurRadius: 12, offset: Offset(0, 4)),
         ],
       ),
       child: Column(
@@ -168,26 +169,58 @@ class AiSlotGridCard extends StatelessWidget {
               label: 'Dịch vụ',
               value: slotGrid.serviceNames.join(', '),
             ),
+          if (isBusy)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    'Đang xử lý...',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.stone500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: slots.map((slot) {
               final endTime = slot.endTime?.trim();
-              final label =
-                  endTime != null && endTime.isNotEmpty
-                      ? '${slot.startTime} - $endTime'
-                      : slot.startTime;
+              final label = endTime != null && endTime.isNotEmpty
+                  ? '${slot.startTime} - $endTime'
+                  : slot.startTime;
+              final slotId = '${slotGrid.bookingDate}_${slot.startTime}';
+              final isSelected = selectedSlotId == slotId;
+              final isAlreadySelected = selectedSlotId != null && !isSelected;
 
               return ActionChip(
-                onPressed: isBusy ? null : () => onSelectSlot(slot),
-                backgroundColor: AppColors.white,
-                side: const BorderSide(color: AppColors.stone900, width: 1.5),
+                onPressed: isBusy || isAlreadySelected
+                    ? null
+                    : () => onSelectSlot(slot),
+                backgroundColor: isSelected
+                    ? AppColors.primary.withValues(alpha: 0.15)
+                    : AppColors.white,
+                side: BorderSide(
+                  color: isSelected ? AppColors.primary : AppColors.stone900,
+                  width: isSelected ? 2 : 1.5,
+                ),
                 label: Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.stone900,
+                    color: isSelected ? AppColors.primary : AppColors.stone900,
                   ),
                 ),
               );
@@ -199,99 +232,307 @@ class AiSlotGridCard extends StatelessWidget {
   }
 }
 
-class AiStructuredBookingSummaryCard extends StatelessWidget {
+class AiStructuredBookingSummaryCard extends StatefulWidget {
   final AiBookingSummaryPayload summary;
   final bool isConfirmed;
   final bool isBusy;
-  final List<AiBookingQuickAction> quickActions;
+  final List<AiClinic> clinicOptions;
+  final List<AiBookingServiceOption> serviceOptions;
+  final List<String> bookingDateOptions;
+  final List<String> startTimeOptions;
   final String Function(String? value) formatBookingDate;
-  final ValueChanged<AiBookingQuickAction> onQuickAction;
-  final VoidCallback onConfirm;
+  final void Function(AiBookingSummaryPayload summary, String field)?
+      onFormChanged;
+  final ValueChanged<AiBookingSummaryPayload>? onRequestSlotRefresh;
+  final ValueChanged<AiBookingSummaryPayload> onConfirm;
 
   const AiStructuredBookingSummaryCard({
     super.key,
     required this.summary,
     required this.isConfirmed,
     required this.isBusy,
-    required this.quickActions,
+    required this.clinicOptions,
+    required this.serviceOptions,
+    required this.bookingDateOptions,
+    required this.startTimeOptions,
     required this.formatBookingDate,
-    required this.onQuickAction,
+    this.onFormChanged,
+    this.onRequestSlotRefresh,
     required this.onConfirm,
   });
 
   @override
+  State<AiStructuredBookingSummaryCard> createState() =>
+      _AiStructuredBookingSummaryCardState();
+}
+
+class _AiStructuredBookingSummaryCardState
+    extends State<AiStructuredBookingSummaryCard> {
+  String? _selectedClinicId;
+  String? _selectedClinicName;
+  String? _selectedBookingDate;
+  String? _selectedStartTime;
+  String? _selectedBookingType;
+  String? _homeAddress;
+  double? _homeLat;
+  double? _homeLong;
+  Set<String> _selectedServiceIds = <String>{};
+
+  List<AiBookingServiceOption> _dedupedServiceOptionsForForm() {
+    return dedupeBookingServiceOptionsPreferCanonical(
+      widget.serviceOptions,
+      scopeClinicId: _clean(_selectedClinicId),
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _syncFromSummary();
+  }
+
+  @override
+  void didUpdateWidget(covariant AiStructuredBookingSummaryCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.summary != widget.summary ||
+        oldWidget.serviceOptions != widget.serviceOptions ||
+        oldWidget.clinicOptions != widget.clinicOptions) {
+      _syncFromSummary();
+    }
+  }
+
+  void _syncFromSummary() {
+    final summary = widget.summary;
+    _selectedClinicId = _clean(summary.clinicId);
+    _selectedClinicName = _clean(summary.clinicName);
+
+    final dedupedServiceOptions = dedupeBookingServiceOptionsPreferCanonical(
+      widget.serviceOptions,
+      scopeClinicId: _selectedClinicId,
+    );
+
+    final idsFromSummary = summary.serviceIds
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toSet();
+
+    final idsByName = <String>{};
+    if (idsFromSummary.isEmpty && summary.serviceNames.isNotEmpty) {
+      final loweredNames = summary.serviceNames
+          .map((item) => item.trim().toLowerCase())
+          .where((item) => item.isNotEmpty)
+          .toSet();
+      for (final service in dedupedServiceOptions) {
+        final serviceId = service.id.trim();
+        final serviceName = service.name.trim().toLowerCase();
+        if (serviceId.isEmpty || serviceName.isEmpty) continue;
+        if (loweredNames.contains(serviceName)) {
+          idsByName.add(serviceId);
+        }
+      }
+    }
+    _selectedBookingDate = _clean(summary.bookingDate);
+    _selectedStartTime = _clean(summary.startTime);
+    _selectedBookingType =
+        _normalizeBookingType(summary.bookingType) ?? bookingTypeInClinic;
+    _homeAddress = _clean(summary.homeAddress);
+    _homeLat = summary.homeLat;
+    _homeLong = summary.homeLong;
+    _selectedServiceIds = canonicalizeSelectedBookingServiceIds(
+      idsFromSummary.isNotEmpty ? idsFromSummary : idsByName,
+      dedupedServiceOptions,
+    );
+
+    // Auto-bind mandatory fields when there is only one safe candidate.
+    if ((_selectedClinicId ?? '').trim().isEmpty &&
+        (_selectedClinicName ?? '').trim().isEmpty &&
+        widget.clinicOptions.length == 1) {
+      final clinic = widget.clinicOptions.first;
+      final clinicId = clinic.id.trim();
+      final clinicName = clinic.name.trim();
+      if (clinicId.isNotEmpty || clinicName.isNotEmpty) {
+        _selectedClinicId = clinicId.isNotEmpty ? clinicId : null;
+        _selectedClinicName =
+            clinicName.isNotEmpty ? clinicName : _fallbackClinicLabel(clinicId);
+      }
+    }
+
+    if (_selectedServiceIds.isEmpty && dedupedServiceOptions.length == 1) {
+      final serviceId = dedupedServiceOptions.first.id.trim();
+      if (serviceId.isNotEmpty) {
+        _selectedServiceIds = <String>{serviceId};
+      }
+    }
+
+    if ((_selectedBookingDate ?? '').trim().isEmpty &&
+        widget.bookingDateOptions.length == 1) {
+      _selectedBookingDate = widget.bookingDateOptions.first.trim();
+    }
+
+    if ((_selectedStartTime ?? '').trim().isEmpty &&
+        widget.startTimeOptions.length == 1) {
+      _selectedStartTime = widget.startTimeOptions.first.trim();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final clinicItems = _buildClinicItems();
+    final dateItems = _buildDateItems();
+    final timeItems = _buildTimeItems();
+    final selectedServiceLabels = _resolveSelectedServiceLabels();
+    final bookingTypeItems = _buildBookingTypeItems();
+    final bookingTypeValue = _resolveBookingTypeValue(bookingTypeItems);
+    final isHomeVisit = _selectedBookingType == bookingTypeHomeVisit;
+    final canRequestOptions = !widget.isBusy &&
+        !widget.isConfirmed &&
+        widget.onFormChanged != null &&
+        (_clean(_selectedClinicId) != null || _clean(_selectedClinicName) != null);
+    final canConfirm = _canConfirm(
+      hasClinic: _resolveClinicValue(clinicItems) != null,
+      hasDate: _resolveDateValue(dateItems) != null,
+      hasTime: _resolveTimeValue(timeItems) != null,
+      isHomeVisit: isHomeVisit,
+      hasServices: _selectedServiceIds.isNotEmpty,
+    );
+    final validationMessages = _buildValidationMessages(
+      hasClinic: _resolveClinicValue(clinicItems) != null,
+      hasDate: _resolveDateValue(dateItems) != null,
+      hasTime: _resolveTimeValue(timeItems) != null,
+      isHomeVisit: isHomeVisit,
+      hasServices: _selectedServiceIds.isNotEmpty,
+      hasBookingType: bookingTypeValue != null,
+      hasLocationForHomeVisit: !_requiresLocationForHomeVisit(),
+    );
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.primaryBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.stone900, width: 2),
+        color: AppColors.white.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.stone900, width: 1.5),
         boxShadow: const [
-          BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
+          BoxShadow(color: AppColors.stone300, blurRadius: 12, offset: Offset(0, 4)),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if ((summary.bookingDate ?? '').trim().isNotEmpty)
-            _BookingInfoRow(
-              label: 'Ngày khám',
-              value: formatBookingDate(summary.bookingDate),
-            ),
-          if ((summary.startTime ?? '').trim().isNotEmpty)
-            _BookingInfoRow(
-              label: 'Giờ bắt đầu',
-              value: summary.startTime ?? '',
-            ),
-          if ((summary.clinicName ?? '').trim().isNotEmpty)
-            _BookingInfoRow(
-              label: 'Phòng khám',
-              value: summary.clinicName ?? '',
-            ),
-          if ((summary.petName ?? '').trim().isNotEmpty)
+          if ((widget.summary.petName ?? '').trim().isNotEmpty)
             _BookingInfoRow(
               label: 'Thú cưng',
-              value: summary.petName ?? '',
+              value: widget.summary.petName ?? '',
             ),
-          if (summary.serviceNames.isNotEmpty)
-            _BookingInfoRow(
-              label: 'Dịch vụ',
-              value: summary.serviceNames.join(', '),
-            ),
-          if (!isConfirmed && quickActions.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            const Text(
-              'Sửa nhanh',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                color: AppColors.stone700,
-              ),
-            ),
+          const SizedBox(height: 4),
+          _buildDropdownField(
+            label: 'Phòng khám',
+            value: _resolveClinicValue(clinicItems),
+            items: clinicItems,
+            isEnabled: !widget.isBusy && !widget.isConfirmed,
+            hintText: 'Chọn phòng khám',
+            emptyMessage: 'Chưa có danh sách phòng khám',
+            onRequestOptions: null,
+            onChanged: (nextValue) {
+              if (nextValue == null) return;
+
+              String? nextId;
+              String? nextName;
+              for (final item in clinicItems) {
+                if (item.value == nextValue) {
+                  nextId = item.id;
+                  nextName = item.label;
+                  break;
+                }
+              }
+
+              setState(() {
+                _selectedClinicId = nextId;
+                _selectedClinicName = nextName;
+                _selectedServiceIds.clear();
+                _selectedStartTime = null;
+              });
+              _notifyFormChanged('clinic');
+            },
+          ),
+          const SizedBox(height: 8),
+          _buildDropdownField(
+            label: 'Hình thức khám',
+            value: bookingTypeValue,
+            items: bookingTypeItems,
+            isEnabled: !widget.isBusy && !widget.isConfirmed,
+            hintText: 'Chọn hình thức khám',
+            emptyMessage: 'Chưa có hình thức khám',
+            onRequestOptions: null,
+            onChanged: (nextValue) {
+              setState(() {
+                _selectedBookingType = nextValue;
+                _selectedStartTime = null;
+                _selectedServiceIds.clear();
+              });
+              _notifyFormChanged('booking_type');
+            },
+          ),
+          const SizedBox(height: 8),
+          _buildDropdownField(
+            label: 'Ngày khám',
+            value: _resolveDateValue(dateItems),
+            items: dateItems,
+            isEnabled: !widget.isBusy && !widget.isConfirmed,
+            hintText: 'Chọn ngày khám',
+            emptyMessage: 'Chưa có danh sách ngày khám',
+            onRequestOptions:
+                canRequestOptions ? _requestClinicDrivenOptions : null,
+            onChanged: (nextValue) {
+              setState(() {
+                _selectedBookingDate = nextValue;
+                _selectedStartTime = null;
+              });
+              _notifyFormChanged('date');
+            },
+          ),
+          const SizedBox(height: 8),
+          _buildDropdownField(
+            label: 'Giờ bắt đầu',
+            value: _resolveTimeValue(timeItems),
+            items: timeItems,
+            isEnabled: !widget.isBusy && !widget.isConfirmed,
+            hintText: 'Chọn giờ bắt đầu',
+            emptyMessage: 'Chưa có danh sách khung giờ',
+            onRequestOptions:
+                _canRequestSlotRefresh() ? _requestSlotRefresh : null,
+            onChanged: (nextValue) {
+              setState(() {
+                _selectedStartTime = nextValue;
+              });
+              _notifyFormChanged('time');
+            },
+          ),
+          const SizedBox(height: 8),
+          _buildServiceMultiSelect(
+            selectedLabels: selectedServiceLabels,
+            isEnabled: !widget.isBusy && !widget.isConfirmed,
+            onRequestOptions:
+                canRequestOptions ? _requestClinicDrivenOptions : null,
+          ),
+          if (isHomeVisit) ...[
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: quickActions.map((action) {
-                return ActionChip(
-                  onPressed: isBusy ? null : () => onQuickAction(action),
-                  backgroundColor: AppColors.white,
-                  side: const BorderSide(
-                    color: AppColors.stone900,
-                    width: 1.5,
+            _buildHomeVisitAddressField(),
+          ],
+          if (validationMessages.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            ...validationMessages.map(
+              (message) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  '- $message',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.coral,
+                    fontWeight: FontWeight.w700,
                   ),
-                  label: Text(
-                    action.label,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.stone900,
-                    ),
-                  ),
-                );
-              }).toList(),
+                ),
+              ),
             ),
           ],
           const SizedBox(height: 10),
@@ -299,7 +540,9 @@ class AiStructuredBookingSummaryCard extends StatelessWidget {
             width: double.infinity,
             height: 44,
             child: ElevatedButton(
-              onPressed: isConfirmed || isBusy ? null : onConfirm,
+              onPressed: widget.isConfirmed || widget.isBusy || !canConfirm
+                  ? null
+                  : _confirmWithCurrentForm,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: AppColors.white,
@@ -314,7 +557,11 @@ class AiStructuredBookingSummaryCard extends StatelessWidget {
                 ),
               ),
               child: Text(
-                isConfirmed ? 'ĐÃ GỬI XÁC NHẬN' : 'XÁC NHẬN ĐẶT LỊCH',
+                widget.isConfirmed
+                    ? 'ĐÃ GỬI XÁC NHẬN'
+                    : widget.isBusy
+                        ? 'ĐANG GỬI XÁC NHẬN...'
+                        : 'XÁC NHẬN ĐẶT LỊCH',
                 style: const TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
@@ -326,6 +573,804 @@ class AiStructuredBookingSummaryCard extends StatelessWidget {
       ),
     );
   }
+
+  void _confirmWithCurrentForm() {
+    final payload = _buildCurrentSummaryPayload();
+    widget.onConfirm(payload);
+  }
+
+  bool _canRequestSlotRefresh() {
+    return ((widget.summary.bookingDate ?? _selectedBookingDate ?? '')
+            .trim()
+            .isNotEmpty) &&
+        !widget.isBusy &&
+        !widget.isConfirmed;
+  }
+
+  void _requestSlotRefresh() {
+    final callback = widget.onRequestSlotRefresh;
+    if (callback == null) {
+      return;
+    }
+    callback(_buildCurrentSummaryPayload());
+  }
+
+  void _requestClinicDrivenOptions() {
+    _notifyFormChanged('clinic');
+  }
+
+  AiBookingSummaryPayload _buildCurrentSummaryPayload() {
+    final deduped = _dedupedServiceOptionsForForm();
+    final canonIds = canonicalizeSelectedBookingServiceIds(
+      _selectedServiceIds,
+      deduped,
+    );
+    final selectedServiceIds = canonIds
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList();
+    final selectedServices = deduped
+        .where((service) => selectedServiceIds.contains(service.id.trim()))
+        .toList();
+    final selectedServiceNames = selectedServices
+        .map((service) => service.name.trim())
+        .where((name) => name.isNotEmpty)
+        .toList();
+
+    return AiBookingSummaryPayload(
+      petId: widget.summary.petId,
+      petName: widget.summary.petName,
+      clinicId: _selectedClinicId,
+      clinicName: _selectedClinicName,
+      bookingDate: _selectedBookingDate,
+      startTime: _selectedStartTime,
+      serviceIds: selectedServiceIds,
+      serviceNames: selectedServiceNames,
+      bookingType: _selectedBookingType,
+      notes: widget.summary.notes,
+      homeAddress: _homeAddress,
+      homeLat: _homeLat,
+      homeLong: _homeLong,
+      distanceKm: widget.summary.distanceKm,
+      message: widget.summary.message,
+      missingFields: widget.summary.missingFields,
+      readyToCreate: widget.summary.readyToCreate,
+      nextBestAction: widget.summary.nextBestAction,
+    );
+  }
+
+  Widget _buildServiceMultiSelect({
+    required List<String> selectedLabels,
+    required bool isEnabled,
+    VoidCallback? onRequestOptions,
+  }) {
+    final svcOptions = _dedupedServiceOptionsForForm();
+    final hasOptions = svcOptions.isNotEmpty;
+    final shouldShowReload = onRequestOptions != null &&
+        isEnabled &&
+        svcOptions.length <= 1;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.stone200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Dịch vụ',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: AppColors.stone600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: !isEnabled
+                  ? null
+                  : hasOptions
+                      ? _openServicePicker
+                      : onRequestOptions,
+              icon: const Icon(Icons.playlist_add_check_outlined, size: 16),
+              label: Text(
+                hasOptions
+                    ? 'Chọn một hoặc nhiều dịch vụ'
+                    : 'Tải danh sách dịch vụ',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.stone900,
+                side: const BorderSide(color: AppColors.stone900, width: 1.5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                backgroundColor: AppColors.white,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (selectedLabels.isEmpty)
+            const Text(
+              'Chưa chọn dịch vụ',
+              style: TextStyle(
+                fontSize: 11,
+                color: AppColors.stone500,
+                fontWeight: FontWeight.w600,
+              ),
+            )
+          else
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: selectedLabels
+                  .map(
+                    (label) => AiBookingMetaPill(
+                      icon: Icons.medical_services_outlined,
+                      label: label,
+                      backgroundColor: AppColors.primarySurface,
+                      foregroundColor: AppColors.primaryDark,
+                    ),
+                  )
+                  .toList(),
+            ),
+          if (shouldShowReload) ...[
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: onRequestOptions,
+                child: const Text(
+                  'Tải thêm dịch vụ',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openServicePicker() async {
+    final pickerOptions = _dedupedServiceOptionsForForm();
+    final tempSelected = Set<String>.from(
+      canonicalizeSelectedBookingServiceIds(_selectedServiceIds, pickerOptions),
+    );
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+        side: const BorderSide(color: AppColors.stone900, width: 2),
+      ),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Chọn một hoặc nhiều dịch vụ',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.stone900,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      height: MediaQuery.of(context).size.height * 0.42,
+                      child: ListView.separated(
+                        itemCount: pickerOptions.length,
+                        separatorBuilder: (_, __) =>
+                            const Divider(height: 1, thickness: 1),
+                        itemBuilder: (context, index) {
+                          final service = pickerOptions[index];
+                          final serviceId = service.id.trim();
+                          final selected = tempSelected.contains(serviceId);
+
+                          return CheckboxListTile(
+                            value: selected,
+                            onChanged: (checked) {
+                              if (serviceId.isEmpty) return;
+                              setSheetState(() {
+                                if (checked == true) {
+                                  tempSelected.add(serviceId);
+                                } else {
+                                  tempSelected.remove(serviceId);
+                                }
+                              });
+                            },
+                            controlAffinity: ListTileControlAffinity.leading,
+                            title: Text(
+                              service.name,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.stone900,
+                              ),
+                            ),
+                            subtitle: service.basePrice == null
+                                ? null
+                                : Text(
+                                    '${service.basePrice!.toStringAsFixed(0)}đ',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.stone600,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                            dense: true,
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 0),
+                            activeColor: AppColors.primary,
+                            checkColor: AppColors.white,
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            _selectedServiceIds =
+                                canonicalizeSelectedBookingServiceIds(
+                              tempSelected,
+                              pickerOptions,
+                            );
+                          });
+                          _notifyFormChanged('service');
+                          Navigator.of(sheetContext).pop();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: AppColors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            side: const BorderSide(
+                              color: AppColors.stone900,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                        child: const Text(
+                          'ÁP DỤNG DỊCH VỤ ĐÃ CHỌN',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildDropdownField({
+    required String label,
+    required String? value,
+    required List<_SummarySelectItem> items,
+    required bool isEnabled,
+    required String hintText,
+    String emptyMessage = 'Chưa có dữ liệu',
+    VoidCallback? onRequestOptions,
+    required ValueChanged<String?> onChanged,
+  }) {
+    final hasItems = items.isNotEmpty;
+    final shouldShowReload =
+        onRequestOptions != null && isEnabled && items.length <= 1;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.stone200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: AppColors.stone600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          if (hasItems)
+            DropdownButtonFormField<String>(
+              key: ValueKey<String>(
+                '$label|${value ?? ''}|${items.map((e) => e.value).join('|')}',
+              ),
+              initialValue: _coerceSummaryDropdownValue(value, items),
+              isExpanded: true,
+              items: items
+                  .map(
+                    (item) => DropdownMenuItem<String>(
+                      value: item.value,
+                      child: Text(
+                        item.label,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.stone900,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: isEnabled ? onChanged : null,
+              iconEnabledColor: AppColors.stone900,
+              iconDisabledColor: AppColors.stone400,
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: hintText,
+                hintStyle: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.stone500,
+                ),
+                filled: true,
+                fillColor: isEnabled ? AppColors.white : AppColors.stone100,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide:
+                      const BorderSide(color: AppColors.stone900, width: 1.5),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide:
+                      const BorderSide(color: AppColors.stone900, width: 1.5),
+                ),
+                disabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide:
+                      const BorderSide(color: AppColors.stone300, width: 1.2),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide:
+                      const BorderSide(color: AppColors.primary, width: 1.8),
+                ),
+              ),
+            )
+          else
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: !isEnabled
+                    ? null
+                    : (onRequestOptions == null
+                        ? null
+                        : () => onRequestOptions()),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.stone900,
+                  side: const BorderSide(color: AppColors.stone900, width: 1.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  backgroundColor: AppColors.white,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                ),
+                child: Text(
+                  emptyMessage,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          if (shouldShowReload) ...[
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: onRequestOptions,
+                child: const Text(
+                  'Xem thêm lựa chọn',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  List<_SummarySelectItem> _buildClinicItems() {
+    final items = <_SummarySelectItem>[];
+    final seen = <String>{};
+
+    for (final clinic in widget.clinicOptions) {
+      final id = clinic.id.trim();
+      final name = clinic.name.trim();
+      final label = name.isNotEmpty ? name : _fallbackClinicLabel(id);
+      if (label == null || label.isEmpty) continue;
+      final key = id.isNotEmpty ? id : name;
+      if (!seen.add(key)) continue;
+      items.add(_SummarySelectItem(value: key, label: label, id: id));
+    }
+
+    final currentName = _clean(_selectedClinicName);
+    final currentId = _clean(_selectedClinicId);
+    final currentLabel = currentName ?? _fallbackClinicLabel(currentId ?? '');
+    if (currentLabel != null) {
+      final key = currentId ?? currentLabel;
+      if (!seen.contains(key)) {
+        items.insert(
+          0,
+          _SummarySelectItem(value: key, label: currentLabel, id: currentId),
+        );
+      }
+    }
+
+    return items;
+  }
+
+  List<_SummarySelectItem> _buildDateItems() {
+    final values = <String>{
+      ...widget.bookingDateOptions
+          .map((item) => item.trim())
+          .where((item) => item.isNotEmpty),
+      if ((_selectedBookingDate ?? '').trim().isNotEmpty)
+        _selectedBookingDate!.trim(),
+    }.toList();
+
+    values.sort();
+    return values
+        .map(
+          (value) => _SummarySelectItem(
+            value: value,
+            label: widget.formatBookingDate(value),
+          ),
+        )
+        .toList();
+  }
+
+  List<_SummarySelectItem> _buildTimeItems() {
+    final shouldUseSlotOptionsOnly = _selectedBookingDate != null;
+    final values = <String>{
+      ...widget.startTimeOptions
+          .map((item) => item.trim())
+          .where((item) => item.isNotEmpty),
+      if ((_selectedStartTime ?? '').trim().isNotEmpty) _selectedStartTime!,
+    }.toList();
+
+    if (shouldUseSlotOptionsOnly) {
+      values.removeWhere((value) => !_isValidTimeValue(value));
+    }
+
+    values.sort();
+    return values
+        .map((value) => _SummarySelectItem(value: value, label: value))
+        .toList();
+  }
+
+  List<_SummarySelectItem> _buildBookingTypeItems() {
+    return const <_SummarySelectItem>[
+      _SummarySelectItem(
+        value: bookingTypeInClinic,
+        label: 'Tại phòng khám',
+      ),
+      _SummarySelectItem(
+        value: bookingTypeHomeVisit,
+        label: 'Khám tại nhà',
+      ),
+    ];
+  }
+
+  String? _resolveClinicValue(List<_SummarySelectItem> clinicItems) {
+    final currentId = _clean(_selectedClinicId);
+    final currentName = _clean(_selectedClinicName);
+
+    for (final item in clinicItems) {
+      if (currentId != null && item.value == currentId) {
+        return item.value;
+      }
+      if (currentName != null && item.label == currentName) {
+        return item.value;
+      }
+    }
+    return null;
+  }
+
+  String? _resolveDateValue(List<_SummarySelectItem> dateItems) {
+    final selected = _clean(_selectedBookingDate);
+    if (selected == null) return null;
+    return dateItems.any((item) => item.value == selected) ? selected : null;
+  }
+
+  String? _resolveTimeValue(List<_SummarySelectItem> timeItems) {
+    final selected = _clean(_selectedStartTime);
+    if (selected == null) return null;
+    return timeItems.any((item) => item.value == selected) ? selected : null;
+  }
+
+  String? _resolveBookingTypeValue(List<_SummarySelectItem> items) {
+    final selected = _normalizeBookingType(_selectedBookingType);
+    if (selected == null) return null;
+    return items.any((item) => item.value == selected) ? selected : null;
+  }
+
+  List<String> _resolveSelectedServiceLabels() {
+    final byId = <String, String>{
+      for (final service in _dedupedServiceOptionsForForm())
+        if (service.id.trim().isNotEmpty && service.name.trim().isNotEmpty)
+          service.id.trim(): service.name.trim(),
+    };
+
+    final labels = _selectedServiceIds
+        .map((id) => byId[id.trim()] ?? '')
+        .where((name) => name.isNotEmpty)
+        .toList();
+
+    if (labels.isNotEmpty) {
+      return labels;
+    }
+
+    return widget.summary.serviceNames
+        .map((name) => name.trim())
+        .where((name) => name.isNotEmpty)
+        .toList();
+  }
+
+  String? _clean(String? value) {
+    final trimmed = value?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      return null;
+    }
+    return trimmed;
+  }
+
+  String? _fallbackClinicLabel(String clinicId) {
+    final normalized = clinicId.trim();
+    if (normalized.isEmpty) {
+      return null;
+    }
+    final shortId = normalized.length > 8
+        ? normalized.substring(normalized.length - 8)
+        : normalized;
+    return 'Phòng khám $shortId';
+  }
+
+  String? _normalizeBookingType(String? value) {
+    final normalized = (value ?? '').trim().toUpperCase();
+    if (normalized == bookingTypeInClinic ||
+        normalized == bookingTypeHomeVisit) {
+      return normalized;
+    }
+    return null;
+  }
+
+  bool _isValidTimeValue(String value) {
+    final match = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(value.trim());
+    if (match == null) {
+      return false;
+    }
+    final hour = int.tryParse(match.group(1) ?? '');
+    final minute = int.tryParse(match.group(2) ?? '');
+    if (hour == null || minute == null) {
+      return false;
+    }
+    return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
+  }
+
+  String? _coerceSummaryDropdownValue(
+    String? value,
+    List<_SummarySelectItem> items,
+  ) {
+    if (value == null || items.isEmpty) {
+      return null;
+    }
+    return items.any((item) => item.value == value) ? value : null;
+  }
+
+  bool _requiresLocationForHomeVisit() {
+    if (_selectedBookingType != bookingTypeHomeVisit) {
+      return false;
+    }
+    final hasAddress = (_homeAddress ?? '').trim().isNotEmpty;
+    return !hasAddress || _homeLat == null || _homeLong == null;
+  }
+
+  bool _canConfirm({
+    required bool hasClinic,
+    required bool hasDate,
+    required bool hasTime,
+    required bool isHomeVisit,
+    required bool hasServices,
+  }) {
+    final hasBookingType = _selectedBookingType != null;
+    final hasLocationForHomeVisit = !_requiresLocationForHomeVisit();
+    if (!hasBookingType || !hasClinic || !hasDate || !hasTime || !hasServices) {
+      return false;
+    }
+    if (isHomeVisit && !hasLocationForHomeVisit) {
+      return false;
+    }
+    return true;
+  }
+
+  List<String> _buildValidationMessages({
+    required bool hasBookingType,
+    required bool hasClinic,
+    required bool hasDate,
+    required bool hasTime,
+    required bool isHomeVisit,
+    required bool hasServices,
+    required bool hasLocationForHomeVisit,
+  }) {
+    if (widget.isConfirmed || widget.isBusy) {
+      return const <String>[];
+    }
+    final messages = <String>[];
+    if (!hasBookingType) messages.add('Vui lòng chọn hình thức khám');
+    if (!hasClinic) messages.add('Vui lòng chọn phòng khám');
+    if (!hasServices) messages.add('Vui lòng chọn ít nhất một dịch vụ');
+    if (!hasDate) messages.add('Vui lòng chọn ngày khám');
+    if (!hasTime) messages.add('Vui lòng chọn giờ khám từ slot rảnh');
+    if (isHomeVisit && !hasLocationForHomeVisit) {
+      messages.add('Khám tại nhà cần địa chỉ và vị trí hợp lệ');
+    }
+    return messages;
+  }
+
+  void _notifyFormChanged(String field) {
+    final callback = widget.onFormChanged;
+    if (callback == null) {
+      return;
+    }
+    callback(
+      AiBookingSummaryPayload(
+        petId: widget.summary.petId,
+        petName: widget.summary.petName,
+        clinicId: _selectedClinicId,
+        clinicName: _selectedClinicName,
+        bookingDate: _selectedBookingDate,
+        startTime: _selectedStartTime,
+        serviceIds: _selectedServiceIds.toList(),
+        serviceNames: _resolveSelectedServiceLabels(),
+        bookingType: _selectedBookingType,
+        notes: widget.summary.notes,
+        homeAddress: _homeAddress,
+        homeLat: _homeLat,
+        homeLong: _homeLong,
+        distanceKm: widget.summary.distanceKm,
+        message: widget.summary.message,
+        missingFields: widget.summary.missingFields,
+        readyToCreate: widget.summary.readyToCreate,
+        nextBestAction: widget.summary.nextBestAction,
+      ),
+      field,
+    );
+  }
+
+  Widget _buildHomeVisitAddressField() {
+    final initialText = (_homeAddress ?? '').trim();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.stone200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Địa chỉ khám tại nhà',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: AppColors.stone600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          TextFormField(
+            key: ValueKey<String>('home_address|$initialText'),
+            initialValue: initialText,
+            onChanged: (value) {
+              _homeAddress = value.trim().isEmpty ? null : value.trim();
+              _notifyFormChanged('home_address');
+            },
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: 'Nhập địa chỉ khám tại nhà',
+              hintStyle: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.stone500,
+              ),
+              filled: true,
+              fillColor: AppColors.white,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide:
+                    const BorderSide(color: AppColors.stone900, width: 1.5),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide:
+                    const BorderSide(color: AppColors.stone900, width: 1.5),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide:
+                    const BorderSide(color: AppColors.primary, width: 1.8),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            (_homeLat != null && _homeLong != null)
+                ? 'Đã có tọa độ GPS để tạo booking tại nhà'
+                : 'Cần bật vị trí để lấy tọa độ GPS cho booking tại nhà',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: (_homeLat != null && _homeLong != null)
+                  ? AppColors.successDark
+                  : AppColors.coral,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummarySelectItem {
+  final String value;
+  final String label;
+  final String? id;
+
+  const _SummarySelectItem({
+    required this.value,
+    required this.label,
+    this.id,
+  });
 }
 
 class AiBookingCreatedCard extends StatelessWidget {
@@ -383,7 +1428,7 @@ class AiBookingCreatedCard extends StatelessWidget {
             ),
           if (bookingCreated.services.isNotEmpty)
             _BookingInfoRow(
-              label: 'Dịch vụ',
+              label: 'Dịch Vụ',
               value: bookingCreated.services.join(', '),
             ),
           const SizedBox(height: 6),
@@ -433,182 +1478,129 @@ class AiBookingCreatedCard extends StatelessWidget {
   }
 }
 
-class AiBookingConfirmationCard extends StatelessWidget {
-  final AiBookingConfirmationDraft draft;
-  final bool isConfirmed;
-  final bool isBusy;
+class AiMultiPetBookingCreatedCard extends StatelessWidget {
+  final AiBookingCreatedPayload multiPetBooking;
   final String Function(String? value) formatBookingDate;
-  final VoidCallback onConfirm;
-  final VoidCallback onRequestChanges;
+  final VoidCallback? onViewBooking;
 
-  const AiBookingConfirmationCard({
+  const AiMultiPetBookingCreatedCard({
     super.key,
-    required this.draft,
-    required this.isConfirmed,
-    required this.isBusy,
+    required this.multiPetBooking,
     required this.formatBookingDate,
-    required this.onConfirm,
-    required this.onRequestChanges,
+    this.onViewBooking,
   });
 
   @override
   Widget build(BuildContext context) {
+    final bookings = multiPetBooking.bookings ?? [];
+    final totalBookings =
+        multiPetBooking.multiPetSummary?['total_bookings'] as int? ??
+            bookings.length;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.primaryBackground,
+        color: AppColors.successLight,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.stone900, width: 2),
+        border: Border.all(color: AppColors.successDark, width: 2),
         boxShadow: const [
-          BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
+          BoxShadow(color: AppColors.successDark, offset: Offset(3, 3)),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.stone900, width: 1.5),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.event_note, size: 16, color: AppColors.primary),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'XÁC NHẬN THÔNG TIN ĐẶT LỊCH',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.stone900,
-                      letterSpacing: 0.6,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
+          Row(
             children: [
-              AiBookingMetaPill(
-                icon: Icons.schedule,
-                label: draft.startTime ?? 'Chưa rõ giờ',
-                backgroundColor: AppColors.blue100,
-                foregroundColor: AppColors.blue600,
-              ),
-              AiBookingMetaPill(
-                icon: Icons.calendar_month,
-                label: formatBookingDate(draft.bookingDate),
-                backgroundColor: AppColors.successLight,
-                foregroundColor: AppColors.successDark,
-              ),
-              if (draft.services.isNotEmpty)
-                AiBookingMetaPill(
-                  icon: Icons.medical_services_outlined,
-                  label: '${draft.services.length} dịch vụ',
-                  backgroundColor: AppColors.primarySurface,
-                  foregroundColor: AppColors.primaryDark,
+              const Icon(Icons.check_circle,
+                  color: AppColors.successDark, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Đã tạo $totalBookings yêu cầu đặt lịch',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.successDark,
                 ),
+              ),
             ],
           ),
-          const SizedBox(height: 12),
-          _BookingInfoRow(
-            label: 'Ngày khám',
-            value: formatBookingDate(draft.bookingDate),
-          ),
-          _BookingInfoRow(
-            label: 'Giờ bắt đầu',
-            value: draft.startTime ?? 'Chưa rõ',
-          ),
-          if (draft.clinicName != null)
-            _BookingInfoRow(
-              label: 'Phòng khám',
-              value: draft.clinicName ?? '',
-            ),
-          if (draft.petName != null)
-            _BookingInfoRow(
-              label: 'Thú cưng',
-              value: draft.petName ?? '',
-            ),
-          _BookingInfoRow(
-            label: 'Dịch vụ',
-            value: draft.services.join(', '),
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            'Nhấn xác nhận để AI tiếp tục tạo booking thật. Nếu chưa đúng, bạn có thể yêu cầu chỉnh lại thông tin.',
-            style: TextStyle(
-              fontSize: 11,
-              height: 1.4,
-              color: AppColors.stone700,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              SizedBox(
-                width: double.infinity,
-                height: 44,
-                child: ElevatedButton(
-                  onPressed: isConfirmed || isBusy ? null : onConfirm,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: AppColors.white,
-                    elevation: 0,
-                    shadowColor: AppColors.transparent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      side: const BorderSide(
-                        color: AppColors.stone900,
-                        width: 2,
+          const SizedBox(height: 8),
+          ...bookings.take(3).map((booking) {
+            final petName = booking['pet_name']?.toString() ?? '';
+            final clinicName = booking['clinic_name']?.toString() ?? '';
+            final date = booking['date']?.toString() ?? '';
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                children: [
+                  const Icon(Icons.pets, size: 14, color: AppColors.stone600),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      '${petName.isNotEmpty ? '$petName - ' : ''}${clinicName.isNotEmpty ? clinicName : ''}${date.isNotEmpty ? ' (${formatBookingDate(date)})' : ''}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.stone700,
                       ),
                     ),
                   ),
-                  child: Text(
-                    isConfirmed ? 'ĐÃ GỬI XÁC NHẬN' : 'XÁC NHẬN ĐẶT LỊCH',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
+                ],
+              ),
+            );
+          }),
+          if (bookings.length > 3)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                '...và ${bookings.length - 3} booking khác',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontStyle: FontStyle.italic,
+                  color: AppColors.stone500,
                 ),
               ),
-              SizedBox(
-                width: double.infinity,
-                height: 44,
-                child: OutlinedButton(
-                  onPressed: isBusy ? null : onRequestChanges,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.stone900,
+            ),
+          const SizedBox(height: 6),
+          Text(
+            'Clinic manager sẽ xác nhận từng booking sau.',
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: AppColors.successDark,
+            ),
+          ),
+          if (onViewBooking != null) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              height: 42,
+              child: ElevatedButton(
+                onPressed: onViewBooking,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.white,
+                  foregroundColor: AppColors.successDark,
+                  elevation: 0,
+                  shadowColor: AppColors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
                     side: const BorderSide(
-                      color: AppColors.stone900,
+                      color: AppColors.successDark,
                       width: 2,
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    backgroundColor: AppColors.white,
                   ),
-                  child: const Text(
-                    'CHỈNH LẠI',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                    ),
+                ),
+                child: const Text(
+                  'Xem lịch hẹn của tôi',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ],
       ),
     );
