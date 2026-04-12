@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { UISchemaRenderer } from '../UISchemaRenderer'
 import type { UISchemaV1 } from '../../../../types/chat-copilot'
 import * as serviceApi from '../../../../services/endpoints/service'
+import { ToastProvider } from '../../../Toast'
 
 vi.mock('../../../../services/endpoints/service', () => ({
   createService: vi.fn().mockResolvedValue({ serviceId: 'new-svc-id' }),
@@ -43,7 +44,7 @@ describe('UISchemaRenderer', () => {
       ],
     }
 
-    render(<UISchemaRenderer schema={schema} onAction={onAction} />)
+    render(<ToastProvider><UISchemaRenderer schema={schema} onAction={onAction} /></ToastProvider>)
 
     expect(screen.getByText('Khám tổng quát')).toBeInTheDocument()
     expect(screen.getByText('Khám sức khỏe định kỳ')).toBeInTheDocument()
@@ -78,7 +79,7 @@ describe('UISchemaRenderer', () => {
       ],
     }
 
-    render(<UISchemaRenderer schema={schema} onAction={onAction} />)
+    render(<ToastProvider><UISchemaRenderer schema={schema} onAction={onAction} /></ToastProvider>)
 
     fireEvent.click(screen.getByRole('button', { name: 'Lưu tất cả (2)' }))
     expect(onAction).toHaveBeenCalledTimes(1)
@@ -151,7 +152,7 @@ describe('UISchemaRenderer', () => {
       ],
     }
 
-    render(<UISchemaRenderer schema={schema} onAction={onAction} />)
+    render(<ToastProvider><UISchemaRenderer schema={schema} onAction={onAction} /></ToastProvider>)
 
     expect(screen.getByText('Chỉnh giá nhanh trước khi lưu')).toBeInTheDocument()
 
@@ -202,7 +203,7 @@ describe('UISchemaRenderer', () => {
       ],
     }
 
-    render(<UISchemaRenderer schema={schema} onAction={onAction} />)
+    render(<ToastProvider><UISchemaRenderer schema={schema} onAction={onAction} /></ToastProvider>)
 
     expect(screen.queryByText('Chỉnh giá nhanh trước khi lưu')).not.toBeInTheDocument()
 

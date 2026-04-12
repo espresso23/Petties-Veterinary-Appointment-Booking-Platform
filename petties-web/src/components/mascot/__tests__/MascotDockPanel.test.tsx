@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { MascotDockPanel } from '../MascotDockPanel'
 import type { UIAction } from '../../../types/chat-copilot'
+import { ToastProvider } from '../../Toast'
 
 vi.mock('../../chat/renderers/UISchemaRenderer', () => ({
   UISchemaRenderer: ({
@@ -133,7 +134,7 @@ describe('MascotDockPanel', () => {
 
   it('gửi action confirm_service_update sau khi xác nhận', async () => {
     const onSendUiAction = vi.fn(async () => {})
-    render(<MascotDockPanel {...baseProps} onSendUiAction={onSendUiAction} />)
+    render(<ToastProvider><MascotDockPanel {...baseProps} onSendUiAction={onSendUiAction} /></ToastProvider>)
 
     fireEvent.click(screen.getByText('trigger-confirm-update'))
     fireEvent.click(screen.getByText('Đồng ý'))
@@ -148,7 +149,7 @@ describe('MascotDockPanel', () => {
 
   it('gửi action confirm_service_create sau khi xác nhận', async () => {
     const onSendUiAction = vi.fn(async () => {})
-    render(<MascotDockPanel {...baseProps} onSendUiAction={onSendUiAction} />)
+    render(<ToastProvider><MascotDockPanel {...baseProps} onSendUiAction={onSendUiAction} /></ToastProvider>)
 
     fireEvent.click(screen.getByText('trigger-confirm-create'))
     fireEvent.click(screen.getByText('Xác nhận'))
@@ -163,7 +164,7 @@ describe('MascotDockPanel', () => {
 
   it('gửi action confirm_service_batch_create sau khi xác nhận', async () => {
     const onSendUiAction = vi.fn(async () => {})
-    render(<MascotDockPanel {...baseProps} onSendUiAction={onSendUiAction} />)
+    render(<ToastProvider><MascotDockPanel {...baseProps} onSendUiAction={onSendUiAction} /></ToastProvider>)
 
     fireEvent.click(screen.getByText('trigger-confirm-batch'))
     fireEvent.click(screen.getByText('Xác nhận'))
