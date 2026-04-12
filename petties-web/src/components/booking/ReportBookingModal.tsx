@@ -80,6 +80,11 @@ export const ReportBookingModal = ({
     if (!isOpen) return null;
 
     const totalCount = remoteUrls.length + localFiles.length;
+    const trimmedReason = reason.trim();
+    const reasonLength = trimmedReason.length;
+    const minReasonLength = 10;
+    const remainingChars = Math.max(0, minReasonLength - reasonLength);
+    const isReasonValid = reasonLength >= minReasonLength;
 
     const handlePickFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
         const list = e.target.files;
@@ -154,7 +159,7 @@ export const ReportBookingModal = ({
         mode === 'edit' ? (isSubmitting ? 'Đang lưu...' : 'Cập nhật báo cáo') : isSubmitting ? 'Đang gửi...' : 'Gửi báo cáo';
 
     return (
-        <div className="fixed inset-0 bg-stone-900/80 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 bg-stone-900/80 flex items-center justify-center z-100 p-4 backdrop-blur-sm">
             <div className="bg-white border-4 border-stone-900 shadow-[8px_8px_0_#1c1917] max-w-lg w-full max-h-[92vh] overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200 sm:max-w-xl">
                 <div className="bg-red-500 border-b-4 border-stone-900 p-5 flex justify-between items-center shrink-0">
                     <h2 className="text-2xl font-bold text-white uppercase tracking-tight">{title}</h2>
@@ -205,6 +210,21 @@ export const ReportBookingModal = ({
                         }
                         className="w-full h-40 p-4 border-4 border-stone-900 focus:outline-none focus:ring-2 focus:ring-red-400 font-medium text-stone-700 resize-none"
                     />
+                    <p
+                        className={`mt-2 text-xs font-bold ${
+                            reasonLength === 0
+                                ? 'text-stone-500'
+                                : isReasonValid
+                                  ? 'text-emerald-700'
+                                  : 'text-red-600'
+                        }`}
+                    >
+                        {reasonLength === 0
+                            ? 'Vui lòng nhập tối thiểu 10 ký tự.'
+                            : isReasonValid
+                              ? 'Lý do đã hợp lệ, bạn có thể gửi báo cáo.'
+                              : `Lý do chưa đủ 10 ký tự (còn thiếu ${remainingChars} ký tự).`}
+                    </p>
 
                     <p className="mt-4 font-bold text-stone-900 mb-2 uppercase text-xs tracking-wider">Ảnh minh chứng (tùy chọn)</p>
                     <p className="text-[10px] text-stone-500 font-bold uppercase mb-2">
@@ -280,7 +300,7 @@ export const ReportBookingModal = ({
                     <button
                         type="button"
                         onClick={handleSubmit}
-                        disabled={isSubmitting || reason.trim().length < 10}
+                        disabled={isSubmitting || !isReasonValid}
                         className="px-6 py-2 font-bold uppercase bg-red-500 text-white border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all disabled:opacity-50 flex items-center gap-2"
                     >
                         {primaryLabel}

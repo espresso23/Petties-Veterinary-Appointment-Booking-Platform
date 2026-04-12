@@ -12,6 +12,57 @@ import { LoginPage } from './pages/auth/LoginPage'
 import { RegisterPage } from './pages/auth/RegisterPage'
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage'
 import { ResetPasswordPage } from './pages/auth/ResetPasswordPage'
+
+import { AdminDashboardPage } from './pages/admin/DashboardPage'
+import { NotificationsPage as AdminNotificationsPage } from './pages/admin/NotificationsPage'
+import { ToolsPage } from './pages/admin/tools'
+import { KnowledgePage } from './pages/admin/knowledge'
+import { PlaygroundPage } from './pages/admin/playground'
+import { AIInsightsPage } from './pages/admin/insights'
+import { ClinicApprovalPage, ClinicRegistryPage } from './pages/admin/clinics'
+import { ReportsPage as AdminReportsPage } from './pages/admin/ReportsPage'
+import { AdminRefundApplicationsPage } from './pages/admin/refunds/AdminRefundApplicationsPage'
+import AdminNotificationsManagePage from './pages/admin/AdminNotificationsManagePage'
+import AdminUsersPage from './pages/admin/AdminUsersPage'
+import { AdminVoucherPage } from './pages/admin/vouchers/AdminVoucherPage'
+import { SubscriptionListPage as AdminSubscriptionListPage, UserSubscriptionHistoryPage as AdminSubscriptionHistoryPage } from './pages/admin/subscriptions'
+
+// Role-specific Pages
+import { StaffDashboardPage, StaffSchedulePage, StaffBookingsPage, StaffPatientsPage, StaffAIChatPage } from './pages/staff'
+import { NotificationsPage as StaffNotificationsPage } from './pages/staff/NotificationsPage'
+import { CreateEmrPage, EmrDetailPage, EditEmrPage } from './pages/staff'
+import VaccinationPage from './pages/staff/vaccine/VaccinationPage'
+import { ClinicOwnerDashboardPage, ServicesPage, NotificationsPage, MasterServicesPage, ClinicOwnerRevenuePage, MySubscriptionPage } from './pages/clinic-owner'
+import {
+  ClinicManagerDashboardPage,
+  ChatPage as ClinicManagerChatPage,
+  ManagerClinicInfoPage,
+  ManagerClinicEditPage,
+  RevenuePage
+} from './pages/clinic-manager'
+import { NotificationsPage as ClinicManagerNotificationsPage } from './pages/clinic-manager/NotificationsPage'
+import {
+  ClinicsListPage,
+  ClinicCreatePage,
+  ClinicEditPage,
+  ClinicDetailPage,
+} from './pages/clinic-owner/clinics'
+import { StaffManagementPage } from './pages/clinic-owner/staff'
+import { StaffManagementPage as ClinicManagerStaffPage } from './pages/clinic-manager/staff'
+import { StaffShiftPage } from './pages/clinic-manager/shifts/StaffShiftPage'
+import { BookingDashboardPage } from './pages/clinic-manager/bookings/BookingDashboardPage'
+import { ServicesViewPage } from './pages/clinic-manager/services/ServicesViewPage'
+import { RefundsPage } from './pages/clinic-manager/RefundsPage'
+import { ClinicManagerVoucherPage } from './pages/clinic-manager/vouchers/ClinicManagerVoucherPage'
+
+// Shared Pages
+import { ProfilePage } from './pages/shared'
+
+// Components
+import { ProtectedRoute } from './components/common/ProtectedRoute'
+
+// Styles
+>>>>>>> origin/intergrationFeature
 import './styles/global.css'
 
 const AdminLayout = lazy(() => import('./layouts/AdminLayout'))
@@ -194,6 +245,7 @@ function App() {
               <Route path="profile" element={<ProfilePage />} />
             </Route>
 
+<<<<<<< HEAD
             <Route
               path="/staff"
               element={
@@ -213,6 +265,23 @@ function App() {
               <Route path="emr/detail/:emrId" element={<EmrDetailPage />} />
               <Route path="patients/:petId/vaccinations" element={<VaccinationPage />} />
             </Route>
+
+            <Route path="knowledge" element={<KnowledgePage />} />
+            <Route path="tools" element={<ToolsPage />} />
+            <Route path="playground" element={<PlaygroundPage />} />
+            <Route path="ai-insights" element={<AIInsightsPage />} />
+            <Route path="clinics" element={<ClinicApprovalPage />} />
+            <Route path="clinics/registry" element={<ClinicRegistryPage />} />
+            <Route path="users" element={<AdminUsersPage />} />
+            <Route path="reports" element={<AdminReportsPage />} />
+            <Route path="refunds" element={<AdminRefundApplicationsPage />} />
+            <Route path="vouchers" element={<AdminVoucherPage />} />
+            <Route path="subscriptions" element={<AdminSubscriptionListPage />} />
+            <Route path="subscriptions/history" element={<AdminSubscriptionHistoryPage />} />
+            <Route path="notifications" element={<AdminNotificationsPage />} />
+            <Route path="notification-manage" element={<AdminNotificationsManagePage />} />
+            <Route path="profile" element={<ProfilePage />} />
+          </Route >
 
             <Route
               path="/clinic-owner"

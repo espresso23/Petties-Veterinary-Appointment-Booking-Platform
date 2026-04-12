@@ -25,7 +25,7 @@ import java.util.regex.Pattern;
  * Webhook controller for SePay payment notifications
  */
 @RestController
-@RequestMapping("/api/webhooks/sepay")
+@RequestMapping("/webhooks/sepay")
 @RequiredArgsConstructor
 @Slf4j
 public class SePayWebhookController {

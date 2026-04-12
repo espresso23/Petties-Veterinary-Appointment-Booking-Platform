@@ -118,6 +118,21 @@ public class UserStrikeService {
                 .orElse(defaultValue);
     }
 
+    public boolean isPermanentStrike(LocalDateTime strikeUntil) {
+        return strikeUntil != null && strikeUntil.equals(PERMANENT_BLOCK_UNTIL);
+    }
+
+    public LocalDateTime calculateManualStrikeUntil(boolean isPermanent, Integer days) {
+        if (isPermanent) {
+            return PERMANENT_BLOCK_UNTIL;
+        }
+
+        if (days == null || days < 1 || days > 3650) {
+            throw new com.petties.petties.exception.BadRequestException("Số ngày hạn chế phải từ 1 đến 3650");
+        }
+        return LocalDateTime.now().plusDays(days);
+    }
+
     @Transactional(readOnly = true)
     public Map<String, String> getAllConfig() {
         Map<String, String> configs = new HashMap<>();
