@@ -38,6 +38,8 @@ export type UIComponentType =
   | 'service_detail_card'
   | 'confirmation_card'
   | 'action_confirmation_card'
+  | 'revenue_chart'
+  | 'clinic_metrics'
 
 export interface UIAction {
   type: UIActionType

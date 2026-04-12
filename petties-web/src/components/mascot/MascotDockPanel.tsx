@@ -6,8 +6,10 @@ import {
   PaperAirplaneIcon,
   SparklesIcon,
   XMarkIcon,
+  TrashIcon,
 } from '@heroicons/react/24/outline'
 import type { AISessionMessage } from '../../store/aiChatStore'
+import { useAIChatStore } from '../../store/aiChatStore'
 import type { UIAction, UIComponent } from '../../types/chat-copilot'
 import { UISchemaRenderer } from '../chat/renderers/UISchemaRenderer'
 import { ConfirmModal } from '../ConfirmModal'
@@ -17,6 +19,7 @@ interface MascotDockPanelProps {
   onClose: () => void
   onSendMessage: (message: string, context?: Record<string, unknown>) => Promise<unknown>
   onSendUiAction: (action: UIAction, displayMessage?: string) => Promise<void>
+  onDeleteConversation?: () => Promise<void>
   messages: AISessionMessage[]
   connectionStatus: 'disconnected' | 'connecting' | 'connected'
   routePath: string
@@ -79,6 +82,7 @@ export const MascotDockPanel = ({
   onClose,
   onSendMessage,
   onSendUiAction,
+  onDeleteConversation,
   messages,
   connectionStatus,
   routePath,
@@ -88,12 +92,56 @@ export const MascotDockPanel = ({
   const [inputValue, setInputValue] = useState('')
   const [isExpanded, setIsExpanded] = useState(false)
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirmAction | null>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const selectedClinic = useAIChatStore((state) => state.selectedClinic)
 
   const quickActions = useMemo(() => {
     const matched = QUICK_ACTIONS_BY_ROUTE.find((item) => item.match.test(routePath))
     return matched?.actions || FALLBACK_ACTIONS
   }, [routePath])
+
+  // Filter clinic cards from messages if a clinic is already selected
+  const filteredMessages = useMemo(() => {
+    if (!selectedClinic?.clinicId) return messages
+
+    return messages.map((message) => {
+      if (!message.uiSchema) return message
+
+      // Filter out clinic_card components that are not the selected clinic
+      const filteredComponents = message.uiSchema.components.filter((component) => {
+        if (component.type !== 'clinic_card') return true
+        
+        // Keep only the selected clinic card or if it's marked as "selected"
+        const componentClinicId = component.data['clinic_id'] ?? component.data['clinicId'] ?? component.data['id']
+        return componentClinicId === selectedClinic.clinicId
+      })
+
+      // If all components were clinic cards and none match, show a simple message
+      if (filteredComponents.length === 0 && message.uiSchema.components.some((c) => c.type === 'clinic_card')) {
+        return {
+          ...message,
+          uiSchema: {
+            ...message.uiSchema,
+            components: [{
+              type: 'badge' as const,
+              id: `selected-clinic-badge-${selectedClinic.clinicId}`,
+              data: { content: `Đang làm việc với: ${selectedClinic.clinicName || 'Phòng khám đã chọn'}` },
+              actions: [],
+            }],
+          },
+        }
+      }
+
+      return {
+        ...message,
+        uiSchema: {
+          ...message.uiSchema,
+          components: filteredComponents,
+        },
+      }
+    })
+  }, [messages, selectedClinic])
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -148,7 +196,25 @@ export const MascotDockPanel = ({
       return
     }
 
+    // If selecting a clinic, update the store state
+    if (action.type === 'select_item') {
+      const payload = (action.payload || {}) as Record<string, unknown>
+      const clinicId = (payload.clinic_id ?? payload.clinicId ?? payload.id) as string | undefined
+      const clinicName = (payload.clinic_name ?? payload.clinicName ?? payload.name) as string | undefined
+      
+      if (clinicId) {
+        useAIChatStore.getState().setSelectedClinic({ clinicId, clinicName })
+      }
+    }
+
     await onSendUiAction(action, extractDisplayMessage(action))
+  }
+
+  const handleDeleteConversation = async () => {
+    if (onDeleteConversation) {
+      await onDeleteConversation()
+    }
+    setShowDeleteConfirm(false)
   }
 
   const isBusy = connectionStatus === 'connecting'
@@ -188,6 +254,17 @@ export const MascotDockPanel = ({
               >
                 {isExpanded ? <ArrowsPointingInIcon className="h-4 w-4" /> : <ArrowsPointingOutIcon className="h-4 w-4" />}
               </button>
+              {messages.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="rounded-md border border-stone-300 p-1 text-stone-600 hover:bg-red-50 hover:text-red-600"
+                  title="Xóa lịch sử chat"
+                  aria-label="Xóa lịch sử chat"
+                >
+                  <TrashIcon className="h-4 w-4" />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onClose}
@@ -244,7 +321,7 @@ export const MascotDockPanel = ({
             </div>
           )}
 
-          {messages.map((message) => (
+          {filteredMessages.map((message) => (
             <div key={message.id} className={message.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
               <div
                 className={[
@@ -273,6 +350,7 @@ export const MascotDockPanel = ({
                             void component
                             void handleUiAction(action)
                           }}
+                          selectedClinicId={selectedClinic?.clinicId}
                         />
                       </div>
                     )}
@@ -320,6 +398,16 @@ export const MascotDockPanel = ({
           setPendingConfirm(null)
           void onSendUiAction(action, displayMessage)
         }}
+      />
+
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        title="Xóa lịch sử chat"
+        message="Bạn có chắc muốn xóa toàn bộ lịch sử trò chuyện? Hành động này không thể hoàn tác."
+        confirmLabel="Xóa"
+        cancelLabel="Hủy"
+        onCancel={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDeleteConversation}
       />
     </aside>
   )

@@ -50,9 +50,6 @@ public class MasterService {
     @Column(name = "is_home_visit", nullable = false)
     private Boolean isHomeVisit = false;
 
-    @Column(name = "default_price_per_km", precision = 19, scale = 2)
-    private BigDecimal defaultPricePerKm;
-
     @Column(name = "service_category", length = 100)
     private String serviceCategory;
 

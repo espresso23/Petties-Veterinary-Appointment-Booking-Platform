@@ -126,6 +126,7 @@ class AiSlotGridCard extends StatelessWidget {
   final bool isBusy;
   final String Function(String? value) formatBookingDate;
   final ValueChanged<AiBookingSlotOption> onSelectSlot;
+  final String? selectedSlotId;
 
   const AiSlotGridCard({
     super.key,
@@ -133,6 +134,7 @@ class AiSlotGridCard extends StatelessWidget {
     required this.isBusy,
     required this.formatBookingDate,
     required this.onSelectSlot,
+    this.selectedSlotId,
   });
 
   @override
@@ -167,6 +169,29 @@ class AiSlotGridCard extends StatelessWidget {
               label: 'Dịch vụ',
               value: slotGrid.serviceNames.join(', '),
             ),
+          if (isBusy)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    'Đang xử lý...',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.stone500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -175,17 +200,27 @@ class AiSlotGridCard extends StatelessWidget {
               final label = endTime != null && endTime.isNotEmpty
                   ? '${slot.startTime} - $endTime'
                   : slot.startTime;
+              final slotId = '${slotGrid.bookingDate}_${slot.startTime}';
+              final isSelected = selectedSlotId == slotId;
+              final isAlreadySelected = selectedSlotId != null && !isSelected;
 
               return ActionChip(
-                onPressed: isBusy ? null : () => onSelectSlot(slot),
-                backgroundColor: AppColors.white,
-                side: const BorderSide(color: AppColors.stone900, width: 1.5),
+                onPressed: isBusy || isAlreadySelected
+                    ? null
+                    : () => onSelectSlot(slot),
+                backgroundColor: isSelected
+                    ? AppColors.primary.withValues(alpha: 0.15)
+                    : AppColors.white,
+                side: BorderSide(
+                  color: isSelected ? AppColors.primary : AppColors.stone900,
+                  width: isSelected ? 2 : 1.5,
+                ),
                 label: Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.stone900,
+                    color: isSelected ? AppColors.primary : AppColors.stone900,
                   ),
                 ),
               );

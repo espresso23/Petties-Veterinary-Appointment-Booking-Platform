@@ -461,22 +461,34 @@ Canonical lock: only approved feature/function names are allowed in checklist it
   - Code: `petties-web/src/pages/admin/tools/ToolsPage.tsx` + `petties-web/src/components/admin/ToolCard.tsx`
   - Stitch ID: `7f3b9eb7cb72404580bdd93dfa17e821`
   - Screen description: Registry tool dạng **danh sách thẻ**, tìm kiếm, Scan/Refresh, bật/tắt từng tool FastMCP.
-- [x] **Upload Document/Delete Document To Knowledge Base**
+- [x] **Upload Document To Knowledge Base**
   - Code: `petties-web/src/pages/admin/knowledge/KnowledgePage.tsx` + `petties-web/src/components/admin/DocumentUpload.tsx`, `DocumentCard.tsx`, `RAGQueryTester.tsx`
   - Stitch ID: `eeaf49734fc54e288a814c456d6d5378`
-  - Screen description: Cấu hình Cohere/Qdrant/Jina/Tavily, upload tài liệu RAG, kiểm tra truy vấn.
-- [x] **View Case Memory / Delete Case Memory**
-  - Code: `petties-web/src/pages/admin/insights/AIInsightsPage.tsx` (section Kho ca bệnh AI — không có `CaseMemoryPage.tsx`)
+  - Screen description: Trên `/admin/knowledge`, admin upload tài liệu qua component `DocumentUpload`; sau khi upload hiển thị trạng thái trong `DocumentCard` (processing/vector count) và có thể kiểm thử retrieval bằng `RAGQueryTester`. Khu vực này nằm cùng màn cấu hình key Cohere/Qdrant/Jina/Tavily, không tách trang riêng.
+- [x] **Delete Document from Knowledge Base**
+  - Code: `petties-web/src/components/admin/DocumentCard.tsx` + `petties-web/src/components/common/ConfirmDialog.tsx` + `petties-web/src/components/admin/DocumentPreviewModal.tsx` (được gọi từ `KnowledgePage.tsx`)
+  - Stitch ID: `eeaf49734fc54e288a814c456d6d5378`
+  - Screen description: Xóa tài liệu thực hiện ngay trên từng `DocumentCard` (icon thùng rác). Trước khi xóa, UI mở `ConfirmDialog` để xác nhận; có thể mở `DocumentPreviewModal` để xem nội dung trước khi quyết định xóa.
+- [x] **View Case Memory**
+  - Code: `petties-web/src/pages/admin/insights/AIInsightsPage.tsx` (section Kho ca bệnh AI) + `CaseRow` + `CaseDetailModal` (inline trong cùng file)
   - Stitch ID: `2ff38c52a817437d9530cf44dff6f6d3`
-  - Screen description: Danh sách case, lọc, chi tiết modal, xóa đơn/bulk trên cùng trang AI Insights.
+  - Screen description: Trên `/admin/ai-insights`, section Kho ca bệnh AI hiển thị danh sách case dạng bảng có tìm kiếm, bộ lọc, phân trang; thao tác xem chi tiết mở `CaseDetailModal` từ nút xem (`EyeIcon`) ở từng dòng.
+- [x] **Delete Case Memory**
+  - Code: `petties-web/src/pages/admin/insights/AIInsightsPage.tsx` + `petties-web/src/components/ConfirmModal.tsx`
+  - Stitch ID: `2ff38c52a817437d9530cf44dff6f6d3`
+  - Screen description: Xóa case hỗ trợ 2 luồng trên cùng màn AI Insights: xóa đơn từ từng dòng và xóa hàng loạt theo selection. Cả hai đều dùng `ConfirmModal` xác nhận trước khi gọi API xóa.
 - [x] **Use AI-Assisted Clinic Setup, Operation**
   - Code: `petties-web/src/components/mascot/MascotDockPanel.tsx` (quick actions theo `/clinic-owner/`, `/clinic-manager/`) — **không** thấy `AiSetupWizardPage.tsx` trong repo hiện tại
   - Stitch ID: `63cc148509bb40b885de9d3bb674804c`
   - Screen description: Thao tác vận hành / gợi ý qua **trợ lý dock** trên dashboard clinic (không còn trang wizard riêng trong tree `pages/`).
-- [x] **Use Summarize patient info & EMR / Pet's EMR**
-  - Code: Web: `petties-web/src/components/mascot/MascotDockPanel.tsx` (copilot theo ngữ cảnh route); Mobile Pet Owner: `petties_mobile/lib/ui/pet/pet_detail_screen.dart` (thẻ AI Health Summary); Mobile Staff: `petties_mobile/lib/ui/chat/ai_chat/ai_chat_screen.dart` với `bookingAssistantEnabled: false` — **không** có `AiEmrSummaryPage.tsx` / `ai_medical_summary_screen.dart` trong repo hiện tại
-  - Stitch ID: `46b89ea2345c467c9b4d2d94102d1de7`, `2c72d246a10f436a82f3f36c6c6158b5`
-  - Screen description: Tóm tắt sức khỏe trên **Pet Detail** (mobile); tóm tắt / hỏi EMR qua **chat copilot** hoặc mascot trên web tùy luồng triển khai.
+- [x] **Use Summarize patient info & EMR**
+  - Code: Web: `petties-web/src/components/mascot/MascotDockPanel.tsx` (copilot theo ngữ cảnh route); Mobile Staff: `petties_mobile/lib/ui/chat/ai_chat/ai_chat_screen.dart` với `bookingAssistantEnabled: false`
+  - Stitch ID: `46b89ea2345c467c9b4d2d94102d1de7`
+  - Screen description: Staff tóm tắt bệnh án/EMR qua luồng chat copilot (web mascot dock hoặc mobile staff AI chat). Không có trang EMR summary tách riêng trong codebase hiện tại.
+- [x] **Use Summarize pet's EMR**
+  - Code: `petties_mobile/lib/ui/pet/pet_detail_screen.dart` (card `_buildHealthSummaryCard()`), model `petties_mobile/lib/data/models/pet_health_summary.dart`, service `petties_mobile/lib/data/services/pet_service.dart` (`getHealthSummary`); web theo ngữ cảnh hỏi-đáp qua `petties-web/src/components/mascot/MascotDockPanel.tsx`
+  - Stitch ID: `2c72d246a10f436a82f3f36c6c6158b5`
+  - Screen description: Trên màn **Pet Detail** mobile, hệ thống hiển thị card **TỔNG QUAN SỨC KHỎE** (lần khám gần nhất, cảnh báo sức khỏe, nhắc lịch) được render inline trong screen; không có modal/trang riêng cho Pet EMR summary ở implementation hiện tại.
 - [x] **View aggregate feedback stats**
   - Code: `petties-web/src/pages/admin/insights/AIInsightsPage.tsx` (section thống kê & bảng phản hồi — không có `FeedbackAnalyticsPage.tsx`)
   - Stitch ID: `225f0ececc574abcb91cd19034524c2f`

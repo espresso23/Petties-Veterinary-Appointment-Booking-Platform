@@ -340,26 +340,6 @@ class SpringBackendClient:
         """Compatibility alias for clinic tools service updates."""
         return await self.update_service_info(token, service_id, payload)
 
-    async def inherit_from_master_service(
-        self, 
-        token: str, 
-        master_service_id: str, 
-        clinic_id: Optional[str] = None,
-        price: Optional[float] = None,
-        price_per_km: Optional[float] = None
-    ) -> dict:
-        """Inherit service from Master Service template."""
-        params = {}
-        if clinic_id:
-            params["clinicId"] = clinic_id
-        if price:
-            params["clinicPrice"] = price
-        if price_per_km:
-            params["clinicPricePerKm"] = price_per_km
-        return await self._request(
-            "POST", f"/api/services/inherit/{master_service_id}", token=token, params=params
-        )
-
     async def get_master_services(
         self,
         token: str,

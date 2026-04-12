@@ -31,6 +31,10 @@ INTENT_MAP: Dict[str, str] = {
     "get_patient_summary": "show_emr_summary",
     "check_vaccination_status": "show_vaccination_status",
     "web_search": "show_web_search_results",
+    # Analytics tools
+    "get_clinic_today_summary": "show_clinic_today_summary",
+    "analyze_revenue_trends": "show_revenue_chart",
+    "get_clinic_metrics": "show_clinic_metrics",
 }
 
 RESOURCE_FALLBACK_TOOL_MAP: Dict[str, str] = {
@@ -1349,6 +1353,109 @@ def _should_skip_redundant_clinic_list(
     return False
 
 
+def _has_complete_booking_context(tool_results: List[Dict[str, Any]]) -> bool:
+    """Check if we have enough info to show a booking summary (clinic + service + slot)."""
+    has_clinic = False
+    has_service = False
+    has_slot = False
+    has_booking_intent = False
+
+    for tool_result in tool_results:
+        tool_name, success, data = _normalize_tool_result_for_presentation(tool_result)
+        if not success or not isinstance(data, dict):
+            continue
+
+        # Check for clinic resolution
+        if tool_name == "search_clinics_nearby":
+            matched = data.get("matched_clinic")
+            if matched and isinstance(matched, dict) and matched.get("id"):
+                has_clinic = True
+                clinic_hint = data.get("clinic_hint", "")
+                if isinstance(clinic_hint, str) and clinic_hint.strip():
+                    has_booking_intent = True
+
+        # Check for service resolution
+        if tool_name == "get_clinic_services":
+            services = data.get("services", [])
+            resolved = data.get("resolved_service_ids", [])
+            if (isinstance(services, list) and len(services) > 0) or \
+               (isinstance(resolved, list) and len(resolved) > 0):
+                has_service = True
+
+        # Check for slot resolution
+        if tool_name == "check_available_slots":
+            slots = data.get("available_slots", [])
+            recommended = data.get("recommended_slots", [])
+            if (isinstance(slots, list) and len(slots) > 0) or \
+               (isinstance(recommended, list) and len(recommended) > 0):
+                has_slot = True
+
+    return has_clinic and has_service and has_slot and has_booking_intent
+
+
+def _build_booking_context_from_tools(tool_results: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Build a booking context dict from tool results for summary card."""
+    context: Dict[str, Any] = {}
+    missing_fields = []
+
+    for tool_result in tool_results:
+        tool_name, success, data = _normalize_tool_result_for_presentation(tool_result)
+        if not success or not isinstance(data, dict):
+            continue
+
+        if tool_name == "search_clinics_nearby":
+            matched = data.get("matched_clinic")
+            if matched and isinstance(matched, dict):
+                context["clinic_id"] = matched.get("id")
+                context["clinic_name"] = matched.get("name")
+
+        if tool_name == "get_clinic_services":
+            resolved_ids = data.get("resolved_service_ids", [])
+            resolved_names = data.get("resolved_service_names", [])
+            if resolved_ids:
+                context["service_ids"] = list(resolved_ids)
+            if resolved_names:
+                context["service_names"] = list(resolved_names)
+
+        if tool_name == "check_available_slots":
+            date = data.get("resolved_date") or data.get("date")
+            time = data.get("resolved_time") or data.get("start_time")
+            if date:
+                context["booking_date"] = str(date)
+            if time:
+                context["start_time"] = str(time)
+
+    # Check for missing fields
+    for key in ("clinic_id", "clinic_name"):
+        if not context.get(key):
+            missing_fields.append(key)
+    if not context.get("service_ids") and not context.get("service_names"):
+        missing_fields.append("service_ids")
+    if not context.get("booking_date"):
+        missing_fields.append("booking_date")
+    if not context.get("start_time"):
+        missing_fields.append("start_time")
+
+    context["missing_fields"] = missing_fields
+    context["ready_to_create"] = len(missing_fields) == 0
+    context["next_best_action"] = "fill_booking_form" if missing_fields else "confirm_booking"
+
+    return context if context else None
+
+
+def _has_booking_summary_component(components: List[UIComponent]) -> bool:
+    """Check if components already contain a booking summary."""
+    for c in components:
+        t = getattr(c, "type", None)
+        if t is None:
+            continue
+        # Handle both enum and string cases
+        t_str = t.value if hasattr(t, "value") else str(t)
+        if "booking_summary" in t_str.lower():
+            return True
+    return False
+
+
 def build_ui_schema(tool_results: List[Dict[str, Any]]) -> Optional[UISchemaV1]:
     """Builds a composite UISchemaV1 from tool results in one agent turn."""
     if not tool_results:
@@ -1358,6 +1465,9 @@ def build_ui_schema(tool_results: List[Dict[str, Any]]) -> Optional[UISchemaV1]:
     is_composite = len(tool_results) > 1
     final_layout = LayoutType.LIST
     has_successful_service_context = _has_successful_service_context(tool_results)
+
+    # Detect if we have enough booking context to show summary
+    has_booking_context = _has_complete_booking_context(tool_results)
 
     for index, tool_result in enumerate(tool_results):
         tool_name, success, data = _normalize_tool_result_for_presentation(tool_result)
@@ -1382,7 +1492,8 @@ def build_ui_schema(tool_results: List[Dict[str, Any]]) -> Optional[UISchemaV1]:
 
         intent = resolve_intent(tool_name, std_result)
 
-        if is_composite:
+        # In composite mode, only show header for intentional UI components
+        if is_composite and intent not in ("show_text",):
             title_text = tool_name.replace("_", " ").title()
             if intent == "show_error":
                 title_text = f"Lỗi: {title_text}"
@@ -1427,6 +1538,13 @@ def build_ui_schema(tool_results: List[Dict[str, Any]]) -> Optional[UISchemaV1]:
                 "show_web_search_results",
             ):
                 final_layout = LayoutType.CARD
+
+    # If we have complete booking context but no booking_summary was generated, build one
+    if has_booking_context and not _has_booking_summary_component(all_components):
+        context_data = _build_booking_context_from_tools(tool_results)
+        if context_data:
+            all_components.append(_build_booking_summary_component(context_data))
+            final_layout = LayoutType.CARD
 
     if not all_components:
         return None

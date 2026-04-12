@@ -10,6 +10,10 @@ import {
   ServiceDetailCard,
   ConfirmationCard
 } from './cards'
+import { createService } from '../../../services/endpoints/service'
+import ReactApexChart from 'react-apexcharts'
+import type { ApexOptions } from 'apexcharts'
+import { useToast } from '../../Toast'
 
 interface UISchemaRendererProps {
   schema: UISchemaV1
@@ -20,9 +24,13 @@ interface UISchemaRendererProps {
 function ActionButtons({
   component,
   onAction,
+  loading,
+  loadingLabel,
 }: {
   component: UIComponent
   onAction?: (action: UIAction, component: UIComponent) => void
+  loading?: boolean
+  loadingLabel?: string
 }) {
   if (!component.actions?.length || !onAction) return null
 
@@ -33,9 +41,14 @@ function ActionButtons({
           key={`${component.id}-${action.type}-${action.label}`}
           type="button"
           onClick={() => onAction(action, component)}
-          className="px-3 py-2 bg-white border-2 border-stone-900 rounded-lg text-xs font-bold uppercase shadow-[2px_2px_0_#1c1917] hover:-translate-y-0.5 transition-transform"
+          disabled={loading}
+          className={`px-3 py-2 border-2 rounded-lg text-xs font-bold uppercase shadow-[2px_2px_0_#1c1917] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 ${
+            loading
+              ? 'bg-stone-200 border-stone-400 text-stone-500'
+              : 'bg-white border-stone-900 text-stone-900'
+          }`}
         >
-          {action.label}
+          {loading && loadingLabel ? loadingLabel : action.label}
         </button>
       ))}
     </div>
@@ -318,6 +331,7 @@ function ServiceCard({
   component: UIComponent
   onAction?: (action: UIAction, component: UIComponent) => void
 }) {
+  const { showToast } = useToast()
   const data = component.data
   const name = renderSimpleValue(pickFirst(data, ['name', 'service_name']))
   const description = renderSimpleValue(data['description'])
@@ -345,6 +359,8 @@ function ServiceCard({
   const [dosePriceInputs, setDosePriceInputs] = useState<string[]>(() =>
     dosePrices.map((item) => toEditablePriceString(item['price'])),
   )
+  const [isSaving, setIsSaving] = useState(false)
+  const [isSaved, setIsSaved] = useState(false)
 
   useEffect(() => {
     setBasePriceInput(toEditablePriceString(basePrice))
@@ -354,12 +370,94 @@ function ServiceCard({
 
   const previewBasePrice = parseNonNegativeInteger(basePriceInput) ?? toNumber(basePrice)
 
+  const handleInlineSave = async () => {
+    if (!onAction || isSaving || isSaved) return
+
+    const createAction = component.actions?.find((action) => hasCreateServiceConfirmAction(action))
+    if (!createAction) {
+      onAction(component.actions![0], component)
+      return
+    }
+
+    const actionPayload = asRecord(createAction.payload)
+    const confirmAction = asRecord(actionPayload?.['confirm_action'])
+    const confirmPayload = asRecord(confirmAction?.['payload']) ?? {}
+
+    const editedBasePrice = parseNonNegativeInteger(basePriceInput) ?? toNumber(basePrice)
+    if (editedBasePrice == null || editedBasePrice <= 0) {
+      console.warn('[ServiceCard] Invalid base price')
+      return
+    }
+
+    const clinicId = confirmPayload['clinic_id'] ?? confirmPayload['clinicId'] ?? component.data['clinic_id'] ?? component.data['clinicId']
+    if (!clinicId) {
+      console.warn('[ServiceCard] Missing clinicId')
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const payload: Record<string, unknown> = {
+        clinicId,
+        name,
+        description: description !== 'Chưa có' ? description : undefined,
+        basePrice: editedBasePrice,
+        durationTime: toNumber(duration) ?? 30,
+        slotsRequired: toNumber(slotsRequired) ?? 1,
+        serviceCategory: category !== 'Chưa có' ? category : undefined,
+        petType: petType !== 'Chưa có' ? petType : undefined,
+        isHomeVisit: typeof isHomeVisit === 'boolean' ? isHomeVisit : false,
+        isActive: true,
+      }
+
+      const confirmWeightPrices = asRecordArray(confirmPayload['weight_prices'])
+      const sourceWeightPrices = confirmWeightPrices.length > 0 ? confirmWeightPrices : weightPrices
+      if (sourceWeightPrices.length > 0) {
+        payload['weightPrices'] = sourceWeightPrices.map((item, index) => {
+          const editedValue = parseNonNegativeInteger(weightPriceInputs[index] ?? '')
+          return {
+            minWeight: item['min_weight'] ?? item['minWeight'],
+            maxWeight: item['max_weight'] ?? item['maxWeight'],
+            price: editedValue ?? toNumber(item['price']),
+          }
+        })
+      }
+
+      const confirmDosePrices = asRecordArray(confirmPayload['dose_prices'])
+      const sourceDosePrices = confirmDosePrices.length > 0 ? confirmDosePrices : dosePrices
+      if (sourceDosePrices.length > 0) {
+        payload['dosePrices'] = sourceDosePrices.map((item, index) => {
+          const editedValue = parseNonNegativeInteger(dosePriceInputs[index] ?? '')
+          return {
+            doseLabel: item['dose_label'] ?? item['doseLabel'] ?? item['dose_number'] ?? item['doseNumber'],
+            price: editedValue ?? toNumber(item['price']),
+          }
+        })
+      }
+
+      await createService(payload as any)
+      setIsSaved(true)
+      showToast('success', `Đã lưu dịch vụ "${name}" thành công`)
+    } catch (error: unknown) {
+      console.error('[ServiceCard] Failed to save service:', error)
+      showToast('error', 'Không thể lưu dịch vụ. Vui lòng thử lại.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   const handleServiceCardAction = (action: UIAction, currentComponent: UIComponent) => {
     if (!onAction) {
       return
     }
 
-    if (!canQuickEdit || !hasCreateServiceConfirmAction(action)) {
+    // For create service actions, use inline save instead of WebSocket
+    if (hasCreateServiceConfirmAction(action)) {
+      handleInlineSave()
+      return
+    }
+
+    if (!canQuickEdit) {
       onAction(action, currentComponent)
       return
     }
@@ -446,7 +544,7 @@ function ServiceCard({
             </div>
           )}
 
-          {canQuickEdit && (
+          {canQuickEdit && !isSaved && (
             <div className="mt-3 border-2 border-amber-200 rounded-lg p-3 bg-amber-50 space-y-3">
               <p className="text-[11px] font-black uppercase text-amber-700">Chỉnh giá nhanh trước khi lưu</p>
               <div className="space-y-1">
@@ -538,7 +636,150 @@ function ServiceCard({
           )}
         </div>
       </div>
-      <ActionButtons component={component} onAction={handleServiceCardAction} />
+      {isSaved ? (
+        <div className="mt-3 flex items-center gap-2">
+          <span className="inline-flex items-center border-2 border-stone-900 bg-green-300 px-3 py-1.5 text-[11px] font-black uppercase text-stone-900 shadow-[2px_2px_0_#1c1917]">
+            ✅ Đã lưu
+          </span>
+        </div>
+      ) : (
+        <ActionButtons
+          component={component}
+          onAction={handleServiceCardAction}
+          loading={isSaving}
+          loadingLabel="Đang lưu..."
+        />
+      )}
+    </div>
+  )
+}
+
+function renderRevenueChart(component: UIComponent) {
+  const data = component.data
+  const totalRevenue = toNumber(data['total_revenue']) ?? 0
+  const period = renderSimpleValue(data['period'])
+  const clinicName = renderSimpleValue(data['clinic_name'])
+  const items = asRecordArray(data['items'])
+  const breakdown = asRecord(data['breakdown']) ?? {}
+
+  const chartData = items.map((item: Record<string, unknown>) => ({
+    x: String(item['date'] ?? item['label'] ?? ''),
+    y: toNumber(item['totalRevenue'] ?? item['revenue'] ?? item['value'] ?? 0) ?? 0,
+  }))
+
+  const options: ApexOptions = {
+    chart: { type: 'area', height: 220, toolbar: { show: false }, zoom: { enabled: false } },
+    stroke: { curve: 'smooth', width: 2 },
+    fill: { type: 'gradient', gradient: { opacityFrom: 0.4, opacityTo: 0.05 } },
+    colors: ['#d97706'],
+    xaxis: {
+      labels: { style: { fontSize: '10px' } },
+      tickAmount: Math.min(chartData.length, 7),
+    },
+    yaxis: {
+      labels: {
+        formatter: (val: number) => `${(val / 1000).toFixed(0)}k`,
+        style: { fontSize: '10px' },
+      },
+    },
+    tooltip: {
+      y: { formatter: (val: number) => `${val.toLocaleString('vi-VN')} đ` },
+    },
+    grid: { borderColor: '#e7e5e4' },
+    dataLabels: { enabled: false },
+  }
+
+  const series = [{ name: 'Doanh thu', data: chartData }]
+
+  return (
+    <div key={component.id} className="bg-white border-2 border-stone-900 rounded-xl p-4 shadow-[4px_4px_0_#1c1917]">
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="font-bold text-stone-900 text-sm">📈 Doanh thu {period}</h4>
+        {clinicName && clinicName !== 'Chưa có' && (
+          <span className="text-[10px] font-bold text-stone-500">{clinicName}</span>
+        )}
+      </div>
+      <p className="text-lg font-black text-amber-600 mb-3">{formatCurrency(totalRevenue)}</p>
+      {chartData.length > 0 ? (
+        <ReactApexChart options={options} series={series} type="area" height={220} />
+      ) : (
+        <p className="text-xs text-stone-500 text-center py-4">Chưa có dữ liệu doanh thu</p>
+      )}
+      {breakdown && Object.keys(breakdown).length > 0 && (
+        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+          {breakdown['qr_revenue'] != null && (
+            <div className="bg-blue-50 border border-stone-900 rounded-lg p-2">
+              <p className="text-[10px] font-black uppercase text-stone-600">QR</p>
+              <p className="text-xs font-bold text-stone-900">{formatCurrency(toNumber(breakdown['qr_revenue']) ?? 0)}</p>
+            </div>
+          )}
+          {breakdown['cash_revenue'] != null && (
+            <div className="bg-green-50 border border-stone-900 rounded-lg p-2">
+              <p className="text-[10px] font-black uppercase text-stone-600">Tiền mặt</p>
+              <p className="text-xs font-bold text-stone-900">{formatCurrency(toNumber(breakdown['cash_revenue']) ?? 0)}</p>
+            </div>
+          )}
+          {breakdown['withdrawable'] != null && (
+            <div className="bg-amber-50 border border-stone-900 rounded-lg p-2">
+              <p className="text-[10px] font-black uppercase text-stone-600">Rút được</p>
+              <p className="text-xs font-bold text-stone-900">{formatCurrency(toNumber(breakdown['withdrawable']) ?? 0)}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function renderClinicMetrics(component: UIComponent) {
+  const data = component.data
+  const totalBookings = toNumber(data['total_bookings_this_month'] ?? data['total_bookings']) ?? 0
+  const totalRevenue = toNumber(data['total_revenue_this_month'] ?? data['total_revenue']) ?? 0
+  const topServices = asRecordArray(data['top_services'])
+
+  const series = topServices.length > 0
+    ? [{
+        name: 'Số lượng',
+        data: topServices.map((s: Record<string, unknown>) => toNumber(s['count'] ?? s['total'] ?? 0) ?? 0),
+      }]
+    : []
+
+  const categories = topServices.map((s: Record<string, unknown>) =>
+    renderSimpleValue(s['name'] ?? s['service_name'] ?? s['service'])
+  )
+
+  const options: ApexOptions = {
+    chart: { type: 'bar', height: 200, toolbar: { show: false } },
+    plotOptions: { bar: { horizontal: false, borderRadius: 4 } },
+    colors: ['#d97706'],
+    xaxis: {
+      categories,
+      labels: { rotate: -45, style: { fontSize: '10px' } },
+    },
+    yaxis: { labels: { style: { fontSize: '10px' } } },
+    grid: { borderColor: '#e7e5e4' },
+    dataLabels: { enabled: false },
+  }
+
+  return (
+    <div key={component.id} className="bg-white border-2 border-stone-900 rounded-xl p-4 shadow-[4px_4px_0_#1c1917]">
+      <h4 className="font-bold text-stone-900 text-sm mb-3">📊 Chỉ số phòng khám</h4>
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="bg-amber-50 border-2 border-stone-900 rounded-lg p-3 text-center">
+          <p className="text-[10px] font-black uppercase text-stone-600">Lịch tháng này</p>
+          <p className="text-xl font-black text-amber-600">{totalBookings}</p>
+        </div>
+        <div className="bg-green-50 border-2 border-stone-900 rounded-lg p-3 text-center">
+          <p className="text-[10px] font-black uppercase text-stone-600">Doanh thu</p>
+          <p className="text-sm font-black text-green-600">{formatCurrency(totalRevenue)}</p>
+        </div>
+      </div>
+      {topServices.length > 0 && (
+        <div>
+          <p className="text-[10px] font-black uppercase text-stone-600 mb-2">Dịch vụ phổ biến</p>
+          <ReactApexChart options={options} series={series} type="bar" height={200} />
+        </div>
+      )}
     </div>
   )
 }
@@ -837,6 +1078,10 @@ function renderComponent(
     case 'confirmation_card':
     case 'action_confirmation_card':
       return <ConfirmationCard key={component.id} component={component} onAction={onAction} renderActions={(comp, act) => <ActionButtons component={comp} onAction={act} />} />
+    case 'revenue_chart':
+      return renderRevenueChart(component)
+    case 'clinic_metrics':
+      return renderClinicMetrics(component)
     default:
       return (
         <pre key={component.id} className="text-xs whitespace-pre-wrap break-words bg-stone-100 border-2 border-stone-900 rounded-xl p-3">

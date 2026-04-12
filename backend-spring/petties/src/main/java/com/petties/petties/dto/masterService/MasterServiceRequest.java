@@ -39,9 +39,6 @@ public class MasterServiceRequest {
 
     private Boolean isHomeVisit = false;
 
-    @Min(value = 0, message = "Giá theo km không được nhỏ hơn 0")
-    private BigDecimal defaultPricePerKm;
-
     @Size(max = 100, message = "Loại dịch vụ không được quá 100 ký tự")
     private String serviceCategory;
 

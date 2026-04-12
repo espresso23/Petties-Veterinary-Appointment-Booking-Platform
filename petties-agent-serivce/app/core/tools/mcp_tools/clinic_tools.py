@@ -1013,33 +1013,6 @@ async def create_clinic_service(
 
 
 @mcp_server.tool()
-async def inherit_service_from_template(
-    master_service_id: str,
-    target_clinic_id: Optional[str] = None,
-    custom_price: Optional[float] = None,
-    custom_price_per_km: Optional[float] = None,
-    user_id: Optional[str] = None,
-    session_id: Optional[str] = None,
-) -> Dict[str, Any]:
-    """Kế thừa dịch vụ từ danh mục mẫu (Master Service) cho phòng khám cụ thể."""
-    token = _require_auth_token()
-    client = BackendClient()
-    response = await client.inherit_from_master_service(
-        token,
-        master_service_id,
-        clinic_id=target_clinic_id,
-        price=custom_price,
-        price_per_km=custom_price_per_km,
-    )
-    return {
-        "success": True,
-        "service": response,
-        "ui_card": "service_detail_card",
-        "message": f"Đã thêm dịch vụ {response.get('name')} vào phòng khám.",
-    }
-
-
-@mcp_server.tool()
 async def get_my_clinics(
     clinic_name_hint: Optional[str] = None,
     user_id: Optional[str] = None,

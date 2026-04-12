@@ -22,7 +22,7 @@ class BackendClientTests(unittest.IsolatedAsyncioTestCase):
 
         request_mock.assert_awaited_once_with(
             "GET",
-            "/services/by-clinic/clinic-1",
+            "/api/services/by-clinic/clinic-1",
             params=None,
         )
 
@@ -40,7 +40,7 @@ class BackendClientTests(unittest.IsolatedAsyncioTestCase):
 
         request_mock.assert_awaited_once_with(
             "GET",
-            "/services/by-clinic/clinic-1/compatible",
+            "/api/services/by-clinic/clinic-1/compatible",
             params={"petSpecies": "DOG", "isHomeVisit": True},
         )
 
@@ -52,4 +52,6 @@ class BackendClientTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(client, "_request", new_callable=AsyncMock) as request_mock:
             await client.get_my_clinic_services("jwt-token")
 
-        request_mock.assert_awaited_once_with("GET", "/services", token="jwt-token")
+        request_mock.assert_awaited_once_with(
+            "GET", "/api/services", token="jwt-token", params={}
+        )

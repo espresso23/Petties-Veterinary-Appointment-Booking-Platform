@@ -40,6 +40,7 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
         messages,
         connectionStatus,
         setSessionId,
+        deleteSession,
         setMessages,
         addMessage,
         updateLastMessage,
@@ -61,11 +62,13 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
     )
 
     const buildBaseContext = useCallback((): Record<string, unknown> => {
+        const selectedClinic = useAIChatStore.getState().selectedClinic
         return {
             source: 'global_mascot_panel',
             role: user?.role,
             route: location.pathname,
-            clinic_id: user?.workingClinicId ?? null,
+            clinic_id: selectedClinic?.clinicId ?? user?.workingClinicId ?? null,
+            clinic_name: selectedClinic?.clinicName ?? null,
             user_id: user?.userId,
         }
     }, [location.pathname, user?.role, user?.workingClinicId, user?.userId])
@@ -304,10 +307,11 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
         }
     }, [])
 
-    // Clear messages when mascot panel closes (but keep session for sidebar)
+    // Clear messages and selected clinic when mascot panel closes
     useEffect(() => {
         if (!isOpen) {
             setMessages([])
+            // Keep selectedClinic state persisted across opens for continuity
         }
     }, [isOpen, setMessages])
 
@@ -455,6 +459,61 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
         [addMessage, buildBaseContext, context, showToast],
     )
 
+    const handleDeleteConversation = useCallback(async () => {
+        if (!sessionId || !accessToken) {
+            showToast('error', 'Không có phiên chat để xóa.')
+            return
+        }
+
+        try {
+            const baseUrl = import.meta.env.VITE_AGENT_API_BASE_URL || 'http://localhost:8000'
+            const response = await fetch(`${baseUrl}/api/v1/chat/sessions/${sessionId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            })
+
+            if (response.ok) {
+                // Close existing WebSocket
+                if (wsRef.current) {
+                    wsRef.current.close()
+                    wsRef.current = null
+                }
+
+                // Clear local state
+                deleteSession()
+                showToast('success', 'Đã xóa lịch sử trò chuyện')
+
+                // Create new session
+                const newSessionResponse = await fetch(`${baseUrl}/api/v1/chat/sessions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({
+                        context_type: 'BUSINESS_CHAT',
+                        context_data: buildBaseContext(),
+                    })
+                })
+
+                if (newSessionResponse.ok) {
+                    const data = await newSessionResponse.json()
+                    const newSessionId = data.session_id
+                    setSessionId(newSessionId)
+                    connectWebSocket(newSessionId)
+                }
+            } else {
+                const errorData = await response.json().catch(() => ({}))
+                showToast('error', errorData.detail || 'Không thể xóa lịch sử trò chuyện')
+            }
+        } catch (error) {
+            console.error('[Mascot] Failed to delete conversation:', error)
+            showToast('error', 'Không thể xóa lịch sử trò chuyện')
+        }
+    }, [sessionId, accessToken, buildBaseContext, deleteSession, setSessionId, showToast])
+
     return (
         <>
             {children}
@@ -468,6 +527,7 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
                 onClose={close}
                 onSendMessage={handleSendMessage}
                 onSendUiAction={handleSendUiAction}
+                onDeleteConversation={handleDeleteConversation}
                 messages={messages}
                 connectionStatus={connectionStatus}
                 routePath={location.pathname}

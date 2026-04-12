@@ -108,8 +108,7 @@ public class BookingController {
             @Valid @RequestBody ProxyBookingRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        log.info("POST /bookings/proxy - Creating proxy booking for recipient: {}", 
-                request.getRecipient().getFullName());
+        log.info("POST /bookings/proxy - Creating proxy booking");
         
         com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
         BookingResponse response = bookingService.createProxyBooking(request, userPrincipal.getUserId());

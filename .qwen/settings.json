@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(powershell *)"
+      "Bash(powershell *)",
+      "Read(C:\\Users\\TAN\\OneDrive\\Hình ảnh\\Screenshots/**)"
     ]
-  }
+  },
+  "$version": 3
 }

@@ -122,7 +122,6 @@ class ContextPolicyService:
             "update_service_info",
             "execute_update_service_confirmed",
             "generate_clinic_services",
-            "inherit_service_from_template",
             "get_my_clinics",
             "view_clinic_bookings",
             "get_clinic_today_summary",

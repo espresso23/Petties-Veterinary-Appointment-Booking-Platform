@@ -503,13 +503,6 @@ def normalize_tool_input(tool_name: str, parameters: Dict[str, Any]) -> Dict[str
             p["period"] = "MONTH"
         p["period"] = str(p["period"]).strip().upper()
 
-    # Inherit service
-    if name == "inherit_service_from_template":
-        if p.get("price") is not None:
-            p["price"] = _to_float(p.get("price"))
-        if p.get("price_per_km") is not None:
-            p["price_per_km"] = _to_float(p.get("price_per_km"))
-
     if name == "cancel_booking_manager":
         if p.get("booking_id") is None and p.get("bookingId") is not None:
             p["booking_id"] = p.get("bookingId")

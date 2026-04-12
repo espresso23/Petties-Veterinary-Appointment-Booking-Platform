@@ -1,6 +1,6 @@
 ﻿# Petties - Development Workflow
 
-**Last Updated:** December 16, 2025
+**Last Updated:** 2026-04-12
 
 ## Tổng quan kiến trúc
 
@@ -149,7 +149,7 @@ chore: cập nhật dependencies, config
 | Environment | FE URL | BE URL | Docker Compose |
 |-------------|--------|--------|----------------|
 | **Local Dev** | `localhost:5173` | `localhost:8080` | `docker-compose.dev.yml` |
-| **Test** | `test.petties.world` | `api-test.petties.world` | `docker-compose.test.yml` |
+| **Test** | `test.petties.world` | `api-test.petties.world` | `docker-compose.prod.yml` + `.env.test` |
 | **Production** | `www.petties.world` | `api.petties.world` | `docker-compose.prod.yml` |
 
 ## 3. Phân công công việc
@@ -238,11 +238,11 @@ cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
 git pull origin main
 
 # Rebuild và restart containers
-docker-compose -f docker-compose.prod.yml down
-docker-compose -f docker-compose.prod.yml --env-file .env up -d --build
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod down
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod up -d --build
 
 # Check logs
-docker-compose -f docker-compose.prod.yml logs -f
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod logs -f
 ```
 
 ### Frontend Deployment (Vercel)
@@ -259,8 +259,8 @@ git push origin main
 # EC2: Checkout previous commit
 cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
 git checkout <previous-commit-hash>
-docker-compose -f docker-compose.prod.yml down
-docker-compose -f docker-compose.prod.yml --env-file .env up -d --build
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod down
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod up -d --build
 
 # Vercel: Dashboard > Previous deployment > Promote to Production
 ```
@@ -274,25 +274,25 @@ cp .env.example .env
 ```
 
 ### Production (AWS EC2)
-Environment variables được quản lý qua file `.env` trên EC2:
+Environment variables được quản lý qua file `.env.prod` trên EC2:
 
 ```bash
 # SSH vào EC2
 ssh -i petties-key.pem ubuntu@15.134.219.97
 
-# Edit .env file
+# Edit .env.prod file
 cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
-nano .env
+nano .env.prod
 
 # Restart containers sau khi sửa
-docker-compose -f docker-compose.prod.yml down
-docker-compose -f docker-compose.prod.yml --env-file .env up -d
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod down
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod up -d
 ```
 
 **QUAN TRỌNG:**
-- ❌ **KHÔNG BAO GIỜ** commit file `.env` vào Git
+- ❌ **KHÔNG BAO GIỜ** commit file `.env.prod` vào Git
 - ✅ Chỉ commit `.env.example` (template không có sensitive data)
-- ✅ Backup file `.env` production ở nơi an toàn (1Password, AWS Secrets Manager, etc.)
+- ✅ Backup file `.env.prod` production ở nơi an toàn (1Password, AWS Secrets Manager, etc.)
 
 ### Frontend Environment (Vercel)
 Quản lý qua Vercel Dashboard:

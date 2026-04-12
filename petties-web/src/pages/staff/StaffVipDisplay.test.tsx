@@ -23,7 +23,10 @@ const mockUser = {
     clearAuth: vi.fn()
 }
 vi.mock('../../store/authStore', () => ({
-    useAuthStore: (fn: (state: typeof mockUser) => void) => fn(mockUser)
+    useAuthStore: Object.assign(
+        (fn: (state: typeof mockUser) => void) => fn(mockUser),
+        { getState: () => mockUser }
+    )
 }))
 
 // Mock other stores
@@ -44,15 +47,33 @@ vi.mock('../../store/chatStore', () => ({
     useChatStoreState: { getState: () => ({ activeConversationId: null }) }
 }))
 vi.mock('../../store/aiChatStore', () => ({
-    useAIChatStore: (fn: (state: { sessionId: string | null; messages: unknown[]; setSessionId: (id: string) => void; setMessages: (msgs: unknown[]) => void; addMessage: (msg: unknown) => void; updateLastMessage: (msg: unknown) => void; setConnectionStatus: (status: string) => void }) => void) => {
+    useAIChatStore: (fn: (state: {
+        sessionId: string | null
+        messages: unknown[]
+        connectionStatus: 'disconnected' | 'connecting' | 'connected'
+        setSessionId: (id: string | null) => void
+        setMessages: (msgs: unknown[]) => void
+        addMessage: (msg: unknown) => void
+        updateLastMessage: (msg: unknown) => void
+        appendThinkingToLastMessage: (content: string) => void
+        appendToolCallToLastMessage: (tool: string, input: unknown) => void
+        attachToolResultToLastMessage: (tool: string | undefined, output: unknown) => void
+        setConnectionStatus: (status: 'disconnected' | 'connecting' | 'connected') => void
+        setIsOpen: (isOpen: boolean) => void
+    }) => void) => {
         const state = {
             sessionId: null,
             messages: [],
+            connectionStatus: 'disconnected' as const,
             setSessionId: vi.fn(),
             setMessages: vi.fn(),
             addMessage: vi.fn(),
             updateLastMessage: vi.fn(),
-            setConnectionStatus: vi.fn()
+            appendThinkingToLastMessage: vi.fn(),
+            appendToolCallToLastMessage: vi.fn(),
+            attachToolResultToLastMessage: vi.fn(),
+            setConnectionStatus: vi.fn(),
+            setIsOpen: vi.fn(),
         };
         return typeof fn === 'function' ? fn(state) : state;
     }

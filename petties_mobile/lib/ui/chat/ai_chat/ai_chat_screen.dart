@@ -15,6 +15,7 @@ import '../../../data/models/clinic_service.dart';
 import '../../../data/models/pet.dart';
 import '../../../data/services/ai_chat_service.dart';
 import '../../../data/services/booking_service.dart';
+import '../../../data/services/booking_wizard_service.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/booking_wizard_provider.dart';
 import '../../../routing/app_routes.dart';
@@ -64,6 +65,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   final AiChatService _aiChatService = AiChatService();
   final BookingService _bookingService = BookingService();
+  final BookingWizardService _bookingWizardService = BookingWizardService();
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _composerFocusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
@@ -85,6 +87,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   final Set<String> _confirmedMessageIds = <String>{};
   final Map<String, Set<String>> _selectedServiceIdsByMessage =
       <String, Set<String>>{};
+  final Map<String, String> _selectedSlotByMessage = <String, String>{};
   AiBookingTrackerSnapshot _bookingTracker = AiBookingTrackerSnapshot.empty;
   List<String> _composerSuggestions = const <String>[];
   final Set<String> _feedbackSentForMessages = <String>{};
@@ -1814,10 +1817,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
       serviceNamesFallback: normalizedSummary.serviceNames,
     );
 
-    final selectedBookingType =
-        (payload['booking_type']?.toString().trim().toUpperCase() ??
-                bookingTypeInClinic)
-            .trim();
     _silentFormTargetMessageId = sourceMessageId;
     _silentFormMergeUntil = DateTime.now().add(const Duration(seconds: 12));
 
@@ -1839,22 +1838,22 @@ class _AiChatScreenState extends State<AiChatScreen> {
         );
         return;
       }
-      await _sendStructuredBookingAction(
-        userMessage: reason,
-        uiAction: <String, dynamic>{
-          'type': 'select_date',
-          'booking_date': bookingDate,
-          if ((payload['clinic_id']?.toString().trim().isNotEmpty ?? false))
-            'clinic_id': payload['clinic_id'],
-          if ((payload['service_ids'] as List<dynamic>? ?? const []).isNotEmpty)
-            'service_ids': payload['service_ids'],
-          if ((payload['pet_id']?.toString().trim().isNotEmpty ?? false))
-            'pet_id': payload['pet_id'],
-          if (selectedBookingType.isNotEmpty)
-            'booking_type': selectedBookingType,
-        },
-        silentFormSync: true,
-      );
+
+      final clinicId = payload['clinic_id']?.toString().trim() ??
+          _bookingTracker.clinicId ??
+          '';
+      final serviceIds = (payload['service_ids'] as List<dynamic>? ?? const [])
+          .map((item) => item.toString().trim())
+          .where((item) => item.isNotEmpty)
+          .toList();
+
+      if (clinicId.isNotEmpty && serviceIds.isNotEmpty) {
+        await _fetchSlotsDirectly(
+          clinicId: clinicId,
+          bookingDate: bookingDate,
+          serviceIds: serviceIds,
+        );
+      }
     }
 
     if (field == 'refresh_slot') {
@@ -1872,29 +1871,26 @@ class _AiChatScreenState extends State<AiChatScreen> {
     }
 
     if (field == 'booking_type' || field == 'clinic') {
-      await _sendStructuredBookingAction(
-        userMessage: 'Cập nhật thông tin booking',
-        uiAction: <String, dynamic>{
-          'type': 'select_booking_type',
-          'booking_type': selectedBookingType,
-        },
-        silentFormSync: true,
-      );
+      final selectedClinicId = payload['clinic_id']?.toString().trim() ?? '';
+      if (selectedClinicId.isNotEmpty) {
+        await _fetchClinicServicesDirectly(selectedClinicId);
+      }
 
-      if ((payload['clinic_id']?.toString().trim().isNotEmpty ?? false)) {
-        await _sendStructuredBookingAction(
-          userMessage: 'Cập nhật phòng khám đã chọn',
-          uiAction: <String, dynamic>{
-            'type': 'select_clinic',
-            'clinic_id': payload['clinic_id'],
-            if ((normalizedSummary.clinicName ?? '').trim().isNotEmpty)
-              'clinic_name': normalizedSummary.clinicName!.trim(),
-          },
-          includeLocation: true,
-          silentFormSync: true,
+      final bookingDate = payload['booking_date']?.toString().trim() ?? '';
+      final serviceIds = (payload['service_ids'] as List<dynamic>? ?? const [])
+          .map((item) => item.toString().trim())
+          .where((item) => item.isNotEmpty)
+          .toList();
+
+      if (bookingDate.isNotEmpty && serviceIds.isNotEmpty) {
+        await _fetchSlotsDirectly(
+          clinicId: selectedClinicId.isNotEmpty
+              ? selectedClinicId
+              : (_bookingTracker.clinicId ?? ''),
+          bookingDate: bookingDate,
+          serviceIds: serviceIds,
         );
       }
-      await requestSlotRefresh(reason: 'Cập nhật lại khung giờ rảnh');
       return;
     }
 
@@ -1903,26 +1899,43 @@ class _AiChatScreenState extends State<AiChatScreen> {
           .map((item) => item.toString().trim())
           .where((item) => item.isNotEmpty)
           .toList();
-      if (serviceIds.isNotEmpty) {
-        await _sendStructuredBookingAction(
-          userMessage: 'Cập nhật dịch vụ đã chọn',
-          uiAction: <String, dynamic>{
-            'type': 'select_services',
-            'service_ids': serviceIds,
-            if ((payload['clinic_id']?.toString().trim().isNotEmpty ?? false))
-              'clinic_id': payload['clinic_id'],
-            if (normalizedSummary.serviceNames.isNotEmpty)
-              'service_names': normalizedSummary.serviceNames,
-          },
-          silentFormSync: true,
+
+      final clinicId = payload['clinic_id']?.toString().trim() ??
+          _bookingTracker.clinicId ??
+          '';
+      final bookingDate = payload['booking_date']?.toString().trim() ?? '';
+
+      if (clinicId.isNotEmpty &&
+          bookingDate.isNotEmpty &&
+          serviceIds.isNotEmpty) {
+        await _fetchSlotsDirectly(
+          clinicId: clinicId,
+          bookingDate: bookingDate,
+          serviceIds: serviceIds,
         );
       }
-      await requestSlotRefresh(reason: 'Cập nhật lại khung giờ theo dịch vụ');
       return;
     }
 
     if (field == 'date') {
-      await requestSlotRefresh(reason: 'Cập nhật ngày khám đã chọn');
+      final clinicId = payload['clinic_id']?.toString().trim() ??
+          _bookingTracker.clinicId ??
+          '';
+      final bookingDate = payload['booking_date']?.toString().trim() ?? '';
+      final serviceIds = (payload['service_ids'] as List<dynamic>? ?? const [])
+          .map((item) => item.toString().trim())
+          .where((item) => item.isNotEmpty)
+          .toList();
+
+      if (clinicId.isNotEmpty &&
+          bookingDate.isNotEmpty &&
+          serviceIds.isNotEmpty) {
+        await _fetchSlotsDirectly(
+          clinicId: clinicId,
+          bookingDate: bookingDate,
+          serviceIds: serviceIds,
+        );
+      }
       return;
     }
 
@@ -1930,22 +1943,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
       final bookingDate = payload['booking_date']?.toString().trim() ?? '';
       final startTime = payload['start_time']?.toString().trim() ?? '';
       if (bookingDate.isNotEmpty && startTime.isNotEmpty) {
-        await _sendStructuredBookingAction(
-          userMessage: 'Cập nhật thời gian đã chọn',
-          uiAction: <String, dynamic>{
-            'type': 'select_slot',
-            if ((payload['clinic_id']?.toString().trim().isNotEmpty ?? false))
-              'clinic_id': payload['clinic_id'],
-            'booking_date': bookingDate,
-            'start_time': startTime,
-            if ((payload['service_ids'] as List<dynamic>? ?? const [])
-                .isNotEmpty)
-              'service_ids': payload['service_ids'],
-            if ((payload['pet_id']?.toString().trim().isNotEmpty ?? false))
-              'pet_id': payload['pet_id'],
-          },
-          silentFormSync: true,
-        );
+        _updateBookingTracker((current) => current.copyWith(
+              bookingDate: bookingDate,
+              startTime: startTime,
+            ));
       }
       return;
     }
@@ -2183,7 +2184,12 @@ class _AiChatScreenState extends State<AiChatScreen> {
   Future<void> _handleSlotSelection(
     AiSlotGridPayload slotGrid,
     AiBookingSlotOption slot,
+    String messageId,
   ) async {
+    final slotId = '${slotGrid.bookingDate}_${slot.startTime}';
+    setState(() {
+      _selectedSlotByMessage[messageId] = slotId;
+    });
     _updateBookingTracker((current) => current.mergeSlot(slotGrid, slot));
     await _sendStructuredBookingAction(
       userMessage: 'Chọn khung giờ ${slot.startTime}',
@@ -2198,6 +2204,73 @@ class _AiChatScreenState extends State<AiChatScreen> {
         if (slotGrid.serviceIds.isNotEmpty) 'service_ids': slotGrid.serviceIds,
       },
     );
+  }
+
+  Future<void> _fetchClinicServicesDirectly(String clinicId) async {
+    try {
+      final services = await _bookingWizardService.getClinicServices(clinicId);
+      if (!mounted) return;
+      setState(() {
+        _latestServiceOptions = services
+            .map((s) => AiBookingServiceOption(
+                  id: s.serviceId.isNotEmpty ? s.serviceId : s.name,
+                  name: s.name,
+                  clinicId: clinicId,
+                  category: s.serviceCategory,
+                  basePrice: s.basePrice,
+                ))
+            .toList();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Không thể tải dịch vụ: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _fetchSlotsDirectly({
+    required String clinicId,
+    required String bookingDate,
+    required List<String> serviceIds,
+  }) async {
+    if (serviceIds.isEmpty) return;
+
+    try {
+      final parts = bookingDate.split('-');
+      if (parts.length < 3) return;
+      final date = DateTime(
+        int.parse(parts[0]),
+        int.parse(parts[1]),
+        int.parse(parts[2]),
+      );
+
+      final slots = await _bookingWizardService.getAvailableSlots(
+        clinicId: clinicId,
+        date: date,
+        serviceIds: serviceIds,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _slotTimesByDate[bookingDate] = slots
+            .where((s) => s.startTime.isNotEmpty)
+            .map((s) => s.startTime)
+            .toSet();
+        _latestStartTimeOptions = _slotTimesByDate[bookingDate]?.toList() ?? [];
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Không thể tải khung giờ: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   void _confirmBookingSummary(
@@ -3881,8 +3954,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
                               slotGrid: message.slotGrid!,
                               isBusy: _isSending || _isReconnecting,
                               formatBookingDate: _formatBookingDate,
+                              selectedSlotId: _selectedSlotByMessage[message.id],
                               onSelectSlot: (slot) =>
-                                  _handleSlotSelection(message.slotGrid!, slot),
+                                  _handleSlotSelection(message.slotGrid!, slot, message.id),
                             ),
                           ],
                           if (message.isStreaming) ...[

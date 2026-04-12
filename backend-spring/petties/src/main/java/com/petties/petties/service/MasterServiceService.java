@@ -47,7 +47,6 @@ public class MasterServiceService {
         masterService.setDurationTime(request.getDurationTime());
         masterService.setSlotsRequired(request.getSlotsRequired());
         masterService.setIsHomeVisit(request.getIsHomeVisit() != null ? request.getIsHomeVisit() : false);
-        masterService.setDefaultPricePerKm(request.getDefaultPricePerKm());
         masterService.setServiceCategory(request.getServiceCategory());
         masterService.setPetType(request.getPetType());
         masterService.setIcon(request.getIcon());
@@ -114,9 +113,6 @@ public class MasterServiceService {
         }
         if (request.getIsHomeVisit() != null) {
             service.setIsHomeVisit(request.getIsHomeVisit());
-        }
-        if (request.getDefaultPricePerKm() != null) {
-            service.setDefaultPricePerKm(request.getDefaultPricePerKm());
         }
         if (request.getServiceCategory() != null) {
             service.setServiceCategory(request.getServiceCategory());
@@ -201,7 +197,6 @@ public class MasterServiceService {
         response.setDurationTime(service.getDurationTime());
         response.setSlotsRequired(service.getSlotsRequired());
         response.setIsHomeVisit(service.getIsHomeVisit());
-        response.setDefaultPricePerKm(service.getDefaultPricePerKm());
         response.setServiceCategory(service.getServiceCategory());
         response.setPetType(service.getPetType());
         response.setIcon(service.getIcon());

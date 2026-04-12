@@ -16,14 +16,21 @@ export interface AISessionMessage {
     stage?: ChatStage
 }
 
+export interface SelectedClinicInfo {
+    clinicId: string
+    clinicName?: string
+}
+
 interface AIChatState {
     sessionId: string | null
     messages: AISessionMessage[]
     connectionStatus: 'disconnected' | 'connecting' | 'connected'
     isOpen: boolean
     emrDraft: EmrAiDraft | null
-    
+    selectedClinic: SelectedClinicInfo | null
+
     setSessionId: (sessionId: string | null) => void
+    deleteSession: () => void
     setMessages: (messages: AISessionMessage[] | ((prev: AISessionMessage[]) => AISessionMessage[])) => void
     addMessage: (message: AISessionMessage) => void
     updateLastMessage: (content: string, isLoading?: boolean) => void
@@ -32,6 +39,8 @@ interface AIChatState {
     attachToolResultToLastMessage: (tool: string | undefined, output: unknown) => void
     setConnectionStatus: (status: 'disconnected' | 'connecting' | 'connected') => void
     setIsOpen: (isOpen: boolean) => void
+    setSelectedClinic: (clinic: SelectedClinicInfo | null) => void
+    clearSelectedClinic: () => void
     setEmrDraft: (draft: EmrAiDraft | null) => void
     updateEmrDraftField: (field: EmrAiSoapField, value: string) => void
     clearMessages: () => void
@@ -45,9 +54,16 @@ export const useAIChatStore = create<AIChatState>()(
             connectionStatus: 'disconnected',
             isOpen: false,
             emrDraft: null,
+            selectedClinic: null,
 
             setSessionId: (sessionId) => set({ sessionId }),
-            
+
+            deleteSession: () => set({
+                sessionId: null,
+                messages: [],
+                selectedClinic: null,
+            }),
+
             setMessages: (messages) => set((state) => ({
                 messages: typeof messages === 'function' ? messages(state.messages) : messages
             })),
@@ -141,6 +157,10 @@ export const useAIChatStore = create<AIChatState>()(
             setConnectionStatus: (connectionStatus) => set({ connectionStatus }),
             
             setIsOpen: (isOpen) => set({ isOpen }),
+
+            setSelectedClinic: (clinic) => set({ selectedClinic: clinic }),
+
+            clearSelectedClinic: () => set({ selectedClinic: null }),
 
             setEmrDraft: (emrDraft) => set({ emrDraft }),
 

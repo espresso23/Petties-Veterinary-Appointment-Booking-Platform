@@ -1,10 +1,19 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { UISchemaRenderer } from '../UISchemaRenderer'
 import type { UISchemaV1 } from '../../../../types/chat-copilot'
+import * as serviceApi from '../../../../services/endpoints/service'
+
+vi.mock('../../../../services/endpoints/service', () => ({
+  createService: vi.fn().mockResolvedValue({ serviceId: 'new-svc-id' }),
+}))
 
 describe('UISchemaRenderer', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   it('TC-UNIT-010-001: renders service_card with formatted fields and action', () => {
     const onAction = vi.fn()
     const schema: UISchemaV1 = {
@@ -111,10 +120,12 @@ describe('UISchemaRenderer', () => {
               label: 'Lưu dịch vụ',
               payload: {
                 title: 'Lưu dịch vụ',
+                clinic_id: 'test-clinic-id',
                 confirm_action: {
                   type: 'confirm_service_create',
                   label: 'Xác nhận lưu',
                   payload: {
+                    clinic_id: 'test-clinic-id',
                     name: 'Tiêm phòng tổng quát',
                     base_price: 150000,
                     slots_required: 1,
@@ -156,22 +167,13 @@ describe('UISchemaRenderer', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Lưu dịch vụ' }))
 
-    expect(onAction).toHaveBeenCalledTimes(1)
-    const dispatchedAction = onAction.mock.calls[0][0] as {
-      payload?: {
-        confirm_action?: {
-          payload?: {
-            base_price?: number
-            weight_prices?: Array<{ price?: number }>
-            dose_prices?: Array<{ price?: number }>
-          }
-        }
-      }
-    }
+    expect(serviceApi.createService).toHaveBeenCalledTimes(1)
+    const payload = (serviceApi.createService as ReturnType<typeof vi.fn>).mock.calls[0][0]
 
-    expect(dispatchedAction.payload?.confirm_action?.payload?.base_price).toBe(200000)
-    expect(dispatchedAction.payload?.confirm_action?.payload?.weight_prices?.[0]?.price).toBe(250000)
-    expect(dispatchedAction.payload?.confirm_action?.payload?.dose_prices?.[0]?.price).toBe(180000)
+    expect(payload.clinicId).toBe('test-clinic-id')
+    expect(payload.basePrice).toBe(200000)
+    expect(payload.weightPrices?.[0]?.price).toBe(250000)
+    expect(payload.dosePrices?.[0]?.price).toBe(180000)
   })
 
   it('TC-UNIT-010-004: hides quick pricing editor when action is not confirm_service_create', () => {

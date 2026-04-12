@@ -1,6 +1,6 @@
 # Petties DNS & EC2 Configuration Guide
 
-**Last Updated:** 2026-03-26  
+**Last Updated:** 2026-04-12  
 **Author:** DevOps
 
 ---
@@ -76,9 +76,8 @@ sudo yum install -y docker
 sudo systemctl start docker
 sudo systemctl enable docker
 
-# Install Docker Compose
-sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-sudo chmod +x /usr/local/bin/docker-compose
+# Install Docker Compose plugin (v2)
+sudo apt-get install docker-compose-plugin -y
 
 # Add current user to docker group (optional)
 sudo usermod -aG docker $USER
@@ -100,17 +99,17 @@ mkdir -p ~/petties && cd ~/petties
 git clone <your-repo-url> .
 
 # Create .env.test file
-cp .env.example .env.test
+cp .env.test.example .env.test
 # Edit .env.test with test environment values
 
 # Start services
-docker-compose -f docker-compose.test.yml --env-file .env.test up -d
+docker compose -p petties-test -f docker-compose.prod.yml --env-file .env.test up -d
 
 # Check status
-docker-compose -f docker-compose.test.yml ps
+docker compose -p petties-test -f docker-compose.prod.yml --env-file .env.test ps
 
 # View logs
-docker-compose -f docker-compose.test.yml logs -f
+docker compose -p petties-test -f docker-compose.prod.yml --env-file .env.test logs -f
 ```
 
 ### 3.4 Deploy Production Environment
@@ -126,17 +125,17 @@ mkdir -p ~/petties && cd ~/petties
 git clone <your-repo-url> .
 
 # Create .env.prod file
-cp .env.example .env.prod
+cp .env.prod.example .env.prod
 # Edit .env.prod with production values
 
 # Start services
-docker-compose -f docker-compose.prod.yml --env-file .env.prod up -d
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod up -d
 
 # Check status
-docker-compose -f docker-compose.prod.yml ps
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod ps
 
 # View logs
-docker-compose -f docker-compose.prod.yml logs -f
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod logs -f
 ```
 
 ---
@@ -206,11 +205,11 @@ After deployment, verify:
 
 ```bash
 # Check nginx status
-docker ps
-docker logs petties-test-nginx
+docker compose -p petties-test -f docker-compose.prod.yml --env-file .env.test ps
+docker compose -p petties-test -f docker-compose.prod.yml --env-file .env.test logs nginx
 
 # Test nginx config
-docker exec petties-test-nginx nginx -t
+docker compose -p petties-test -f docker-compose.prod.yml --env-file .env.test exec nginx nginx -t
 
 # Check port binding
 sudo netstat -tlnp | grep :80
@@ -220,15 +219,15 @@ sudo netstat -tlnp | grep :80
 
 ```bash
 # Check Docker network
-docker network inspect petties-test-network
+docker network inspect petties-test_petties-network
 
 # Check service logs
-docker logs petties-test-backend
-docker logs petties-test-ai-service
+docker compose -p petties-test -f docker-compose.prod.yml --env-file .env.test logs backend
+docker compose -p petties-test -f docker-compose.prod.yml --env-file .env.test logs ai-service
 
 # Verify container DNS
-docker exec petties-test-nginx ping backend-test
-docker exec petties-test-nginx ping ai-service-test
+docker compose -p petties-test -f docker-compose.prod.yml --env-file .env.test exec nginx ping backend
+docker compose -p petties-test -f docker-compose.prod.yml --env-file .env.test exec nginx ping ai-service
 ```
 
 ### DNS not resolving
@@ -249,30 +248,30 @@ docker exec petties-test-nginx ping ai-service-test
 # === TEST ENVIRONMENT ===
 
 # Deploy/Update Test
-docker-compose -f docker-compose.test.yml --env-file .env.test up -d --build
+docker compose -p petties-test -f docker-compose.prod.yml --env-file .env.test up -d --build
 
 # View Test logs
-docker-compose -f docker-compose.test.yml logs -f
+docker compose -p petties-test -f docker-compose.prod.yml --env-file .env.test logs -f
 
 # Restart Test services
-docker-compose -f docker-compose.test.yml restart
+docker compose -p petties-test -f docker-compose.prod.yml --env-file .env.test restart
 
 # Stop Test
-docker-compose -f docker-compose.test.yml down
+docker compose -p petties-test -f docker-compose.prod.yml --env-file .env.test down
 
 # === PRODUCTION ENVIRONMENT ===
 
 # Deploy/Update Prod
-docker-compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod up -d --build
 
 # View Prod logs
-docker-compose -f docker-compose.prod.yml logs -f
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod logs -f
 
 # Restart Prod services
-docker-compose -f docker-compose.prod.yml restart
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod restart
 
 # Stop Prod
-docker-compose -f docker-compose.prod.yml down
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod down
 ```
 
 ---
@@ -281,31 +280,30 @@ docker-compose -f docker-compose.prod.yml down
 
 ### Current Architecture (Single Domain)
 
-```
-                         ┌─────────────────────────────────────────┐
-                         │           NAMECHEAP DNS                │
-                         └─────────────────────────────────────────┘
-                                            │
-                    ┌────────────────────────┼────────────────────────┐
-                    │                        │                        │
-                    ▼                        ▼                        ▼
-          ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-          │ test.petties    │     │  petties.world  │     │  petties.world  │
-          │     .world      │     │     (API path)  │     │   (AI path)     │
-          └────────┬────────┘     └────────┬────────┘     └────────┬────────┘
-                   │                        │                        │
-                   ▼                        ▼                        ▼
-            ┌──────────────┐          ┌──────────────┐       ┌──────────────┐
-            │   VERCEL     │          │   EC2 NGINX  │       │   EC2 NGINX  │
-            │  (Frontend)  │          │   (Backend)  │       │  (AI Service)│
-            └──────────────┘          └───────┬───────┘       └───────┬───────┘
-                                              │                        │
-                              ┌───────────────┼───────────────┐        │
-                              ▼               ▼               ▼        ▼
-                        ┌──────────┐   ┌──────────┐   ┌──────────┐ ┌──────────┐
-                        │ Backend  │   │AI Service│   │  Nginx   │ │AI Service│
-                        │ :8080    │   │  :8000   │   │  :80     │ │  :8000   │
-                        └──────────┘   └──────────┘   └──────────┘ └──────────┘
+```mermaid
+flowchart TD
+   DNS[Namecheap DNS]
+   FE_TEST[test.petties.world]
+   FE_PROD[petties.world]
+   API_TEST[api-test.petties.world]
+   API_PROD[api.petties.world]
+
+   DNS --> FE_TEST
+   DNS --> FE_PROD
+   DNS --> API_TEST
+   DNS --> API_PROD
+
+   FE_TEST --> VERCEL[Vercel Frontend]
+   FE_PROD --> VERCEL
+
+   API_TEST --> TEST_NGINX[Test nginx service]
+   API_PROD --> PROD_NGINX[Prod nginx service]
+
+   TEST_NGINX --> TEST_BACKEND[backend container :8080]
+   TEST_NGINX --> TEST_AI[ai-service container :8000]
+
+   PROD_NGINX --> PROD_BACKEND[backend container :8080]
+   PROD_NGINX --> PROD_AI[ai-service container :8000]
 ```
 
 ### URL Mapping

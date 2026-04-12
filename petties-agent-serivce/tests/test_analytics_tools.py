@@ -12,7 +12,7 @@ from app.services.backend_client import BackendClientError
 def mock_context():
     ctx = MagicMock()
     ctx.auth_token = "mock-token"
-    ctx.clinic_id = "clinic-123"
+    ctx.clinic_id = "11111111-1111-1111-1111-111111111111"
     ctx.user_id = "user-456"
     return ctx
 
@@ -39,6 +39,10 @@ async def test_analyze_revenue_trends_success(mock_context, mock_backend_client)
             "app.core.tools.mcp_tools.analytics_tools._is_tool_available",
             return_value=True,
         ),
+        patch(
+            "app.core.tools.mcp_tools.analytics_tools._require_auth_token",
+            return_value="mock-token",
+        ),
     ):
         mock_backend_client.get_clinic_revenue.return_value = {
             "clinicName": "Test Clinic",
@@ -46,6 +50,52 @@ async def test_analyze_revenue_trends_success(mock_context, mock_backend_client)
                 {"totalRevenue": 100000, "count": 2},
                 {"totalRevenue": 200000, "count": 3},
             ],
+        }
+        mock_backend_client.get_clinic_bookings.return_value = {
+            "bookings": [
+                {
+                    "pets": [
+                        {
+                            "services": [
+                                {"serviceName": "Khám tổng quát"},
+                                {"serviceName": "Tiêm phòng"},
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "pets": [
+                        {
+                            "services": [
+                                {"serviceName": "Khám tổng quát"},
+                            ]
+                        }
+                    ]
+                },
+            ]
+        }
+        mock_backend_client.get_clinic_bookings.return_value = {
+            "bookings": [
+                {
+                    "pets": [
+                        {
+                            "services": [
+                                {"serviceName": "Khám tổng quát"},
+                                {"serviceName": "Tiêm phòng"},
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "pets": [
+                        {
+                            "services": [
+                                {"serviceName": "Khám tổng quát"},
+                            ]
+                        }
+                    ]
+                },
+            ]
         }
         mock_backend_client.get_clinic_revenue_breakdown.return_value = {
             "qr": 150000,
@@ -72,6 +122,10 @@ async def test_analyze_revenue_trends_no_context():
             "app.core.tools.mcp_tools.analytics_tools._is_tool_available",
             return_value=True,
         ),
+        patch(
+            "app.core.tools.mcp_tools.analytics_tools._require_auth_token",
+            return_value="mock-token",
+        ),
     ):
         result = await analyze_revenue_trends(period="MONTH")
 
@@ -96,6 +150,10 @@ async def test_get_clinic_metrics_success(mock_context, mock_backend_client):
             "app.core.tools.mcp_tools.analytics_tools._is_tool_available",
             return_value=True,
         ),
+        patch(
+            "app.core.tools.mcp_tools.analytics_tools._require_auth_token",
+            return_value="mock-token",
+        ),
     ):
         mock_backend_client.get_clinic_revenue.return_value = {
             "clinicName": "Test Clinic",
@@ -103,6 +161,29 @@ async def test_get_clinic_metrics_success(mock_context, mock_backend_client):
                 {"totalRevenue": 100000, "count": 2},
                 {"totalRevenue": 200000, "count": 3},
             ],
+        }
+        mock_backend_client.get_clinic_bookings.return_value = {
+            "bookings": [
+                {
+                    "pets": [
+                        {
+                            "services": [
+                                {"serviceName": "Khám tổng quát"},
+                                {"serviceName": "Tiêm phòng"},
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "pets": [
+                        {
+                            "services": [
+                                {"serviceName": "Khám tổng quát"},
+                            ]
+                        }
+                    ]
+                },
+            ]
         }
 
         result = await get_clinic_metrics()
@@ -112,6 +193,7 @@ async def test_get_clinic_metrics_success(mock_context, mock_backend_client):
         assert result["data"]["total_revenue_this_month"] == 300000
         assert result["data"]["clinic_name"] == "Test Clinic"
         assert len(result["data"]["top_services"]) == 2
+        assert result["data"]["top_services"][0]["name"] == "Khám tổng quát"
 
 
 @pytest.mark.asyncio
@@ -128,6 +210,10 @@ async def test_get_clinic_metrics_backend_error(mock_context, mock_backend_clien
         patch(
             "app.core.tools.mcp_tools.analytics_tools._is_tool_available",
             return_value=True,
+        ),
+        patch(
+            "app.core.tools.mcp_tools.analytics_tools._require_auth_token",
+            return_value="mock-token",
         ),
     ):
         mock_backend_client.get_clinic_revenue.side_effect = BackendClientError(

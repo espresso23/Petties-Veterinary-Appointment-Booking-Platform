@@ -9,6 +9,9 @@
 .env.*
 *.env
 .env.production
+!/.env.example
+!/.env.prod.example
+!/.env.test.example
 petties-key.pem
 devpetties.pem
 *.txt
