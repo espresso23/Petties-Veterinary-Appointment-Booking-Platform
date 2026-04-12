@@ -21,6 +21,17 @@ export interface SelectedClinicInfo {
     clinicName?: string
 }
 
+export interface ChatSession {
+    sessionId: string
+    title?: string
+    contextType: string
+    userRole?: string
+    clinicId?: string
+    createdAt?: string
+    updatedAt?: string
+    messageCount?: number
+}
+
 interface AIChatState {
     sessionId: string | null
     messages: AISessionMessage[]
@@ -28,6 +39,8 @@ interface AIChatState {
     isOpen: boolean
     emrDraft: EmrAiDraft | null
     selectedClinic: SelectedClinicInfo | null
+    sessions: ChatSession[]
+    isSessionListOpen: boolean
 
     setSessionId: (sessionId: string | null) => void
     deleteSession: () => void
@@ -41,6 +54,9 @@ interface AIChatState {
     setIsOpen: (isOpen: boolean) => void
     setSelectedClinic: (clinic: SelectedClinicInfo | null) => void
     clearSelectedClinic: () => void
+    setSessions: (sessions: ChatSession[]) => void
+    removeSessionFromList: (sessionId: string) => void
+    setIsSessionListOpen: (isOpen: boolean) => void
     setEmrDraft: (draft: EmrAiDraft | null) => void
     updateEmrDraftField: (field: EmrAiSoapField, value: string) => void
     clearMessages: () => void
@@ -55,6 +71,8 @@ export const useAIChatStore = create<AIChatState>()(
             isOpen: false,
             emrDraft: null,
             selectedClinic: null,
+            sessions: [],
+            isSessionListOpen: false,
 
             setSessionId: (sessionId) => set({ sessionId }),
 
@@ -161,6 +179,14 @@ export const useAIChatStore = create<AIChatState>()(
             setSelectedClinic: (clinic) => set({ selectedClinic: clinic }),
 
             clearSelectedClinic: () => set({ selectedClinic: null }),
+
+            setSessions: (sessions) => set({ sessions }),
+
+            removeSessionFromList: (sessionIdToRemove) => set((state) => ({
+                sessions: state.sessions.filter((s) => s.sessionId !== sessionIdToRemove),
+            })),
+
+            setIsSessionListOpen: (isSessionListOpen) => set({ isSessionListOpen }),
 
             setEmrDraft: (emrDraft) => set({ emrDraft }),
 

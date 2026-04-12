@@ -320,16 +320,19 @@ function renderClinicCard(
 function renderServiceCard(
   component: UIComponent,
   onAction?: (action: UIAction, component: UIComponent) => void,
+  selectedClinicId?: string,
 ) {
-  return <ServiceCard key={component.id} component={component} onAction={onAction} />
+  return <ServiceCard key={component.id} component={component} onAction={onAction} selectedClinicId={selectedClinicId} />
 }
 
 function ServiceCard({
   component,
   onAction,
+  selectedClinicId,
 }: {
   component: UIComponent
   onAction?: (action: UIAction, component: UIComponent) => void
+  selectedClinicId?: string
 }) {
   const { showToast } = useToast()
   const data = component.data
@@ -389,9 +392,10 @@ function ServiceCard({
       return
     }
 
-    const clinicId = confirmPayload['clinic_id'] ?? confirmPayload['clinicId'] ?? component.data['clinic_id'] ?? component.data['clinicId']
+    const clinicId = confirmPayload['clinic_id'] ?? confirmPayload['clinicId'] ?? component.data['clinic_id'] ?? component.data['clinicId'] ?? selectedClinicId
     if (!clinicId) {
-      console.warn('[ServiceCard] Missing clinicId')
+      console.warn('[ServiceCard] Missing clinicId. Available sources: action payload, component data, or selectedClinicId from store.')
+      showToast('error', 'Vui lòng chọn phòng khám trước khi lưu dịch vụ.')
       return
     }
 
@@ -1037,7 +1041,7 @@ function renderComponent(
     case 'clinic_card':
       return renderClinicCard(component, onAction, selectedClinicId)
     case 'service_card':
-      return renderServiceCard(component, onAction)
+      return renderServiceCard(component, onAction, selectedClinicId)
     case 'pet_card':
       return renderPetCard(component, onAction)
     case 'service_chip':

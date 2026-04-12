@@ -41,6 +41,7 @@ class PetHealthSummaryLLMService:
         pet_info: Dict[str, Any],
         emr_records: list,
         user_name: str = "",
+        user_role: str = "PET_OWNER",
     ) -> Dict[str, Any]:
         """
         Tổng hợp health summary bằng LLM.
@@ -49,35 +50,44 @@ class PetHealthSummaryLLMService:
             pet_info: Thông tin pet cơ bản
             emr_records: Danh sách EMR records, đã sắp xếp theo ngày giảm dần
             user_name: Tên chủ pet
+            user_role: Vai trò người dùng (PET_OWNER, STAFF, v.v.)
 
         Returns:
             Dict chứa: latest_emr_summary, health_warnings, medication_reminders, suggested_actions, ai_insights
         """
+        logger.info(f"synthesize_summary called with user_role={user_role}")
+
         if not emr_records:
-            return await self._synthesize_no_history(pet_info, user_name)
+            return await self._synthesize_no_history(pet_info, user_name, user_role)
 
         latest_emr = emr_records[0]
         recent_emrs = emr_records[:3] if len(emr_records) > 1 else []
 
-        prompt = self._build_prompt(pet_info, latest_emr, recent_emrs, user_name)
+        prompt = self._build_prompt(pet_info, latest_emr, recent_emrs, user_name, user_role)
+        logger.info(f"Using prompt for role: {user_role}")
 
         try:
             llm_client = await self._get_llm_client()
-            response = await llm_client.generate(prompt, temperature=0.3, max_tokens=1500)
-            return self._parse_llm_response(response.content, latest_emr)
+            response = await llm_client.generate(prompt, temperature=0.3, max_tokens=2500)
+            result = self._parse_llm_response(response.content, latest_emr)
+            logger.info(f"LLM response parsed successfully, ai_insights={'yes' if result.get('ai_insights') else 'no'}")
+            return result
         except Exception as exc:
             logger.error(f"LLM synthesis failed: {exc}")
             return self._fallback_parse(latest_emr)
 
     async def _synthesize_no_history(
-        self, pet_info: Dict[str, Any], user_name: str
+        self, pet_info: Dict[str, Any], user_name: str, user_role: str = "PET_OWNER"
     ) -> Dict[str, Any]:
         """Tổng hợp khi không có EMR history."""
         pet_name = pet_info.get("name", "thú cưng")
         species = pet_info.get("species", "")
         breed = pet_info.get("breed", "")
 
-        prompt = f"""Bạn là trợ lý tóm tắt hồ sơ bệnh án cho staff/phòng khám thú y của Petties.
+        if user_role.upper() == "PET_OWNER":
+            prompt = self._build_pet_owner_prompt_no_history(pet_name, species, breed)
+        else:
+            prompt = f"""Bạn là trợ lý tóm tắt hồ sơ bệnh án cho staff/phòng khám thú y của Petties.
 Nội dung dùng nội bộ trên màn tạo EMR, không viết như đang tư vấn cho chủ nuôi.
 Văn phong ngắn gọn, lâm sàng, ưu tiên giúp staff nắm nhanh tình trạng hồ sơ.
 
@@ -102,18 +112,28 @@ Trả về JSON format:
 
         try:
             llm_client = await self._get_llm_client()
-            response = await llm_client.generate(prompt, temperature=0.3, max_tokens=1500)
+            response = await llm_client.generate(prompt, temperature=0.3, max_tokens=2500)
             parsed = json.loads(response.content)
-            return {
-                "latest_emr_summary": None,
-                "health_warnings": [],
-                "medication_reminders": [],
-                "suggested_actions": parsed.get("suggested_actions", []),
-                "ai_insights": {
-                    "summary": parsed.get("staff_summary", ""),
-                    "intake_notes": parsed.get("intake_notes", []),
-                },
-            }
+
+            if user_role.upper() == "PET_OWNER":
+                return {
+                    "latest_emr_summary": None,
+                    "health_warnings": [],
+                    "medication_reminders": [],
+                    "suggested_actions": parsed.get("suggested_actions", []),
+                    "ai_insights": parsed.get("ai_insights", {}),
+                }
+            else:
+                return {
+                    "latest_emr_summary": None,
+                    "health_warnings": [],
+                    "medication_reminders": [],
+                    "suggested_actions": parsed.get("suggested_actions", []),
+                    "ai_insights": {
+                        "summary": parsed.get("staff_summary", ""),
+                        "intake_notes": parsed.get("intake_notes", []),
+                    },
+                }
         except Exception as exc:
             logger.error(f"LLM synthesis for no history failed: {exc}")
             return {
@@ -136,8 +156,21 @@ Trả về JSON format:
         latest_emr: Dict[str, Any],
         recent_emrs: list,
         user_name: str,
+        user_role: str = "PET_OWNER",
     ) -> str:
         """Build prompt cho LLM."""
+        if user_role.upper() == "PET_OWNER":
+            return self._build_pet_owner_prompt(pet_info, latest_emr, recent_emrs)
+        return self._build_staff_prompt(pet_info, latest_emr, recent_emrs, user_name)
+
+    def _build_staff_prompt(
+        self,
+        pet_info: Dict[str, Any],
+        latest_emr: Dict[str, Any],
+        recent_emrs: list,
+        user_name: str,
+    ) -> str:
+        """Build prompt cho staff - ngôn ngữ lâm sàng."""
         pet_name = pet_info.get("name", "thú cưng")
         species = pet_info.get("species", "")
         breed = pet_info.get("breed", "")
@@ -199,7 +232,8 @@ Phân tích thông tin trên và trả về JSON format:
   "ai_insights": {{
     "summary": "Tóm tắt hồ sơ lâm sàng 2-3 câu dành cho staff",
     "trends": "Nhận xét xu hướng so với lần khám trước nếu có",
-    "advice": "Khuyến nghị nội bộ cho staff, không xưng hô với chủ nuôi"
+    "advice": "Khuyến nghị nội bộ cho staff, không xưng hô với chủ nuôi",
+    "intake_notes": ["Ghi chú tiếp nhận 1", "Ghi chú tiếp nhận 2"]
   }}
 }}
 ```
@@ -210,6 +244,105 @@ Lưu ý:
 - Severity: HIGH (cần hành động ngay), MEDIUM (nên theo dõi), LOW (thông tin)
 - Dùng tiếng Việt
 - Không dùng các cụm kiểu "bạn nên", "chủ nuôi nên", "hãy theo dõi bé tại nhà"
+"""
+
+    def _build_pet_owner_prompt(
+        self,
+        pet_info: Dict[str, Any],
+        latest_emr: Dict[str, Any],
+        recent_emrs: list,
+    ) -> str:
+        """Build prompt cho pet owner - ngôn ngữ thân thiện, dễ hiểu."""
+        pet_name = pet_info.get("name", "thú cưng")
+        species = pet_info.get("species", "")
+        breed = pet_info.get("breed", "")
+        age_months = pet_info.get("ageMonths") or pet_info.get("age_months")
+        weight = pet_info.get("weightKg") or pet_info.get("weight")
+
+        age_str = (
+            f"{age_months // 12} tuổi {age_months % 12} tháng"
+            if age_months
+            else "không rõ tuổi"
+        )
+
+        emr_json = json.dumps(latest_emr, ensure_ascii=False, indent=2)
+        recent_json = (
+            json.dumps(recent_emrs, ensure_ascii=False, indent=2)
+            if recent_emrs
+            else "[]"
+        )
+
+        return f"""Bạn là bác sĩ thú y AI, giúp chủ thú cưng hiểu rõ tình trạng sức khỏe của bé {pet_name}.
+Viết chi tiết, cụ thể dựa trên dữ liệu EMR. Xưng hô "bạn", gọi thú cưng bằng tên "{pet_name}".
+
+# Thông tin pet:
+- Tên: {pet_name}, Loài: {species}, Giống: {breed}, Tuổi: {age_str}, Cân nặng: {weight} kg
+
+# EMR gần nhất:
+{emr_json}
+
+# EMR trước (so sánh):
+{recent_json}
+
+# Trả về JSON format:
+```json
+{{
+  "latest_emr_summary": {{
+    "exam_date": "Ngày khám",
+    "clinic_name": "Tên phòng khám",
+    "diagnosis": "Tóm tắt chẩn đoán",
+    "treatment": "Tóm tắt điều trị"
+  }},
+  "health_warnings": [
+    {{"type": "RECHECK_REQUIRED|ALLERGY_ALERT|MEDICATION|NUTRITION|OTHER", "message": "Cảnh báo", "severity": "HIGH|MEDIUM|LOW"}}
+  ],
+  "medication_reminders": [
+    {{"medication": "Tên thuốc", "dosage": "Liều lượng", "frequency": "Tần suất"}}
+  ],
+  "suggested_actions": [
+    {{"type": "BOOK_APPOINTMENT|FOLLOW_UP|VACCINATION|NUTRITION|OTHER", "label": "Hành động", "reason": "Lý do"}}
+  ],
+  "ai_insights": {{
+    "summary": "Tóm tắt 3-5 câu về tình trạng sức khỏe: vấn đề đã ghi nhận, điều trị đã áp dụng, tiến triển. Viết cụ thể dựa trên EMR.",
+    "trends": "So sánh xu hướng giữa các lần khám: chẩn đoán, điều trị, cân nặng thay đổi. Nếu chỉ 1 lần khám thì ghi nhận xu hướng bệnh.",
+    "advice": "Lời khuyên thực tế: ngày tái khám, triệu chứng cần theo dõi, khi nào cần liên hệ phòng khám. Tối thiểu 3 câu cụ thể.",
+    "intake_notes": ["Ghi chú 1 về tình trạng hiện tại", "Ghi chú 2 về thuốc đang dùng", "Ghi chú 3 về lịch tái khám"]
+  }}
+}}
+```
+
+Yêu cầu:
+1. DÙNG dữ liệu EMR cụ thể — KHÔNG viết chung chung
+2. KHÔNG dùng thuật ngữ y khoa — giải thích đơn giản
+3. So sánh giữa các lần khám nếu có nhiều
+4. Chỉ trả về JSON, không text khác
+"""
+
+    def _build_pet_owner_prompt_no_history(
+        self, pet_name: str, species: str, breed: str
+    ) -> str:
+        """Build prompt cho pet owner khi chưa có lịch sử khám."""
+        return f"""Bạn là trợ lý AI thân thiện giúp chủ thú cưng hiểu rõ tình trạng của bé {pet_name}.
+Dùng ngôn ngữ đơn giản, dễ hiểu, không dùng thuật ngữ y khoa.
+
+Pet: {pet_name}
+Loài: {species}
+Giống: {breed}
+
+Bé {pet_name} chưa có lịch sử khám tại hệ thống. Hãy:
+1. Xác nhận đây là lần đầu tiên bé khám tại hệ thống.
+2. Đề xuất các bước chủ nuôi nên thực hiện để chăm sóc bé ban đầu.
+3. Viết thân thiện, thực tế, không dùng lời khuyên chung chung.
+
+Trả về JSON format:
+{{
+  "summary": "Bé {pet_name} chưa có lịch sử khám trước đó. Đây là lần đầu tiên bé được thăm khám tại hệ thống.",
+  "trends": "Chưa có dữ liệu so sánh",
+  "advice": "Lời khuyên ban đầu về chăm sóc và lịch khám đầu tiên cho bé",
+  "suggested_actions": [
+    {{"type": "BOOK_FIRST_VISIT", "label": "Đặt lịch khám đầu tiên cho bé", "reason": "Bé chưa có lịch sử khám, nên đưa bé đi kiểm tra sức khỏe ban đầu"}}
+  ]
+}}
 """
 
     def _parse_llm_response(
@@ -235,6 +368,8 @@ Lưu ý:
         """Fallback khi parse fail."""
         assessment = latest_emr.get("assessment", "")
         plan = latest_emr.get("plan", "")
+        subjective = latest_emr.get("subjective", "")
+        objective = latest_emr.get("objective", "")
 
         warnings = []
         if assessment and (
@@ -247,6 +382,22 @@ Lưu ý:
                     "severity": "HIGH",
                 }
             )
+
+        # Build basic ai_insights from EMR data
+        summary_parts = []
+        if assessment:
+            summary_parts.append(f"Chẩn đoán: {assessment[:150]}")
+        if plan:
+            summary_parts.append(f"Điều trị: {plan[:150]}")
+        if subjective:
+            summary_parts.append(f"Triệu chứng: {subjective[:150]}")
+
+        ai_insights = {
+            "summary": ". ".join(summary_parts) if summary_parts else "Chưa có đủ thông tin để tóm tắt.",
+            "trends": "Chưa đủ dữ liệu so sánh xu hướng.",
+            "advice": "Theo dõi tình trạng sức khỏe và tái khám theo hướng dẫn của phòng khám.",
+            "intake_notes": ["Thông tin dựa trên lần khám gần nhất."] if assessment else [],
+        }
 
         return {
             "latest_emr_summary": {
@@ -263,7 +414,7 @@ Lưu ý:
                     "reason": "Kiểm tra tiến triển",
                 }
             ],
-            "ai_insights": None,
+            "ai_insights": ai_insights,
         }
 
 

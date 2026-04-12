@@ -514,6 +514,105 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
         }
     }, [sessionId, accessToken, buildBaseContext, deleteSession, setSessionId, showToast])
 
+    const handleLoadSession = useCallback(async (targetSessionId: string) => {
+        if (!accessToken) {
+            showToast('error', 'Vui lòng đăng nhập để tải lịch sử.')
+            return
+        }
+
+        try {
+            // Close existing WebSocket
+            if (wsRef.current) {
+                wsRef.current.close()
+                wsRef.current = null
+            }
+
+            // Update session ID
+            setSessionId(targetSessionId)
+            setMessages([])
+            setConnectionStatus('connecting')
+
+            // Load session with messages
+            const baseUrl = import.meta.env.VITE_AGENT_API_BASE_URL || 'http://localhost:8000'
+            const response = await fetch(`${baseUrl}/api/v1/chat/sessions/${targetSessionId}`, {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            })
+
+            if (response.ok) {
+                const data = await response.json()
+
+                // Map messages to store format
+                const mappedMessages = (data.messages || []).map((msg: any) => ({
+                    id: msg.message_id || `msg-${msg.id || Date.now()}`,
+                    role: msg.role === 'user' ? 'user' : 'assistant',
+                    content: msg.content || '',
+                    timestamp: new Date(msg.created_at || Date.now()),
+                    uiSchema: msg.ui_schema || undefined,
+                    stage: msg.stage || undefined,
+                    isLoading: false,
+                }))
+
+                setMessages(mappedMessages)
+                setConnectionStatus('connected')
+
+                // Connect WebSocket for the new session
+                connectWebSocket(targetSessionId)
+            } else {
+                showToast('error', 'Không thể tải phiên trò chuyện')
+            }
+        } catch (error) {
+            console.error('[Mascot] Failed to load session:', error)
+            showToast('error', 'Không thể tải phiên trò chuyện')
+        }
+    }, [accessToken, setSessionId, setMessages, setConnectionStatus, showToast])
+
+    const handleNewChat = useCallback(async () => {
+        if (!accessToken) {
+            showToast('error', 'Vui lòng đăng nhập để tạo cuộc trò chuyện mới.')
+            return
+        }
+
+        try {
+            // Close existing WebSocket
+            if (wsRef.current) {
+                wsRef.current.close()
+                wsRef.current = null
+            }
+
+            // Clear current state
+            deleteSession()
+
+            // Create new session
+            const baseUrl = import.meta.env.VITE_AGENT_API_BASE_URL || 'http://localhost:8000'
+            const response = await fetch(`${baseUrl}/api/v1/chat/sessions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                body: JSON.stringify({
+                    context_type: 'BUSINESS_CHAT',
+                    context_data: buildBaseContext(),
+                })
+            })
+
+            if (response.ok) {
+                const data = await response.json()
+                const newSessionId = data.session_id
+                setSessionId(newSessionId)
+                connectWebSocket(newSessionId)
+                showToast('success', 'Đã tạo cuộc trò chuyện mới')
+            } else {
+                showToast('error', 'Không thể tạo cuộc trò chuyện mới')
+            }
+        } catch (error) {
+            console.error('[Mascot] Failed to create new chat:', error)
+            showToast('error', 'Không thể tạo cuộc trò chuyện mới')
+        }
+    }, [accessToken, buildBaseContext, deleteSession, setSessionId, showToast])
+
     return (
         <>
             {children}
@@ -528,6 +627,8 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
                 onSendMessage={handleSendMessage}
                 onSendUiAction={handleSendUiAction}
                 onDeleteConversation={handleDeleteConversation}
+                onLoadSession={handleLoadSession}
+                onNewChat={handleNewChat}
                 messages={messages}
                 connectionStatus={connectionStatus}
                 routePath={location.pathname}

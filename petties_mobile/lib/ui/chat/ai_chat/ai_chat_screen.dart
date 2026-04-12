@@ -1323,8 +1323,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   void _flushStreamBuffer() {
     if (_streamBuffer.isEmpty) return;
-    final buffer = _streamBuffer;
+    final rawBuffer = _streamBuffer;
     _streamBuffer = '';
+    final buffer = _stripJsonFromAssistantText(rawBuffer);
 
     setState(() {
       _error = null;
@@ -1335,7 +1336,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
           _messages.last.role == 'assistant' &&
           _messages.last.isStreaming) {
         final last = _messages.removeLast();
-        _messages.add(last.copyWith(content: '${last.content}$buffer'));
+        final sanitizedContent =
+            _stripJsonFromAssistantText('${last.content}$rawBuffer');
+        _messages.add(last.copyWith(content: sanitizedContent));
       } else if (_messages.isNotEmpty &&
           _messages.last.role == 'assistant' &&
           _hasStructuredAssistantContent(_messages.last)) {
@@ -1367,11 +1370,12 @@ class _AiChatScreenState extends State<AiChatScreen> {
       });
       return;
     }
+    final sanitizedResponse = _stripJsonFromAssistantText(fullResponse);
     setState(() {
       _agentStatus = null;
       _isSending = false;
       _upsertAssistantMessage(
-        content: fullResponse,
+        content: sanitizedResponse,
         isStreaming: false,
         reactTrace: reactTrace,
       );
@@ -2680,6 +2684,34 @@ class _AiChatScreenState extends State<AiChatScreen> {
     );
 
     return sanitized.trim();
+  }
+
+  String _stripJsonFromAssistantText(String value) {
+    var sanitized = value.trim();
+    if (sanitized.isEmpty) return sanitized;
+
+    // Remove standalone JSON objects (multiline and single-line)
+    sanitized = sanitized.replaceAll(RegExp(r'\{[\s\S]*?\}'), '');
+
+    // Remove standalone JSON arrays
+    sanitized = sanitized.replaceAll(RegExp(r'\[[\s\S]*?\]'), '');
+
+    // Remove lines that look like JSON (start/end with braces/brackets)
+    sanitized = sanitized
+        .split('\n')
+        .where((line) {
+          final trimmed = line.trim();
+          if (trimmed.isEmpty) return false;
+          if (trimmed.startsWith('{') && trimmed.endsWith('}')) return false;
+          if (trimmed.startsWith('[') && trimmed.endsWith(']')) return false;
+          return true;
+        })
+        .join('\n');
+
+    // Clean up extra whitespace
+    sanitized = sanitized.replaceAll(RegExp(r'\n{3,}'), '\n\n').trim();
+
+    return sanitized;
   }
 
   Future<Map<String, dynamic>?> _tryGetLocationPayload() async {

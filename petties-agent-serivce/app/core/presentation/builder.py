@@ -1365,27 +1365,51 @@ def _has_complete_booking_context(tool_results: List[Dict[str, Any]]) -> bool:
         if not success or not isinstance(data, dict):
             continue
 
-        # Check for clinic resolution
+        # Check for clinic resolution - handle multiple field patterns
         if tool_name == "search_clinics_nearby":
             matched = data.get("matched_clinic")
-            if matched and isinstance(matched, dict) and matched.get("id"):
-                has_clinic = True
-                clinic_hint = data.get("clinic_hint", "")
-                if isinstance(clinic_hint, str) and clinic_hint.strip():
+            if matched and isinstance(matched, dict):
+                # Try multiple possible ID field names
+                clinic_id = (
+                    matched.get("id") or
+                    matched.get("clinic_id") or
+                    matched.get("clinicId")
+                )
+                if clinic_id:
+                    has_clinic = True
+                    has_booking_intent = True  # If we resolved a clinic, user had intent
+
+            # Also check if clinics list has results
+            if not has_clinic:
+                clinics = data.get("clinics", [])
+                if isinstance(clinics, list) and len(clinics) > 0:
+                    has_clinic = True
                     has_booking_intent = True
 
-        # Check for service resolution
+        # Check for service resolution - handle multiple field patterns
         if tool_name == "get_clinic_services":
             services = data.get("services", [])
-            resolved = data.get("resolved_service_ids", [])
+            resolved_ids = (
+                data.get("resolved_service_ids") or
+                data.get("service_ids") or
+                []
+            )
             if (isinstance(services, list) and len(services) > 0) or \
-               (isinstance(resolved, list) and len(resolved) > 0):
+               (isinstance(resolved_ids, list) and len(resolved_ids) > 0):
                 has_service = True
 
-        # Check for slot resolution
+        # Check for slot resolution - handle multiple field patterns
         if tool_name == "check_available_slots":
-            slots = data.get("available_slots", [])
-            recommended = data.get("recommended_slots", [])
+            slots = (
+                data.get("available_slots") or
+                data.get("availableSlots") or
+                []
+            )
+            recommended = (
+                data.get("recommended_slots") or
+                data.get("recommendedSlots") or
+                []
+            )
             if (isinstance(slots, list) and len(slots) > 0) or \
                (isinstance(recommended, list) and len(recommended) > 0):
                 has_slot = True
@@ -1406,29 +1430,75 @@ def _build_booking_context_from_tools(tool_results: List[Dict[str, Any]]) -> Opt
         if tool_name == "search_clinics_nearby":
             matched = data.get("matched_clinic")
             if matched and isinstance(matched, dict):
-                context["clinic_id"] = matched.get("id")
-                context["clinic_name"] = matched.get("name")
+                # Try multiple possible field names
+                context["clinic_id"] = (
+                    matched.get("id") or
+                    matched.get("clinic_id") or
+                    matched.get("clinicId")
+                )
+                context["clinic_name"] = (
+                    matched.get("name") or
+                    matched.get("clinic_name") or
+                    matched.get("clinicName")
+                )
+
+            # Fallback: check clinics list
+            if not context.get("clinic_id"):
+                clinics = data.get("clinics", [])
+                if isinstance(clinics, list) and len(clinics) > 0:
+                    first_clinic = clinics[0]
+                    if isinstance(first_clinic, dict):
+                        context["clinic_id"] = (
+                            first_clinic.get("id") or
+                            first_clinic.get("clinic_id")
+                        )
+                        context["clinic_name"] = (
+                            first_clinic.get("name") or
+                            first_clinic.get("clinic_name")
+                        )
 
         if tool_name == "get_clinic_services":
-            resolved_ids = data.get("resolved_service_ids", [])
-            resolved_names = data.get("resolved_service_names", [])
+            # Try multiple field patterns for service IDs
+            resolved_ids = (
+                data.get("resolved_service_ids") or
+                data.get("service_ids") or
+                []
+            )
+            # Try multiple field patterns for service names
+            resolved_names = (
+                data.get("resolved_service_names") or
+                data.get("service_names") or
+                []
+            )
             if resolved_ids:
                 context["service_ids"] = list(resolved_ids)
             if resolved_names:
                 context["service_names"] = list(resolved_names)
 
         if tool_name == "check_available_slots":
-            date = data.get("resolved_date") or data.get("date")
-            time = data.get("resolved_time") or data.get("start_time")
+            # Try multiple field patterns for date
+            date = (
+                data.get("resolved_date") or
+                data.get("date") or
+                data.get("booking_date") or
+                data.get("bookingDate")
+            )
+            # Try multiple field patterns for time
+            time = (
+                data.get("resolved_time") or
+                data.get("start_time") or
+                data.get("startTime")
+            )
             if date:
                 context["booking_date"] = str(date)
             if time:
                 context["start_time"] = str(time)
 
     # Check for missing fields
-    for key in ("clinic_id", "clinic_name"):
-        if not context.get(key):
-            missing_fields.append(key)
+    if not context.get("clinic_id"):
+        missing_fields.append("clinic_id")
+    if not context.get("clinic_name"):
+        missing_fields.append("clinic_name")
     if not context.get("service_ids") and not context.get("service_names"):
         missing_fields.append("service_ids")
     if not context.get("booking_date"):

@@ -24,6 +24,7 @@ class PetDetailScreen extends StatefulWidget {
 class _PetDetailScreenState extends State<PetDetailScreen> {
   final _petService = PetService();
   late Future<Pet> _petFuture;
+  Future<PetHealthSummary>? _healthSummaryFuture;
 
   @override
   void initState() {
@@ -452,9 +453,15 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     );
   }
 
+  void _refreshHealthSummary() {
+    setState(() {
+      _healthSummaryFuture = null;
+    });
+  }
+
   Widget _buildHealthSummaryCard() {
     return FutureBuilder<PetHealthSummary>(
-      future: _petService.getHealthSummary(widget.id),
+      future: _healthSummaryFuture ?? _petService.getHealthSummary(widget.id),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Container(
@@ -479,7 +486,34 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
         }
 
         if (snapshot.hasError || snapshot.data == null) {
-          return const SizedBox.shrink();
+          return Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.stone200),
+            ),
+            child: Column(
+              children: [
+                const Text(
+                  'Không thể tải thông tin sức khỏe',
+                  style: TextStyle(fontSize: 13, color: AppColors.stone500),
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton.icon(
+                  onPressed: _refreshHealthSummary,
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('Thử lại'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  ),
+                ),
+              ],
+            ),
+          );
         }
 
         final summary = snapshot.data!;
@@ -505,23 +539,44 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFEF3C7),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.auto_awesome,
-                        color: Color(0xFFD97706), size: 20),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF3C7),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.auto_awesome,
+                            color: Color(0xFFD97706), size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'TỔNG QUAN SỨC KHỎE',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.stone900,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  const Text(
-                    'TỔNG QUAN SỨC KHỎE',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                      color: AppColors.stone900,
+                  // Refresh button
+                  GestureDetector(
+                    onTap: _refreshHealthSummary,
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: AppColors.stone100,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Icon(
+                        Icons.refresh_rounded,
+                        size: 18,
+                        color: AppColors.stone600,
+                      ),
                     ),
                   ),
                 ],
@@ -542,6 +597,115 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 const SizedBox(height: 12),
               ] else
                 _buildInfoRow(Icons.info_outline, 'Chưa có lịch sử khám'),
+
+              // AI Insights
+              if (summary.aiInsights != null &&
+                  summary.aiInsights!.hasAnyContent) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0FDFA),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: const Color(0xFF99F6E4),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.auto_awesome,
+                            color: const Color(0xFF0D9488),
+                            size: 16,
+                          ),
+                          const SizedBox(width: 6),
+                          const Text(
+                            'Nhận xét từ AI:',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F766E),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (summary.aiInsights!.summary != null &&
+                          summary.aiInsights!.summary!.trim().isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Text(
+                            summary.aiInsights!.summary!,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF134E4A),
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      if (summary.aiInsights!.intakeNotes.isNotEmpty)
+                        ...summary.aiInsights!.intakeNotes.map(
+                          (note) => Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(
+                                  Icons.note_alt_outlined,
+                                  color: Color(0xFF0D9488),
+                                  size: 14,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    note,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF134E4A),
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      if (summary.aiInsights!.trends != null &&
+                          summary.aiInsights!.trends!.trim().isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6, bottom: 6),
+                          child: Text(
+                            'Xu hướng: ${summary.aiInsights!.trends}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF0D9488),
+                              fontWeight: FontWeight.w500,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      if (summary.aiInsights!.advice != null &&
+                          summary.aiInsights!.advice!.trim().isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6, bottom: 6),
+                          child: Text(
+                            'Lời khuyên: ${summary.aiInsights!.advice}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF0F766E),
+                              fontWeight: FontWeight.w600,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
 
               // Health Warnings
               if (summary.healthWarnings.isNotEmpty) ...[
@@ -622,7 +786,8 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () {
-                    context.push('/booking?petId=${widget.id}');
+                    // Navigate to clinic search first, user selects clinic, then booking with this pet
+                    context.push('/clinics/search');
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,

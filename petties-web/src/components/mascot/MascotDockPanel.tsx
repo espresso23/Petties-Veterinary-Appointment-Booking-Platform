@@ -7,12 +7,15 @@ import {
   SparklesIcon,
   XMarkIcon,
   TrashIcon,
+  ClockIcon,
+  PlusIcon,
 } from '@heroicons/react/24/outline'
 import type { AISessionMessage } from '../../store/aiChatStore'
 import { useAIChatStore } from '../../store/aiChatStore'
 import type { UIAction, UIComponent } from '../../types/chat-copilot'
 import { UISchemaRenderer } from '../chat/renderers/UISchemaRenderer'
 import { ConfirmModal } from '../ConfirmModal'
+import { SessionSidebar } from './SessionSidebar'
 
 interface MascotDockPanelProps {
   isOpen: boolean
@@ -20,6 +23,8 @@ interface MascotDockPanelProps {
   onSendMessage: (message: string, context?: Record<string, unknown>) => Promise<unknown>
   onSendUiAction: (action: UIAction, displayMessage?: string) => Promise<void>
   onDeleteConversation?: () => Promise<void>
+  onLoadSession?: (sessionId: string) => Promise<void>
+  onNewChat?: () => Promise<void>
   messages: AISessionMessage[]
   connectionStatus: 'disconnected' | 'connecting' | 'connected'
   routePath: string
@@ -83,6 +88,8 @@ export const MascotDockPanel = ({
   onSendMessage,
   onSendUiAction,
   onDeleteConversation,
+  onLoadSession,
+  onNewChat,
   messages,
   connectionStatus,
   routePath,
@@ -95,6 +102,9 @@ export const MascotDockPanel = ({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const selectedClinic = useAIChatStore((state) => state.selectedClinic)
+  const isSessionListOpen = useAIChatStore((state) => state.isSessionListOpen)
+  const setIsSessionListOpen = useAIChatStore((state) => state.setIsSessionListOpen)
+  const sessionId = useAIChatStore((state) => state.sessionId)
 
   const quickActions = useMemo(() => {
     const matched = QUICK_ACTIONS_BY_ROUTE.find((item) => item.match.test(routePath))
@@ -217,6 +227,24 @@ export const MascotDockPanel = ({
     setShowDeleteConfirm(false)
   }
 
+  const handleToggleSessionList = () => {
+    setIsSessionListOpen(!isSessionListOpen)
+  }
+
+  const handleSelectSession = async (sid: string) => {
+    if (onLoadSession) {
+      await onLoadSession(sid)
+    }
+    setIsSessionListOpen(false)
+  }
+
+  const handleNewChat = async () => {
+    if (onNewChat) {
+      await onNewChat()
+    }
+    setIsSessionListOpen(false)
+  }
+
   const isBusy = connectionStatus === 'connecting'
   const canSend = connectionStatus === 'connected' && inputValue.trim().length > 0
 
@@ -245,6 +273,24 @@ export const MascotDockPanel = ({
             </div>
 
             <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={handleNewChat}
+                className="rounded-md border border-stone-300 p-1 text-stone-600 hover:bg-green-50 hover:text-green-700"
+                title="Tạo cuộc trò chuyện mới"
+                aria-label="Tạo cuộc trò chuyện mới"
+              >
+                <PlusIcon className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handleToggleSessionList}
+                className="rounded-md border border-stone-300 p-1 text-stone-600 hover:bg-amber-50 hover:text-amber-700"
+                title="Xem lịch sử chat"
+                aria-label="Xem lịch sử chat"
+              >
+                <ClockIcon className="h-4 w-4" />
+              </button>
               <button
                 type="button"
                 onClick={() => setIsExpanded((prev) => !prev)}
@@ -383,6 +429,23 @@ export const MascotDockPanel = ({
           </div>
         </footer>
       </div>
+
+      {/* Session Sidebar (History) */}
+      <SessionSidebar
+        isOpen={isSessionListOpen}
+        onClose={() => setIsSessionListOpen(false)}
+        onSelectSession={handleSelectSession}
+        onDeleteSession={async (sid) => {
+          // Call the provider's delete handler if available
+          if (onDeleteConversation && sid === sessionId) {
+            await onDeleteConversation()
+          } else {
+            // For other sessions, just remove from list
+            useAIChatStore.getState().removeSessionFromList(sid)
+          }
+        }}
+        currentSessionId={sessionId}
+      />
 
       <ConfirmModal
         isOpen={Boolean(pendingConfirm)}
