@@ -13,6 +13,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -162,6 +163,21 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
         long countByClinicAndDate(
                         @Param("clinicId") UUID clinicId,
                         @Param("date") LocalDate date);
+
+        /**
+         * Check if there's an active booking for the same pet at the same clinic/date/time.
+         * Used to prevent duplicate booking before insert.
+         */
+        @Query("SELECT COUNT(b) > 0 FROM Booking b WHERE b.pet.petId = :petId " +
+                        "AND b.clinic.clinicId = :clinicId " +
+                        "AND b.bookingDate = :bookingDate " +
+                        "AND b.bookingTime = :bookingTime " +
+                        "AND b.status NOT IN ('CANCELLED', 'NO_SHOW')")
+        boolean existsActiveBookingAtTime(
+                        @Param("petId") UUID petId,
+                        @Param("clinicId") UUID clinicId,
+                        @Param("bookingDate") LocalDate bookingDate,
+                        @Param("bookingTime") LocalTime bookingTime);
 
         /**
          * Find pending bookings for a clinic (for notifications)
