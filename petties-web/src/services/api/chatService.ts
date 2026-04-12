@@ -6,6 +6,8 @@ import type {
   SendMessageRequest,
   UnreadCountResponse,
   PageResponse,
+  ChatAutoReplySettings,
+  UpdateChatAutoReplySettingsRequest,
 } from '../../types/chat'
 
 /**
@@ -74,6 +76,28 @@ export const chatService = {
   },
 
   /**
+   * Upload an image for a conversation
+   */
+  uploadImage: async (
+    conversationId: string,
+    file: File
+  ): Promise<{ imageUrl: string }> => {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await apiClient.post<{ imageUrl: string }>(
+      `/chat/conversations/${conversationId}/images`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    )
+    return response.data
+  },
+
+  /**
    * Mark all messages in a conversation as read
    */
   markAsRead: async (conversationId: string): Promise<void> => {
@@ -87,6 +111,26 @@ export const chatService = {
    */
   getUnreadCount: async (): Promise<UnreadCountResponse> => {
     const response = await apiClient.get<UnreadCountResponse>('/chat/unread-count')
+    return response.data
+  },
+
+  // ======================== AUTO REPLY SETTINGS ========================
+
+  /**
+   * Get chat auto-reply settings for the current clinic (Clinic Owner / Manager).
+   */
+  getAutoReplySettings: async (): Promise<ChatAutoReplySettings> => {
+    const response = await apiClient.get<ChatAutoReplySettings>('/chat/auto-reply/settings')
+    return response.data
+  },
+
+  /**
+   * Update chat auto-reply settings for the current clinic.
+   */
+  updateAutoReplySettings: async (
+    request: UpdateChatAutoReplySettingsRequest
+  ): Promise<ChatAutoReplySettings> => {
+    const response = await apiClient.put<ChatAutoReplySettings>('/chat/auto-reply/settings', request)
     return response.data
   },
 }

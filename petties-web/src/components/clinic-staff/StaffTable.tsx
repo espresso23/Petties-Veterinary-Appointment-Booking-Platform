@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { TrashIcon, UserCircleIcon, PencilIcon } from '@heroicons/react/24/outline'
 import type { StaffMember, StaffSpecialty } from '../../types/clinicStaff'
-import { SPECIALTY_LABELS } from '../../types/clinicStaff'
+import { SPECIALTY_LABELS_LEGACY } from '../../types/clinicStaff'
 import { ConfirmDialog } from '../common/ConfirmDialog'
 
 interface StaffTableProps {
@@ -47,10 +47,10 @@ export function StaffTable({ staff, isLoading, onRemove, onEditSpecialty, canRem
     }
 
     const getRoleBadge = (role: string) => {
-        if (role === 'VET') {
+        if (role === 'STAFF') {
             return (
                 <span className="px-3 py-1 bg-green-100 text-green-800 border-2 border-stone-900 font-bold text-xs uppercase shadow-[2px_2px_0_#1c1917]">
-                    BÁC SĨ THÚ Y
+                    NHÂN VIÊN PHÒNG KHÁM
                 </span>
             )
         }
@@ -61,22 +61,20 @@ export function StaffTable({ staff, isLoading, onRemove, onEditSpecialty, canRem
         )
     }
 
-    const getSpecialtyBadge = (specialty?: StaffSpecialty) => {
+    const getSpecialtyBadge = (specialty?: StaffSpecialty | string) => {
         if (!specialty) return <span className="text-stone-400">-</span>
 
-        const label = SPECIALTY_LABELS[specialty] || specialty
+        const label = SPECIALTY_LABELS_LEGACY[specialty] || specialty
 
-        // Neobrutalism colors - matching app design
-        const colorClasses: Record<StaffSpecialty, string> = {
-            VET_GENERAL: 'bg-blue-100 text-blue-800',
-            VET_SURGERY: 'bg-purple-100 text-purple-800',
-            VET_DENTAL: 'bg-cyan-100 text-cyan-800',
-            VET_DERMATOLOGY: 'bg-pink-100 text-pink-800',
+        // Neobrutalism colors - VET (blue), GROOMER (orange), legacy VET_* mapped to blue
+        const colorClasses: Record<string, string> = {
+            VET: 'bg-blue-100 text-blue-800',
             GROOMER: 'bg-orange-100 text-orange-800',
         }
+        const colorClass = colorClasses[specialty] ?? (specialty.startsWith('VET') ? 'bg-blue-100 text-blue-800' : 'bg-orange-100 text-orange-800')
 
         return (
-            <span className={`px-2 py-0.5 text-[10px] font-bold uppercase border-2 border-stone-900 shadow-[2px_2px_0_#1c1917] ${colorClasses[specialty]}`}>
+            <span className={`px-2 py-0.5 text-[10px] font-bold uppercase border-2 border-stone-900 shadow-[2px_2px_0_#1c1917] ${colorClass}`}>
                 {label}
             </span>
         )
@@ -178,13 +176,13 @@ export function StaffTable({ staff, isLoading, onRemove, onEditSpecialty, canRem
                                     <td className="p-4">{getRoleBadge(member.role)}</td>
                                     <td className="p-4">
                                         <span className="text-stone-700 font-medium text-sm">
-                                            {member.role === 'VET' ? getSpecialtyBadge(member.specialty) : '-'}
+                                            {member.role === 'STAFF' ? getSpecialtyBadge(member.specialty) : '-'}
                                         </span>
                                     </td>
                                     {(canRemove || canEdit) && (
                                         <td className="p-4 text-right">
                                             <div className="flex items-center justify-end gap-2">
-                                                {canEdit && member.role === 'VET' && onEditSpecialty && (
+                                                {canEdit && member.role === 'STAFF' && onEditSpecialty && (
                                                     <button
                                                         onClick={() => onEditSpecialty(member)}
                                                         className="p-2 text-amber-600 hover:bg-amber-100 border-2 border-transparent hover:border-amber-600 transition-all"
@@ -247,7 +245,7 @@ export function StaffTable({ staff, isLoading, onRemove, onEditSpecialty, canRem
                                     </div>
                                 </div>
                                 <div className="flex gap-1">
-                                    {canEdit && member.role === 'VET' && onEditSpecialty && (
+                                    {canEdit && member.role === 'STAFF' && onEditSpecialty && (
                                         <button
                                             onClick={() => onEditSpecialty(member)}
                                             className="p-2 text-amber-600 hover:bg-amber-100 border-2 border-amber-600"
@@ -268,7 +266,7 @@ export function StaffTable({ staff, isLoading, onRemove, onEditSpecialty, canRem
                             </div>
                             <div className="mt-3 text-sm text-stone-600 space-y-1">
                                 {member.phone && <p>SĐT: {member.phone}</p>}
-                                {member.role === 'VET' && (
+                                {member.role === 'STAFF' && (
                                     <p>Chuyên môn: {getSpecialtyBadge(member.specialty)}</p>
                                 )}
                             </div>

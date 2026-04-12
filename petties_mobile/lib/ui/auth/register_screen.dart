@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
+import '../../data/models/auth_response.dart';
 import '../../data/services/auth_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../routing/app_routes.dart';
@@ -132,6 +133,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
         role: 'PET_OWNER',
       );
 
+      // DEV MODE: Backend trả về AuthResponse (skip OTP) → user đã đăng ký xong
+      if (response is AuthResponse) {
+        // Auth data đã được lưu trong auth_service.dart
+        // Gọi getCurrentUser để cập nhật user trong AuthProvider
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        await authProvider.getCurrentUser();
+
+        if (mounted) {
+          _showSuccessToast('Đăng ký thành công!');
+          context.go(AppRoutes.home);
+        }
+        return;
+      }
+
+      // Normal mode: Chuyển sang step OTP
       setState(() {
         _step = 'otp';
         _registrationEmail = _emailController.text.trim();

@@ -15,7 +15,7 @@ const roles = [
   {
     icon: UserGroupIcon,
     title: 'Bác sĩ thú y',
-    description: 'Quản lý lịch hẹn, hồ sơ bệnh nhân, tăng thu nhập'
+    description: 'Quản lý lịch hẹn, hồ sơ thú cưng, tăng thu nhập'
   },
   {
     icon: BuildingOffice2Icon,

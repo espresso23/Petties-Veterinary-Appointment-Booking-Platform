@@ -35,15 +35,25 @@ export interface ChatMessage {
   senderName: string
   senderAvatar: string | null
   content: string
+  messageType: 'TEXT' | 'IMAGE' | 'IMAGE_TEXT' | 'AI_RESPONSE'
+  imageUrl: string | null
   status: 'SENT' | 'DELIVERED' | 'SEEN'
   isRead: boolean
   readAt: string | null
   createdAt: string
   isMe: boolean
+  isUploading?: boolean // Used for optimistic UI during upload
+  
+  actionButtons?: {
+    id: string
+    label: string
+    type: 'MENU' | 'OFFER' | 'BOOKING' | 'CUSTOM'
+  }[]
 }
 
 export interface SendMessageRequest {
   content: string
+  imageUrl?: string
 }
 
 // ======================== WEBSOCKET ========================
@@ -87,3 +97,34 @@ export interface PageResponse<T> {
 // Deprecated: Use Conversation instead
 export type ChatBox = Conversation
 export type CreateChatBoxRequest = CreateConversationRequest
+
+// ======================== AUTO REPLY SETTINGS ========================
+
+export type AutoReplyCondition = 'OFF_HOURS' | 'ALWAYS'
+
+export interface ChatAutoReplySettings {
+  clinicId: string
+  quickReplyEnabled: boolean
+  quickReplyMessage: string
+  awayMessageEnabled: boolean
+  awayCondition: AutoReplyCondition
+  awayMessage: string
+  actionButtons?: {
+    id: string
+    label: string
+    type: 'MENU' | 'OFFER' | 'BOOKING' | 'CUSTOM'
+  }[]
+}
+
+export interface UpdateChatAutoReplySettingsRequest {
+  quickReplyEnabled: boolean
+  quickReplyMessage: string
+  awayMessageEnabled: boolean
+  awayCondition: AutoReplyCondition
+  awayMessage: string
+  actionButtons?: {
+    id: string
+    label: string
+    type: 'MENU' | 'OFFER' | 'BOOKING' | 'CUSTOM'
+  }[]
+}

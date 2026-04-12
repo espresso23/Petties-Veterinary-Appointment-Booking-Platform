@@ -5,8 +5,8 @@ class AppConstants {
   // API Configuration
   static const String baseUrl = 'https://api.petties.world/api'; // ✅ Sửa domain
   static const String apiVersion = 'v1';
-  static const int connectTimeout = 30000;
-  static const int receiveTimeout = 30000;
+  static const int connectTimeout = 10000;
+  static const int receiveTimeout = 60000; // Increased for image uploads
 
   // Storage Keys
   static const String accessTokenKey = 'access_token';

@@ -1,4 +1,4 @@
-# CAPSTONE PROJECT REGISTER
+﻿# CAPSTONE PROJECT REGISTER
 
 ## Class: CP_SEP490
 - **Duration time:** From 05/01/2026 To 30/04/2026
@@ -34,7 +34,7 @@
 
 **English:** Petties: Veterinary Appointment Booking Platform using Flutter, React Vite, Spring boot, Python, Postgres.
 
-**Vietnamese:** Petties: Hệ thống đặt lịch bác sĩ thú y sử dụng công nghệ Flutter, React Vite, Spring boot, Python, Postgres.
+**Vietnamese:** Petties: Hệ thống đặt lịch nhân viên thú y sử dụng công nghệ Flutter, React Vite, Spring boot, Python, Postgres.
 
 **Abbreviation:** PVABP
 
@@ -74,10 +74,10 @@ This project aims to develop a modern home veterinary booking system that connec
 **AI & Data Layer:**
 - Python 3.12
 - FastAPI + Uvicorn with WebSocket orchestrator
-- LangGraph for multi-agent workflows
-- Ollama for LLM
+- LangGraph for Single Agent + ReAct workflows
+- OpenRouter Cloud API for LLM
 - LlamaIndex for RAG
-- OpenAI embedding model
+- Cohere embedding model
 - Qdrant stores all vectors for efficient multimodal search
 - FastMCP
 

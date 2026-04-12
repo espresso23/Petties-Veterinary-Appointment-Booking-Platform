@@ -9,7 +9,7 @@ import {
 import '../styles/brutalist.css'
 
 // Toast types
-type ToastType = 'success' | 'error' | 'warning' | 'info'
+export type ToastType = 'success' | 'error' | 'warning' | 'info'
 
 interface Toast {
     id: string
@@ -49,8 +49,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     )
 }
 
-// Hook to use toast
-export function useToast() {
+// Hook to use toast - moved to separate export for proper fast-refresh
+// eslint-disable-next-line react-refresh/only-export-components
+export const useToast = () => {
     const context = useContext(ToastContext)
     if (!context) {
         throw new Error('useToast must be used within a ToastProvider')
@@ -60,8 +61,10 @@ export function useToast() {
 
 // Toast Container
 function ToastContainer({ toasts, onClose }: { toasts: Toast[]; onClose: (id: string) => void }) {
+    if (toasts.length === 0) return null
+
     return (
-        <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-3 max-w-sm">
+        <div className="fixed bottom-4 right-4 z-50 flex max-w-sm flex-col gap-3 pointer-events-none">
             {toasts.map((toast) => (
                 <ToastItem key={toast.id} toast={toast} onClose={onClose} />
             ))}
@@ -72,6 +75,13 @@ function ToastContainer({ toasts, onClose }: { toasts: Toast[]; onClose: (id: st
 // Single Toast Item
 function ToastItem({ toast, onClose }: { toast: Toast; onClose: (id: string) => void }) {
     const [isVisible, setIsVisible] = useState(false)
+    const isMounted = useRef(true)
+
+    useEffect(() => {
+        return () => {
+            isMounted.current = false
+        }
+    }, [])
 
     useEffect(() => {
         // Animate in
@@ -80,7 +90,11 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: (id: string) => 
         // Auto dismiss
         const timer = setTimeout(() => {
             setIsVisible(false)
-            setTimeout(() => onClose(toast.id), 300)
+            setTimeout(() => {
+                if (isMounted.current) {
+                    onClose(toast.id)
+                }
+            }, 300)
         }, toast.duration || 5000)
 
         return () => clearTimeout(timer)
@@ -118,11 +132,11 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: (id: string) => 
     const styles = getStyles()
 
     return (
-        <div
+                <div
             className={`
         ${styles.bg} 
         border-[4px] border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]
-        p-4 flex items-center gap-4 min-w-[320px]
+                p-4 flex items-center gap-4 min-w-[320px] pointer-events-auto
         transform transition-all duration-300 ease-[cubic-bezier(0.175,0.885,0.32,1.275)]
         ${isVisible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'}
       `}
@@ -136,8 +150,14 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: (id: string) => 
             <button
                 onClick={() => {
                     setIsVisible(false)
-                    setTimeout(() => onClose(toast.id), 300)
+                    setTimeout(() => {
+                        if (isMounted.current) {
+                            onClose(toast.id)
+                        }
+                    }, 300)
                 }}
+                title="Đóng thông báo"
+                aria-label="Đóng thông báo"
                 className="w-8 h-8 flex items-center justify-center bg-black text-white border-2 border-black hover:bg-gray-800 transition-all active:translate-x-[2px] active:translate-y-[2px]"
             >
                 <XMarkIcon className="w-5 h-5" />

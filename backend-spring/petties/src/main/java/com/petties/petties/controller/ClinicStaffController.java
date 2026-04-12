@@ -20,7 +20,7 @@ public class ClinicStaffController {
     private final ClinicStaffService staffService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER')")
     public ResponseEntity<List<StaffResponse>> getStaff(@PathVariable UUID clinicId) {
         return ResponseEntity.ok(staffService.getClinicStaff(clinicId));
     }
@@ -29,7 +29,7 @@ public class ClinicStaffController {
      * Check if clinic already has a manager
      */
     @GetMapping("/has-manager")
-    @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER')")
     public ResponseEntity<Boolean> hasManager(@PathVariable UUID clinicId) {
         return ResponseEntity.ok(staffService.hasManager(clinicId));
     }
@@ -45,7 +45,7 @@ public class ClinicStaffController {
             @PathVariable UUID clinicId,
             @Valid @RequestBody InviteByEmailRequest request) {
         staffService.inviteByEmail(clinicId, request);
-        return ResponseEntity.ok("Staff invited successfully");
+        return ResponseEntity.ok("Mời nhân viên thành công");
     }
 
     /**
@@ -57,19 +57,19 @@ public class ClinicStaffController {
             @PathVariable UUID clinicId,
             @PathVariable String usernameOrEmail) {
         staffService.assignManager(clinicId, usernameOrEmail);
-        return ResponseEntity.ok("Clinic Manager assigned successfully");
+        return ResponseEntity.ok("Gán quản lý phòng khám thành công");
     }
 
     /**
-     * Both Clinic Owner and Clinic Manager can assign Vets
+     * Both Clinic Owner and Clinic Manager can assign Staff
      */
-    @PostMapping("/vet/{usernameOrEmail}")
+    @PostMapping("/assign/{usernameOrEmail}")
     @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER')")
-    public ResponseEntity<String> assignVet(
+    public ResponseEntity<String> assignStaff(
             @PathVariable UUID clinicId,
             @PathVariable String usernameOrEmail) {
-        staffService.assignVet(clinicId, usernameOrEmail);
-        return ResponseEntity.ok("Vet assigned successfully");
+        staffService.assignStaff(clinicId, usernameOrEmail);
+        return ResponseEntity.ok("Nhân viên được gán thành công");
     }
 
     @DeleteMapping("/{userId}")
@@ -78,7 +78,7 @@ public class ClinicStaffController {
             @PathVariable UUID clinicId,
             @PathVariable UUID userId) {
         staffService.removeStaff(clinicId, userId);
-        return ResponseEntity.ok("Staff removed successfully");
+        return ResponseEntity.ok("Xóa nhân viên thành công");
     }
 
     /**
@@ -89,9 +89,9 @@ public class ClinicStaffController {
     public ResponseEntity<String> updateStaffSpecialty(
             @PathVariable UUID clinicId,
             @PathVariable UUID userId,
-            @RequestBody java.util.Map<String, String> body) {
-        String specialty = body.get("specialty");
+            @jakarta.validation.Valid @RequestBody com.petties.petties.dto.clinic.UpdateSpecialtyRequest request) {
+        String specialty = request.getSpecialty();
         staffService.updateStaffSpecialty(clinicId, userId, specialty);
-        return ResponseEntity.ok("Staff specialty updated successfully");
+        return ResponseEntity.ok("Cập nhật chuyên môn nhân viên thành công");
     }
 }

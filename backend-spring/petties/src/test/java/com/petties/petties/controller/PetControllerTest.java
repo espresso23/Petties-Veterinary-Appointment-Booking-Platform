@@ -118,7 +118,7 @@ class PetControllerTest {
                 mockMvc.perform(multipart("/pets")
                                 .file(imagePart)
                                 .param("name", "Milu")
-                                .param("species", "Dog")
+                                .param("species", "DOG")
                                 .param("breed", "Golden")
                                 .param("gender", "MALE")
                                 .param("dateOfBirth", LocalDate.now().toString())
@@ -164,6 +164,36 @@ class PetControllerTest {
         }
 
         @Test
+        @DisplayName("TC-UNIT-PET-009: Get Pet Ownership Mismatch Returns 403")
+        void getPet_ownershipMismatch_returns403() throws Exception {
+                UUID petId = UUID.randomUUID();
+                when(petService.getPet(petId)).thenThrow(new ForbiddenException("Bạn không có quyền..."));
+
+                mockMvc.perform(get("/pets/{id}", petId))
+                                .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-PET-010: Get Pet Invalid UUID Format Returns 400")
+        void getPet_invalidFormat_returns400() throws Exception {
+                mockMvc.perform(get("/pets/{id}", "not-a-uuid"))
+                                .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-PET-011: Get Pet Unauthorized (Simulated) Returns 401")
+        void getPet_unauthorized_returns401() throws Exception {
+                // Since filters are disabled in this test class, we simulate the exception
+                // that security would throw or the controller would receive.
+                when(petService.getPet(any())).thenThrow(
+                                new org.springframework.security.authentication.InsufficientAuthenticationException(
+                                                "Unauthorized"));
+
+                mockMvc.perform(get("/pets/{id}", UUID.randomUUID()))
+                                .andExpect(status().isUnauthorized());
+        }
+
+        @Test
         @DisplayName("TC-UNIT-PET-006: Update Pet Valid Request Returns 200")
         void updatePet_validRequest_returns200() throws Exception {
                 UUID petId = UUID.randomUUID();
@@ -184,7 +214,7 @@ class PetControllerTest {
                 mockMvc.perform(multipart("/pets/{id}", petId)
                                 .file(imagePart)
                                 .param("name", "Milu Updated")
-                                .param("species", "Dog")
+                                .param("species", "DOG")
                                 .param("breed", "Golden")
                                 .param("gender", "MALE")
                                 .param("dateOfBirth", LocalDate.now().toString())

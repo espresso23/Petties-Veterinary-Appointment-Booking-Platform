@@ -1,4 +1,4 @@
-# Chiến lược API Gateway & Nginx (NGINX Gateway Strategy)
+﻿# Chiến lược API Gateway & Nginx (NGINX Gateway Strategy)
 
 Tài liệu này mô tả cách hệ thống **Petties** sử dụng Nginx làm API Gateway để quản lý lưu lượng, bảo mật và khả năng mở rộng trong tương lai.
 
@@ -47,7 +47,7 @@ server {
 Để bảo vệ hệ thống khỏi các cuộc tấn công Brute-force hoặc Spam API, chiến lược gồm 2 lớp:
 
 ### Lớp 1: Application Level (Spring Boot/Redis) - *Đang sử dụng*
-- **Ưu điểm**: Kiểm soát chính xác theo `user_id`, hỗ trợ logic nghiệp vụ phức tạp (ví dụ: Vet được gọi API nhiều hơn Guest).
+- **Ưu điểm**: Kiểm soát chính xác theo `user_id`, hỗ trợ logic nghiệp vụ phức tạp (ví dụ: Staff được gọi API nhiều hơn Guest).
 - **Công nghệ**: Sử dụng Redis để đếm số lần gọi API trong một khoảng thời gian.
 
 ### Lớp 2: Gateway Level (Nginx) - *Kế hoạch triển khai Production*

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../../config/constants/app_colors.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/user_provider.dart';
@@ -8,10 +9,11 @@ import '../../../routing/app_routes.dart';
 import '../../../data/models/user_profile.dart';
 import '../../widgets/profile/avatar_picker.dart';
 import '../../widgets/profile/profile_info_card.dart';
+import '../../common/pet_owner_bottom_nav.dart';
 
 /// Profile Screen - Main profile view
 /// Displays user profile with Neobrutalism style
-/// Available for PET_OWNER and VET roles
+/// Available for PET_OWNER and STAFF roles
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -208,11 +210,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final isPetOwner = auth.user?.role == 'PET_OWNER';
+
     return Scaffold(
       backgroundColor: AppColors.stone50,
       appBar: _buildAppBar(),
-      body: Consumer<UserProvider>(
-        builder: (context, userProvider, child) {
+      body: SafeArea(
+        child: Consumer<UserProvider>(
+          builder: (context, userProvider, child) {
           if (userProvider.isLoading) {
             return const Center(
               child: CircularProgressIndicator(color: AppColors.primary),
@@ -224,8 +230,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
           }
 
           return _buildProfileContent(userProvider);
-        },
+          },
+        ),
       ),
+      bottomNavigationBar: isPetOwner
+          ? PetOwnerBottomNav(
+              currentIndex: 4,
+              onTap: (index) => handlePetOwnerNavTap(context, index),
+            )
+          : null,
     );
   }
 
@@ -312,8 +325,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       color: AppColors.primary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        child: profile?.role == 'VET'
-            ? _buildVetProfile(profile!, userProvider)
+        child: profile?.role == 'STAFF'
+            ? _buildStaffProfile(profile!, userProvider)
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -367,6 +380,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ProfileInfoGroup(
                     children: [
                       ProfileActionButton(
+                        label: 'Lịch sử báo cáo',
+                        icon: Icons.report_problem_outlined,
+                        onTap: () => context.push(AppRoutes.myReports),
+                      ),
+                      Container(height: 1, color: AppColors.stone200),
+                      ProfileActionButton(
                         label: 'Chỉnh sửa thông tin',
                         icon: Icons.edit_outlined,
                         onTap: () => context.push(AppRoutes.editProfile),
@@ -394,11 +413,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  /// Vet Profile Layout - Uses same structure as regular profile
+  /// Staff Profile Layout - Uses same structure as regular profile
   /// Only displays data available in UserProfile model
-  Widget _buildVetProfile(UserProfile profile, UserProvider userProvider) {
-    // VET profile uses the SAME layout as regular profile
-    // The only difference is the role badge shows "Bác sĩ thú y"
+  Widget _buildStaffProfile(UserProfile profile, UserProvider userProvider) {
+    // STAFF profile uses the SAME layout as regular profile
+    // The only difference is the role badge shows "Nhân viên phòng khám"
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -447,7 +466,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
 
-        // Vet-specific info section (specialty + rating)
+        // Staff-specific info section (specialty + rating)
         const ProfileSectionHeader(title: 'Thông tin chuyên môn'),
         ProfileInfoGroup(
           children: [
@@ -467,6 +486,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const ProfileSectionHeader(title: 'Thao tác'),
         ProfileInfoGroup(
           children: [
+            ProfileActionButton(
+              label: 'Lịch sử báo cáo',
+              icon: Icons.report_problem_outlined,
+              onTap: () => context.push(AppRoutes.myReports),
+            ),
+            Container(height: 1, color: AppColors.stone200),
             ProfileActionButton(
               label: 'Chỉnh sửa thông tin',
               icon: Icons.edit_outlined,
@@ -493,7 +518,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  /// Build rating card for VET profile with star icon
+  /// Build rating card for STAFF profile with star icon
   Widget _buildRatingCard(UserProfile profile) {
     final rating = profile.ratingAvg ?? 0.0;
     final count = profile.ratingCount ?? 0;

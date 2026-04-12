@@ -1,0 +1,271 @@
+package com.petties.petties.service;
+
+import com.petties.petties.dto.file.UploadResponse;
+import com.petties.petties.dto.pet.PetRequest;
+import com.petties.petties.dto.pet.PetResponse;
+import com.petties.petties.dto.pet.StaffPatientDTO;
+import com.petties.petties.exception.ForbiddenException;
+import com.petties.petties.model.Booking;
+import com.petties.petties.model.BookingServiceItem;
+import com.petties.petties.model.Clinic;
+import com.petties.petties.model.EmrRecord;
+import com.petties.petties.model.Pet;
+import com.petties.petties.model.User;
+import com.petties.petties.model.enums.BookingStatus;
+import com.petties.petties.model.enums.Role;
+import com.petties.petties.repository.BookingRepository;
+import com.petties.petties.repository.EmrRecordRepository;
+import com.petties.petties.repository.PetRepository;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.*;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+@DisplayName("PetService Unit Tests")
+class PetServiceUnitTest {
+
+    @Mock
+    private PetRepository petRepository;
+
+    @Mock
+    private AuthService authService;
+
+    @Mock
+    private CloudinaryService cloudinaryService;
+
+    @Mock
+    private EmrRecordRepository emrRecordRepository;
+
+    @Mock
+    private BookingRepository bookingRepository;
+
+    @Mock
+    private RestTemplate restTemplate;
+
+    @InjectMocks
+    private PetService petService;
+
+    @Test
+    @DisplayName("Create Pet - Valid - Success")
+    void createPet_valid_success() {
+        // Arrange
+        PetRequest request = new PetRequest();
+        request.setName("Buddy");
+        request.setSpecies(com.petties.petties.model.enums.PetSpecies.DOG);
+
+        User user = new User();
+        user.setUserId(UUID.randomUUID());
+        user.setUsername("owner");
+
+        when(authService.getCurrentUser()).thenReturn(user);
+        when(petRepository.save(any(Pet.class))).thenAnswer(i -> {
+            Pet p = i.getArgument(0);
+            p.setId(UUID.randomUUID());
+            return p;
+        });
+
+        // Act
+        PetResponse response = petService.createPet(request, null);
+
+        // Assert
+        assertNotNull(response);
+        assertEquals("Buddy", response.getName());
+        verify(petRepository).save(any(Pet.class));
+    }
+
+    @Test
+    @DisplayName("Update Pet - Not Owner - Throws Forbidden")
+    void updatePet_notOwner_throwsForbidden() {
+        // Arrange
+        UUID petId = UUID.randomUUID();
+        UUID ownerId = UUID.randomUUID();
+        UUID otherUserId = UUID.randomUUID();
+
+        User owner = new User();
+        owner.setUserId(ownerId);
+
+        User otherUser = new User();
+        otherUser.setUserId(otherUserId);
+        otherUser.setRole(Role.PET_OWNER);
+
+        Pet pet = new Pet();
+        pet.setId(petId);
+        pet.setUser(owner);
+
+        when(authService.getCurrentUser()).thenReturn(otherUser);
+        when(petRepository.findById(petId)).thenReturn(Optional.of(pet));
+
+        // Act & Assert
+        assertThrows(ForbiddenException.class, () -> petService.updatePet(petId, new PetRequest(), null));
+    }
+
+    @Test
+    @DisplayName("Get Patients For Staff - Returns Sorted and Mapped List")
+    void getPatientsForStaff_returnsSortedList() {
+        // Arrange
+        UUID clinicId = UUID.randomUUID();
+        UUID staffId = UUID.randomUUID();
+
+        UUID petId = UUID.randomUUID();
+        Pet pet1 = new Pet();
+        pet1.setId(petId);
+        pet1.setName("My Patient");
+        pet1.setUser(new User());
+
+        // 1. Mock Repository Calls for Patient Identification
+        // EmrRecord mocking - service now calls findByClinicId and maps to petIds
+        when(emrRecordRepository.findByClinicId(clinicId)).thenReturn(Collections.emptyList());
+        when(bookingRepository.findPetIdsByClinicId(clinicId)).thenReturn(List.of(petId));
+        when(petRepository.findAllById(any())).thenReturn(List.of(pet1));
+
+        // 2. Mock Today's Bookings for Overlay
+        Booking myBooking = new Booking();
+        myBooking.setPet(pet1);
+        myBooking.setBookingDate(LocalDate.now());
+        myBooking.setBookingTime(LocalTime.of(10, 0));
+        myBooking.setStatus(BookingStatus.CONFIRMED);
+
+        BookingServiceItem item = new BookingServiceItem();
+        User staff = new User();
+        staff.setUserId(staffId);
+        item.setAssignedStaff(staff);
+        myBooking.setBookingServices(List.of(item));
+
+        when(bookingRepository.findByClinicIdAndDateWithDetails(eq(clinicId), any(LocalDate.class)))
+                .thenReturn(List.of(myBooking));
+
+        // Act
+        List<StaffPatientDTO> patients = petService.getPatientsForStaff(clinicId, staffId);
+
+        // Assert
+        assertNotNull(patients);
+        assertEquals(1, patients.size());
+        assertEquals("My Patient", patients.get(0).getPetName());
+        assertTrue(patients.get(0).isAssignedToMe());
+    }
+
+    @Test
+    @DisplayName("Update Pet - With Avatar Upload - Success")
+    void updatePet_WithAvatarUpload_Success() {
+        // Arrange
+        UUID petId = UUID.randomUUID();
+        UUID ownerId = UUID.randomUUID();
+
+        User owner = new User();
+        owner.setUserId(ownerId);
+
+        Pet pet = new Pet();
+        pet.setId(petId);
+        pet.setUser(owner);
+        pet.setName("Old Name");
+
+        PetRequest request = new PetRequest();
+        request.setName("New Name");
+
+        MultipartFile mockFile = mock(MultipartFile.class);
+        UploadResponse uploadResponse = new UploadResponse();
+        uploadResponse.setUrl("http://cloudinary.com/new_avatar.jpg");
+
+        when(authService.getCurrentUser()).thenReturn(owner);
+        when(petRepository.findById(petId)).thenReturn(Optional.of(pet));
+        when(cloudinaryService.uploadFile(eq(mockFile), anyString())).thenReturn(uploadResponse);
+        when(petRepository.save(any(Pet.class))).thenAnswer(i -> i.getArgument(0));
+
+        // Act
+        PetResponse response = petService.updatePet(petId, request, mockFile);
+
+        // Assert
+        assertNotNull(response);
+        assertEquals("New Name", response.getName());
+        assertEquals("http://cloudinary.com/new_avatar.jpg", response.getImageUrl());
+        verify(cloudinaryService).uploadFile(eq(mockFile), anyString());
+        verify(petRepository).save(pet);
+    }
+
+    @Test
+    @DisplayName("Get Health Summary - Staff cùng clinic - Success")
+    void getHealthSummary_staffSameClinic_success() {
+        UUID petId = UUID.randomUUID();
+        UUID clinicId = UUID.randomUUID();
+
+        User owner = new User();
+        owner.setUserId(UUID.randomUUID());
+
+        Pet pet = new Pet();
+        pet.setId(petId);
+        pet.setName("Bella");
+        pet.setUser(owner);
+
+        Clinic clinic = new Clinic();
+        clinic.setClinicId(clinicId);
+
+        User staff = new User();
+        staff.setUserId(UUID.randomUUID());
+        staff.setRole(Role.STAFF);
+        staff.setWorkingClinic(clinic);
+
+        when(authService.getCurrentUser()).thenReturn(staff);
+        when(petRepository.findById(petId)).thenReturn(Optional.of(pet));
+        when(bookingRepository.existsByPet_IdAndClinic_ClinicId(petId, clinicId)).thenReturn(true);
+        when(emrRecordRepository.findByPetIdOrderByCreatedAtDesc(petId)).thenReturn(List.of());
+        Map<String, Object> aiResponse = new HashMap<>();
+        aiResponse.put("health_warnings", List.of());
+        aiResponse.put("medication_reminders", List.of());
+        aiResponse.put("suggested_actions", List.of());
+        aiResponse.put("latest_emr_summary", null);
+        aiResponse.put("disclaimer", "test");
+        when(restTemplate.exchange(anyString(), eq(org.springframework.http.HttpMethod.POST), any(HttpEntity.class), eq(Map.class)))
+                .thenReturn(new ResponseEntity<>(aiResponse, HttpStatus.OK));
+
+        var response = petService.getHealthSummary(petId);
+
+        assertNotNull(response);
+        assertNotNull(response.getPetInfo());
+        assertEquals("Bella", response.getPetInfo().getName());
+    }
+
+    @Test
+    @DisplayName("Get Health Summary - Staff khác clinic - Throws Forbidden")
+    void getHealthSummary_staffOtherClinic_forbidden() {
+        UUID petId = UUID.randomUUID();
+        UUID clinicId = UUID.randomUUID();
+
+        User owner = new User();
+        owner.setUserId(UUID.randomUUID());
+
+        Pet pet = new Pet();
+        pet.setId(petId);
+        pet.setUser(owner);
+
+        Clinic clinic = new Clinic();
+        clinic.setClinicId(clinicId);
+
+        User staff = new User();
+        staff.setUserId(UUID.randomUUID());
+        staff.setRole(Role.STAFF);
+        staff.setWorkingClinic(clinic);
+
+        when(authService.getCurrentUser()).thenReturn(staff);
+        when(petRepository.findById(petId)).thenReturn(Optional.of(pet));
+        when(bookingRepository.existsByPet_IdAndClinic_ClinicId(petId, clinicId)).thenReturn(false);
+        when(emrRecordRepository.findByPetIdOrderByCreatedAtDesc(petId)).thenReturn(List.of());
+
+        assertThrows(ForbiddenException.class, () -> petService.getHealthSummary(petId));
+    }
+}

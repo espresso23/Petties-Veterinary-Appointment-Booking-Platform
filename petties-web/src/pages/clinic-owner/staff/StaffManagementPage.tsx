@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { UserPlusIcon } from '@heroicons/react/24/outline'
 import { useClinicStore } from '../../../store/clinicStore'
 import { clinicStaffService } from '../../../services/api/clinicStaffService'
@@ -7,7 +7,7 @@ import type { StaffMember, InviteByEmailRequest, StaffSpecialty } from '../../..
 
 /**
  * Staff Management Page - For Clinic Owner
- * Manage all staff (VET, CLINIC_MANAGER) for owned clinics
+ * Manage all staff (STAFF, CLINIC_MANAGER) for owned clinics
  */
 export function StaffManagementPage() {
     const { clinics, getMyClinics, isLoading: clinicsLoading } = useClinicStore()
@@ -31,14 +31,7 @@ export function StaffManagementPage() {
         }
     }, [clinics, selectedClinicId])
 
-    // Fetch staff when clinic changes
-    useEffect(() => {
-        if (selectedClinicId) {
-            fetchStaff()
-        }
-    }, [selectedClinicId])
-
-    const fetchStaff = async () => {
+    const fetchStaff = useCallback(async () => {
         if (!selectedClinicId) return
         setIsLoading(true)
         setError(null)
@@ -49,12 +42,19 @@ export function StaffManagementPage() {
             ])
             setStaff(staffData)
             setHasManager(managerStatus)
-        } catch (err: any) {
+        } catch (err) {
             setError(err?.userMessage || err?.message || 'Không thể tải danh sách nhân viên')
         } finally {
             setIsLoading(false)
         }
-    }
+    }, [selectedClinicId])
+
+    // Fetch staff when clinic changes
+    useEffect(() => {
+        if (selectedClinicId) {
+            fetchStaff()
+        }
+    }, [selectedClinicId, fetchStaff])
 
     const handleAddStaff = async (data: InviteByEmailRequest) => {
         await clinicStaffService.inviteByEmail(selectedClinicId, data)
@@ -65,7 +65,7 @@ export function StaffManagementPage() {
         try {
             await clinicStaffService.removeStaff(selectedClinicId, userId)
             await fetchStaff()
-        } catch (err: any) {
+        } catch (err) {
             setError(err?.userMessage || err?.message || 'Không thể xóa nhân viên')
         }
     }
@@ -179,7 +179,7 @@ export function StaffManagementPage() {
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
                 onSubmit={handleAddStaff}
-                allowedRoles={['VET', 'CLINIC_MANAGER']}
+                allowedRoles={['STAFF', 'CLINIC_MANAGER']}
                 disabledRoles={hasManager ? ['CLINIC_MANAGER'] : []}
                 title="THÊM NHÂN VIÊN MỚI"
             />
@@ -189,7 +189,7 @@ export function StaffManagementPage() {
                 isOpen={editingMember !== null}
                 onClose={() => setEditingMember(null)}
                 onSubmit={handleUpdateSpecialty}
-                currentSpecialty={editingMember?.specialty || 'VET_GENERAL'}
+                currentSpecialty={editingMember?.specialty || 'VET'}
                 staffName={editingMember?.fullName || ''}
             />
         </div>

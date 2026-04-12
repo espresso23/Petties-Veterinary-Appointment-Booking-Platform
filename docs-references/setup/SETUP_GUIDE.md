@@ -1,4 +1,4 @@
-# 🚀 PETTIES - Setup Guide
+﻿# 🚀 PETTIES - Setup Guide
 
 Hướng dẫn setup chi tiết cho Development và Production environments.
 
@@ -183,9 +183,10 @@ docker-compose -f docker-compose.dev.yml up --build
    # SSH vào EC2
    ssh -i petties-key.pem ubuntu@<EC2_IP>
    
-   # Edit .env file
+   # Edit .env.prod file
    cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
-   nano .env
+   cp .env.prod.example .env.prod
+   nano .env.prod
    
    # Required variables:
    # - OPENROUTER_API_KEY (from https://openrouter.ai)
@@ -200,7 +201,7 @@ docker-compose -f docker-compose.dev.yml up --build
 
 4. **Deploy with Docker Compose:**
    ```bash
-   docker-compose -f docker-compose.prod.yml --env-file .env up -d --build
+   docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod up -d --build
    ```
 
 **Chi tiết deployment:** Xem `docs-references/deployment/EC2_PRODUCTION_DEPLOYMENT.md`
@@ -215,7 +216,7 @@ Frontend deployed tại https://petties.world
 
 ```bash
 # Test production build locally
-docker-compose -f docker-compose.prod.yml up --build
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod up --build
 ```
 
 ---
@@ -368,6 +369,6 @@ docker exec -it petties-postgres psql -U postgres -d petties_db -c "SELECT 1;"
 
 ---
 
-**Last Updated:** January 2025  
+**Last Updated:** 2026-04-12  
 **Version:** 1.0.0
 

@@ -2,23 +2,27 @@ package com.petties.petties.model.enums;
 
 /**
  * Booking status state machine
- * 
- * Flow:
- * PENDING → CONFIRMED → ASSIGNED → [ON_THE_WAY → ARRIVED] → CHECK_IN →
- * IN_PROGRESS → CHECK_OUT → COMPLETED
- * 
- * ON_THE_WAY, ARRIVED: Only for HOME_VISIT and SOS bookings
+ *
+ * Regular Flow:
+ * PENDING → CONFIRMED → IN_PROGRESS → COMPLETED
+ *
+ * SOS/HOME_VISIT Flow (simplified):
+ * SEARCHING → PENDING_CLINIC_CONFIRM → CONFIRMED → IN_PROGRESS → COMPLETED
+ *
+ * Actions (not statuses):
+ * - startMoving(): CONFIRMED → IN_PROGRESS (SOS/HOME_VISIT)
+ * - arrived(): IN_PROGRESS (sets arrivedAt timestamp)
+ * - checkIn(): CONFIRMED → IN_PROGRESS
+ * - checkout(): IN_PROGRESS (prepare payment info, keep status)
+ * - complete(): IN_PROGRESS → COMPLETED (requires payment paid for QR)
  */
 public enum BookingStatus {
     PENDING, // Pet Owner tạo, chờ Clinic xác nhận
-    CONFIRMED, // Clinic đã xác nhận
-    ASSIGNED, // Đã phân công Vet
-    ON_THE_WAY, // Vet đang đến (HOME_VISIT/SOS)
-    ARRIVED, // Vet đã đến (HOME_VISIT/SOS)
-    CHECK_IN, // Vet bắt đầu khám
-    IN_PROGRESS, // Đang khám
-    CHECK_OUT, // Kết thúc khám, chờ thanh toán
-    COMPLETED, // Hoàn thành (đã thanh toán)
+    SEARCHING, // SOS Auto-Match: Đang tìm kiếm phòng khám gần nhất
+    PENDING_CLINIC_CONFIRM, // SOS Auto-Match: Chờ phòng khám xác nhận
+    CONFIRMED, // Clinic đã xác nhận + Staff đã được phân công
+    IN_PROGRESS, // Đang khám hoặc đang di chuyển (Staff đã check-in hoặc startMoving)
+    COMPLETED, // Hoàn thành sau khi thanh toán
     CANCELLED, // Đã hủy
     NO_SHOW // Khách không đến
 }

@@ -11,13 +11,19 @@ import { useClinicStore } from '../store/clinicStore'
 import {
   Squares2X2Icon,
   BuildingOfficeIcon,
+  RectangleStackIcon,
   UsersIcon,
   FlagIcon,
   BookOpenIcon,
   WrenchIcon,
   PlayIcon,
+  ChartBarSquareIcon,
   BellIcon,
-  UserCircleIcon
+  UserCircleIcon,
+  BanknotesIcon,
+  MegaphoneIcon,
+  TicketIcon,
+  CreditCardIcon
 } from '@heroicons/react/24/outline'
 import '../styles/brutalist.css'
 
@@ -51,9 +57,20 @@ export const AdminLayout = () => {
     {
       title: 'PLATFORM MANAGEMENT',
       items: [
-        { path: '/admin/clinics', label: 'QUẢN LÝ CLINIC', icon: BuildingOfficeIcon, unreadCount: pendingCount },
+        {
+          path: '/admin/clinics',
+          label: 'QUẢN LÝ CLINIC',
+          icon: BuildingOfficeIcon,
+          unreadCount: pendingCount,
+          end: true,
+        },
+        { path: '/admin/clinics/registry', label: 'DS PHÒNG KHÁM', icon: RectangleStackIcon },
         { path: '/admin/users', label: 'USERS', icon: UsersIcon },
         { path: '/admin/reports', label: 'REPORTS', icon: FlagIcon },
+        { path: '/admin/refunds', label: 'RÚT TIỀN', icon: BanknotesIcon },
+        { path: '/admin/notification-manage', label: 'GỬI THÔNG BÁO', icon: MegaphoneIcon },
+        { path: '/admin/vouchers', label: 'VOUCHER', icon: TicketIcon },
+        { path: '/admin/subscriptions', label: 'QUẢN LÝ GÓI', icon: CreditCardIcon },
       ]
     },
     {
@@ -62,6 +79,7 @@ export const AdminLayout = () => {
         { path: '/admin/knowledge', label: 'KNOWLEDGE BASE', icon: BookOpenIcon },
         { path: '/admin/tools', label: 'TOOLS', icon: WrenchIcon },
         { path: '/admin/playground', label: 'PLAYGROUND', icon: PlayIcon },
+        { path: '/admin/ai-insights', label: 'AI INSIGHTS', icon: ChartBarSquareIcon },
       ]
     },
     {
@@ -79,19 +97,21 @@ export const AdminLayout = () => {
   }
 
   return (
-    <div className="h-screen bg-stone-50 flex overflow-hidden">
+    <div className="h-screen h-screen-safe min-h-screen-safe bg-stone-50 flex overflow-hidden safe-area-padding">
       <Sidebar
         groups={navGroups}
         user={user}
-        roleName="ADMIN PANEL"
+        roleName="QUẢN TRỊ VIÊN"
         state={state}
         toggleSidebar={toggleSidebar}
         onLogout={handleLogout}
         isMobile={isMobile}
+        isVIP={false}
+        planName="ADMIN"
       />
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto bg-stone-50 relative">
+      <main className="flex-1 min-w-0 overflow-auto bg-stone-50 relative">
         <div className="p-0 h-full">
           <Outlet />
         </div>

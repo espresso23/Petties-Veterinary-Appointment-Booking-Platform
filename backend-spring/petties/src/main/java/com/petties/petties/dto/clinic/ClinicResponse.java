@@ -35,15 +35,21 @@ public class ClinicResponse {
     private String specificLocation; // Vị trí chính xác
     private String phone;
     private String email;
+    private String bankName; // Tên ngân hàng
+    private String accountNumber; // Số tài khoản ngân hàng
+    private BigDecimal sosFee; // Phí dịch vụ SOS
+    private BigDecimal pricePerKm; // Giá di chuyển theo km
     private BigDecimal latitude;
     private BigDecimal longitude;
     private String logo; // URL to clinic logo
+    private String businessLicenseUrl; // URL to business license/veterinary practice certificate
     private Map<String, OperatingHours> operatingHours;
     private ClinicStatus status;
     private String rejectionReason;
     private BigDecimal ratingAvg;
     private Integer ratingCount;
     private LocalDateTime approvedAt;
+    private LocalDateTime strikeUntil; // NULL = không bị strike; có giá trị = hạn chế đến thời điểm này
     private List<String> images;
     private List<ImageInfo> imageDetails;
     private LocalDateTime createdAt;

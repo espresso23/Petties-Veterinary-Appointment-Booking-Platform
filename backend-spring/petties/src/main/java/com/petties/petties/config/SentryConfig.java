@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
 
 /**
  * Sentry Error Tracking Configuration
- * Auto-reports errors to Slack via Sentry integration
+ * Auto-reports errors to Discord via Sentry integration
  */
 @Configuration
 public class SentryConfig {

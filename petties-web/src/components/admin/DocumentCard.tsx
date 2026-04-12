@@ -1,19 +1,23 @@
 import { useState } from 'react'
-import { TrashIcon, ClockIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
+import { TrashIcon, ClockIcon, CheckCircleIcon, EyeIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
 import type { Document } from '../../services/agentService'
 import { ConfirmDialog } from '../common/ConfirmDialog'
+import { DocumentPreviewModal } from './DocumentPreviewModal'
 
 interface DocumentCardProps {
   document: Document
   onDelete: (id: number) => Promise<void>
+  onProcess?: (id: number) => Promise<void>
 }
 
 /**
  * Document Card Component
- * Shows document info, processing status, and vector count
+ * Shows document info, processing status, vector count, and preview button
  */
-export const DocumentCard = ({ document, onDelete }: DocumentCardProps) => {
+export const DocumentCard = ({ document, onDelete, onProcess }: DocumentCardProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
+  const [processing, setProcessing] = useState(false)
 
   const formatFileSize = (bytes?: number): string => {
     if (!bytes) return '-'
@@ -72,6 +76,16 @@ export const DocumentCard = ({ document, onDelete }: DocumentCardProps) => {
     await onDelete(document.id)
   }
 
+  const handleProcess = async () => {
+    if (!onProcess || processing) return
+    setProcessing(true)
+    try {
+      await onProcess(document.id)
+    } finally {
+      setProcessing(false)
+    }
+  }
+
   return (
     <>
       <div className="bg-white rounded-xl border border-stone-200 shadow-soft p-5 hover:shadow-medium transition-shadow">
@@ -106,23 +120,61 @@ export const DocumentCard = ({ document, onDelete }: DocumentCardProps) => {
               )}
 
               {document.processed && (
-                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                  {document.vector_count} vectors
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                    {document.vector_count} text
+                  </span>
+                  {(document.image_count ?? 0) > 0 && (
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                      {document.image_count} images
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           </div>
 
-          {/* Delete Button */}
-          <button
-            onClick={handleDeleteClick}
-            className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-            title="Delete document"
-          >
-            <TrashIcon className="w-5 h-5" />
-          </button>
+          {/* Action Buttons */}
+          <div className="flex items-center gap-1">
+            {/* Process Button - only show if not processed and onProcess is provided */}
+            {!document.processed && onProcess && (
+              <button
+                onClick={handleProcess}
+                disabled={processing}
+                className="p-2 text-stone-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                title="Xử lý tài liệu"
+              >
+                <ArrowPathIcon className={`w-5 h-5 ${processing ? 'animate-spin' : ''}`} />
+              </button>
+            )}
+
+            {/* Preview Button */}
+            <button
+              onClick={() => setShowPreview(true)}
+              className="p-2 text-stone-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+              title="Xem nội dung"
+            >
+              <EyeIcon className="w-5 h-5" />
+            </button>
+
+            {/* Delete Button */}
+            <button
+              onClick={handleDeleteClick}
+              className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+              title="Xóa tài liệu"
+            >
+              <TrashIcon className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Preview Modal */}
+      <DocumentPreviewModal
+        isOpen={showPreview}
+        onClose={() => setShowPreview(false)}
+        document={document}
+      />
 
       {/* Confirm Dialog */}
       <ConfirmDialog
@@ -138,3 +190,4 @@ export const DocumentCard = ({ document, onDelete }: DocumentCardProps) => {
     </>
   )
 }
+

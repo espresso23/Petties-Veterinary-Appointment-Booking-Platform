@@ -12,7 +12,6 @@ import { ArrowPathIcon, AdjustmentsHorizontalIcon, MagnifyingGlassIcon } from '@
  * Features:
  * - View all code-based tools (FastMCP)
  * - Enable/disable tools
- * - Assign tools to agents
  * - Scan code-based tools
  */
 export const ToolsPage = () => {
@@ -58,14 +57,9 @@ export const ToolsPage = () => {
     }
   }
 
-  const handleAssign = (toolId: number) => {
-    // TODO: Open modal to assign tool to agents
-    console.log('Assign tool', toolId)
-  }
-
   // Filter tools by search query
   const filteredTools = tools.filter(tool => {
-    const matchesSearch = searchQuery.trim() === '' || 
+    const matchesSearch = searchQuery.trim() === '' ||
       tool.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       tool.description?.toLowerCase().includes(searchQuery.toLowerCase())
     return matchesSearch
@@ -96,7 +90,7 @@ export const ToolsPage = () => {
             <div>
               <h1 className="text-2xl font-bold text-stone-900">Tool Registry</h1>
               <p className="text-sm text-stone-500 mt-1">
-                Manage and configure code-based tools for AI agents.
+                Quản lý tool cho single-agent `petties_agent`. Playground chỉ test các tool an toàn; booking tools chỉ chạy trong business chat có context thật.
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -135,6 +129,20 @@ export const ToolsPage = () => {
 
         {/* Search */}
         <div className="bg-white rounded-xl border border-stone-200 shadow-soft p-4">
+          <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+              <div className="text-xs font-black uppercase text-emerald-700 mb-1">Playground testable</div>
+              <p className="text-sm text-stone-700">
+                Dùng để kiểm tra trong Playground admin: `pet_knowledge_search`, `web_search`. Admin có thể bật/tắt hai tool này để kiểm tra hành vi chat.
+              </p>
+            </div>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+              <div className="text-xs font-black uppercase text-amber-700 mb-1">Business chat only</div>
+              <p className="text-sm text-stone-700">
+                Các tool booking/phong kham cần user context thật như PET_OWNER, JWT, pet, clinic hoặc xác nhận booking nên không test trực tiếp trong Playground và được hệ thống bật sẵn cho business chat.
+              </p>
+            </div>
+          </div>
           <div className="relative">
             <input
               type="text"
@@ -170,7 +178,6 @@ export const ToolsPage = () => {
                 key={tool.id}
                 tool={tool}
                 onToggle={(enabled) => handleToggle(tool, enabled)}
-                onAssign={handleAssign}
               />
             ))
           )}

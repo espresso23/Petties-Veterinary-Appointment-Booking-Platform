@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.web.bind.annotation.CrossOrigin;
 
 import java.util.UUID;
 
@@ -37,6 +38,7 @@ import java.util.UUID;
 @RequestMapping("/sse")
 @RequiredArgsConstructor
 @Slf4j
+@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true")
 public class SseController {
 
     private final SseEmitterService sseEmitterService;
@@ -47,13 +49,14 @@ public class SseController {
     /**
      * Subscribe to Server-Sent Events
      *
-     * Authentication is handled via query param token (EventSource doesn't support headers)
+     * Authentication is handled via query param token (EventSource doesn't support
+     * headers)
      *
      * Event types that may be received:
      * - CONNECTED: Initial connection confirmation
      * - HEARTBEAT: Keep-alive ping (every 30 seconds)
      * - NOTIFICATION: New notification arrived
-     * - SHIFT_UPDATE: VetShift changed (for calendar auto-refresh)
+     * - SHIFT_UPDATE: StaffShift changed (for calendar auto-refresh)
      *
      * @param token JWT access token passed as query parameter
      * @return SseEmitter for the SSE stream
@@ -103,7 +106,6 @@ public class SseController {
     @PreAuthorize("hasRole('ADMIN')")
     public java.util.Map<String, Object> getStats() {
         return java.util.Map.of(
-                "totalConnections", sseEmitterService.getTotalConnectionCount()
-        );
+                "totalConnections", sseEmitterService.getTotalConnectionCount());
     }
 }

@@ -3,19 +3,24 @@ import { useEffect } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useNotificationStore } from '../store/notificationStore'
 import { Sidebar } from '../components/Sidebar/Sidebar'
+import MascotProvider from '../components/mascot/MascotProvider'
 import type { NavGroup } from '../components/Sidebar/Sidebar'
 import { useSidebar } from '../hooks/useSidebar'
 import { useSseNotification } from '../hooks/useSseNotification'
 import { useSyncProfile } from '../hooks/useSyncProfile'
+import { useMembershipStore } from '../store/membershipStore'
+import { useClinicStore } from '../store/clinicStore'
+
 import {
     Squares2X2Icon,
     HomeModernIcon,
+    CreditCardIcon,
     UserGroupIcon,
     WrenchScrewdriverIcon,
     BeakerIcon,
     BellIcon,
     PresentationChartLineIcon,
-    UserCircleIcon
+    UserCircleIcon,
 } from '@heroicons/react/24/outline'
 import '../styles/brutalist.css'
 
@@ -27,6 +32,13 @@ export const ClinicOwnerLayout = () => {
     const refreshUnreadCount = useNotificationStore((state) => state.refreshUnreadCount)
     const { state, toggleSidebar, isMobile } = useSidebar()
 
+    const fetchMembershipStatus = useMembershipStore(state => state.fetchMembershipStatus)
+    const { getMyClinics, selectedClinicId } = useClinicStore()
+
+    const isVIP = useMembershipStore(state => state.isVIP())
+    const planName = useMembershipStore(state => state.getPlanName())
+    const remainingDays = useMembershipStore(state => state.getRemainingDays())
+
     // Initialize SSE
     useSseNotification()
 
@@ -35,14 +47,22 @@ export const ClinicOwnerLayout = () => {
 
     useEffect(() => {
         refreshUnreadCount()
-    }, [refreshUnreadCount])
+        getMyClinics()
+    }, [refreshUnreadCount, getMyClinics])
+
+    useEffect(() => {
+        if (selectedClinicId) {
+            fetchMembershipStatus(selectedClinicId)
+        }
+    }, [selectedClinicId, fetchMembershipStatus])
 
     const navGroups: NavGroup[] = [
         {
             title: 'HỆ THỐNG',
             items: [
-                { path: '/clinic-owner', label: 'DASHBOARD', icon: Squares2X2Icon, end: true },
+                { path: '/clinic-owner', label: 'BẢNG ĐIỀU KHIỂN', icon: Squares2X2Icon, end: true },
                 { path: '/clinic-owner/clinics', label: 'QUẢN LÝ PHÒNG KHÁM', icon: HomeModernIcon },
+                { path: '/clinic-owner/subscriptions', label: 'GÓI DỊCH VỤ', icon: CreditCardIcon },
                 { path: '/clinic-owner/staff', label: 'NHÂN SỰ', icon: UserGroupIcon },
             ]
         },
@@ -69,15 +89,18 @@ export const ClinicOwnerLayout = () => {
     }
 
     return (
-        <div className="h-screen bg-stone-50 flex overflow-hidden">
+        <div className="h-screen h-screen-safe min-h-screen-safe bg-stone-50 flex overflow-hidden safe-area-padding">
             <Sidebar
                 groups={navGroups}
                 user={user}
-                roleName="CLINIC OWNER"
+                roleName="CHỦ PHÒNG KHÁM"
                 state={state}
                 toggleSidebar={toggleSidebar}
                 onLogout={handleLogout}
                 isMobile={isMobile}
+                isVIP={isVIP}
+                planName={planName}
+                remainingDays={remainingDays}
             />
 
             {/* Main Content */}
@@ -86,6 +109,8 @@ export const ClinicOwnerLayout = () => {
                     <Outlet />
                 </div>
             </main>
+
+            <MascotProvider />
         </div>
     )
 }

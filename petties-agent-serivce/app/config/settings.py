@@ -8,9 +8,10 @@ Version: v0.0.1
 """
 
 from pydantic_settings import BaseSettings
-from pydantic import Field, field_validator
-from typing import List, Union
+from pydantic import Field, field_validator, model_validator
+from typing import ClassVar, List, Set, Union
 import os
+import logging
 
 
 class Settings(BaseSettings):
@@ -21,14 +22,19 @@ class Settings(BaseSettings):
 
     # ==================== Application Settings ====================
     APP_NAME: str = Field(default="Petties Agent Service", description="Tên ứng dụng")
-    APP_ENV: str = Field(default="development", description="Environment: development, staging, production")
+    APP_ENV: str = Field(
+        default="development",
+        description="Environment: development, staging, production",
+    )
     APP_VERSION: str = Field(default="0.0.1", description="Version của service")
     APP_DEBUG: bool = Field(default=True, description="Debug mode")
 
     ENVIRONMENT: str = Field(default="development", description="Environment name")
-    
+
     # ==================== Error Monitoring (Sentry) ====================
-    SENTRY_DSN: str = Field(default="", description="Sentry DSN for error tracking (leave empty to disable)")
+    SENTRY_DSN: str = Field(
+        default="", description="Sentry DSN for error tracking (leave empty to disable)"
+    )
 
     # ==================== Server Configuration ====================
     HOST: str = Field(default="0.0.0.0", description="Server host")
@@ -37,7 +43,7 @@ class Settings(BaseSettings):
     # Dùng Union[str, List[str]] để tránh Pydantic parse như JSON
     CORS_ORIGINS: Union[str, List[str]] = Field(
         default="http://localhost:3000,http://localhost:5173",
-        description="CORS allowed origins (comma-separated string or JSON array)"
+        description="CORS allowed origins (comma-separated string or JSON array)",
     )
 
     @field_validator("CORS_ORIGINS", mode="before")
@@ -53,14 +59,18 @@ class Settings(BaseSettings):
         if isinstance(v, list):
             return ",".join(v)  # Convert list về string
         return "http://localhost:3000,http://localhost:5173"
-    
+
     @property
     def cors_origins_list(self) -> List[str]:
         """Get CORS_ORIGINS as List[str]"""
         if isinstance(self.CORS_ORIGINS, list):
             return self.CORS_ORIGINS
         if isinstance(self.CORS_ORIGINS, str):
-            return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+            return [
+                origin.strip()
+                for origin in self.CORS_ORIGINS.split(",")
+                if origin.strip()
+            ]
         return ["http://localhost:3000", "http://localhost:5173"]
 
     # ==================== Database - PostgreSQL (Neon) ====================
@@ -68,7 +78,7 @@ class Settings(BaseSettings):
     # IMPORTANT: Set DATABASE_URL in .env file, DO NOT hardcode credentials here
     DATABASE_URL: str = Field(
         default="",
-        description="Database connection URL (Neon) - Must be set in .env file"
+        description="Database connection URL (Neon) - Must be set in .env file",
     )
 
     # Option 2: Dùng các biến riêng lẻ (cho development)
@@ -106,111 +116,131 @@ class Settings(BaseSettings):
     # ==================== Vector Database - Qdrant Cloud ====================
     QDRANT_URL: str = Field(
         default="https://your-cluster-id.qdrant.io",
-        description="Qdrant Cloud cluster URL"
+        description="Qdrant Cloud cluster URL",
     )
     QDRANT_API_KEY: str = Field(
-        default="",
-        description="Qdrant Cloud API key (bắt buộc)"
+        default="", description="Qdrant Cloud API key (bắt buộc)"
     )
     QDRANT_COLLECTION_NAME: str = Field(
         default="petties_knowledge_base",
-        description="Collection name cho knowledge base vectors"
+        description="Collection name cho knowledge base vectors",
+    )
+
+    # ==================== MongoDB Configuration (Chat History & Audit Trail) ====================
+    # MongoDB dùng để lưu chat history, ReAct traces, và proactive notifications
+    MONGODB_URL: str = Field(
+        default="mongodb://localhost:27017",
+        description="MongoDB connection URL (local hoặc MongoDB Atlas)",
+    )
+    MONGODB_DATABASE: str = Field(
+        default="petties_ai", description="MongoDB database name cho AI service"
+    )
+    MONGODB_CHAT_SESSIONS_COLLECTION: str = Field(
+        default="ai_chat_sessions",
+        description="Collection name cho chat sessions metadata",
+    )
+    MONGODB_CHAT_MESSAGES_COLLECTION: str = Field(
+        default="ai_chat_messages",
+        description="Collection name cho chat messages + ReAct traces",
+    )
+    MONGODB_PROACTIVE_NOTIFICATIONS_COLLECTION: str = Field(
+        default="ai_proactive_notifications",
+        description="Collection name cho proactive notifications log",
+    )
+    MONGODB_FEEDBACK_COLLECTION: str = Field(
+        default="chat_feedback",
+        description="Collection name cho user feedback (thumbs up/down)",
     )
 
     # ==================== AI/LLM Configuration ====================
-    LLM_PROVIDER: str = Field(default="openrouter", description="LLM provider: openrouter, ollama, openai")
+    LLM_PROVIDER: str = Field(
+        default="openrouter", description="LLM provider: openrouter"
+    )
 
     # ===== OpenRouter (RECOMMENDED - Cloud API) =====
     OPENROUTER_API_KEY: str = Field(
-        default="",
-        description="OpenRouter Cloud API Key (https://openrouter.ai/keys)"
+        default="", description="OpenRouter Cloud API Key (https://openrouter.ai/keys)"
     )
     OPENROUTER_MODEL: str = Field(
         default="google/gemini-2.0-flash-lite-preview-02-05:free",
-        description="OpenRouter LLM model (free tier: gemini-2.0-flash-lite-preview-02-05:free)"
+        description="OpenRouter LLM model (free tier: gemini-2.0-flash-lite-preview-02-05:free)",
     )
     OPENROUTER_FALLBACK_MODEL: str = Field(
         default="meta-llama/llama-3.3-70b-instruct",
-        description="Fallback model when primary fails"
-    )
-
-    # ===== DeepSeek (FALLBACK - Cloud API) =====
-    DEEPSEEK_API_KEY: str = Field(
-        default="",
-        description="DeepSeek API Key (https://platform.deepseek.com/api_keys)"
-    )
-    DEEPSEEK_BASE_URL: str = Field(
-        default="https://api.deepseek.com",
-        description="DeepSeek API base URL"
-    )
-    DEEPSEEK_MODEL: str = Field(
-        default="deepseek-chat",
-        description="DeepSeek model (deepseek-chat, deepseek-coder)"
+        description="Fallback model when primary fails",
     )
 
     # ===== Cohere Embeddings (RECOMMENDED) =====
     COHERE_API_KEY: str = Field(
         default="",
-        description="Cohere API Key for multilingual embeddings (https://dashboard.cohere.com/api-keys)"
+        description="Cohere API Key for multilingual embeddings (https://dashboard.cohere.com/api-keys)",
     )
     COHERE_EMBEDDING_MODEL: str = Field(
         default="embed-multilingual-v3.0",
-        description="Cohere embedding model (multilingual for Vietnamese)"
+        description="Cohere embedding model (multilingual for Vietnamese)",
     )
-
-    # ===== OpenAI (Backup) =====
-    OPENAI_API_KEY: str = Field(default="", description="OpenAI API key (backup for embeddings)")
-    OPENAI_EMBEDDING_MODEL: str = Field(
-        default="text-embedding-3-small",
-        description="OpenAI embedding model"
-    )
-    OPENAI_CHAT_MODEL: str = Field(default="gpt-4-turbo", description="OpenAI chat model")
 
     # ==================== Agent Configuration (Single Agent + ReAct) ====================
     AGENT_TEMPERATURE: float = Field(
-        default=0.7,
-        description="Single Agent temperature (0.7 = balanced creativity)"
+        default=0.7, description="Single Agent temperature (0.7 = balanced creativity)"
     )
     AGENT_MAX_TOKENS: int = Field(
-        default=2000,
-        description="Max tokens cho agent response"
+        default=2000, description="Max tokens cho agent response"
     )
     AGENT_TOP_P: float = Field(
-        default=0.9,
-        description="Top-P parameter for nucleus sampling"
+        default=0.9, description="Top-P parameter for nucleus sampling"
     )
     REACT_MAX_ITERATIONS: int = Field(
-        default=10,
-        description="Max ReAct iterations before force stop"
+        default=10, description="Max ReAct iterations before force stop"
     )
-    MAX_TOKENS: int = Field(default=2000, description="Max tokens cho response (legacy)")
+    MAX_TOKENS: int = Field(
+        default=2000, description="Max tokens cho response (legacy)"
+    )
 
     # ==================== RAG Configuration ====================
-    CHUNK_SIZE: int = Field(default=1000, description="Document chunk size (characters)")
+    CHUNK_SIZE: int = Field(
+        default=1000, description="Document chunk size (characters)"
+    )
     CHUNK_OVERLAP: int = Field(default=200, description="Chunk overlap (characters)")
-    TOP_K_RETRIEVAL: int = Field(default=5, description="Số documents retrieve từ vector store")
-    SIMILARITY_THRESHOLD: float = Field(default=0.7, description="Similarity score threshold")
+    TOP_K_RETRIEVAL: int = Field(
+        default=5, description="Số documents retrieve từ vector store"
+    )
+    SIMILARITY_THRESHOLD: float = Field(
+        default=0.7, description="Similarity score threshold"
+    )
 
     # ==================== Web Search Configuration ====================
-    DUCKDUCKGO_MAX_RESULTS: int = Field(default=5, description="Max DuckDuckGo search results")
-    YOUTUBE_API_KEY: str = Field(default="", description="YouTube Data API key (optional)")
+    TAVILY_API_KEY: str = Field(default="", description="Tavily Search API key")
+    TAVILY_MAX_RESULTS: int = Field(default=5, description="Max Tavily search results")
+    YOUTUBE_API_KEY: str = Field(
+        default="", description="YouTube Data API key (optional)"
+    )
+    DUCKDUCKGO_MAX_RESULTS: int = Field(
+        default=5,
+        description="Max DuckDuckGo search results (deprecated, use TAVILY_MAX_RESULTS)",
+    )
 
     # ==================== MCP Integration ====================
     SPRING_BACKEND_URL: str = Field(
-        default="http://localhost:8080/api/v1",
-        description="Spring Boot backend URL"
+        default="http://localhost:8080/api", description="Spring Boot backend URL"
     )
     MCP_TIMEOUT: int = Field(default=30, description="MCP request timeout (seconds)")
+    AI_INTERNAL_SYNC_KEY: str = Field(
+        default="",
+        description="Shared internal API key used by Spring Boot to push confirmed EMR into case memory",
+    )
 
     # ==================== Authentication & Security ====================
-    # CRITICAL: Generate a secure random key for production (min 32 characters)
-    # Example: python -c "import secrets; print(secrets.token_urlsafe(32))"
+    # CRITICAL: Must be set via environment variable (synced with Spring Boot)
+    # Generate: python -c "import secrets; print(secrets.token_urlsafe(32))"
     JWT_SECRET: str = Field(
-        default="petties-agent-service-secret-key-change-in-production",
-        description="Secret key for JWT signing - synced with Spring Boot"
+        default="",
+        description="Secret key for JWT signing - synced with Spring Boot (REQUIRED in non-dev)",
     )
     ALGORITHM: str = Field(default="HS256", description="JWT algorithm")
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30, description="Access token expire time")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
+        default=30, description="Access token expire time"
+    )
 
     @property
     def SECRET_KEY(self) -> str:
@@ -223,7 +253,7 @@ class Settings(BaseSettings):
     # Dùng Union[str, List[str]] để tránh Pydantic parse như JSON
     ALLOWED_EXTENSIONS: Union[str, List[str]] = Field(
         default=".pdf,.docx,.txt,.md",
-        description="Allowed file extensions (comma-separated string or JSON array)"
+        description="Allowed file extensions (comma-separated string or JSON array)",
     )
 
     @field_validator("ALLOWED_EXTENSIONS", mode="before")
@@ -239,20 +269,26 @@ class Settings(BaseSettings):
         if isinstance(v, list):
             return ",".join(v)  # Convert list về string
         return ".pdf,.docx,.txt,.md"
-    
+
     @property
     def allowed_extensions_list(self) -> List[str]:
         """Get ALLOWED_EXTENSIONS as List[str]"""
         if isinstance(self.ALLOWED_EXTENSIONS, list):
             return self.ALLOWED_EXTENSIONS
         if isinstance(self.ALLOWED_EXTENSIONS, str):
-            return [ext.strip() for ext in self.ALLOWED_EXTENSIONS.split(",") if ext.strip()]
+            return [
+                ext.strip() for ext in self.ALLOWED_EXTENSIONS.split(",") if ext.strip()
+            ]
         return [".pdf", ".docx", ".txt", ".md"]
 
     # ==================== Logging & Monitoring ====================
     LOG_LEVEL: str = Field(default="INFO", description="Logging level")
-    LOG_FILE: str = Field(default="./logs/agent_service.log", description="Log file path")
-    ENABLE_PROMETHEUS: bool = Field(default=True, description="Enable Prometheus metrics")
+    LOG_FILE: str = Field(
+        default="./logs/agent_service.log", description="Log file path"
+    )
+    ENABLE_PROMETHEUS: bool = Field(
+        default=True, description="Enable Prometheus metrics"
+    )
 
     # ==================== Redis (Optional) ====================
     REDIS_HOST: str = Field(default="localhost", description="Redis host")
@@ -264,12 +300,47 @@ class Settings(BaseSettings):
     TEST_MODE: bool = Field(default=False, description="Test mode")
     MOCK_LLM_RESPONSES: bool = Field(default=False, description="Mock LLM responses")
 
+    # ==================== Startup Validators ====================
+    INSECURE_JWT_DEFAULTS: ClassVar[Set[str]] = {
+        "",
+        "petties-agent-service-secret-key-change-in-production",
+        "change-me",
+        "secret",
+    }
+
+    @model_validator(mode="after")
+    def validate_jwt_secret_for_production(self) -> "Settings":
+        """Prevent startup with insecure JWT secret in non-dev environments"""
+        env = (self.ENVIRONMENT or self.APP_ENV or "development").lower()
+        if env not in ("development", "test"):
+            if self.JWT_SECRET in self.INSECURE_JWT_DEFAULTS:
+                raise ValueError(
+                    f"JWT_SECRET is empty or insecure for environment '{env}'. "
+                    "Set a strong JWT_SECRET (min 32 chars) via environment variable."
+                )
+        elif not self.JWT_SECRET:
+            _logger = logging.getLogger("app.config.settings")
+            _logger.warning(
+                "JWT_SECRET is empty in %s environment. "
+                "Auth endpoints will reject all tokens until JWT_SECRET is configured.",
+                env,
+            )
+        return self
+
     class Config:
         """Pydantic Config"""
+
         # Try loading from service .env AND root project .env
         env_file = [
-            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env"),
-            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), ".env")
+            os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env"
+            ),
+            os.path.join(
+                os.path.dirname(
+                    os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                ),
+                ".env",
+            ),
         ]
         env_file_encoding = "utf-8"
         case_sensitive = True

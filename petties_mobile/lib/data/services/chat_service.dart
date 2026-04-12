@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:dio/dio.dart';
 import '../models/chat.dart';
 import 'api_client.dart';
 
@@ -17,6 +19,7 @@ class ChatService {
   Future<List<ChatConversation>> getConversations() async {
     final response = await _apiClient.get('/chat/conversations');
     final data = response.data;
+
     List<dynamic> conversations;
 
     if (data is Map && data.containsKey('content')) {
@@ -35,6 +38,7 @@ class ChatService {
   Future<ChatConversation> getConversation(String conversationId) async {
     final response =
         await _apiClient.get('/chat/conversations/$conversationId');
+
     return ChatConversation.fromJson(response.data);
   }
 
@@ -65,11 +69,47 @@ class ChatService {
   }
 
   /// Gửi tin nhắn
-  Future<ChatMessage> sendMessage(String conversationId, String content) async {
+  Future<ChatMessage> sendMessage(String conversationId, String content,
+      {String? imageUrl, File? imageFile}) async {
+    if (imageFile != null) {
+      // Send as multipart form data
+      final formData = FormData.fromMap({
+        'content': content,
+        'file': await MultipartFile.fromFile(imageFile.path),
+      });
+
+      final response = await _apiClient.post(
+        '/chat/conversations/$conversationId/messages',
+        data: formData,
+      );
+      return ChatMessage.fromJson(response.data);
+    } else {
+      // Send as JSON
+      final data = {'content': content};
+      if (imageUrl != null) {
+        data['imageUrl'] = imageUrl;
+      }
+
+      final response = await _apiClient.post(
+        '/chat/conversations/$conversationId/messages',
+        data: data,
+      );
+      return ChatMessage.fromJson(response.data);
+    }
+  }
+
+  /// Gửi hình ảnh
+  Future<ChatMessage> uploadImage(String conversationId, File imageFile) async {
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(imageFile.path),
+    });
+
     final response = await _apiClient.post(
-      '/chat/conversations/$conversationId/messages',
-      data: {'content': content},
+      '/chat/conversations/$conversationId/images',
+      data: formData,
     );
+
+    // API trả về MessageResponse
     return ChatMessage.fromJson(response.data);
   }
 

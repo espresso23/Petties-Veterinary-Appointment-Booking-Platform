@@ -15,7 +15,8 @@ import java.time.LocalDateTime;
  * Event Types:
  * - NOTIFICATION: New notification arrived
  * - HEARTBEAT: Keep-alive ping
- * - SHIFT_UPDATE: VetShift changed (for auto-refresh)
+ * - SHIFT_UPDATE: StaffShift changed (for auto-refresh)
+ * - BOOKING_UPDATE: Booking changed (for Staff/Manager sync)
  */
 @Data
 @Builder
@@ -78,6 +79,16 @@ public class SseEventDto {
         return SseEventDto.builder()
                 .type("CLINIC_COUNTER_UPDATE")
                 .data(count)
+                .build();
+    }
+
+    /**
+     * Create a booking update event (for Staff/Manager sync)
+     */
+    public static SseEventDto bookingUpdate(Object bookingData) {
+        return SseEventDto.builder()
+                .type("BOOKING_UPDATE")
+                .data(bookingData)
                 .build();
     }
 }

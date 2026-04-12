@@ -6,6 +6,7 @@ interface ClinicImageUploadProps {
   clinicId: string
   initialImages?: ClinicImage[] | string[]
   onImageUploaded?: () => void
+  disabled?: boolean
 }
 
 type ImageItem = {
@@ -53,7 +54,7 @@ const mapInitialImages = (imgs?: ClinicImage[] | string[]): ImageItem[] => {
   })
 }
 
-export function ClinicImageUpload({ clinicId, initialImages = [], onImageUploaded }: ClinicImageUploadProps) {
+export function ClinicImageUpload({ clinicId, initialImages = [], onImageUploaded, disabled }: ClinicImageUploadProps) {
   const [images, setImages] = useState<ImageItem[]>(mapInitialImages(initialImages))
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -90,17 +91,20 @@ export function ClinicImageUpload({ clinicId, initialImages = [], onImageUploade
       if (onImageUploaded) {
         onImageUploaded()
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to upload image:', err)
-      console.error('Error response:', err.response?.data)
-      console.error('Error status:', err.response?.status)
-      
+      const error = err instanceof Error && 'response' in err ? err.response : undefined
+      const errorData = error && typeof error === 'object' && 'data' in error ? error.data : undefined
+      console.error('Error response:', errorData)
+      const errorStatus = error && typeof error === 'object' && 'status' in error ? error.status : undefined
+      console.error('Error status:', errorStatus)
+
       // Extract error message from response
-      const errorMessage = err.response?.data?.message 
-        || err.response?.data?.error 
-        || err.message 
+      const errorMessage = (errorData && typeof errorData === 'object' && 'message' in errorData ? String(errorData.message) : null)
+        || (errorData && typeof errorData === 'object' && 'error' in errorData ? String(errorData.error) : null)
+        || (err instanceof Error ? err.message : null)
         || 'Không thể upload ảnh. Vui lòng thử lại.'
-      
+
       setError(errorMessage)
     } finally {
       setUploading(false)
@@ -116,9 +120,11 @@ export function ClinicImageUpload({ clinicId, initialImages = [], onImageUploade
       await clinicService.deleteClinicImage(clinicId, image.imageId)
       setImages((prev) => prev.filter((img) => img.imageId !== image.imageId))
       onImageUploaded?.()
-    } catch (err: any) {
+    } catch (err) {
+      const error = err instanceof Error && 'response' in err ? err.response : undefined
+      const errorData = error && typeof error === 'object' && 'data' in error ? error.data : undefined
       const errorMessage =
-        err.response?.data?.message || err.message || 'Không thể xóa ảnh. Vui lòng thử lại.'
+        (errorData && typeof errorData === 'object' && 'message' in errorData ? String(errorData.message) : null) || (err instanceof Error ? err.message : null) || 'Không thể xóa ảnh. Vui lòng thử lại.'
       setError(errorMessage)
     }
   }
@@ -132,9 +138,11 @@ export function ClinicImageUpload({ clinicId, initialImages = [], onImageUploade
         setImages(mapped)
       }
       onImageUploaded?.()
-    } catch (err: any) {
+    } catch (err) {
+      const error = err instanceof Error && 'response' in err ? err.response : undefined
+      const errorData = error && typeof error === 'object' && 'data' in error ? error.data : undefined
       const errorMessage =
-        err.response?.data?.message || err.message || 'Không thể đặt ảnh làm primary.'
+        (errorData && typeof errorData === 'object' && 'message' in errorData ? String(errorData.message) : null) || (err instanceof Error ? err.message : null) || 'Không thể đặt ảnh làm ảnh đại diện.'
       setError(errorMessage)
     }
   }
@@ -154,12 +162,11 @@ export function ClinicImageUpload({ clinicId, initialImages = [], onImageUploade
           id="clinic-image-upload"
         />
         <label
-          htmlFor="clinic-image-upload"
-          className={`btn-brutal-outline cursor-pointer inline-block ${
-            uploading ? 'opacity-50 cursor-not-allowed' : ''
-          }`}
+          htmlFor={disabled || uploading ? "" : "clinic-image-upload"}
+          className={`btn-brutal-outline inline-block ${disabled || uploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+            }`}
         >
-          {uploading ? 'UPLOADING...' : '+ UPLOAD ẢNH'}
+          {uploading ? 'ĐANG TẢI LÊN...' : '+ TẢI ẢNH LÊN'}
         </label>
         {error && (
           <p className="text-red-600 text-sm mt-1 font-bold">{error}</p>
@@ -180,26 +187,25 @@ export function ClinicImageUpload({ clinicId, initialImages = [], onImageUploade
               </div>
               {image.isPrimary && (
                 <div className="absolute bottom-2 left-2 bg-amber-600 text-white font-bold uppercase text-xs px-2 py-1 border-2 border-stone-900 shadow-brutal">
-                  PRIMARY
+                  ẢNH ĐẠI DIỆN
                 </div>
               )}
               <div className="absolute top-2 right-2 flex flex-col gap-2">
                 <button
                   type="button"
-                  disabled={!image.imageId || image.isPrimary}
+                  disabled={!image.imageId || image.isPrimary || disabled}
                   onClick={() => handleSetPrimary(image)}
-                  className={`px-2 py-1 text-xs font-bold uppercase border-2 border-stone-900 bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] ${
-                    image.isPrimary ? 'opacity-60 cursor-default' : 'hover:bg-amber-50'
-                  }`}
+                  className={`px-2 py-1 text-xs font-bold uppercase border-2 border-stone-900 bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] ${image.isPrimary || disabled ? 'opacity-60 cursor-not-allowed' : 'hover:bg-amber-50'
+                    }`}
                 >
                   Chọn làm chính
                 </button>
                 <button
                   type="button"
-                  disabled={!image.imageId}
+                  disabled={!image.imageId || disabled}
                   onClick={() => handleDelete(image)}
-                  style={{ backgroundColor: 'rgb(255, 107, 53)' }}
-                  className="px-2 py-1 text-xs font-bold uppercase border-2 border-stone-900 text-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:brightness-95"
+                  style={{ backgroundColor: disabled ? '#d1d5db' : 'rgb(255, 107, 53)' }}
+                  className={`px-2 py-1 text-xs font-bold uppercase border-2 border-stone-900 text-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] ${disabled ? 'cursor-not-allowed' : 'hover:brightness-95'}`}
                 >
                   Xóa
                 </button>
@@ -211,7 +217,7 @@ export function ClinicImageUpload({ clinicId, initialImages = [], onImageUploade
 
       {images.length === 0 && (
         <div className="text-stone-500 text-sm font-bold uppercase text-center py-8 border-2 border-dashed border-stone-300">
-          Chưa có ảnh nào. Click "UPLOAD ẢNH" để thêm ảnh.
+          Chưa có ảnh nào. Nhấn "+ TẢI ẢNH LÊN" để thêm ảnh.
         </div>
       )}
     </div>

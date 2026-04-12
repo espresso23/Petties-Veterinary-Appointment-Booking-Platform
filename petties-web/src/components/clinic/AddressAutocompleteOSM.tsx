@@ -111,7 +111,6 @@ export function AddressAutocompleteOSM({
   onChange,
   onPlaceSelect,
   placeholder = 'Nhập địa chỉ...',
-  className: _className = '',
   disabled = false,
 }: AddressAutocompleteProps) {
   const [suggestions, setSuggestions] = useState<GoongPlaceResult[]>([])
@@ -216,7 +215,7 @@ export function AddressAutocompleteOSM({
 
       // Try to parse from address_components if available
       if (place.address_components && Array.isArray(place.address_components)) {
-        place.address_components.forEach((component: any) => {
+        place.address_components.forEach((component: { types?: string[]; long_name?: string; short_name?: string }) => {
           const types = component.types || []
           // Ward: sublocality_level_1 or administrative_area_level_3
           if (types.includes('sublocality_level_1') || types.includes('administrative_area_level_3')) {
@@ -235,7 +234,7 @@ export function AddressAutocompleteOSM({
 
       // Fallback: Parse from address string if address_components not available
       if (!ward || !district || !province) {
-        const parsed = parseAddressFromString(address) as any
+        const parsed = parseAddressFromString(address) as { ward?: string; district?: string; province?: string }
         ward = ward || parsed.ward
         district = district || parsed.district
         province = province || parsed.province
@@ -404,7 +403,7 @@ export function AddressAutocompleteOSM({
         />
         {isGeocoding && (
           <div className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-stone-500 font-bold uppercase pointer-events-none">
-            Searching...
+            Đang tìm kiếm...
           </div>
         )}
 

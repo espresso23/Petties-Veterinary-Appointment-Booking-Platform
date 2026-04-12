@@ -73,3 +73,4 @@ app.*.map.json
 # Firebase
 **/google-services.json.bak
 **/GoogleService-Info.plist.bak
+.env

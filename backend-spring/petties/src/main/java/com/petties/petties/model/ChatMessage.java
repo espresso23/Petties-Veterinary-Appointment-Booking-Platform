@@ -13,6 +13,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.List;
 
 /**
  * Chat Message Document - MongoDB
@@ -71,6 +72,17 @@ public class ChatMessage {
     private String content;
 
     /**
+     * Message type: TEXT or IMAGE
+     */
+    @Builder.Default
+    private MessageType messageType = MessageType.TEXT;
+
+    /**
+     * Image URL for image messages
+     */
+    private String imageUrl;
+
+    /**
      * Message status: SENT, DELIVERED, SEEN
      */
     @Builder.Default
@@ -86,6 +98,11 @@ public class ChatMessage {
      * Timestamp when message was read
      */
     private LocalDateTime readAt;
+
+    /**
+     * List of interactive action buttons for this message (e.g. from Auto-Reply)
+     */
+    private List<ActionButton> actionButtons;
 
     @CreatedDate
     private LocalDateTime createdAt;
@@ -105,5 +122,27 @@ public class ChatMessage {
         SENT,
         DELIVERED,
         SEEN
+    }
+
+    /**
+     * Message type enum
+     */
+    public enum MessageType {
+        TEXT,
+        IMAGE,
+        IMAGE_TEXT
+    }
+
+    /**
+     * Action Button inner class
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ActionButton {
+        private String id;
+        private String label;
+        private String type; // 'MENU', 'OFFER', 'BOOKING', 'CUSTOM'
     }
 }

@@ -20,7 +20,7 @@ on:
 
 jobs:
   # ================================
-  # Frontend CI (Build Only - No Tests Yet)
+  # Frontend CI (Lint, Build, Unit Tests)
   # ================================
   frontend:
     runs-on: ubuntu-latest
@@ -45,14 +45,17 @@ jobs:
         run: npm run lint || echo "⚠️ Lint warnings exist"
       
       - name: Type check
-        run: npm run typecheck || echo "⚠️ Type check skipped (script not found)"
+        run: npm run type-check || echo "⚠️ Type check skipped (script not found)"
       
-      - name: Build (check only)
+      - name: Build
         run: npm run build
         env:
           VITE_API_BASE_URL: https://api-test.petties.world/api
           VITE_WS_URL: wss://api-test.petties.world/ws
           VITE_AGENT_SERVICE_URL: https://api-test.petties.world/ai
+      
+      - name: Run Unit Tests
+        run: npm test -- --run
 
   # ================================
   # Backend CI (Build + Unit Tests)
@@ -78,7 +81,6 @@ jobs:
       
       - name: Run Unit Tests
         run: mvn test
-        continue-on-error: true  # Allow failures until tests are stable
 
   # ================================
   # AI Service CI (Python - Build Only)

@@ -1,4 +1,4 @@
-# Petties Design Style Guide
+﻿# Petties Design Style Guide
 
 ## 🎨 Design Philosophy: Soft Neobrutalism
 
@@ -247,6 +247,77 @@ font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 
 | Labels | `text-xs font-bold uppercase` |
 | Body Text | `font-medium`, normal case |
 
+### Typography scale (Navigation / Sidebar)
+
+Các component điều hướng (Sidebar) dùng scale chữ nhỏ, đậm, uppercase cho hierarchy rõ:
+
+| Vai trò | Tailwind / Style | Ghi chú |
+|--------|-------------------|---------|
+| Brand (logo text) | `text-xl font-black text-amber-600 uppercase tracking-wider` | PETTIES |
+| Role / meta | `text-[10px] font-bold text-stone-500 uppercase tracking-tighter` | Tên role dưới logo |
+| Nhóm nav | `text-[10px] font-black text-stone-400 uppercase tracking-[0.2em]` | Tiêu đề nhóm menu |
+| Nav item | `text-xs font-bold uppercase tracking-tight` | Label từng mục |
+| Tooltip (collapsed) | `text-[9px] font-black uppercase tracking-widest` | Tooltip khi sidebar thu gọn |
+| User name | `text-[11px] font-black text-stone-900 truncate uppercase` | Tên user footer |
+| User email / meta | `text-[9px] font-medium text-stone-500` | Email, text phụ |
+| CTA nhỏ (logout) | `text-[10px] font-black uppercase tracking-widest` | Nút Đăng xuất |
+
+---
+
+## 🧭 Icon System
+
+- **Thư viện:** Heroicons (`@heroicons/react/24/outline`) — ưu tiên bộ **outline** (nét viền), size 24.
+- **Không dùng emoji** trong UI; dùng icon thay thế.
+
+### Kích thước (Tailwind)
+
+| Ngữ cảnh | Class | Ghi chú |
+|----------|--------|---------|
+| Nút nhỏ / toggle | `w-4 h-4` | Chevron, close |
+| Nav item (sidebar mở) | `w-5 h-5` | Menu, logout (expanded) |
+| Nav item (sidebar thu gọn) | `w-6 h-6` | Icon lớn hơn khi chỉ hiện icon |
+| Mobile menu / CTA icon | `w-5 h-5` | Bars, primary action |
+
+### Tương tác
+
+- Nav item: `group-hover:scale-110` cho icon.
+- Nút có icon (vd. logout): `group-hover/btn:-translate-x-1` cho hiệu ứng kéo nhẹ.
+
+**Ví dụ (Sidebar):**
+```tsx
+<link.icon className="w-5 h-5 mr-3 group-hover:scale-110" />
+<ArrowLeftOnRectangleIcon className="w-4 h-4 transition-transform group-hover/btn:-translate-x-1" />
+```
+
+---
+
+## 📐 Reference Implementation: Sidebar
+
+**Component tham chiếu:** `petties-web/src/components/Sidebar/Sidebar.tsx` — áp dụng đầy đủ Soft Neobrutalism cho navigation.
+
+### UI/UX patterns
+
+| Yếu tố | Áp dụng trong Sidebar |
+|--------|------------------------|
+| **Border** | `border-r-2 border-stone-900` (aside), `border-b-2` (header), `border-t-2` (footer), `border-2` cho nút/avatar. |
+| **Shadow** | Chỉ offset, không blur: `shadow-[3px_3px_0_#000]`, `shadow-[2px_2px_0_#000]` cho nút, logo thu gọn, avatar. |
+| **Radius** | `rounded-lg` (nút, container), `rounded-full` (avatar), `rounded-md` (toggle). |
+| **Layout** | Expanded `w-64` / Collapsed `w-20`; transition `duration-300 ease-in-out`. |
+| **Mobile** | Overlay `bg-stone-900/40 backdrop-blur-sm`; sidebar `fixed z-50`, class `.sidebar-mobile-safe` (safe area). |
+| **Hover nav** | `hover:bg-amber-50 hover:text-stone-900`; icon `group-hover:scale-110`. |
+| **Active nav** | `bg-amber-500 text-white border-l-4 border-stone-900 font-black`. |
+| **Tooltip (collapsed)** | `bg-stone-900 text-white`, viền amber, `opacity-0 group-hover:opacity-100`, slide `-translate-x-2` → `translate-x-0`. |
+| **Badge (unread)** | `bg-red-500 text-white rounded-full`, `text-xs font-bold`. |
+
+### Trạng thái & micro-interactions
+
+- **Collapsed:** Logo "P" trong ô `bg-amber-500 rounded-lg border-2 border-stone-900 shadow-[3px_3px_0_#000]`; tooltip bên phải khi hover nav item.
+- **Expanded:** Brand "PETTIES" + role; nhóm nav có title; footer có avatar + tên + nút Đăng xuất.
+- **Nút Đăng xuất:** Outline style `border-2 border-stone-950 shadow-[3px_3px_0_#000]`, hover `hover:bg-red-500 hover:text-white hover:border-red-600`.
+- **Transition:** `duration-200` (nav item), `duration-300` (expand/collapse, fade-in, zoom-in).
+
+Khi làm component navigation/sidebar mới, nên tham chiếu Sidebar để giữ nhất quán UI/UX, typography và icon.
+
 ---
 
 ## 🔄 Border Radius Scale
@@ -378,6 +449,17 @@ font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 
 </div>
 ```
 
+### Sidebar / Navigation (Reference)
+
+Sidebar là **reference implementation** cho Soft Neobrutalism. Chi tiết đầy đủ xem section [Reference Implementation: Sidebar](#-reference-implementation-sidebar).
+
+- **Container:** `bg-white border-r-2 border-stone-900`, expanded `w-64` / collapsed `w-20`.
+- **Header:** Brand `text-xl font-black text-amber-600 uppercase`; role `text-[10px] font-bold text-stone-500 uppercase`.
+- **Nav item active:** `bg-amber-500 text-white border-l-4 border-stone-900 font-black`.
+- **Nav item default:** `text-stone-600 hover:bg-amber-50 hover:text-stone-900`, icon `group-hover:scale-110`.
+- **Tooltip (collapsed):** `bg-stone-900 text-white text-[9px] font-black uppercase`, viền amber.
+- **Source:** `petties-web/src/components/Sidebar/Sidebar.tsx`.
+
 ---
 
 ## 🎨 Brand Identity
@@ -393,4 +475,4 @@ font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 
 
 *Style: **Soft Neobrutalism** - Friendly Brutalist*
 
-*Last updated: January 2025*
+*Last updated: March 2025*

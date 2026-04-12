@@ -6,12 +6,14 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -36,12 +38,12 @@ public class EmrRecord {
     @Indexed
     private UUID bookingId;
 
-    private UUID vetId;
+    private UUID staffId;
     private UUID clinicId;
 
     // Denormalized for display
     private String clinicName;
-    private String vetName;
+    private String staffName;
 
     // ========== SOAP NOTES ==========
     private String subjective; // S - Triệu chứng do chủ nuôi mô tả
@@ -53,6 +55,8 @@ public class EmrRecord {
     // ========== VITALS ==========
     private BigDecimal weightKg;
     private BigDecimal temperatureC;
+    private Integer heartRate; // bpm
+    private Integer bcs; // Body Condition Score (1-9)
 
     // ========== EMBEDDED COLLECTIONS ==========
     @Builder.Default
@@ -61,8 +65,15 @@ public class EmrRecord {
     @Builder.Default
     private List<com.petties.petties.model.Prescription> prescriptions = List.of();
 
+    private Map<String, Object> aiDiagnosisContext;
+
     private LocalDateTime examinationDate;
+    private LocalDateTime reExaminationDate;
 
     @CreatedDate
     private LocalDateTime createdAt;
+
+    @LastModifiedDate
+    @Indexed
+    private LocalDateTime updatedAt;
 }

@@ -7,6 +7,8 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.List;
+import com.petties.petties.model.ChatMessage.ActionButton;
 
 /**
  * Response DTO for message data.
@@ -28,6 +30,9 @@ public class MessageResponse {
 
     private String content;
 
+    private String messageType;
+    private String imageUrl;
+
     private String status;
 
     private boolean isRead;
@@ -39,4 +44,9 @@ public class MessageResponse {
      * Whether this message was sent by the current user (for UI rendering)
      */
     private boolean isMe;
+
+    /**
+     * List of interactive action buttons for this message
+     */
+    private List<ActionButton> actionButtons;
 }

@@ -40,6 +40,8 @@ export interface Clinic {
   images?: ClinicImage[] | string[]
   imageDetails?: ClinicImage[]
   services?: ClinicService[]
+  sosFee?: number
+  pricePerKm?: number
 }
 
 export interface ClinicImage {
@@ -74,6 +76,10 @@ export interface ClinicRequest {
   latitude?: number
   longitude?: number
   logo?: string // URL to clinic logo
+  businessLicenseUrl?: string // URL to business license
+  bankName?: string // Tên ngân hàng
+  accountNumber?: string // Số tài khoản ngân hàng
+  sosFee?: number // Phí dịch vụ SOS cấp cứu
 }
 
 export interface ClinicResponse {
@@ -97,12 +103,18 @@ export interface ClinicResponse {
   latitude?: number
   longitude?: number
   logo?: string // URL to clinic logo
+  businessLicenseUrl?: string // URL to business license
+  bankName?: string // Tên ngân hàng
+  accountNumber?: string // Số tài khoản ngân hàng
+  sosFee?: number // Phí dịch vụ SOS cấp cứu
+  pricePerKm?: number // Giá di chuyển theo km
   operatingHours?: Record<string, OperatingHours>
   status: ClinicStatus
   rejectionReason?: string
   ratingAvg: number
   ratingCount: number
   approvedAt?: string
+  strikeUntil?: string | null // NULL = không bị strike; có giá trị = hạn chế đến thời điểm này
   createdAt: string
   updatedAt?: string
   images?: ClinicImage[] | string[]

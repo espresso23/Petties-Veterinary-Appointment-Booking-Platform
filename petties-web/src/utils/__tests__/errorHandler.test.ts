@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { parseApiError, handleApiError, type ToastContextType } from '../errorHandler'
-import type { AxiosError } from 'axios'
+import type { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import type { ApiErrorResponse } from '../../types/api'
 
 /**
@@ -11,7 +11,7 @@ function createAxiosError(overrides?: Partial<AxiosError>): AxiosError {
     isAxiosError: true,
     name: 'AxiosError',
     message: 'Request failed',
-    config: {} as any,
+    config: {} as InternalAxiosRequestConfig,
     toJSON: () => ({}),
     ...overrides,
   } as AxiosError
@@ -33,7 +33,10 @@ describe('errorHandler', () => {
         response: {
           status: 400,
           data: backendError,
-        } as any,
+          statusText: 'Bad Request',
+          headers: {},
+          config: {} as InternalAxiosRequestConfig,
+        },
       })
 
       const result = parseApiError(error)
@@ -58,7 +61,10 @@ describe('errorHandler', () => {
         response: {
           status: 400,
           data: backendError,
-        } as any,
+          statusText: 'Bad Request',
+          headers: {},
+          config: {} as InternalAxiosRequestConfig,
+        },
       })
 
       const result = parseApiError(error)
@@ -71,7 +77,7 @@ describe('errorHandler', () => {
       const error = createAxiosError({
         code: 'ERR_NETWORK',
         message: 'Network Error',
-        request: {} as any,
+        request: {} as XMLHttpRequest,
       })
 
       const result = parseApiError(error)
@@ -83,7 +89,7 @@ describe('errorHandler', () => {
       const error = createAxiosError({
         code: 'ERR_TIMEOUT',
         message: 'Timeout exceeded',
-        request: {} as any,
+        request: {} as XMLHttpRequest,
       })
 
       const result = parseApiError(error)
@@ -107,7 +113,10 @@ describe('errorHandler', () => {
         response: {
           status: 403,
           data: {},
-        } as any,
+          statusText: 'Forbidden',
+          headers: {},
+          config: {} as InternalAxiosRequestConfig,
+        } as AxiosResponse,
       })
 
       const result = parseApiError(error)
@@ -120,7 +129,10 @@ describe('errorHandler', () => {
         response: {
           status: 404,
           data: {},
-        } as any,
+          statusText: 'Not Found',
+          headers: {},
+          config: {} as InternalAxiosRequestConfig,
+        } as AxiosResponse,
       })
 
       const result = parseApiError(error)
@@ -133,7 +145,10 @@ describe('errorHandler', () => {
         response: {
           status: 500,
           data: {},
-        } as any,
+          statusText: 'Internal Server Error',
+          headers: {},
+          config: {} as InternalAxiosRequestConfig,
+        } as AxiosResponse,
       })
 
       const result = parseApiError(error)
@@ -146,7 +161,10 @@ describe('errorHandler', () => {
         response: {
           status: 502,
           data: {},
-        } as any,
+          statusText: 'Bad Gateway',
+          headers: {},
+          config: {} as InternalAxiosRequestConfig,
+        } as AxiosResponse,
       })
 
       const result = parseApiError(error)
@@ -159,7 +177,10 @@ describe('errorHandler', () => {
         response: {
           status: 503,
           data: {},
-        } as any,
+          statusText: 'Service Unavailable',
+          headers: {},
+          config: {} as InternalAxiosRequestConfig,
+        } as AxiosResponse,
       })
 
       const result = parseApiError(error)
@@ -172,7 +193,10 @@ describe('errorHandler', () => {
         response: {
           status: 418, // I'm a teapot
           data: {},
-        } as any,
+          statusText: "I'm a teapot",
+          headers: {},
+          config: {} as InternalAxiosRequestConfig,
+        } as AxiosResponse,
       })
 
       const result = parseApiError(error)
@@ -182,7 +206,7 @@ describe('errorHandler', () => {
     // Test 12: AxiosError with request but no response (network issue)
     it('should handle request without response', () => {
       const error = createAxiosError({
-        request: {} as any,
+        request: {} as XMLHttpRequest,
       })
 
       const result = parseApiError(error)
@@ -255,7 +279,10 @@ describe('errorHandler', () => {
         response: {
           status: 401,
           data: backendError,
-        } as any,
+          statusText: 'Unauthorized',
+          headers: {},
+          config: {} as InternalAxiosRequestConfig,
+        } as AxiosResponse,
       })
 
       const result = parseApiError(error)
@@ -268,7 +295,10 @@ describe('errorHandler', () => {
         response: {
           status: 409,
           data: {},
-        } as any,
+          statusText: 'Conflict',
+          headers: {},
+          config: {} as InternalAxiosRequestConfig,
+        } as AxiosResponse,
       })
 
       const result = parseApiError(error)
@@ -281,7 +311,10 @@ describe('errorHandler', () => {
         response: {
           status: 400,
           data: {},
-        } as any,
+          statusText: 'Bad Request',
+          headers: {},
+          config: {} as InternalAxiosRequestConfig,
+        } as AxiosResponse,
       })
 
       const result = parseApiError(error)
@@ -321,7 +354,10 @@ describe('errorHandler', () => {
         response: {
           status: 500,
           data: {},
-        } as any,
+          statusText: 'Internal Server Error',
+          headers: {},
+          config: {} as InternalAxiosRequestConfig,
+        } as AxiosResponse,
       })
 
       const customMessage = 'Không thể tải dữ liệu. Vui lòng thử lại.'
@@ -346,7 +382,10 @@ describe('errorHandler', () => {
         response: {
           status: 400,
           data: backendError,
-        } as any,
+          statusText: 'Bad Request',
+          headers: {},
+          config: {} as InternalAxiosRequestConfig,
+        },
       })
 
       handleApiError(error, mockToast)
@@ -362,7 +401,7 @@ describe('errorHandler', () => {
 
       // This should not throw
       expect(() => {
-        handleApiError(error, null as any)
+        handleApiError(error, null as unknown as ToastContextType)
       }).toThrow()
     })
   })

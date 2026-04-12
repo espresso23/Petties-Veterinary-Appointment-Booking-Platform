@@ -68,11 +68,12 @@ public class AuthService {
 
                 User savedUser = userRepository.save(user);
 
-                // Generate tokens
+                // Generate tokens (workingClinicId not available during registration)
                 String accessToken = tokenProvider.generateToken(
                                 savedUser.getUserId(),
                                 savedUser.getUsername(),
-                                savedUser.getRole().name());
+                                savedUser.getRole().name(),
+                                null);
                 String refreshToken = tokenProvider.generateRefreshToken(
                                 savedUser.getUserId(),
                                 savedUser.getUsername());
@@ -106,13 +107,15 @@ public class AuthService {
                 UserDetailsServiceImpl.UserPrincipal userPrincipal = (UserDetailsServiceImpl.UserPrincipal) authentication
                                 .getPrincipal();
 
-                String token = tokenProvider.generateToken(
-                                userPrincipal.getUserId(),
-                                userPrincipal.getUsername(),
-                                userPrincipal.getRole());
-
+                // Get user with workingClinic info first (needed for token generation)
                 User user = userRepository.findByIdWithWorkingClinic(userPrincipal.getUserId())
                                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+                String token = tokenProvider.generateToken(
+                                user.getUserId(),
+                                user.getUsername(),
+                                user.getRole().name(),
+                                user.getWorkingClinic() != null ? user.getWorkingClinic().getClinicId() : null);
 
                 // Generate refresh token
                 String refreshToken = tokenProvider.generateRefreshToken(
@@ -177,7 +180,8 @@ public class AuthService {
                 String newAccessToken = tokenProvider.generateToken(
                                 userId,
                                 username,
-                                user.getRole().name());
+                                user.getRole().name(),
+                                user.getWorkingClinic() != null ? user.getWorkingClinic().getClinicId() : null);
                 String newRefreshToken = tokenProvider.generateRefreshToken(
                                 userId,
                                 username);
@@ -260,7 +264,7 @@ public class AuthService {
 
                 if (principal instanceof UserDetailsServiceImpl.UserPrincipal) {
                         UserDetailsServiceImpl.UserPrincipal userPrincipal = (UserDetailsServiceImpl.UserPrincipal) principal;
-                        return userRepository.findById(userPrincipal.getUserId())
+                        return userRepository.findByIdWithWorkingClinic(userPrincipal.getUserId())
                                         .orElseThrow(() -> {
                                                 log.error("User not found in database for ID: {}",
                                                                 userPrincipal.getUserId());
@@ -308,7 +312,8 @@ public class AuthService {
                 String accessToken = tokenProvider.generateToken(
                                 user.getUserId(),
                                 user.getUsername(),
-                                user.getRole().name());
+                                user.getRole().name(),
+                                user.getWorkingClinic() != null ? user.getWorkingClinic().getClinicId() : null);
                 String refreshToken = tokenProvider.generateRefreshToken(
                                 user.getUserId(),
                                 user.getUsername());
@@ -423,7 +428,7 @@ public class AuthService {
          * Validate if the user's role is allowed on the platform.
          * Role-Platform Matrix:
          * - PET_OWNER: mobile only
-         * - VET: web + mobile
+         * - STAFF: web + mobile
          * - CLINIC_OWNER, CLINIC_MANAGER, ADMIN: web only
          */
         private void validateRolePlatformAccess(Role role, String platform) {
@@ -432,7 +437,7 @@ public class AuthService {
 
                 boolean allowed = switch (role) {
                         case PET_OWNER -> isMobile;
-                        case VET -> true;
+                        case STAFF -> true;
                         case CLINIC_OWNER, CLINIC_MANAGER, ADMIN -> isWeb;
                 };
 

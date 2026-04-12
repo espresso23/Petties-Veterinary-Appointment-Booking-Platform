@@ -9,13 +9,14 @@ export const ROUTES = {
     tools: '/admin/tools',
     knowledge: '/admin/knowledge',
     playground: '/admin/playground',
+    aiInsights: '/admin/ai-insights',
     settings: '/admin/settings',
   },
 
-  // Vet routes
-  vet: {
-    dashboard: '/vet',
-    profile: '/vet/profile',
+  // Staff routes
+  staff: {
+    dashboard: '/staff',
+    profile: '/staff/profile',
   },
 
   // Clinic Owner routes
@@ -29,6 +30,8 @@ export const ROUTES = {
   clinicManager: {
     dashboard: '/clinic-manager',
     profile: '/clinic-manager/profile',
+    bookings: '/clinic-manager/bookings',
+    refunds: '/clinic-manager/refunds',
   },
 } as const
 

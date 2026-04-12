@@ -28,18 +28,27 @@ public class JwtTokenProvider {
         return Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
     }
 
-    public String generateToken(UUID userId, String username, String role) {// function dùng để tạo token
+    public String generateToken(UUID userId, String username, String role) {
+        return generateToken(userId, username, role, null);
+    }
+
+    public String generateToken(UUID userId, String username, String role, UUID workingClinicId) {// function dùng để tạo token
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtExpiration);
 
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(username)
                 .claim("userId", userId.toString())
                 .claim("role", role)
                 .claim("type", "access")
                 .issuedAt(now)
-                .expiration(expiryDate)
-                .signWith(getSigningKey())
+                .expiration(expiryDate);
+
+        if (workingClinicId != null) {
+            builder.claim("workingClinicId", workingClinicId.toString());
+        }
+
+        return builder.signWith(getSigningKey())
                 .compact();
     }
 
@@ -67,7 +76,12 @@ public class JwtTokenProvider {
 
     public UUID getUserIdFromToken(String token) {
         String userIdStr = getClaimFromToken(token, claims -> claims.get("userId", String.class));
-        return UUID.fromString(userIdStr);
+        try {
+            return UUID.fromString(userIdStr);
+        } catch (IllegalArgumentException e) {
+            org.slf4j.LoggerFactory.getLogger(JwtTokenProvider.class).error("Invalid UUID in token: {}", userIdStr);
+            throw new IllegalArgumentException("Token contains invalid User ID format: " + userIdStr);
+        }
     }
 
     public String getRoleFromToken(String token) {

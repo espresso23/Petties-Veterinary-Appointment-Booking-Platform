@@ -1,4 +1,10 @@
+> Legacy Note (2026-03-25): This document may contain historical references to `prompt_versions`, editable system-prompt versioning, or older AI schema/ERD counts. It is retained for historical or presentation context only. For current database truth and active AI storage architecture, use `docs-references/database/PETTIES_DBML.dbml`, `docs-references/documentation/PETTIES_ERD_DIAGRAM.md`, `docs-references/documentation/DATABASE_SCHEMA_ANALYSIS.md`, `docs-references/documentation/SRS/PETTIES_SRS.md`, and `docs-references/documentation/SDD/PETTIES_SDD.md`.
 # PETTIES V0.0.1 - FEATURES & HAPPY FLOWS
+
+> Lưu ý cập nhật ngày 2026-03-22:
+> - **Tool Self-Contained UI Cards (v2.0):** Tools định nghĩa `ui_card` trong return value, chat.py dùng generic dispatcher. Không còn hardcoded extraction logic. Xem [AI_SERVICE_TECHNICAL_SPECIFICATION.md](D:/SEP490/petties/docs-references/documentation/AI_SERVICE_TECHNICAL_SPECIFICATION.md).
+> - Các mục cũ liên quan Visual Case Memory từ feedback ảnh, `analyze_pet_image` hoặc AI Diagnose admin flow chỉ còn giá trị lịch sử.
+> - **2026-04-08:** Chuẩn hóa danh mục function AI Assistant theo 14 function chuẩn (đồng bộ với SRS 3.11.0 và SDD 3.2.7).
 
 ---
 
@@ -7,79 +13,87 @@
 ### 🐕 **ROLE 1: PET_OWNER (Customer đồng thời là chủ thú cưng) MOBILE ONLY**
 1. Đăng ký / Đăng nhập ✅
 2. Quản lý hồ sơ cá nhân ✅
-3. Tạo/sửa hồ sơ thú cưng
-4. Tìm kiếm phòng khám
-5. Tìm kiếm bác sĩ
-6. Đặt lịch khám tại phòng (Clinic Visit)
-7. Đặt lịch khám tại nhà (Home Visit)
-8. Xem lịch booking của tôi
-9. Xem chi tiết booking
-10. Hủy booking
-11. Thanh toán online.
-12. Xem hồ sơ y tế thú cưng (EMR)
-13. Xem sổ tiêm chủng
-14. Đánh giá & review bác sĩ
-15. Chat với AI Chatbot (Pet Care Assistant)
+3. Tạo/sửa hồ sơ thú cưng ✅
+4. Tìm kiếm phòng khám ✅
+5. Tìm kiếm nhân viên
+6. Đặt lịch khám tại phòng (Clinic Visit) ✅
+7. Đặt lịch khám tại nhà (Home Visit) ✅
+8. Xem lịch booking của tôi ✅
+9. Xem chi tiết booking ✅
+10. Hủy booking 🔄 (BE done)
+11. Thanh toán online. 🔄 (In Progress)
+12. Xem hồ sơ y tế thú cưng (EMR) ✅
+13. Xem sổ tiêm chủng ✅
+14. Đánh giá & review nhân viên
+15. Chat với AI Chatbot (Pet Care Assistant) ✅
 16. SOS - Cấp cứu khẩn cấp
-17. Video Consultation (Tư vấn video từ xa)
-18. Xem đơn thuốc trong hồ sơ bệnh án (EMR)
-19. Nhận thông báo & nhắc nhở (Push/Email/SMS)
-20. Lưu ảnh, giống, độ tuổi, đặc điểm thú cưng
-21. **[SOS] Xem bản đồ realtime vị trí bác sĩ**
-22. **[SOS] Tracking đường di chuyển của bác sĩ** (định tuyến cứu hộ)
-23. **[SOS] Nhận thông báo khi bác sĩ sắp đến / đã đến nơi**
+17. **AI Vision: Phân tích hình ảnh sức khỏe thú cưng với khả năng học liên tục** ✅
+18. **Hủy yêu cầu thay đổi Email** ✅
+20. Xem đơn thuốc trong hồ sơ bệnh án (EMR) ✅
+21. Nhận thông báo & nhắc nhở (Push/Email/SMS) ✅
+22. Lưu ảnh, giống, độ tuổi, đặc điểm thú cưng ✅
+23. **[SOS] Xem bản đồ realtime vị trí nhân viên**
+24. **[SOS] Tracking đường di chuyển của nhân viên** (định tuyến cứu hộ)
+25. **[SOS] Nhận thông báo khi nhân viên bắt đầu di chuyển, khi sắp đến & khi đã đến nơi** ✅
+26. **[SOS] Tự động dừng tracking khi nhân viên xác nhận đã tiếp cận bệnh nhân** ✅
 
 ---
 
-### 👨‍⚕️ **ROLE 2: VET (Bác sĩ thú y) MOBILE + WEB**
+### 👨‍⚕️ **ROLE 2: STAFF (Nhân viên - nhân viên thú y, groomer) MOBILE + WEB**
 1. Đăng nhập từ account được cấp ✅
 2. Xem hồ sơ của tôi ✅
-3. Xem lịch làm việc của tôi
-4. Xem booking được gán
-5. Check-in bệnh nhân
-6. Check-out bệnh nhân
-7. Xem hồ sơ y tế thú cưng
-8. Xem sổ tiêm chủng của pet
-9. **Tra cứu bệnh nhân cũ** (Patient Lookup): Tìm kiếm và xem hồ sơ bệnh nhân cũ của phòng khám 
-10. Ghi chú hồ sơ bệnh án (tạo EMR) - **[Bắt buộc gắn với Booking]**
-11. Cập nhật sổ tiêm chủng - **[Bắt buộc gắn với Booking]**
-12. **[SOS] Bắt đầu di chuyển cứu hộ (Start Emergency Travel)**
-13. **[SOS] Tự động cập nhật vị trí GPS realtime** để người dùng theo dõi
-14. **[SOS] Thông báo đến nơi** → Đánh dấu đã tiếp cận ca cấp cứu
+3. Xem lịch làm việc của tôi ✅
+4. Xem booking được gán ✅
+5. Check-in bệnh nhân ✅
+6. **Hoàn thành khám (Treatment Finished)**: Nhân viên xác nhận đã khám xong, gửi yêu cầu thanh toán tới Manager. ✅
+7. Xem hồ sơ y tế thú cưng ✅
+8. **Tóm tắt Hồ sơ Y tế thú cưng (EMR) với Phân tích Hình ảnh**: AI tóm tắt nhanh hồ sơ bệnh án kèm chẩn đoán từ hình ảnh được gắn trong EMR. Dành riêng cho STAFF/CLINIC_MANAGER: Văn phong y khoa, gạch đầu dòng các chỉ số, chẩn đoán, phác đồ. ✅
+9. Xem sổ tiêm chủng của pet ✅
+10. **Tra cứu bệnh nhân cũ** (Patient Lookup): Tìm kiếm và xem hồ sơ bệnh nhân cũ của phòng khám ✅
+11. Ghi chú hồ sơ bệnh án (tạo EMR) - **[Bắt buộc gắn với Booking]** ✅
+12. Cập nhật sổ tiêm chủng - **[Bắt buộc gắn với Booking]** ✅
+13. **[SOS] Start moving / Arrived / Checkout** → Quy trình cứu hộ khép kín với tracking realtime ✅
+14. **[SOS] Detailed Checkout Dialog**: Xác nhận phí SOS, phí di chuyển và dịch vụ phát sinh ✅
+15. **Dashboard Tổng quan lịch hẹn (Summary Dashboard)** ✅
 
 ---
 
 ### 👨‍💼 **ROLE 3: CLINIC_MANAGER (Quản lý phòng khám) WEB-ONLY**
 1. Đăng nhập ✅
-2. Xem danh sách bác sĩ ✅ (BE)
-3. Thêm bác sĩ thủ công ✅ (BE)
-4. Xóa/bỏ liên kết bác sĩ ✅ (BE)
-5. Import lịch bác sĩ thủ công ✅
-6. Xem booking mới
-7. Gán bác sĩ cho booking
-8. Gán lại booking (nếu bác sĩ từ chối)
+2. Xem danh sách nhân viên ✅
+3. Thêm nhân viên thủ công ✅
+4. Xóa/bỏ liên kết nhân viên ✅
+5. Import lịch nhân viên thủ công ✅
+6. Xem booking mới ✅
+7. Gán nhân viên cho booking ✅
+8. Gán lại booking (nếu nhân viên từ chối) ✅
 9. Gán dịch vụ nếu user chưa chọn được
-10. Quản lý hủy & hoàn tiền
-11. Xem dashboard hôm nay
-12. Quản lý ca làm việc nhân viên
-14. **Quản lý Hồ sơ Bệnh nhân (Patient Management)**:
+10. **Nhận tiền & Checkout (Payment & Completion)**: Nhận thanh toán từ khách và thực hiện thao tác Checkout để đóng đơn hàng.
+11. Quản lý hủy & hoàn tiền
+12. Xem dashboard hôm nay ✅
+13. Quản lý ca làm việc nhân viên ✅
+14. **Quản lý Hồ sơ Bệnh nhân (Patient Management)**: ✅
     - Xem danh sách bệnh nhân từng khám tại phòng khám
     - Xem chi tiết Lịch sử EMR và Sổ tiêm chủng của bệnh nhân (Read-Only)
+15. **Block/Unblock Slot thủ công (Manual Slot Control)** ✅
+16. **Xóa ca trực hàng loạt (Bulk Shift Delete)** ✅
+17. **Kiểm tra tính khả dụng của nhân viên (Check Staff Availability)** ✅
+18. **Gán lại nhân viên cho dịch vụ (Reassign Staff)** ✅
 
 ---
 
 ### 🏥 **ROLE 4: CLINIC_OWNER (Chủ phòng khám) WEB-ONLY**
 1. Đăng nhập ✅
-2. Quản lý thông tin phòng khám
-3. **Quản lý Danh mục Dịch vụ (Master Services):**
+2. Quản lý thông tin phòng khám ✅
+3. **Quản lý Danh mục Dịch vụ (Master Services):** ✅
     - Tạo danh mục dịch vụ tiêu chuẩn (Tên, Category, Mô tả, Icon, Giá mặc định).
     - Cấu hình giá sẵn để gán nhanh cho các phòng khám.
-4. **Quản lý Dịch vụ tại Phòng khám (Clinic Services):**
+4. **Quản lý Dịch vụ tại Phòng khám (Clinic Services):** ✅
     - **Thừa hưởng (Inherit):** Áp dụng từ Master Services với giá đã cấu hình sẵn (có thể ghi đè/override giá riêng nếu muốn).
     - **Tự tạo (Custom):** Tạo các dịch vụ riêng biệt chỉ có tại phòng khám đó.
     - Cấu hình giá chi tiết (Base price, Price per KM) và trạng thái (Active/Inactive) cho từng dịch vụ cụ thể.
-5. Xem Dashboard Phòng Khám
-6. Theo dõi doanh thu ✅ (BE)
+5. Xem Dashboard Phòng Khám ✅
+6. Theo dõi doanh thu ✅
 
 
 ---
@@ -88,11 +102,11 @@
 
 #### **Platform Management (Quản lý Nền tảng)**
 1. Đăng nhập ✅
-2. Xem danh sách các clinic pending chờ duyệt
-3. Phê duyệt clinic
+2. Xem danh sách các clinic pending chờ duyệt ✅
+3. Phê duyệt clinic ✅
 4. Từ chối clinic 
-5. Xem thống kê nền tảng, doanh thu
-6. Thống kê người dùng và giao dịch
+5. Xem thống kê nền tảng, doanh thu ✅
+6. Thống kê người dùng và giao dịch ✅
 
 #### **AI Agent Configuration (Single Agent + ReAct)**
 7. **Agent Configuration**
@@ -110,7 +124,7 @@
     - Upload tài liệu (PDF, DOCX, TXT, MD)
     - Theo dõi trạng thái indexing (chunking & vectorization)
     - Test RAG retrieval với query examples
-    - Xem vector count và storage usage
+    - Xem vector count
 
 10. **Agent Testing & Debugging**
     - Interactive Chat Simulator để test agent
@@ -134,14 +148,43 @@
 
 > **Architecture:** Single Agent + ReAct Pattern + MCP Tools
 > 
-> **Note:** MVP sử dụng **Single Agent** (không phải Multi-Agent) với nhiều skills/tools, có thể config bởi Admin.
+> **Note:** MVP sử dụng **Single Agent** với nhiều skills/tools, có thể config bởi Admin.
 
 ### AI Chatbot - Pet Care Assistant
+
+#### AI Assistant Function Catalog (Standardized 2026-04-08)
+
+| Function (Standardized Name) | Primary Roles | Reference (SRS/SDD) | Status |
+|---|---|---|---|
+| Interact with ChatBot | PET_OWNER, STAFF, CLINIC_MANAGER, CLINIC_OWNER | SRS 3.11.1, 3.11.2, 3.11.13, 3.11.14 | 🔄 In Progress (booking path hardening) |
+| Config Agent Parameter | ADMIN | SRS 3.11.3, SDD 3.2.2 | ✅ Done |
+| Test Agent Playground | ADMIN | SRS 3.11.4, SDD 3.2.2 | ✅ Done |
+| Turn On/Off Agent Tools | ADMIN | SRS 3.11.3, SDD 3.2.3 | ✅ Done |
+| Upload Document To Knowledge Base | ADMIN | SRS 3.11.3, SDD 3.2.4 | ✅ Done |
+| Delete Document from Knowledge Base | ADMIN | SRS 3.11.3, SDD 3.2.4 | ✅ Done |
+| View Case Memory | ADMIN | SRS 3.11.7, 3.11.11; SDD 3.2.6 | ✅ Done |
+| Delete Case Memory | ADMIN | SRS 3.11.7, 3.11.11; SDD 3.2.6 | ✅ Done |
+| Use AI-Assisted Clinic Setup, Operation | CLINIC_OWNER, CLINIC_MANAGER | SRS 3.13.1, 3.11.14 | 🔄 Mixed (operation done, setup planned) |
+| Use Summarize patient info & EMR | STAFF | SRS 3.11.13, SDD 4.23 | ✅ Done |
+| Use Summarize pet's EMR | PET_OWNER | SRS 3.11.12, SDD 4.22 | ✅ Done |
+| View aggregate feedback stats | ADMIN | SRS 3.11.7, SDD 3.2.5 | ✅ Done |
+| Provide AI's Response Feedback | Authenticated Users | SRS 3.11.7, SDD 3.2.5 | ✅ Done |
+| Use AI Diagnostic Support | STAFF | SRS 3.11.11, SDD 4.21 | ✅ Done |
+
+#### Web Mascot Interactive Flow (Embedded Copilot)
+
+- **Entry point:** Global mascot launcher + dock panel embedded in web layouts for `STAFF`, `CLINIC_MANAGER`, and `CLINIC_OWNER`.
+- **Route policy:** Legacy dedicated AI routes are deprecated on web; interaction is centralized through mascot panel in current workspace.
+- **Interactive cards:** WebSocket `ui_schema` cards are rendered directly in mascot panel and support `ui_action` dispatch for operational flows.
+- **Confirm flow:** `open_native_confirm` actions trigger `ConfirmModal` before executing create/update service actions.
+- **Context injection:** Requests include role, active route, clinic scope, and user scope to keep answers context-aware.
+
 - 🤖 Chat với AI Chatbot thông minh ✅
 - 🤖 Tư vấn chăm sóc thú cưng ✅
-- 🤖 Hỗ trợ tìm kiếm triệu chứng (Symptom Search) ✅
+- 🤖 Hỗ trợ tra cứu triệu chứng qua knowledge base ✅
+- 🤖 **AI Vision Analysis - Phân tích hình ảnh sức khỏe thú cưng** ✅
 - 🤖 RAG Engine - Tra cứu kiến thức y tế thú y (LlamaIndex + Qdrant) ✅
-- 🤖 Booking via Chat - Đặt lịch qua hội thoại ✅
+- 🤖 Booking via Chat - Đặt lịch qua hội thoại ✅ (main WebSocket flow + booking confirmation gate đã hoạt động; vẫn đang tiếp tục hardening edge cases)
 - 🤖 Citation & Attribution - Trích dẫn nguồn
 - 🤖 Web Search - Tìm kiếm realtime 🔄
 - 🤖 EMR Integration - Xem bệnh án điện tử ✅ (FE/BE)
@@ -166,23 +209,32 @@
 │  └── System Prompt (Admin Configurable)                             │
 │                                                                     │
 │  🔧 Skills/Tools (FastMCP @mcp.tool)                                │
-│  ├── @mcp.tool: pet_care_qa       → RAG-based Q&A                  │
-│  ├── @mcp.tool: symptom_search    → Symptom → Disease lookup       │
-│  ├── @mcp.tool: search_clinics    → Find nearby clinics            │
-│  ├── @mcp.tool: check_slots       → Check available slots          │
-│  └── @mcp.tool: create_booking    → Create booking via chat        │
+│  ├── @mcp.tool: pet_knowledge_search → RAG knowledge retrieval      │
+│  ├── @mcp.tool: web_search          → Web fallback search           │
+│  ├── @mcp.tool: get_user_pets         → Load user pets             │
+│  ├── @mcp.tool: search_clinics_nearby → Find nearby clinics        │
+│  ├── @mcp.tool: check_available_slots → Check available slots      │
+│  └── @mcp.tool: create_booking_for_user → Create booking via chat  │
 │                                                                     │
-│  📚 RAG Engine (LlamaIndex + Qdrant)                                │
-│  ├── LlamaIndex: Document processing, chunking, retrieval          │
-│  ├── Qdrant Cloud: Vector storage với Binary Quantization          │
-│  └── Cohere Embeddings (embed-multilingual-v3)                      │
+│  📚 Hybrid RAG Engine                                               │
+│  ├── RAG Engine: LlamaIndex + Qdrant Cloud + Cohere Embeddings     │
+│  ├── KB Images: Extract images from PDF + Jina CLIP embeddings      │
+│  ├── Query Expander: LLM-based short query expansion               │
+│  ├── Case Memory: Confirmed cases + quality-gated re-ranking        │
+│  └── Parallel Search: RAG + KB Images + Case Memory         │
+│                                                                     │
+│  💬 Feedback & Analytics                                             │
+│  ├── User Feedback Collection (1-5 rating per message)             │
+│  ├── Analytics / monitoring only                                    │
+│  └── Case Memory is enriched from confirmed EMR, not chat feedback │
 │                                                                     │
 │  ⚙️ Admin Config                                                    │
 │  ├── Enable/Disable Agent                                           │
 │  ├── System Prompt (editable)                                       │
 │  ├── Parameters: Temperature, Max Tokens, Top-P                     │
 │  ├── Tool Management: Enable/Disable individual tools              │
-│  └── Knowledge Base: Upload/Remove documents                        │
+│  ├── Knowledge Base: Upload/Remove documents                        │
+│  └── Case Memory: Stats/Prune                                       │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -196,11 +248,14 @@
 - ✅ **Answer**: Tổng hợp và trả lời user
 
 ### AI Tools (FastMCP Protocol)
-- 🔧 `pet_care_qa` - Hỏi đáp về chăm sóc thú cưng (RAG-based)
-- 🔧 `symptom_search` - Tìm bệnh dựa trên triệu chứng
-- 🔧 `search_clinics` - Tìm phòng khám gần đây
-- 🔧 `check_slots` - Kiểm tra slot trống
-- 🔧 `create_booking` - Tạo lịch hẹn qua chat
+- 🔧 `pet_knowledge_search` - Tra cứu kiến thức thú y và triệu chứng từ knowledge base
+- 🔧 `web_search` - Tìm kiếm web khi knowledge base chưa đủ dữ liệu
+- 🔧 `get_user_pets` - Lấy danh sách thú cưng của user hiện tại
+- 🔧 `search_clinics_nearby` - Tìm phòng khám gần vị trí người dùng
+- 🔧 `get_clinic_services` - Lấy dịch vụ đang hoạt động của phòng khám
+- 🔧 `check_vaccination_status` - Kiểm tra lịch sử tiêm và mũi sắp tới
+- 🔧 `check_available_slots` - Kiểm tra slot trống theo dịch vụ
+- 🔧 `create_booking_for_user` - Tạo lịch hẹn qua chat sau khi đã xác nhận
 
 ### Admin Agent Configuration (Simple UI)
 - ⚙️ **Agent Status** - Bật/Tắt Agent
@@ -216,6 +271,38 @@
 - 🔍 **Vector Search** - Qdrant Cloud với Binary Quantization
 - 📖 **Retrieval** - Top-K similarity search
 
+### AI Accuracy Improvement Mechanisms ✅ (Sprint 13)
+
+> **4 cơ chế cải thiện độ chính xác AI theo thời gian** - Tất cả đã được implement và tích hợp vào HybridRAGEngine.
+
+#### Query Expansion (Mở rộng truy vấn) ✅
+- 🔍 **LLM-based Query Expansion** - Mở rộng câu hỏi ngắn/mơ hồ thành truy vấn chi tiết hơn trước khi search RAG
+- 🔍 Tự động bỏ qua nếu query đã đủ dài hoặc rõ ràng (>50 ký tự)
+- 🔍 Tích hợp vào `pet_knowledge_search` MCP tool
+- 🔍 File: `app/core/rag/query_expander.py`
+
+#### Case Memory từ EMR xác nhận (thay cho hướng cũ)
+- 📋 **Confirmed Case Storage** - Lưu các ca bệnh đã xác nhận từ EMR confirmed vào Qdrant
+- 📋 **Quality-gated Re-ranking** - Score = cosine_similarity + quality_boost, ưu tiên case có quality gate tốt
+- 📋 **Disease Support Metrics** - Tăng độ tin cậy khi nhiều EMR confirmed cùng `(canonical_code, species)`
+- 📋 Đồng bộ tự động sau khi EMR được xác nhận, không phụ thuộc thumbs-up feedback
+- 📋 Admin prune endpoint (`POST /knowledge/case-memory/prune`)
+- 📋 File: `app/core/rag/case_memory.py`
+
+#### Feedback Loop (Vòng phản hồi) ✅
+- 💬 **User Feedback API** - Thu thập đánh giá (1-5 sao) cho mỗi tin nhắn AI
+- 💬 **Auto-classify** - Tự động phân loại feedback dựa trên rating
+- 💬 **Auto-embed Positive Cases** - Feedback tốt tự động lưu vào Case Memory
+- 💬 **Per-role Statistics** - Admin xem toàn bộ, user khác chỉ xem feedback của mình
+- 💬 MongoDB storage (feedback collection)
+- 💬 File: `app/core/services/feedback_service.py`, `app/api/schemas/feedback_schemas.py`
+
+#### Hybrid RAG Engine (Tổng hợp) ✅
+- 🔗 **Parallel Search** - Chạy đồng thời RAG + Case Memory
+- 🔗 **Merged Results** - Gộp và deduplicate kết quả từ 2 nguồn
+- 🔗 **Graceful Degradation** - Nếu Case Memory lỗi, vẫn trả kết quả RAG
+- 🔗 File: `app/core/rag/hybrid_engine.py`
+
 ---
 
 ## 📱 ADVANCED FEATURES
@@ -224,10 +311,6 @@
 - Xác định phòng khám thú y (Clinic) khẩn cấp gần nhất
 - Liên hệ tức thì cho tư vấn
 - Đặt lịch khẩn cấp
-
-### 📹 Video Consultation (Tư Vấn Video)
-- Gọi video trực tiếp với bác sĩ
-- Chẩn đoán từ xa
 
 ### Electronic Medical Records (EMR)
 - Hệ thống Hồ sơ Bệnh án Điện tử
@@ -256,29 +339,30 @@
 - Hỗ trợ đa ngôn ngữ
 - Timezone support - Múi giờ
 
-### 👨‍⚕️ Vet/Manager Account Creation Flow (Quick Add) ✅ (Backend Done)
-**Mô tả:** Quy trình để CLINIC_OWNER/MANAGER thêm nhanh và cấp tài khoản cho nhân sự (thông qua SĐT).
+### 👨‍⚕️ Staff/Manager Account Creation Flow (Quick Add) ✅ (Updated - Use Google OAuth)
+**Mô tả:** Quy trình để CLINIC_OWNER/MANAGER thêm nhanh nhân sự vào hệ thống thông qua Email. Nhân viên sẽ đăng nhập bằng tài khoản Google, thông tin cá nhân sẽ tự động đồng bộ.
 
 #### Screen Flows:
 1. Owner/Manager truy cập màn hình "Quản lý nhân sự" (Staff Management).
 2. Chọn "Thêm nhân viên" (Quick Add).
 3. Nhập các thông tin tối giản:
-    - Họ và tên
-    - Số điện thoại (Bắt buộc, dùng làm Username)
-    - Vai trò (Clinic Manager hoặc Vet)
+    - Email (Bắt buộc, dùng để liên kết tài khoản Google)
+    - Vai trò (Clinic Manager hoặc Staff)
+    - Chuyên môn (Chỉ áp dụng cho Staff)
 4. Hệ thống:
-    - Kiểm tra SĐT đã tồn tại chưa.
-    - Tạo tài khoản với `username = phone`.
-    - Tạo mật khẩu mặc định = **6 số cuối SĐT**.
-    - Gán `workingClinic` trỏ về chi nhánh hiện tại.
-5. Nhân viên sử dụng SĐT và mật khẩu mặc định để đăng nhập vào Web/Mobile ngay lập tức.
+    - Kiểm tra Email đã thuộc phòng khám khác chưa.
+    - Tạo bản ghi nhân sự tạm thời gắn với Email.
+5. Nhân viên sử dụng tài khoản Google tương ứng với Email đã mời để đăng nhập.
+6. Hệ thống:
+    - Tự động lấy `fullName` và `avatar` từ Google profile trong lần đăng nhập đầu tiên.
+    - Hoàn tất kích hoạt tài khoản nhân sự.
 
 #### Form thêm nhanh (Quick Add Form):
 | Field | Required | Description |
 |-------|----------|-------------|
-| Họ và tên | ✅ | Tên đầy đủ |
-| Số điện thoại | ✅ | Định danh đăng nhập, mã xác thực sau này |
-| Vai trò | ✅ | Chọn Clinic Manager hoặc Vet |
+| Email | ✅ | Email dùng để đăng nhập Google OAuth |
+| Vai trò | ✅ | Chọn Clinic Manager hoặc Staff |
+| Chuyên môn | 🔄 | Áp dụng cho Staff để gán booking phù hợp |
 
 #### Account States:
 | Status | Mô tả | Đăng nhập? |
@@ -286,28 +370,30 @@
 | `ACTIVE` | Hoạt động bình thường | ✅ |
 | `DEACTIVATED` | Nghỉ việc / Bị vô hiệu hóa | ❌ |
 
+**Lưu ý:** Role `STAFF` bao quát toàn bộ nhân sự phòng khám. Chuyên môn được phân biệt bằng nhóm chuyên môn y tế và grooming.
+
 ---
 
 ### 👨‍💼 Quản lý Lịch làm việc (Manual Scheduling Flow)
-**Mô tả:** Quy trình CLINIC_MANAGER tạo lịch làm việc cho bác sĩ và hệ thống tự động sinh Slot.
+**Mô tả:** Quy trình CLINIC_MANAGER tạo lịch làm việc cho nhân viên và hệ thống tự động sinh Slot.
 
 #### Quy trình chi tiết:
-1. **Manager chọn Bác sĩ & Ngày**: Chọn bác sĩ từ danh sách và chọn ngày trên Calendar.
+1. **Manager chọn Nhân viên & Ngày**: Chọn nhân viên từ danh sách và chọn ngày trên Calendar.
 2. **Nhập thời gian**:
     - Giờ bắt đầu (Start Time): ví dụ 08:00
     - Giờ kết thúc (End Time): ví dụ 17:00
     - Thời gian nghỉ (Break Start/End): ví dụ 12:00 - 13:00 (Hệ thống sẽ không tạo Slot trong lúc này).
 3. **Hệ thống xử lý (Background)**:
-    - Kiểm tra Overlap: Bác sĩ đã có lịch tại chi nhánh này hoặc chi nhánh khác chưa.
+    - Kiểm tra Overlap: Nhân viên đã có lịch tại chi nhánh này hoặc chi nhánh khác chưa.
     - Chia nhỏ thời gian thành các Slot 30 phút.
-    - Lưu vào DB: 1 bản ghi `VetShift` và danh sách các `Slot`.
+    - Lưu vào DB: 1 bản ghi `StaffShift` và danh sách các `Slot`.
 4. **Kết quả**: Lịch và các ô trống hiện lên Dashboard để Pet Owner đặt lịch.
 
 
 ## 🔑 KEY FEATURES SUMMARY (MVP 1-Month Scope)
 
 ### ✅ CORE FEATURES (In Scope)
-✅ **Clinic-based vets** (NO freelancers)  
+✅ **Clinic-based staff** (NO freelancers)  
 ✅ **Shared EMR** (All clinics see medical history)  
 ✅ **Shared vaccination records** (Across clinics)  
 ✅ **Dynamic pricing** (Base + Weight-based + Distance fees)  
@@ -315,21 +401,24 @@
 ✅ **Slot management** (Auto reduce/restore)  
 ✅ **Manual scheduling** (Manager tạo lịch thủ công)  
 ✅ **Multiple appointment types** (IN_CLINIC, HOME_VISIT)  
-✅ Quy trình Booking (Booking workflow): (PENDING → ASSIGNED → CONFIRMED → ON_THE_WAY → ARRIVED → CHECK_IN → IN_PROGRESS → CHECK_OUT → COMPLETED)
+✅ **Quy trình Booking (Booking workflow)**: `PENDING → CONFIRMED → IN_PROGRESS → COMPLETED`
   
-✅ **Rating system** (Pet owner đánh giá Clinic/Vet)  
+✅ **Rating system** (Pet owner đánh giá Clinic/Staff)  
 ✅ **SOS Geo-Tracking** (GPS realtime tracking cho cấp cứu)
 ✅ **AI Chatbot** (Single Agent + ReAct Pattern + MCP Tools)  
 ✅ **EMR với đơn thuốc** (Prescription trong hồ sơ bệnh án)  
 ✅ **Push Notifications** (Firebase)  
 ✅ **Admin Agent Config** (Prompt, Parameters, Tools, Knowledge Base)  
 ✅ **Knowledge Base RAG** (LlamaIndex + Qdrant Cloud)  
+✅ **Query Expansion** (LLM-based short query expansion)  
+✅ **Case Memory** (Confirmed cases + quality-gated re-ranking)
+✅ **Feedback Loop** (User feedback → auto-embed positive cases)
 
 ### ❌ DEFERRED (Phase 2)
 ❌ ~~Home Visit Geo-Routing~~ (Đơn giản hóa cho MVP, chỉ dùng cho SOS)
 ❌ ~~Video Consultation~~ (Deferred - WebRTC phức tạp)  
 ❌ ~~Excel Import~~ (Deferred - Manual đủ cho MVP)  
-❌ ~~Multi-Agent Architecture~~ (Simplified to Single Agent)  
+❌ ~~Legacy supervisor architecture~~ (Simplified to Single Agent)  
 ❌ ~~Email/SMS Notifications~~ (Push đủ cho MVP)  
 
 ---
@@ -349,7 +438,22 @@
 
 ---
 
-**Version: 8.0 - PETTIES MVP SCOPE (1-MONTH)**  
-**Status: ✅ READY FOR DEV**  
-**Total Features: ~48 (MVP Scope)**  
-**Last Updated: December 26, 2025**
+**Version: 1.8.0 - PETTIES MVP SCOPE (AI ACCURACY IMPROVEMENT COMPLETE)**
+**Status: ✅ READY FOR DEV**
+**Total Features: 113 Use Cases (Full Coverage)**
+**Last Updated: March 11, 2026**
+
+---
+
+## 📊 ROLE STANDARDIZATION: STAFF ✅ HOÀN THÀNH
+
+> **Note:** Tài liệu dùng thống nhất thuật ngữ `Staff` cho role nhân sự phòng khám và không dùng lại thuật ngữ cũ.
+
+| Thành phần | Trạng thái |
+|------------|------------|
+| Database (Flyway) | ✅ 3 migrations |
+| Backend (Spring Boot) | ✅ 98% |
+| Frontend (React) | ✅ 100% |
+| Mobile (Flutter) | ✅ 100% |
+| Unit Tests | ✅ 62/62 passed |
+

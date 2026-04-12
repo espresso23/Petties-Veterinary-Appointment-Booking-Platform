@@ -1,9 +1,9 @@
 /**
  * ProtectedRoute - Route protection with role-based access
- * 
+ *
  * Now uses authStore directly for consistency
  * Usage:
- *   <ProtectedRoute allowedRoles={['ADMIN', 'VET']}>
+ *   <ProtectedRoute allowedRoles={['ADMIN', 'STAFF']}>
  *     <AdminPage />
  *   </ProtectedRoute>
  */
@@ -71,10 +71,11 @@ export function ProtectedRoute({
 /**
  * Get role-based dashboard path
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function getRoleDashboard(role?: string): string {
     const dashboards: Record<string, string> = {
         'ADMIN': '/admin',
-        'VET': '/vet',
+        'STAFF': '/staff',
         'CLINIC_MANAGER': '/clinic-manager',
         'CLINIC_OWNER': '/clinic-owner',
         // PET_OWNER blocked from web - mobile only

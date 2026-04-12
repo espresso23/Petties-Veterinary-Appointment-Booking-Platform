@@ -30,6 +30,7 @@ langgraph>=0.2.60  # ReAct pattern implementation
 llama-index-core>=0.11.20  # Document processing & chunking
 llama-index-embeddings-cohere>=0.4.0  # Cohere embeddings integration
 llama-index-vector-stores-qdrant>=0.4.0  # Qdrant vector store integration
+llama-index-llms-openrouter>=0.2.0  # OpenRouter LLM for AI tools
 
 # ==================== LLM & Embedding Providers ====================
 openai>=1.54.4  # OpenRouter uses OpenAI-compatible API
@@ -42,9 +43,11 @@ fastmcp>=2.3.3  # @mcp.tool decorator for agent tools
 sqlalchemy[asyncio]>=2.0.36
 asyncpg>=0.30.0
 alembic>=1.14.0
+motor>=3.6.0  # MongoDB async driver for chat history storage
 
 # ==================== Vector Database ====================
 qdrant-client>=1.12.1  # Qdrant Cloud for vector storage
+fastembed>=0.3.6  # Required for Qdrant hybrid search (BM25 + vector)
 
 # ==================== Document Processing ====================
 pypdf2>=3.0.1  # PDF text extraction
@@ -52,7 +55,8 @@ python-docx>=1.1.2  # DOCX text extraction
 PyMuPDF>=1.24.0  # Better PDF parsing (optional but recommended)
 
 # ==================== Web Search ====================
-duckduckgo-search>=7.2.1
+tavily-python>=0.3.0
+duckduckgo-search>=7.2.1  # Keep for backward compatibility
 beautifulsoup4>=4.12.3
 
 # ==================== HTTP Clients ====================
@@ -76,3 +80,19 @@ tenacity>=9.0.0
 prometheus-client>=0.21.1
 loguru>=0.7.3
 sentry-sdk[fastapi]>=2.19.0  # Error monitoring & alerting
+
+# ==================== Computer Vision & ML ====================
+# torch>=2.1.0  # PyTorch for model training
+# torchvision>=0.16.0  # Pre-trained models & transforms
+# timm>=0.9.12  # PyTorch Image Models library
+# monai>=1.3.0  # Medical imaging framework
+# peft>=0.7.0  # Parameter-Efficient Fine-Tuning (LoRA)
+# onnx>=1.15.0  # ONNX model format
+# onnxruntime>=1.16.0  # ONNX inference
+# scikit-learn>=1.3.0  # Simple classifiers
+# scipy>=1.11.0  # For ML utilities
+# pillow>=10.0.0  # Image processing
+# pillow-heif>=0.13.0  # HEIC image support
+# opencv-python>=4.8.0  # Image augmentation
+# albumentations>=1.3.0  # Advanced augmentation
+

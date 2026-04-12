@@ -24,6 +24,7 @@ Dự án được xây dựng dựa trên mô hình **Clinic-Centric** (Lấy ph
 | **Thời Gian** | 10/12/2025 - 11/03/2026 (13 Sprints) |
 | **Công Nghệ Core** | Java 21, Spring Boot, FastAPI, Flutter, PostgreSQL, MongoDB, Qdrant |
 | **Last Updated** | 2025-12-29 |
+| **Jira/Wiki** | [Dự án & Quy trình làm việc (Jira README)](docs-references/documentation/JIRA_PROJECT_DESCRIPTION.md) |
 
 ---
 

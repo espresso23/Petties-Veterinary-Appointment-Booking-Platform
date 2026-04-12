@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 import type { StaffSpecialty } from '../../types/clinicStaff'
 import { SPECIALTY_LABELS } from '../../types/clinicStaff'
@@ -7,7 +7,7 @@ interface EditSpecialtyModalProps {
     isOpen: boolean
     onClose: () => void
     onSubmit: (specialty: StaffSpecialty) => Promise<void>
-    currentSpecialty?: StaffSpecialty
+    currentSpecialty?: StaffSpecialty | string  // API có thể trả legacy (VET_GENERAL...)
     staffName: string
 }
 
@@ -15,14 +15,27 @@ interface EditSpecialtyModalProps {
  * Edit Specialty Modal - Neobrutalism Design
  * Allow editing staff specialty (VET only)
  */
+// Map legacy API values to new StaffSpecialty
+const normalizeSpecialty = (s?: StaffSpecialty | string): StaffSpecialty => {
+    if (!s) return 'VET'
+    if (s === 'VET' || s === 'GROOMER') return s
+    if (['VET_GENERAL', 'VET_SURGERY', 'VET_DENTAL', 'VET_DERMATOLOGY'].includes(s)) return 'VET'
+    return 'VET'
+}
+
 export function EditSpecialtyModal({
     isOpen,
     onClose,
     onSubmit,
-    currentSpecialty = 'VET_GENERAL',
+    currentSpecialty = 'VET',
     staffName,
 }: EditSpecialtyModalProps) {
-    const [specialty, setSpecialty] = useState<StaffSpecialty>(currentSpecialty)
+    const normalized = normalizeSpecialty(currentSpecialty)
+    const [specialty, setSpecialty] = useState<StaffSpecialty>(normalized)
+
+    useEffect(() => {
+        if (isOpen) setSpecialty(normalizeSpecialty(currentSpecialty))
+    }, [isOpen, currentSpecialty])
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
@@ -34,8 +47,13 @@ export function EditSpecialtyModal({
         try {
             await onSubmit(specialty)
             onClose()
-        } catch (err: any) {
-            setError(err?.userMessage || err?.message || 'Có lỗi xảy ra')
+        } catch (err) {
+            const errorMessage = err instanceof Error && 'userMessage' in err
+                ? String((err as { userMessage?: string }).userMessage)
+                : err instanceof Error
+                    ? err.message
+                    : 'Có lỗi xảy ra'
+            setError(errorMessage)
         } finally {
             setIsSubmitting(false)
         }
@@ -43,7 +61,7 @@ export function EditSpecialtyModal({
 
     const handleClose = () => {
         if (!isSubmitting) {
-            setSpecialty(currentSpecialty)
+            setSpecialty(normalized)
             setError(null)
             onClose()
         }
@@ -98,10 +116,7 @@ export function EditSpecialtyModal({
                             {(Object.keys(SPECIALTY_LABELS) as StaffSpecialty[]).map((key) => {
                                 const isSelected = specialty === key
                                 const colorClasses: Record<StaffSpecialty, string> = {
-                                    VET_GENERAL: 'border-blue-500 bg-blue-50',
-                                    VET_SURGERY: 'border-purple-500 bg-purple-50',
-                                    VET_DENTAL: 'border-cyan-500 bg-cyan-50',
-                                    VET_DERMATOLOGY: 'border-pink-500 bg-pink-50',
+                                    VET: 'border-blue-500 bg-blue-50',
                                     GROOMER: 'border-orange-500 bg-orange-50',
                                 }
                                 return (

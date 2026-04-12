@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { type SVGProps, type RefAttributes } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
     ChevronLeftIcon,
@@ -8,10 +8,18 @@ import {
 } from '@heroicons/react/24/outline'
 import type { SidebarState } from '../../hooks/useSidebar'
 
+// SVG Icon component type
+type IconComponent = React.ForwardRefExoticComponent<
+    Omit<SVGProps<SVGSVGElement>, 'ref'> & {
+        title?: string
+        titleId?: string
+    } & RefAttributes<SVGSVGElement>
+>
+
 export interface NavItem {
     path: string
     label: string
-    icon: React.ForwardRefExoticComponent<any>
+    icon: IconComponent
     end?: boolean
     unreadCount?: number
 }
@@ -21,14 +29,25 @@ export interface NavGroup {
     items: NavItem[]
 }
 
+interface User {
+    fullName?: string
+    email?: string
+    avatarUrl?: string
+    avatar?: string
+    specialty?: string
+}
+
 interface SidebarProps {
     groups: NavGroup[]
-    user: any
+    user: User | null
     roleName: string
     state: SidebarState
     toggleSidebar: () => void
     onLogout: () => void
     isMobile: boolean
+    isVIP?: boolean
+    planName?: string
+    remainingDays?: number | null
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -38,7 +57,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     state,
     toggleSidebar,
     onLogout,
-    isMobile
+    isMobile,
+    isVIP = false,
+    planName = 'GÓI MIỄN PHÍ',
+    remainingDays = null
 }) => {
     const isCollapsed = state === 'collapsed'
     const isExpanded = state === 'expanded'
@@ -46,7 +68,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     // Width classes based on state
     const sidebarWidth = isExpanded ? 'w-64' : 'w-20'
     const mobileClasses = isMobile
-        ? `fixed inset-y-0 left-0 z-50 transform transition-all duration-300 ease-in-out ${sidebarWidth} shadow-2xl`
+        ? `fixed z-50 sidebar-mobile-safe transform transition-all duration-300 ease-in-out ${sidebarWidth} shadow-2xl`
         : `relative transition-all duration-300 ease-in-out ${sidebarWidth} overflow-visible`
 
     return (
@@ -55,6 +77,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {isMobile && isExpanded && (
                 <div
                     className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-40 transition-opacity duration-300"
+                    aria-hidden
                     onClick={toggleSidebar}
                 />
             )}
@@ -64,21 +87,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div className={`px-4 py-5 border-b-2 border-stone-900 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} min-h-[85px]`}>
                     {isExpanded && (
                         <div className="animate-in fade-in slide-in-from-left duration-300">
-                            <h2 className="text-xl font-black text-amber-600 uppercase tracking-wider">PETTIES</h2>
-                            <p className="text-[10px] font-bold text-stone-500 uppercase tracking-tighter mt-0.5">{roleName}</p>
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-xl font-black text-amber-600 uppercase tracking-wider">PETTIES</h2>
+                                {isVIP && (
+                                    <span className="px-1.5 py-0.5 bg-amber-500 text-stone-950 text-[8px] font-black rounded border border-stone-900 shadow-[1px_1px_0_0_#000] animate-pulse">
+                                        VIP
+                                    </span>
+                                )}
+                            </div>
+                            <p className="text-[10px] font-bold text-stone- stone-500 uppercase tracking-tighter mt-0.5">{roleName}</p>
                         </div>
                     )}
 
                     {isCollapsed && (
-                        <div className="w-10 h-10 bg-amber-500 rounded-lg flex items-center justify-center border-2 border-stone-900 shadow-[3px_3px_0_0_#000] font-black text-white text-xl animate-in zoom-in duration-300">
-                            P
+                        <div className="relative">
+                            <div className="w-10 h-10 bg-amber-500 rounded-lg flex items-center justify-center border-2 border-stone-900 shadow-[3px_3px_0_0_#000] font-black text-white text-xl animate-in zoom-in duration-300">
+                                P
+                            </div>
+                            {isVIP && (
+                                <div className="absolute -top-1 -right-1 w-3 h-3 bg-amber-400 border border-stone-900 rounded-full flex items-center justify-center">
+                                    <div className="w-1 h-1 bg-stone-900 rounded-full animate-ping"></div>
+                                </div>
+                            )}
                         </div>
                     )}
 
                     {!isMobile && (
                         <button
                             onClick={toggleSidebar}
-                            className={`p-1.5 rounded-md bg-white border-2 border-stone-900 shadow-[2px_2px_0_0_#000] hover:bg-amber-400 transition-all ${isCollapsed ? 'absolute -right-3.5 top-8 z-50' : ''}`}
+                            className={`sidebar-collapse-toggle p-1.5 rounded-md bg-white border-2 border-stone-900 shadow-[2px_2px_0_0_#000] hover:bg-amber-400 transition-all ${isCollapsed ? 'absolute -right-3.5 top-8 z-50' : ''}`}
                         >
                             {isCollapsed ? <ChevronRightIcon className="w-4 h-4" /> : <ChevronLeftIcon className="w-4 h-4" />}
                         </button>
@@ -137,7 +174,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
                                         {/* Notification Badge */}
                                         {link.unreadCount !== undefined && link.unreadCount > 0 && (
-                                            <span className={`absolute ${isCollapsed ? 'top-2 right-2' : 'right-4 top-1/2 -translate-y-1/2'} min-w-[18px] h-[18px] flex items-center justify-center bg-red-600 text-white text-[9px] font-black border-2 border-stone-900 rounded shadow-[2px_2px_0_0_#000]`}>
+                                            <span className={`absolute ${isCollapsed ? 'top-2 right-2' : 'right-4 top-1/2 -translate-y-1/2'} flex-shrink-0 min-w-[20px] h-5 px-1.5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center`}>
                                                 {link.unreadCount > 99 ? '99+' : link.unreadCount}
                                             </span>
                                         )}
@@ -167,13 +204,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                     <p className="text-[11px] font-black text-stone-900 truncate uppercase leading-tight">
                                         {user?.fullName || 'User'}
                                     </p>
-                                    <p className="text-[9px] font-medium text-stone-500 truncate mt-0.5">{user?.email}</p>
+                                    <p className="text-[9px] font-medium text-stone-500 truncate block">
+                                        {user?.email}
+                                    </p>
+                                    {isVIP && (
+                                        <div className="mt-1">
+                                            <span className="inline-block text-[7px] font-black bg-stone-900 text-white px-1.5 py-0.5 rounded border border-stone-800 uppercase tracking-widest leading-none">
+                                                {planName}
+                                            </span>
+                                        </div>
+                                    )}
+                                    {isVIP && remainingDays !== null && (
+                                        <p className="text-[8px] font-bold text-amber-600 mt-0.5 uppercase tracking-tighter">
+                                            Hết hạn sau {remainingDays} ngày
+                                        </p>
+                                    )}
                                     {user?.specialty && (
                                         <p className="text-[8px] font-bold text-amber-600 truncate mt-0.5 uppercase">
-                                            {user.specialty === 'VET_GENERAL' && 'BS Thú y'}
-                                            {user.specialty === 'VET_SURGERY' && 'BS Phẫu thuật'}
-                                            {user.specialty === 'VET_DENTAL' && 'BS Nha khoa'}
-                                            {user.specialty === 'VET_DERMATOLOGY' && 'BS Da liễu'}
+                                            {(user.specialty === 'VET' || user.specialty?.startsWith('VET_')) && 'BS Thú y'}
                                             {user.specialty === 'GROOMER' && 'Grooming'}
                                         </p>
                                     )}

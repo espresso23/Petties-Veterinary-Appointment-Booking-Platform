@@ -35,6 +35,13 @@ public class PetController {
         return ResponseEntity.ok(petService.getMyPets());
     }
 
+    @GetMapping("/staff")
+    public ResponseEntity<List<com.petties.petties.dto.pet.StaffPatientDTO>> getStaffPatients(
+            @RequestParam UUID clinicId,
+            @RequestParam UUID staffId) {
+        return ResponseEntity.ok(petService.getPatientsForStaff(clinicId, staffId));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<PetResponse> getPet(@PathVariable UUID id) {
         return ResponseEntity.ok(petService.getPet(id));
@@ -55,9 +62,40 @@ public class PetController {
         return ResponseEntity.ok(petService.updatePet(id, request, image));
     }
 
+    /**
+     * Staff can update only allergies field
+     */
+    @PatchMapping("/{id}/allergies")
+    public ResponseEntity<PetResponse> updateAllergies(
+            @PathVariable UUID id,
+            @RequestBody java.util.Map<String, String> body) {
+        String allergies = body.get("allergies");
+        return ResponseEntity.ok(petService.updateAllergies(id, allergies));
+    }
+
+    /**
+     * Staff can update pet weight
+     */
+    @PatchMapping("/{id}/weight")
+    public ResponseEntity<PetResponse> updateWeight(
+            @PathVariable UUID id,
+            @RequestBody java.util.Map<String, Double> body) {
+        Double weight = body.get("weight");
+        return ResponseEntity.ok(petService.updateWeight(id, weight));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletePet(@PathVariable UUID id) {
         petService.deletePet(id);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Get AI-powered health summary for a pet (Pet Owner only)
+     */
+    @GetMapping("/{id}/health-summary")
+    public ResponseEntity<com.petties.petties.dto.pet.PetHealthSummaryResponse> getHealthSummary(
+            @PathVariable UUID id) {
+        return ResponseEntity.ok(petService.getHealthSummary(id));
     }
 }

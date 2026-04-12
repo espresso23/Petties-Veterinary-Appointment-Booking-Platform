@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { knowledgeApi } from '../../../services/agentService'
-import type { Document, QueryResult } from '../../../services/agentService'
+import type { Document, QueryResult, KnowledgeStatusResult } from '../../../services/agentService'
 import { DocumentUpload } from '../../../components/admin/DocumentUpload'
 import { DocumentCard } from '../../../components/admin/DocumentCard'
 import { RAGQueryTester } from '../../../components/admin/RAGQueryTester'
@@ -13,13 +13,15 @@ import {
   ServerIcon,
   EyeIcon,
   EyeSlashIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  PhotoIcon,
+  MagnifyingGlassIcon
 } from '@heroicons/react/24/outline'
 import { useToast } from '../../../components/Toast'
 import { useAuthStore } from '../../../store/authStore'
 import { env } from '../../../config/env'
 
-const AI_SERVICE_URL = env.AGENT_SERVICE_URL
+const AI_API_BASE_URL = env.AGENT_API_BASE_URL
 
 interface Setting {
   key: string
@@ -39,7 +41,7 @@ interface Setting {
  */
 export const KnowledgePage = () => {
   const [documents, setDocuments] = useState<Document[]>([])
-  const [status, setStatus] = useState<any>(null)
+  const [status, setStatus] = useState<KnowledgeStatusResult | null>(null)
   const [loading, setLoading] = useState(true)
   const { showToast } = useToast()
 
@@ -53,20 +55,25 @@ export const KnowledgePage = () => {
   const [savingQdrant, setSavingQdrant] = useState(false)
   const [testingCohere, setTestingCohere] = useState(false)
   const [testingQdrant, setTestingQdrant] = useState(false)
+  // Jina Image Embeddings (Case Memory)
+  const [jinaApiKey, setJinaApiKey] = useState('')
+  const [showJinaKey, setShowJinaKey] = useState(false)
+  const [savingJina, setSavingJina] = useState(false)
+  const [testingJina, setTestingJina] = useState(false)
+  // Web Search - Tavily
+  const [tavilyApiKey, setTavilyApiKey] = useState('')
+  const [showTavilyKey, setShowTavilyKey] = useState(false)
+  const [savingTavily, setSavingTavily] = useState(false)
+  const [testingTavily, setTestingTavily] = useState(false)
 
   const getAuthHeaders = (): Record<string, string> => {
     const token = useAuthStore.getState().accessToken
     return token ? { 'Authorization': `Bearer ${token}` } : {}
   }
 
-  useEffect(() => {
-    loadData()
-    loadSettings()
-  }, [])
-
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     try {
-      const response = await fetch(`${AI_SERVICE_URL}/api/v1/settings`, {
+      const response = await fetch(`${AI_API_BASE_URL}/api/v1/settings`, {
         headers: getAuthHeaders()
       })
       if (response.ok) {
@@ -76,19 +83,23 @@ export const KnowledgePage = () => {
         const cohere = settings.find(s => s.key === 'COHERE_API_KEY')
         const qdrantUrlSetting = settings.find(s => s.key === 'QDRANT_URL')
         const qdrantKeySetting = settings.find(s => s.key === 'QDRANT_API_KEY')
+        const jina = settings.find(s => s.key === 'JINA_API_KEY')
+        const tavily = settings.find(s => s.key === 'TAVILY_API_KEY')
 
         if (cohere?.value) setCohereApiKey(cohere.value)
         if (qdrantUrlSetting?.value) setQdrantUrl(qdrantUrlSetting.value)
         if (qdrantKeySetting?.value) setQdrantApiKey(qdrantKeySetting.value)
+        if (jina?.value) setJinaApiKey(jina.value)
+        if (tavily?.value) setTavilyApiKey(tavily.value)
       } else {
         console.error('Failed to fetch settings:', response.status)
       }
-    } catch (error) {
-      console.error('Failed to load settings:', error)
+    } catch (err) {
+      console.error('Failed to load settings:', err)
     }
-  }
+  }, [])
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true)
       const [docs, stat] = await Promise.all([
@@ -102,10 +113,15 @@ export const KnowledgePage = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    loadData()
+    loadSettings()
+  }, [loadData, loadSettings])
 
   const saveSetting = async (key: string, value: string) => {
-    const response = await fetch(`${AI_SERVICE_URL}/api/v1/settings/${key}`, {
+    const response = await fetch(`${AI_API_BASE_URL}/api/v1/settings/${key}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -121,7 +137,7 @@ export const KnowledgePage = () => {
       setSavingCohere(true)
       await saveSetting('COHERE_API_KEY', cohereApiKey)
       showToast('success', 'Đã lưu Cohere API key thành công!')
-    } catch (error) {
+    } catch {
       showToast('error', 'Không thể lưu Cohere API key')
     } finally {
       setSavingCohere(false)
@@ -136,7 +152,7 @@ export const KnowledgePage = () => {
         saveSetting('QDRANT_API_KEY', qdrantApiKey)
       ])
       showToast('success', 'Đã lưu cấu hình Qdrant thành công!')
-    } catch (error) {
+    } catch {
       showToast('error', 'Không thể lưu cấu hình Qdrant')
     } finally {
       setSavingQdrant(false)
@@ -146,7 +162,7 @@ export const KnowledgePage = () => {
   const handleTestCohere = async () => {
     try {
       setTestingCohere(true)
-      const response = await fetch(`${AI_SERVICE_URL}/api/v1/settings/test-cohere`, {
+      const response = await fetch(`${AI_API_BASE_URL}/api/v1/settings/test-cohere`, {
         method: 'POST',
         headers: getAuthHeaders()
       })
@@ -156,7 +172,7 @@ export const KnowledgePage = () => {
       } else {
         showToast('error', result.message || 'Kết nối Cohere thất bại')
       }
-    } catch (error) {
+    } catch {
       showToast('error', 'Không thể kiểm tra kết nối Cohere')
     } finally {
       setTestingCohere(false)
@@ -166,7 +182,7 @@ export const KnowledgePage = () => {
   const handleTestQdrant = async () => {
     try {
       setTestingQdrant(true)
-      const response = await fetch(`${AI_SERVICE_URL}/api/v1/settings/test-qdrant`, {
+      const response = await fetch(`${AI_API_BASE_URL}/api/v1/settings/test-qdrant`, {
         method: 'POST',
         headers: getAuthHeaders()
       })
@@ -176,10 +192,74 @@ export const KnowledgePage = () => {
       } else {
         showToast('error', result.message || 'Kết nối Qdrant thất bại')
       }
-    } catch (error) {
+    } catch {
       showToast('error', 'Không thể kiểm tra kết nối Qdrant')
     } finally {
       setTestingQdrant(false)
+    }
+  }
+
+  const handleSaveJina = async () => {
+    try {
+      setSavingJina(true)
+      await saveSetting('JINA_API_KEY', jinaApiKey)
+      showToast('success', 'Đã lưu Jina API key thành công!')
+    } catch {
+      showToast('error', 'Không thể lưu Jina API key')
+    } finally {
+      setSavingJina(false)
+    }
+  }
+
+  const handleTestJina = async () => {
+    try {
+      setTestingJina(true)
+      const response = await fetch(`${AI_API_BASE_URL}/api/v1/settings/test-jina`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      })
+      const result = await response.json()
+      if (result.status === 'success') {
+        showToast('success', 'Kết nối Jina thành công!')
+      } else {
+        showToast('error', result.message || 'Kết nối Jina thất bại')
+      }
+    } catch {
+      showToast('error', 'Không thể kiểm tra kết nối Jina')
+    } finally {
+      setTestingJina(false)
+    }
+  }
+
+  const handleSaveTavily = async () => {
+    try {
+      setSavingTavily(true)
+      await saveSetting('TAVILY_API_KEY', tavilyApiKey)
+      showToast('success', 'Đã lưu Tavily API key thành công!')
+    } catch {
+      showToast('error', 'Không thể lưu Tavily API key')
+    } finally {
+      setSavingTavily(false)
+    }
+  }
+
+  const handleTestTavily = async () => {
+    try {
+      setTestingTavily(true)
+      const response = await fetch(`${AI_API_BASE_URL}/api/v1/settings/test-tavily`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      })
+      const result = await response.json()
+      if (result.status === 'success') {
+        showToast('success', 'Kết nối Tavily thành công!')
+      } else {
+        showToast('error', result.message || 'Kết nối Tavily thất bại')
+      }
+    } catch {
+      showToast('error', 'Không thể kiểm tra kết nối Tavily')
+    } finally {
+      setTestingTavily(false)
     }
   }
 
@@ -201,8 +281,18 @@ export const KnowledgePage = () => {
       await knowledgeApi.deleteDocument(id)
       showToast('success', 'Đã xóa tài liệu')
       await loadData()
-    } catch (error) {
+    } catch {
       showToast('error', 'Không thể xóa tài liệu')
+    }
+  }
+
+  const handleProcess = async (id: number) => {
+    try {
+      await knowledgeApi.processDocument(id)
+      showToast('success', 'Đã xử lý tài liệu')
+      await loadData()
+    } catch {
+      showToast('error', 'Không thể xử lý tài liệu. Vui lòng kiểm tra cấu hình COHERE và QDRANT')
     }
   }
 
@@ -248,7 +338,7 @@ export const KnowledgePage = () => {
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
 
         {/* RAG Configuration Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Cohere Embeddings Config */}
           <div className="bg-white border-4 border-black shadow-[8px_8px_0_#1c1917] p-6">
             <div className="flex items-center gap-3 mb-4">
@@ -303,6 +393,65 @@ export const KnowledgePage = () => {
                   className="flex-1 px-4 py-2 bg-purple-500 text-white border-4 border-black font-black uppercase text-sm hover:bg-purple-600 disabled:opacity-50 shadow-[4px_4px_0_#1c1917] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all cursor-pointer"
                 >
                   {savingCohere ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Jina Image Embeddings (Case Memory) */}
+          <div className="bg-white border-4 border-black shadow-[8px_8px_0_#1c1917] p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-teal-100 border-2 border-black">
+                <PhotoIcon className="w-6 h-6 text-teal-700" />
+              </div>
+              <div>
+                <h2 className="text-lg font-black uppercase">IMAGE EMBEDDINGS (JINA)</h2>
+                <p className="text-xs text-stone-600 uppercase">jina-clip-v2 · Case Memory</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-black uppercase text-stone-700 mb-2">API KEY</label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type={showJinaKey ? 'text' : 'password'}
+                      value={jinaApiKey}
+                      onChange={(e) => setJinaApiKey(e.target.value)}
+                      placeholder="Nhập Jina API key"
+                      className="w-full px-4 py-3 border-4 border-black font-mono text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-teal-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowJinaKey(!showJinaKey)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-500 hover:text-stone-700 cursor-pointer"
+                    >
+                      {showJinaKey ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handleTestJina}
+                  disabled={testingJina || !jinaApiKey}
+                  className="flex-1 px-4 py-2 bg-teal-100 border-4 border-black font-black uppercase text-sm text-stone-900 hover:bg-teal-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                >
+                  {testingJina ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                      Đang kiểm tra...
+                    </span>
+                  ) : 'Test kết nối Jina'}
+                </button>
+                <button
+                  onClick={handleSaveJina}
+                  disabled={savingJina}
+                  className="flex-1 px-4 py-2 bg-teal-500 text-white border-4 border-black font-black uppercase text-sm hover:bg-teal-600 disabled:opacity-50 shadow-[4px_4px_0_#1c1917] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all cursor-pointer"
+                >
+                  {savingJina ? 'Đang lưu...' : 'Lưu Jina'}
                 </button>
               </div>
             </div>
@@ -375,6 +524,63 @@ export const KnowledgePage = () => {
               </div>
             </div>
           </div>
+
+          {/* Tavily Web Search Config */}
+          <div className="bg-white border-4 border-black shadow-[8px_8px_0_#1c1917] p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-orange-100 border-2 border-black">
+                <MagnifyingGlassIcon className="w-6 h-6 text-orange-700" />
+              </div>
+              <div>
+                <h2 className="text-lg font-black uppercase">WEB SEARCH (TAVILY)</h2>
+                <p className="text-xs text-stone-600 uppercase">tavily.com</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-black uppercase text-stone-700 mb-2">API KEY</label>
+                <div className="relative">
+                  <input
+                    type={showTavilyKey ? 'text' : 'password'}
+                    value={tavilyApiKey}
+                    onChange={(e) => setTavilyApiKey(e.target.value)}
+                    placeholder="Nhập Tavily API key"
+                    className="w-full px-4 py-3 border-4 border-black font-mono text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowTavilyKey(!showTavilyKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-500 hover:text-stone-700 cursor-pointer"
+                  >
+                    {showTavilyKey ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handleTestTavily}
+                  disabled={testingTavily || !tavilyApiKey}
+                  className="flex-1 px-4 py-2 bg-orange-100 border-4 border-black font-black uppercase text-sm text-stone-900 hover:bg-orange-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                >
+                  {testingTavily ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                      Đang kiểm tra...
+                    </span>
+                  ) : 'Test kết nối'}
+                </button>
+                <button
+                  onClick={handleSaveTavily}
+                  disabled={savingTavily}
+                  className="flex-1 px-4 py-2 bg-orange-500 text-white border-4 border-black font-black uppercase text-sm hover:bg-orange-600 disabled:opacity-50 shadow-[4px_4px_0_#1c1917] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all cursor-pointer"
+                >
+                  {savingTavily ? 'Đang lưu...' : 'Lưu'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Warning if not configured */}
@@ -389,7 +595,7 @@ export const KnowledgePage = () => {
 
         {/* Statistics Cards */}
         {status && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="bg-white border-4 border-black shadow-[4px_4px_0_#1c1917] p-5">
               <div className="flex items-center gap-3 mb-2">
                 <DocumentTextIcon className="w-5 h-5 text-blue-600" />
@@ -409,12 +615,19 @@ export const KnowledgePage = () => {
                 <CircleStackIcon className="w-5 h-5 text-amber-600" />
                 <div className="text-2xl font-black text-amber-600">{status.total_vectors || 0}</div>
               </div>
-              <div className="text-xs font-bold text-stone-500 uppercase">Total Vectors</div>
+              <div className="text-xs font-bold text-stone-500 uppercase">Text Vectors</div>
             </div>
             <div className="bg-white border-4 border-black shadow-[4px_4px_0_#1c1917] p-5">
               <div className="flex items-center gap-3 mb-2">
-                <CircleStackIcon className="w-5 h-5 text-purple-600" />
-                <div className="text-2xl font-black text-purple-600">
+                <PhotoIcon className="w-5 h-5 text-purple-600" />
+                <div className="text-2xl font-black text-purple-600">{status.total_image_vectors || 0}</div>
+              </div>
+              <div className="text-xs font-bold text-stone-500 uppercase">Image Vectors</div>
+            </div>
+            <div className="bg-white border-4 border-black shadow-[4px_4px_0_#1c1917] p-5">
+              <div className="flex items-center gap-3 mb-2">
+                <ServerIcon className="w-5 h-5 text-stone-600" />
+                <div className="text-2xl font-black text-stone-600">
                   {status.storage_size_bytes ? formatBytes(status.storage_size_bytes) : '-'}
                 </div>
               </div>
@@ -456,6 +669,7 @@ export const KnowledgePage = () => {
                       key={doc.id}
                       document={doc}
                       onDelete={handleDelete}
+                      onProcess={handleProcess}
                     />
                   ))}
                 </div>

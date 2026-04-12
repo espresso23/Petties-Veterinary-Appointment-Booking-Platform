@@ -74,7 +74,8 @@ interface ChatBoxItemProps {
 function ChatBoxItem({ chatBox, isActive, onClick }: ChatBoxItemProps) {
   const formatTime = (dateStr: string | null) => {
     if (!dateStr) return ''
-    const date = new Date(dateStr)
+    // Ensure UTC interpretation if 'Z' or offset is missing
+    const date = new Date(dateStr.endsWith('Z') ? dateStr : `${dateStr}Z`)
     const now = new Date()
     const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24))
 
@@ -94,8 +95,8 @@ function ChatBoxItem({ chatBox, isActive, onClick }: ChatBoxItemProps) {
       onClick={onClick}
       className={`
         flex items-center gap-3 p-4 cursor-pointer transition-colors border-b border-stone-200
-        ${isActive 
-          ? 'bg-amber-50 border-l-4 border-l-amber-600' 
+        ${isActive
+          ? 'bg-amber-50 border-l-4 border-l-amber-600'
           : 'hover:bg-amber-50/50 border-l-4 border-l-transparent'
         }
       `}

@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/constants/app_colors.dart';
 import '../../config/constants/app_constants.dart';
 import '../../data/models/chat.dart';
 import '../../data/services/chat_service.dart';
 import '../../data/services/chat_websocket_service.dart';
+import '../../providers/auth_provider.dart';
 import '../../routing/app_routes.dart';
+import '../common/pet_owner_bottom_nav.dart';
 import 'widgets/chat_conversation_item.dart';
 
 /// Màn hình danh sách tin nhắn - Pet Owner
@@ -104,9 +107,17 @@ class _ChatListScreenState extends State<ChatListScreen> {
         if (index != -1) {
           final conversation = _conversations[index];
           final msg = wsMessage.message!;
+          // Determine last message preview based on message type
+          String lastMessagePreview;
+          if (msg.messageType == MessageType.image) {
+            lastMessagePreview = '[Hình ảnh]';
+          } else {
+            lastMessagePreview = msg.content;
+          }
+
           // Update last message and increment unread count
           _conversations[index] = conversation.copyWith(
-            lastMessage: msg.content,
+            lastMessage: lastMessagePreview,
             lastMessageSender: msg.senderType.value,
             lastMessageAt: msg.createdAt,
             // Increment unread if message is from CLINIC (partner for PET_OWNER)
@@ -140,50 +151,77 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   Future<void> _fetchConversations() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
 
     try {
       final conversations = await _chatService.getConversations();
-      setState(() {
-        _conversations = conversations;
-        _filteredConversations = conversations;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _conversations = conversations;
+          _filteredConversations = conversations;
+          _isLoading = false;
+        });
+      }
       // Subscribe to WebSocket after fetching conversations
       _subscribeToConversations();
     } catch (e) {
-      setState(() {
-        _error = 'Không thể tải danh sách tin nhắn';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = 'Không thể tải danh sách tin nhắn';
+          _isLoading = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final isPetOwner = auth.user?.role == 'PET_OWNER';
+
     return Scaffold(
       backgroundColor: AppColors.stone50,
       appBar: _buildAppBar(),
-      body: Column(
-        children: [
-          _buildSearchBar(),
-          Expanded(child: _buildBody()),
-        ],
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildSearchBar(),
+            Expanded(child: _buildBody()),
+          ],
+        ),
+      ),
+      bottomNavigationBar:
+          isPetOwner ? _buildBottomNavigationBar(context) : null,
+    );
+  }
+
+  Widget _buildBottomNavigationBar(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: PetOwnerBottomNav(
+        currentIndex: 3,
+        onTap: (index) => handlePetOwnerNavTap(context, index),
       ),
     );
   }
 
   AppBar _buildAppBar() {
+    final canPop = Navigator.of(context).canPop();
+
     return AppBar(
       backgroundColor: AppColors.primary,
       elevation: 0,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: AppColors.white),
-        onPressed: () => context.pop(),
-      ),
+      leading: canPop
+          ? IconButton(
+              icon: const Icon(Icons.arrow_back, color: AppColors.white),
+              onPressed: () => context.pop(),
+            )
+          : null,
       title: const Text(
         'TIN NHẮN',
         style: TextStyle(
@@ -206,8 +244,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
           color: AppColors.stone100,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: AppColors.stone900, width: 2),
-          boxShadow: const [
-            BoxShadow(color: AppColors.stone900, offset: Offset(2, 2)),
+          boxShadow: [
+            BoxShadow(color: AppColors.stone900, offset: const Offset(2, 2)),
           ],
         ),
         child: TextField(

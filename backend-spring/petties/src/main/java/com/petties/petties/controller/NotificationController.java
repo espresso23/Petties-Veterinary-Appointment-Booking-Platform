@@ -40,8 +40,8 @@ public class NotificationController {
 
         User currentUser = authService.getCurrentUser();
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<NotificationResponse> notifications = notificationService.getNotificationsByUserId(
-                currentUser.getUserId(), pageable);
+        Page<NotificationResponse> notifications = notificationService.getNotificationsByUserId(currentUser.getUserId(),
+            pageable);
         return ResponseEntity.ok(notifications);
     }
 

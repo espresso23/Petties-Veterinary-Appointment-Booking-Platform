@@ -8,7 +8,7 @@ import { env } from '../config/env'
 /**
  * SSE Event types from backend
  */
-type SseEventType = 'NOTIFICATION' | 'HEARTBEAT' | 'SHIFT_UPDATE' | 'CLINIC_COUNTER_UPDATE'
+type SseEventType = 'NOTIFICATION' | 'HEARTBEAT' | 'SHIFT_UPDATE' | 'CLINIC_COUNTER_UPDATE' | 'BOOKING_UPDATE'
 
 /**
  * Notification type enum matching backend
@@ -17,16 +17,27 @@ type NotificationType =
   | 'APPROVED'
   | 'REJECTED'
   | 'PENDING'
-  | 'VET_SHIFT_ASSIGNED'
-  | 'VET_SHIFT_UPDATED'
-  | 'VET_SHIFT_DELETED'
+  | 'STAFF_SHIFT_ASSIGNED'
+  | 'STAFF_SHIFT_UPDATED'
+  | 'STAFF_SHIFT_DELETED'
+  // Booking notifications
+  | 'BOOKING_CREATED'
+  | 'BOOKING_CONFIRMED'
+  | 'BOOKING_CANCELLED'
+  | 'BOOKING_CHECKIN'
+  | 'BOOKING_COMPLETED'
+  | 'STAFF_ON_WAY'
+  | 'STAFF_ARRIVED'
+  // Admin notifications
+  | 'CLINIC_PENDING_APPROVAL'
+  | 'CLINIC_VERIFIED'
 
 /**
  * SSE Event data structure from backend
  */
 interface SseEventData {
   type: SseEventType
-  data: NotificationData | null
+  data: NotificationData | BookingUpdateData | number | null
   timestamp: string
 }
 
@@ -43,7 +54,7 @@ interface NotificationData {
   // Clinic-related fields
   clinicId?: string
   clinicName?: string
-  // VetShift-related fields
+  // StaffShift-related fields
   shiftId?: string
   shiftDate?: string
   shiftStartTime?: string
@@ -55,10 +66,28 @@ interface UseSseNotificationOptions {
   reconnectDelay?: number
   /** Max reconnect attempts before giving up (default: 10) */
   maxReconnectAttempts?: number
+  /** Disable default toast + unread side effects (useful for page-level secondary subscriptions) */
+  silent?: boolean
+  /** Enable/disable SSE connection (default: true) */
+  enabled?: boolean
   /** Callback when new notification received */
   onNotification?: (notification: NotificationData) => void
   /** Callback when shift update received */
   onShiftUpdate?: (data: unknown) => void
+  /** Callback when booking update received */
+  onBookingUpdate?: (data: BookingUpdateData) => void
+}
+
+/**
+ * Booking update data from SSE push
+ */
+interface BookingUpdateData {
+  bookingId: string
+  bookingCode: string
+  action: 'CONFIRMED' | 'CHECK_IN' | 'COMPLETED' | 'CANCELLED' | 'STAFF_REASSIGNED' | 'SERVICE_ADDED'
+  status: string
+  oldStaffId?: string  // For STAFF_REASSIGNED action - the staff being removed
+  newStaffId?: string  // For STAFF_REASSIGNED action - the staff being assigned
 }
 
 interface UseSseNotificationReturn {
@@ -97,8 +126,11 @@ export function useSseNotification(
   const {
     reconnectDelay = 5000,
     maxReconnectAttempts = 10,
+    silent = false,
+    enabled = true,
     onNotification,
     onShiftUpdate,
+    onBookingUpdate,
   } = options
 
   const { accessToken, isAuthenticated } = useAuthStore()
@@ -111,6 +143,7 @@ export function useSseNotification(
   // Use refs for callbacks to avoid re-creating handleSseEvent when they change
   const onNotificationRef = useRef(onNotification)
   const onShiftUpdateRef = useRef(onShiftUpdate)
+  const onBookingUpdateRef = useRef(onBookingUpdate)
 
   useEffect(() => {
     onNotificationRef.current = onNotification
@@ -120,9 +153,23 @@ export function useSseNotification(
     onShiftUpdateRef.current = onShiftUpdate
   }, [onShiftUpdate])
 
+  useEffect(() => {
+    onBookingUpdateRef.current = onBookingUpdate
+  }, [onBookingUpdate])
+
+  // Track mounted state to prevent state updates after unmount
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
   const eventSourceRef = useRef<EventSource | null>(null)
   const reconnectAttemptsRef = useRef(0)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const connectRef = useRef<() => void>(() => {})
+  const isMountedRef = useRef(true)
 
   // Generate SSE URL with token
   const getSseUrl = useCallback(() => {
@@ -144,14 +191,37 @@ export function useSseNotification(
         case 'REJECTED':
           showToast('error', message || `Phong kham "${clinicName}" khong duoc duyet`)
           break
-        case 'VET_SHIFT_ASSIGNED':
+        case 'STAFF_SHIFT_ASSIGNED':
           showToast('info', message || 'Ban duoc gan ca lam viec moi')
           break
-        case 'VET_SHIFT_UPDATED':
+        case 'STAFF_SHIFT_UPDATED':
           showToast('warning', message || 'Ca lam viec cua ban da duoc cap nhat')
           break
-        case 'VET_SHIFT_DELETED':
+        case 'STAFF_SHIFT_DELETED':
           showToast('warning', message || 'Ca lam viec cua ban da bi xoa')
+          break
+        // Booking notifications
+        case 'BOOKING_CREATED':
+          showToast('info', message || 'Có lịch hẹn mới cần xác nhận')
+          break
+
+        case 'BOOKING_CONFIRMED':
+          showToast('success', message || 'Lịch hẹn đã được xác nhận')
+          break
+        case 'BOOKING_CANCELLED':
+          showToast('warning', message || 'Lịch hẹn đã bị hủy')
+          break
+        case 'BOOKING_CHECKIN':
+          showToast('info', message || 'Bác sĩ đã bắt đầu thực hiện dịch vụ')
+          break
+        case 'BOOKING_COMPLETED':
+          showToast('success', message || 'Lịch hẹn đã hoàn thành')
+          break
+        case 'STAFF_ON_WAY':
+          showToast('info', message || 'Nhân viên đang trên đường đến khách hàng')
+          break
+        case 'STAFF_ARRIVED':
+          showToast('success', message || 'Nhân viên đã đến địa chỉ khách hàng')
           break
         default:
           showToast('info', message || 'Thong bao moi')
@@ -170,10 +240,12 @@ export function useSseNotification(
           case 'NOTIFICATION':
             if (data.data) {
               console.log('[SSE] Notification received:', data.data)
-              // Increment unread count
-              incrementUnreadCount()
-              // Show toast
-              showNotificationToast(data.data as NotificationData)
+              if (!silent) {
+                // Increment unread count
+                incrementUnreadCount()
+                // Show toast
+                showNotificationToast(data.data as NotificationData)
+              }
               // Call callback
               onNotificationRef.current?.(data.data as NotificationData)
             }
@@ -181,7 +253,7 @@ export function useSseNotification(
 
           case 'SHIFT_UPDATE':
             console.log('[SSE] Shift update received:', data.data)
-            // Trigger callback for shift updates (e.g., refresh VetShift list)
+            // Trigger callback for shift updates (e.g., refresh StaffShift list)
             onShiftUpdateRef.current?.(data.data)
             break
 
@@ -190,6 +262,12 @@ export function useSseNotification(
             if (typeof data.data === 'number') {
               setPendingCount(data.data)
             }
+            break
+
+          case 'BOOKING_UPDATE':
+            console.log('[SSE] Booking update received:', data.data)
+            // Trigger callback for booking updates (e.g., refresh booking list)
+            onBookingUpdateRef.current?.(data.data as BookingUpdateData)
             break
 
           case 'HEARTBEAT':
@@ -206,10 +284,11 @@ export function useSseNotification(
         console.error('[SSE] Failed to parse event data:', error)
       }
     },
-    [incrementUnreadCount, showNotificationToast, setPendingCount]
+    [incrementUnreadCount, showNotificationToast, setPendingCount, silent]
   )
 
   // Connect to SSE
+   
   const connect = useCallback(() => {
     const url = getSseUrl()
     if (!url) {
@@ -228,40 +307,51 @@ export function useSseNotification(
       })
 
       eventSource.onopen = () => {
+        if (!isMountedRef.current) {
+          eventSource.close()
+          return
+        }
         console.log('[SSE] Connected successfully')
         setIsConnected(true)
         reconnectAttemptsRef.current = 0
-        // Refresh unread count on connect
-        refreshUnreadCount()
+        // Refresh unread count on connect (only if mounted)
+        if (isMountedRef.current) {
+          refreshUnreadCount()
+        }
       }
 
-      // Listen for named events
+      // Listen for named events only (backend always sends event name).
+      // Do NOT set onmessage: for named events only addEventListener runs; adding onmessage
+      // can cause duplicate handling in some environments (same event processed twice).
       eventSource.addEventListener('NOTIFICATION', handleSseEvent)
       eventSource.addEventListener('HEARTBEAT', handleSseEvent)
       eventSource.addEventListener('SHIFT_UPDATE', handleSseEvent)
       eventSource.addEventListener('CLINIC_COUNTER_UPDATE', handleSseEvent)
-
-      // Also handle generic message events
-      eventSource.onmessage = (event) => {
-        handleSseEvent(event)
-      }
+      eventSource.addEventListener('BOOKING_UPDATE', handleSseEvent)
 
       eventSource.onerror = (error) => {
         console.error('[SSE] Connection error:', error)
+        if (!isMountedRef.current) {
+          eventSource.close()
+          return
+        }
         setIsConnected(false)
         eventSource.close()
+        eventSourceRef.current = null
 
-        // Auto-reconnect if within max attempts
-        if (reconnectAttemptsRef.current < maxReconnectAttempts && isAuthenticated) {
+        // Auto-reconnect if within max attempts and still mounted
+        if (isMountedRef.current && reconnectAttemptsRef.current < maxReconnectAttempts && isAuthenticated) {
           reconnectAttemptsRef.current++
           console.log(
             `[SSE] Reconnecting in ${reconnectDelay}ms (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`
           )
           reconnectTimeoutRef.current = setTimeout(() => {
-            connect()
+            if (isMountedRef.current) {
+              connectRef.current()
+            }
           }, reconnectDelay)
         } else {
-          console.warn('[SSE] Max reconnect attempts reached, stopping')
+          console.warn('[SSE] Max reconnect attempts reached or unmounted, stopping')
         }
       }
 
@@ -302,18 +392,25 @@ export function useSseNotification(
     connect()
   }, [connect, disconnect])
 
+  connectRef.current = connect
+
   // Connect on mount, disconnect on unmount
   useEffect(() => {
-    if (isAuthenticated && accessToken) {
+    if (enabled && isAuthenticated && accessToken) {
       connect()
     } else {
       disconnect()
     }
-
+    // Cleanup: clear timeout and disconnect on unmount
     return () => {
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current)
+        reconnectTimeoutRef.current = null
+      }
       disconnect()
     }
-  }, [isAuthenticated, accessToken, connect, disconnect])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, isAuthenticated, accessToken])
 
   return {
     isConnected,

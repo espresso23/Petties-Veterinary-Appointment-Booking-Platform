@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 
@@ -7,16 +8,24 @@ enum NotificationType {
   CLINIC_REJECTED,
   CLINIC_PENDING,
 
-  // VetShift notifications
-  VET_SHIFT_ASSIGNED,
-  VET_SHIFT_UPDATED,
-  VET_SHIFT_DELETED,
+  // StaffShift notifications
+  STAFF_SHIFT_ASSIGNED,
+  STAFF_SHIFT_UPDATED,
+  STAFF_SHIFT_DELETED,
 
   // Booking notifications
   BOOKING_CREATED,
   BOOKING_CONFIRMED,
+  BOOKING_ASSIGNED,
   BOOKING_CANCELLED,
+  BOOKING_CHECKIN,
+  BOOKING_PAYMENT_REQUIRED,
   BOOKING_COMPLETED,
+  STAFF_ON_WAY,
+
+  // Reminders
+  VACCINATION_REMINDER,
+  RE_EXAMINATION_REMINDER,
 
   // Others
   SYSTEM_NOTIFICATION
@@ -34,11 +43,19 @@ class NotificationModel {
   final String? clinicId;
   final String? clinicName;
 
-  // VetShift-related (optional)
+  // StaffShift-related (optional)
   final String? shiftId;
   final DateTime? shiftDate;
   final String? shiftStartTime;
   final String? shiftEndTime;
+
+  // Actionable fields
+  final String? actionType;
+  final String? actionData;
+
+  // Parsed action payload (optional)
+  final String? bookingId;
+  final String? conversationId;
 
   NotificationModel({
     required this.id,
@@ -53,9 +70,31 @@ class NotificationModel {
     this.shiftDate,
     this.shiftStartTime,
     this.shiftEndTime,
+    this.actionType,
+    this.actionData,
+    this.bookingId,
+    this.conversationId,
   });
 
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
+    final rawActionData = json['actionData'] as String?;
+    String? bookingId;
+    String? conversationId;
+
+    if (rawActionData != null && rawActionData.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawActionData);
+        if (decoded is Map<String, dynamic>) {
+          final dynamic bookingIdValue = decoded['bookingId'];
+          final dynamic conversationIdValue = decoded['conversationId'];
+          bookingId = bookingIdValue?.toString();
+          conversationId = conversationIdValue?.toString();
+        }
+      } catch (e) {
+        debugPrint('Error parsing notification actionData JSON: $e');
+      }
+    }
+
     return NotificationModel(
       id: json['notificationId'] as String,
       type: _parseNotificationType(json['type'] as String),
@@ -71,6 +110,10 @@ class NotificationModel {
           : null,
       shiftStartTime: json['shiftStartTime'] as String?,
       shiftEndTime: json['shiftEndTime'] as String?,
+      actionType: json['actionType'] as String?,
+      actionData: rawActionData,
+      bookingId: bookingId,
+      conversationId: conversationId,
     );
   }
 

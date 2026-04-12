@@ -4,92 +4,60 @@ Logic to initialize default agents, tools, and settings.
 """
 
 import logging
-from pathlib import Path
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.postgres.models import (
-    Agent, Tool, SystemSetting,
-    DEFAULT_SETTINGS, PromptVersion
+    Agent,
+    normalize_setting_category,
+    Tool,
+    ToolType,
+    SystemSetting,
+    DEFAULT_SETTINGS,
 )
 
 logger = logging.getLogger(__name__)
+
 
 async def seed_data(db: AsyncSession, force: bool = False):
     """
     Seed database with Single Agent architecture.
     """
     try:
-        # Templates directory
-        templates_dir = Path(__file__).parent.parent.parent / "core" / "prompts" / "templates"
+        results = {"system_settings": 0, "agents": 0, "tools": 0}
 
-        def load_template(agent_name: str) -> str:
-            """Load template file"""
-            template_path = templates_dir / f"{agent_name}.txt"
-            try:
-                if template_path.exists():
-                    return template_path.read_text(encoding="utf-8").strip()
-            except Exception as e:
-                logger.warning(f"Failed to load template {agent_name}: {e}")
-            return ""
-
-        results = {
-            "system_settings": 0,
-            "agents": 0,
-            "tools": 0
-        }
-
-        # 1. Seed system settings
+        # 1. Seed system settings - add NEW settings only (don't overwrite existing)
         if force:
             await db.execute(delete(SystemSetting))
 
         existing_settings = await db.execute(select(SystemSetting))
-        if not existing_settings.scalars().first() or force:
-            settings_list = []
-            for setting_data in DEFAULT_SETTINGS:
+        existing_keys = set()
+        if existing_settings.scalars().first():
+            all_settings = await db.execute(select(SystemSetting.key))
+            existing_keys = {s for s in all_settings.scalars()}
+
+        settings_to_add = []
+        for setting_data in DEFAULT_SETTINGS:
+            if setting_data["key"] not in existing_keys:
                 setting = SystemSetting(
                     key=setting_data["key"],
                     value=setting_data["value"],
-                    category=setting_data["category"],  # Now a simple string
+                    category=normalize_setting_category(setting_data["category"]),
                     is_sensitive=setting_data["is_sensitive"],
-                    description=setting_data["description"]
+                    description=setting_data["description"],
                 )
-                settings_list.append(setting)
-            db.add_all(settings_list)
-            results["system_settings"] = len(settings_list)
-            logger.info(f"Seeded {len(settings_list)} system settings")
+                settings_to_add.append(setting)
+
+        if settings_to_add:
+            db.add_all(settings_to_add)
+            results["system_settings"] = len(settings_to_add)
+            logger.info(f"Seeded {len(settings_to_add)} new system settings")
 
         # 2. Seed Single Agent
         if force:
-            await db.execute(delete(PromptVersion))
             await db.execute(delete(Agent))
 
         existing_agents = await db.execute(select(Agent))
         if not existing_agents.scalars().first() or force:
-            single_agent_prompt = load_template("single_agent") or load_template("main_agent")
-
-            if not single_agent_prompt:
-                single_agent_prompt = """Bạn là Petties AI Assistant - trợ lý AI chuyên về chăm sóc thú cưng.
-
-## NHIỆM VỤ
-- Tư vấn sức khỏe thú cưng, chẩn đoán bệnh dựa trên triệu chứng
-- Hỗ trợ đặt lịch khám tại phòng khám thú y
-- Tìm kiếm thông tin về chăm sóc thú cưng, sản phẩm, dịch vụ
-- Trả lời các câu hỏi về thú cưng bằng tiếng Việt thân thiện
-
-## QUY TẮC CHÍNH
-1. Luôn trả lời bằng tiếng Việt thân thiện và dễ hiểu
-2. Khi cần thông tin y tế, PHẢI sử dụng tool tra cứu knowledge base
-3. Không đưa ra chẩn đoán cuối cùng - luôn khuyến khích gặp bác sĩ thú y
-4. Ưu tiên an toàn và sức khỏe của thú cưng
-
-## NGUYÊN TẮC ĐỨNG (CRITICAL)
-- CHỈ GỌI TOOL TỐI ĐA 1-2 LẦN cho mỗi câu hỏi
-- Sau khi nhận Observation có thông tin hữu ích, PHẢI chuyển sang Final Answer
-
-## QUY TẮC VẮNG
-- Tuyệt đối không gọi cùng một tool với tham số tương tự qua 1 lần
-- Nếu Observation đã có thông tin, DÙ KHÔNG HOÀN HẢO, vẫn phải dùng nó để trả lời"""
-
             # Create Single Agent
             single_agent = Agent(
                 name="petties_agent",
@@ -97,9 +65,8 @@ async def seed_data(db: AsyncSession, force: bool = False):
                 temperature=0.7,
                 max_tokens=2000,
                 top_p=0.9,
-                model="google/gemini-2.0-flash-exp:free",
-                system_prompt=single_agent_prompt,
-                enabled=True
+                model="google/gemini-2.5-flash-lite",
+                enabled=True,
             )
 
             db.add(single_agent)
@@ -114,40 +81,231 @@ async def seed_data(db: AsyncSession, force: bool = False):
 
             tools = [
                 Tool(
-                    name="pet_care_qa",
-                    description="""Tim kiếm kiến thức chăm sóc thú cưng từ knowledge base (RAG Q&A).""",
-                    tool_type="code_based",
+                    name="pet_knowledge_search",
+                    description="""Tìm kiếm kiến thức chăm sóc thú cưng từ Knowledge Base (RAG). Trả về dữ liệu thô để LLM tự phân tích.""",
+                    tool_type=ToolType.CODE_BASED,
                     input_schema={
                         "type": "object",
                         "properties": {
-                            "query": {"type": "string", "description": "Câu hỏi khóa tìm kiếm"},
-                            "top_k": {"type": "integer", "default": 5}
+                            "query": {
+                                "type": "string",
+                                "description": "Câu hỏi hoặc mô tả triệu chứng",
+                            },
+                            "pet_type": {
+                                "type": "string",
+                                "default": "dog",
+                                "description": "Loại thú cưng",
+                            },
+                            "top_k": {"type": "integer", "default": 5},
+                            "min_score": {"type": "number", "default": 0.4},
                         },
-                        "required": ["query"]
+                        "required": ["query"],
                     },
                     enabled=True,
-                    assigned_agents=["petties_agent"]
                 ),
                 Tool(
-                    name="symptom_search",
-                    description="""Tim bệnh dựa trên triệu chứng su dung RAG (Symptom Checker).""",
-                    tool_type="code_based",
+                    name="web_search",
+                    description="Tìm kiếm thông tin trên web khi knowledge base chưa đủ dữ liệu. Chỉ dùng cho nội dung liên quan đến thú cưng, thú y, chăm sóc, dinh dưỡng, triệu chứng.",
+                    tool_type=ToolType.CODE_BASED,
                     input_schema={
                         "type": "object",
                         "properties": {
-                            "symptoms": {"type": "array", "items": {"type": "string"}},
-                            "pet_type": {"type": "string", "default": "dog"}
+                            "query": {
+                                "type": "string",
+                                "description": "Câu hỏi tìm trên web",
+                            },
+                            "max_results": {"type": "integer", "default": 5},
                         },
-                        "required": ["symptoms"]
+                        "required": ["query"],
+                    },
+                    enabled=False,
+                ),
+                Tool(
+                    name="get_user_pets",
+                    description="Lấy danh sách thú cưng của pet owner hiện tại để phục vụ quy trình đặt lịch.",
+                    tool_type=ToolType.CODE_BASED,
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "user_id": {
+                                "type": "string",
+                                "description": "User ID được tự động inject từ session",
+                            }
+                        },
+                        "required": [],
                     },
                     enabled=True,
-                    assigned_agents=["petties_agent"]
+                ),
+                Tool(
+                    name="search_clinics_nearby",
+                    description="Tim phong kham gan vi tri user de goi y dat lich.",
+                    tool_type=ToolType.CODE_BASED,
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "latitude": {"type": "number"},
+                            "longitude": {"type": "number"},
+                            "radius_km": {"type": "number", "default": 5},
+                            "service_names": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                            "top_k": {"type": "integer", "default": 5},
+                        },
+                        "required": ["latitude", "longitude"],
+                    },
+                    enabled=True,
+                ),
+                Tool(
+                    name="get_clinic_services",
+                    description="Lay danh sach dich vu dang hoat dong cua phong kham.",
+                    tool_type=ToolType.CODE_BASED,
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "clinic_id": {"type": "string"},
+                            "pet_species": {"type": "string"},
+                            "is_home_visit": {"type": "boolean"},
+                        },
+                        "required": ["clinic_id"],
+                    },
+                    enabled=True,
+                ),
+                Tool(
+                    name="check_vaccination_status",
+                    description="Lay lich su tiem va goi y mui sap toi cua pet de ho tro tu van booking tientrung trong flow binh thuong.",
+                    tool_type=ToolType.CODE_BASED,
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "pet_id": {"type": "string"},
+                            "vaccine_template_id": {"type": "string"},
+                        },
+                        "required": ["pet_id"],
+                    },
+                    enabled=True,
+                ),
+                Tool(
+                    name="check_available_slots",
+                    description="Kiem tra khung gio trong cua phong kham cho danh sach dich vu.",
+                    tool_type=ToolType.CODE_BASED,
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "clinic_id": {"type": "string"},
+                            "date": {"type": "string"},
+                            "service_ids": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                        },
+                        "required": ["clinic_id", "date", "service_ids"],
+                    },
+                    enabled=True,
+                ),
+                Tool(
+                    name="create_booking_for_user",
+                    description="Tao booking that cho pet owner sau khi da xac nhan day du thong tin.",
+                    tool_type=ToolType.CODE_BASED,
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "pet_id": {"type": "string"},
+                            "clinic_id": {"type": "string"},
+                            "booking_date": {"type": "string"},
+                            "start_time": {"type": "string"},
+                            "service_ids": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                            "booking_type": {
+                                "type": "string",
+                                "enum": ["IN_CLINIC", "HOME_VISIT"],
+                            },
+                            "notes": {"type": "string"},
+                            "home_address": {"type": "string"},
+                            "home_lat": {"type": "number"},
+                            "home_long": {"type": "number"},
+                            "distance_km": {"type": "number"},
+                            "confirmed": {"type": "boolean", "default": False},
+                        },
+                        "required": [
+                            "pet_id",
+                            "clinic_id",
+                            "booking_date",
+                            "start_time",
+                            "service_ids",
+                            "confirmed",
+                        ],
+                    },
+                    enabled=True,
+                ),
+                Tool(
+                    name="get_staff_patients",
+                    description="Lấy danh sách thú cưng của staff hiện tại để tìm kiếm nhanh theo tên.",
+                    tool_type=ToolType.CODE_BASED,
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "query_name": {
+                                "type": "string",
+                                "description": "Tên thú cưng cần tìm (tùy chọn)",
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "default": 10,
+                                "description": "Số lượng kết quả tối đa",
+                            },
+                        },
+                    },
+                    enabled=True,
+                ),
+                Tool(
+                    name="get_patient_summary",
+                    description="Lấy tóm tắt nhanh hồ sơ y tế của một thú cưng.",
+                    tool_type=ToolType.CODE_BASED,
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "pet_id": {
+                                "type": "string",
+                                "description": "ID của thú cưng",
+                            },
+                        },
+                        "required": ["pet_id"],
+                    },
+                    enabled=True,
+                ),
+                Tool(
+                    name="get_emr_history",
+                    description="Lấy lịch sử bệnh án đầy đủ của một thú cưng.",
+                    tool_type=ToolType.CODE_BASED,
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "pet_id": {
+                                "type": "string",
+                                "description": "ID của thú cưng",
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "default": 5,
+                                "description": "Số lượng lần khám tối đa",
+                            },
+                        },
+                        "required": ["pet_id"],
+                    },
+                    enabled=True,
                 ),
             ]
 
             db.add_all(tools)
             results["tools"] = len(tools)
             logger.info(f"Seeded {len(tools)} RAG tools")
+
+        await db.commit()
+
+        # Không seed legacy disease classes trong giai đoạn này.
 
         await db.commit()
         return results

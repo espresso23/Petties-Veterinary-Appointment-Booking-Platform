@@ -1,6 +1,6 @@
-# 🎫 PETTIES WORK BREAKDOWN STRUCTURE (WBS)
+﻿# 🎫 PETTIES WORK BREAKDOWN STRUCTURE (WBS)
 ## Project: Veterinary Appointment & SOS Platform
-**Version:** 7.0 | **Last Updated:** 08/01/2026 | **Audited from Codebase**  
+**Version:** 1.5.0 | **Last Updated:** 22/01/2026 | **Audited from Codebase**  
 **Team Size:** 5 members | **Sprint Duration:** 1 week | **Target Effort:** ~40h/person/week
 
 ---
@@ -35,11 +35,11 @@
 | US-DSC-02 | Xem chi tiết phòng khám | 🔄 |
 | US-DSC-03 | Filter phòng khám (khu vực, phường, thành phố, dịch vụ) | 💡 |
 | US-DSC-04 | Đánh giá & Review Clinic (sau khám) | 💡 |
-| US-DSC-05 | Đánh giá & Review Vet (sau khám) | 💡 |
+| US-DSC-05 | Đánh giá & Review Staff (sau khám) | 💡 |
 | US-MED-01 | Xem lịch sử khám bệnh | 💡 |
 | US-MED-03 | Xem sổ tiêm chủng điện tử | 💡 |
 | US-APT-01 | Đặt lịch khám (manual) | 💡 |
-| US-APT-03 | Check-in tại phòng khám | 💡 |
+| US-APT-03 | Staff click Check-in bắt đầu khám | 💡 |
 | US-AI-02 | Chat với AI (hỏi triệu chứng) | 🔄 |
 | US-AI-03 | Đặt lịch tự động với AI (AI Booking) | 💡 |
 | US-AI-04 | Tìm dịch vụ phù hợp theo triệu chứng (AI Recommend) | 💡 |
@@ -48,16 +48,17 @@
 | US-NTF-03 | Xem danh sách thông báo | ✅ |
 | US-SOS-01 | Tìm phòng khám cấp cứu | 💡 |
 | US-SOS-02 | Đặt lịch SOS (Emergency Booking) | 💡 |
-| US-SOS-03 | Theo dõi Vet di chuyển (Live GPS Tracking) | 💡 |
+| US-SOS-03 | Theo dõi Staff di chuyển (Live GPS Tracking) | 💡 |
 | US-PAY-01 | Thanh toán tiền mặt (Cash) | 💡 |
 | US-PAY-02 | Thanh toán thẻ (Card) | 💡 |
 | US-PAY-03 | Thanh toán QR Code (SePay) | 💡 |
 | US-CHT-01 | Chat với Clinic Manager | 💡 |
+| US-AUTH-06 | Hủy yêu cầu thay đổi Email (Cancel Email Change) | ✅ |
 
 ---
 
-### 👨‍⚕️ Vet (Mobile App)
-> Bác sĩ thú y - Xem lịch làm việc, ghi bệnh án, và quản lý cuộc hẹn
+### 👨‍⚕️ Staff (Mobile App)
+> Nhân viên thú y - Xem lịch làm việc, ghi bệnh án, và quản lý cuộc hẹn
 
 | US Code | User Story | Status |
 |---------|------------|--------|
@@ -69,11 +70,12 @@
 | US-MED-01 | Xem lịch sử khám bệnh của Pet | 💡 |
 | US-MED-02 | Ghi bệnh án SOAP | 💡 |
 | US-MED-03 | Ghi/Xem sổ tiêm chủng | 💡 |
-| US-APT-03 | Check-in Pet Owner đến khám | 💡 |
-| US-APT-04 | Cập nhật dịch vụ phát sinh (nếu có) | 💡 |
-| US-APT-05 | Checkout (hoàn thành khám) | 💡 |
+| US-APT-03 | Staff click Check-in bắt đầu khám | ✅ |
+| US-APT-04 | Cập nhật dịch vụ phát sinh (nếu có) | ✅ |
+| US-APT-05 | Checkout (hoàn thành khám) | ✅ |
 | US-NTF-01 | Nhận thông báo đẩy (Push) | ✅ |
 | US-NTF-03 | Xem danh sách thông báo | ✅ |
+| US-APT-09 | Dashboard Tổng quan lịch hẹn (Staff Home Dashboard Summary) | ✅ |
 
 ---
 
@@ -86,12 +88,16 @@
 | US-AUTH-04 | Quên mật khẩu & Reset Password | ✅ |
 | US-CLN-03 | Quản lý dịch vụ (Custom Pricing) | ✅ |
 | US-CLN-04 | Quản lý nhân viên | ✅ |
-| US-SCH-01 | Tạo ca trực cho bác sĩ | ✅ |
+| US-SCH-01 | Tạo ca trực cho nhân viên | ✅ |
 | US-SCH-02 | Quản lý Slot (Block/Unblock) | ✅ |
 | US-APT-02 | Quản lý lịch hẹn | 💡 |
 | US-NTF-02 | Nhận Real-time Notification (SSE) | ✅ |
 | US-NTF-03 | Xem Notification Center | ✅ |
 | US-CHT-01 | Chat với Pet Owner | 💡 |
+| US-SCH-04 | Block/Unblock Slot thủ công (Manual Slot Control) | ✅ |
+| US-SCH-05 | Xóa ca trực hàng loạt (Bulk Shift Delete) | ✅ |
+| US-APT-07 | Kiểm tra tính khả dụng của nhân viên (Check Staff Availability) | ✅ |
+| US-APT-08 | Gán lại nhân viên cho dịch vụ (Reassign Staff) | ✅ |
 
 ---
 
@@ -118,9 +124,7 @@
 | US-AUTH-02 | Đăng nhập Username/Password | ✅ |
 | US-CLN-02 | Duyệt phòng khám (Approve/Reject) | ✅ |
 | US-CLN-03 | Quản lý Master Services | ✅ |
-| US-AI-01 | Cấu hình RAG Knowledge Base | ✅ |
-| US-NTF-02 | Nhận Real-time Notification (SSE) | ✅ |
-| US-NTF-03 | Xem Notification Center | ✅ |
+| US-AD-11 | AI Feedback Audit & Visual Learning | ✅ |
 
 ---
 
@@ -128,11 +132,11 @@
 
 | Actor | Total US | Done | In Progress | Planned |
 |-------|----------|------|-------------|---------|
-| **Pet Owner** | 16 | 9 | 4 | 3 |
-| **Vet** | 9 | 5 | 0 | 4 |
-| **Clinic Manager** | 9 | 7 | 0 | 2 |
+| **Pet Owner** | 17 | 10 | 4 | 3 |
+| **Staff** | 10 | 6 | 0 | 4 |
+| **Clinic Manager** | 13 | 11 | 0 | 2 |
 | **Clinic Owner** | 7 | 7 | 0 | 0 |
-| **Admin** | 6 | 6 | 0 | 0 |
+| **Admin** | 9 | 9 | 0 | 0 |
 
 ---
 
@@ -151,7 +155,7 @@
 
 **Actor Benefits:**
 - 🐾 **Pet Owner:** Register with OTP email, login with Google, reset password easily
-- 👨‍⚕️ **Vet/Staff:** Login with auto-generated credentials from clinic
+- 👨‍⚕️ **Staff:** Login with auto-generated credentials from clinic
 - 🔧 **Admin:** Secure access to admin portal
 
 **Key Deliverables:**
@@ -174,7 +178,7 @@
 
 **Actor Benefits:**
 - 🐾 **Pet Owner:** Update name, phone, upload avatar, change password
-- 👨‍⚕️ **Vet:** View and update personal info on mobile
+- 👨‍⚕️ **Staff:** View and update personal info on mobile
 
 **Key Deliverables:**
 - `US-USR-01` View & update profile (name, phone, avatar)
@@ -194,7 +198,7 @@
 
 **Actor Benefits:**
 - 🐾 **Pet Owner:** Create multiple pet profiles with photos, track basic health info
-- 👨‍⚕️ **Vet:** Quickly identify pets with photos before appointment
+- 👨‍⚕️ **Staff:** Quickly identify pets with photos before appointment
 
 **Key Deliverables:**
 - `US-PET-01` CRUD pet profiles (name, species, breed, DOB, weight)
@@ -220,7 +224,7 @@
 - `US-CLN-01` Clinic registration (→ PENDING → Admin approval)
 - `US-CLN-02` Admin approve/reject clinic
 - `US-CLN-03` Master Services + custom pricing per clinic
-- `US-CLN-04` Staff management (Quick Add Vet/Manager)
+- `US-CLN-04` Staff management (Quick Add Staff/Manager)
 
 **Dependencies:** EPIC-AUTH (role-based access)
 
@@ -229,18 +233,18 @@
 #### 📅 EPIC 5: [EPIC-SCHED] Scheduling & Shifts
 | Attribute | Details |
 |-----------|---------|
-| **Goal** | Vet shift creation with automatic 30-min slot generation |
+| **Goal** | Staff shift creation with automatic 30-min slot generation |
 | **Sprints** | S4-S5 |
 | **Status** | ✅ 100% Complete |
 
 **Actor Benefits:**
 - 👩‍💼 **Clinic Manager:** Create shifts easily, auto-generate slots, block/unblock slots
-- 👨‍⚕️ **Vet:** View personal schedule on mobile + web (month/week/day views)
+- 👨‍⚕️ **Staff:** View personal schedule on mobile + web (month/week/day views)
 
 **Key Deliverables:**
 - `US-SCH-01` Create vet shift → auto-generate 30-min slots
 - `US-SCH-02` Block/Unblock slots for breaks or emergencies
-- `US-SCH-03` Vet views personal schedule on mobile
+- `US-SCH-03` Staff views personal schedule on mobile
 
 **Dependencies:** EPIC-CLINIC (staff must exist), EPIC-AUTH
 
@@ -255,7 +259,7 @@
 
 **Actor Benefits:**
 - 🐾 **Pet Owner:** Receive booking confirmations, reminders on mobile
-- 👨‍⚕️ **Vet:** Get notified of new assignments
+- 👨‍⚕️ **Staff:** Get notified of new assignments
 - 👩‍💼 **Manager:** Real-time alerts for new bookings (SSE)
 
 **Key Deliverables:**
@@ -292,8 +296,8 @@
 | Attribute | Details |
 |-----------|---------|
 | **Goal** | Smart AI assistant with RAG knowledge, symptom checker, and auto-booking |
-| **Sprints** | S5-S10 |
-| **Status** | 🔄 60% In Progress |
+| **Sprints** | S5-S12 |
+| **Status** | 🔄 80% In Progress |
 
 **Actor Benefits:**
 - 🐾 **Pet Owner:** Ask pet care questions, describe symptoms, book via AI
@@ -305,6 +309,9 @@
 - `US-AI-03` Symptom checker with AI suggestions
 - `US-AI-04` AI-assisted booking via conversation
 - `US-AI-05` Web search for pet products (DuckDuckGo)
+- `US-AI-06` AI Vision Pet Health Analysis (Images)
+- `US-AI-11` AI Feedback Audit & Visual Learning
+- `US-AI-13` KB Image Embeddings (PDF images + Jina CLIP) ✅ NEW
 
 **Dependencies:** EPIC-DISCOVERY (for AI booking), external AI services
 
@@ -315,20 +322,20 @@
 |-----------|---------|
 | **Goal** | Complete appointment lifecycle from booking to checkout |
 | **Sprints** | S7-S8 |
-| **Status** | 💡 0% Not Started |
+| **Status** | 🔄 60% In Progress (Backend Done) |
 
 **Actor Benefits:**
 - 🐾 **Pet Owner:** Book clinic/home visit, track status, cancel if needed
 - 👩‍💼 **Manager:** View bookings, assign vets, manage cancellations
-- 👨‍⚕️ **Vet:** Receives assigned bookings, performs check-in/out
+- 👨‍⚕️ **Staff:** Receives assigned bookings, performs check-in/out
 
 **Key Deliverables:**
-- `US-APT-01` Booking wizard (Pet → Clinic → Service → Vet → Slot)
+- `US-APT-01` Booking wizard (Pet → Clinic → Service → Staff → Slot)
 - `US-APT-02` Manager booking management
-- `US-APT-03` Check-in (Vet clicks button when pet arrives)
+- `US-APT-03` Check-in (Staff clicks button when pet arrives)
 - `US-APT-04` Add incurred services during exam
 - `US-APT-05` Checkout & generate invoice
-- `US-APT-06` Vet views assigned bookings
+- `US-APT-06` Staff views assigned bookings
 
 **Dependencies:** EPIC-SCHED (slots), EPIC-DISCOVERY (clinic selection)
 
@@ -339,10 +346,10 @@
 |-----------|---------|
 | **Goal** | Centralized medical history with SOAP notes and vaccination records |
 | **Sprints** | S8 |
-| **Status** | 💡 0% Not Started |
+| **Status** | 🔄 50% In Progress (Backend Done) |
 
 **Actor Benefits:**
-- 👨‍⚕️ **Vet:** Record diagnoses professionally (SOAP format), prescriptions
+- 👨‍⚕️ **Staff:** Record diagnoses professionally (SOAP format), prescriptions
 - 🐾 **Pet Owner:** View pet's medical timeline, vaccination due dates
 
 **Key Deliverables:**
@@ -363,7 +370,7 @@
 
 **Actor Benefits:**
 - 🐾 **Pet Owner:** Create SOS request, track vet location live, get ETA
-- 👨‍⚕️ **Vet:** Receives SOS assignment, auto-enable GPS, navigate to location
+- 👨‍⚕️ **Staff:** Receives SOS assignment, auto-enable GPS, navigate to location
 
 **Key Deliverables:**
 - `US-SOS-01` Find nearest emergency clinic
@@ -398,16 +405,22 @@
 
 | Sprint | Dates | Primary EPICs | Key Deliverables | Status |
 |--------|-------|---------------|------------------|--------|
+| Sprint | Dates | Primary EPICs | Key Deliverables | Status |
+|--------|-------|---------------|------------------|--------|
 | **S1** | 02/12 - 08/12/2025 | AUTH, USR | Register OTP, Login, Google OAuth, Profile | ✅ Done |
 | **S2** | 09/12 - 15/12/2025 | AUTH, PET, CLINIC | Session mgmt, Pet CRUD, Clinic registration | ✅ Done |
-| **S3** | 16/12 - 22/12/2025 | CLINIC | Staff management (Vet, Manager) | ✅ Done |
+| **S3** | 16/12 - 22/12/2025 | CLINIC | Staff management (Staff, Manager) | ✅ Done |
 | **S4** | 23/12 - 29/12/2025 | SCHED, NOTI | Shift creation, Push/SSE notifications | ✅ Done |
 | **S5** | 30/12 - 05/01/2026 | SCHED, AI | Block/Unblock slots, RAG knowledge base | ✅ Done |
-| **S6** | 06/01 - 12/01/2026 | DISCOVERY, AI | Nearby search, Clinic detail, AI Chat | 🔄 Current |
-| **S7** | 13/01 - 19/01/2026 | DISCOVERY, APPOINTMENT | Clinic filters, Booking wizard | 💡 Planned |
-| **S8** | 20/01 - 26/01/2026 | APPOINTMENT, MEDICAL | Check-in/out, EMR SOAP, Vaccination | 💡 Planned |
-| **S9** | 27/01 - 02/02/2026 | SOS, PAYMENT | SOS booking, GPS tracking, Payments | 💡 Planned |
-| **S10+** | 03/02 - 23/02/2026 | AI (Advanced) | AI booking, Review system, Bug fixes | 💡 Planned |
+| **S6** | 06/01 - 12/01/2026 | DISCOVERY, AI | Nearby search, Clinic detail, AI Chat | ✅ Done |
+| **S7** | 13/01 - 19/01/2026 | DISCOVERY, APPOINTMENT | Clinic filters, Booking wizard | ✅ Done |
+| **S8** | 20/01 - 26/01/2026 | APPOINTMENT, MEDICAL | Check-in/out, EMR SOAP, Vaccination | ✅ Done |
+| **S9** | 27/01 - 02/02/2026 | SOS, PAYMENT | SOS booking, GPS tracking, Payments | ✅ Done |
+| **S10** | 03/02 - 09/02/2026 | AI (Advanced) | AI booking, AI Recommend, Web Search | ✅ Done |
+| **S11** | 10/02 - 16/02/2026 | PT_REVIEW | Review system, UI polishing (Neobrutalism) | ✅ Done |
+| **S12** | 17/02 - 01/03/2026 | TESTING | Integration Testing, System Testing | ✅ Done |
+| **S13** | 02/03 - 11/03/2026 | AI_DATA_IMPR | Feedback Audit | ✅ Done |
+| **S14** | 12/03 - 15/03/2026 | RELEASE | Final Audit, Walkthrough, Production Release | 🔄 Current |
 
 ---
 
@@ -456,15 +469,15 @@
 ---
 
 #### ✅ S4 (23/12 - 29/12/2025): Scheduling & Notifications
-> **Sprint Goal:** Tạo ca trực cho Vet và hệ thống thông báo
+> **Sprint Goal:** Tạo ca trực cho Staff và hệ thống thông báo
 
 | Deliverable | User Story | Mô tả chi tiết |
 |-------------|------------|----------------|
-| **Tạo ca trực** | US-SCH-01 | Clinic Manager có thể tạo ca trực cho Vet, hệ thống tự động sinh Slot |
+| **Tạo ca trực** | US-SCH-01 | Clinic Manager có thể tạo ca trực cho Staff, hệ thống tự động sinh Slot |
 | **Push Notification** | US-NTF-01 | Hệ thống gửi thông báo đẩy qua Firebase Cloud Messaging |
 | **SSE Real-time** | US-NTF-02 | Web Portal nhận thông báo real-time qua Server-Sent Events |
 
-**Acceptance Criteria:** Vet có lịch làm việc, user nhận được thông báo
+**Acceptance Criteria:** Staff có lịch làm việc, user nhận được thông báo
 
 ---
 
@@ -474,11 +487,11 @@
 | Deliverable | User Story | Mô tả chi tiết |
 |-------------|------------|----------------|
 | **Block/Unblock Slot** | US-SCH-02 | Clinic Manager có thể block slot cho nghỉ/họp, unblock khi cần |
-| **Vet Schedule** | US-SCH-03 | Vet xem lịch làm việc cá nhân trên Mobile App |
+| **Staff Schedule** | US-SCH-03 | Staff xem lịch làm việc cá nhân trên Mobile App |
 | **Notification Center** | US-NTF-03 | User xem lịch sử thông báo tại một nơi tập trung |
 | **AI RAG Setup** | US-AI-01 | Triển khai LlamaIndex + Qdrant cho knowledge base thú y |
 
-**Acceptance Criteria:** Vet có thể xem lịch làm việc, AI Service sẵn sàng cho chat
+**Acceptance Criteria:** Staff có thể xem lịch làm việc, AI Service sẵn sàng cho chat
 
 ---
 
@@ -501,8 +514,8 @@
 | Deliverable | User Story | Mô tả chi tiết |
 |-------------|------------|----------------|
 | **Filter Clinic** | US-DSC-03 | Lọc phòng khám theo quận/huyện, phường/xã, thành phố, loại dịch vụ |
-| **Đặt lịch** | US-APT-01 | Pet Owner đặt lịch theo wizard: chọn Pet → Clinic → Service → Vet → Slot |
-| **Vet Appointments** | US-APT-06 | Vet xem danh sách lịch hẹn sắp tới trên Mobile |
+| **Đặt lịch** | US-APT-01 | Pet Owner đặt lịch theo wizard: chọn Pet → Clinic → Service → Staff → Slot |
+| **Staff Appointments** | US-APT-06 | Staff xem danh sách lịch hẹn sắp tới trên Mobile |
 | **Chat P2P** | US-CHT-01 | Pet Owner và Clinic Manager chat real-time qua WebSocket |
 
 **Acceptance Criteria:** Pet Owner có thể filter, đặt lịch và chat với phòng khám
@@ -514,13 +527,13 @@
 
 | Deliverable | User Story | Mô tả chi tiết |
 |-------------|------------|----------------|
-| **Lịch sử khám** | US-MED-01 | Pet Owner/Vet xem timeline lịch sử khám bệnh của pet |
-| **SOAP Notes** | US-MED-02 | Vet ghi bệnh án theo format SOAP (Subjective, Objective, Assessment, Plan) |
+| **Lịch sử khám** | US-MED-01 | Pet Owner/Staff xem timeline lịch sử khám bệnh của pet |
+| **SOAP Notes** | US-MED-02 | Staff ghi bệnh án theo format SOAP (Subjective, Objective, Assessment, Plan) |
 | **Sổ tiêm chủng** | US-MED-03 | Xem/ghi vaccine records với nhắc nhở lịch tiêm tiếp theo |
 | **Quản lý booking** | US-APT-02 | Clinic Manager xem/xác nhận/hủy lịch hẹn |
-| **Check-in** | US-APT-03 | Vet check-in khi pet/owner đến phòng khám |
-| **Dịch vụ phát sinh** | US-APT-04 | Vet thêm dịch vụ phát sinh trong quá trình khám |
-| **Checkout** | US-APT-05 | Vet/Clinic Manager hoàn thành khám và tạo hóa đơn |
+| **Check-in** | US-APT-03 | Staff check-in khi pet/owner đến phòng khám |
+| **Dịch vụ phát sinh** | US-APT-04 | Staff thêm dịch vụ phát sinh trong quá trình khám |
+| **Checkout** | US-APT-05 | Staff/Clinic Manager hoàn thành khám và tạo hóa đơn |
 
 **Acceptance Criteria:** Luồng khám hoàn chỉnh từ đặt lịch → check-in → khám → checkout
 
@@ -533,12 +546,12 @@
 |-------------|------------|----------------|
 | **Tìm cấp cứu** | US-SOS-01 | Tìm phòng khám cấp cứu gần nhất đang mở |
 | **SOS Booking** | US-SOS-02 | Đặt lịch khẩn cấp với priority cao |
-| **GPS Tracking** | US-SOS-03 | Theo dõi vị trí Vet di chuyển real-time |
+| **GPS Tracking** | US-SOS-03 | Theo dõi vị trí Staff di chuyển real-time |
 | **Cash Payment** | US-PAY-01 | Thanh toán tiền mặt tại phòng khám |
 | **Card Payment** | US-PAY-02 | Thanh toán bằng thẻ Visa/Mastercard |
 | **QR Payment** | US-PAY-03 | Thanh toán bằng QR Code (SePay) |
 | **Review Clinic** | US-DSC-04 | Pet Owner đánh giá phòng khám sau khi khám |
-| **Review Vet** | US-DSC-05 | Pet Owner đánh giá Vet sau khi khám |
+| **Review Staff** | US-DSC-05 | Pet Owner đánh giá Staff sau khi khám |
 
 **Acceptance Criteria:** Hệ thống hỗ trợ cấp cứu, thanh toán đa phương thức, và reviews
 
@@ -584,7 +597,7 @@
 ---
 
 ### 🔹 US-AUTH-02: Đăng nhập Username/Password ✅
-> **Actor:** Pet Owner, Vet, Clinic Manager, Clinic Owner, Admin  
+> **Actor:** Pet Owner, Staff, Clinic Manager, Clinic Owner, Admin  
 > **As a** User, **I want to** log in using my username and password  
 > **So that** I can access my account and use the platform's features based on my role
 
@@ -622,7 +635,7 @@
 ---
 
 ### 🔹 US-AUTH-04: Quên mật khẩu & Reset Password ✅
-> **Actor:** Pet Owner, Vet, Clinic Manager, Clinic Owner  
+> **Actor:** Pet Owner, Staff, Clinic Manager, Clinic Owner  
 > **As a** User, **I want to** reset my password via OTP email  
 > **So that** I can recover my account if I forget my password
 
@@ -661,7 +674,7 @@
 
 ## 📝 EPIC 2: [EPIC-PET] Digital Pet Profiling System ✅ 100%
 > **Goal:** CRUD pet profiles with photos and basic health info
-> **Benefits:** Pet Owner manages all pets in one place, Vets identify pets easily
+> **Benefits:** Pet Owner manages all pets in one place, Staff identify pets easily
 
 ### 🔹 US-PET-01: CRUD Hồ sơ thú cưng ✅
 > **Actor:** Pet Owner  
@@ -862,19 +875,19 @@
 
 ---
 
-### 🔹 US-DSC-05: Đánh giá & Review Vet 💡 Planned
+### 🔹 US-DSC-05: Đánh giá & Review Staff 💡 Planned
 > **Actor:** Pet Owner  
 > **As a** Pet Owner, **I want to** rate and review a specific vet after my appointment  
 > **So that** I can share my experience about the vet's professionalism
 
-**Sprint:** S8 | **Missing:** Vet Review Entity
+**Sprint:** S8 | **Missing:** Staff Review Entity
 
 | Sub-task | Assignee | Effort | Status |
 |----------|----------|--------|--------|
 | Viết spec (Report 3) | DEV-3 | 2h | ⏳ |
 | Viết class/sequence diagram (Report 4) | DEV-3 | 3h | ⏳ |
 | Code BE: VetReview Entity, API | DEV-1 | 5h | ⏳ |
-| Code FE: Mobile Vet Review UI | DEV-3 | 6h | ⏳ |
+| Code FE: Mobile Staff Review UI | DEV-3 | 6h | ⏳ |
 | Viết unit test | DEV-1 | 2h | ⏳ |
 | Viết system test (Report 5) | DEV-4 | 2h | ⏳ |
 | Run test & fix bugs | DEV-4 | 2h | ⏳ |
@@ -882,21 +895,21 @@
 ---
 
 ## 📝 EPIC 5: [EPIC-SCHED] Scheduling & Shifts ✅ 100%
-> **Goal:** Vet shift creation with automatic slot generation, block/unblock
-> **Benefits:** Manager creates schedules easily, Vet sees personal calendar
+> **Goal:** Staff shift creation with automatic slot generation, block/unblock
+> **Benefits:** Manager creates schedules easily, Staff sees personal calendar
 
-### 🔹 US-SCH-01: Tạo ca trực cho bác sĩ ✅
+### 🔹 US-SCH-01: Tạo ca trực cho nhân viên ✅
 > **Actor:** Clinic Manager  
 > **As a** Clinic Manager, **I want to** create work shifts for veterinarians  
 > **So that** I can schedule my vets and the system auto-generates bookable slots
 
-**Sprint:** S4 | **Verified Files:** `VetShift.java`, `Slot.java`, `VetShiftService.createShifts()`
+**Sprint:** S4 | **Verified Files:** `StaffShift.java`, `Slot.java`, `StaffShiftService.createShifts()`
 
 | Sub-task | Assignee | Effort | Status |
 |----------|----------|--------|--------|
 | Viết spec (Report 3) | DEV-1 | 3h | ✅ |
 | Viết class/sequence diagram (Report 4) | DEV-1 | 5h | ✅ |
-| Code BE: VetShift, Slot auto-generation | DEV-1 | 12h | ✅ |
+| Code BE: StaffShift, Slot auto-generation | DEV-1 | 12h | ✅ |
 | Code FE: Web Shift Calendar View | DEV-2 | 10h | ✅ |
 | Viết unit test | DEV-1 | 3h | ✅ |
 | Viết system test (Report 5) | DEV-4 | 3h | ✅ |
@@ -909,7 +922,7 @@
 > **As a** Clinic Manager, **I want to** block or unblock specific time slots  
 > **So that** I can temporarily disable slots for breaks, meetings, or emergencies
 
-**Sprint:** S5 | **Verified Files:** `VetShiftService.blockSlot()`, `VetShiftService.unblockSlot()`
+**Sprint:** S5 | **Verified Files:** `StaffShiftService.blockSlot()`, `StaffShiftService.unblockSlot()`
 
 | Sub-task | Assignee | Effort | Status |
 |----------|----------|--------|--------|
@@ -924,18 +937,18 @@
 ---
 
 ### 🔹 US-SCH-03: Xem lịch làm việc cá nhân ✅
-> **Actor:** Vet  
-> **As a** Vet, **I want to** view my personal work schedule on my mobile  
+> **Actor:** Staff  
+> **As a** Staff, **I want to** view my personal work schedule on my mobile  
 > **So that** I know when and where I need to work each day
 
-**Sprint:** S5 | **Verified Files:** `vet_schedule_screen.dart`, `vet_home_screen.dart`
+**Sprint:** S5 | **Verified Files:** `staff_schedule_screen.dart`, `staff_home_screen.dart`
 
 | Sub-task | Assignee | Effort | Status |
 |----------|----------|--------|--------|
 | Viết spec (Report 3) | DEV-3 | 2h | ✅ |
 | Viết class/sequence diagram (Report 4) | DEV-3 | 3h | ✅ |
 | Code BE: GET /shifts/me | DEV-1 | 3h | ✅ |
-| Code FE: Mobile Vet Schedule Screen | DEV-3 | 8h | ✅ |
+| Code FE: Mobile Staff Schedule Screen | DEV-3 | 8h | ✅ |
 | Viết unit test | DEV-1 | 1h | ✅ |
 | Viết system test (Report 5) | DEV-4 | 2h | ✅ |
 | Run test & fix bugs | DEV-4 | 2h | ✅ |
@@ -944,11 +957,11 @@
 
 ## 📝 EPIC 10: [EPIC-MEDICAL] EMR, Vaccination & Medical History 💡 0%
 > **Goal:** Centralized medical history and vaccination records for cross-clinic access
-> **Benefits:** Pet Owner views health history, Vet records diagnoses professionally
+> **Benefits:** Pet Owner views health history, Staff records diagnoses professionally
 > **Status:** ❌ Not started
 
 ### 🔹 US-MED-01: Xem lịch sử khám bệnh 💡 Planned
-> **Actor:** Pet Owner, Vet  
+> **Actor:** Pet Owner, Staff  
 > **As a** Pet Owner, **I want to** view my pet's complete medical history across all clinics  
 > **So that** any vet can access previous diagnoses and treatments
 
@@ -967,8 +980,8 @@
 ---
 
 ### 🔹 US-MED-02: Ghi bệnh án SOAP 💡 Planned
-> **Actor:** Vet  
-> **As a** Vet, **I want to** record medical notes using the SOAP format  
+> **Actor:** Staff  
+> **As a** Staff, **I want to** record medical notes using the SOAP format  
 > **So that** I can document diagnosis and treatment plans professionally
 
 **Sprint:** S7 | **Missing:** SOAP form implementation
@@ -986,7 +999,7 @@
 ---
 
 ### 🔹 US-MED-03: Sổ tiêm chủng điện tử 💡 Planned
-> **Actor:** Pet Owner, Vet  
+> **Actor:** Pet Owner, Staff  
 > **As a** Pet Owner, **I want to** view my pet's vaccination records and upcoming due dates  
 > **So that** I never miss an important vaccination appointment
 
@@ -1006,7 +1019,7 @@
 
 ## 📝 EPIC 9: [EPIC-APPOINTMENT] Booking, Check-in & Status Tracking 💡 0%
 > **Goal:** Complete appointment lifecycle from booking to checkout
-> **Benefits:** Pet Owner books easily, Manager assigns vets, Vet manages appointments
+> **Benefits:** Pet Owner books easily, Manager assigns vets, Staff manages appointments
 > **Status:** ❌ Not started
 
 ### 🔹 US-APT-01: Đặt lịch khám 💡 Planned
@@ -1039,29 +1052,29 @@
 1. **View Bookings List:**
    - Xem tất cả bookings theo ngày/tuần/tháng
    - Filter theo status: PENDING, CONFIRMED, IN_PROGRESS, COMPLETED, CANCELLED
-   - Filter theo Vet được assign
+   - Filter theo Staff được assign
    - Filter theo loại dịch vụ (CLINIC_VISIT, HOME_VISIT)
 
-2. **Assign Vet to Booking:**
-   - Xem danh sách bookings PENDING chưa có Vet
-   - Chọn Vet available trong time slot đó
+2. **Assign Staff to Booking:**
+   - Xem danh sách bookings PENDING chưa có Staff
+   - Chọn Staff available trong time slot đó
    - Sau khi assign → Status chuyển PENDING → CONFIRMED
-   - Notify cả Pet Owner VÀ Vet
+   - Notify cả Pet Owner VÀ Staff
 
-3. **Reassign Vet:**
-   - Đổi Vet khác nếu booking chưa IN_PROGRESS
-   - Notify Vet cũ (bị hủy assign) + Vet mới + Pet Owner
+3. **Reassign Staff:**
+   - Đổi Staff khác nếu booking chưa IN_PROGRESS
+   - Notify Staff cũ (bị hủy assign) + Staff mới + Pet Owner
 
 4. **View Booking Details:**
    - Xem thông tin Pet, Owner, Service, Time
    - Xem notes từ Pet Owner
-   - Xem Vet được assign
+   - Xem Staff được assign
 
 5. **Approve/Reject Cancel Request:**
    - Pet Owner gửi yêu cầu hủy → Manager approve/reject
    - Nếu approved → Trigger refund (nếu có)
 
-> 💡 **Lưu ý:** Manager assign Vet, booking tự động CONFIRMED. Vet KHÔNG có quyền Accept/Reject.
+> 💡 **Lưu ý:** Manager assign Staff, booking tự động CONFIRMED. Staff KHÔNG có quyền Accept/Reject.
 
 | Sub-task | Assignee | Effort | Status |
 |----------|----------|--------|--------|
@@ -1069,7 +1082,7 @@
 | Viết class/sequence diagram (Report 4) | DEV-1 | 4h | ⏳ |
 | Code BE: Booking status workflow | DEV-1 | 8h | ⏳ |
 | Code FE: Web Booking List + Filters | DEV-2 | 6h | ⏳ |
-| Code FE: Web Assign Vet Modal | DEV-2 | 4h | ⏳ |
+| Code FE: Web Assign Staff Modal | DEV-2 | 4h | ⏳ |
 | Code FE: Web Booking Detail View | DEV-2 | 4h | ⏳ |
 | Viết unit test | DEV-1 | 2h | ⏳ |
 | Viết system test (Report 5) | DEV-4 | 3h | ⏳ |
@@ -1077,21 +1090,21 @@
 
 ---
 
-### 🔹 US-APT-03: Check-in bắt đầu khám (Vet) 💡 Planned
-> **Actor:** Vet  
-> **As a** Vet, **I want to** click check-in to start the examination when the pet/owner arrives  
+### 🔹 US-APT-03: Check-in bắt đầu khám (Staff) 💡 Planned
+> **Actor:** Staff  
+> **As a** Staff, **I want to** click check-in to start the examination when the pet/owner arrives  
 > **So that** the booking status changes to IN_PROGRESS and I can begin working
 
 **Sprint:** S8 | **Missing:** Check-in button implementation
 
 #### Acceptance Criteria:
 1. **View Assigned Bookings Today:**
-   - Danh sách bookings được assign cho Vet hôm nay
+   - Danh sách bookings được assign cho Staff hôm nay
    - Hiển thị: Pet name, Service, Time, Status
    - Filter: CONFIRMED (đợi khám), IN_PROGRESS (đang khám)
 
 2. **Check-in Action:**
-   - Vet click "Check-in" trên booking CONFIRMED
+   - Staff click "Check-in" trên booking CONFIRMED
    - Status: CONFIRMED → IN_PROGRESS
    - check_in_time = now()
    - Notify Pet Owner: "Lịch hẹn đang bắt đầu"
@@ -1116,19 +1129,21 @@
 
 ---
 
-### 🔹 US-APT-04: Cập nhật dịch vụ phát sinh (Vet) 💡 Planned
-> **Actor:** Vet  
-> **As a** Vet, **I want to** add additional services that were performed during the visit  
+### 🔹 US-APT-04: Cập nhật dịch vụ phát sinh (Staff/Manager) 💡 Planned
+> **Actor:** Staff, Clinic Manager
+> **As a** Staff or Clinic Manager, **I want to** add additional services to a booking
 > **So that** the final bill accurately reflects all services provided
 
 **Sprint:** S8 | **Missing:** Additional Services UI
 
 #### Acceptance Criteria:
 1. **Add Incurred Service:**
-   - Chỉ thêm được khi booking đang IN_PROGRESS
+   - Có thể thêm dịch vụ khi booking đang CONFIRMED hoặc IN_PROGRESS (trước khi checkout)
    - Chọn từ danh sách dịch vụ của clinic
    - Nhập số lượng (quantity)
    - Ghi chú lý do (optional)
+   - **HOME_VISIT:** Staff chỉ thêm được dịch vụ trong chuyên môn của mình
+   - **IN_CLINIC:** Manager có thể thêm bất kỳ dịch vụ nào
 
 2. **View Added Services:**
    - Danh sách dịch vụ đã thêm vào booking
@@ -1152,9 +1167,9 @@
 
 ---
 
-### 🔹 US-APT-05: Checkout - Hoàn thành khám (Vet) 💡 Planned
-> **Actor:** Vet  
-> **As a** Vet, **I want to** mark an appointment as completed and finalize the bill  
+### 🔹 US-APT-05: Checkout - Hoàn thành khám (Staff) 💡 Planned
+> **Actor:** Staff  
+> **As a** Staff, **I want to** mark an appointment as completed and finalize the bill  
 > **So that** the Pet Owner can proceed to payment and the booking is closed properly
 
 **Sprint:** S8 | **Missing:** Checkout workflow
@@ -1177,7 +1192,7 @@
 
 4. **Notifications:**
    - Notify Pet Owner: "Lịch hẹn hoàn thành. Xem hóa đơn trong app."
-   - Trigger Vet Rating popup (sau 30s)
+   - Trigger Staff Rating popup (sau 30s)
    - Schedule Clinic Review reminder (sau 24h)
 
 | Sub-task | Assignee | Effort | Status |
@@ -1247,7 +1262,7 @@
 |----------|----------|--------|--------|
 | Viết spec (Report 3) | DEV-5 | 3h | ⏳ |
 | Viết class/sequence diagram (Report 4) | DEV-5 | 4h | ⏳ |
-| Code AI: create_booking tool + function calling | DEV-5 | 12h | ⏳ |
+| Code AI: create_booking_for_user tool + function calling | DEV-5 | 12h | ⏳ |
 | Code BE: AI Booking API integration | DEV-1 | 6h | ⏳ |
 | Code FE: Mobile AI Booking confirmation | DEV-3 | 6h | ⏳ |
 | Viết unit test | DEV-5 | 2h | ⏳ |
@@ -1299,7 +1314,7 @@
 > **Benefits:** All actors stay informed in real-time
 
 ### 🔹 US-NTF-01: Push Notification (FCM) ✅
-> **Actor:** Pet Owner, Vet, Clinic Manager  
+> **Actor:** Pet Owner, Staff, Clinic Manager  
 > **As a** User, **I want to** receive push notifications on my mobile device  
 > **So that** I'm instantly informed about appointments, reminders, and updates
 
@@ -1358,7 +1373,7 @@
 
 ## 📝 EPIC 11: [EPIC-SOS] Emergency Rescue System 💡 0%
 > **Goal:** Real-time emergency response with live GPS tracking
-> **Benefits:** Pet Owner gets urgent help, Vet navigates to location
+> **Benefits:** Pet Owner gets urgent help, Staff navigates to location
 
 ### 🔹 US-SOS-01: Tìm phòng khám cấp cứu 💡 Planned
 > **Actor:** Pet Owner  
@@ -1398,7 +1413,7 @@
 
 ---
 
-### 🔹 US-SOS-03: Theo dõi Vet di chuyển (Live GPS Tracking) 💡 Planned
+### 🔹 US-SOS-03: Theo dõi Staff di chuyển (Live GPS Tracking) 💡 Planned
 > **Actor:** Pet Owner  
 > **As a** Pet Owner waiting for a home-visit vet during SOS, **I want to** track the vet's live location  
 > **So that** I know when the vet will arrive and can prepare
@@ -1478,7 +1493,7 @@
 
 ---
 
-## � EPIC 11: [EPIC-CHAT] In-App Messaging System 💡 0%
+## ? EPIC 11: [EPIC-CHAT] In-App Messaging System ?? 0%
 > **Goal:** Real-time chat between Pet Owner and Clinic for appointment coordination
 
 ### 🔹 US-CHT-01: Chat với Clinic/Pet Owner 💡 Planned
@@ -1501,7 +1516,7 @@
 
 ---
 
-## �🐛 BUG TRACKING
+## ??? BUG TRACKING
 
 | Bug ID | Related US | Description | Assignee | Status |
 |--------|------------|-------------|----------|--------|
@@ -1520,17 +1535,17 @@
 | EPIC-CLINIC | 4 | 4 | 0 | 0 | ✅ 100% |
 | EPIC-DISCOVERY | 5 | 0 | 2 | 3 | 🔄 40% |
 | EPIC-SCHED | 3 | 3 | 0 | 0 | ✅ 100% |
-| EPIC-MEDICAL | 3 | 0 | 0 | 3 | 💡 0% |
-| EPIC-APPOINTMENT | 5 | 0 | 0 | 5 | 💡 0% |
+| EPIC-MEDICAL | 3 | 0 | 2 | 1 | ? 50% |
+| EPIC-APPOINTMENT | 5 | 3 | 1 | 1 | ? 80% |
 | EPIC-AI | 5 | 1 | 1 | 3 | 🔄 30% |
 | EPIC-NOTI | 3 | 3 | 0 | 0 | ✅ 100% |
 | EPIC-SOS | 3 | 0 | 0 | 3 | 💡 0% |
 | EPIC-PAYMENT | 3 | 0 | 0 | 3 | 💡 0% |
 | EPIC-CHAT | 1 | 0 | 0 | 1 | 💡 0% |
-| **TOTAL** | **42** | **18** | **3** | **21** | **43%** |
+| **TOTAL** | **42** | **21** | **6** | **15** | **58%** |
 
 ---
 
 **Author:** Petties Team  
-**Last Updated:** 08/01/2026  
+**Last Updated:** 20/01/2026  
 **Audited By:** Codebase analysis

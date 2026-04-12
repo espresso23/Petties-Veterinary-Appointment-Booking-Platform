@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { isAxiosError } from 'axios'
 import { clinicService } from '../services/api/clinicService'
 import type {
   ClinicResponse,
@@ -10,6 +11,7 @@ interface ClinicState {
   // State
   clinics: ClinicResponse[]
   currentClinic: ClinicResponse | null
+  selectedClinicId: string | null
   totalElements: number
   totalPages: number
   currentPage: number
@@ -27,6 +29,7 @@ interface ClinicState {
   deleteClinic: (clinicId: string) => Promise<void>
   searchClinics: (name: string) => Promise<void>
   getMyClinics: () => Promise<void>
+  setSelectedClinicId: (clinicId: string | null) => void
   approveClinic: (clinicId: string) => Promise<void>
   rejectClinic: (clinicId: string, reason: string) => Promise<void>
   fetchPendingCount: () => Promise<void>
@@ -39,6 +42,7 @@ interface ClinicState {
 const initialState = {
   clinics: [],
   currentClinic: null,
+  selectedClinicId: null,
   totalElements: 0,
   totalPages: 0,
   currentPage: 0,
@@ -66,9 +70,12 @@ export const useClinicStore = create<ClinicState>((set, get) => ({
         filters: mergedFilters,
         isLoading: false,
       })
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const msg = isAxiosError(error) && error.response?.data && typeof error.response.data === 'object' && 'message' in error.response.data
+        ? String((error.response.data as { message?: unknown }).message)
+        : error instanceof Error ? error.message : 'Failed to fetch clinics'
       set({
-        error: error.response?.data?.message || error.message || 'Failed to fetch clinics',
+        error: msg,
         isLoading: false,
       })
     }
@@ -79,9 +86,12 @@ export const useClinicStore = create<ClinicState>((set, get) => ({
     try {
       const clinic = await clinicService.getClinicById(clinicId)
       set({ currentClinic: clinic, isLoading: false })
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const msg = isAxiosError(error) && error.response?.data && typeof error.response.data === 'object' && 'message' in error.response.data
+        ? String((error.response.data as { message?: unknown }).message)
+        : error instanceof Error ? error.message : 'Failed to fetch clinic'
       set({
-        error: error.response?.data?.message || error.message || 'Failed to fetch clinic',
+        error: msg,
         isLoading: false,
       })
     }
@@ -93,8 +103,10 @@ export const useClinicStore = create<ClinicState>((set, get) => ({
       const clinic = await clinicService.createClinic(data)
       set({ isLoading: false })
       return clinic
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to create clinic'
+    } catch (error: unknown) {
+      const errorMessage = isAxiosError(error) && error.response?.data && typeof error.response.data === 'object' && 'message' in error.response.data
+        ? String((error.response.data as { message?: unknown }).message)
+        : error instanceof Error ? error.message : 'Failed to create clinic'
       set({ error: errorMessage, isLoading: false })
       throw error
     }
@@ -108,8 +120,10 @@ export const useClinicStore = create<ClinicState>((set, get) => ({
       const clinics = get().clinics.map((c) => (c.clinicId === clinicId ? clinic : c))
       set({ clinics, currentClinic: clinic, isLoading: false })
       return clinic
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to update clinic'
+    } catch (error: unknown) {
+      const errorMessage = isAxiosError(error) && error.response?.data && typeof error.response.data === 'object' && 'message' in error.response.data
+        ? String((error.response.data as { message?: unknown }).message)
+        : error instanceof Error ? error.message : 'Failed to update clinic'
       set({ error: errorMessage, isLoading: false })
       throw error
     }
@@ -122,8 +136,10 @@ export const useClinicStore = create<ClinicState>((set, get) => ({
       // Remove from list
       const clinics = get().clinics.filter((c) => c.clinicId !== clinicId)
       set({ clinics, currentClinic: null, isLoading: false })
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to delete clinic'
+    } catch (error: unknown) {
+      const errorMessage = isAxiosError(error) && error.response?.data && typeof error.response.data === 'object' && 'message' in error.response.data
+        ? String((error.response.data as { message?: unknown }).message)
+        : error instanceof Error ? error.message : 'Failed to delete clinic'
       set({ error: errorMessage, isLoading: false })
       throw error
     }
@@ -140,9 +156,12 @@ export const useClinicStore = create<ClinicState>((set, get) => ({
         currentPage: response.number,
         isLoading: false,
       })
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const msg = isAxiosError(error) && error.response?.data && typeof error.response.data === 'object' && 'message' in error.response.data
+        ? String((error.response.data as { message?: unknown }).message)
+        : error instanceof Error ? error.message : 'Failed to search clinics'
       set({
-        error: error.response?.data?.message || error.message || 'Failed to search clinics',
+        error: msg,
         isLoading: false,
       })
     }
@@ -152,19 +171,30 @@ export const useClinicStore = create<ClinicState>((set, get) => ({
     set({ isLoading: true, error: null })
     try {
       const response = await clinicService.getMyClinics(get().currentPage, get().pageSize)
+      const newClinics = response.content
+      const currentSelected = get().selectedClinicId
+      const stillExists = newClinics.some(c => c.clinicId === currentSelected)
       set({
-        clinics: response.content,
+        clinics: newClinics,
         totalElements: response.totalElements,
         totalPages: response.totalPages,
         currentPage: response.number,
+        selectedClinicId: stillExists ? currentSelected : (newClinics.length > 0 ? newClinics[0].clinicId : null),
         isLoading: false,
       })
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const msg = isAxiosError(error) && error.response?.data && typeof error.response.data === 'object' && 'message' in error.response.data
+        ? String((error.response.data as { message?: unknown }).message)
+        : error instanceof Error ? error.message : 'Failed to fetch my clinics'
       set({
-        error: error.response?.data?.message || error.message || 'Failed to fetch my clinics',
+        error: msg,
         isLoading: false,
       })
     }
+  },
+
+  setSelectedClinicId: (clinicId: string | null) => {
+    set({ selectedClinicId: clinicId })
   },
 
   approveClinic: async (clinicId: string) => {
@@ -174,8 +204,10 @@ export const useClinicStore = create<ClinicState>((set, get) => ({
       // Update in list if exists
       const clinics = get().clinics.map((c) => (c.clinicId === clinicId ? clinic : c))
       set({ clinics, currentClinic: clinic, isLoading: false })
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to approve clinic'
+    } catch (error: unknown) {
+      const errorMessage = isAxiosError(error) && error.response?.data && typeof error.response.data === 'object' && 'message' in error.response.data
+        ? String((error.response.data as { message?: unknown }).message)
+        : error instanceof Error ? error.message : 'Failed to approve clinic'
       set({ error: errorMessage, isLoading: false })
       throw error
     }
@@ -188,8 +220,10 @@ export const useClinicStore = create<ClinicState>((set, get) => ({
       // Update in list if exists
       const clinics = get().clinics.map((c) => (c.clinicId === clinicId ? clinic : c))
       set({ clinics, currentClinic: clinic, isLoading: false })
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to reject clinic'
+    } catch (error: unknown) {
+      const errorMessage = isAxiosError(error) && error.response?.data && typeof error.response.data === 'object' && 'message' in error.response.data
+        ? String((error.response.data as { message?: unknown }).message)
+        : error instanceof Error ? error.message : 'Failed to reject clinic'
       set({ error: errorMessage, isLoading: false })
       throw error
     }
@@ -199,7 +233,7 @@ export const useClinicStore = create<ClinicState>((set, get) => ({
     try {
       const pendingCount = await clinicService.getPendingClinicsCount()
       set({ pendingCount })
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to fetch pending clinics count:', error)
     }
   },
@@ -217,7 +251,7 @@ export const useClinicStore = create<ClinicState>((set, get) => ({
   },
 
   reset: () => {
-    set(initialState)
+    set({ ...initialState, selectedClinicId: null })
   },
 }))
 

@@ -34,4 +34,5 @@ public class UserResponse {
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private LocalDateTime strikeUntil; // NULL = không bị strike; có giá trị = hạn chế đặt lịch đến thời điểm này
 }

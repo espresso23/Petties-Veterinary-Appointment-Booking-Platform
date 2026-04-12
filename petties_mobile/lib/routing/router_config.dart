@@ -7,17 +7,46 @@ import '../ui/auth/forgot_password_screen.dart';
 import '../ui/auth/reset_password_screen.dart';
 import '../ui/onboarding/onboarding_screen.dart';
 import '../ui/pet_owner/pet_owner_home_screen.dart';
-import '../ui/vet/vet_home_screen.dart';
-import '../ui/vet/vet_schedule_screen.dart';
+import '../ui/staff/staff_home_screen.dart';
+import '../ui/staff/staff_schedule_screen.dart';
+import '../ui/staff/booking/staff_bookings_screen.dart';
+import '../ui/staff/booking/staff_add_service_screen.dart';
+import '../ui/staff/staff_booking_detail_screen.dart';
+import '../ui/staff/patient/patient_screens.dart';
+import '../ui/staff/patient/vaccination_form_screen.dart';
+import '../ui/staff/emr/create_emr_screen.dart';
+import '../ui/staff/emr/emr_detail_screen.dart';
+import '../ui/staff/emr/edit_emr_screen.dart';
+import '../ui/staff/ai_chat/staff_ai_chat_screen.dart';
 import '../ui/screens/profile/profile_screen.dart';
 import '../ui/screens/profile/edit_profile_screen.dart';
 import '../ui/screens/profile/change_password_screen.dart';
+import '../ui/reports/report_list_screen.dart';
+import '../ui/reports/report_detail_screen.dart';
 import '../ui/pet/pet_list_screen.dart';
 import '../ui/pet/add_edit_pet_screen.dart';
 import '../ui/pet/pet_detail_screen.dart';
+import '../ui/pet/pet_health_record_screen.dart';
 import '../ui/screens/notification/notification_list_screen.dart';
 import '../ui/chat/chat_list_screen.dart';
 import '../ui/chat/chat_detail_screen.dart';
+import '../ui/chat/ai_chat/ai_chat_screen.dart';
+import '../ui/clinics/clinic_search_view.dart';
+import '../ui/clinics/clinic_detail_view.dart';
+import '../ui/clinics/clinic_map_view.dart';
+import '../ui/clinics/clinic_all_services_screen.dart';
+import '../ui/booking/booking_select_pet_screen.dart';
+import '../ui/booking/booking_select_services_screen.dart';
+import '../ui/booking/booking_select_datetime_screen.dart';
+import '../ui/booking/booking_confirm_screen.dart';
+import '../ui/booking/booking_success_screen.dart';
+import '../ui/booking/booking_detail_screen.dart';
+import '../ui/booking/booking_detail_by_id_screen.dart';
+import '../ui/booking/sos_request_screen.dart';
+import '../ui/booking/sos_radar_map_screen.dart';
+import '../ui/booking/sos_tracking_screen.dart';
+import '../data/models/booking.dart';
+
 import 'app_routes.dart';
 
 /// GoRouter configuration for the application
@@ -25,7 +54,7 @@ import 'app_routes.dart';
 ///
 /// Mobile App Roles:
 /// - PET_OWNER: ✅ Mobile only
-/// - VET: ✅ Mobile + Web
+/// - STAFF: ✅ Mobile + Web
 /// - CLINIC_OWNER: ❌ Web only (blocked on mobile)
 /// - CLINIC_MANAGER: ❌ Web only (blocked on mobile)
 /// - ADMIN: ❌ Web only (blocked on mobile)
@@ -34,13 +63,13 @@ class AppRouterConfig {
       GlobalKey<NavigatorState>();
 
   /// Get the appropriate home route based on user role
-  /// Only PET_OWNER and VET are allowed on mobile
+  /// Only PET_OWNER and STAFF are allowed on mobile
   static String _getHomeRouteForRole(String? role) {
     switch (role) {
       case 'PET_OWNER':
         return AppRoutes.petOwnerHome;
-      case 'VET':
-        return AppRoutes.vetHome;
+      case 'STAFF':
+        return AppRoutes.staffHome;
       case 'CLINIC_OWNER':
         // CLINIC_OWNER should not use mobile app (web only)
         return AppRoutes.login;
@@ -179,16 +208,171 @@ class AppRouterConfig {
         // PET_OWNER: Mobile only
         GoRoute(
           path: AppRoutes.petOwnerHome,
-          builder: (context, state) => const PetOwnerHomeScreen(),
+          builder: (context, state) {
+            final tabStr = state.uri.queryParameters['tab'];
+            final initialTabIndex =
+                tabStr != null ? int.tryParse(tabStr) ?? 0 : 0;
+            return PetOwnerHomeScreen(initialTabIndex: initialTabIndex);
+          },
         ),
-        // VET: Web + Mobile
+        // STAFF: Web + Mobile
         GoRoute(
-          path: AppRoutes.vetHome,
-          builder: (context, state) => const VetHomeScreen(),
+          path: AppRoutes.staffHome,
+          builder: (context, state) => const StaffHomeScreen(),
         ),
         GoRoute(
-          path: AppRoutes.vetSchedule,
-          builder: (context, state) => const VetScheduleScreen(),
+          path: AppRoutes.staffSchedule,
+          builder: (context, state) => const StaffScheduleScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.staffBookings,
+          builder: (context, state) => const StaffBookingsScreen(),
+        ),
+
+        // STAFF Booking Detail Route (from HEAD)
+        GoRoute(
+          path: AppRoutes.staffBookingDetail,
+          builder: (context, state) {
+            final bookingId = state.pathParameters['bookingId']!;
+            return StaffBookingDetailScreen(bookingId: bookingId);
+          },
+        ),
+
+        GoRoute(
+          path: AppRoutes.staffAddService,
+          builder: (context, state) {
+            final bookingId = state.pathParameters['bookingId']!;
+            final clinicId = state.uri.queryParameters['clinicId'] ?? '';
+            return StaffAddServiceScreen(
+              bookingId: bookingId,
+              clinicId: clinicId,
+            );
+          },
+        ),
+
+        // STAFF Patient Routes (from intergrationFeature)
+        GoRoute(
+          path: AppRoutes.staffPatients,
+          builder: (context, state) => const PatientListScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.staffVaccinationForm,
+          builder: (context, state) {
+            final petId = state.pathParameters['petId']!;
+            final petName = state.uri.queryParameters['petName'] ?? 'Thú cưng';
+            final bookingId = state.uri.queryParameters['bookingId'];
+            final bookingCode = state.uri.queryParameters['bookingCode'];
+            final initialVaccineName =
+                state.uri.queryParameters['initialVaccineName'];
+            return VaccinationFormScreen(
+              petId: petId,
+              petName: petName,
+              bookingId: bookingId,
+              bookingCode: bookingCode,
+              initialVaccineName: initialVaccineName,
+            );
+          },
+        ),
+
+        // STAFF EMR Routes (from intergrationFeature)
+        GoRoute(
+          path: AppRoutes.staffCreateEmr,
+          builder: (context, state) {
+            final petId = state.pathParameters['petId']!;
+            final petName = state.uri.queryParameters['petName'];
+            final petSpecies = state.uri.queryParameters['petSpecies'];
+            final bookingId = state.uri.queryParameters['bookingId'];
+            final bookingCode = state.uri.queryParameters['bookingCode'];
+            return CreateEmrScreen(
+              petId: petId,
+              petName: petName,
+              petSpecies: petSpecies,
+              bookingId: bookingId,
+              bookingCode: bookingCode,
+            );
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.staffEmrDetail,
+          builder: (context, state) {
+            final emrId = state.pathParameters['emrId']!;
+            return EmrDetailScreen(emrId: emrId);
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.staffEmrEdit,
+          builder: (context, state) {
+            final emrId = state.pathParameters['emrId']!;
+            return EditEmrScreen(emrId: emrId);
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.staffAiChat,
+          redirect: (context, state) {
+            final isAuthenticated = authProvider.isAuthenticated;
+            if (!isAuthenticated || authProvider.user?.role != 'STAFF') {
+              return AppRoutes.petOwnerHome;
+            }
+            return null;
+          },
+          pageBuilder: (context, state) => const MaterialPage<void>(
+            fullscreenDialog: true,
+            child: StaffAiChatScreen(),
+          ),
+        ),
+
+        // Clinic routes (from intergrationFeature)
+        GoRoute(
+          path: AppRoutes.clinicSearch,
+          builder: (context, state) => const ClinicSearchView(),
+        ),
+        // Map route must come BEFORE detail route (more specific first)
+        GoRoute(
+          path: AppRoutes.clinicMap,
+          builder: (context, state) => const ClinicMapView(),
+        ),
+        // Clinic All Services Route - MUST come before clinicDetail
+        GoRoute(
+          path: AppRoutes.clinicAllServices,
+          builder: (context, state) {
+            final id = state.pathParameters['id']!;
+            return ClinicAllServicesScreen(clinicId: id);
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.clinicDetail,
+          builder: (context, state) {
+            final id = state.pathParameters['id']!;
+            final scrollToReviews =
+                state.uri.queryParameters['scrollToReviews'] == 'true';
+            return ClinicDetailView(
+                clinicId: id, scrollToReviews: scrollToReviews);
+          },
+        ),
+
+        // Booking Flow Routes (Pet Owner)
+        GoRoute(
+          path: AppRoutes.bookingSelectPet,
+          builder: (context, state) {
+            final clinicId = state.pathParameters['clinicId']!;
+            return BookingSelectPetScreen(clinicId: clinicId);
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.bookingSelectServices,
+          builder: (context, state) => const BookingSelectServicesScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.bookingSelectDateTime,
+          builder: (context, state) => const BookingSelectDateTimeScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.bookingConfirm,
+          builder: (context, state) => const BookingConfirmScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.bookingSuccess,
+          builder: (context, state) => const BookingSuccessScreen(),
         ),
 
         // Note: CLINIC_OWNER, CLINIC_MANAGER and ADMIN routes are intentionally not included
@@ -200,6 +384,29 @@ class AppRouterConfig {
           redirect: (context, state) {
             final userRole = authProvider.user?.role;
             return _getHomeRouteForRole(userRole);
+          },
+        ),
+
+        GoRoute(
+          path: AppRoutes.bookingDetailView,
+          builder: (context, state) {
+            final booking = state.extra;
+
+            if (booking is BookingResponse &&
+                booking.bookingId != null &&
+                booking.bookingId!.isNotEmpty) {
+              return BookingDetailByIdScreen(bookingId: booking.bookingId!);
+            }
+
+            return AppointmentDetailScreen(booking: booking as BookingResponse);
+          },
+        ),
+
+        GoRoute(
+          path: AppRoutes.bookingDetails,
+          builder: (context, state) {
+            final bookingId = state.pathParameters['id']!;
+            return BookingDetailByIdScreen(bookingId: bookingId);
           },
         ),
 
@@ -217,6 +424,19 @@ class AppRouterConfig {
           builder: (context, state) => const ChangePasswordScreen(),
         ),
 
+        // Reports
+        GoRoute(
+          path: AppRoutes.myReports,
+          builder: (context, state) => const ReportListScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.reportDetail,
+          builder: (context, state) {
+            final report = state.extra; // Dữ liệu mock truyền qua extra
+            return ReportDetailScreen(report: report);
+          },
+        ),
+
         // Pet Management Routes
         GoRoute(
           path: AppRoutes.myPets,
@@ -231,6 +451,15 @@ class AppRouterConfig {
           builder: (context, state) {
             final id = state.pathParameters['id']!;
             return PetDetailScreen(id: id);
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.petHealthRecord,
+          builder: (context, state) {
+            final id = state.pathParameters['id']!;
+            final tabStr = state.uri.queryParameters['tab'];
+            final tabIndex = tabStr == '1' ? 1 : 0;
+            return PetHealthRecordScreen(petId: id, initialTabIndex: tabIndex);
           },
         ),
         GoRoute(
@@ -258,6 +487,66 @@ class AppRouterConfig {
             return ChatDetailScreen(
               conversationId: conversationId,
               clinicId: clinicId,
+            );
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.aiChat,
+          redirect: (context, state) {
+            final isAuthenticated = authProvider.isAuthenticated;
+            final role = authProvider.user?.role;
+            if (!isAuthenticated) {
+              return AppRoutes.login;
+            }
+            if (role == 'STAFF') {
+              return AppRoutes.staffAiChat;
+            }
+            if (role != 'PET_OWNER') {
+              return AppRoutes.petOwnerHome;
+            }
+            return null;
+          },
+          pageBuilder: (context, state) => const MaterialPage<void>(
+            fullscreenDialog: true,
+            child: AiChatScreen(),
+          ),
+        ),
+
+        // SOS Emergency Routes (Pet Owner)
+        GoRoute(
+          path: AppRoutes.sosRequest,
+          builder: (context, state) => const SosRequestScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.sosMatching,
+          builder: (context, state) {
+            final petId = state.uri.queryParameters['petId']!;
+            final petName = state.uri.queryParameters['petName']!;
+            final symptoms = state.uri.queryParameters['symptoms'];
+            final petAvatar = state.uri.queryParameters['petAvatar'];
+            final address = state.uri.queryParameters['address'];
+            final lat = state.uri.queryParameters['lat'];
+            final lng = state.uri.queryParameters['lng'];
+
+            return SosRadarMapScreen(
+              petId: petId,
+              petName: petName,
+              symptoms: symptoms,
+              petAvatar: petAvatar,
+              address: address,
+              selectedLatitude: lat != null ? double.tryParse(lat) : null,
+              selectedLongitude: lng != null ? double.tryParse(lng) : null,
+            );
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.sosTracking,
+          builder: (context, state) {
+            final bookingId = state.pathParameters['bookingId'];
+            final booking = state.extra as BookingResponse?;
+            return SosTrackingScreen(
+              booking: booking,
+              bookingId: bookingId,
             );
           },
         ),

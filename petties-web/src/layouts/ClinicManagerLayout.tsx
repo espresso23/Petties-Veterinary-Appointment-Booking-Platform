@@ -1,11 +1,18 @@
 import { Outlet, useNavigate } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useNotificationStore } from '../store/notificationStore'
+import { useBookingStore } from '../store/bookingStore'
+import { useChatStore } from '../store/chatStore'
 import { Sidebar } from '../components/Sidebar/Sidebar'
+import MascotProvider from '../components/mascot/MascotProvider'
 import type { NavGroup } from '../components/Sidebar/Sidebar'
 import { useSidebar } from '../hooks/useSidebar'
 import { useSseNotification } from '../hooks/useSseNotification'
+import { chatWebSocket } from '../services/websocket/chatWebSocket'
+import SosAlertModal from '../components/booking/SosAlertModal'
+import { chatService } from '../services/api/chatService'
+import type { ChatWebSocketMessage } from '../types/chat'
 import { useSyncProfile } from '../hooks/useSyncProfile'
 import {
     Squares2X2Icon,
@@ -13,9 +20,12 @@ import {
     CalendarIcon,
     ClipboardDocumentListIcon,
     ChatBubbleLeftRightIcon,
-    CurrencyDollarIcon,
     BellIcon,
-    UserCircleIcon
+    UserCircleIcon,
+    ClipboardDocumentCheckIcon,
+    HomeModernIcon,
+    ChartBarIcon,
+    TicketIcon,
 } from '@heroicons/react/24/outline'
 import '../styles/brutalist.css'
 
@@ -25,17 +35,116 @@ export const ClinicManagerLayout = () => {
     const user = useAuthStore((state) => state.user)
     const unreadCount = useNotificationStore((state) => state.unreadCount)
     const refreshUnreadCount = useNotificationStore((state) => state.refreshUnreadCount)
+    const pendingBookingCount = useBookingStore((state) => state.pendingBookingCount)
+    const refreshPendingBookingCount = useBookingStore((state) => state.refreshPendingBookingCount)
+    const incrementPendingBookingCount = useBookingStore((state) => state.incrementPendingBookingCount)
+    const chatUnreadCount = useChatStore((state) => state.unreadCount)
+    const refreshChatUnreadCount = useChatStore((state) => state.refreshUnreadCount)
+    const incrementChatUnreadCount = useChatStore((state) => state.incrementUnreadCount)
     const { state, toggleSidebar, isMobile } = useSidebar()
 
-    // Initialize SSE
-    useSseNotification()
+
+
+    // Initialize SSE with booking update handler
+    useSseNotification({
+        onBookingUpdate: (data) => {
+            console.log('[ClinicManagerLayout] Booking update received:', data)
+            // Refresh pending count on booking events
+            if (data.action === 'CONFIRMED' || data.action === 'CANCELLED' || data.action === 'COMPLETED') {
+                if (user?.workingClinicId) {
+                    refreshPendingBookingCount(user.workingClinicId)
+                }
+            }
+        },
+        onNotification: (notification) => {
+            // New booking created → increment pending count
+            if (notification.type === 'BOOKING_CREATED') {
+                incrementPendingBookingCount()
+            }
+        }
+    })
 
     // Auto-sync profile (avatar, fullName) to authStore for Sidebar
     useSyncProfile()
 
+    // Connect to chat WebSocket for global unread count updates
+    useEffect(() => {
+        const connectChatWebSocket = async () => {
+            try {
+                await chatWebSocket.connect()
+                console.log('Global chat WebSocket connected')
+            } catch (error) {
+                console.error('Global chat WebSocket connection failed:', error)
+            }
+        }
+
+        connectChatWebSocket()
+
+        // WebSocket is kept connected for ChatPage subscriptions to persist
+        // ChatPage handlers will update unread count globally
+
+        return () => {
+            // Don't disconnect WebSocket as ChatPage subscriptions need it
+        }
+    }, [])
+
+    const unsubscribesRef = useRef<(() => void)[]>([])
+
     useEffect(() => {
         refreshUnreadCount()
-    }, [refreshUnreadCount])
+        refreshChatUnreadCount()
+        if (user?.workingClinicId) {
+            refreshPendingBookingCount(user.workingClinicId)
+        }
+
+        // GLOBAL SUBSCRIPTION for Sidebar Badge
+        const setupGlobalSubscriptions = async () => {
+            try {
+                // Fetch recent conversations to listen for updates
+                // We fetch top 50. If user receives msg from old chat (50+), it won't trigger badge instantly.
+                // This is a trade-off for performance.
+                const response = await chatService.getConversations(0, 50)
+                const conversations = response.content
+
+                console.log('[Layout] Setting up global subscriptions for', conversations.length, 'chats')
+
+                // Subscribe to each to detect new messages
+                const unsubscribes = conversations.map(conv => {
+                    return chatWebSocket.subscribeToChatBox(conv.id, (wsMessage: ChatWebSocketMessage) => {
+                        if (wsMessage.type === 'MESSAGE' && wsMessage.message) {
+                            const msg = wsMessage.message
+                            if (msg.senderType === 'PET_OWNER') {
+                                // Check if this chat is currently active in view
+                                // Direct store access to get fresh state without re-running effect
+                                const currentActiveId = useChatStore.getState().activeConversationId
+
+                                if (currentActiveId !== conv.id) {
+                                    console.log('[Layout] Incrementing global badge for chat', conv.id)
+                                    incrementChatUnreadCount()
+                                } else {
+                                    console.log('[Layout] Skipping global increment - Chat active:', conv.id)
+                                }
+                            }
+                        }
+                    })
+                })
+                unsubscribesRef.current = unsubscribes
+            } catch (error) {
+                console.error('[Layout] Failed to setup global subscriptions:', error)
+            }
+        }
+
+        // Wait a bit for connection to be ready (it connects in parallel effect)
+        const timer = setTimeout(() => {
+            setupGlobalSubscriptions()
+        }, 1000)
+
+        return () => {
+            clearTimeout(timer)
+            unsubscribesRef.current.forEach(u => u())
+            unsubscribesRef.current = []
+        }
+    }, [refreshUnreadCount, refreshChatUnreadCount, refreshPendingBookingCount, incrementChatUnreadCount, user?.workingClinicId])
 
 
     const navGroups: NavGroup[] = [
@@ -43,16 +152,19 @@ export const ClinicManagerLayout = () => {
             title: 'QUẢN LÝ',
             items: [
                 { path: '/clinic-manager', label: 'DASHBOARD', icon: Squares2X2Icon, end: true },
-                { path: '/clinic-manager/vets', label: 'BÁC SĨ', icon: UserGroupIcon },
+                { path: '/clinic-manager/staff', label: 'NHÂN SỰ', icon: UserGroupIcon },
                 { path: '/clinic-manager/shifts', label: 'LỊCH LÀM VIỆC', icon: CalendarIcon },
-                { path: '/clinic-manager/bookings', label: 'BOOKING', icon: ClipboardDocumentListIcon },
+                { path: '/clinic-manager/bookings', label: 'BOOKING', icon: ClipboardDocumentListIcon, unreadCount: pendingBookingCount },
+                { path: '/clinic-manager/services', label: 'DỊCH VỤ', icon: ClipboardDocumentCheckIcon },
+                { path: '/clinic-manager/clinic', label: 'PHÒNG KHÁM', icon: HomeModernIcon },
+                { path: '/clinic-manager/vouchers', label: 'VOUCHER', icon: TicketIcon },
             ]
         },
         {
             title: 'HỆ THỐNG',
             items: [
-                { path: '/clinic-manager/chat', label: 'CHAT TƯ VẤN', icon: ChatBubbleLeftRightIcon },
-                { path: '/clinic-manager/refunds', label: 'HOÀN TIỀN', icon: CurrencyDollarIcon },
+                { path: '/clinic-manager/chat', label: 'CHAT', icon: ChatBubbleLeftRightIcon, unreadCount: chatUnreadCount },
+                { path: '/clinic-manager/revenue', label: 'DOANH THU', icon: ChartBarIcon },
                 { path: '/clinic-manager/notifications', label: 'THÔNG BÁO', icon: BellIcon, unreadCount },
                 { path: '/clinic-manager/profile', label: 'HỒ SƠ CÁ NHÂN', icon: UserCircleIcon },
             ]
@@ -65,15 +177,22 @@ export const ClinicManagerLayout = () => {
     }
 
     return (
-        <div className="h-screen bg-stone-50 flex overflow-hidden">
+        <div className="h-screen h-screen-safe min-h-screen-safe bg-stone-50 flex overflow-hidden safe-area-padding">
+            {/* SOS Alert Modal - shows incoming SOS requests */}
+            {user?.workingClinicId && (
+                <SosAlertModal clinicId={user.workingClinicId} />
+            )}
+
             <Sidebar
                 groups={navGroups}
                 user={user}
-                roleName="CLINIC MANAGER"
+                roleName="QUẢN LÝ PHÒNG KHÁM"
                 state={state}
                 toggleSidebar={toggleSidebar}
                 onLogout={handleLogout}
                 isMobile={isMobile}
+                isVIP={false}
+                planName="MANAGEMENT"
             />
 
             {/* Main Content */}
@@ -81,7 +200,10 @@ export const ClinicManagerLayout = () => {
                 <div className="p-0 h-full">
                     <Outlet />
                 </div>
+
             </main>
+
+            <MascotProvider />
         </div>
     )
 }

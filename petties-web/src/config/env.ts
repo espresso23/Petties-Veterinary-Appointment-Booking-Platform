@@ -6,6 +6,33 @@ const fallback = {
   AGENT_SERVICE_URL: 'http://localhost:8000',
 }
 
+const stripTrailingSlash = (url: string): string => url.replace(/\/+$/, '')
+
+const toWebSocketUrl = (url: string): string => {
+  const normalizedUrl = stripTrailingSlash(url)
+
+  if (normalizedUrl.startsWith('https://')) {
+    return normalizedUrl.replace('https://', 'wss://')
+  }
+
+  if (normalizedUrl.startsWith('http://')) {
+    return normalizedUrl.replace('http://', 'ws://')
+  }
+
+  return normalizedUrl
+}
+
+const isUnifiedProxyAiSetup = (agentServiceUrl: string): boolean => {
+  if (typeof window === 'undefined') return false
+
+  try {
+    const parsedUrl = new URL(agentServiceUrl, window.location.origin)
+    return parsedUrl.origin === window.location.origin && (parsedUrl.pathname === '' || parsedUrl.pathname === '/')
+  } catch {
+    return false
+  }
+}
+
 // Detect environment based on hostname
 const getEnvironment = (): 'local' | 'production' => {
   if (typeof window === 'undefined') return 'local' // SSR fallback
@@ -35,21 +62,41 @@ const environmentUrls = {
   },
 }
 
+const rawApiBaseUrl = import.meta.env.VITE_API_BASE_URL ??
+  environmentUrls[environment].API_BASE_URL ??
+  fallback.API_BASE_URL
+
+const rawWsUrl = import.meta.env.VITE_WS_URL ??
+  environmentUrls[environment].WS_URL ??
+  fallback.WS_URL
+
+const rawAgentServiceUrl = import.meta.env.VITE_AGENT_SERVICE_URL ??
+  environmentUrls[environment].AGENT_SERVICE_URL ??
+  fallback.AGENT_SERVICE_URL
+
+const agentUsesUnifiedProxy = isUnifiedProxyAiSetup(rawAgentServiceUrl)
+
+const rawAgentApiBaseUrl = import.meta.env.VITE_AGENT_API_BASE_URL ??
+  (agentUsesUnifiedProxy
+    ? `${stripTrailingSlash(rawAgentServiceUrl)}/ai`
+    : stripTrailingSlash(rawAgentServiceUrl))
+
+const rawAgentWsBaseUrl = import.meta.env.VITE_AGENT_WS_BASE_URL ??
+  (agentUsesUnifiedProxy
+    ? toWebSocketUrl(window.location.origin)
+    : toWebSocketUrl(rawAgentServiceUrl))
+
 export const env = {
   APP_NAME: import.meta.env.VITE_APP_NAME ?? fallback.APP_NAME,
   
   // Priority: Env var > Environment detection > Fallback
-  API_BASE_URL: import.meta.env.VITE_API_BASE_URL ?? 
-    environmentUrls[environment].API_BASE_URL ?? 
-    fallback.API_BASE_URL,
+  API_BASE_URL: rawApiBaseUrl,
   
-  WS_URL: import.meta.env.VITE_WS_URL ?? 
-    environmentUrls[environment].WS_URL ?? 
-    fallback.WS_URL,
+  WS_URL: rawWsUrl,
   
-  AGENT_SERVICE_URL: import.meta.env.VITE_AGENT_SERVICE_URL ?? 
-    environmentUrls[environment].AGENT_SERVICE_URL ?? 
-    fallback.AGENT_SERVICE_URL,
+  AGENT_SERVICE_URL: stripTrailingSlash(rawAgentServiceUrl),
+  AGENT_API_BASE_URL: stripTrailingSlash(rawAgentApiBaseUrl),
+  AGENT_WS_BASE_URL: stripTrailingSlash(rawAgentWsBaseUrl),
   
   // Google Maps API Key
   GOOGLE_MAPS_API_KEY: import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '',
@@ -69,6 +116,9 @@ if (import.meta.env.DEV) {
     API_BASE_URL: env.API_BASE_URL,
     WS_URL: env.WS_URL,
     AGENT_SERVICE_URL: env.AGENT_SERVICE_URL,
+    AGENT_API_BASE_URL: env.AGENT_API_BASE_URL,
+    AGENT_WS_BASE_URL: env.AGENT_WS_BASE_URL,
+    agentUsesUnifiedProxy,
     hasGoongApiKey: !!env.GOONG_API_KEY,
     hasGoongMapTilesKey: !!env.GOONG_MAP_TILES_KEY,
     goongApiKeyLength: env.GOONG_API_KEY?.length || 0,

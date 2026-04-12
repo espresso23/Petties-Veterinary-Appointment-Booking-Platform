@@ -131,7 +131,7 @@ public class LocationService {
     public double calculateDistance(BigDecimal lat1, BigDecimal lng1,
             BigDecimal lat2, BigDecimal lng2) {
         // Haversine formula
-        final int EARTH_RADIUS_KM = 6371;
+        final int EARTH_RADIUS_KM = 6371; // bán kính trái đất
 
         double lat1Rad = Math.toRadians(lat1.doubleValue());
         double lat2Rad = Math.toRadians(lat2.doubleValue());
@@ -166,9 +166,19 @@ public class LocationService {
             String origins = originLat + "," + originLng;
             String destinations = destLat + "," + destLng;
 
+            // Calculate straight-line distance first to pick the best vehicle type
+            double haversineDistance = calculateDistance(originLat, originLng, destLat, destLng);
+            String vehicleType = "car";
+            if (haversineDistance <= 0.2) { // Under 200m -> Walk
+                vehicleType = "foot";
+            } else if (haversineDistance <= 3.0) { // Under 3km -> Motorbike
+                vehicleType = "bike";
+            }
+
             String url = UriComponentsBuilder.fromUriString(distanceMatrixUrl)
                     .queryParam("origins", origins)
                     .queryParam("destinations", destinations)
+                    .queryParam("vehicle", vehicleType)
                     .queryParam("api_key", apiKey)
                     .toUriString();
 

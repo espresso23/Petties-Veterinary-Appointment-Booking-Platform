@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { notificationService } from '../../services/api/notificationService'
 import type { ClinicNotification } from '../../services/api/notificationService'
@@ -23,45 +23,47 @@ export const NotificationsPage = () => {
   const unreadCount = useNotificationStore((state) => state.unreadCount)
   const refreshUnreadCount = useNotificationStore((state) => state.refreshUnreadCount)
 
-  // SSE hook for real-time notifications
-  useSseNotification({
-    onNotification: () => {
-      loadNotifications()
-    },
-  })
-
-  const loadNotifications = async () => {
+  const loadNotifications = useCallback(async () => {
     try {
       setLoading(true)
       const data = await notificationService.getNotifications(page, 20)
       setNotifications(data.content)
       setTotalPages(data.totalPages)
       setTotalElements(data.totalElements)
-    } catch (error: any) {
+    } catch (error) {
       showToast('error', 'Không thể tải thông báo')
       console.error(error)
     } finally {
       setLoading(false)
     }
-  }
+  }, [page, showToast])
 
-  const loadUnreadCount = async () => {
+  const loadUnreadCount = useCallback(async () => {
     await refreshUnreadCount()
-  }
+  }, [refreshUnreadCount])
+
+  // SSE hook for real-time notifications
+  useSseNotification({
+    silent: true,
+    onNotification: () => {
+      loadNotifications()
+    },
+  })
 
   useEffect(() => {
     loadNotifications()
     loadUnreadCount()
-  }, [page])
+  }, [loadNotifications, loadUnreadCount])
 
-  const handleMarkAsRead = async (notificationId: string) => {
+  const handleMarkAsRead = async (notificationId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
     try {
       await notificationService.markAsRead(notificationId)
       setNotifications((prev) =>
         prev.map((n) => (n.notificationId === notificationId ? { ...n, read: true } : n))
       )
       await refreshUnreadCount()
-    } catch (error: any) {
+    } catch {
       showToast('error', 'Không thể đánh dấu đã đọc')
     }
   }
@@ -72,7 +74,7 @@ export const NotificationsPage = () => {
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
       await refreshUnreadCount()
       showToast('success', 'Đã đánh dấu tất cả đã đọc')
-    } catch (error: any) {
+    } catch {
       showToast('error', 'Không thể đánh dấu tất cả đã đọc')
     }
   }
@@ -81,6 +83,7 @@ export const NotificationsPage = () => {
   const getNavigationRoute = (notification: ClinicNotification): string | null => {
     switch (notification.type) {
       case 'CLINIC_PENDING_APPROVAL':
+      case 'CLINIC_VERIFIED':
       case 'APPROVED':
       case 'REJECTED':
         return '/admin/clinics'
@@ -119,6 +122,8 @@ export const NotificationsPage = () => {
       case 'PENDING':
       case 'CLINIC_PENDING_APPROVAL':
         return 'bg-amber-100 border-amber-600'
+      case 'CLINIC_VERIFIED':
+        return 'bg-green-100 border-green-600'
       default:
         return 'bg-stone-100 border-stone-600'
     }
@@ -134,6 +139,8 @@ export const NotificationsPage = () => {
         return 'PHÒNG KHÁM CHỜ DUYỆT'
       case 'CLINIC_PENDING_APPROVAL':
         return 'PHÒNG KHÁM MỚI ĐĂNG KÝ'
+      case 'CLINIC_VERIFIED':
+        return 'PHÒNG KHÁM ĐÃ XÁC MINH'
       default:
         return 'THÔNG BÁO HỆ THỐNG'
     }
@@ -170,6 +177,14 @@ export const NotificationsPage = () => {
           <div className="w-10 h-10 bg-blue-500 border-2 border-stone-900 flex items-center justify-center">
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+          </div>
+        )
+      case 'CLINIC_VERIFIED':
+        return (
+          <div className="w-10 h-10 bg-green-500 border-2 border-stone-900 flex items-center justify-center">
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
         )
@@ -267,7 +282,7 @@ export const NotificationsPage = () => {
                 </div>
                 {!notification.read && (
                   <button
-                    onClick={() => handleMarkAsRead(notification.notificationId)}
+                    onClick={(e) => handleMarkAsRead(notification.notificationId, e)}
                     className="ml-4 px-3 py-1.5 bg-yellow-400 text-stone-900 text-[10px] font-black uppercase border-2 border-stone-900 shadow-[3px_3px_0_0_#000] hover:bg-yellow-500 hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all"
                   >
                     Đánh dấu đã đọc
