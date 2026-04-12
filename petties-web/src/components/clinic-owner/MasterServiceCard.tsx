@@ -4,14 +4,12 @@ import {
   TrashIcon,
   ClockIcon,
   HomeIcon,
-  BeakerIcon,
-  HeartIcon,
-  ScissorsIcon,
   InformationCircleIcon,
   XMarkIcon,
   ScaleIcon,
 } from '@heroicons/react/24/solid'
 import type { WeightPriceDto } from '../../types/service'
+import { getCategoryById } from '../../constants/serviceCategory'
 
 export interface MasterService {
   id: string
@@ -80,22 +78,15 @@ export function MasterServiceCard({
     if (priceRange.hasRange) {
       const minFormatted = new Intl.NumberFormat('vi-VN').format(priceRange.min)
       const maxFormatted = new Intl.NumberFormat('vi-VN').format(priceRange.max)
-      return `${minFormatted} - ${maxFormatted} VNĐ`
+      return `${minFormatted} - ${maxFormatted} đ`
     }
-    return new Intl.NumberFormat('vi-VN').format(service.defaultPrice) + ' VNĐ'
+    return new Intl.NumberFormat('vi-VN').format(service.defaultPrice) + ' đ'
   }
 
   const formattedPrice = getPriceDisplay()
 
-  const categories = [
-    { id: 'Y Tế & Chăm Sóc Sức Khỏe', label: 'Y Tế & Chăm Sóc Sức Khỏe', icon: BeakerIcon, color: '#e0f2fe' },
-    { id: 'Chăm sóc sức khỏe chuyên sâu', label: 'Chăm sóc sức khỏe chuyên sâu', icon: HeartIcon, color: '#fef2f2' },
-    { id: 'Tiêm phòng', label: 'Tiêm phòng', icon: BeakerIcon, color: '#ecfdf5' },
-    { id: 'Làm Đẹp (Grooming) & Spa', label: 'Làm Đẹp (Grooming) & Spa', icon: ScissorsIcon, color: '#f5f3ff' },
-    { id: 'Trông Giữ & Lưu Trú', label: 'Trông Giữ & Lưu Trú', icon: HomeIcon, color: '#fffbeb' },
-  ]
-
-  const categoryInfo = categories.find(c => c.id === service.serviceCategory)
+  // Use centralized categories from constants
+  const categoryInfo = getCategoryById(service.serviceCategory)
 
   return (
     <div
@@ -154,8 +145,8 @@ export function MasterServiceCard({
       </div>
 
       {/* Card Content */}
-      <div className="mt-8">
-        <h3 className="text-2xl font-black text-black mb-2 uppercase tracking-tight">
+      <div className="mt-10">
+        <h3 className="text-[21px] font-black text-black mb-2 uppercase tracking-tight pr-[140px]">
           {service.name}
         </h3>
 
@@ -172,14 +163,9 @@ export function MasterServiceCard({
               {priceRange.hasRange ? 'KHOẢNG GIÁ' : 'GIÁ MẶC ĐỊNH'}
             </span>
             <div className="text-right">
-              <span className="font-black text-xl text-[#FF6B35]">
+              <span className="font-black text-lg text-[#FF6B35]">
                 {formattedPrice}
               </span>
-              {service.isHomeVisit && service.defaultPricePerKm !== undefined && service.defaultPricePerKm > 0 && (
-                <div className="text-[10px] font-black text-green-600 mt-1 uppercase">
-                  +{service.defaultPricePerKm.toLocaleString('vi-VN')} VNĐ / KM
-                </div>
-              )}
             </div>
           </div>
 
@@ -200,8 +186,8 @@ export function MasterServiceCard({
                   style={{ backgroundColor: categoryInfo.color }}
                   className="border-2 border-black px-2 py-1 flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
                 >
-                  <categoryInfo.icon className="w-3.5 h-3.5 text-black" />
-                  <span className="text-[10px] font-black text-black uppercase">{categoryInfo.label}</span>
+                  <categoryInfo.icon className="w-3.5 h-3.5" style={{ color: categoryInfo.textColor }} />
+                  <span className="text-[10px] font-black uppercase" style={{ color: categoryInfo.textColor }}>{categoryInfo.label}</span>
                 </div>
               )}
             </div>
@@ -293,19 +279,6 @@ export function MasterServiceCard({
             </div>
 
             {/* Price Per KM (only for home visit services) */}
-            {service.isHomeVisit && service.defaultPricePerKm !== undefined && service.defaultPricePerKm > 0 && (
-              <div className="bg-blue-50 border-b-2 border-black p-3">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <HomeIcon className="w-5 h-5 text-blue-600" />
-                    <span className="font-bold text-gray-700 uppercase text-sm">Phụ phí di chuyển</span>
-                  </div>
-                  <span className="text-lg font-black text-green-600">
-                    +{service.defaultPricePerKm.toLocaleString('vi-VN')} VNĐ / KM
-                  </span>
-                </div>
-              </div>
-            )}
 
             {/* Weight Price Tiers */}
             <div className="p-4 space-y-4 max-h-[400px] overflow-y-auto">
@@ -339,9 +312,7 @@ export function MasterServiceCard({
             {/* Footer Note */}
             <div className="bg-gray-100 border-t-2 border-black p-3">
               <p className="text-xs font-bold text-gray-600">
-                {service.isHomeVisit && service.defaultPricePerKm !== undefined && service.defaultPricePerKm > 0
-                  ? 'Giá cuối cùng = Giá cơ bản + Phụ phí cân nặng + Phụ phí di chuyển (KM x giá/KM)'
-                  : 'Giá cuối cùng = Giá cơ bản + Phụ phí theo cân nặng thú cưng'}
+                Giá cuối cùng = Giá cơ bản + Phụ phí theo cân nặng thú cưng
               </p>
             </div>
           </div>

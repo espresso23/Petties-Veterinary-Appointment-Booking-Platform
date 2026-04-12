@@ -1,8 +1,72 @@
 package com.petties.petties.model.enums;
 
+/**
+ * Types of notifications in the system
+ *
+ * Clinic-related:
+ * - APPROVED: Clinic đã được duyệt (for Owner)
+ * - REJECTED: Clinic bị từ chối (for Owner)
+ * - PENDING: Clinic đang chờ duyệt (for Owner - legacy)
+ * - CLINIC_PENDING_APPROVAL: Clinic mới đăng ký chờ duyệt (for Admin)
+ *
+ * StaffShift-related (for Staff):
+ * - STAFF_SHIFT_ASSIGNED: Staff được gán ca làm việc mới
+ * - STAFF_SHIFT_UPDATED: Ca làm việc của Staff bị sửa đổi
+ * - STAFF_SHIFT_DELETED: Ca làm việc của Staff bị xóa
+ */
 public enum NotificationType {
-    APPROVED,   // Clinic được duyệt
-    REJECTED,   // Clinic bị từ chối
-    PENDING     // Clinic đang chờ duyệt (có thể dùng cho future features)
-}
+    // Clinic status notifications (for Clinic Owner)
+    APPROVED,
+    REJECTED,
+    PENDING,
 
+    // Clinic registration notification (for Admin)
+    CLINIC_PENDING_APPROVAL,
+
+    // StaffShift notifications (for Staff)
+    STAFF_SHIFT_ASSIGNED,
+    STAFF_SHIFT_UPDATED,
+    STAFF_SHIFT_DELETED,
+
+    // Booking notifications
+    BOOKING_CREATED,
+    BOOKING_CONFIRMED,
+    BOOKING_CANCELLED,
+    BOOKING_CHECKIN, // Staff đã check-in và bắt đầu khám
+    BOOKING_PAYMENT_REQUIRED, // Đã chốt thông tin thanh toán, chờ Pet Owner thanh toán
+    BOOKING_COMPLETED, // Lịch hẹn đã hoàn thành và thanh toán xong
+    STAFF_ON_WAY, // Nhân viên đang trên đường đến (HOME_VISIT/SOS)
+    STAFF_ARRIVED, // Nhân viên đã đến địa chỉ của bạn
+    BOOKING_ASSIGNED, // Staff được gán vào booking
+
+    // Additional Clinic notifications
+    CLINIC_VERIFIED,
+    CLINIC_STRIKE, // Clinic bị hạn chế do nhiều report được approve
+    PET_OWNER_STRIKE, // Pet owner bị hạn chế đặt lịch do nhiều report được approve
+
+    // Refund / Withdrawal Request notifications
+    REFUND_REQUESTED,
+    REFUND_APPROVED,
+    REFUND_REJECTED,
+
+    // Re-examination
+    RE_EXAMINATION_REMINDER,
+
+    // Vaccination
+    VACCINATION_REMINDER,
+
+    // System / Admin Notifications
+    SYSTEM_MONEY,
+    SYSTEM_SERVER,
+    SYSTEM_WORK,
+    SYSTEM_TIME,
+    SYSTEM_OTHER,
+
+    // Subscriptions
+    SUBSCRIPTION_EXPIRING_SOON,
+    SUBSCRIPTION_ACTIVATED,
+
+    // Report
+    REPORT_CREATED,
+    REPORT_RESOLVED
+}

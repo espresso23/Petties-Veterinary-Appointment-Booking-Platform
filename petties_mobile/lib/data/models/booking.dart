@@ -1,0 +1,433 @@
+/// Booking models for mobile app
+/// Matches the backend BookingResponse structure
+library;
+
+/// Map staff specialty code to Vietnamese display label
+String staffSpecialtyDisplay(String? specialty) {
+  if (specialty == null || specialty.isEmpty) return 'Bác sĩ thú y';
+  switch (specialty) {
+    case 'VET':
+      return 'Bác sĩ thú y';
+    case 'GROOMER':
+      return 'Nhân viên Grooming';
+    default:
+      if (specialty.startsWith('VET')) return 'Bác sĩ thú y';
+      return specialty;
+  }
+}
+
+class BookingResponse {
+  final String? bookingId;
+  final String? bookingCode;
+  final String? clinicId;
+  final String? clinicName;
+  final String? clinicLogo;
+  final String? clinicPhone;
+  final String? clinicAddress;
+  final String? petId;
+  final String? petName;
+  final String? petPhotoUrl;
+  final String? petSpecies;
+  final String? petBreed;
+  final double? petWeight;
+  final String? ownerId;
+  final String? ownerName;
+  final String? ownerPhone;
+  final String? ownerAvatarUrl;
+  final String? bookingDate;
+  final String? bookingTime;
+  final String? status;
+  final String? type;
+  final String? homeAddress;
+  final double? homeLat;
+  final double? homeLong;
+  final double? clinicLat;
+  final double? clinicLong;
+  final double? distanceKm;
+  final double? distanceFee;
+  final double? sosFee;
+  final double? totalPrice;
+  final String? symptoms;
+  final String? notes;
+  final String? emrId;
+  final List<BookingServiceItem> services;
+  final List<BookingPet> pets;
+  final String? assignedStaffId;
+  // Staff info
+  final String? assignedStaffName;
+  final String? assignedStaffPhone;
+  final String? assignedStaffSpecialty;
+  final String? assignedStaffAvatarUrl;
+  final String? paymentStatus;
+  final String? paymentMethod;
+  final String? paymentDescription;
+  final String? qrImageUrl;
+  final bool? canShowQrPaymentButton;
+  final bool? isReviewed;
+  final String? reviewId;
+  final int? rating;
+  final String? reviewComment;
+  final String? arrivedAt;
+
+  // Voucher
+  final String? voucherId;
+  final double? discountAmount;
+  final double? finalPrice;
+
+  BookingResponse({
+    this.bookingId,
+    this.bookingCode,
+    this.clinicId,
+    this.clinicName,
+    this.clinicLogo,
+    this.clinicPhone,
+    this.clinicAddress,
+    this.petId,
+    this.petName,
+    this.petPhotoUrl,
+    this.petSpecies,
+    this.petBreed,
+    this.petWeight,
+    this.ownerId,
+    this.ownerName,
+    this.ownerPhone,
+    this.ownerAvatarUrl,
+    this.bookingDate,
+    this.bookingTime,
+    this.status,
+    this.type,
+    this.homeAddress,
+    this.homeLat,
+    this.homeLong,
+    this.clinicLat,
+    this.clinicLong,
+    this.distanceKm,
+    this.distanceFee,
+    this.sosFee,
+    this.totalPrice,
+    this.symptoms,
+    this.notes,
+    this.emrId,
+    this.services = const [],
+    this.pets = const [],
+    this.assignedStaffId,
+    this.assignedStaffName,
+    this.assignedStaffPhone,
+    this.assignedStaffSpecialty,
+    this.assignedStaffAvatarUrl,
+    this.paymentStatus,
+    this.paymentMethod,
+    this.paymentDescription,
+    this.qrImageUrl,
+    this.canShowQrPaymentButton,
+    this.isReviewed,
+    this.reviewId,
+    this.rating,
+    this.reviewComment,
+    this.arrivedAt,
+    this.voucherId,
+    this.discountAmount,
+    this.finalPrice,
+  });
+
+  factory BookingResponse.fromJson(Map<String, dynamic> json) {
+    // Parse pets list
+    final petsList = (json['pets'] as List<dynamic>?)
+            ?.map((e) => BookingPet.fromJson(e))
+            .toList() ??
+        [];
+
+    // Flatten services from both direct services field AND pets
+    // to ensure we capture all services regardless of API structure
+    List<BookingServiceItem> allServices = [];
+    
+    // Add services from direct field if not empty
+    if (json['services'] != null && (json['services'] as List).isNotEmpty) {
+      allServices = (json['services'] as List<dynamic>)
+          .map((e) => BookingServiceItem.fromJson(e))
+          .toList();
+    }
+    
+    // Also add services from pets (for multi-pet bookings)
+    for (final pet in petsList) {
+      allServices.addAll(pet.services);
+    }
+
+    return BookingResponse(
+      bookingId: json['bookingId'],
+      bookingCode: json['bookingCode'],
+      clinicId: json['clinicId'],
+      clinicName: json['clinicName'],
+      clinicLogo: json['clinicLogo'],
+      clinicPhone: json['clinicPhone'],
+      clinicAddress: json['clinicAddress'],
+      petId: json['petId'],
+      petName: json['petName'],
+      petPhotoUrl: json['petPhotoUrl'],
+      petSpecies: json['petSpecies'],
+      petBreed: json['petBreed'],
+      petWeight: (json['petWeight'] as num?)?.toDouble(),
+      ownerId: json['ownerId'],
+      ownerName: json['ownerName'],
+      ownerPhone: json['ownerPhone'],
+      ownerAvatarUrl: json['ownerAvatarUrl'],
+      bookingDate: json['bookingDate'],
+      bookingTime: json['bookingTime'],
+      status: json['status'],
+      type: json['type'],
+      homeAddress: json['homeAddress'],
+      homeLat: (json['homeLat'] as num?)?.toDouble(),
+      homeLong: (json['homeLong'] as num?)?.toDouble(),
+      clinicLat: (json['clinicLat'] as num?)?.toDouble(),
+      clinicLong: (json['clinicLong'] as num?)?.toDouble(),
+      distanceKm: (json['distanceKm'] as num?)?.toDouble(),
+      distanceFee: (json['distanceFee'] as num?)?.toDouble(),
+      sosFee: (json['sosFee'] as num?)?.toDouble(),
+      totalPrice: (json['totalPrice'] as num?)?.toDouble(),
+      symptoms: json['symptoms'],
+      notes: json['notes'],
+      emrId: json['emrId'],
+      services: allServices,
+      pets: petsList,
+      assignedStaffId: json['assignedStaffId'],
+      assignedStaffName: json['assignedStaffName'],
+      assignedStaffPhone: json['assignedStaffPhone'],
+      assignedStaffSpecialty: json['assignedStaffSpecialty'],
+      assignedStaffAvatarUrl: json['assignedStaffAvatarUrl'],
+      paymentStatus: json['paymentStatus'],
+      paymentMethod: json['paymentMethod'],
+      paymentDescription: json['paymentDescription'],
+      qrImageUrl: json['qrImageUrl'],
+      canShowQrPaymentButton: json['canShowQrPaymentButton'] != null ? json['canShowQrPaymentButton'] == true : null,
+      isReviewed: json['isReviewed'],
+      reviewId: json['reviewId'],
+      rating: json['rating'],
+      reviewComment: json['reviewComment'],
+      arrivedAt: json['arrivedAt'],
+      voucherId: json['voucherId'],
+      discountAmount: (json['discountAmount'] as num?)?.toDouble() ?? 0.0,
+      finalPrice: (json['finalPrice'] as num?)?.toDouble() ?? (json['totalPrice'] as num?)?.toDouble(),
+    );
+  }
+
+}
+
+class BookingPet {
+  final String? petId;
+  final String? petName;
+  final List<BookingServiceItem> services;
+  final String? assignedStaffId;
+  final String? assignedStaffName;
+  final String? assignedStaffPhone;
+  final String? assignedStaffSpecialty;
+  final String? assignedStaffAvatarUrl;
+  final bool? isReviewed;
+  final String? reviewId;
+  final int? rating;
+  final String? reviewComment;
+  final String? arrivedAt;
+
+  BookingPet({
+    this.petId,
+    this.petName,
+    this.services = const [],
+    this.assignedStaffId,
+    this.assignedStaffName,
+    this.assignedStaffPhone,
+    this.assignedStaffSpecialty,
+    this.assignedStaffAvatarUrl,
+    this.isReviewed,
+    this.reviewId,
+    this.rating,
+    this.reviewComment,
+    this.arrivedAt,
+  });
+
+  factory BookingPet.fromJson(Map<String, dynamic> json) {
+    return BookingPet(
+      petId: json['petId'],
+      petName: json['petName'],
+      services: (json['services'] as List<dynamic>?)
+              ?.map((e) => BookingServiceItem.fromJson(e))
+              .toList() ??
+          [],
+      assignedStaffId: json['assignedStaffId'],
+      assignedStaffName: json['assignedStaffName'],
+      assignedStaffPhone: json['assignedStaffPhone'],
+      assignedStaffSpecialty: json['assignedStaffSpecialty'],
+      assignedStaffAvatarUrl: json['assignedStaffAvatarUrl'],
+      isReviewed: json['isReviewed'],
+      reviewId: json['reviewId'],
+      rating: json['rating'],
+      reviewComment: json['reviewComment'],
+      arrivedAt: json['arrivedAt'],
+    );
+  }
+}
+
+class BookingServiceItem {
+  final String? bookingServiceId;
+  final String? serviceId;
+  final String? serviceName;
+  final String? serviceCategory;
+  final double? price;
+  final double? basePrice;
+  final double? weightPrice;
+  final int? slotsRequired;
+  final String? assignedStaffId;
+  final String? assignedStaffName;
+  final String? assignedStaffAvatarUrl;
+  final String? assignedStaffSpecialty;
+  final String? petId;
+  final String? petName;
+  final String? scheduledStartTime;
+  final String? scheduledEndTime;
+  final int? durationMinutes;
+  final bool? isAddOn;
+
+  BookingServiceItem({
+    this.bookingServiceId,
+    this.serviceId,
+    this.serviceName,
+    this.serviceCategory,
+    this.price,
+    this.basePrice,
+    this.weightPrice,
+    this.slotsRequired,
+    this.assignedStaffId,
+    this.assignedStaffName,
+    this.assignedStaffAvatarUrl,
+    this.assignedStaffSpecialty,
+    this.petId,
+    this.petName,
+    this.scheduledStartTime,
+    this.scheduledEndTime,
+    this.durationMinutes,
+    this.isAddOn,
+  });
+
+  factory BookingServiceItem.fromJson(Map<String, dynamic> json) {
+    return BookingServiceItem(
+      bookingServiceId: json['bookingServiceId'],
+      serviceId: json['serviceId'],
+      serviceName: json['serviceName'],
+      serviceCategory: json['serviceCategory'],
+      price: (json['price'] as num?)?.toDouble(),
+      basePrice: (json['basePrice'] as num?)?.toDouble(),
+      weightPrice: (json['weightPrice'] as num?)?.toDouble(),
+      slotsRequired: json['slotsRequired'],
+      assignedStaffId: json['assignedStaffId'],
+      assignedStaffName: json['assignedStaffName'],
+      assignedStaffAvatarUrl: json['assignedStaffAvatarUrl'],
+      assignedStaffSpecialty: json['assignedStaffSpecialty'],
+      petId: json['petId'],
+      petName: json['petName'],
+      scheduledStartTime: json['scheduledStartTime'],
+      scheduledEndTime: json['scheduledEndTime'],
+      durationMinutes: json['durationMinutes'],
+      isAddOn: json['isAddOn'],
+    );
+  }
+}
+
+/// ============================================================
+/// STAFF HOME SUMMARY MODELS
+/// Matches backend StaffHomeSummaryResponse
+/// ============================================================
+
+class StaffHomeSummaryResponse {
+  final int todayBookingsCount;
+  final int pendingCount;
+  final int inProgressCount;
+  final List<UpcomingBookingDTO> upcomingBookings;
+
+  StaffHomeSummaryResponse({
+    required this.todayBookingsCount,
+    required this.pendingCount,
+    required this.inProgressCount,
+    required this.upcomingBookings,
+  });
+
+  factory StaffHomeSummaryResponse.fromJson(Map<String, dynamic> json) {
+    return StaffHomeSummaryResponse(
+      todayBookingsCount: json['todayBookingsCount'] ?? 0,
+      pendingCount: json['pendingCount'] ?? 0,
+      inProgressCount: json['inProgressCount'] ?? 0,
+      upcomingBookings: (json['upcomingBookings'] as List<dynamic>?)
+              ?.map((e) => UpcomingBookingDTO.fromJson(e))
+              .toList() ??
+          [],
+    );
+  }
+}
+
+class UpcomingBookingDTO {
+  final String? bookingId;
+  final String? bookingCode;
+  final String? petName;
+  final String? petSpecies;
+  final String? petPhotoUrl;
+  final String? ownerName;
+  final String? ownerPhone;
+  final String? bookingDate;
+  final String? bookingTime;
+  final String? endTime;
+  final String? type;
+  final String? status;
+  final double? totalPrice;
+  final String? primaryServiceName;
+  final int servicesCount;
+  final String? homeAddress;
+  final double? distanceKm;
+  final double? distanceFee;
+  final double? sosFee;
+  final String? arrivedAt;
+
+  UpcomingBookingDTO({
+    this.bookingId,
+    this.bookingCode,
+    this.petName,
+    this.petSpecies,
+    this.petPhotoUrl,
+    this.ownerName,
+    this.ownerPhone,
+    this.bookingDate,
+    this.bookingTime,
+    this.endTime,
+    this.type,
+    this.status,
+    this.totalPrice,
+    this.primaryServiceName,
+    this.servicesCount = 0,
+    this.homeAddress,
+    this.distanceKm,
+    this.distanceFee,
+    this.sosFee,
+    this.arrivedAt,
+  });
+
+  factory UpcomingBookingDTO.fromJson(Map<String, dynamic> json) {
+    return UpcomingBookingDTO(
+      bookingId: json['bookingId'],
+      bookingCode: json['bookingCode'],
+      petName: json['petName'],
+      petSpecies: json['petSpecies'],
+      petPhotoUrl: json['petPhotoUrl'],
+      ownerName: json['ownerName'],
+      ownerPhone: json['ownerPhone'],
+      bookingDate: json['bookingDate'],
+      bookingTime: json['bookingTime'],
+      endTime: json['endTime'],
+      type: json['type'],
+      status: json['status'],
+      totalPrice: (json['totalPrice'] as num?)?.toDouble(),
+      primaryServiceName: json['primaryServiceName'],
+      servicesCount: json['servicesCount'] ?? 0,
+      homeAddress: json['homeAddress'],
+      distanceKm: (json['distanceKm'] as num?)?.toDouble(),
+      distanceFee: (json['distanceFee'] as num?)?.toDouble(),
+      sosFee: (json['sosFee'] as num?)?.toDouble(),
+      arrivedAt: json['arrivedAt'],
+    );
+  }
+}

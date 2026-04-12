@@ -1,9 +1,11 @@
 package com.petties.petties.service;
 
 import com.petties.petties.dto.notification.NotificationResponse;
+import com.petties.petties.dto.sse.SseEventDto;
 import com.petties.petties.model.Clinic;
 import com.petties.petties.model.Notification;
 import com.petties.petties.model.User;
+import com.petties.petties.model.StaffShift;
 import com.petties.petties.model.enums.NotificationType;
 import com.petties.petties.repository.NotificationRepository;
 import com.petties.petties.repository.UserRepository;
@@ -16,116 +18,1285 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
+
+import com.petties.petties.model.enums.Role;
 
 /**
- * Service for managing clinic status notifications
+ * Service for managing notifications
+ *
+ * Handles:
+ * - Clinic status notifications (APPROVED, REJECTED, PENDING)
+ * - Clinic registration notifications (CLINIC_PENDING_APPROVAL for Admin)
+ * - StaffShift notifications (STAFF_SHIFT_ASSIGNED, STAFF_SHIFT_UPDATED,
+ * STAFF_SHIFT_DELETED)
+ * - SSE push for real-time delivery
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class NotificationService {
 
-    private final NotificationRepository notificationRepository;
-    private final UserRepository userRepository;
+        private final NotificationRepository notificationRepository;
+        private final com.petties.petties.repository.SystemNotificationRepository systemNotificationRepository;
+        private final UserRepository userRepository;
+        private final SseEmitterService sseEmitterService;// use for 1 direction real time notification
+        private final FcmService fcmService; // use for mobile push notification
 
-    /**
-     * Create a notification for clinic owner when clinic status changes
-     * Simple approach: Check if notification already exists for this clinic+type
-     * Only create if no notification exists - prevents all duplicates
-     */
-    @Transactional
-    public Notification createClinicNotification(Clinic clinic, NotificationType type, String reason) {
-        User owner = clinic.getOwner();
-        
-        // Double-check: Verify no notification exists for this clinic+type
-        // This prevents duplicate even if method is called multiple times concurrently
-        boolean exists = notificationRepository.existsByClinicClinicIdAndType(
-            clinic.getClinicId(), 
-            type
-        );
-        
-        if (exists) {
-            log.debug("Notification already exists for clinic: {} type: {}. Skipping duplicate.", 
-                    clinic.getClinicId(), type);
-            return null;
-        }
-        
-        String message = switch (type) {
-            case APPROVED -> String.format("Phòng khám \"%s\" đã được duyệt và có thể hoạt động trên nền tảng Petties.", clinic.getName());
-            case REJECTED -> String.format("Phòng khám \"%s\" không được duyệt. Vui lòng xem lại thông tin và đăng ký lại.", clinic.getName());
-            case PENDING -> String.format("Phòng khám \"%s\" đang chờ duyệt.", clinic.getName());
-        };
+        private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
-        Notification notification = new Notification();
-        notification.setUser(owner);
-        notification.setClinic(clinic);
-        notification.setType(type);
-        notification.setMessage(message);
-        notification.setReason(reason);
-        notification.setRead(false);
+        // ======================== CLINIC NOTIFICATIONS ========================
 
-        notification = notificationRepository.save(notification);
-        log.info("Notification created: {} for clinic: {} type: {} user: {}", 
-                notification.getNotificationId(), clinic.getClinicId(), type, owner.getUserId());
-        
-        return notification;
-    }
+        /**
+         * Create a notification for clinic owner when clinic status changes
+         * Simple approach: Check if notification already exists for this clinic+type
+         * Only create if no notification exists - prevents all duplicates
+         */
+        @Transactional
+        public Notification createClinicNotification(Clinic clinic, NotificationType type, String reason) {
+                User owner = clinic.getOwner();
 
-    /**
-     * Get all notifications for current user (clinic owner)
-     */
-    @Transactional(readOnly = true)
-    public Page<NotificationResponse> getNotificationsByUserId(UUID userId, Pageable pageable) {
-        Page<Notification> notifications = notificationRepository.findByUserUserIdOrderByCreatedAtDesc(userId, pageable);
-        return notifications.map(this::mapToResponse);
-    }
+                // Double-check: Verify no notification exists for this clinic+type
+                // This prevents duplicate even if method is called multiple times concurrently
+                boolean exists = notificationRepository.existsByClinicClinicIdAndType(
+                                clinic.getClinicId(),
+                                type);
 
-    /**
-     * Get unread notifications count for current user
-     */
-    @Transactional(readOnly = true)
-    public long getUnreadCountByUserId(UUID userId) {
-        return notificationRepository.countByUserUserIdAndReadFalse(userId);
-    }
+                if (exists) {
+                        log.debug("Notification already exists for clinic: {} type: {}. Skipping duplicate.",
+                                        clinic.getClinicId(), type);
+                        return null;
+                }
 
-    /**
-     * Mark notification as read
-     */
-    @Transactional
-    public void markAsRead(UUID notificationId, UUID userId) {
-        Notification notification = notificationRepository.findById(notificationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Notification not found"));
+                String message = switch (type) {
+                        case APPROVED -> String.format(
+                                        "Phòng khám \"%s\" đã được duyệt và có thể hoạt động trên nền tảng Petties.",
+                                        clinic.getName());
+                        case REJECTED -> String.format(
+                                        "Phòng khám \"%s\" không được duyệt. Vui lòng xem lại thông tin và đăng ký lại.",
+                                        clinic.getName());
+                        case PENDING -> String.format("Phòng khám \"%s\" đang chờ duyệt.", clinic.getName());
+                        case CLINIC_STRIKE -> reason != null ? reason : "Phòng khám bị hạn chế do vi phạm.";
+                        default -> "Thông báo từ phòng khám " + clinic.getName();
+                };
 
-        // Verify ownership
-        if (!notification.getUser().getUserId().equals(userId)) {
-            throw new ForbiddenException("You can only mark your own notifications as read");
+                Notification notification = Notification.builder()
+                                .user(owner)
+                                .clinic(clinic)
+                                .type(type)
+                                .message(message)
+                                .reason(reason)
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                log.info("Notification created: {} for clinic: {} type: {} user: {}",
+                                notification.getNotificationId(), clinic.getClinicId(), type, owner.getUserId());
+
+                // Push via SSE
+                pushNotificationToUser(owner.getUserId(), notification);
+
+                return notification;
         }
 
-        notificationRepository.markAsRead(notificationId);
-        log.info("Notification marked as read: {} by user: {}", notificationId, userId);
-    }
+        /**
+         * Notify all Admins when a new clinic is registered and pending approval
+         */
+        @Transactional
+        public void notifyAdminsNewClinicRegistration(Clinic clinic) {
+                // Get all active admin users
+                List<User> admins = userRepository.findByRoleAndDeletedAtIsNull(Role.ADMIN);
 
-    /**
-     * Mark all notifications as read for current user
-     */
-    @Transactional
-    public void markAllAsReadByUserId(UUID userId) {
-        int updated = notificationRepository.markAllAsReadByUserId(userId);
-        log.info("Marked {} notifications as read for user: {}", updated, userId);
-    }
+                if (admins.isEmpty()) {
+                        log.warn("No active admin users found to notify about new clinic registration");
+                        return;
+                }
 
-    private NotificationResponse mapToResponse(Notification notification) {
-        return NotificationResponse.builder()
-                .notificationId(notification.getNotificationId())
-                .clinicId(notification.getClinic().getClinicId())
-                .clinicName(notification.getClinic().getName())
-                .type(notification.getType())
-                .message(notification.getMessage())
-                .reason(notification.getReason())
-                .read(notification.getRead())
-                .createdAt(notification.getCreatedAt())
-                .build();
-    }
+                String message = String.format(
+                                "Phòng khám mới \"%s\" vừa đăng ký và đang chờ duyệt. Chủ sở hữu: %s",
+                                clinic.getName(),
+                                clinic.getOwner().getFullName());
+
+                for (User admin : admins) {
+                        // Check if notification already exists for this clinic+admin+type
+                        boolean exists = notificationRepository.existsByUserUserIdAndClinicClinicIdAndType(
+                                        admin.getUserId(),
+                                        clinic.getClinicId(),
+                                        NotificationType.CLINIC_PENDING_APPROVAL);
+
+                        if (exists) {
+                                log.debug("Admin notification already exists for clinic: {} admin: {}. Skipping.",
+                                                clinic.getClinicId(), admin.getUserId());
+                                continue;
+                        }
+
+                        Notification notification = Notification.builder()
+                                        .user(admin)
+                                        .clinic(clinic)
+                                        .type(NotificationType.CLINIC_PENDING_APPROVAL)
+                                        .message(message)
+                                        .read(false)
+                                        .build();
+
+                        notification = notificationRepository.save(notification);
+                        log.info("Admin notification created: {} for admin: {} clinic: {}",
+                                        notification.getNotificationId(), admin.getUserId(), clinic.getClinicId());
+
+                        // Push via SSE
+                        pushNotificationToUser(admin.getUserId(), notification);
+                }
+        }
+
+        /**
+         * Broadcast the current count of pending clinics to all active admins
+         */
+        @Transactional(readOnly = true)
+        public void broadcastClinicCounterUpdate(long count) {
+                List<User> admins = userRepository.findByRoleAndDeletedAtIsNull(Role.ADMIN);
+                if (admins.isEmpty())
+                        return;
+
+                SseEventDto event = SseEventDto.clinicCounterUpdate(count);
+                log.info("Broadcasting pending clinic count ({}) to {} admins", count, admins.size());
+                for (User admin : admins) {
+                        sseEmitterService.pushToUser(admin.getUserId(), event);
+                }
+        }
+
+        // ======================== REFUND/WITHDRAWAL NOTIFICATIONS
+        // ========================
+
+        /**
+         * Notify all Admins when a new withdrawal request is submitted
+         */
+        @Transactional
+        public void notifyAdminsRefundRequested(com.petties.petties.model.RefundApplication refund) {
+                List<User> admins = userRepository.findByRoleAndDeletedAtIsNull(Role.ADMIN);
+                if (admins.isEmpty()) {
+                        log.warn("No active admin users found to notify about new withdrawal request");
+                        return;
+                }
+
+                String message = String.format(
+                                "Phòng khám \"%s\" vừa gửi yêu cầu rút %s VND doanh thu tháng %s. Đang chờ kế toán duyệt.",
+                                refund.getClinic().getName(),
+                                String.format("%,.0f", refund.getRequestedAmount()),
+                                refund.getPeriodYearMonth());
+
+                for (User admin : admins) {
+                        // Prevent duplicate notifications for the same refund application
+                        boolean exists = notificationRepository.existsByUserUserIdAndTypeAndActionData(
+                                        admin.getUserId(),
+                                        NotificationType.REFUND_REQUESTED,
+                                        refund.getRefundApplicationId().toString());
+
+                        if (exists) {
+                                log.debug("Admin notification already exists for refund: {}. Skipping.",
+                                                refund.getRefundApplicationId());
+                                continue;
+                        }
+
+                        Notification notification = Notification.builder()
+                                        .user(admin)
+                                        .clinic(refund.getClinic())
+                                        .type(NotificationType.REFUND_REQUESTED)
+                                        .message(message)
+                                        .actionData(refund.getRefundApplicationId().toString())
+                                        .read(false)
+                                        .build();
+
+                        notification = notificationRepository.save(notification);
+                        pushNotificationToUser(admin.getUserId(), notification);
+                }
+        }
+
+        /**
+         * Notify Clinic Owner when their withdrawal request is approved
+         */
+        @Transactional
+        public void notifyClinicOwnerRefundApproved(com.petties.petties.model.RefundApplication refund) {
+                User owner = refund.getClinic().getOwner();
+                if (owner == null)
+                        return;
+
+                String message = String.format(
+                                "Yêu cầu rút %s VND doanh thu tháng %s của phòng khám \"%s\" đã được duyệt. Vui lòng kiểm tra tài khoản ngân hàng.",
+                                String.format("%,.0f", refund.getRequestedAmount()),
+                                refund.getPeriodYearMonth(),
+                                refund.getClinic().getName());
+
+                Notification notification = Notification.builder()
+                                .user(owner)
+                                .clinic(refund.getClinic())
+                                .type(NotificationType.REFUND_APPROVED)
+                                .message(message)
+                                .actionData(refund.getRefundApplicationId().toString())
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                pushNotificationToUser(owner.getUserId(), notification);
+        }
+
+        /**
+         * Notify Clinic Owner when their withdrawal request is rejected
+         */
+        @Transactional
+        public void notifyClinicOwnerRefundRejected(com.petties.petties.model.RefundApplication refund, String reason) {
+                User owner = refund.getClinic().getOwner();
+                if (owner == null)
+                        return;
+
+                String message = String.format(
+                                "Yêu cầu rút doanh thu tháng %s của phòng khám \"%s\" đã bị từ chối. Lý do: %s",
+                                refund.getPeriodYearMonth(),
+                                refund.getClinic().getName(),
+                                reason);
+
+                Notification notification = Notification.builder()
+                                .user(owner)
+                                .clinic(refund.getClinic())
+                                .type(NotificationType.REFUND_REJECTED)
+                                .message(message)
+                                .reason(reason)
+                                .actionData(refund.getRefundApplicationId().toString())
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                pushNotificationToUser(owner.getUserId(), notification);
+        }
+
+        // ======================== STAFF SHIFT NOTIFICATIONS ========================
+
+        /**
+         * Notify Staff when a new shift is assigned (single shift)
+         */
+        @Transactional
+        public Notification notifyStaffShiftAssigned(User staff, StaffShift shift) {
+                String message = String.format(
+                                "Bạn được gán ca làm việc ngày %s (%s - %s) tại %s",
+                                shift.getWorkDate().format(DATE_FORMATTER),
+                                shift.getStartTime().format(TIME_FORMATTER),
+                                shift.getEndTime().format(TIME_FORMATTER),
+                                shift.getClinic().getName());
+
+                Notification notification = Notification.builder()
+                                .user(staff)
+                                .shift(shift)
+                                .clinic(shift.getClinic())
+                                .type(NotificationType.STAFF_SHIFT_ASSIGNED)
+                                .message(message)
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                log.info("StaffShift notification created: {} for staff: {} shift: {}",
+                                notification.getNotificationId(), staff.getUserId(), shift.getShiftId());
+
+                // Push via SSE
+                pushNotificationToUser(staff.getUserId(), notification);
+
+                return notification;
+        }
+
+        /**
+         * Notify Staff when multiple shifts are assigned in batch
+         * Creates ONE notification summarizing all shifts instead of N individual
+         * notifications
+         *
+         * @param staff  The staff being notified
+         * @param shifts List of shifts assigned (must not be empty)
+         * @param clinic The clinic where shifts are assigned
+         */
+        @Transactional
+        public Notification notifyStaffShiftsBatchAssigned(User staff, List<StaffShift> shifts, Clinic clinic) {
+                if (shifts == null || shifts.isEmpty()) {
+                        log.warn("notifyStaffShiftsBatchAssigned called with empty shifts list");
+                        return null;
+                }
+
+                // If only 1 shift, use the single notification method
+                if (shifts.size() == 1) {
+                        return notifyStaffShiftAssigned(staff, shifts.get(0));
+                }
+
+                // Sort shifts by workDate to get date range
+                List<StaffShift> sortedShifts = shifts.stream()
+                                .sorted((a, b) -> a.getWorkDate().compareTo(b.getWorkDate()))
+                                .toList();
+
+                LocalDate startDate = sortedShifts.get(0).getWorkDate();
+                LocalDate endDate = sortedShifts.get(sortedShifts.size() - 1).getWorkDate();
+                int shiftCount = shifts.size();
+
+                String message = String.format(
+                                "Bạn được gán %d ca làm việc từ ngày %s đến ngày %s tại %s",
+                                shiftCount,
+                                startDate.format(DATE_FORMATTER),
+                                endDate.format(DATE_FORMATTER),
+                                clinic.getName());
+
+                // Link to the first shift for navigation purposes
+                StaffShift firstShift = sortedShifts.get(0);
+
+                Notification notification = Notification.builder()
+                                .user(staff)
+                                .shift(firstShift)
+                                .clinic(clinic)
+                                .type(NotificationType.STAFF_SHIFT_ASSIGNED)
+                                .message(message)
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                log.info("Batch StaffShift notification created: {} for staff: {} ({} shifts from {} to {})",
+                                notification.getNotificationId(), staff.getUserId(), shiftCount, startDate, endDate);
+
+                // Push via SSE
+                pushNotificationToUser(staff.getUserId(), notification);
+
+                return notification;
+        }
+
+        /**
+         * Notify Staff when their shift is updated (single shift)
+         */
+        @Transactional
+        public Notification notifyStaffShiftUpdated(User staff, StaffShift shift) {
+                String message = String.format(
+                                "Ca làm việc ngày %s đã được cập nhật (%s - %s) tại %s",
+                                shift.getWorkDate().format(DATE_FORMATTER),
+                                shift.getStartTime().format(TIME_FORMATTER),
+                                shift.getEndTime().format(TIME_FORMATTER),
+                                shift.getClinic().getName());
+
+                Notification notification = Notification.builder()
+                                .user(staff)
+                                .shift(shift)
+                                .clinic(shift.getClinic())
+                                .type(NotificationType.STAFF_SHIFT_UPDATED)
+                                .message(message)
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                log.info("StaffShift update notification created: {} for staff: {} shift: {}",
+                                notification.getNotificationId(), staff.getUserId(), shift.getShiftId());
+
+                // Push via SSE
+                pushNotificationToUser(staff.getUserId(), notification);
+
+                return notification;
+        }
+
+        /**
+         * Notify Staff when multiple shifts are updated in batch
+         * Creates ONE notification summarizing all shifts instead of N individual
+         * notifications
+         */
+        @Transactional
+        public Notification notifyStaffShiftsBatchUpdated(User staff, List<StaffShift> shifts, Clinic clinic) {
+                if (shifts == null || shifts.isEmpty()) {
+                        log.warn("notifyStaffShiftsBatchUpdated called with empty shifts list");
+                        return null;
+                }
+
+                // If only 1 shift, use the single notification method
+                if (shifts.size() == 1) {
+                        return notifyStaffShiftUpdated(staff, shifts.get(0));
+                }
+
+                // Sort shifts by workDate to get date range
+                List<StaffShift> sortedShifts = shifts.stream()
+                                .sorted((a, b) -> a.getWorkDate().compareTo(b.getWorkDate()))
+                                .toList();
+
+                LocalDate startDate = sortedShifts.get(0).getWorkDate();
+                LocalDate endDate = sortedShifts.get(sortedShifts.size() - 1).getWorkDate();
+                int shiftCount = shifts.size();
+
+                String message = String.format(
+                                "%d ca làm việc từ ngày %s đến ngày %s tại %s đã được cập nhật",
+                                shiftCount,
+                                startDate.format(DATE_FORMATTER),
+                                endDate.format(DATE_FORMATTER),
+                                clinic.getName());
+
+                // Link to the first shift for navigation purposes
+                StaffShift firstShift = sortedShifts.get(0);
+
+                Notification notification = Notification.builder()
+                                .user(staff)
+                                .shift(firstShift)
+                                .clinic(clinic)
+                                .type(NotificationType.STAFF_SHIFT_UPDATED)
+                                .message(message)
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                log.info("Batch StaffShift update notification created: {} for staff: {} ({} shifts)",
+                                notification.getNotificationId(), staff.getUserId(), shiftCount);
+
+                // Push via SSE
+                pushNotificationToUser(staff.getUserId(), notification);
+
+                return notification;
+        }
+
+        /**
+         * Notify Staff when their shift is deleted
+         */
+        @Transactional
+        public Notification notifyStaffShiftDeleted(User staff, LocalDate workDate, String clinicName) {
+                String message = String.format(
+                                "Ca làm việc ngày %s tại %s đã bị xóa",
+                                workDate.format(DATE_FORMATTER),
+                                clinicName);
+
+                Notification notification = Notification.builder()
+                                .user(staff)
+                                .type(NotificationType.STAFF_SHIFT_DELETED)
+                                .message(message)
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                log.info("StaffShift delete notification created: {} for staff: {}",
+                                notification.getNotificationId(), staff.getUserId());
+
+                // Push via SSE
+                pushNotificationToUser(staff.getUserId(), notification);
+
+                return notification;
+        }
+
+        // ======================== BOOKING NOTIFICATIONS ========================
+
+        /**
+         * Notify clinic managers when a new booking is created
+         */
+        @Transactional
+        public void sendBookingNotificationToClinic(com.petties.petties.model.Booking booking) {
+                // Find all managers of this clinic (deduplicate by userId to avoid duplicate
+                // notifications)
+                List<User> managers = userRepository.findByWorkingClinicIdAndRole(
+                                booking.getClinic().getClinicId(), Role.CLINIC_MANAGER)
+                                .stream()
+                                .collect(Collectors.toMap(User::getUserId, u -> u, (a, b) -> a))
+                                .values()
+                                .stream()
+                                .toList();
+
+                if (managers.isEmpty()) {
+                        log.warn("No managers found for clinic: {}", booking.getClinic().getClinicId());
+                        return;
+                }
+
+                String petName = booking.getPet().getName();
+                String ownerName = booking.getPetOwner().getFullName();
+                String message = String.format(
+                                "Đơn đặt lịch mới #%s từ %s cho thú cưng %s cần xác nhận",
+                                booking.getBookingCode(),
+                                ownerName,
+                                petName);
+
+                for (User manager : managers) {
+                        Notification notification = Notification.builder()
+                                        .user(manager)
+                                        .clinic(booking.getClinic())
+                                        .type(NotificationType.BOOKING_CREATED)
+                                        .message(message)
+                                        .read(false)
+                                        .build();
+
+                        notification = notificationRepository.save(notification);
+                        log.info("Booking notification created: {} for manager: {}",
+                                        notification.getNotificationId(), manager.getUserId());
+
+                        pushNotificationToUser(manager.getUserId(), notification);
+                }
+        }
+
+        /**
+         * Notify staff when they are assigned to a booking
+         */
+        @Transactional
+        public void sendBookingAssignedNotificationToStaff(com.petties.petties.model.Booking booking) {
+                User staff = booking.getAssignedStaff();
+                if (staff == null) {
+                        log.warn("No staff assigned for booking: {}", booking.getBookingCode());
+                        return;
+                }
+
+                String petName = booking.getPet().getName();
+                String serviceName = booking.getBookingServices().isEmpty()
+                                ? "Dịch vụ"
+                                : booking.getBookingServices().get(0).getService().getName();
+                String message = String.format(
+                                "Bạn được gán cho booking #%s - %s cho %s vào lúc %s ngày %s",
+                                booking.getBookingCode(),
+                                serviceName,
+                                petName,
+                                booking.getBookingTime().format(TIME_FORMATTER),
+                                booking.getBookingDate().format(DATE_FORMATTER));
+
+                Notification notification = Notification.builder()
+                                .user(staff)
+                                .clinic(booking.getClinic())
+                                .type(NotificationType.BOOKING_CONFIRMED)
+                                .message(message)
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                log.info("Booking assigned notification created: {} for staff: {}",
+                                notification.getNotificationId(), staff.getUserId());
+
+                pushNotificationToUser(staff.getUserId(), notification);
+        }
+
+        /**
+         * Notify new staff when reassigned to a booking service
+         * Also optionally notify old staff that they were removed
+         *
+         * @param booking     The booking
+         * @param newStaff    The newly assigned staff
+         * @param oldStaff    The previously assigned staff (can be null)
+         * @param serviceName The service being reassigned
+         */
+        @Transactional
+        public void sendStaffReassignedNotification(
+                        com.petties.petties.model.Booking booking,
+                        User newStaff,
+                        User oldStaff,
+                        String serviceName) {
+
+                String petName = booking.getPet().getName();
+
+                // 1. Notify NEW staff - they are now assigned
+                if (newStaff != null) {
+                        String newStaffMessage = String.format(
+                                        "Bạn được gán thực hiện dịch vụ \"%s\" cho booking #%s - %s vào lúc %s ngày %s",
+                                        serviceName,
+                                        booking.getBookingCode(),
+                                        petName,
+                                        booking.getBookingTime().format(TIME_FORMATTER),
+                                        booking.getBookingDate().format(DATE_FORMATTER));
+
+                        Notification newStaffNotification = Notification.builder()
+                                        .user(newStaff)
+                                        .clinic(booking.getClinic())
+                                        .type(NotificationType.BOOKING_CONFIRMED)
+                                        .message(newStaffMessage)
+                                        .read(false)
+                                        .build();
+
+                        newStaffNotification = notificationRepository.save(newStaffNotification);
+                        log.info("Staff reassigned notification created: {} for new staff: {}",
+                                        newStaffNotification.getNotificationId(), newStaff.getUserId());
+
+                        pushNotificationToUser(newStaff.getUserId(), newStaffNotification);
+                }
+
+                // 2. Notify OLD staff - they were removed from this service
+                if (oldStaff != null && !oldStaff.getUserId().equals(newStaff != null ? newStaff.getUserId() : null)) {
+                        String oldStaffMessage = String.format(
+                                        "Bạn đã được gỡ khỏi dịch vụ \"%s\" trong booking #%s. Dịch vụ này đã được gán cho nhân viên khác.",
+                                        serviceName,
+                                        booking.getBookingCode());
+
+                        Notification oldStaffNotification = Notification.builder()
+                                        .user(oldStaff)
+                                        .clinic(booking.getClinic())
+                                        .type(NotificationType.BOOKING_CANCELLED) // Use CANCELLED to indicate removal
+                                        .message(oldStaffMessage)
+                                        .read(false)
+                                        .build();
+
+                        oldStaffNotification = notificationRepository.save(oldStaffNotification);
+                        log.info("Staff removed notification created: {} for old staff: {}",
+                                        oldStaffNotification.getNotificationId(), oldStaff.getUserId());
+
+                        pushNotificationToUser(oldStaff.getUserId(), oldStaffNotification);
+                }
+        }
+
+        /**
+         * Notify all clinic managers of a booking about a specific event
+         */
+        private void notifyClinicManagersForBooking(
+                        com.petties.petties.model.Booking booking,
+                        NotificationType type,
+                        String message) {
+                if (booking.getClinic() == null) {
+                        log.warn("No clinic found for booking: {} when notifying managers", booking.getBookingCode());
+                        return;
+                }
+
+                List<User> managers = userRepository.findByWorkingClinicIdAndRole(
+                                booking.getClinic().getClinicId(), Role.CLINIC_MANAGER);
+
+                if (managers.isEmpty()) {
+                        log.debug("No clinic managers to notify for booking: {}", booking.getBookingCode());
+                        return;
+                }
+
+                for (User manager : managers) {
+                        Notification notification = Notification.builder()
+                                        .user(manager)
+                                        .clinic(booking.getClinic())
+                                        .type(type)
+                                        .message(message)
+                                        .read(false)
+                                        .build();
+
+                        notification = notificationRepository.save(notification);
+                        log.info("Booking notification for managers created: {} for manager: {} type: {}",
+                                        notification.getNotificationId(), manager.getUserId(), type);
+
+                        pushNotificationToUser(manager.getUserId(), notification);
+                }
+        }
+
+        /**
+         * Notify pet owner when staff checks in (starts the service)
+         */
+        @Transactional
+        public void sendCheckinNotification(com.petties.petties.model.Booking booking) {
+                User petOwner = booking.getPetOwner();
+                if (petOwner == null) {
+                        log.warn("No pet owner found for booking: {}", booking.getBookingCode());
+                        return;
+                }
+
+                String staffName = booking.getAssignedStaff() != null
+                                ? booking.getAssignedStaff().getFullName()
+                                : "Nhân viên";
+                String message = String.format(
+                                "Nhân viên %s đã bắt đầu khám cho %s (Booking #%s)",
+                                staffName,
+                                booking.getPet().getName(),
+                                booking.getBookingCode());
+
+                Notification notification = Notification.builder()
+                                .user(petOwner)
+                                .clinic(booking.getClinic())
+                                .type(NotificationType.BOOKING_CHECKIN)
+                                .message(message)
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                log.info("Check-in notification created: {} for owner: {}",
+                                notification.getNotificationId(), petOwner.getUserId());
+
+                pushNotificationToUser(petOwner.getUserId(), notification);
+        }
+
+        /**
+         * Notify pet owner when staff has prepared payment information.
+         * Booking vẫn ở IN_PROGRESS và chờ người dùng thanh toán để Staff hoàn tất đơn.
+         */
+        @Transactional
+        public void sendPaymentRequiredNotification(com.petties.petties.model.Booking booking) {
+                User petOwner = booking.getPetOwner();
+                if (petOwner == null) {
+                        log.warn("No pet owner found for booking: {}", booking.getBookingCode());
+                        return;
+                }
+
+                String message = String.format(
+                                "Lịch hẹn #%s cho %s đang diễn ra. Vui lòng thanh toán để nhân viên có thể hoàn tất đơn.",
+                                booking.getBookingCode(),
+                                booking.getPet().getName());
+
+                Notification notification = Notification.builder()
+                                .user(petOwner)
+                                .clinic(booking.getClinic())
+                                .type(NotificationType.BOOKING_PAYMENT_REQUIRED)
+                                .message(message)
+                                .actionData(booking.getBookingId().toString())
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                log.info("PaymentRequired notification created: {} for owner: {}",
+                                notification.getNotificationId(), petOwner.getUserId());
+
+                pushNotificationToUser(petOwner.getUserId(), notification);
+        }
+
+        /**
+         * Notify pet owner when booking is completed
+         */
+        @Transactional
+        public void sendCompletedNotification(com.petties.petties.model.Booking booking) {
+                User petOwner = booking.getPetOwner();
+                if (petOwner == null) {
+                        log.warn("No pet owner found for booking: {}", booking.getBookingCode());
+                        return;
+                }
+
+                String message = String.format(
+                                "Lịch hẹn #%s cho %s đã hoàn tất và thanh toán thành công.",
+                                booking.getBookingCode(),
+                                booking.getPet().getName());
+
+                Notification notification = Notification.builder()
+                                .user(petOwner)
+                                .clinic(booking.getClinic())
+                                .type(NotificationType.BOOKING_COMPLETED)
+                                .message(message)
+                                .actionData(booking.getBookingId() != null ? booking.getBookingId().toString() : null)
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                log.info("Completed notification created: {} for owner: {}",
+                                notification.getNotificationId(), petOwner.getUserId());
+
+                pushNotificationToUser(petOwner.getUserId(), notification);
+        }
+
+        /**
+         * Notify assigned Staff and Clinic Managers when QR payment is confirmed.
+         * Creates Notification records + pushes realtime events/FCM.
+         */
+        @Transactional
+        public void sendQrPaymentSuccessNotificationToStaffAndManagers(com.petties.petties.model.Booking booking) {
+                if (booking == null || booking.getBookingId() == null) {
+                        return;
+                }
+
+                String actionData = booking.getBookingId().toString();
+                String message = String.format(
+                                "Booking #%s đã được Pet Owner thanh toán QR thành công.",
+                                booking.getBookingCode());
+
+                // Notify assigned staff
+                User assignedStaff = booking.getAssignedStaff();
+                if (assignedStaff != null && assignedStaff.getUserId() != null) {
+                        boolean existsForStaff = notificationRepository.existsByUserUserIdAndTypeAndActionData(
+                                        assignedStaff.getUserId(),
+                                        NotificationType.BOOKING_COMPLETED,
+                                        actionData);
+
+                        if (!existsForStaff) {
+                                Notification staffNotification = Notification.builder()
+                                                .user(assignedStaff)
+                                                .clinic(booking.getClinic())
+                                                .type(NotificationType.BOOKING_COMPLETED)
+                                                .message(message)
+                                                .actionData(actionData)
+                                                .read(false)
+                                                .build();
+
+                                staffNotification = notificationRepository.save(staffNotification);
+                                pushNotificationToUser(assignedStaff.getUserId(), staffNotification);
+                        }
+                }
+
+                // Notify clinic managers
+                if (booking.getClinic() == null || booking.getClinic().getClinicId() == null) {
+                        return;
+                }
+
+                List<User> managers = userRepository.findByWorkingClinicIdAndRole(
+                                booking.getClinic().getClinicId(), Role.CLINIC_MANAGER);
+
+                for (User manager : managers) {
+                        if (manager.getUserId() == null) {
+                                continue;
+                        }
+
+                        boolean existsForManager = notificationRepository.existsByUserUserIdAndTypeAndActionData(
+                                        manager.getUserId(),
+                                        NotificationType.BOOKING_COMPLETED,
+                                        actionData);
+
+                        if (existsForManager) {
+                                continue;
+                        }
+
+                        Notification managerNotification = Notification.builder()
+                                        .user(manager)
+                                        .clinic(booking.getClinic())
+                                        .type(NotificationType.BOOKING_COMPLETED)
+                                        .message(message)
+                                        .actionData(actionData)
+                                        .read(false)
+                                        .build();
+
+                        managerNotification = notificationRepository.save(managerNotification);
+                        pushNotificationToUser(manager.getUserId(), managerNotification);
+                }
+        }
+
+        @Transactional
+        public void sendStaffOnWayNotification(com.petties.petties.model.Booking booking) {
+                // Only send for SOS bookings
+                if (booking.getType() != com.petties.petties.model.enums.BookingType.SOS &&
+                                booking.getType() != com.petties.petties.model.enums.BookingType.HOME_VISIT) {
+                        log.debug("STAFF_ON_WAY notification skipped - only applicable for SOS/HOME_VISIT bookings");
+                        return;
+                }
+
+                User petOwner = booking.getPetOwner();
+                if (petOwner == null) {
+                        log.warn("No pet owner found for booking: {}", booking.getBookingCode());
+                        return;
+                }
+
+                String staffName = booking.getAssignedStaff() != null
+                                ? booking.getAssignedStaff().getFullName()
+                                : "Nhân viên";
+                String message = String.format(
+                                "Nhân viên %s đang trên đường đến địa chỉ của bạn (Booking #%s)",
+                                staffName,
+                                booking.getBookingCode());
+
+                Notification notification = Notification.builder()
+                                .user(petOwner)
+                                .clinic(booking.getClinic())
+                                .type(NotificationType.STAFF_ON_WAY)
+                                .message(message)
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                log.info("Staff on way notification created: {} for owner: {}",
+                                notification.getNotificationId(), petOwner.getUserId());
+
+                pushNotificationToUser(petOwner.getUserId(), notification);
+
+                // Also notify clinic managers with manager-appropriate message
+                String managerMessage = String.format(
+                                "Nhân viên %s đã bắt đầu di chuyển đến địa chỉ khách hàng (Booking #%s)",
+                                staffName,
+                                booking.getBookingCode());
+                notifyClinicManagersForBooking(
+                                booking,
+                                NotificationType.STAFF_ON_WAY,
+                                managerMessage);
+        }
+
+        @Transactional
+        public void sendStaffArrivedNotification(com.petties.petties.model.Booking booking) {
+                User petOwner = booking.getPetOwner();
+                if (petOwner == null) {
+                        log.warn("No pet owner found for booking: {}", booking.getBookingCode());
+                        return;
+                }
+
+                String staffName = booking.getAssignedStaff() != null
+                                ? booking.getAssignedStaff().getFullName()
+                                : "Nhân viên";
+                String message = String.format(
+                                "Nhân viên %s đã đến địa chỉ của bạn (Booking #%s)",
+                                staffName,
+                                booking.getBookingCode());
+
+                Notification notification = Notification.builder()
+                                .user(petOwner)
+                                .clinic(booking.getClinic())
+                                .type(NotificationType.STAFF_ARRIVED)
+                                .message(message)
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                log.info("Staff arrived notification created: {} for owner: {}",
+                                notification.getNotificationId(), petOwner.getUserId());
+
+                pushNotificationToUser(petOwner.getUserId(), notification);
+
+                // Also notify clinic managers with manager-appropriate message
+                String managerArrivalMessage = String.format(
+                                "Nhân viên %s đã đến địa chỉ khách hàng (Booking #%s)",
+                                staffName,
+                                booking.getBookingCode());
+                notifyClinicManagersForBooking(
+                                booking,
+                                NotificationType.STAFF_ARRIVED,
+                                managerArrivalMessage);
+        }
+
+        /**
+         * Notify pet owner when their booking is auto-cancelled
+         * due to clinic not confirming within the timeout period.
+         */
+        @Transactional
+        public void sendBookingAutoCancelledNotification(com.petties.petties.model.Booking booking) {
+                User petOwner = booking.getPetOwner();
+                if (petOwner == null) {
+                        log.warn("No pet owner found for auto-cancelled booking: {}", booking.getBookingCode());
+                        return;
+                }
+
+                String clinicName = booking.getClinic() != null ? booking.getClinic().getName() : "Phòng khám";
+                String message = String.format(
+                                "Lịch hẹn #%s tại %s đã bị hủy tự động do không được xác nhận trong thời gian quy định. Vui lòng đặt lịch lại hoặc liên hệ phòng khám.",
+                                booking.getBookingCode(),
+                                clinicName);
+
+                Notification notification = Notification.builder()
+                                .user(petOwner)
+                                .clinic(booking.getClinic())
+                                .type(NotificationType.BOOKING_CANCELLED)
+                                .message(message)
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                log.info("Auto-cancellation notification created: {} for owner: {}",
+                                notification.getNotificationId(), petOwner.getUserId());
+
+                pushNotificationToUser(petOwner.getUserId(), notification);
+        }
+
+        // ======================== REPORT NOTIFICATIONS ========================
+
+        @Transactional
+        public void sendReportCreatedNotificationToAdmin(com.petties.petties.model.Report report) {
+                List<User> admins = userRepository.findByRoleAndDeletedAtIsNull(Role.ADMIN);
+                if (admins.isEmpty()) {
+                        return;
+                }
+
+                String reporterName = report.getReporter().getFullName();
+                String message = String.format(
+                                "Người dùng %s vừa tạo một báo cáo về lịch hẹn #%s. Vui lòng kiểm tra và xử lý.",
+                                reporterName,
+                                report.getBooking().getBookingCode());
+
+                for (User admin : admins) {
+                        Notification notification = Notification.builder()
+                                        .user(admin)
+                                        .clinic(report.getBooking().getClinic())
+                                        .type(NotificationType.REPORT_CREATED)
+                                        .message(message)
+                                        .read(false)
+                                        .build();
+
+                        notification = notificationRepository.save(notification);
+                        pushNotificationToUser(admin.getUserId(), notification);
+                }
+        }
+
+        @Transactional
+        public void sendReportResolvedNotification(com.petties.petties.model.Report report) {
+                String bookingCode = report.getBooking().getBookingCode();
+                String resolutionContent = report.getStatus() == com.petties.petties.model.enums.ReportStatus.APPROVED
+                                ? "đã được chấp thuận"
+                                : "đã bị từ chối";
+
+                // 1. Notify Reporter
+                String reporterMessage = String.format(
+                                "Báo cáo của bạn về lịch hẹn #%s %s. Lời nhắn từ Admin: %s",
+                                bookingCode,
+                                resolutionContent,
+                                report.getAdminNote());
+
+                Notification reporterNotif = Notification.builder()
+                                .user(report.getReporter())
+                                .clinic(report.getBooking().getClinic())
+                                .type(NotificationType.REPORT_RESOLVED)
+                                .message(reporterMessage)
+                                .read(false)
+                                .build();
+                reporterNotif = notificationRepository.save(reporterNotif);
+                pushNotificationToUser(report.getReporter().getUserId(), reporterNotif);
+
+                // 2. Notify Reported Party (if applicable)
+                User reportedUserToNotify = null;
+                boolean isClinicReported = false;
+
+                if (report.getReportedUser() != null) {
+                        reportedUserToNotify = report.getReportedUser();
+                } else if (report.getReportedClinic() != null && report.getReportedClinic().getOwner() != null) {
+                        reportedUserToNotify = report.getReportedClinic().getOwner();
+                        isClinicReported = true;
+                }
+
+                if (reportedUserToNotify != null) {
+                        String targetName = isClinicReported ? "phòng khám của bạn" : "bạn";
+                        String reportedMessage = String.format(
+                                        "Có quyết định xử lý liên quan đến báo cáo về %s trong lịch hẹn #%s. %s. Lời nhắn từ Admin: %s",
+                                        targetName,
+                                        bookingCode,
+                                        resolutionContent,
+                                        report.getAdminNote());
+
+                        Notification reportedNotif = Notification.builder()
+                                        .user(reportedUserToNotify)
+                                        .clinic(report.getBooking().getClinic())
+                                        .type(NotificationType.REPORT_RESOLVED)
+                                        .message(reportedMessage)
+                                        .read(false)
+                                        .build();
+                        reportedNotif = notificationRepository.save(reportedNotif);
+                        pushNotificationToUser(reportedUserToNotify.getUserId(), reportedNotif);
+                }
+        }
+
+        /**
+         * Lưu notification và push tới user (dùng cho PET_OWNER_STRIKE, v.v.)
+         */
+        @Transactional
+        public Notification saveAndPushNotification(Notification notification) {
+                notification = notificationRepository.save(notification);
+                pushNotificationToUser(notification.getUser().getUserId(), notification);
+                return notification;
+        }
+
+        // ======================== COMMON OPERATIONS ========================
+
+        /**
+         * Push notification to user via SSE and FCM
+         */
+        private void pushNotificationToUser(UUID userId, Notification notification) {
+                // 1. Push via SSE if user is online
+                if (sseEmitterService.isUserConnected(userId)) {
+                        NotificationResponse response = mapToResponse(notification);
+                        SseEventDto event = SseEventDto.notification(response);
+                        sseEmitterService.pushToUser(userId, event);
+                        log.debug("Notification pushed via SSE to user: {}", userId);
+                } else {
+                        log.debug("User {} not connected to SSE, skipped SSE push", userId);
+                }
+
+                // 2. Push via FCM if user has a token
+                User user = notification.getUser();
+                if (user.getFcmToken() != null && !user.getFcmToken().isEmpty()) {
+                        log.info("Attempting to send FCM push to user {}. Token: {}", userId, user.getFcmToken());
+                        try {
+                                boolean sent = fcmService.sendToUser(
+                                                user,
+                                                getNotificationTitle(notification.getType()),
+                                                notification.getMessage(),
+                                                Map.of(
+                                                                "notificationId",
+                                                                notification.getNotificationId().toString(),
+                                                                "type", notification.getType().name(),
+                                                                "actionData",
+                                                                notification.getActionData() != null
+                                                                                ? notification.getActionData()
+                                                                                : "",
+                                                                "bookingId",
+                                                                notification.getActionData() != null
+                                                                                ? notification.getActionData()
+                                                                                : ""));
+                                if (sent) {
+                                        log.info("Push notification sent successfully via FCM to user: {}", userId);
+                                } else {
+                                        log.warn("FCM service returned false for user: {}", userId);
+                                }
+                        } catch (Exception e) {
+                                log.error("Failed to send FCM push notification to user: {}", userId, e);
+                        }
+                } else {
+                        log.warn("User {} has no FCM token, skipped FCM push", userId);
+                }
+        }
+
+        private String getNotificationTitle(NotificationType type) {
+                return switch (type) {
+                        case STAFF_SHIFT_ASSIGNED -> "Lịch trực mới đã được gán";
+                        case STAFF_SHIFT_UPDATED -> "Lịch trực đã thay đổi";
+                        case STAFF_SHIFT_DELETED -> "Lịch trực đã bị xóa";
+                        case BOOKING_CREATED -> "Lịch hẹn mới";
+                        case BOOKING_CONFIRMED -> "Lịch hẹn đã xác nhận";
+                        case BOOKING_CANCELLED -> "Lịch hẹn đã bị hủy";
+                        case BOOKING_CHECKIN -> "Nhân viên đã bắt đầu khám";
+                        case BOOKING_PAYMENT_REQUIRED -> "Yêu cầu thanh toán";
+                        case BOOKING_COMPLETED -> "Lịch hẹn đã hoàn thành";
+                        case STAFF_ON_WAY -> "Nhân viên đang đến";
+                        case STAFF_ARRIVED -> "Nhân viên đã đến nơi";
+                        case CLINIC_VERIFIED, APPROVED -> "Phòng khám đã được xác minh";
+                        case REJECTED -> "Phòng khám bị từ chối";
+                        case REFUND_REQUESTED -> "Yêu cầu rút tiền được gửi tới";
+                        case REFUND_APPROVED -> "Đơn rút tiền đã được duyệt";
+                        case REFUND_REJECTED -> "Đơn rút tiền bị từ chối";
+                        case SUBSCRIPTION_ACTIVATED -> "Gói hội viên đã được kích hoạt";
+                        case SUBSCRIPTION_EXPIRING_SOON -> "Gói hội viên sắp hết hạn";
+                        case REPORT_CREATED -> "Có báo cáo mới";
+                        case REPORT_RESOLVED -> "Kết quả xử lý báo cáo";
+                        case CLINIC_STRIKE -> "Phòng khám bị hạn chế";
+                        case PET_OWNER_STRIKE -> "Tài khoản bị hạn chế đặt lịch";
+                        default -> "Thông báo từ Petties";
+                };
+        }
+
+        /**
+         * Get all notifications for current user
+         */
+        @Transactional(readOnly = true)
+        public Page<NotificationResponse> getNotificationsByUserId(UUID userId, Pageable pageable) {
+                Page<Notification> notifications = notificationRepository.findByUserUserIdOrderByCreatedAtDesc(userId,
+                                pageable);
+                return notifications.map(this::mapToResponse);
+        }
+
+        /**
+         * Get unread notifications count for current user
+         */
+        @Transactional(readOnly = true)
+        public long getUnreadCountByUserId(UUID userId) {
+                return notificationRepository.countByUserUserIdAndReadFalse(userId);
+        }
+
+        /**
+         * Mark notification as read
+         */
+        @Transactional
+        public void markAsRead(UUID notificationId, UUID userId) {
+                Notification notification = notificationRepository.findById(notificationId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Notification not found"));
+
+                // Verify ownership
+                if (!notification.getUser().getUserId().equals(userId)) {
+                        throw new ForbiddenException("Bạn chỉ có thể đánh dấu đã đọc thông báo của mình");
+                }
+
+                notificationRepository.markAsRead(notificationId);
+                log.info("Notification marked as read: {} by user: {}", notificationId, userId);
+        }
+
+        @Transactional
+        public void sendSubscriptionSuccessNotification(com.petties.petties.model.UserSubscription subscription) {
+                User owner = subscription.getUser();
+                if (owner == null)
+                        return;
+
+                String message = String.format(
+                                "Chúc mừng! Gói hội viên \"%s\" của phòng khám \"%s\" đã được kích hoạt thành công. Bạn đã có quyền truy cập vào các tính năng AI.",
+                                subscription.getPlan().getName(),
+                                subscription.getClinic().getName());
+
+                Notification notification = Notification.builder()
+                                .user(owner)
+                                .clinic(subscription.getClinic())
+                                .type(NotificationType.SUBSCRIPTION_ACTIVATED)
+                                .message(message)
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                log.info("Subscription success notification created: {} for user: {}",
+                                notification.getNotificationId(), owner.getUserId());
+
+                pushNotificationToUser(owner.getUserId(), notification);
+        }
+
+        /**
+         * Mark all notifications as read for current user
+         */
+        @Transactional
+        public void markAllAsReadByUserId(UUID userId) {
+                int updated = notificationRepository.markAllAsReadByUserId(userId);
+                log.info("Marked {} notifications as read for user: {}", updated, userId);
+        }
+
+        /**
+         * Map Notification entity to response DTO
+         */
+        private NotificationResponse mapToResponse(Notification notification) {
+                NotificationResponse.NotificationResponseBuilder builder = NotificationResponse.builder()
+                                .notificationId(notification.getNotificationId())
+                                .type(notification.getType())
+                                .message(notification.getMessage())
+                                .reason(notification.getReason())
+                                .read(notification.getRead())
+                                .actionType(notification.getActionType())
+                                .actionData(notification.getActionData())
+                                .createdAt(notification.getCreatedAt());
+
+                // Add clinic fields if present
+                if (notification.getClinic() != null) {
+                        builder.clinicId(notification.getClinic().getClinicId())
+                                        .clinicName(notification.getClinic().getName());
+                }
+
+                // Add shift fields if present
+                if (notification.getShift() != null) {
+                        StaffShift shift = notification.getShift();
+                        builder.shiftId(shift.getShiftId())
+                                        .shiftDate(shift.getWorkDate())
+                                        .shiftStartTime(shift.getStartTime())
+                                        .shiftEndTime(shift.getEndTime());
+                }
+
+                return builder.build();
+        }
+
+        // ======================== ADMIN NOTIFICATIONS (SYSTEM) ========================
+
+        @Transactional
+        public void createAdminNotification(com.petties.petties.dto.request.AdminNotificationRequest request, User admin) {
+                com.petties.petties.model.SystemNotification systemNotification = com.petties.petties.model.SystemNotification.builder()
+                                .title(request.getTitle())
+                                .message(request.getMessage())
+                                .type(request.getType())
+                                .targetAudience(request.getTargetAudience())
+                                .createdBy(admin)
+                                .build();
+
+                List<User> targets;
+                if ("ALL".equalsIgnoreCase(request.getTargetAudience())) {
+                        targets = userRepository.findByRoleNotAndDeletedAtIsNull(Role.ADMIN);
+                } else if ("ROLE".equalsIgnoreCase(request.getTargetAudience())) {
+                        targets = userRepository.findByRoleInAndDeletedAtIsNull(request.getTargetRoles());
+                        targets.removeIf(u -> u.getRole() == Role.ADMIN);
+                } else if ("SPECIFIC_USERS".equalsIgnoreCase(request.getTargetAudience())) {
+                        targets = userRepository.findByUserIdInAndDeletedAtIsNull(request.getTargetUserIds());
+                        targets.removeIf(u -> u.getRole() == Role.ADMIN);
+                } else {
+                        throw new IllegalArgumentException("Invalid targetAudience: " + request.getTargetAudience());
+                }
+
+                systemNotification.setTargetCount(targets.size());
+                systemNotificationRepository.save(systemNotification);
+
+                if (targets.isEmpty()) {
+                        log.info("No targets found for admin notification");
+                        return;
+                }
+
+                String displayMessage = request.getTitle() + "\n" + request.getMessage();
+
+                List<Notification> notifications = targets.stream().map(targetUser -> Notification.builder()
+                                .user(targetUser)
+                                .type(request.getType())
+                                .message(displayMessage)
+                                .read(false)
+                                .build()).toList();
+
+                notificationRepository.saveAll(notifications);
+
+                for (Notification n : notifications) {
+                        pushNotificationToUser(n.getUser().getUserId(), n);
+                }
+        }
+
+        @Transactional(readOnly = true)
+        public Page<com.petties.petties.dto.response.SystemNotificationResponse> getAdminNotifications(Pageable pageable) {
+                return systemNotificationRepository.findAllByOrderByCreatedAtDesc(pageable)
+                                .map(com.petties.petties.dto.response.SystemNotificationResponse::fromEntity);
+        }
+
+        @Transactional
+        public void deleteAdminNotification(UUID id) {
+                if (!systemNotificationRepository.existsById(id)) {
+                        throw new ResourceNotFoundException("System Notification not found");
+                }
+                systemNotificationRepository.deleteById(id);
+        }
 }
-

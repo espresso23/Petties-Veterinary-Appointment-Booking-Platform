@@ -1,9 +1,11 @@
 package com.petties.petties.service;
 
+import com.petties.petties.model.Clinic;
 import com.petties.petties.model.ClinicPricePerKm;
 import com.petties.petties.repository.ClinicPricePerKmRepository;
 import com.petties.petties.repository.ClinicRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,38 +15,55 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ClinicPriceService {
 
-    private final ClinicPricePerKmRepository repository;
+    private final ClinicPricePerKmRepository clinicPriceRepository;
     private final ClinicRepository clinicRepository;
 
     public Optional<BigDecimal> getPricePerKm(UUID clinicId) {
-        return repository.findByClinicId(clinicId).map(ClinicPricePerKm::getPricePerKm);
+        return clinicPriceRepository.findById(clinicId)
+                .map(ClinicPricePerKm::getPricePerKm);
+    }
+
+    public Optional<BigDecimal> getSosFee(UUID clinicId) {
+        return clinicPriceRepository.findById(clinicId)
+                .map(ClinicPricePerKm::getSosFee);
+    }
+
+    public Optional<ClinicPricePerKm> getPricing(UUID clinicId) {
+        return clinicPriceRepository.findById(clinicId);
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.Map<UUID, ClinicPricePerKm> getPricingBatch(java.util.List<UUID> clinicIds) {
+        if (clinicIds == null || clinicIds.isEmpty()) return java.util.Collections.emptyMap();
+        return clinicPriceRepository.findAllById(clinicIds).stream()
+                .collect(java.util.stream.Collectors.toMap(ClinicPricePerKm::getClinicId, p -> p));
     }
 
     @Transactional
-    public BigDecimal upsertPricePerKm(UUID clinicId, BigDecimal pricePerKm) {
-        // ensure clinic exists
-        var clinicOpt = clinicRepository.findByIdAndNotDeleted(clinicId);
-        if (clinicOpt.isEmpty()) throw new IllegalArgumentException("Clinic not found: " + clinicId);
-        if (pricePerKm == null) {
-            // remove existing record if any
-            repository.findByClinicId(clinicId).ifPresent(repository::delete);
-            return null;
-        }
+    public ClinicPricePerKm updatePricing(UUID clinicId, BigDecimal pricePerKm, BigDecimal sosFee) {
+        log.info("Updating pricing for clinic {}: pricePerKm={}, sosFee={}", clinicId, pricePerKm, sosFee);
+        
+        Clinic clinic = clinicRepository.findById(clinicId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phòng khám: " + clinicId));
 
-        ClinicPricePerKm entity = repository.findByClinicId(clinicId)
+        ClinicPricePerKm priceEntity = clinicPriceRepository.findById(clinicId)
                 .orElseGet(() -> {
-                    ClinicPricePerKm cp = new ClinicPricePerKm();
-                    // Do not set clinicId manually. With @MapsId, setting the clinic is enough
-                    // Setting clinicId before persisting can mark the entity as detached and
-                    // cause Hibernate to attempt a merge on a detached instance.
-                    cp.setClinic(clinicOpt.get());
-                    return cp;
+                    ClinicPricePerKm newEntity = new ClinicPricePerKm();
+                    newEntity.setClinic(clinic);
+                    newEntity.setClinicId(clinicId);
+                    return newEntity;
                 });
 
-        entity.setPricePerKm(pricePerKm);
-        repository.save(entity);
-        return entity.getPricePerKm();
+        if (pricePerKm != null) {
+            priceEntity.setPricePerKm(pricePerKm);
+        }
+        if (sosFee != null) {
+            priceEntity.setSosFee(sosFee);
+        }
+
+        return clinicPriceRepository.save(priceEntity);
     }
 }

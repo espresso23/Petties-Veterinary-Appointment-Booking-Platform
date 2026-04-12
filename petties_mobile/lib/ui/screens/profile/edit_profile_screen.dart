@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../../config/constants/app_colors.dart';
 import '../../../providers/user_provider.dart';
+import '../../../providers/auth_provider.dart';
 import '../../widgets/profile/avatar_picker.dart';
 import '../../widgets/profile/email_inline_edit.dart';
+import '../../common/pet_owner_bottom_nav.dart';
 
 /// Edit Profile Screen
 /// Allows editing fullName, phone, and avatar
@@ -245,10 +248,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           Navigator.of(context).pop();
         }
       },
-      child: Scaffold(
-        backgroundColor: AppColors.stone50,
-        appBar: _buildAppBar(),
-        body: Consumer<UserProvider>(
+      child: Builder(builder: (context) {
+        final auth = Provider.of<AuthProvider>(context, listen: false);
+        final isPetOwner = auth.user?.role == 'PET_OWNER';
+
+        return Scaffold(
+          backgroundColor: AppColors.stone50,
+          appBar: _buildAppBar(),
+          body: Consumer<UserProvider>(
           builder: (context, userProvider, child) {
             return SingleChildScrollView(
               child: Column(
@@ -258,12 +265,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
                   // Form section
                   _buildFormSection(userProvider),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
+                  ],
+                ),
+              );
+            },
+          ),
+          bottomNavigationBar: isPetOwner
+              ? PetOwnerBottomNav(
+                  currentIndex: 4,
+                  onTap: (index) => handlePetOwnerNavTap(context, index),
+                )
+              : null,
+        );
+      }),
     );
   }
 

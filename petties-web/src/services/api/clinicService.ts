@@ -15,7 +15,7 @@ export const clinicService = {
    */
   getAllClinics: async (filters?: ClinicFilters): Promise<ClinicListResponse> => {
     const params = new URLSearchParams()
-    
+
     if (filters?.status) {
       params.append('status', filters.status)
     }
@@ -24,7 +24,7 @@ export const clinicService = {
     }
     params.append('page', String(filters?.page ?? 0))
     params.append('size', String(filters?.size ?? 20))
-    
+
     const response = await apiClient.get<ClinicListResponse>(`/clinics?${params.toString()}`)
     return response.data
   },
@@ -139,6 +139,62 @@ export const clinicService = {
   },
 
   /**
+   * Get count of pending clinics for admin badge (ADMIN only)
+   */
+  getPendingClinicsCount: async (): Promise<number> => {
+    const response = await apiClient.get<number>('/clinics/admin/pending/count')
+    return response.data
+  },
+
+  /**
+   * Get struck clinics (đang bị hạn chế) - ADMIN only
+   */
+  getStruckClinics: async (page = 0, size = 20, sortBy = 'strikeUntil', sortDir: 'ASC' | 'DESC' = 'ASC'): Promise<ClinicListResponse> => {
+    const params = new URLSearchParams({
+      page: String(page),
+      size: String(size),
+      sortBy,
+      sortDir,
+    })
+    const response = await apiClient.get<ClinicListResponse>(`/clinics/admin/struck?${params.toString()}`)
+    return response.data
+  },
+
+  /**
+   * Danh sách phòng khám (chủ sở hữu) cho admin — lọc trạng thái / tên
+   */
+  getAdminClinicRegistry: async (filters?: {
+    status?: string
+    name?: string
+    page?: number
+    size?: number
+    sortBy?: string
+    sortDir?: 'ASC' | 'DESC'
+  }): Promise<ClinicListResponse> => {
+    const params = new URLSearchParams()
+    params.append('page', String(filters?.page ?? 0))
+    params.append('size', String(filters?.size ?? 20))
+    if (filters?.status) params.append('status', filters.status)
+    if (filters?.name?.trim()) params.append('name', filters.name.trim())
+    if (filters?.sortBy) params.append('sortBy', filters.sortBy)
+    if (filters?.sortDir) params.append('sortDir', filters.sortDir)
+    const response = await apiClient.get<ClinicListResponse>(`/clinics/admin/registry?${params.toString()}`)
+    return response.data
+  },
+
+  /** Admin hạn chế vĩnh viễn phòng khám đã duyệt */
+  adminBanClinic: async (clinicId: string, reason: string): Promise<ClinicResponse> => {
+    const response = await apiClient.post<ClinicResponse>(`/clinics/admin/${clinicId}/ban`, { reason })
+    return response.data
+  },
+
+  /** Admin gỡ hạn chế strike */
+  adminLiftClinicStrike: async (clinicId: string): Promise<ClinicResponse> => {
+    const response = await apiClient.post<ClinicResponse>(`/clinics/admin/${clinicId}/lift-strike`, {})
+    return response.data
+  },
+
+  /**
    * Approve clinic (ADMIN only)
    */
   approveClinic: async (clinicId: string, reason?: string): Promise<ClinicResponse> => {
@@ -174,18 +230,9 @@ export const clinicService = {
     }
     formData.append('isPrimary', String(isPrimary))
 
-    // Use FormData - must remove Content-Type header completely
-    // Axios will automatically set Content-Type to multipart/form-data with boundary for FormData
-    const config: any = {
-      headers: {},
-    }
-    // Delete Content-Type header - axios will set it automatically for FormData
-    delete config.headers['Content-Type']
-    
     const response = await apiClient.post<ClinicResponse>(
       `/clinics/${clinicId}/images`,
-      formData,
-      config
+      formData
     )
     return response.data
   },
@@ -212,16 +259,9 @@ export const clinicService = {
     const formData = new FormData()
     formData.append('file', file)
 
-    // Use FormData - delete Content-Type header to let browser set it automatically with boundary
-    const config: any = {
-      headers: {},
-    }
-    delete (config.headers as any)['Content-Type']
-
     const response = await apiClient.post<ClinicResponse>(
       `/clinics/${clinicId}/logo`,
-      formData,
-      config
+      formData
     )
     return response.data
   },

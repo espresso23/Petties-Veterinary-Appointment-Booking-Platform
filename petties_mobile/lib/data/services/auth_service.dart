@@ -1,9 +1,12 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../models/auth_response.dart';
 import '../models/send_otp_response.dart';
 import '../models/user_response.dart';
 import 'api_client.dart';
 import '../../config/constants/app_constants.dart';
+import '../../config/env/environment.dart';
 import '../../utils/storage_service.dart';
 
 /// Service for authentication operations
@@ -41,7 +44,7 @@ class AuthService {
 
   /// Login with Google ID Token
   /// Backend will verify the token with Google and create/login user
-  /// 
+  ///
   /// Platform determines the default role for new users:
   /// - 'mobile' → PET_OWNER
   /// - 'web' → CLINIC_OWNER
@@ -50,6 +53,11 @@ class AuthService {
     String platform = 'mobile', // 'mobile' or 'web'
   }) async {
     try {
+      // Debug: Log API URL being used
+      debugPrint(
+          '🔑 Google Sign-In: Calling ${Environment.baseUrl}/auth/google');
+      debugPrint('🔑 Platform: $platform');
+
       final response = await _apiClient.post(
         '/auth/google',
         data: {
@@ -68,12 +76,22 @@ class AuthService {
 
   /// Save auth data to storage
   Future<void> _saveAuthData(AuthResponse authResponse) async {
-    await _storage.setString(AppConstants.accessTokenKey, authResponse.accessToken);
-    await _storage.setString(AppConstants.refreshTokenKey, authResponse.refreshToken);
+    await _storage.setString(
+        AppConstants.accessTokenKey, authResponse.accessToken);
+    await _storage.setString(
+        AppConstants.refreshTokenKey, authResponse.refreshToken);
     await _storage.setString(AppConstants.userIdKey, authResponse.userId);
     await _storage.setString(
       AppConstants.userDataKey,
-      authResponse.toJson().toString(),
+      jsonEncode(authResponse.toJson()),
+    );
+  }
+
+  /// Save user profile to storage
+  Future<void> saveUserProfile(UserResponse user) async {
+    await _storage.setString(
+      AppConstants.userProfileKey,
+      jsonEncode(user.toJson()),
     );
   }
 
@@ -110,7 +128,20 @@ class AuthService {
   }
 
   /// Step 1: Gửi OTP đến email để đăng ký
-  Future<SendOtpResponse> sendRegistrationOtp({
+  ///
+  /// Normal mode: Trả về SendOtpResponse
+  /// DEV mode (skip OTP): Trả về AuthResponse và user đã được đăng ký xong
+  ///
+  /// Caller cần check response type:
+  /// ```dart
+  /// final response = await sendRegistrationOtp(...);
+  /// if (response is AuthResponse) {
+  ///   // Dev mode - user đã đăng ký xong
+  /// } else {
+  ///   // Normal - chuyển sang step OTP
+  /// }
+  /// ```
+  Future<dynamic> sendRegistrationOtp({
     required String username,
     required String email,
     required String password,
@@ -130,6 +161,15 @@ class AuthService {
           'role': role,
         },
       );
+
+      // DEV MODE: Nếu response chứa accessToken, đây là AuthResponse
+      if (response.data is Map && response.data.containsKey('accessToken')) {
+        final authResponse = AuthResponse.fromJson(response.data);
+        await _saveAuthData(authResponse);
+        return authResponse;
+      }
+
+      // Normal mode: SendOtpResponse
       return SendOtpResponse.fromJson(response.data);
     } catch (e) {
       rethrow;
@@ -174,7 +214,8 @@ class AuthService {
   /// Refresh access token
   Future<AuthResponse> refreshToken() async {
     try {
-      final refreshToken = await _storage.getString(AppConstants.refreshTokenKey);
+      final refreshToken =
+          await _storage.getString(AppConstants.refreshTokenKey);
       if (refreshToken == null) {
         throw Exception('No refresh token available');
       }
@@ -192,8 +233,10 @@ class AuthService {
       final authResponse = AuthResponse.fromJson(response.data);
 
       // Update tokens in storage
-      await _storage.setString(AppConstants.accessTokenKey, authResponse.accessToken);
-      await _storage.setString(AppConstants.refreshTokenKey, authResponse.refreshToken);
+      await _storage.setString(
+          AppConstants.accessTokenKey, authResponse.accessToken);
+      await _storage.setString(
+          AppConstants.refreshTokenKey, authResponse.refreshToken);
 
       return authResponse;
     } catch (e) {
@@ -285,7 +328,8 @@ class AuthService {
 
   /// Gửi lại OTP cho forgot password
   /// POST /auth/forgot-password/resend-otp?email=xxx
-  Future<SendOtpResponse> resendPasswordResetOtp({required String email}) async {
+  Future<SendOtpResponse> resendPasswordResetOtp(
+      {required String email}) async {
     try {
       final response = await _apiClient.post(
         '/auth/forgot-password/resend-otp',
@@ -297,4 +341,3 @@ class AuthService {
     }
   }
 }
-

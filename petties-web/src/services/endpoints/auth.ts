@@ -13,7 +13,7 @@ export interface RegisterRequest {
   email: string
   phone?: string
   avatar?: string
-  role: 'PET_OWNER' | 'VET' | 'CLINIC_MANAGER' | 'CLINIC_OWNER' | 'ADMIN'
+  role: 'PET_OWNER' | 'STAFF' | 'CLINIC_MANAGER' | 'CLINIC_OWNER' | 'ADMIN'
 }
 
 export interface SendOtpRequest {
@@ -38,12 +38,46 @@ export interface VerifyOtpRequest {
 }
 
 /**
- * Step 1: Gửi OTP đến email để đăng ký
+ * Response type cho sendRegistrationOtp
+ * - Normal mode: SendOtpResponse
+ * - DEV mode (skip OTP): AuthResponse
  */
-export async function sendRegistrationOtp(payload: SendOtpRequest): Promise<SendOtpResponse> {
-  const { data } = await apiClient.post<SendOtpResponse>('/auth/register/send-otp', payload)
+export type RegistrationOtpResult = SendOtpResponse | AuthResponse
+
+/**
+ * Type guard để kiểm tra đây có phải là AuthResponse không (dev mode skip OTP)
+ */
+export function isAuthResponse(response: RegistrationOtpResult): response is AuthResponse {
+  return 'accessToken' in response && 'refreshToken' in response
+}
+
+/**
+ * Step 1: Gửi OTP đến email để đăng ký
+ * 
+ * Normal mode: Trả về SendOtpResponse và chuyển sang bước nhập OTP
+ * DEV mode (skip OTP): Trả về AuthResponse và user đã được đăng ký xong
+ */
+export async function sendRegistrationOtp(payload: SendOtpRequest): Promise<RegistrationOtpResult> {
+  const { data } = await apiClient.post<RegistrationOtpResult>('/auth/register/send-otp', payload)
+
+  // DEV MODE: Nếu backend trả về AuthResponse (skip OTP), lưu tokens và user
+  if (isAuthResponse(data)) {
+    useAuthStore.getState().setTokens(data.accessToken, data.refreshToken)
+    useAuthStore.getState().setUser({
+      userId: data.userId,
+      username: data.username,
+      fullName: data.fullName,
+      email: data.email,
+      avatar: data.avatar,
+      role: data.role,
+      workingClinicId: data.workingClinicId,
+      workingClinicName: data.workingClinicName,
+    })
+  }
+
   return data
 }
+
 
 /**
  * Step 2: Xác thực OTP và hoàn tất đăng ký
@@ -60,6 +94,7 @@ export async function verifyOtpAndRegister(payload: VerifyOtpRequest): Promise<A
     username: data.username,
     fullName: data.fullName,
     email: data.email,
+    avatar: data.avatar,
     role: data.role,
     workingClinicId: data.workingClinicId,
     workingClinicName: data.workingClinicName,
@@ -91,6 +126,7 @@ export async function login(payload: LoginRequest): Promise<AuthResponse> {
     username: data.username,
     fullName: data.fullName,
     email: data.email,
+    avatar: data.avatar,
     role: data.role,
     workingClinicId: data.workingClinicId,
     workingClinicName: data.workingClinicName,
@@ -117,6 +153,7 @@ export async function register(
     username: data.username,
     fullName: data.fullName,
     email: data.email,
+    avatar: data.avatar,
     role: data.role,
     workingClinicId: data.workingClinicId,
     workingClinicName: data.workingClinicName,
@@ -148,14 +185,8 @@ export async function refreshToken(): Promise<AuthResponse> {
   // Lưu tokens mới (đồng bộ với localStorage)
   useAuthStore.getState().setTokens(data.accessToken, data.refreshToken)
 
-  // Update user info if available in response
-  if (data.userId || data.username) {
-    const currentUser = useAuthStore.getState().user
-    if (currentUser) {
-      // Keep existing user, just update tokens
-      useAuthStore.getState().setUser(currentUser)
-    }
-  }
+  // Note: We don't need to call setUser here - user data doesn't change with token refresh
+  // Removing the setUser call prevents unnecessary re-renders
 
   return data
 }
@@ -199,6 +230,7 @@ export async function getCurrentUser(): Promise<UserResponse> {
     username: data.username,
     fullName: data.fullName,
     email: data.email,
+    avatar: data.avatar,
     role: data.role,
     workingClinicId: data.workingClinicId,
     workingClinicName: data.workingClinicName,
@@ -226,6 +258,7 @@ export async function googleSignIn(idToken: string): Promise<AuthResponse> {
     username: data.username,
     fullName: data.fullName,
     email: data.email,
+    avatar: data.avatar,
     role: data.role,
     workingClinicId: data.workingClinicId,
     workingClinicName: data.workingClinicName,

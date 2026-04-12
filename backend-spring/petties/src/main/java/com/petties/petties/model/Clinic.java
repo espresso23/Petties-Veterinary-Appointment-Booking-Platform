@@ -3,6 +3,7 @@ package com.petties.petties.model;
 import com.petties.petties.model.enums.ClinicStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -36,6 +37,7 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class Clinic {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -76,6 +78,12 @@ public class Clinic {
     @Column(name = "email", length = 100)
     private String email;
 
+    @Column(name = "bank_name", length = 100)
+    private String bankName; // Tên ngân hàng
+
+    @Column(name = "account_number", length = 50)
+    private String accountNumber; // Số tài khoản ngân hàng
+
     @Column(name = "latitude", precision = 10, scale = 8)
     private BigDecimal latitude;
 
@@ -85,26 +93,37 @@ public class Clinic {
     @Column(name = "logo", length = 500)
     private String logo; // URL to clinic logo (nullable, single file like images but only one)
 
+    @Column(name = "business_license_url", length = 500)
+    private String businessLicenseUrl; // URL to business license/veterinary practice certificate
+
     @Convert(converter = com.petties.petties.converter.OperatingHoursConverter.class)
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "operating_hours", columnDefinition = "jsonb")
+    @Builder.Default
     private Map<String, OperatingHours> operatingHours = new HashMap<>();
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
+    @Builder.Default
     private ClinicStatus status = ClinicStatus.PENDING;
 
     @Column(name = "rejection_reason", columnDefinition = "TEXT")
     private String rejectionReason;
 
+    @Builder.Default
     @Column(name = "rating_avg", precision = 2, scale = 1)
     private BigDecimal ratingAvg = BigDecimal.ZERO;
 
+    @Builder.Default
     @Column(name = "rating_count")
     private Integer ratingCount = 0;
 
     @Column(name = "approved_at")
     private LocalDateTime approvedAt;
+
+    /** Thời điểm hết hạn strike. NULL = không bị strike. Khi có giá trị: clinic không nhận booking mới, không xuất hiện trong tìm kiếm. */
+    @Column(name = "strike_until")
+    private LocalDateTime strikeUntil;
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -117,10 +136,16 @@ public class Clinic {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    @Version
+    @Column(name = "version")
+    private Long version;
+
     // Relationships
+    @Builder.Default
     @OneToMany(mappedBy = "clinic", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ClinicImage> images = new ArrayList<>();
 
+    @Builder.Default
     @OneToMany(mappedBy = "clinic")
     private List<ClinicService> services = new ArrayList<>();
 

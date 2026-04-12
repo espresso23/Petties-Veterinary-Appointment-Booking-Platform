@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useUserStore } from '../../store/userStore'
 import { useAuthStore } from '../../store/authStore'
 import { useToast } from '../../components/Toast'
@@ -15,7 +15,7 @@ import {
 } from '@heroicons/react/24/outline'
 
 // Roles that can edit their profile on web
-const EDITABLE_ROLES = ['VET', 'CLINIC_OWNER', 'CLINIC_MANAGER']
+const EDITABLE_ROLES = ['STAFF', 'CLINIC_OWNER', 'CLINIC_MANAGER']
 
 export function ProfilePage() {
   const { user } = useAuthStore()
@@ -47,12 +47,29 @@ export function ProfilePage() {
     fetchProfile()
   }, [fetchProfile])
 
+  // Track the last synced avatar to prevent infinite loop
+  const lastSyncedAvatarRef = useRef<string | null | undefined>(undefined)
+
   useEffect(() => {
     if (profile) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setEditForm({
         fullName: profile.fullName || '',
         phone: profile.phone || '',
       })
+      // Sync avatar to authStore for Sidebar display - only if changed
+      const currentUser = useAuthStore.getState().user
+      if (
+        currentUser &&
+        profile.avatar !== currentUser.avatar &&
+        profile.avatar !== lastSyncedAvatarRef.current
+      ) {
+        lastSyncedAvatarRef.current = profile.avatar
+        useAuthStore.getState().setUser({
+          ...currentUser,
+          avatar: profile.avatar || undefined
+        })
+      }
     }
   }, [profile])
 
@@ -96,8 +113,8 @@ export function ProfilePage() {
     switch (role) {
       case 'ADMIN':
         return 'Quản Trị Viên'
-      case 'VET':
-        return 'Bác Sĩ Thú Y'
+      case 'STAFF':
+        return 'Nhân Viên Phòng Khám'
       case 'CLINIC_OWNER':
         return 'Chủ Phòng Khám'
       case 'CLINIC_MANAGER':

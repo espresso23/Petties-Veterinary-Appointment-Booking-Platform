@@ -3,16 +3,17 @@ class AppConstants {
   AppConstants._();
 
   // API Configuration
-  static const String baseUrl = 'https://api.petties.world/api';  // ✅ Sửa domain
+  static const String baseUrl = 'https://api.petties.world/api'; // ✅ Sửa domain
   static const String apiVersion = 'v1';
-  static const int connectTimeout = 30000;
-  static const int receiveTimeout = 30000;
+  static const int connectTimeout = 10000;
+  static const int receiveTimeout = 60000; // Increased for image uploads
 
   // Storage Keys
   static const String accessTokenKey = 'access_token';
   static const String refreshTokenKey = 'refresh_token';
   static const String userIdKey = 'user_id';
   static const String userDataKey = 'user_data';
+  static const String userProfileKey = 'user_profile';
 
   // Pagination
   static const int defaultPageSize = 20;

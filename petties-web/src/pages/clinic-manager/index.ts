@@ -1,1 +1,6 @@
 export { ClinicManagerDashboardPage } from './DashboardPage'
+export { StaffShiftPage } from './shifts/StaffShiftPage'
+export { ChatPage } from './ChatPage'
+export { ClinicInfoPage as ManagerClinicInfoPage } from './clinic/ClinicInfoPage'
+export { ClinicEditPage as ManagerClinicEditPage } from './clinic/ClinicEditPage'
+export { default as RevenuePage } from './RevenuePage'

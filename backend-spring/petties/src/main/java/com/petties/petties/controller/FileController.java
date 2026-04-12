@@ -90,4 +90,19 @@ public class FileController {
                 "message", deleted ? "File đã được xóa thành công" : "Không tìm thấy file để xóa"
         ));
     }
+
+    /**
+     * Upload business license document (PDF, JPG, PNG - max 10MB)
+     *
+     * @param file File giấy phép kinh doanh
+     * @return UploadResponse với url file đã upload
+     */
+    @PostMapping(value = "/upload/business-license", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<UploadResponse> uploadBusinessLicense(
+            @RequestParam("file") MultipartFile file
+    ) {
+        // Use standard uploadFile method (PDF now supported in ALLOWED_CONTENT_TYPES)
+        UploadResponse response = cloudinaryService.uploadFile(file, "business-licenses");
+        return ResponseEntity.ok(response);
+    }
 }

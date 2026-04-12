@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { notificationService } from '../../services/api/notificationService'
 import type { ClinicNotification } from '../../services/api/notificationService'
 import { useToast } from '../../components/Toast'
@@ -21,29 +21,29 @@ export const NotificationsPage = () => {
   const unreadCount = useNotificationStore((state) => state.unreadCount)
   const refreshUnreadCount = useNotificationStore((state) => state.refreshUnreadCount)
 
-  const loadNotifications = async () => {
+  const loadNotifications = useCallback(async () => {
     try {
       setLoading(true)
       const data = await notificationService.getNotifications(page, 20)
       setNotifications(data.content)
       setTotalPages(data.totalPages)
       setTotalElements(data.totalElements)
-    } catch (error: any) {
+    } catch (err) {
       showToast('error', 'Không thể tải thông báo')
-      console.error(error)
+      console.error(err)
     } finally {
       setLoading(false)
     }
-  }
+  }, [page, showToast])
 
-  const loadUnreadCount = async () => {
+  const loadUnreadCount = useCallback(async () => {
     await refreshUnreadCount()
-  }
+  }, [refreshUnreadCount])
 
   useEffect(() => {
     loadNotifications()
     loadUnreadCount()
-  }, [page])
+  }, [loadNotifications, loadUnreadCount])
 
   const handleMarkAsRead = async (notificationId: string) => {
     try {
@@ -53,7 +53,7 @@ export const NotificationsPage = () => {
       )
       // Refresh unread count immediately to update sidebar
       await refreshUnreadCount()
-    } catch (error: any) {
+    } catch {
       showToast('error', 'Không thể đánh dấu đã đọc')
     }
   }
@@ -65,7 +65,7 @@ export const NotificationsPage = () => {
       // Refresh unread count immediately to update sidebar
       await refreshUnreadCount()
       showToast('success', 'Đã đánh dấu tất cả đã đọc')
-    } catch (error: any) {
+    } catch {
       showToast('error', 'Không thể đánh dấu tất cả đã đọc')
     }
   }
@@ -148,9 +148,8 @@ export const NotificationsPage = () => {
           notifications.map((notification) => (
             <div
               key={notification.notificationId}
-              className={`bg-white border-4 shadow-brutal p-6 transition-all hover:translate-x-[-4px] hover:translate-y-[-4px] hover:shadow-[12px_12px_0_#1c1917] ${
-                notification.read ? 'border-stone-300' : 'border-stone-900'
-              } ${getNotificationStyle(notification.type)}`}
+              className={`bg-white border-4 shadow-brutal p-6 transition-all hover:translate-x-[-4px] hover:translate-y-[-4px] hover:shadow-[12px_12px_0_#1c1917] ${notification.read ? 'border-stone-300' : 'border-stone-900'
+                } ${getNotificationStyle(notification.type)}`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
@@ -181,7 +180,7 @@ export const NotificationsPage = () => {
                 {!notification.read && (
                   <button
                     onClick={() => handleMarkAsRead(notification.notificationId)}
-                    className="ml-4 px-3 py-1.5 bg-stone-900 text-xs font-bold uppercase border-2 border-black shadow-[2px_2px_0px_0px_rgba(255,255,255,0.3)] hover:shadow-none hover:translate-x-px hover:translate-y-px transition-all"
+                    className="ml-4 px-3 py-1.5 bg-yellow-400 text-stone-900 text-[10px] font-black uppercase border-2 border-stone-900 shadow-[3px_3px_0_0_#000] hover:bg-yellow-500 hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all"
                   >
                     Đánh dấu đã đọc
                   </button>
@@ -204,14 +203,14 @@ export const NotificationsPage = () => {
               disabled={page === 0}
               className="px-4 py-2 bg-white text-stone-900 text-sm font-bold uppercase border-2 border-stone-900 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-px hover:translate-y-px transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Trước
+              TRƯỚC
             </button>
             <button
               onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
               disabled={page >= totalPages - 1}
               className="px-4 py-2 bg-white text-stone-900 text-sm font-bold uppercase border-2 border-stone-900 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-px hover:translate-y-px transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Sau
+              SAU
             </button>
           </div>
         </div>

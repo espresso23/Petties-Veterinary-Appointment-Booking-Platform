@@ -1,0 +1,818 @@
+// =============================================================================
+// PETTIES DATABASE SCHEMA - PostgreSQL CANONICAL DBML
+// =============================================================================
+// Project: Petties - Veterinary Appointment Booking Platform
+// Updated: 2026-03-25
+// Version: 2.0
+//
+// Scope:
+// - Spring Boot PostgreSQL schema backed by Flyway migrations
+// - AI Service PostgreSQL schema backed by SQLAlchemy models + Alembic migrations
+//
+// Out of scope for this DBML:
+// - MongoDB collections (document stores)
+// - Qdrant collections (vector stores)
+// - Optional runtime-created LangGraph checkpoint tables
+//
+// Source-of-truth companions:
+// - docs-references/documentation/PETTIES_ERD_DIAGRAM.md
+// - docs-references/documentation/DATABASE_SCHEMA_ANALYSIS.md
+// =============================================================================
+
+Project Petties {
+  database_type: "PostgreSQL"
+  Note: '''
+    Canonical physical schema for PostgreSQL only.
+
+    Current scope:
+    - Spring Boot backend: 30 tables
+    - AI service: 7 tables
+
+    MongoDB and Qdrant are documented in the hybrid ERD and schema analysis docs.
+  '''
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+Enum role {
+  PET_OWNER
+  STAFF
+  CLINIC_MANAGER
+  CLINIC_OWNER
+  ADMIN
+}
+
+Enum staff_specialty {
+  VET
+  GROOMER
+}
+
+Enum clinic_status {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+Enum service_category {
+  GROOMING_SPA
+  VACCINATION
+  CHECK_UP
+  SURGERY
+  DENTAL
+  DERMATOLOGY
+  OTHER
+}
+
+Enum booking_type {
+  IN_CLINIC
+  HOME_VISIT
+  SOS
+}
+
+Enum booking_status {
+  PENDING
+  SEARCHING
+  PENDING_CLINIC_CONFIRM
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+Enum slot_status {
+  AVAILABLE
+  BOOKED
+  BLOCKED
+}
+
+Enum payment_method {
+  CASH
+  QR
+  CARD
+}
+
+Enum payment_status {
+  PENDING
+  PAID
+  REFUNDED
+  FAILED
+}
+
+Enum notification_type {
+  APPROVED
+  REJECTED
+  PENDING
+  CLINIC_PENDING_APPROVAL
+  STAFF_SHIFT_ASSIGNED
+  STAFF_SHIFT_UPDATED
+  STAFF_SHIFT_DELETED
+  BOOKING_CREATED
+  BOOKING_CONFIRMED
+  BOOKING_CANCELLED
+  BOOKING_CHECKIN
+  BOOKING_PAYMENT_REQUIRED
+  BOOKING_COMPLETED
+  STAFF_ON_WAY
+  STAFF_ARRIVED
+  BOOKING_ASSIGNED
+  CLINIC_VERIFIED
+  CLINIC_STRIKE
+  PET_OWNER_STRIKE
+  REFUND_REQUESTED
+  REFUND_APPROVED
+  REFUND_REJECTED
+  RE_EXAMINATION_REMINDER
+  VACCINATION_REMINDER
+  SUBSCRIPTION_EXPIRING_SOON
+  SUBSCRIPTION_ACTIVATED
+  REPORT_CREATED
+  REPORT_RESOLVED
+}
+
+Enum ai_tool_type {
+  CODE_BASED
+  API_BASED
+}
+
+Enum ai_setting_category {
+  llm
+  rag
+  embeddings
+  vector_db
+  general
+  web_search
+}
+
+// =============================================================================
+// TABLE GROUPS - SPRING BOOT
+// =============================================================================
+
+TableGroup backend_identity {
+  users
+  refresh_tokens
+  blacklisted_tokens
+}
+
+TableGroup backend_pet_clinic {
+  pets
+  clinics
+  clinic_images
+  clinic_price_per_km
+}
+
+TableGroup backend_services {
+  master_services
+  clinic_services
+  service_weight_prices
+  vaccine_templates
+  vaccine_dose_prices
+}
+
+TableGroup backend_scheduling_booking {
+  staff_shifts
+  slots
+  bookings
+  booking_services
+  booking_slots
+  payments
+}
+
+TableGroup backend_finance_governance {
+  refund_applications
+  clinic_balances
+  withdrawals
+  reports
+  subscription_plans
+  user_subscriptions
+  vouchers
+  clinic_vouchers
+  clinic_strike_config
+  user_strike_config
+}
+
+TableGroup backend_operations {
+  notifications
+  chat_auto_reply_settings
+}
+
+// =============================================================================
+// TABLE GROUPS - AI SERVICE
+// =============================================================================
+
+TableGroup ai_runtime_config {
+  agents
+  tools
+  knowledge_documents
+  system_settings
+}
+
+TableGroup ai_disease_mapping {
+  disease_catalog
+  disease_aliases
+}
+
+// =============================================================================
+// SPRING BOOT TABLES
+// =============================================================================
+
+Table users {
+  user_id uuid [pk]
+  username varchar(50) [not null, unique]
+  password varchar(255) [not null]
+  phone varchar(20) [unique]
+  email varchar(100) [unique]
+  full_name varchar(100)
+  avatar varchar(500)
+  avatar_public_id varchar(100)
+  role role [not null]
+  specialty staff_specialty
+  rating_avg decimal(2,1) [default: 0.0]
+  rating_count int [default: 0]
+  fcm_token varchar(500)
+  address varchar(500)
+  working_clinic_id uuid
+  strike_until timestamp
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp
+
+  indexes {
+    (role)
+    (working_clinic_id)
+  }
+}
+
+Table refresh_tokens {
+  token_id uuid [pk]
+  user_id uuid [not null]
+  token_hash varchar(255) [not null, unique]
+  expires_at timestamp [not null]
+  created_at timestamp [not null]
+}
+
+Table blacklisted_tokens {
+  token_id uuid [pk]
+  token_hash varchar(255) [not null, unique]
+  user_id uuid [not null]
+  expires_at timestamp [not null]
+  created_at timestamp [not null]
+}
+
+Table pets {
+  pet_id uuid [pk]
+  user_id uuid [not null]
+  name varchar(255) [not null]
+  species varchar(20) [not null]
+  breed varchar(255) [not null]
+  date_of_birth date [not null]
+  weight decimal(10,2) [not null]
+  gender varchar(50) [not null]
+  color varchar(100)
+  allergies text
+  image_url varchar(500)
+  image_public_id varchar(100)
+  created_at timestamp [not null]
+  updated_at timestamp
+  deleted_at timestamp
+}
+
+Table clinics {
+  clinic_id uuid [pk]
+  owner_id uuid [not null]
+  name varchar(200) [not null]
+  description text
+  address varchar(500) [not null]
+  ward varchar(100)
+  district varchar(100)
+  province varchar(100)
+  specific_location varchar(200)
+  phone varchar(20) [not null]
+  email varchar(100)
+  bank_name varchar(100)
+  account_number varchar(50)
+  latitude decimal(10,8)
+  longitude decimal(11,8)
+  logo varchar(500)
+  business_license_url varchar(500)
+  operating_hours jsonb
+  status clinic_status [not null]
+  rejection_reason text
+  rating_avg decimal(2,1) [default: 0.0]
+  rating_count int [default: 0]
+  approved_at timestamp
+  strike_until timestamp
+  created_at timestamp [not null]
+  updated_at timestamp
+  deleted_at timestamp
+  version bigint [default: 0]
+
+  indexes {
+    (owner_id)
+    (status)
+    (latitude, longitude)
+  }
+}
+
+Table clinic_images {
+  image_id uuid [pk]
+  clinic_id uuid [not null]
+  image_url varchar(500) [not null]
+  caption varchar(200)
+  display_order int [default: 0]
+  is_primary boolean [default: false]
+  created_at timestamp [not null]
+}
+
+Table clinic_price_per_km {
+  clinic_id uuid [pk]
+  price_per_km decimal(12,2)
+  sos_fee decimal(12,2)
+  created_at timestamp
+  updated_at timestamp
+  version bigint [default: 0]
+}
+
+Table master_services {
+  master_service_id uuid [pk]
+  name varchar(200) [not null]
+  description text
+  default_price decimal(19,2)
+  duration_time int
+  slots_required int [default: 1]
+  is_home_visit boolean [default: false]
+  default_price_per_km decimal(19,2)
+  service_category varchar(100)
+  pet_type varchar(100)
+  icon varchar(100)
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table clinic_services {
+  service_id uuid [pk]
+  clinic_id uuid [not null]
+  master_service_id uuid
+  vaccine_template_id uuid
+  is_custom boolean [default: true]
+  name varchar(200) [not null]
+  description text
+  base_price decimal(19,2)
+  duration_time int
+  slots_required int [default: 1]
+  is_active boolean [default: true]
+  is_home_visit boolean [default: false]
+  reminder_interval int
+  reminder_unit varchar(50)
+  service_category service_category
+  pet_type varchar(100)
+  created_at timestamp
+  updated_at timestamp
+  version bigint [default: 0]
+}
+
+Table service_weight_prices {
+  weight_price_id uuid [pk]
+  service_id uuid
+  master_service_id uuid
+  min_weight decimal(10,2) [not null]
+  max_weight decimal(10,2) [not null]
+  price decimal(19,2) [not null]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table vaccine_templates {
+  vaccine_template_id uuid [pk]
+  name varchar(100) [not null]
+  manufacturer varchar(100)
+  description text
+  default_price decimal(19,2)
+  min_age_weeks int
+  repeat_interval_days int
+  series_doses int
+  is_annual_repeat boolean [default: false]
+  min_interval_days int [default: 14]
+  target_species varchar(20)
+  created_at timestamp [not null]
+  updated_at timestamp
+}
+
+Table vaccine_dose_prices {
+  id uuid [pk]
+  service_id uuid [not null]
+  dose_number int [not null]
+  dose_label varchar(50)
+  price decimal(19,2) [not null]
+  is_active boolean [default: true]
+  created_at timestamp [not null]
+  updated_at timestamp
+}
+
+Table staff_shifts {
+  shift_id uuid [pk]
+  staff_id uuid [not null]
+  clinic_id uuid [not null]
+  work_date date [not null]
+  start_time time [not null]
+  end_time time [not null]
+  break_start time
+  break_end time
+  is_overnight boolean [default: false]
+  notes varchar(500)
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table slots {
+  slot_id uuid [pk]
+  shift_id uuid [not null]
+  start_time time [not null]
+  end_time time [not null]
+  status slot_status [not null]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table bookings {
+  booking_id uuid [pk]
+  booking_code varchar(20) [not null, unique]
+  version bigint [default: 0]
+  pet_id uuid [not null]
+  pet_owner_id uuid [not null]
+  clinic_id uuid
+  assigned_staff_id uuid
+  proxy_booker_id uuid
+  booking_date date [not null]
+  booking_time time [not null]
+  type booking_type [not null]
+  home_address varchar(500)
+  home_lat decimal(10,7)
+  home_long decimal(10,7)
+  distance_km decimal(5,2)
+  distance_fee decimal(12,2)
+  total_price decimal(12,2)
+  status booking_status [not null]
+  cancellation_reason text
+  cancelled_by uuid
+  payment_status varchar(20)
+  payment_method varchar(20)
+  notes text
+  created_at timestamp [not null]
+}
+
+Table booking_services {
+  booking_service_id uuid [pk]
+  booking_id uuid [not null]
+  service_id uuid [not null]
+  assigned_staff_id uuid
+  unit_price decimal(12,2)
+  quantity int [default: 1]
+  base_price decimal(12,2)
+  weight_price decimal(12,2)
+  is_add_on boolean [default: false]
+  created_at timestamp
+}
+
+Table booking_slots {
+  booking_slot_id uuid [pk]
+  booking_id uuid [not null]
+  slot_id uuid [not null]
+  booking_service_id uuid
+  created_at timestamp
+}
+
+Table payments {
+  payment_id uuid [pk]
+  booking_id uuid [unique]
+  subscription_id uuid
+  amount decimal(12,2) [not null]
+  payment_description varchar(100)
+  method payment_method [not null]
+  status payment_status [not null]
+  stripe_payment_id varchar(255)
+  paid_at timestamp
+  created_at timestamp
+}
+
+Table refund_applications {
+  refund_application_id uuid [pk]
+  clinic_id uuid [not null]
+  period_year_month varchar(7) [not null]
+  month_revenue decimal(19,2) [not null]
+  web_deduction_percent int [not null, default: 5]
+  web_deduction_amount decimal(19,2) [not null]
+  qr_revenue decimal(19,2) [not null, default: 0]
+  cash_revenue decimal(19,2) [not null, default: 0]
+  requested_amount decimal(19,2) [not null]
+  amount_after_deduction decimal(19,2) [not null]
+  status varchar(20) [not null, default: "PENDING"]
+  rejection_reason text
+  reviewed_by uuid
+  reviewed_at timestamp
+  created_at timestamp [not null]
+}
+
+Table clinic_balances {
+  clinic_balance_id uuid [pk]
+  clinic_id uuid [not null, unique]
+  current_balance decimal(19,2) [not null, default: 0]
+  total_withdrawn decimal(19,2) [not null, default: 0]
+  total_platform_fees decimal(19,2) [not null, default: 0]
+  total_transaction_fees decimal(19,2) [not null, default: 0]
+  notes text
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+}
+
+Table withdrawals {
+  withdrawal_id uuid [pk]
+  clinic_id uuid [not null]
+  refund_application_id uuid [not null]
+  requested_amount decimal(19,2) [not null]
+  transferred_amount decimal(19,2) [not null]
+  platform_fee decimal(19,2) [not null]
+  transaction_fee decimal(19,2) [default: 0]
+  admin_notes text
+  transfer_reference varchar(255)
+  status varchar(20) [not null, default: "PENDING"]
+  approved_by uuid
+  approved_at timestamp
+  completed_at timestamp
+  failure_reason text
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+}
+
+Table reports {
+  id uuid [pk]
+  booking_id uuid [not null]
+  reporter_id uuid [not null]
+  reported_clinic_id uuid
+  reported_user_id uuid
+  reason text [not null]
+  status varchar(50) [not null, default: "PENDING"]
+  admin_note text
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table subscription_plans {
+  plan_id uuid [pk]
+  name varchar(100) [not null]
+  description text
+  price decimal(12,2) [not null]
+  duration_days int [not null]
+  features text
+  is_active boolean [default: true]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table user_subscriptions {
+  subscription_id uuid [pk]
+  user_id uuid [not null]
+  clinic_id uuid [not null]
+  plan_id uuid [not null]
+  status varchar(20) [not null]
+  payment_method varchar(20)
+  start_date timestamp
+  end_date timestamp
+  cancel_at_period_end boolean [default: false]
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    (clinic_id, status)
+  }
+}
+
+Table vouchers {
+  voucher_id uuid [pk]
+  code varchar(50) [not null, unique]
+  name varchar(200) [not null]
+  description text
+  discount_type varchar(20) [not null]
+  discount_value decimal(12,2) [not null]
+  max_discount_amount decimal(12,2)
+  min_order_amount decimal(12,2) [not null, default: 0]
+  applicable_category varchar(100)
+  used_count int [not null, default: 0]
+  require_online_payment boolean [not null, default: false]
+  limit_one_per_user boolean [not null, default: false]
+  start_date date [not null]
+  end_date date [not null]
+  is_active boolean [not null, default: true]
+  created_by uuid
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+}
+
+Table clinic_vouchers {
+  clinic_voucher_id uuid [pk]
+  voucher_id uuid [not null]
+  clinic_id uuid [not null]
+  applied_by uuid
+  is_enabled boolean [not null, default: true]
+  applied_at timestamp [not null]
+
+  indexes {
+    (voucher_id, clinic_id) [unique]
+  }
+}
+
+Table clinic_strike_config {
+  config_key varchar(100) [pk]
+  config_value varchar(255) [not null]
+  description text
+  updated_at timestamp
+  updated_by uuid
+}
+
+Table user_strike_config {
+  config_key varchar(100) [pk]
+  config_value varchar(255) [not null]
+  description text
+  updated_at timestamp
+  updated_by uuid
+}
+
+Table notifications {
+  notification_id uuid [pk]
+  user_id uuid [not null]
+  clinic_id uuid
+  shift_id uuid
+  type notification_type [not null]
+  emr_id varchar(50)
+  message text [not null]
+  reason text
+  action_type varchar(50)
+  action_data text
+  read boolean [default: false]
+  created_at timestamp
+}
+
+Table chat_auto_reply_settings {
+  setting_id uuid [pk]
+  clinic_id uuid [not null, unique]
+  quick_reply_enabled boolean [not null, default: true]
+  quick_reply_message text
+  away_message_enabled boolean [not null, default: false]
+  away_condition varchar(50) [not null, default: "OFF_HOURS"]
+  away_message text
+  action_buttons text
+  created_at timestamp [not null]
+  updated_at timestamp
+}
+
+// =============================================================================
+// AI SERVICE TABLES
+// =============================================================================
+
+Table agents {
+  id int [pk, increment]
+  name varchar(100) [not null, unique]
+  description text
+  temperature float [default: 0.7]
+  max_tokens int [default: 2000]
+  top_p float [default: 0.9]
+  model varchar(100)
+  enabled boolean [default: true]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table tools {
+  id int [pk, increment]
+  name varchar(100) [not null, unique]
+  description text
+  tool_type ai_tool_type [default: "CODE_BASED"]
+  input_schema json
+  output_schema json
+  enabled boolean [default: false]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table knowledge_documents {
+  id int [pk, increment]
+  filename varchar(255) [not null]
+  file_path varchar(500) [not null]
+  file_type varchar(10)
+  file_size int
+  processed boolean [default: false]
+  vector_count int [default: 0]
+  uploaded_by varchar(100)
+  notes text
+  uploaded_at timestamptz
+  processed_at timestamptz
+}
+
+Table disease_catalog {
+  id int [pk, increment]
+  canonical_code varchar(100) [not null, unique]
+  display_name_vi varchar(255) [not null]
+  species varchar(50) [not null, default: "all"]
+  is_active boolean [not null, default: true]
+  notes text
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table disease_aliases {
+  id int [pk, increment]
+  canonical_code varchar(100) [not null]
+  source_type varchar(50) [not null]
+  alias_text varchar(255) [not null]
+  normalized_alias varchar(255) [not null]
+  species varchar(50) [not null, default: "all"]
+  is_active boolean [not null, default: true]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (source_type, normalized_alias, species) [unique]
+  }
+}
+
+Table system_settings {
+  id int [pk, increment]
+  key varchar(100) [not null, unique]
+  value text [not null]
+  category ai_setting_category [default: "general"]
+  is_sensitive boolean [default: false]
+  description text
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+// =============================================================================
+// RELATIONSHIPS
+// =============================================================================
+
+Ref: users.working_clinic_id > clinics.clinic_id
+Ref: refresh_tokens.user_id > users.user_id
+Ref: blacklisted_tokens.user_id > users.user_id
+
+Ref: pets.user_id > users.user_id
+
+Ref: clinics.owner_id > users.user_id
+Ref: clinic_images.clinic_id > clinics.clinic_id
+Ref: clinic_price_per_km.clinic_id - clinics.clinic_id
+
+Ref: clinic_services.clinic_id > clinics.clinic_id
+Ref: clinic_services.master_service_id > master_services.master_service_id
+Ref: clinic_services.vaccine_template_id > vaccine_templates.vaccine_template_id
+Ref: service_weight_prices.service_id > clinic_services.service_id
+Ref: service_weight_prices.master_service_id > master_services.master_service_id
+Ref: vaccine_dose_prices.service_id > clinic_services.service_id
+
+Ref: staff_shifts.staff_id > users.user_id
+Ref: staff_shifts.clinic_id > clinics.clinic_id
+Ref: slots.shift_id > staff_shifts.shift_id
+
+Ref: bookings.pet_id > pets.pet_id
+Ref: bookings.pet_owner_id > users.user_id
+Ref: bookings.clinic_id > clinics.clinic_id
+Ref: bookings.assigned_staff_id > users.user_id
+Ref: bookings.proxy_booker_id > users.user_id
+Ref: booking_services.booking_id > bookings.booking_id
+Ref: booking_services.service_id > clinic_services.service_id
+Ref: booking_services.assigned_staff_id > users.user_id
+Ref: booking_slots.booking_id > bookings.booking_id
+Ref: booking_slots.slot_id > slots.slot_id
+Ref: booking_slots.booking_service_id > booking_services.booking_service_id
+Ref: payments.booking_id - bookings.booking_id
+Ref: payments.subscription_id > user_subscriptions.subscription_id
+
+Ref: refund_applications.clinic_id > clinics.clinic_id
+Ref: refund_applications.reviewed_by > users.user_id
+Ref: clinic_balances.clinic_id - clinics.clinic_id
+Ref: withdrawals.clinic_id > clinics.clinic_id
+Ref: withdrawals.refund_application_id > refund_applications.refund_application_id
+Ref: withdrawals.approved_by > users.user_id
+
+Ref: reports.booking_id > bookings.booking_id
+Ref: reports.reporter_id > users.user_id
+Ref: reports.reported_clinic_id > clinics.clinic_id
+Ref: reports.reported_user_id > users.user_id
+
+Ref: user_subscriptions.user_id > users.user_id
+Ref: user_subscriptions.clinic_id > clinics.clinic_id
+Ref: user_subscriptions.plan_id > subscription_plans.plan_id
+Ref: vouchers.created_by > users.user_id
+Ref: clinic_vouchers.voucher_id > vouchers.voucher_id
+Ref: clinic_vouchers.clinic_id > clinics.clinic_id
+Ref: clinic_vouchers.applied_by > users.user_id
+Ref: clinic_strike_config.updated_by > users.user_id
+Ref: user_strike_config.updated_by > users.user_id
+
+Ref: notifications.user_id > users.user_id
+Ref: notifications.clinic_id > clinics.clinic_id
+Ref: notifications.shift_id > staff_shifts.shift_id
+Ref: chat_auto_reply_settings.clinic_id > clinics.clinic_id
+
+Ref: disease_aliases.canonical_code > disease_catalog.canonical_code

@@ -1,4 +1,4 @@
-# 📝 GIT WORKFLOW - PETTIES TEAM (PHIÊN BẢN NGẮN GỌN)
+﻿# 📝 GIT WORKFLOW - PETTIES TEAM (PHIÊN BẢN NGẮN GỌN)
 
 ---
 
@@ -150,7 +150,7 @@ Title: "feat: Implement vet shift management"
 
 Description:
 ## Mô tả
-Thêm hệ thống quản lý shift cho bác sĩ
+Thêm hệ thống quản lý shift cho nhân viên
 
 ## Feature
 ✓ Auto-detect available vets
@@ -378,8 +378,8 @@ Release:
 git checkout develop
 git pull origin develop
 git checkout -b feature/booking-scheduler
-git commit -m "feat: add vet_shifts table"
-git commit -m "feat: implement get_available_vets"
+git commit -m "feat: add staff_shifts table"
+git commit -m "feat: implement get_available_staff"
 git push origin feature/booking-scheduler
 ```
 

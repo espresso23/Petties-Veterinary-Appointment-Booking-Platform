@@ -1,8 +1,9 @@
 package com.petties.petties.dto.pet;
 
+import com.petties.petties.model.enums.PetSpecies;
 import jakarta.validation.constraints.DecimalMin;
-
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 @Data
@@ -10,8 +11,8 @@ public class PetRequest {
     @NotBlank(message = "Tên thú cưng không được để trống")
     private String name;
 
-    @NotBlank(message = "Loài không được để trống")
-    private String species;
+    @NotNull(message = "Loài không được để trống")
+    private PetSpecies species;
 
     @NotBlank(message = "Giống không được để trống")
     private String breed;
@@ -26,4 +27,8 @@ public class PetRequest {
 
     @NotBlank(message = "Giới tính không được để trống")
     private String gender;
+
+    private String color; // Optional for backward compatibility with existing clients
+
+    private String allergies; // Optional - null if no allergies
 }

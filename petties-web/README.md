@@ -143,7 +143,7 @@ npm run preview
 | **Agent Management** | ✅ Done | CRUD agents, prompt editor |
 | **Tool Registry** | ✅ Done | Enable/disable, scan (code-based tools only) |
 | **Knowledge Base** | ✅ Done | Document upload UI |
-| **System Settings** | ✅ Done | Ollama config, API keys |
+| **System Settings** | ✅ Done | OpenRouter config, API keys |
 | **Role-based Routing** | ✅ Done | React Router with guards |
 
 > 📘 **Note:** PET_OWNER accounts are blocked from web login (mobile only). Google Sign-In on web automatically creates CLINIC_OWNER accounts.

@@ -1,15 +1,10 @@
-"""
-PETTIES AGENT SERVICE - Agents Package
+"""Agent package exports with lazy heavy imports.
 
-Single Agent Architecture with ReAct Pattern:
-- single_agent.py: SingleAgent with LangGraph ReAct workflow (Thought -> Action -> Observation)
-- state.py: ReActState TypedDict for state management
-- factory.py: AgentFactory with Dynamic Configuration Loader from DB
+Keep lightweight modules importable in test and tooling environments where optional
+runtime dependencies for the full agent stack may be missing.
 """
 
-from app.core.agents.single_agent import SingleAgent
 from app.core.agents.state import ReActState, ReActStep, create_initial_react_state
-from app.core.agents.factory import AgentFactory
 
 __all__ = [
     "SingleAgent",
@@ -18,3 +13,15 @@ __all__ = [
     "create_initial_react_state",
     "AgentFactory",
 ]
+
+
+def __getattr__(name):
+    if name == "SingleAgent":
+        from app.core.agents.single_agent import SingleAgent
+
+        return SingleAgent
+    if name == "AgentFactory":
+        from app.core.agents.factory import AgentFactory
+
+        return AgentFactory
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

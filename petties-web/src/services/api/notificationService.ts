@@ -2,13 +2,22 @@ import { apiClient } from './client'
 
 export interface ClinicNotification {
   notificationId: string
-  clinicId: string
-  clinicName: string
-  type: 'APPROVED' | 'REJECTED' | 'PENDING'
+  clinicId?: string
+  clinicName?: string
+  type: 'APPROVED' | 'REJECTED' | 'PENDING' | 'CLINIC_PENDING_APPROVAL' | 'STAFF_SHIFT_ASSIGNED' | 'STAFF_SHIFT_UPDATED' | 'STAFF_SHIFT_DELETED' | 'BOOKING_CREATED' | 'BOOKING_CONFIRMED' | 'BOOKING_CANCELLED' | 'BOOKING_CHECKIN' | 'BOOKING_COMPLETED' | 'STAFF_ON_WAY' | 'CLINIC_VERIFIED'
   message: string
   reason?: string
   read: boolean
   createdAt: string
+  // StaffShift-related fields
+  shiftId?: string
+  shiftDate?: string
+  shiftStartTime?: string
+  shiftEndTime?: string
+
+  // Actionable payload from backend (optional)
+  actionType?: string
+  actionData?: string
 }
 
 export interface NotificationListResponse {
@@ -23,14 +32,14 @@ export interface NotificationListResponse {
 
 export const notificationService = {
   /**
-   * Get clinic notifications for current user
+   * Get notifications for current user
    */
   getNotifications: async (page = 0, size = 20): Promise<NotificationListResponse> => {
     const params = new URLSearchParams({
       page: String(page),
       size: String(size),
     })
-    const response = await apiClient.get<NotificationListResponse>(`/notifications/clinic?${params.toString()}`)
+    const response = await apiClient.get<NotificationListResponse>(`/notifications/me?${params.toString()}`)
     return response.data
   },
 
@@ -38,7 +47,7 @@ export const notificationService = {
    * Get unread notifications count
    */
   getUnreadCount: async (): Promise<number> => {
-    const response = await apiClient.get<{ count: number }>('/notifications/clinic/unread-count')
+    const response = await apiClient.get<{ count: number }>('/notifications/me/unread-count')
     return response.data.count
   },
 
@@ -53,7 +62,6 @@ export const notificationService = {
    * Mark all notifications as read
    */
   markAllAsRead: async (): Promise<void> => {
-    await apiClient.put('/notifications/clinic/mark-all-read')
+    await apiClient.put('/notifications/me/mark-all-read')
   },
 }
-

@@ -1,6 +1,7 @@
 package com.petties.petties.dto.clinic;
 
 import com.petties.petties.model.enums.Role;
+import com.petties.petties.model.enums.StaffSpecialty;
 import lombok.Builder;
 import lombok.Data;
 
@@ -16,4 +17,5 @@ public class StaffResponse {
     private Role role;
     private String phone;
     private String avatar;
+    private StaffSpecialty specialty;
 }

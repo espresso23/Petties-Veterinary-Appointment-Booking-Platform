@@ -9,7 +9,19 @@ Purpose:
 
 # Import all tool modules to register tools with FastMCP server
 from app.core.tools.mcp_tools import medical_tools
+from app.core.tools.mcp_tools import booking_tools
+from app.core.tools.mcp_tools import common_tools
+from app.core.tools.mcp_tools import analytics_tools
 
 __all__ = [
     "medical_tools",
+    "booking_tools",
+    "common_tools",
+    "analytics_tools",
+    "utility_tools",
+    "staff_tools",
 ]
+import app.core.tools.mcp_tools.staff_tools
+import app.core.tools.mcp_tools.utility_tools
+
+from . import clinic_tools

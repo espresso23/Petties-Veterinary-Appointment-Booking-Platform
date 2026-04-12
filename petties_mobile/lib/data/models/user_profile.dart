@@ -10,6 +10,9 @@ class UserProfile extends BaseModel {
   final String? phone;
   final String? avatar;
   final String role;
+  final String? specialty; // VET, GROOMER
+  final double? ratingAvg; // Rating trung bình (1.0 - 5.0)
+  final int? ratingCount; // Số lượt đánh giá
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -21,6 +24,9 @@ class UserProfile extends BaseModel {
     this.phone,
     this.avatar,
     required this.role,
+    this.specialty,
+    this.ratingAvg,
+    this.ratingCount,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -34,6 +40,11 @@ class UserProfile extends BaseModel {
       phone: json['phone'],
       avatar: json['avatar'],
       role: json['role'] ?? '',
+      specialty: json['specialty'],
+      ratingAvg: json['ratingAvg'] != null
+          ? (json['ratingAvg'] as num).toDouble()
+          : null,
+      ratingCount: json['ratingCount'],
       createdAt: _parseDateTime(json['createdAt'] ?? json['created_at']),
       updatedAt: _parseDateTime(json['updatedAt'] ?? json['updated_at']),
     );
@@ -44,7 +55,8 @@ class UserProfile extends BaseModel {
     try {
       if (value is String) {
         // Handle yyyy-MM-dd HH:mm:ss by replacing space with T for ISO format
-        final normalized = value.contains(' ') ? value.replaceFirst(' ', 'T') : value;
+        final normalized =
+            value.contains(' ') ? value.replaceFirst(' ', 'T') : value;
         return DateTime.parse(normalized);
       }
       return DateTime.now();
@@ -63,6 +75,9 @@ class UserProfile extends BaseModel {
       phone: other.phone ?? phone,
       avatar: other.avatar ?? avatar,
       role: other.role.isNotEmpty ? other.role : role,
+      specialty: other.specialty ?? specialty,
+      ratingAvg: other.ratingAvg ?? ratingAvg,
+      ratingCount: other.ratingCount ?? ratingCount,
       createdAt: other.createdAt,
       updatedAt: other.updatedAt,
     );
@@ -78,6 +93,9 @@ class UserProfile extends BaseModel {
       'phone': phone,
       'avatar': avatar,
       'role': role,
+      'specialty': specialty,
+      'ratingAvg': ratingAvg,
+      'ratingCount': ratingCount,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
@@ -91,6 +109,9 @@ class UserProfile extends BaseModel {
     String? phone,
     String? avatar,
     String? role,
+    String? specialty,
+    double? ratingAvg,
+    int? ratingCount,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -102,6 +123,9 @@ class UserProfile extends BaseModel {
       phone: phone ?? this.phone,
       avatar: avatar ?? this.avatar,
       role: role ?? this.role,
+      specialty: specialty ?? this.specialty,
+      ratingAvg: ratingAvg ?? this.ratingAvg,
+      ratingCount: ratingCount ?? this.ratingCount,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -115,8 +139,8 @@ class UserProfile extends BaseModel {
     switch (role) {
       case 'PET_OWNER':
         return 'Chủ nuôi thú cưng';
-      case 'VET':
-        return 'Bác sĩ thú y';
+      case 'STAFF':
+        return 'Nhân viên phòng khám';
       case 'CLINIC_OWNER':
         return 'Chủ phòng khám';
       case 'CLINIC_MANAGER':
@@ -128,10 +152,25 @@ class UserProfile extends BaseModel {
     }
   }
 
+  /// Get specialty display text in Vietnamese
+  String? get specialtyDisplayText {
+    switch (specialty) {
+      case 'VET':
+        return 'Bác sĩ thú y';
+      case 'GROOMER':
+        return 'Nhân viên Grooming';
+      default:
+        if (specialty != null && specialty!.startsWith('VET')) return 'Bác sĩ thú y';
+        return null;
+    }
+  }
+
   /// Check if profile is complete (has fullName and phone)
   bool get isProfileComplete =>
-    fullName != null && fullName!.isNotEmpty &&
-    phone != null && phone!.isNotEmpty;
+      fullName != null &&
+      fullName!.isNotEmpty &&
+      phone != null &&
+      phone!.isNotEmpty;
 }
 
 /// Request model for updating profile

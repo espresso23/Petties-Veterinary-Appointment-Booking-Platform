@@ -26,6 +26,8 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
+            ENV_FILE=.env.prod
+            COMPOSE_FILE=docker-compose.prod.yml
             
             echo "🚀 ============================================"
             echo "🚀 Deploying PRODUCTION environment..."
@@ -37,27 +39,52 @@ jobs:
             echo "🔄 Resetting to origin/main (ensures exact sync)..."
             git checkout main
             git reset --hard origin/main
+
+            mkdir -p backend-spring/petties/src/main/resources/
+            cat <<EOF > backend-spring/petties/src/main/resources/firebase-service-account.json
+            ${{ secrets.FIREBASE_JSON }}
+            EOF
+
+            if [ ! -f "$ENV_FILE" ]; then
+              echo "⚠️ $ENV_FILE not found! Please create it first."
+              exit 1
+            fi
+
+            set -a
+            . "$ENV_FILE"
+            set +a
+
+            export COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-petties-prod}
+            export BACKEND_HOST_PORT=${BACKEND_HOST_PORT:-8080}
+            export AI_HOST_PORT=${AI_HOST_PORT:-8000}
+            export NGINX_HOST_PORT=${NGINX_HOST_PORT:-80}
+            export NGINX_SERVER_NAME=${NGINX_SERVER_NAME:-api.petties.world}
+            export NGINX_FRONTEND_UPSTREAM=${NGINX_FRONTEND_UPSTREAM:-https://www.petties.world}
+            export NGINX_FRONTEND_HOST=${NGINX_FRONTEND_HOST:-www.petties.world}
+            export NGINX_RESOLVER=${NGINX_RESOLVER:-8.8.8.8}
+
+            COMPOSE_PROJECT=${COMPOSE_PROJECT_NAME:-petties-prod}
             
             echo "📋 Current commit:"
             git log --oneline -1
             
             echo "🛑 Stopping production containers..."
-            docker-compose -f docker-compose.prod.yml --env-file .env down
+            docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" down
             
             echo "🔨 Building and starting production containers..."
-            docker-compose -f docker-compose.prod.yml --env-file .env up -d --build
+            docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build
             
             echo "⏳ Waiting for services to start..."
             sleep 15
             
-            echo "🏥 Checking backend health (port 8080)..."
-            curl -f http://127.0.0.1:8080/api/actuator/health || echo "⚠️ Backend health check failed"
+            echo "🏥 Checking backend health (port ${BACKEND_HOST_PORT:-8080})..."
+            curl -f "http://127.0.0.1:${BACKEND_HOST_PORT:-8080}/api/actuator/health" || echo "⚠️ Backend health check failed"
             
-            echo "🤖 Checking AI service health (port 8000)..."
-            curl -f http://127.0.0.1:8000/health || echo "⚠️ AI service health check failed"
+            echo "🤖 Checking AI service health (port ${AI_HOST_PORT:-8000})..."
+            curl -f "http://127.0.0.1:${AI_HOST_PORT:-8000}/health" || echo "⚠️ AI service health check failed"
             
             echo "📜 Showing recent logs..."
-            docker-compose -f docker-compose.prod.yml logs --tail=30
+            docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs --tail=30
             
             echo "🚀 ============================================"
             echo "✅ Production Deployment complete!"

@@ -16,11 +16,10 @@ import {
   deleteMasterService,
 } from '../../services/endpoints/masterService'
 import { inheritFromMasterService } from '../../services/endpoints/service'
-import { getServicesByClinicId } from '../../services/endpoints/service'
 import { useToast } from '../Toast'
 import { ClinicSelectModal } from './ClinicSelectModal'
 import type { ClinicApplyItem } from './ClinicSelectModal'
-import { getClinicPricePerKm } from '../../services/endpoints/clinic'
+import { getClinicPricing } from '../../services/endpoints/clinic'
 import type { MasterServiceResponse, MasterServiceRequest } from '../../types/service'
 
 // Convert MasterServiceResponse to local MasterService type
@@ -88,7 +87,7 @@ export function MasterServiceGrid() {
       const service = await getMasterServiceById(id)
       setSelectedService(service)
       setIsModalOpen(true)
-    } catch (err) {
+    } catch {
       showToast('error', 'Không thể tải thông tin dịch vụ mẫu')
     }
   }
@@ -132,7 +131,7 @@ export function MasterServiceGrid() {
     }
   }
 
-  const handleSaveService = async (serviceData: any) => {
+  const handleSaveService = async (serviceData: MasterServiceRequest) => {
     try {
       setIsSubmitting(true)
       const requestData: MasterServiceRequest = {
@@ -166,11 +165,13 @@ export function MasterServiceGrid() {
 
       setIsModalOpen(false)
       setSelectedService(null)
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to save master service:', err)
-      const serverMessage = err.response?.data?.message || (selectedService
-        ? 'Không thể cập nhật dịch vụ mẫu. Vui lòng thử lại.'
-        : 'Không thể tạo dịch vụ mẫu. Vui lòng thử lại.')
+      const serverMessage = err instanceof Error && 'response' in err && typeof err.response === 'object' && err.response !== null && 'data' in err.response && typeof err.response.data === 'object' && err.response.data !== null && 'message' in err.response.data
+        ? String(err.response.data.message)
+        : (selectedService
+          ? 'Không thể cập nhật dịch vụ mẫu. Vui lòng thử lại.'
+          : 'Không thể tạo dịch vụ mẫu. Vui lòng thử lại.')
       showToast('error', serverMessage)
     } finally {
       setIsSubmitting(false)
@@ -261,9 +262,10 @@ export function MasterServiceGrid() {
               <>
                 <button
                   onClick={() => setIsApplyMode(true)}
-                  className="group flex items-center gap-2 bg-green-600 text-white px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all"
+                  style={{ backgroundColor: '#16a34a' }}
+                  className="group flex items-center gap-2 text-white px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all"
                 >
-                  <span className="font-black text-lg uppercase tracking-wide">Chọn & Áp dụng</span>
+                  <span className="font-black text-lg uppercase tracking-wide" style={{ color: '#ffffff' }}>Chọn & Áp dụng</span>
                 </button>
                 <button
                   onClick={handleAddService}
@@ -282,16 +284,18 @@ export function MasterServiceGrid() {
                     setIsApplyMode(false)
                     setSelectedServiceIds(new Set())
                   }}
-                  className="group flex items-center gap-2 bg-gray-600 text-white px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all"
+                  style={{ backgroundColor: '#4b5563' }}
+                  className="group flex items-center gap-2 text-white px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all"
                 >
-                  <span className="font-black text-lg uppercase tracking-wide">Hủy</span>
+                  <span className="font-black text-lg uppercase tracking-wide" style={{ color: '#ffffff' }}>Hủy</span>
                 </button>
                 {selectedServiceIds.size > 0 && (
                   <button
                     onClick={() => setIsClinicModalOpen(true)}
-                    className="group flex items-center gap-2 bg-green-600 text-white px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all"
+                    style={{ backgroundColor: '#16a34a' }}
+                    className="group flex items-center gap-2 text-white px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all"
                   >
-                    <span className="font-black text-lg uppercase tracking-wide">
+                    <span className="font-black text-lg uppercase tracking-wide" style={{ color: '#ffffff' }}>
                       Áp dụng ({selectedServiceIds.size})
                     </span>
                   </button>
@@ -304,26 +308,21 @@ export function MasterServiceGrid() {
 
                     try {
                       // Prepare promises for applying master services
-                      const promises: Promise<any>[] = []
+                      const promises: Promise<unknown>[] = []
 
                       // Prefetch missing per-km prices for clinics that didn't provide one using dedicated endpoint
                       const clinicsNeedingFetch = selectedClinics.filter(c => c.clinicPricePerKm === undefined || c.clinicPricePerKm === null)
                       const fetchedPriceMap: Record<string, number | undefined> = {}
                       await Promise.all(clinicsNeedingFetch.map(async (c) => {
                         try {
-                          const p = await getClinicPricePerKm(c.clinicId)
+                          const result = await getClinicPricing(c.clinicId)
+                          const p = result.pricePerKm
                           if (p !== null && p !== undefined) {
                             fetchedPriceMap[c.clinicId] = p
                             return
                           }
-                          // fallback: try to infer from existing services
-                          try {
-                            const existingServices = await getServicesByClinicId(c.clinicId)
-                            const hv = existingServices.find(s => s.isHomeVisit && s.pricePerKm && Number(s.pricePerKm) > 0)
-                            if (hv && hv.pricePerKm) fetchedPriceMap[c.clinicId] = hv.pricePerKm
-                          } catch (err2) {
-                            console.warn('Failed to fetch existing services for clinic', c.clinicId, err2)
-                          }
+                          // Note: pricePerKm has been removed from ClinicServiceResponse
+                          // Fallback is no longer available - use clinic-level setting only
                         } catch (err) {
                           console.warn('Failed to fetch price-per-km for clinic', c.clinicId, err)
                         }
@@ -344,8 +343,8 @@ export function MasterServiceGrid() {
                       // Reset selection
                       setSelectedServiceIds(new Set())
                       setIsApplyMode(false)
-                    } catch (error) {
-                      console.error('Failed to apply master services:', error)
+                    } catch (err) {
+                      console.error('Failed to apply master services:', err)
                       showToast('error', 'Có lỗi xảy ra khi áp dụng dịch vụ mẫu. Vui lòng thử lại.')
                     }
                   }}

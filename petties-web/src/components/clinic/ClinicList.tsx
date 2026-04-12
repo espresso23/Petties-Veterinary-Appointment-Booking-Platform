@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { useClinicStore } from '../../store/clinicStore'
 import { ClinicCard } from './ClinicCard'
 import type { ClinicStatus } from '../../types/clinic'
@@ -22,17 +21,7 @@ export function ClinicList({ filters, showActions = false, onEdit, onDelete }: C
     totalPages,
     currentPage,
     fetchClinics,
-    setFilters,
-    getMyClinics,
   } = useClinicStore()
-
-  useEffect(() => {
-    if (filters) {
-      setFilters(filters)
-    }
-    // Use getMyClinics to get only owner's clinics, not all clinics in the system
-    getMyClinics()
-  }, [filters?.status, filters?.name])
 
   if (isLoading && clinics.length === 0) {
     return (

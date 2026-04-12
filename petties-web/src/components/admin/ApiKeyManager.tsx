@@ -46,8 +46,8 @@ export const ApiKeyManager = ({
         delete next[apiKey]
         return next
       })
-    } catch (error) {
-      console.error('Save failed:', error)
+    } catch (err) {
+      console.error('Save failed:', err)
     } finally {
       setSaving(apiKey)
       setTimeout(() => setSaving(null), 2000)
@@ -62,7 +62,7 @@ export const ApiKeyManager = ({
     try {
       const result = await onTest(category)
       setTestResult(result)
-    } catch (error) {
+    } catch {
       setTestResult({ status: 'error', message: 'Test failed' })
     } finally {
       setTesting(false)

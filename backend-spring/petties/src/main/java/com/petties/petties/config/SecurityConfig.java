@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -33,7 +34,7 @@ public class SecurityConfig {
     private final UserDetailsServiceImpl userDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    @Value("${cors.allowed-origins:https://petties.world,https://www.petties.world}")
+    @Value("${cors.allowed-origins:http://localhost:5173,http://localhost:3000,https://*.ngrok.io,https://*.ngrok-free.app,https://*.ngrok.dev,https://*.ngrok-free.dev}")
     private String allowedOrigins;
 
     @Bean
@@ -57,10 +58,20 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
+        List<String> origins = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .toList();
+        boolean hasWildcard = origins.stream().anyMatch(o -> o.contains("*"));
+        if (hasWildcard) {
+            config.setAllowedOriginPatterns(origins);
+        } else {
+            config.setAllowedOrigins(origins);
+        }
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"));
         config.setAllowedHeaders(List.of("*"));
-        config.setExposedHeaders(List.of("Authorization", "X-Total-Count", "Content-Disposition"));
+        // Add text/event-stream for SSE support
+        config.setExposedHeaders(List.of("Authorization", "X-Total-Count", "Content-Disposition", "Content-Type"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 
@@ -75,11 +86,32 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized");
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Access Denied");
+                        }))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                    .requestMatchers(HttpMethod.POST, "/webhooks/sepay/**").permitAll()
                         .requestMatchers("/auth/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
-                        .requestMatchers("/ws/**").permitAll() // WebSocket handshake
+                        .requestMatchers("/ws/**").permitAll() // WebSocket handshake (SockJS)
+                        .requestMatchers("/ws-native/**").permitAll() // WebSocket handshake (native mobile)
+                        .requestMatchers("/sse/**").permitAll() // SSE - auth via query param
+                        // Public clinic endpoints for Pet Owner (no auth required)
+                        .requestMatchers(HttpMethod.GET, "/clinics/*/public-staff").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/clinics/search").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/clinics/nearby").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/clinics/locations").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/clinics/*").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/services/by-clinic/*").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/services/by-clinic/*/compatible").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/services/*/dose-prices").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/services/*/dose-prices/*").permitAll()
+                        .requestMatchers("/test/**").permitAll()
                         .anyRequest().authenticated())
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

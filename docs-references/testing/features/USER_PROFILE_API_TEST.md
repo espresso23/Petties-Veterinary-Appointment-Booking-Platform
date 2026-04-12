@@ -1,4 +1,4 @@
-# User Profile API - Unit Test Report
+﻿# User Profile API - Unit Test Report
 
 **Version:** 2.1
 **Last Updated:** 2025-12-20
@@ -23,7 +23,7 @@ User Profile APIs cho phép người dùng quản lý thông tin cá nhân, bao 
 | Role | Platform | Access |
 |------|----------|--------|
 | PET_OWNER | Mobile | Full access |
-| VET | Web + Mobile | Full access |
+| STAFF | Web + Mobile | Full access |
 | CLINIC_OWNER | Web | Full access |
 | CLINIC_MANAGER | Web | Full access |
 | ADMIN | Web | Full access |

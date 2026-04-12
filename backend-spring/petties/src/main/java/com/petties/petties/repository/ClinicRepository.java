@@ -25,6 +25,11 @@ public interface ClinicRepository extends JpaRepository<Clinic, UUID> {
         Optional<Clinic> findByIdAndNotDeleted(@Param("id") UUID id);
 
         /**
+         * Find clinic by exact name
+         */
+        Optional<Clinic> findByName(String name);
+
+        /**
          * Find all clinics by status
          */
         Page<Clinic> findByStatus(ClinicStatus status, Pageable pageable);
@@ -63,6 +68,7 @@ public interface ClinicRepository extends JpaRepository<Clinic, UUID> {
                         FROM clinics c
                         WHERE c.deleted_at IS NULL
                           AND c.status = 'APPROVED'
+                          AND (c.strike_until IS NULL OR c.strike_until < CURRENT_TIMESTAMP)
                           AND c.latitude IS NOT NULL
                           AND c.longitude IS NOT NULL
                           AND (6371 * acos(cos(radians(:lat)) * cos(radians(c.latitude)) *
@@ -98,9 +104,9 @@ public interface ClinicRepository extends JpaRepository<Clinic, UUID> {
         boolean existsByOwnerUserId(UUID ownerId);
 
         /**
-         * Count clinics by status
+         * Count clinics by status (excluding soft deleted)
          */
-        long countByStatus(ClinicStatus status);
+        long countByStatusAndDeletedAtIsNull(ClinicStatus status);
 
         /**
          * Get all unique locations that have approved clinics
@@ -109,6 +115,101 @@ public interface ClinicRepository extends JpaRepository<Clinic, UUID> {
                         +
                         "FROM Clinic c " +
                         "WHERE c.status = 'APPROVED' AND c.deletedAt IS NULL " +
+                        "AND (c.strikeUntil IS NULL OR c.strikeUntil < CURRENT_TIMESTAMP) " +
                         "ORDER BY c.province, c.district, c.ward")
         List<ClinicLocationResponse> findActiveLocations();
+
+        /**
+         * Tìm clinics có strike_until đã hết hạn (để scheduler clear).
+         */
+        @Query("SELECT c FROM Clinic c WHERE c.strikeUntil IS NOT NULL AND c.strikeUntil < CURRENT_TIMESTAMP AND c.deletedAt IS NULL")
+        List<Clinic> findClinicsWithExpiredStrike();
+
+        /**
+         * Tìm clinics đang bị strike (strikeUntil > now). Admin chỉ xem.
+         */
+        @Query("SELECT c FROM Clinic c WHERE c.strikeUntil IS NOT NULL AND c.strikeUntil > CURRENT_TIMESTAMP AND c.deletedAt IS NULL")
+        Page<Clinic> findClinicsWithActiveStrike(Pageable pageable);
+
+        /**
+         * Advanced search clinics with multiple filters (internal use)
+         *
+         * Price filter semantics:
+         * - "Any service in range": clinic is returned if EXISTS at least one active
+         * service matching:
+         * + optional service name
+         * + optional minPrice/maxPrice bounds
+         */
+        @Query(value = """
+                        SELECT c.*,
+                               CASE
+                                   WHEN :lat IS NOT NULL AND :lng IS NOT NULL AND c.latitude IS NOT NULL AND c.longitude IS NOT NULL
+                                   THEN (6371 * acos(greatest(-1.0, least(1.0, cos(radians(:lat)) * cos(radians(c.latitude)) *
+                                        cos(radians(c.longitude) - radians(:lng)) +
+                                        sin(radians(:lat)) * sin(radians(c.latitude))))))
+                                   ELSE NULL
+                               END AS distance
+                        FROM clinics c
+                        WHERE c.deleted_at IS NULL
+                          AND c.status = 'APPROVED'
+                          AND (c.strike_until IS NULL OR c.strike_until < CURRENT_TIMESTAMP)
+                          AND (:query IS NULL OR :query = '' OR (
+                              LOWER(c.name) LIKE LOWER(CONCAT('%', :query, '%'))
+                              OR LOWER(c.description) LIKE LOWER(CONCAT('%', :query, '%'))
+                              OR EXISTS (
+                                  SELECT 1 FROM clinic_services s2
+                                  WHERE s2.clinic_id = c.clinic_id
+                                    AND s2.is_active = true
+                                    AND LOWER(s2.name) LIKE LOWER(CONCAT('%', :query, '%'))
+                              )
+                          ))
+                          AND (
+                               -- If no radius filter, allow all clinics
+                               (:lat IS NULL OR :lng IS NULL OR :radius IS NULL)
+                               -- If radius filter is set, clinic MUST have coordinates AND be within radius
+                               OR (
+                                   c.latitude IS NOT NULL AND c.longitude IS NOT NULL
+                                   AND (6371 * acos(greatest(-1.0, least(1.0, cos(radians(:lat)) * cos(radians(c.latitude)) *
+                                       cos(radians(c.longitude) - radians(:lng)) +
+                                       sin(radians(:lat)) * sin(radians(c.latitude)))))) <= :radius
+                               )
+                          )
+                          AND (:province IS NULL OR :province = '' OR LOWER(c.province) = LOWER(:province))
+                          AND (:district IS NULL OR :district = '' OR LOWER(c.district) = LOWER(:district))
+                          AND (
+                               -- No filter by service/price => skip service join entirely
+                               (
+                                 (:service IS NULL OR :service = '')
+                                 AND :minPrice IS NULL
+                                 AND :maxPrice IS NULL
+                               )
+                               OR EXISTS (
+                                  SELECT 1
+                                  FROM clinic_services s
+                                  WHERE s.clinic_id = c.clinic_id
+                                    AND s.is_active = true
+                                    AND (:service IS NULL OR :service = '' OR LOWER(s.name) LIKE LOWER(CONCAT('%', :service, '%')))
+                                    AND (:minPrice IS NULL OR s.base_price >= :minPrice)
+                                    AND (:maxPrice IS NULL OR s.base_price <= :maxPrice)
+                               )
+                          )
+                        ORDER BY
+                          CASE
+                            WHEN :lat IS NOT NULL AND :lng IS NOT NULL AND c.latitude IS NOT NULL AND c.longitude IS NOT NULL
+                            THEN (6371 * acos(greatest(-1.0, least(1.0, cos(radians(:lat)) * cos(radians(c.latitude)) *
+                                 cos(radians(c.longitude) - radians(:lng)) +
+                                 sin(radians(:lat)) * sin(radians(c.latitude))))))
+                            ELSE 999999999
+                          END
+                        """, nativeQuery = true)
+        List<Clinic> searchClinicsInternal(
+                        @Param("query") String query,
+                        @Param("lat") BigDecimal latitude,
+                        @Param("lng") BigDecimal longitude,
+                        @Param("radius") Double radius,
+                        @Param("province") String province,
+                        @Param("district") String district,
+                        @Param("minPrice") BigDecimal minPrice,
+                        @Param("maxPrice") BigDecimal maxPrice,
+                        @Param("service") String service);
 }

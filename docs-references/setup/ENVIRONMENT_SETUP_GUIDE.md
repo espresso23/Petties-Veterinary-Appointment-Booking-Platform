@@ -1,4 +1,4 @@
-# Environment Setup Guide - Local & Production
+﻿# Environment Setup Guide - Local & Production
 
 ## Tổng quan
 
@@ -84,7 +84,7 @@ export SPRING_PROFILES_ACTIVE=dev
 
 ### Production (EC2)
 
-**File `.env` trên EC2:** `~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform/.env`
+**File `.env.prod` trên EC2:** `~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform/.env.prod`
 
 ```bash
 # Profile
@@ -117,7 +117,7 @@ CORS_ORIGINS=https://petties.world,https://www.petties.world
 
 ```bash
 cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
-docker-compose -f docker-compose.prod.yml --env-file .env up -d --build
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod up -d --build
 ```
 
 ## AI Service (Python/FastAPI)
@@ -140,7 +140,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ### Production (EC2)
 
-**File `.env` trên EC2:**
+**File `.env.prod` trên EC2:**
 
 ```bash
 # Environment
@@ -170,7 +170,7 @@ CORS_ORIGINS=https://petties.world,https://www.petties.world
 
 ```bash
 cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
-docker-compose -f docker-compose.prod.yml --env-file .env up -d --build
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod up -d --build
 ```
 
 ## URL Mapping
@@ -282,7 +282,7 @@ curl https://ai.petties.world/health
 **Nguyên nhân:** Backend chưa allow frontend domain
 
 **Giải pháp:**
-1. Cập nhật `CORS_ORIGINS` trong `.env` trên EC2
+1. Cập nhật `CORS_ORIGINS` trong `.env.prod` trên EC2
 2. Restart containers
 3. Kiểm tra `SecurityConfig.java` có CORS config đúng
 
@@ -297,16 +297,16 @@ curl https://ai.petties.world/health
 - [ ] Test WebSocket connection
 
 ### Backend (EC2 - Production)
-- [ ] File `.env` có `SPRING_PROFILES_ACTIVE=prod`
+- [ ] File `.env.prod` có `SPRING_PROFILES_ACTIVE=prod`
 - [ ] Database credentials đúng
 - [ ] CORS_ORIGINS có production domains
-- [ ] Containers đang chạy: `docker-compose -f docker-compose.prod.yml ps`
+- [ ] Containers đang chạy: `docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod ps`
 - [ ] Health check pass: `curl https://api.petties.world/api/actuator/health`
 - [ ] Nginx config có WebSocket support
 
 ### AI Service (EC2 - Production)
-- [ ] File `.env` có đầy đủ config
-- [ ] Containers đang chạy: `docker-compose -f docker-compose.prod.yml ps`
+- [ ] File `.env.prod` có đầy đủ config
+- [ ] Containers đang chạy: `docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod ps`
 - [ ] Health check pass: `curl https://ai.petties.world/health`
 - [ ] Nginx config có WebSocket support cho `/ws/`
 - [ ] Test WebSocket: `wscat -c wss://ai.petties.world/ws/chat/test`

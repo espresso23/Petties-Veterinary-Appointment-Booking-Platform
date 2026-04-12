@@ -136,7 +136,7 @@ export function handleApiError(
 
   // Log error in dev mode
   if (import.meta.env.DEV) {
-    // eslint-disable-next-line no-console
+     
     console.error('[Error Handler]', error)
   }
 }

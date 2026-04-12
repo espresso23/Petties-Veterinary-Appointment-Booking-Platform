@@ -29,13 +29,16 @@ public class OperatingHoursConverter implements AttributeConverter<Map<String, O
     static {
         objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
-        
+
+        // Ignore unknown properties for backward compatibility with legacy formats
+        objectMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
         // Custom LocalTime serializer/deserializer with HH:mm format
         SimpleModule timeModule = new SimpleModule();
         timeModule.addSerializer(LocalTime.class, new LocalTimeSerializer(DateTimeFormatter.ofPattern("HH:mm")));
         timeModule.addDeserializer(LocalTime.class, new LocalTimeDeserializer(DateTimeFormatter.ofPattern("HH:mm")));
         objectMapper.registerModule(timeModule);
-        
+
         // Disable writing dates as timestamps
         objectMapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     }
@@ -59,7 +62,8 @@ public class OperatingHoursConverter implements AttributeConverter<Map<String, O
             return new HashMap<>();
         }
         try {
-            TypeReference<Map<String, OperatingHours>> typeRef = new TypeReference<Map<String, OperatingHours>>() {};
+            TypeReference<Map<String, OperatingHours>> typeRef = new TypeReference<Map<String, OperatingHours>>() {
+            };
             return objectMapper.readValue(dbData, typeRef);
         } catch (Exception e) {
             log.error("Error converting JSON to OperatingHours. JSON: {}", dbData, e);
@@ -67,4 +71,3 @@ public class OperatingHoursConverter implements AttributeConverter<Map<String, O
         }
     }
 }
-

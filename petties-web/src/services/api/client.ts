@@ -5,9 +5,10 @@ import { parseApiError } from '../../utils/errorHandler'
 
 export const apiClient = axios.create({
   baseURL: env.API_BASE_URL,
-  timeout: 30_000,
+  timeout: 60_000, // Increased for image uploads
   headers: {
     'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
   },
 })
 
@@ -21,12 +22,12 @@ apiClient.interceptors.request.use(
     if (accessToken && config.headers) {
       config.headers.Authorization = `Bearer ${accessToken}`
     }
-    
+
     // If data is FormData, remove Content-Type to let browser set it with boundary
     if (config.data instanceof FormData && config.headers) {
       delete config.headers['Content-Type']
     }
-    
+
     return config
   },
   (error) => {
@@ -38,16 +39,16 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config
+    const originalRequest = error.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined
 
     // Nếu lỗi 401 và chưa retry, và không phải là request auth
     if (
       error.response?.status === 401 &&
       originalRequest &&
-      !(originalRequest as any)._retry &&
+      !originalRequest._retry &&
       !originalRequest.url?.includes('/auth/')
     ) {
-      ;(originalRequest as any)._retry = true
+      originalRequest._retry = true
 
       try {
         const refreshToken = useAuthStore.getState().refreshToken
@@ -91,13 +92,17 @@ apiClient.interceptors.response.use(
 
     // Parse error và attach userMessage vào error object
     const userMessage = parseApiError(error)
-    ;(error as any).userMessage = userMessage
+      ; (error as AxiosError & { userMessage?: string }).userMessage = userMessage
 
     // Log error trong dev mode
     if (import.meta.env.DEV) {
-      // eslint-disable-next-line no-console
-      console.error('API error', error)
-      // eslint-disable-next-line no-console
+      console.error('API error', {
+        method: originalRequest?.method,
+        url: originalRequest?.url,
+        status: error.response?.status,
+        code: error.code,
+        message: error.message,
+      })
       console.error('User message:', userMessage)
     }
 

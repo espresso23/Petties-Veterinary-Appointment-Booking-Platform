@@ -4,6 +4,8 @@ export { ModelParametersConfig } from './ModelParametersConfig'
 export { ToolCard } from './ToolCard'
 export { DocumentUpload } from './DocumentUpload'
 export { DocumentCard } from './DocumentCard'
+export { DocumentPreviewModal } from './DocumentPreviewModal'
 export { RAGQueryTester } from './RAGQueryTester'
 export { ApiKeyManager } from './ApiKeyManager'
 export { ChatMessage } from './ChatMessage'
+

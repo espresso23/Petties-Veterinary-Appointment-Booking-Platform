@@ -3,6 +3,7 @@ import Cropper from 'react-easy-crop'
 import type { Area } from 'react-easy-crop'
 import 'react-easy-crop/react-easy-crop.css'
 import { XMarkIcon } from '@heroicons/react/24/outline'
+import { useToast } from '../Toast'
 
 interface ImageCropModalProps {
   isOpen: boolean
@@ -83,6 +84,7 @@ export function ImageCropModal({
   onCropComplete,
   isLoading,
 }: ImageCropModalProps) {
+  const { showToast } = useToast()
   const [crop, setCrop] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
   const [isAspectLocked, setIsAspectLocked] = useState(true)
@@ -128,7 +130,7 @@ export function ImageCropModal({
       onClose()
     } catch (error) {
       console.error('Crop failed:', error)
-      alert('Lỗi khi crop ảnh. Vui lòng thử lại.')
+      showToast('error', 'Lỗi khi crop ảnh. Vui lòng thử lại.')
     } finally {
       setIsCropping(false)
     }

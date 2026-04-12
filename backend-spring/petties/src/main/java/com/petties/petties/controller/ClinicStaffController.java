@@ -1,6 +1,6 @@
 package com.petties.petties.controller;
 
-import com.petties.petties.dto.clinic.QuickAddStaffRequest;
+import com.petties.petties.dto.clinic.InviteByEmailRequest;
 import com.petties.petties.dto.clinic.StaffResponse;
 import com.petties.petties.service.ClinicStaffService;
 import jakarta.validation.Valid;
@@ -20,7 +20,7 @@ public class ClinicStaffController {
     private final ClinicStaffService staffService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER')")
     public ResponseEntity<List<StaffResponse>> getStaff(@PathVariable UUID clinicId) {
         return ResponseEntity.ok(staffService.getClinicStaff(clinicId));
     }
@@ -29,21 +29,23 @@ public class ClinicStaffController {
      * Check if clinic already has a manager
      */
     @GetMapping("/has-manager")
-    @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER')")
     public ResponseEntity<Boolean> hasManager(@PathVariable UUID clinicId) {
         return ResponseEntity.ok(staffService.hasManager(clinicId));
     }
 
     /**
-     * Quick add a new staff member (creates account and assigns to clinic)
+     * Invite staff by email - Staff can login with Google
+     * Creates user if not exists, assigns clinic and specialty
+     * FullName and Avatar will be auto-filled from Google profile
      */
-    @PostMapping("/quick-add")
+    @PostMapping("/invite-by-email")
     @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER')")
-    public ResponseEntity<String> quickAddStaff(
+    public ResponseEntity<String> inviteByEmail(
             @PathVariable UUID clinicId,
-            @Valid @RequestBody QuickAddStaffRequest request) {
-        staffService.quickAddStaff(clinicId, request);
-        return ResponseEntity.ok("Staff account created and assigned successfully");
+            @Valid @RequestBody InviteByEmailRequest request) {
+        staffService.inviteByEmail(clinicId, request);
+        return ResponseEntity.ok("Mời nhân viên thành công");
     }
 
     /**
@@ -55,19 +57,19 @@ public class ClinicStaffController {
             @PathVariable UUID clinicId,
             @PathVariable String usernameOrEmail) {
         staffService.assignManager(clinicId, usernameOrEmail);
-        return ResponseEntity.ok("Clinic Manager assigned successfully");
+        return ResponseEntity.ok("Gán quản lý phòng khám thành công");
     }
 
     /**
-     * Both Clinic Owner and Clinic Manager can assign Vets
+     * Both Clinic Owner and Clinic Manager can assign Staff
      */
-    @PostMapping("/vet/{usernameOrEmail}")
+    @PostMapping("/assign/{usernameOrEmail}")
     @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER')")
-    public ResponseEntity<String> assignVet(
+    public ResponseEntity<String> assignStaff(
             @PathVariable UUID clinicId,
             @PathVariable String usernameOrEmail) {
-        staffService.assignVet(clinicId, usernameOrEmail);
-        return ResponseEntity.ok("Vet assigned successfully");
+        staffService.assignStaff(clinicId, usernameOrEmail);
+        return ResponseEntity.ok("Nhân viên được gán thành công");
     }
 
     @DeleteMapping("/{userId}")
@@ -76,6 +78,20 @@ public class ClinicStaffController {
             @PathVariable UUID clinicId,
             @PathVariable UUID userId) {
         staffService.removeStaff(clinicId, userId);
-        return ResponseEntity.ok("Staff removed successfully");
+        return ResponseEntity.ok("Xóa nhân viên thành công");
+    }
+
+    /**
+     * Update staff specialty (VET only)
+     */
+    @PatchMapping("/{userId}/specialty")
+    @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER')")
+    public ResponseEntity<String> updateStaffSpecialty(
+            @PathVariable UUID clinicId,
+            @PathVariable UUID userId,
+            @jakarta.validation.Valid @RequestBody com.petties.petties.dto.clinic.UpdateSpecialtyRequest request) {
+        String specialty = request.getSpecialty();
+        staffService.updateStaffSpecialty(clinicId, userId, specialty);
+        return ResponseEntity.ok("Cập nhật chuyên môn nhân viên thành công");
     }
 }

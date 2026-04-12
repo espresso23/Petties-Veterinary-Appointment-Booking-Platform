@@ -231,21 +231,24 @@ class _AvatarPickerState extends State<AvatarPicker> {
       onTap: widget.editable && !widget.isLoading ? _showPickerOptions : null,
       child: Stack(
         children: [
-          // Avatar container with Neobrutalism style
+          // Avatar container with Soft Neobrutalism circular style
           Container(
             width: widget.size,
             height: widget.size,
             decoration: BoxDecoration(
               color: AppColors.stone100,
-              border: Border.all(color: AppColors.stone900, width: 4),
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.stone900, width: 2),
               boxShadow: const [
-                BoxShadow(color: AppColors.stone900, offset: Offset(4, 4)),
+                BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
               ],
             ),
-            child: _buildAvatarContent(),
+            child: ClipOval(
+              child: _buildAvatarContent(),
+            ),
           ),
 
-          // Edit button (bottom right)
+          // Edit button (bottom right) - circular style
           if (widget.editable)
             Positioned(
               bottom: 0,
@@ -254,7 +257,8 @@ class _AvatarPickerState extends State<AvatarPicker> {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: AppColors.primary,
-                  border: Border.all(color: AppColors.stone900, width: 3),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.stone900, width: 2),
                   boxShadow: const [
                     BoxShadow(color: AppColors.stone900, offset: Offset(2, 2)),
                   ],
@@ -262,19 +266,20 @@ class _AvatarPickerState extends State<AvatarPicker> {
                 child: Icon(
                   widget.isLoading ? Icons.hourglass_empty : Icons.camera_alt,
                   color: AppColors.white,
-                  size: 20,
+                  size: 18,
                 ),
               ),
             ),
 
-          // Loading overlay
+          // Loading overlay - circular
           if (widget.isLoading)
             Container(
               width: widget.size,
               height: widget.size,
               decoration: BoxDecoration(
                 color: AppColors.black.withOpacity(0.5),
-                border: Border.all(color: AppColors.stone900, width: 4),
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.stone900, width: 2),
               ),
               child: const Center(
                 child: CircularProgressIndicator(

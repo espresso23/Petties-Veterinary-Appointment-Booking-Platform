@@ -1,6 +1,6 @@
 export { HomePage } from './home/HomePage'
 export { LoginPage } from './auth/LoginPage'
-export { VetDashboardPage } from './vet'
+export { StaffDashboardPage } from './staff'
 export { ClinicManagerDashboardPage } from './clinic-manager'
 export { ClinicOwnerDashboardPage } from './clinic-owner'
 export { AdminDashboardPage } from './admin'

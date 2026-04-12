@@ -2,6 +2,7 @@ package com.petties.petties.model;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -22,6 +23,7 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class ClinicService {
 
     @Id
@@ -39,11 +41,15 @@ public class ClinicService {
     private MasterService masterService;
 
     // NEW: Phân biệt Custom vs Inherited
+    @Builder.Default
     @Column(name = "is_custom", nullable = false)
     private Boolean isCustom = true;
 
     @Column(name = "name", nullable = false, length = 200)
     private String name;
+
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
 
     @Column(name = "base_price", nullable = false, precision = 19, scale = 2)
     private BigDecimal basePrice;
@@ -54,23 +60,41 @@ public class ClinicService {
     @Column(name = "slots_required", nullable = false)
     private Integer slotsRequired;
 
+    @Builder.Default
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
+    @Builder.Default
     @Column(name = "is_home_visit", nullable = false)
     private Boolean isHomeVisit = false;
 
-    @Column(name = "price_per_km", precision = 19, scale = 2)
-    private BigDecimal pricePerKm;
+    // NEW: Reminder schedule for vaccination
+    @Column(name = "reminder_interval")
+    private Integer reminderInterval;
 
+    @Column(name = "reminder_unit", length = 50)
+    private String reminderUnit; // DAYS, WEEKS, MONTHS, YEARS
+
+    @Enumerated(EnumType.STRING)
     @Column(name = "service_category", length = 100)
-    private String serviceCategory;
+    private com.petties.petties.model.enums.ServiceCategory serviceCategory;
 
     @Column(name = "pet_type", length = 100)
     private String petType;
 
+    // Link to VaccineTemplate for vaccination services
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vaccine_template_id")
+    private VaccineTemplate vaccineTemplate;
+
+    @Builder.Default
     @OneToMany(mappedBy = "service", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<ServiceWeightPrice> weightPrices = new ArrayList<>();
+
+    // Vaccine dose prices - giá theo số mũi tiêm
+    @Builder.Default
+    @OneToMany(mappedBy = "service", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<VaccineDosePrice> dosePrices = new ArrayList<>();
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -79,4 +103,8 @@ public class ClinicService {
     @LastModifiedDate
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Version
+    @Column(name = "version")
+    private Long version;
 }

@@ -64,6 +64,7 @@ class ProfileInfoCard extends StatelessWidget {
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: (iconColor ?? AppColors.primary).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: AppColors.stone900, width: 2),
                 ),
                 child: Icon(
@@ -169,9 +170,10 @@ class ProfileInfoGroup extends StatelessWidget {
       margin: margin ?? const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: AppColors.white,
-        border: Border.all(color: AppColors.stone900, width: 3),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.stone900, width: 2),
         boxShadow: const [
-          BoxShadow(color: AppColors.stone900, offset: Offset(4, 4)),
+          BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
         ],
       ),
       child: Column(
@@ -200,7 +202,8 @@ class ProfileActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final buttonColor = color ?? (isDestructive ? AppColors.error : AppColors.primary);
+    final buttonColor =
+        color ?? (isDestructive ? AppColors.error : AppColors.primary);
 
     return InkWell(
       onTap: onTap,
@@ -212,6 +215,7 @@ class ProfileActionButton extends StatelessWidget {
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: buttonColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: AppColors.stone900, width: 2),
               ),
               child: Icon(icon, color: buttonColor, size: 20),

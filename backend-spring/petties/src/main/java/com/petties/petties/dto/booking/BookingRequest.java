@@ -1,0 +1,81 @@
+package com.petties.petties.dto.booking;
+
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.petties.petties.model.enums.BookingType;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * Request DTO for creating a new booking.
+ * Supports single-pet (petId + serviceIds) and multi-pet (items: list of pet + serviceIds).
+ */
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class BookingRequest {
+
+    /**
+     * Single-pet mode: one pet for the whole booking. Required when items is null or empty.
+     */
+    private UUID petId;
+
+    @NotNull(message = "Mã phòng khám không được để trống")
+    private UUID clinicId;
+
+    @NotNull(message = "Ngày đặt lịch không được để trống")
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate bookingDate;
+
+    @NotNull(message = "Giờ đặt lịch không được để trống")
+    @JsonFormat(pattern = "HH:mm")
+    private LocalTime bookingTime;
+
+    @NotNull(message = "Loại lịch hẹn không được để trống")
+    private BookingType type;
+
+    /**
+     * Single-pet mode: list of service IDs. Required when items is null or empty.
+     */
+    private List<UUID> serviceIds;
+
+    /**
+     * Multi-pet mode: each item = one pet + list of service IDs.
+     * When non-null and non-empty, items is used and petId/serviceIds are ignored.
+     */
+    @Valid
+    private List<PetServiceItemRequest> items;
+
+    /**
+     * For Home Visit / SOS bookings
+     */
+    private String homeAddress;
+    private BigDecimal homeLat;
+    private BigDecimal homeLong;
+
+    /**
+     * Distance in kilometers for home visit fee calculation
+     */
+    private BigDecimal distanceKm;
+
+    /**
+     * Optional notes from pet owner
+     */
+    private String notes;
+
+    /**
+     * Preferred payment method selected by pet owner on confirmation screen.
+     * Allowed values: QR, CASH. This is a preference for checkout phase.
+     */
+    private String paymentMethod;
+}

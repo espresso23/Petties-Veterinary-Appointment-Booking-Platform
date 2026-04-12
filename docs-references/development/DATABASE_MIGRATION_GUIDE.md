@@ -1,3 +1,4 @@
+> Legacy Note (2026-03-25): This document may contain historical references to `prompt_versions`, editable system-prompt versioning, or older AI schema/ERD counts. It is retained for historical or presentation context only. For current database truth and active AI storage architecture, use `docs-references/database/PETTIES_DBML.dbml`, `docs-references/documentation/PETTIES_ERD_DIAGRAM.md`, `docs-references/documentation/DATABASE_SCHEMA_ANALYSIS.md`, `docs-references/documentation/SRS/PETTIES_SRS.md`, and `docs-references/documentation/SDD/PETTIES_SDD.md`.
 # 🗄️ Database Migration Guide (Backend & AI)
 
 Tài liệu này hướng dẫn cách quản lý và cập nhật cấu trúc Database (Schema) cho dự án Petties, đảm bảo tính đồng bộ và an toàn giữa hai hệ thống: **Spring Boot (Flyway)** và **FastAPI (Alembic)**.
@@ -31,7 +32,7 @@ Quản lý các thực thể nghiệp vụ: `users`, `clinics`, `pets`, `booking
 
 ## 2. AI Agent Service (Alembic)
 
-Quản lý các thực thể AI: `agents`, `tools`, `chat_sessions`, `knowledge_documents`, v.v.
+Quản lý các thực thể AI trên PostgreSQL: `agents`, `tools`, `prompt_versions`, `knowledge_documents`, `system_settings`, v.v. (chat AI-user lưu MongoDB).
 
 ### 📁 Thư mục lưu trữ
 `petties-agent-serivce/app/db/postgres/migrations/versions/`
@@ -95,7 +96,7 @@ Quy trình này được thiết kế để triển khai an toàn lên các môi
 
 ---
 
-## �🔧 Troubleshooting
+## ??? Troubleshooting
 
 | Vấn đề | Nguyên nhân | Giải pháp |
 | :--- | :--- | :--- |

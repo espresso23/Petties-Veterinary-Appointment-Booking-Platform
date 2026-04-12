@@ -10,23 +10,41 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.UUID;
 
 @Repository
 public interface NotificationRepository extends JpaRepository<Notification, UUID> {
 
     /**
-     * Find all notifications for a user (clinic owner)
-     * Only load notifications for non-deleted clinics
+     * Find all notifications for a user (including StaffShift notifications without
+     * clinic)
+     * Load notifications for non-deleted clinics OR notifications without clinic
      */
-    @Query("SELECT n FROM Notification n JOIN n.clinic c WHERE n.user.userId = :userId AND c.deletedAt IS NULL ORDER BY n.createdAt DESC")
+    @Query("SELECT n FROM Notification n LEFT JOIN n.clinic c WHERE n.user.userId = :userId AND (c IS NULL OR c.deletedAt IS NULL)")
     Page<Notification> findByUserUserIdOrderByCreatedAtDesc(@Param("userId") UUID userId, Pageable pageable);
+
+    /**
+     * Find visible notifications for a user limited to specific types.
+     */
+    @Query("SELECT n FROM Notification n LEFT JOIN n.clinic c " +
+            "WHERE n.user.userId = :userId " +
+            "AND n.type IN :types " +
+            "AND (c IS NULL OR c.deletedAt IS NULL)")
+    Page<Notification> findByUserUserIdAndTypeInOrderByCreatedAtDesc(
+            @Param("userId") UUID userId,
+            @Param("types") Collection<NotificationType> types,
+            Pageable pageable);
 
     /**
      * Count unread notifications for a user
      */
     long countByUserUserIdAndReadFalse(UUID userId);
+
+    /**
+     * Count unread notifications for a user limited to specific types.
+     */
+    long countByUserUserIdAndTypeInAndReadFalse(UUID userId, Collection<NotificationType> types);
 
     /**
      * Mark all notifications as read for a user
@@ -48,5 +66,20 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
      */
     @Query("SELECT COUNT(n) > 0 FROM Notification n WHERE n.clinic.clinicId = :clinicId AND n.type = :type")
     boolean existsByClinicClinicIdAndType(@Param("clinicId") UUID clinicId, @Param("type") NotificationType type);
-}
 
+    /**
+     * Check if notification exists for user + clinic + type
+     * Used to prevent duplicate admin notifications for same clinic
+     */
+    @Query("SELECT COUNT(n) > 0 FROM Notification n WHERE n.user.userId = :userId AND n.clinic.clinicId = :clinicId AND n.type = :type")
+    boolean existsByUserUserIdAndClinicClinicIdAndType(
+            @Param("userId") UUID userId,
+            @Param("clinicId") UUID clinicId,
+            @Param("type") NotificationType type);
+
+    @Query("SELECT COUNT(n) > 0 FROM Notification n WHERE n.user.userId = :userId AND n.type = :type AND n.actionData = :actionData")
+    boolean existsByUserUserIdAndTypeAndActionData(
+            @Param("userId") UUID userId,
+            @Param("type") NotificationType type,
+            @Param("actionData") String actionData);
+}

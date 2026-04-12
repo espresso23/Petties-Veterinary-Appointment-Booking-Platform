@@ -106,7 +106,7 @@ services:
       # Google OAuth
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-YOUR_WEB_CLIENT_ID.apps.googleusercontent.com}
       # CORS
-      CORS_ORIGINS: http://localhost:5173,http://localhost:3000
+      CORS_ORIGINS: http://localhost:5173,http://localhost:3000,https://hasty-unvociferously-madalyn.ngrok-free.dev
       # Email SMTP (OTP) - MUST set in .env file!
       MAIL_USERNAME: ${MAIL_USERNAME}
       MAIL_PASSWORD: ${MAIL_PASSWORD}
@@ -114,12 +114,19 @@ services:
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+      # JVM Options for DNS/IPv4
+      JAVA_TOOL_OPTIONS: "-Djava.net.preferIPv4Stack=true"
+      #SePay API Token
+      SEPAY_API_TOKEN: ${SEPAY_API_TOKEN:-}
       # Location Service (Goong.io)
       GOONG_API_KEY: ${GOONG_API_KEY:-}
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     volumes:
       - ./backend-spring/petties/src:/app/src:ro
     ports:
-      - "8080:8080"
+      - "8081:8080" # Đổi từ 8080 thành 8081 để nhường 8080 cho Nginx (Ngrok entry point)
     depends_on:
       postgres:
         condition: service_healthy
@@ -146,37 +153,89 @@ services:
       APP_DEBUG: "true"
       # PostgreSQL
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/petties_db
+      # MongoDB
+      MONGODB_URL: mongodb://admin:admin@mongodb:27017/?authSource=admin
+      MONGODB_DATABASE: petties_nosql
       # JWT Secret (Synced with Backend)
       JWT_SECRET: ${JWT_SECRET}
       SECRET_KEY: ${JWT_SECRET}
-      # Qdrant Cloud (same as production)
-      QDRANT_URL: ${QDRANT_URL:-}
-      QDRANT_API_KEY: ${QDRANT_API_KEY:-}
+      # Spring Boot Backend (container-to-container)
+      SPRING_BACKEND_URL: http://backend:8080
+      # Qdrant Cloud (now managed via DB system_settings)
       QDRANT_COLLECTION_NAME: petties_knowledge_base_dev
       # AI Architecture: Cloud-Only (OpenRouter + Cohere)
       LLM_PROVIDER: openrouter
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-google/gemini-2.0-flash-exp:free}
-      # Embeddings
-      COHERE_API_KEY: ${COHERE_API_KEY:-}
-      COHERE_EMBEDDING_MODEL: ${COHERE_EMBEDDING_MODEL:-embed-multilingual-v3.0}
       # Cloudinary (Image Upload)
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+      # Label Studio (Vision AI)
+      LABEL_STUDIO_URL: ${LABEL_STUDIO_URL:-http://label-studio:8080}
+      LABEL_STUDIO_API_KEY: ${LABEL_STUDIO_API_KEY:-}
       # CORS (comma-separated string)
-      CORS_ORIGINS: http://localhost:5173,http://localhost:3000,http://localhost:8080
+      CORS_ORIGINS: http://localhost:5173,http://localhost:3000,http://localhost:8080,https://hasty-unvociferously-madalyn.ngrok-free.dev
       # Sentry Error Monitoring (disabled for dev)
       SENTRY_DSN:
     volumes:
       # Mount source code for hot-reload
       - ./petties-agent-serivce/app:/app/app:ro
+      # Persist uploaded documents across container rebuilds
+      - ai_storage_dev_data:/app/storage
+      # Persist uploaded knowledge documents
+      - ai_uploads_dev_data:/app/uploads
+      # Disease dataset for Label Studio import
+      - D:/SEP490/Disease_Dataset:/label-studio/disease-dataset
     ports:
       - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
     networks:
       - petties-dev-network
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+  # ============================================
+  # NGINX REVERSE PROXY (for ngrok)
+  # ============================================
+  # Dùng để gộp Backend (8080) và AI Service (8000) 
+  # vào 1 endpoint cho ngrok Free Tier
+  #
+  # Routing (xem chi tiết trong nginx.conf):
+  # - /api/v1/*   -> ai-service:8000/api/v1/* (AI REST API - longest prefix match)
+  # - /api/*      -> backend:8080/api/* (Backend REST API)
+  # - /ws/chat/*  -> ai-service:8000/ws/chat/* (AI WebSocket - đặt trước /ws/*)
+  # - /ws/*       -> backend:8080/ws/* (Backend WebSocket)
+  # - /ws-native/* -> backend:8080/ws-native/* (Backend Native WebSocket)
+  # - /ai/*       -> ai-service:8000/* (AI REST API - legacy prefix)
+  # - /*          -> host.docker.internal:5173 (Frontend React)
+  #
+  # Usage with ngrok:
+  # ngrok http 8080
+  # Mobile API_BASE_URL: https://xxx.ngrok-free.dev
+  # Backend API: https://xxx.ngrok-free.dev/api/...
+  # AI WebSocket: wss://xxx.ngrok-free.dev/ws/chat/{session_id}
+  # Backend WebSocket: wss://xxx.ngrok-free.dev/ws/chat/{conversationId}
+  nginx:
+    image: nginx:alpine
+    container_name: petties-dev-nginx
+    restart: unless-stopped
+    ports:
+      - "8080:80" # Expose port 8080 để ngrok tunnel vào
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - backend
+      - ai-service
+    networks:
+      - petties-dev-network
 
 # ============================================
 # NETWORKS
@@ -195,4 +254,10 @@ volumes:
   mongodb_dev_data:
     driver: local
   redis_dev_data:
+    driver: local
+  ai_storage_dev_data:
+    driver: local
+  ai_uploads_dev_data:
+    driver: local
+  label_studio_data:
     driver: local

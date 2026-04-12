@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petties.petties.dto.clinic.ClinicRequest;
 import com.petties.petties.dto.clinic.ClinicResponse;
 import com.petties.petties.dto.file.UploadResponse;
-import com.petties.petties.exception.BadRequestException;
 import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.exception.ResourceNotFoundException;
 import com.petties.petties.model.User;
@@ -15,6 +14,7 @@ import com.petties.petties.config.UserDetailsServiceImpl;
 import com.petties.petties.repository.BlacklistedTokenRepository;
 import com.petties.petties.service.AuthService;
 import com.petties.petties.service.ClinicService;
+import com.petties.petties.service.ClinicStaffService;
 import com.petties.petties.service.CloudinaryService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -73,6 +73,9 @@ class ClinicControllerUnitTest {
 
         @MockitoBean
         private BlacklistedTokenRepository blacklistedTokenRepository;
+
+        @MockitoBean
+        private ClinicStaffService clinicStaffService;
 
         @Autowired
         private ObjectMapper objectMapper;
@@ -264,7 +267,7 @@ class ClinicControllerUnitTest {
 
                 mockMvc.perform(delete("/clinics/{id}", clinicId))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.message").value("Clinic deleted successfully"));
+                                .andExpect(jsonPath("$.message").value("Xóa phòng khám thành công"));
         }
 
         // ==================== SEARCH & NEARBY TESTS ====================
@@ -274,10 +277,11 @@ class ClinicControllerUnitTest {
         void searchClinics_validName_returns200() throws Exception {
                 Page<ClinicResponse> page = new PageImpl<>(List.of(
                                 mockClinic(UUID.randomUUID(), "Clinic Search Result")));
-                when(clinicService.searchClinics(eq("Clinic"), any())).thenReturn(page);
+                when(clinicService.searchClinics(any(), any(), any(), eq("Clinic"), any(), any(), any(), any(), any(),
+                                any(), any(), any(), any())).thenReturn(page);
 
                 mockMvc.perform(get("/clinics/search")
-                                .param("name", "Clinic"))
+                                .param("query", "Clinic"))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.content", hasSize(1)));
         }
@@ -436,5 +440,33 @@ class ClinicControllerUnitTest {
                 mockMvc.perform(get("/clinics/admin/pending"))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.content", hasSize(0)));
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-CLINIC-050: Success - get admin clinic registry")
+        void getAdminClinicRegistry_returns200() throws Exception {
+                Page<ClinicResponse> page = new PageImpl<>(List.of(mockClinic(UUID.randomUUID(), "Clinic A")));
+                when(clinicService.getAdminClinicRegistry(isNull(), isNull(), any())).thenReturn(page);
+
+                mockMvc.perform(get("/clinics/admin/registry").param("page", "0").param("size", "20"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.content", hasSize(1)));
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-CLINIC-051: Success - admin ban clinic")
+        void adminBanClinic_returns200() throws Exception {
+                UUID clinicId = UUID.randomUUID();
+                ClinicResponse response = mockClinic(clinicId, "Banned");
+                when(clinicService.adminBanClinic(eq(clinicId), eq("Lý do đủ mười ký tự trở lên để test")))
+                                .thenReturn(response);
+
+                mockMvc.perform(post("/clinics/admin/{id}/ban", clinicId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                                objectMapper.writeValueAsString(
+                                                                Map.of("reason", "Lý do đủ mười ký tự trở lên để test"))))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.clinicId").value(clinicId.toString()));
         }
 }

@@ -1,0 +1,621 @@
+import { useRef, useEffect, useState } from 'react'
+import { EllipsisVerticalIcon, PhotoIcon } from '@heroicons/react/24/outline'
+import type { ChatMessage, ChatBox as ChatBoxType } from '../../types/chat'
+import { MessageBubble } from './MessageBubble'
+import { MessageInput } from './MessageInput'
+import { useAuthStore } from '../../store/authStore'
+
+interface ImageGroupProps {
+  messages: ChatMessage[]
+  onImageClick?: (imageUrl: string, groupMessages?: ChatMessage[]) => void
+  myAvatar?: string
+  partnerAvatar?: string
+}
+
+/**
+ * Component for displaying grouped image messages like Messenger
+ */
+function ImageGroup({ messages, onImageClick, myAvatar, partnerAvatar }: ImageGroupProps) {
+  const isMe = messages[0].isMe
+
+  // Choose avatar
+  const avatarUrl = isMe
+    ? (myAvatar || messages[0].senderAvatar)
+    : (partnerAvatar || messages[0].senderAvatar)
+
+  const formatTime = (dateStr: string) => {
+    // Ensure UTC interpretation if 'Z' or offset is missing
+    const date = new Date(dateStr.endsWith('Z') ? dateStr : `${dateStr}Z`)
+    return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  const handleImageClick = (imageUrl: string) => {
+    if (onImageClick) {
+      onImageClick(imageUrl, messages)
+    }
+  }
+
+  const handleGroupOverlayClick = () => {
+    if (onImageClick && messages[0].imageUrl) {
+      onImageClick(messages[0].imageUrl, messages)
+    }
+  }
+
+  const getGridLayout = (count: number) => {
+    if (count === 1) return 'grid-cols-1'
+    if (count === 2) return 'grid-cols-2'
+    return 'grid-cols-2 grid-rows-2' // 3+ images
+  }
+
+  const getImageStyles = (index: number, total: number) => {
+    if (total === 1) return 'col-span-1 row-span-1'
+    if (total === 2) return 'col-span-1 row-span-1'
+    // For 3 images: first spans 2 cols, others normal
+    if (total >= 3) {
+      if (index === 0) return 'col-span-2 row-span-1'
+      return 'col-span-1 row-span-1'
+    }
+    return 'hidden'
+  }
+
+  const containerClass = `flex gap-2 mb-4 ${isMe ? 'flex-row-reverse' : 'flex-row'}`
+
+  return (
+    <div className={containerClass}>
+      {/* Avatar */}
+      <div className="flex-shrink-0 order-1">
+        {avatarUrl ? (
+          <img
+            src={avatarUrl}
+            alt={isMe ? "Tôi" : messages[0].senderName}
+            className="w-8 h-8 rounded-full object-cover border border-stone-200"
+          />
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-stone-200 flex items-center justify-center border border-stone-300">
+            <span className="text-xs font-bold text-stone-500">
+              {messages[0].senderName?.charAt(0).toUpperCase() || (isMe ? 'T' : 'K')}
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[280px]`}>
+        {/* Sender name */}
+        <span className={`text-xs font-bold mb-1 px-1 ${isMe ? 'text-amber-700' : 'text-stone-600'}`}>
+          {messages[0].senderName}
+        </span>
+
+        {/* Image grid */}
+        <div className="w-full">
+          <div className={`grid ${getGridLayout(messages.length)} gap-2`}>
+            {messages.slice(0, 3).map((message, index) => (
+              <div
+                key={message.id}
+                className={`relative ${getImageStyles(index, messages.length)}`}
+              >
+                <img
+                  src={message.imageUrl ?? undefined}
+                  alt={`Hình ảnh ${index + 1}`}
+                  className="w-full h-full object-cover rounded-lg border border-stone-900 shadow-[2px_2px_0_#1c1917] cursor-pointer hover:shadow-[3px_3px_0_#1c1917] transition-all"
+                  onClick={() => handleImageClick(message.imageUrl!)}
+                  onLoad={(e) => {
+                    const img = e.target as HTMLImageElement
+                    if (img.naturalWidth === 0) {
+                      console.error('Image failed to load:', message.imageUrl)
+                    }
+                  }}
+                  onError={(e) => {
+                    console.error('Image failed to load:', message.imageUrl)
+                    const img = e.target as HTMLImageElement
+                    img.style.display = 'none'
+                  }}
+                />
+                {/* Overlay for 3rd image when there are more than 3 */}
+                {index === 2 && messages.length > 3 && (
+                  <div
+                    className="absolute inset-0 bg-black bg-opacity-60 rounded-lg flex items-center justify-center cursor-pointer hover:bg-opacity-70 transition-all"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleGroupOverlayClick()
+                    }}
+                  >
+                    <span className="text-white font-bold text-lg">+{messages.length - 3}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Timestamp */}
+        <div className="flex items-center gap-1 mt-1 px-1">
+          <span className="text-[11px] text-stone-500 font-medium">
+            {formatTime(messages[messages.length - 1].createdAt)}
+          </span>
+          {isMe && messages.some(msg => msg.status === 'SEEN') && (
+            <span className="group relative">
+              <svg className="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 text-xs font-bold text-white bg-stone-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                Đã xem
+              </span>
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+interface ChatBoxProps {
+  chatBox: ChatBoxType
+  messages: ChatMessage[]
+  onSendMessage: (content: string) => void
+  onImageUpload?: (file: File) => Promise<void>
+  onCombinedMessage?: (content: string, imageFile: File) => Promise<void>
+  onTyping?: (typing: boolean) => void
+  onError?: (message: string) => void
+  onLoadMore?: () => void
+  loading?: boolean
+  hasMore?: boolean
+  isPartnerTyping?: boolean
+}
+
+/**
+ * Chat box component displaying messages and input
+ */
+export function ChatBox({
+  chatBox,
+  messages,
+  onSendMessage,
+  onImageUpload,
+  onCombinedMessage,
+  onTyping,
+  onError,
+  onLoadMore,
+  loading = false,
+  hasMore = false,
+  isPartnerTyping = false,
+}: ChatBoxProps) {
+  const { user } = useAuthStore()
+  // Use clinic logo as my avatar if available. Do NOT fallback to user avatar (manager) as per requirements.
+  console.log('ChatBox debug:', { clinicLogo: chatBox.clinicLogo, userAvatar: user?.avatar })
+  const myAvatar = chatBox.clinicLogo || undefined
+  const partnerAvatar = chatBox.petOwnerAvatar ?? undefined // Convert null to undefined
+
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
+  const [showImageGallery, setShowImageGallery] = useState(false)
+
+  // Image modal state (shared between single images and gallery)
+  const [showImageModal, setShowImageModal] = useState(false)
+  const [modalImages, setModalImages] = useState<ChatMessage[]>([])
+  const [currentModalIndex, setCurrentModalIndex] = useState(0)
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    // Use setTimeout to ensure DOM is updated
+    const timer = setTimeout(() => {
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'auto' })
+      }
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [messages])
+
+  // Handle scroll for infinite loading
+  const handleScroll = () => {
+    if (!messagesContainerRef.current || loading || !hasMore) return
+
+    const { scrollTop } = messagesContainerRef.current
+    if (scrollTop === 0 && onLoadMore) {
+      onLoadMore()
+    }
+  }
+
+  // Messages from API are DESC (newest first), reverse for display (oldest first, newest at bottom)
+  // Filter duplicates by ID to prevent duplicate key warning
+  const uniqueMessages = messages.filter(
+    (msg, index, self) => index === self.findIndex((m) => m.id === msg.id)
+  )
+  const displayMessages = [...uniqueMessages].reverse()
+
+  // Group consecutive image messages from same sender within 30 seconds
+  const groupMessages = (messages: ChatMessage[]) => {
+    const groups: (ChatMessage | ChatMessage[])[] = []
+    let currentGroup: ChatMessage[] = []
+
+    for (let i = 0; i < messages.length; i++) {
+      const message = messages[i]
+
+      if (message.messageType === 'IMAGE' && message.imageUrl) {
+        // Check if we can add to current group
+        if (currentGroup.length > 0) {
+          const lastMessage = currentGroup[currentGroup.length - 1]
+          const timeDiff = new Date(message.createdAt).getTime() - new Date(lastMessage.createdAt).getTime()
+          const isSameSender = message.senderId === lastMessage.senderId
+          const isWithinTimeWindow = timeDiff < 30000 // 30 seconds
+
+          if (isSameSender && isWithinTimeWindow) {
+            currentGroup.push(message)
+            continue
+          }
+        }
+
+        // Start new group or add single image
+        if (currentGroup.length > 0) {
+          groups.push(currentGroup)
+          currentGroup = []
+        }
+
+        // Check if next messages can be grouped with this one
+        const nextMessages = []
+        for (let j = i + 1; j < messages.length; j++) {
+          const nextMsg = messages[j]
+          const timeDiff = new Date(nextMsg.createdAt).getTime() - new Date(message.createdAt).getTime()
+          const isSameSender = nextMsg.senderId === message.senderId
+          const isWithinTimeWindow = timeDiff < 30000
+          const isImage = nextMsg.messageType === 'IMAGE' && nextMsg.imageUrl
+
+          if (isImage && isSameSender && isWithinTimeWindow) {
+            nextMessages.push(nextMsg)
+            i = j // Skip these messages in main loop
+          } else {
+            break
+          }
+        }
+
+        if (nextMessages.length > 0) {
+          currentGroup = [message, ...nextMessages]
+          groups.push(currentGroup)
+          currentGroup = []
+        } else {
+          groups.push(message)
+        }
+      } else {
+        // Non-image message
+        if (currentGroup.length > 0) {
+          groups.push(currentGroup)
+          currentGroup = []
+        }
+        groups.push(message)
+      }
+    }
+
+    if (currentGroup.length > 0) {
+      groups.push(currentGroup)
+    }
+
+    return groups
+  }
+
+  const groupedMessages = groupMessages(displayMessages)
+
+  // Handle click on a single image message (not part of an ImageGroup)
+  const handleSingleImageClick = (imageUrl: string) => {
+    const imageMessages = displayMessages.filter(msg => msg.messageType === 'IMAGE' && msg.imageUrl)
+    const idx = imageMessages.findIndex(img => img.imageUrl === imageUrl)
+    if (idx === -1) return
+
+    setModalImages(imageMessages)
+    setCurrentModalIndex(idx)
+    setShowImageModal(true)
+  }
+
+  // Handle click on image in ImageGroup
+  const handleImageGroupClick = (imageUrl: string) => {
+    // Always show counter in total conversation images
+    const allImages = displayMessages.filter(msg => msg.messageType === 'IMAGE' && msg.imageUrl)
+    const idx = allImages.findIndex(img => img.imageUrl === imageUrl)
+    if (idx === -1) return
+
+    setModalImages(allImages)
+    setCurrentModalIndex(idx)
+    setShowImageModal(true)
+  }
+
+  // Handle gallery image click to show modal
+  const handleGalleryImageClick = (imageUrl: string) => {
+    const imageMessages = displayMessages.filter(msg => msg.messageType === 'IMAGE' && msg.imageUrl)
+    const idx = imageMessages.findIndex(img => img.imageUrl === imageUrl)
+    if (idx === -1) return
+
+    setModalImages(imageMessages)
+    setCurrentModalIndex(idx)
+    setShowImageModal(true)
+  }
+
+  // Handle gallery scroll for infinite loading
+  return (
+    <div className="flex-1 flex flex-row overflow-hidden bg-stone-100 p-3 gap-3">
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col bg-white min-w-0 rounded-2xl border-2 border-stone-900 shadow-[4px_4px_0_#1c1917] overflow-hidden">
+        {/* Chat Header */}
+        <header className="h-20 px-6 border-b-2 border-stone-900 flex items-center justify-between bg-white z-10">
+          <div className="flex items-center gap-4">
+            {/* Avatar */}
+            <div className="relative">
+              {chatBox.petOwnerAvatar ? (
+                <img
+                  src={chatBox.petOwnerAvatar}
+                  alt={chatBox.petOwnerName}
+                  className="w-12 h-12 rounded-full border-2 border-stone-900 object-cover"
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-full border-2 border-stone-900 bg-amber-100 flex items-center justify-center">
+                  <span className="text-amber-700 font-bold text-lg">
+                    {chatBox.petOwnerName?.charAt(0).toUpperCase() || 'U'}
+                  </span>
+                </div>
+              )}
+              {chatBox.partnerOnline && (
+                <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full"></span>
+              )}
+            </div>
+
+            {/* Name and status */}
+            <div>
+              <h2 className="text-lg font-bold text-stone-900">
+                {chatBox.petOwnerName || 'Khách hàng'}
+              </h2>
+              <p className="text-sm text-stone-500 font-medium flex items-center gap-2">
+                {isPartnerTyping ? (
+                  <span className="text-amber-600">Đang nhập...</span>
+                ) : chatBox.partnerOnline ? (
+                  <span className="text-green-600">Đang hoạt động</span>
+                ) : (
+                  <span>Không trực tuyến</span>
+                )}
+              </p>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowImageGallery(!showImageGallery)}
+              className={`p-2 border-2 border-stone-900 rounded-lg font-bold shadow-[2px_2px_0_#1c1917] hover:shadow-[3px_3px_0_#1c1917] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all ${showImageGallery ? 'bg-amber-600 text-white' : 'bg-white text-stone-900'}`}
+              title="Xem ảnh đã gửi"
+            >
+              <EllipsisVerticalIcon className="w-5 h-5" />
+            </button>
+          </div>
+        </header>
+
+        {/* Messages Area */}
+        <div
+          ref={messagesContainerRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto p-6 bg-stone-50"
+        >
+          <div className="w-full">
+            {/* Load more button */}
+            {hasMore && (
+              <div className="flex justify-center mb-6">
+                <button
+                  onClick={onLoadMore}
+                  disabled={loading}
+                  className="text-sm text-amber-600 font-bold hover:underline disabled:opacity-50"
+                >
+                  {loading ? 'Đang tải...' : 'Tải thêm tin nhắn cũ'}
+                </button>
+              </div>
+            )}
+
+            {/* Messages */}
+            {groupedMessages.map((item, index) => {
+              if (Array.isArray(item)) {
+                // Image group
+                return (
+                  <ImageGroup
+                    key={`group-${index}`}
+                    messages={item}
+                    onImageClick={handleImageGroupClick}
+                    myAvatar={myAvatar}
+                    partnerAvatar={partnerAvatar}
+                  />
+                )
+              } else {
+                // Single message
+                return (
+                  <MessageBubble
+                    key={item.id}
+                    message={item}
+                    onImageClick={handleSingleImageClick}
+                    myAvatar={myAvatar}
+                    partnerAvatar={partnerAvatar}
+                  />
+                )
+              }
+            })}
+
+            {/* Typing indicator */}
+            {isPartnerTyping && (
+              <div className="flex items-center gap-2 mb-4 ml-2">
+                <div className="flex gap-1">
+                  <span className="w-2 h-2 bg-stone-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-2 h-2 bg-stone-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-2 h-2 bg-stone-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
+        </div>
+
+        {/* Message Input */}
+        <MessageInput onSend={onSendMessage} onImageUpload={onImageUpload} onCombinedMessage={onCombinedMessage} onTyping={onTyping} onError={onError} />
+      </div>
+
+      {/* Side Panel - Messenger style */}
+      {showImageGallery && (() => {
+        // Real-time images from messages (newest first)
+        const realtimeImages = displayMessages
+          .filter(msg => msg.messageType === 'IMAGE' && msg.imageUrl)
+          .reverse()
+
+        return (
+          <div className="w-80 bg-stone-50 rounded-2xl border-2 border-stone-900 shadow-[4px_4px_0_#1c1917] flex flex-col flex-shrink-0 overflow-hidden">
+            {/* Close button */}
+            <div className="flex justify-end p-3 pb-0">
+              <button
+                onClick={() => setShowImageGallery(false)}
+                className="w-8 h-8 bg-stone-900 text-white rounded-full flex items-center justify-center hover:bg-stone-700 transition-colors text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Avatar + Name centered */}
+            <div className="flex flex-col items-center pb-4 pt-1">
+              <div className="relative mb-2">
+                {chatBox.petOwnerAvatar ? (
+                  <img
+                    src={chatBox.petOwnerAvatar}
+                    alt={chatBox.petOwnerName}
+                    className="w-20 h-20 rounded-full border-3 border-stone-900 object-cover shadow-[2px_2px_0_#1c1917]"
+                  />
+                ) : (
+                  <div className="w-20 h-20 rounded-full border-3 border-stone-900 bg-amber-100 flex items-center justify-center shadow-[2px_2px_0_#1c1917]">
+                    <span className="text-amber-700 font-black text-2xl">
+                      {chatBox.petOwnerName?.charAt(0).toUpperCase() || 'U'}
+                    </span>
+                  </div>
+                )}
+                {/* Online indicator */}
+                <span className={`absolute bottom-1 right-1 w-4.5 h-4.5 rounded-full border-[3px] border-stone-50 ${chatBox.partnerOnline ? 'bg-green-500' : 'bg-stone-400'}`}
+                  style={{ width: '18px', height: '18px' }}
+                ></span>
+              </div>
+              <h3 className="text-sm font-black text-stone-900">
+                {chatBox.petOwnerName || 'Khách hàng'}
+              </h3>
+              <p className="text-[11px] font-medium text-stone-400 mt-0.5">
+                {chatBox.partnerOnline ? 'Đang hoạt động' : 'Không trực tuyến'}
+              </p>
+            </div>
+
+            {/* Media Gallery Section */}
+            <div className="flex-1 overflow-y-auto border-t-2 border-stone-200">
+              {/* Section header */}
+              <div className="px-4 py-3 flex items-center gap-2">
+                <PhotoIcon className="w-5 h-5 text-amber-600" />
+                <h4 className="text-sm font-black text-stone-900">
+                  File phương tiện
+                </h4>
+                {realtimeImages.length > 0 && (
+                  <span className="ml-auto text-[11px] font-bold text-stone-400 bg-stone-200 px-2 py-0.5 rounded-full">
+                    {realtimeImages.length}
+                  </span>
+                )}
+              </div>
+
+              {/* Images grid - Messenger style */}
+              <div className="px-2 pb-4">
+                {realtimeImages.length === 0 ? (
+                  <div className="text-center py-10">
+                    <PhotoIcon className="w-12 h-12 text-stone-200 mx-auto mb-2" />
+                    <p className="text-xs font-bold text-stone-400">
+                      Chưa có ảnh nào
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-[3px]">
+                    {realtimeImages.map((msg, index) => (
+                      <div
+                        key={msg.id}
+                        className="relative aspect-square cursor-pointer group overflow-hidden"
+                        onClick={() => handleGalleryImageClick(msg.imageUrl!)}
+                      >
+                        <img
+                          src={msg.imageUrl!}
+                          alt={`Ảnh ${index + 1}`}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Image Modal - Fullscreen Viewer */}
+      {showImageModal && modalImages.length > 0 && (
+        <div
+          className="fixed inset-0 bg-black/90 flex items-center justify-center z-50"
+          onClick={() => setShowImageModal(false)}
+        >
+          {/* Close button - top right */}
+          <button
+            onClick={() => setShowImageModal(false)}
+            className="absolute top-6 right-6 w-12 h-12 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center transition-all z-20"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          {/* Previous button - left side */}
+          {modalImages.length > 1 && currentModalIndex > 0 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setCurrentModalIndex(currentModalIndex - 1)
+              }}
+              className="absolute left-6 top-1/2 -translate-y-1/2 w-14 h-14 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center transition-all z-20"
+            >
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+          )}
+
+          {/* Image container - centered with proper sizing */}
+          <div
+            className="relative flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={modalImages[currentModalIndex].imageUrl ?? ''}
+              alt={`Hình ảnh ${currentModalIndex + 1}`}
+              className="max-w-[85vw] max-h-[85vh] min-w-[300px] min-h-[200px] object-contain rounded-lg shadow-2xl"
+              style={{
+                width: 'auto',
+                height: 'auto',
+              }}
+            />
+          </div>
+
+          {/* Next button - right side */}
+          {modalImages.length > 1 && currentModalIndex < modalImages.length - 1 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setCurrentModalIndex(currentModalIndex + 1)
+              }}
+              className="absolute right-6 top-1/2 -translate-y-1/2 w-14 h-14 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center transition-all z-20"
+            >
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          )}
+
+          {/* Image counter - bottom center */}
+          {modalImages.length > 1 && (
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/60 text-white px-4 py-2 rounded-full text-sm font-medium z-20">
+              {currentModalIndex + 1} / {modalImages.length}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default ChatBox

@@ -1,17 +1,20 @@
 package com.petties.petties.controller;
 
 import com.petties.petties.dto.clinic.ClinicLocationResponse;
+import com.petties.petties.dto.clinic.AdminBanClinicRequest;
 import com.petties.petties.dto.clinic.ApproveClinicRequest;
 import com.petties.petties.dto.clinic.ClinicRequest;
 import com.petties.petties.dto.clinic.ClinicResponse;
 import com.petties.petties.dto.clinic.DistanceResponse;
 import com.petties.petties.dto.clinic.GeocodeResponse;
+import com.petties.petties.dto.clinic.PublicStaffResponse;
 import com.petties.petties.dto.clinic.RejectClinicRequest;
 import com.petties.petties.dto.file.UploadResponse;
 import com.petties.petties.model.User;
 import com.petties.petties.model.enums.ClinicStatus;
 import com.petties.petties.service.AuthService;
 import com.petties.petties.service.ClinicService;
+import com.petties.petties.service.ClinicStaffService;
 import com.petties.petties.service.CloudinaryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +31,7 @@ import org.springframework.web.multipart.MultipartFile;
 import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -44,6 +48,7 @@ public class ClinicController {
     private final ClinicService clinicService;
     private final AuthService authService;
     private final CloudinaryService cloudinaryService;
+    private final ClinicStaffService clinicStaffService;
 
     /**
      * GET /api/clinics
@@ -87,6 +92,17 @@ public class ClinicController {
     }
 
     /**
+     * GET /api/clinics/{id}/public-staff
+     * Get clinic staff list for Pet Owners (public, no sensitive data)
+     * Public access - no authentication required
+     */
+    @GetMapping("/{id}/public-staff")
+    public ResponseEntity<List<PublicStaffResponse>> getPublicClinicStaff(@PathVariable UUID id) {
+        List<PublicStaffResponse> staff = clinicStaffService.getPublicClinicStaff(id);
+        return ResponseEntity.ok(staff);
+    }
+
+    /**
      * POST /api/clinics
      * Create new clinic
      * CLINIC_OWNER only
@@ -105,7 +121,7 @@ public class ClinicController {
      * CLINIC_OWNER can only update their own clinic
      */
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('CLINIC_OWNER')")
+    @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER')")
     public ResponseEntity<ClinicResponse> updateClinic(
             @PathVariable UUID id,
             @Valid @RequestBody ClinicRequest request) {
@@ -124,22 +140,35 @@ public class ClinicController {
     public ResponseEntity<Map<String, String>> deleteClinic(@PathVariable UUID id) {
         User currentUser = authService.getCurrentUser();
         clinicService.deleteClinic(id, currentUser.getUserId());
-        return ResponseEntity.ok(Map.of("message", "Clinic deleted successfully"));
+        return ResponseEntity.ok(Map.of("message", "Xóa phòng khám thành công"));
     }
 
-    /**
-     * GET /api/clinics/search
-     * Search clinics by name
-     * Public access
-     */
     @GetMapping("/search")
     public ResponseEntity<Page<ClinicResponse>> searchClinics(
-            @RequestParam String name,
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) BigDecimal latitude,
+            @RequestParam(required = false) BigDecimal longitude,
+            @RequestParam(required = false, name = "radiusKm") Double radiusKm,
+            @RequestParam(required = false) Boolean isOpenNow,
+            @RequestParam(required = false) String province,
+            @RequestParam(required = false) String district,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(required = false) String service,
+            @RequestParam(required = false) Boolean sortByRating,
+            @RequestParam(required = false) Boolean sortByDistance,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
         Pageable pageable = PageRequest.of(page, size);
-        Page<ClinicResponse> clinics = clinicService.searchClinics(name, pageable);
+        Page<ClinicResponse> clinics = clinicService.searchClinics(
+                latitude, longitude, radiusKm,
+                query, isOpenNow,
+                province, district,
+                minPrice, maxPrice,
+                service,
+                sortByRating, sortByDistance,
+                pageable);
         return ResponseEntity.ok(clinics);
     }
 
@@ -175,7 +204,7 @@ public class ClinicController {
 
         String address = request.get("address");
         if (address == null || address.isEmpty()) {
-            throw new IllegalArgumentException("Address is required");
+            throw new IllegalArgumentException("Địa chỉ không được để trống");
         }
 
         GeocodeResponse geocode = clinicService.geocodeAddress(address);
@@ -213,6 +242,72 @@ public class ClinicController {
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortDir, sortBy));
         Page<ClinicResponse> clinics = clinicService.getPendingClinics(pageable);
         return ResponseEntity.ok(clinics);
+    }
+
+    /**
+     * GET /api/clinics/admin/pending/count
+     * Get count of pending clinics for admin badge
+     * ADMIN only
+     */
+    @GetMapping("/admin/pending/count")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Long> getPendingClinicsCount() {
+        return ResponseEntity.ok(clinicService.countPendingClinics());
+    }
+
+    /**
+     * GET /api/clinics/admin/struck
+     * Danh sách phòng khám đang bị hạn chế (strike)
+     * ADMIN only
+     */
+    @GetMapping("/admin/struck")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Page<ClinicResponse>> getStruckClinics(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "strikeUntil") String sortBy,
+            @RequestParam(defaultValue = "ASC") Sort.Direction sortDir) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(sortDir, sortBy));
+        return ResponseEntity.ok(clinicService.getStruckClinics(pageable));
+    }
+
+    /**
+     * GET /api/clinics/admin/registry
+     * Danh sách phòng khám (chủ sở hữu) cho admin — lọc trạng thái / tên
+     */
+    @GetMapping("/admin/registry")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Page<ClinicResponse>> getAdminClinicRegistry(
+            @RequestParam(required = false) ClinicStatus status,
+            @RequestParam(required = false) String name,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "DESC") Sort.Direction sortDir) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(sortDir, sortBy));
+        return ResponseEntity.ok(clinicService.getAdminClinicRegistry(status, name, pageable));
+    }
+
+    /**
+     * POST /api/clinics/admin/{id}/ban
+     * Hạn chế vĩnh viễn phòng khám đã duyệt (strike vĩnh viễn)
+     */
+    @PostMapping("/admin/{id}/ban")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ClinicResponse> adminBanClinic(
+            @PathVariable UUID id,
+            @Valid @RequestBody AdminBanClinicRequest request) {
+        return ResponseEntity.ok(clinicService.adminBanClinic(id, request.getReason()));
+    }
+
+    /**
+     * POST /api/clinics/admin/{id}/lift-strike
+     * Gỡ hạn chế strike (tạm hoặc vĩnh viễn)
+     */
+    @PostMapping("/admin/{id}/lift-strike")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ClinicResponse> adminLiftClinicStrike(@PathVariable UUID id) {
+        return ResponseEntity.ok(clinicService.adminLiftClinicStrike(id));
     }
 
     /**
@@ -254,7 +349,7 @@ public class ClinicController {
      * CLINIC_OWNER only
      */
     @GetMapping("/owner/my-clinics")
-    @PreAuthorize("hasRole('CLINIC_OWNER')")
+    @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER')")
     public ResponseEntity<Page<ClinicResponse>> getMyClinics(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
@@ -272,7 +367,7 @@ public class ClinicController {
      * CLINIC_OWNER can only upload for their own clinic
      */
     @PostMapping(value = "/{id}/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasRole('CLINIC_OWNER')")
+    @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER')")
     public ResponseEntity<ClinicResponse> uploadClinicImage(
             @PathVariable UUID id,
             @RequestParam("file") MultipartFile file,
@@ -314,7 +409,7 @@ public class ClinicController {
      * CLINIC_OWNER can only upload for their own clinic
      */
     @PostMapping(value = "/{id}/logo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasRole('CLINIC_OWNER')")
+    @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER')")
     public ResponseEntity<ClinicResponse> uploadClinicLogo(
             @PathVariable UUID id,
             @RequestParam("file") MultipartFile file) {
@@ -356,7 +451,7 @@ public class ClinicController {
         User currentUser = authService.getCurrentUser();
         clinicService.deleteClinicImage(id, imageId, currentUser.getUserId());
 
-        return ResponseEntity.ok(Map.of("message", "Image deleted successfully"));
+        return ResponseEntity.ok(Map.of("message", "Xóa ảnh thành công"));
     }
 
     /**
@@ -375,20 +470,4 @@ public class ClinicController {
         return ResponseEntity.ok(clinic);
     }
 
-    /**
-     * GET /api/clinics/owner/approved
-     * Get APPROVED clinics owned by current user
-     * CLINIC_OWNER only
-     */
-    @GetMapping("/owner/approved")
-    @PreAuthorize("hasRole('CLINIC_OWNER')")
-    public ResponseEntity<Page<ClinicResponse>> getMyApprovedClinics(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "100") int size) {
-
-        User currentUser = authService.getCurrentUser();
-        Pageable pageable = PageRequest.of(page, size);
-        Page<ClinicResponse> clinics = clinicService.getClinicsByOwner(currentUser.getUserId(), pageable);
-        return ResponseEntity.ok(clinics);
-    }
 }

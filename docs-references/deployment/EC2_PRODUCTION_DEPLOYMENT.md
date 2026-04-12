@@ -1,4 +1,4 @@
-# 🚀 EC2 Production Deployment Guide
+﻿# 🚀 EC2 Production Deployment Guide
 
 Hướng dẫn chi tiết deploy Backend và AI Service lên AWS EC2.
 
@@ -26,7 +26,6 @@ Hệ thống sẽ được deploy trên EC2 với cấu trúc:
 - **OpenRouter API Key** (LLM provider)
 
 ## 🎯 Bước 1: Tạo EC2 Instance
-
 ### 1.1. Launch EC2 Instance
 
 1. Vào **AWS Console** → **EC2** → **Launch Instance**
@@ -112,35 +111,27 @@ sudo apt upgrade -y
 curl -fsSL https://get.docker.com -o get-docker.sh
 sudo sh get-docker.sh
 
+# Install Docker Compose plugin (docker compose)
+sudo apt-get update
+sudo apt-get install docker-compose-plugin -y
+
 # Add ubuntu user to docker group
 sudo usermod -aG docker ubuntu
 
-# Install Docker Compose
-sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-sudo chmod +x /usr/local/bin/docker-compose
-
 # Verify installation
 docker --version
-docker-compose --version
+docker compose version
 
 # Logout and login again to apply docker group changes
 exit
 # SSH lại vào EC2
 ```
 
-### 4.3. Install Nginx
+### 4.3. Ghi chú về Nginx/SSL
 
-```bash
-sudo apt install nginx -y
-sudo systemctl enable nginx
-sudo systemctl start nginx
-```
+Với kiến trúc hiện tại, Nginx chạy trong Docker container từ `docker-compose.prod.yml` và config được render từ template. Không cần cài Nginx/Certbot trực tiếp trên host EC2.
 
-### 4.4. Install Certbot (for SSL)
-
-```bash
-sudo apt install certbot python3-certbot-nginx -y
-```
+Khuyến nghị terminate TLS ở Cloudflare hoặc AWS Load Balancer để đơn giản vận hành.
 
 ## 📂 Bước 5: Clone Repository trên EC2
 
@@ -160,25 +151,21 @@ git clone https://github.com/your-username/Petties-Veterinary-Appointment-Bookin
 cd Petties-Veterinary-Appointment-Booking-Platform
 ```
 
-### 5.2. Copy docker-compose.prod.yml
+### 5.2. Kiểm tra file deploy
 
-```bash
-# Nếu file chưa có trong repo, copy từ local
-# Hoặc tạo file mới với nội dung từ repo
-```
+Sau khi clone repo, xác nhận file `docker-compose.prod.yml` và thư mục `nginx/templates/` đã có sẵn trong project.
 
-**Lưu ý**: Đảm bảo `docker-compose.prod.yml` nằm trong thư mục `Petties-Veterinary-Appointment-Booking-Platform`
+## ⚙️ Bước 6: Tạo File .env.prod trên EC2
 
-## ⚙️ Bước 6: Tạo File .env trên EC2
-
-### 6.1. Tạo file .env
+### 6.1. Tạo file .env.prod
 
 ```bash
 cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
-nano .env
+cp .env.prod.example .env.prod
+nano .env.prod
 ```
 
-### 6.2. Nội dung file .env
+### 6.2. Nội dung file .env.prod
 
 ```bash
 # ============================================
@@ -247,201 +234,27 @@ CORS_ORIGINS=https://petties.world,https://www.petties.world
 ### 6.3. Set permissions
 
 ```bash
-chmod 600 .env
+chmod 600 .env.prod
 ```
 
-## 🌐 Bước 7: Cấu hình Nginx
+## 🌐 Bước 7: Nginx Template (không config thủ công)
 
-### 7.1. Tạo Nginx config cho Backend API
+Deployment dùng nginx container trong `docker-compose.prod.yml`. File config được render tự động từ template `nginx/templates/default.conf.template` bằng env vars, nên không cần tạo `nginx.prod.conf`/`nginx.test.conf` thủ công.
+
+Thiết lập các biến Nginx trong `.env.prod`:
 
 ```bash
-sudo nano /etc/nginx/sites-available/api.petties.world
+NGINX_SERVER_NAME=api.petties.world
+NGINX_FRONTEND_UPSTREAM=https://www.petties.world
+NGINX_FRONTEND_HOST=www.petties.world
+NGINX_HOST_PORT=80
 ```
 
-**Nội dung:**
+Lưu ý: TLS/SSL nên terminate ở Cloudflare hoặc AWS ALB/NLB. Container nginx chỉ xử lý reverse proxy nội bộ theo template.
 
-```nginx
-server {
-    listen 443 ssl;
-    server_name api.petties.world;
-    
-    # SSL - managed by Certbot
-    ssl_certificate /etc/letsencrypt/live/api.petties.world/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/api.petties.world/privkey.pem;
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+## 🔒 Bước 8: SSL/TLS
 
-    client_max_body_size 15M;
-
-    location / {
-        proxy_pass http://127.0.0.1:8080;
-        proxy_http_version 1.1;
-
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header Origin $http_origin;
-
-        # KHÔNG thêm CORS headers ở đây - để Backend xử lý
-        
-        proxy_read_timeout 300s;
-        proxy_connect_timeout 75s;
-    }
-
-    # WebSocket cho API (nếu có)
-    location /ws/ {
-        proxy_pass http://127.0.0.1:8080/ws/;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 86400s;
-    }
-
-    location /api/actuator/health {
-        proxy_pass http://127.0.0.1:8080/api/actuator/health;
-        access_log off;
-    }
-}
-
-server {
-    listen 80;
-    server_name api.petties.world;
-    
-    if ($host = api.petties.world) {
-        return 301 https://$host$request_uri;
-    }
-    
-    return 404;
-}
-```
-
-### 7.2. Tạo Nginx config cho AI Service
-
-```bash
-sudo nano /etc/nginx/sites-available/ai.petties.world
-```
-
-**Nội dung:**
-
-```nginx
-server {
-    server_name ai.petties.world;
-
-    client_max_body_size 15M;
-
-    location / {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 300s;
-        proxy_connect_timeout 75s;
-    }
-
-    location /ws/ {
-        proxy_pass http://127.0.0.1:8000/ws/;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 86400s;
-    }
-
-    location /health {
-        proxy_pass http://127.0.0.1:8000/health;
-        access_log off;
-    }
-
-    listen 443 ssl; # managed by Certbot
-    ssl_certificate /etc/letsencrypt/live/ai.petties.world/fullchain.pem; # managed by Certbot
-    ssl_certificate_key /etc/letsencrypt/live/ai.petties.world/privkey.pem; # managed by Certbot
-    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
-
-}
-server {
-    if ($host = ai.petties.world) {
-        return 301 https://$host$request_uri;
-    } # managed by Certbot
-
-
-    listen 80;
-    server_name ai.petties.world;
-    return 404; # managed by Certbot
-}
-```
-
-### 7.3. Enable sites
-
-```bash
-# Enable sites
-sudo ln -s /etc/nginx/sites-available/api.petties.world /etc/nginx/sites-enabled/
-sudo ln -s /etc/nginx/sites-available/ai.petties.world /etc/nginx/sites-enabled/
-
-# Test Nginx config
-sudo nginx -t
-
-# Nếu có lỗi về SSL certificate, đừng lo, chúng ta sẽ tạo sau
-# Tạm thời comment SSL config nếu cần:
-# # ssl_certificate ...
-# # ssl_certificate_key ...
-```
-
-**Lưu ý**: Nếu test config lỗi vì chưa có SSL certificate, tạm thời comment các dòng SSL trong 2 file config, sau khi có SSL sẽ uncomment lại.
-
-### 7.4. Reload Nginx
-
-```bash
-sudo systemctl reload nginx
-```
-
-## 🔒 Bước 8: Tạo SSL Certificates
-
-### 8.1. Tạo SSL cho Backend API
-
-```bash
-sudo certbot --nginx -d api.petties.world
-```
-
-Khi được hỏi:
-- **Email**: Nhập email của bạn
-- **Agree to terms**: Y
-- **Share email**: N (tùy chọn)
-- **Redirect HTTP to HTTPS**: 2 (Redirect)
-
-### 8.2. Tạo SSL cho AI Service
-
-```bash
-sudo certbot --nginx -d ai.petties.world
-```
-
-Lặp lại các bước tương tự.
-
-### 8.3. Uncomment SSL config (nếu đã comment)
-
-Nếu trước đó bạn đã comment SSL config, bây giờ uncomment lại vì Certbot đã tự động thêm.
-
-### 8.4. Auto-renewal
-
-Certbot tự động setup cron job để renew certificates. Kiểm tra:
-
-```bash
-sudo certbot renew --dry-run
-```
+Khuyến nghị dùng managed TLS ở tầng edge (Cloudflare/AWS) để không cần quản lý cert thủ công trên VM.
 
 ## 🚀 Bước 9: Deploy Containers
 
@@ -451,13 +264,13 @@ sudo certbot renew --dry-run
 cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
 
 # Build and start containers
-docker-compose -f docker-compose.prod.yml --env-file .env up -d --build
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod up -d --build
 
 # Check status
-docker-compose -f docker-compose.prod.yml ps
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod ps
 
 # View logs
-docker-compose -f docker-compose.prod.yml logs -f
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod logs -f
 ```
 
 ### 9.2. Kiểm tra containers
@@ -467,10 +280,10 @@ docker-compose -f docker-compose.prod.yml logs -f
 docker ps
 
 # Check backend logs
-docker-compose -f docker-compose.prod.yml logs -f backend
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod logs -f backend
 
 # Check AI service logs
-docker-compose -f docker-compose.prod.yml logs -f ai-service
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod logs -f ai-service
 ```
 
 ### 9.3. Test endpoints
@@ -536,9 +349,9 @@ jobs:
             echo "Pulling latest code from main branch..."
             git pull origin main
             echo "Stopping production containers..."
-            docker-compose -f docker-compose.prod.yml --env-file .env down
+            docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod down
             echo "Building and starting production containers..."
-            docker-compose -f docker-compose.prod.yml --env-file .env up -d --build
+            docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod up -d --build
             echo "Waiting for services to start..."
             sleep 10
             echo "Checking production backend health..."
@@ -546,7 +359,7 @@ jobs:
             echo "Checking production AI service health..."
             curl -f http://127.0.0.1:8000/health || echo "⚠️ AI service health check failed"
             echo "Showing recent logs..."
-            docker-compose -f docker-compose.prod.yml logs --tail=50
+            docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod logs --tail=50
             echo "✅ Production Deployment complete!"
 ```
 
@@ -606,10 +419,10 @@ ws.onopen = () => console.log('✅ AI Service WS connected')
 **Giải pháp**:
 ```bash
 # Kiểm tra containers
-docker-compose -f docker-compose.prod.yml ps
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod ps
 
 # Kiểm tra logs
-docker-compose -f docker-compose.prod.yml logs -f backend
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod logs -f backend
 
 # Test direct connection
 curl http://127.0.0.1:8080/api/actuator/health
@@ -624,11 +437,11 @@ curl http://127.0.0.1:8080/api/actuator/health
 # Kiểm tra database connection từ EC2
 nc -vz ep-quiet-rice-a1qxog6z-pooler.ap-southeast-1.aws.neon.tech 5432
 
-# Kiểm tra .env file
-cat .env | grep DB_
+# Kiểm tra .env.prod file
+cat .env.prod | grep DB_
 
 # Kiểm tra backend logs
-docker-compose -f docker-compose.prod.yml logs backend | grep -i "database\|connection"
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod logs backend | grep -i "database\|connection"
 ```
 
 ### Lỗi: Out of Memory
@@ -648,35 +461,36 @@ deploy:
       memory: 256M  # Giảm từ 384M
 ```
 
-### Lỗi: SSL Certificate không được tạo
+### Lỗi: HTTPS không hoạt động
 
-**Nguyên nhân**: DNS chưa propagate hoặc domain chưa trỏ đúng.
+**Nguyên nhân**: cấu hình TLS ở tầng edge (Cloudflare/ALB) chưa đúng hoặc DNS chưa propagate.
 
 **Giải pháp**:
 ```bash
 # Kiểm tra DNS
 nslookup api.petties.world
-nslookup ai.petties.world
+nslookup www.petties.world
 
-# Đợi 5-30 phút sau khi thêm DNS records
-# Thử lại certbot
-sudo certbot --nginx -d api.petties.world
+# Kiểm tra HTTP từ EC2 đến container nginx
+curl -I http://127.0.0.1:80
 ```
+
+Sau đó kiểm tra lại SSL mode/certificate ở Cloudflare hoặc listener/certificate ở AWS Load Balancer.
 
 ## 📊 Monitoring
 
 ### Check Container Status
 
 ```bash
-docker-compose -f docker-compose.prod.yml ps
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod ps
 docker stats
 ```
 
-### Check Nginx Status
+### Check Nginx Container Status
 
 ```bash
-sudo systemctl status nginx
-sudo nginx -t
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod ps nginx
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod logs -f nginx
 ```
 
 ### Check Disk Space
@@ -690,11 +504,11 @@ docker system df
 
 ```bash
 # All services
-docker-compose -f docker-compose.prod.yml logs -f
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod logs -f
 
 # Specific service
-docker-compose -f docker-compose.prod.yml logs -f backend
-docker-compose -f docker-compose.prod.yml logs -f ai-service
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod logs -f backend
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod logs -f ai-service
 ```
 
 ## 🔄 Update Deployment
@@ -704,8 +518,8 @@ docker-compose -f docker-compose.prod.yml logs -f ai-service
 ```bash
 cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
 git pull origin main
-docker-compose -f docker-compose.prod.yml --env-file .env down
-docker-compose -f docker-compose.prod.yml --env-file .env up -d --build
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod down
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod up -d --build
 ```
 
 ### Automatic Update (via GitHub Actions)
@@ -717,8 +531,8 @@ Chỉ cần push vào `main` branch, GitHub Actions sẽ tự động deploy.
 - **Ports**: Backend (8080) và AI Service (8000) bind to `127.0.0.1` để chỉ Nginx có thể access
 - **Memory**: Tối ưu cho `t3.small` (2GB RAM), nếu cần có thể upgrade
 - **SSL**: Certificates tự động renew mỗi 90 ngày
-- **Environment Variables**: Không commit file `.env` lên Git
-- **Backup**: Nên backup file `.env` và database thường xuyên
+- **Environment Variables**: Không commit file `.env.prod` lên Git
+- **Backup**: Nên backup file `.env.prod` và database thường xuyên
 
 ## 🔗 Related Documentation
 

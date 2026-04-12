@@ -2,9 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:logger/logger.dart';
 import '../../config/constants/app_constants.dart';
 import '../../utils/storage_service.dart';
-import '../../config/env/environment.dart';  // ✅ Thêm import
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import '../../config/env/environment.dart';
 
 /// Interceptor for API requests and responses
 class ApiInterceptor extends Interceptor {
@@ -17,17 +15,10 @@ class ApiInterceptor extends Interceptor {
 
   ApiInterceptor() {
     final baseUrl = Environment.baseUrl;
-    final isProduction = Environment.isProduction;
-    
-    // ✅ Debug: Log platform
-    _logger.i('[API Configuration]');
-    _logger.i('  Platform: ${kIsWeb ? "WEB" : Platform.operatingSystem}');
-    _logger.i('  Environment: ${isProduction ? "PRODUCTION" : "DEVELOPMENT"}');
-    _logger.i('  Base URL: $baseUrl');
-    
+
     _dio.options.baseUrl = baseUrl;
-    _dio.options.connectTimeout = const Duration(seconds: 30);
-    _dio.options.receiveTimeout = const Duration(seconds: 30);
+    _dio.options.connectTimeout = const Duration(seconds: 60);
+    _dio.options.receiveTimeout = const Duration(seconds: 60);
   }
 
   @override
@@ -41,8 +32,9 @@ class ApiInterceptor extends Interceptor {
       options.headers['Authorization'] = 'Bearer $token';
     }
 
-    // NOTE: Logging removed for production/security
-    
+    // Skip ngrok browser warning (required for ngrok Free Tier)
+    options.headers['ngrok-skip-browser-warning'] = 'true';
+
     super.onRequest(options, handler);
   }
 
@@ -61,6 +53,13 @@ class ApiInterceptor extends Interceptor {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
+    // Expected 404 for EMR check logic, suppress log
+    if (err.response?.statusCode == 404 &&
+        err.requestOptions.path.contains('/emr/booking/')) {
+      super.onError(err, handler);
+      return;
+    }
+
     _logger.e(
       'ERROR[${err.response?.statusCode}] => PATH: ${err.requestOptions.path}',
     );
@@ -88,7 +87,8 @@ class ApiInterceptor extends Interceptor {
       _isRefreshing = true;
 
       try {
-        final refreshToken = await _storage.getString(AppConstants.refreshTokenKey);
+        final refreshToken =
+            await _storage.getString(AppConstants.refreshTokenKey);
         if (refreshToken == null) {
           _isRefreshing = false;
           _clearAuthAndRejectPending(handler, err);
@@ -112,7 +112,8 @@ class ApiInterceptor extends Interceptor {
         if (newAccessToken != null && newRefreshToken != null) {
           // Save new tokens
           await _storage.setString(AppConstants.accessTokenKey, newAccessToken);
-          await _storage.setString(AppConstants.refreshTokenKey, newRefreshToken);
+          await _storage.setString(
+              AppConstants.refreshTokenKey, newRefreshToken);
 
           // Retry original request
           requestOptions.headers['Authorization'] = 'Bearer $newAccessToken';
@@ -137,7 +138,8 @@ class ApiInterceptor extends Interceptor {
   void _retryPendingRequests(String newAccessToken) async {
     for (var pending in _pendingRequests) {
       try {
-        pending.requestOptions.headers['Authorization'] = 'Bearer $newAccessToken';
+        pending.requestOptions.headers['Authorization'] =
+            'Bearer $newAccessToken';
         final response = await _dio.fetch(pending.requestOptions);
         pending.handler.resolve(response);
       } catch (e) {
@@ -159,6 +161,7 @@ class ApiInterceptor extends Interceptor {
     await _storage.remove(AppConstants.refreshTokenKey);
     await _storage.remove(AppConstants.userIdKey);
     await _storage.remove(AppConstants.userDataKey);
+    await _storage.remove(AppConstants.userProfileKey);
 
     // Reject pending requests
     for (var pending in _pendingRequests) {
@@ -176,4 +179,3 @@ class _PendingRequest {
 
   _PendingRequest(this.requestOptions, this.handler);
 }
-

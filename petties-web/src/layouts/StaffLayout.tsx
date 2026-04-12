@@ -1,0 +1,154 @@
+import { Outlet, useNavigate } from 'react-router-dom'
+import { useEffect, useRef } from 'react'
+import { useAuthStore } from '../store/authStore'
+import { useNotificationStore } from '../store/notificationStore'
+import { useBookingStore } from '../store/bookingStore'
+import { Sidebar } from '../components/Sidebar/Sidebar'
+import MascotProvider from '../components/mascot/MascotProvider'
+import type { NavGroup } from '../components/Sidebar/Sidebar'
+import { useSidebar } from '../hooks/useSidebar'
+import { useSseNotification } from '../hooks/useSseNotification'
+import { useSyncProfile } from '../hooks/useSyncProfile'
+import { useMembershipStore } from '../store/membershipStore'
+import {
+    Squares2X2Icon,
+    CalendarIcon,
+    ClipboardDocumentListIcon,
+    UserGroupIcon,
+    BellIcon,
+    UserCircleIcon,
+} from '@heroicons/react/24/outline'
+import '../styles/brutalist.css'
+
+export const StaffLayout = () => {
+    const navigate = useNavigate()
+    const clearAuth = useAuthStore((state) => state.clearAuth)
+    const user = useAuthStore((state) => state.user)
+    const unreadCount = useNotificationStore((state) => state.unreadCount)
+    const refreshUnreadCount = useNotificationStore((state) => state.refreshUnreadCount)
+    const assignedBookingCount = useBookingStore((state) => state.assignedBookingCount)
+    const refreshAssignedBookingCount = useBookingStore((state) => state.refreshAssignedBookingCount)
+    const { state, toggleSidebar, isMobile } = useSidebar()
+    const lastAutoOpenBookingRef = useRef<string>('')
+
+    // Membership state
+    const fetchMembership = useMembershipStore(state => state.fetchMembershipStatus)
+    const isVIP = useMembershipStore(state => state.isVIP())
+    const planName = useMembershipStore(state => state.getPlanName())
+    const remainingDays = useMembershipStore(state => state.getRemainingDays())
+
+    // Initialize SSE with booking update handler
+    useSseNotification({
+        onBookingUpdate: (data) => {
+            console.log('[StaffLayout] Booking update received:', data)
+            // Refresh booking count when booking is assigned to this staff
+            if (data.action === 'CONFIRMED') {
+                // For CONFIRMED action, just refresh the count (the staff received this because they were assigned)
+                if (user?.userId) {
+                    refreshAssignedBookingCount(user.userId)
+                }
+            } else if (data.action === 'STAFF_REASSIGNED') {
+                if (user?.userId) {
+                    // If this staff is the new staff or old staff, refresh count
+                    if (data.newStaffId === user.userId || data.oldStaffId === user.userId) {
+                        refreshAssignedBookingCount(user.userId)
+                    }
+                }
+            } else if (data.action === 'COMPLETED' || data.action === 'CANCELLED') {
+                // Refresh on completion/cancellation
+                if (user?.userId) {
+                    refreshAssignedBookingCount(user.userId)
+                }
+            }
+
+            const shouldAutoOpenMascot =
+                data.action === 'CONFIRMED' ||
+                (data.action === 'STAFF_REASSIGNED' && data.newStaffId === user?.userId)
+
+            if (shouldAutoOpenMascot && data.bookingId) {
+                const autoOpenKey = `${data.action}:${data.bookingId}`
+                if (lastAutoOpenBookingRef.current !== autoOpenKey) {
+                    lastAutoOpenBookingRef.current = autoOpenKey
+                    window.dispatchEvent(
+                        new CustomEvent('petties-open-mascot', {
+                            detail: {
+                                source: 'staff_booking_update_auto_open',
+                                booking_id: data.bookingId,
+                                booking_code: data.bookingCode,
+                                booking_action: data.action,
+                            },
+                        }),
+                    )
+                }
+            }
+        }
+    })
+
+    // Auto-sync profile (avatar, fullName) to authStore for Sidebar
+    useSyncProfile()
+
+    useEffect(() => {
+        refreshUnreadCount()
+        fetchMembership()
+        if (user?.userId) {
+            refreshAssignedBookingCount(user.userId)
+        }
+    }, [refreshUnreadCount, refreshAssignedBookingCount, user?.userId, fetchMembership])
+
+    const navGroups: NavGroup[] = [
+        {
+            title: 'DASHBOARD',
+            items: [
+                { path: '/staff', label: 'BẢNG ĐIỀU KHIỂN', icon: Squares2X2Icon, end: true },
+            ]
+        },
+        {
+            title: 'CÔNG VIỆC',
+            items: [
+                { path: '/staff/schedule', label: 'LỊCH LÀM VIỆC', icon: CalendarIcon },
+                { path: '/staff/bookings', label: 'LỊCH HẸN', icon: ClipboardDocumentListIcon, unreadCount: assignedBookingCount },
+                { path: '/staff/patients', label: 'BỆNH NHÂN', icon: UserGroupIcon },
+            ]
+        },
+        {
+            title: 'CÁ NHÂN',
+            items: [
+                { path: '/staff/notifications', label: 'THÔNG BÁO', icon: BellIcon, unreadCount },
+                { path: '/staff/profile', label: 'HỒ SƠ', icon: UserCircleIcon },
+            ]
+        }
+    ]
+
+    const handleLogout = () => {
+        clearAuth()
+        navigate('/login', { replace: true })
+    }
+
+    return (
+        <div className="h-screen h-screen-safe min-h-screen-safe bg-stone-50 flex overflow-hidden safe-area-padding">
+            <Sidebar
+                groups={navGroups}
+                user={user}
+                roleName="NHÂN VIÊN PHÒNG KHÁM"
+                state={state}
+                toggleSidebar={toggleSidebar}
+                onLogout={handleLogout}
+                isMobile={isMobile}
+                isVIP={isVIP}
+                planName={planName}
+                remainingDays={remainingDays}
+            />
+
+            {/* Main Content */}
+            <main className="flex-1 overflow-auto bg-stone-50 relative">
+                <div className="p-0 h-full">
+                    <Outlet />
+                </div>
+            </main>
+
+            <MascotProvider />
+        </div>
+    )
+}
+
+export default StaffLayout

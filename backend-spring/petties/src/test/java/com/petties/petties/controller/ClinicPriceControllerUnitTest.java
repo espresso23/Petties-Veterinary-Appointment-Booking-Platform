@@ -9,6 +9,8 @@ import com.petties.petties.repository.BlacklistedTokenRepository;
 import com.petties.petties.service.ClinicPriceService;
 import com.petties.petties.repository.ClinicRepository;
 import com.petties.petties.model.User;
+import com.petties.petties.model.enums.Role;
+import com.petties.petties.model.ClinicPricePerKm;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -64,6 +66,7 @@ public class ClinicPriceControllerUnitTest {
         clinicId = UUID.randomUUID();
         mockUser = new User();
         mockUser.setUserId(UUID.randomUUID());
+        mockUser.setRole(Role.CLINIC_OWNER);
     }
 
     @Test
@@ -71,17 +74,23 @@ public class ClinicPriceControllerUnitTest {
     void updatePricePerKm_success_returns200() throws Exception {
         when(authService.getCurrentUser()).thenReturn(mockUser);
         when(clinicRepository.existsByClinicIdAndOwnerUserId(eq(clinicId), eq(mockUser.getUserId()))).thenReturn(true);
-        when(clinicPriceService.upsertPricePerKm(eq(clinicId), any(BigDecimal.class))).thenReturn(new BigDecimal("5000"));
+
+        // Mock updatePricing to return a ClinicPricePerKm object
+        ClinicPricePerKm mockPricing = new ClinicPricePerKm();
+        mockPricing.setClinicId(clinicId);
+        mockPricing.setPricePerKm(new BigDecimal("5000"));
+        mockPricing.setSosFee(new BigDecimal("100000"));
+        when(clinicPriceService.updatePricing(eq(clinicId), any(BigDecimal.class), any())).thenReturn(mockPricing);
 
         ClinicPriceRequest req = new ClinicPriceRequest();
         req.setPricePerKm(new BigDecimal("5000"));
 
         mockMvc.perform(patch("/clinics/{id}/price-per-km", clinicId)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.clinicId").value(clinicId.toString()))
-                .andExpect(jsonPath("$.pricePerKm").value(5000));
+                .andExpect(jsonPath("$.pricePerKm").value(5000.0));
     }
 
     @Test
@@ -94,8 +103,8 @@ public class ClinicPriceControllerUnitTest {
         req.setPricePerKm(new BigDecimal("1000"));
 
         mockMvc.perform(patch("/clinics/{id}/price-per-km", clinicId)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isForbidden());
     }
 
@@ -106,7 +115,7 @@ public class ClinicPriceControllerUnitTest {
         when(clinicRepository.existsByClinicIdAndOwnerUserId(eq(clinicId), eq(mockUser.getUserId()))).thenReturn(true);
 
         mockMvc.perform(patch("/clinics/{id}/price-per-km", clinicId)
-                        .contentType(MediaType.APPLICATION_JSON))
+                .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest());
     }
 
@@ -115,12 +124,11 @@ public class ClinicPriceControllerUnitTest {
     void deletePricePerKm_success_returns200() throws Exception {
         when(authService.getCurrentUser()).thenReturn(mockUser);
         when(clinicRepository.existsByClinicIdAndOwnerUserId(eq(clinicId), eq(mockUser.getUserId()))).thenReturn(true);
-        doReturn(null).when(clinicPriceService).upsertPricePerKm(eq(clinicId), isNull());
 
         mockMvc.perform(delete("/clinics/{id}/price-per-km", clinicId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("Price per km removed"));
+                .andExpect(jsonPath("$.message").value("Đã xóa giá di chuyển theo km"));
 
-        verify(clinicPriceService, times(1)).upsertPricePerKm(eq(clinicId), isNull());
+        verify(clinicPriceService, times(1)).updatePricing(eq(clinicId), isNull(), isNull());
     }
 }

@@ -1,4 +1,4 @@
-# PETTIES - Testing Strategy Document
+﻿# PETTIES - Testing Strategy Document
 
 **Version:** 4.3  
 **Last Updated:** 2025-12-27  
@@ -349,26 +349,26 @@ flowchart TD
 ```mermaid
 sequenceDiagram
     participant T as 👤 Tester
-    participant GH as 📁 GitHub
+    participant J as 🎯 Jira
     participant TL as 👨‍💼 Lead
     participant D as 👨‍💻 Developer
     
     T->>T: Bug found on Test env
-    T->>GH: Create Issue + Screenshots
-    T->>GH: Set severity label
+    T->>J: Create Bug + Screenshots
+    T->>J: Set severity + labels
     
-    TL->>GH: Review & assign
-    GH-->>D: Notification
+    TL->>J: Review & assign
+    J-->>D: Notification
     
-    D->>GH: Fix → PR → Merge
-    D->>GH: Comment: Ready to verify
+    D->>J: Update status: Ready for QA
+    D->>J: Link PR + note deploy build
     
     T->>T: Re-test on Test env
     
     alt Fixed
-        T->>GH: Close issue ✅
+        T->>J: Move to Done ✅
     else Not Fixed
-        T->>GH: Reopen + comment
+        T->>J: Reopen + comment
     end
 ```
 

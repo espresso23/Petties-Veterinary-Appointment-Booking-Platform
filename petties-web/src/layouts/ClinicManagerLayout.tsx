@@ -1,30 +1,174 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, useNavigate } from 'react-router-dom'
+import { useEffect, useRef } from 'react'
 import { useAuthStore } from '../store/authStore'
+import { useNotificationStore } from '../store/notificationStore'
+import { useBookingStore } from '../store/bookingStore'
+import { useChatStore } from '../store/chatStore'
+import { Sidebar } from '../components/Sidebar/Sidebar'
+import MascotProvider from '../components/mascot/MascotProvider'
+import type { NavGroup } from '../components/Sidebar/Sidebar'
+import { useSidebar } from '../hooks/useSidebar'
+import { useSseNotification } from '../hooks/useSseNotification'
+import { chatWebSocket } from '../services/websocket/chatWebSocket'
+import SosAlertModal from '../components/booking/SosAlertModal'
+import { chatService } from '../services/api/chatService'
+import type { ChatWebSocketMessage } from '../types/chat'
+import { useSyncProfile } from '../hooks/useSyncProfile'
+import {
+    Squares2X2Icon,
+    UserGroupIcon,
+    CalendarIcon,
+    ClipboardDocumentListIcon,
+    ChatBubbleLeftRightIcon,
+    BellIcon,
+    UserCircleIcon,
+    ClipboardDocumentCheckIcon,
+    HomeModernIcon,
+    ChartBarIcon,
+    TicketIcon,
+} from '@heroicons/react/24/outline'
 import '../styles/brutalist.css'
 
-interface NavItem {
-    path: string
-    label: string
-    end?: boolean
-}
-
-/**
- * CLINIC_MANAGER Layout - Neobrutalism Design
- * Text-only navigation, no icons as per design guidelines
- */
 export const ClinicManagerLayout = () => {
     const navigate = useNavigate()
     const clearAuth = useAuthStore((state) => state.clearAuth)
     const user = useAuthStore((state) => state.user)
+    const unreadCount = useNotificationStore((state) => state.unreadCount)
+    const refreshUnreadCount = useNotificationStore((state) => state.refreshUnreadCount)
+    const pendingBookingCount = useBookingStore((state) => state.pendingBookingCount)
+    const refreshPendingBookingCount = useBookingStore((state) => state.refreshPendingBookingCount)
+    const incrementPendingBookingCount = useBookingStore((state) => state.incrementPendingBookingCount)
+    const chatUnreadCount = useChatStore((state) => state.unreadCount)
+    const refreshChatUnreadCount = useChatStore((state) => state.refreshUnreadCount)
+    const incrementChatUnreadCount = useChatStore((state) => state.incrementUnreadCount)
+    const { state, toggleSidebar, isMobile } = useSidebar()
 
-    const navItems: NavItem[] = [
-        { path: '/clinic-manager', label: 'DASHBOARD', end: true },
-        { path: '/clinic-manager/vets', label: 'BÁC SĨ' },
-        { path: '/clinic-manager/bookings', label: 'BOOKING' },
-        { path: '/clinic-manager/schedule', label: 'LỊCH LÀM VIỆC' },
-        { path: '/clinic-manager/chat', label: 'CHAT TƯ VẤN' },
-        { path: '/clinic-manager/refunds', label: 'HOÀN TIỀN' },
-        { path: '/clinic-manager/profile', label: 'HỒ SƠ CÁ NHÂN' },
+
+
+    // Initialize SSE with booking update handler
+    useSseNotification({
+        onBookingUpdate: (data) => {
+            console.log('[ClinicManagerLayout] Booking update received:', data)
+            // Refresh pending count on booking events
+            if (data.action === 'CONFIRMED' || data.action === 'CANCELLED' || data.action === 'COMPLETED') {
+                if (user?.workingClinicId) {
+                    refreshPendingBookingCount(user.workingClinicId)
+                }
+            }
+        },
+        onNotification: (notification) => {
+            // New booking created → increment pending count
+            if (notification.type === 'BOOKING_CREATED') {
+                incrementPendingBookingCount()
+            }
+        }
+    })
+
+    // Auto-sync profile (avatar, fullName) to authStore for Sidebar
+    useSyncProfile()
+
+    // Connect to chat WebSocket for global unread count updates
+    useEffect(() => {
+        const connectChatWebSocket = async () => {
+            try {
+                await chatWebSocket.connect()
+                console.log('Global chat WebSocket connected')
+            } catch (error) {
+                console.error('Global chat WebSocket connection failed:', error)
+            }
+        }
+
+        connectChatWebSocket()
+
+        // WebSocket is kept connected for ChatPage subscriptions to persist
+        // ChatPage handlers will update unread count globally
+
+        return () => {
+            // Don't disconnect WebSocket as ChatPage subscriptions need it
+        }
+    }, [])
+
+    const unsubscribesRef = useRef<(() => void)[]>([])
+
+    useEffect(() => {
+        refreshUnreadCount()
+        refreshChatUnreadCount()
+        if (user?.workingClinicId) {
+            refreshPendingBookingCount(user.workingClinicId)
+        }
+
+        // GLOBAL SUBSCRIPTION for Sidebar Badge
+        const setupGlobalSubscriptions = async () => {
+            try {
+                // Fetch recent conversations to listen for updates
+                // We fetch top 50. If user receives msg from old chat (50+), it won't trigger badge instantly.
+                // This is a trade-off for performance.
+                const response = await chatService.getConversations(0, 50)
+                const conversations = response.content
+
+                console.log('[Layout] Setting up global subscriptions for', conversations.length, 'chats')
+
+                // Subscribe to each to detect new messages
+                const unsubscribes = conversations.map(conv => {
+                    return chatWebSocket.subscribeToChatBox(conv.id, (wsMessage: ChatWebSocketMessage) => {
+                        if (wsMessage.type === 'MESSAGE' && wsMessage.message) {
+                            const msg = wsMessage.message
+                            if (msg.senderType === 'PET_OWNER') {
+                                // Check if this chat is currently active in view
+                                // Direct store access to get fresh state without re-running effect
+                                const currentActiveId = useChatStore.getState().activeConversationId
+
+                                if (currentActiveId !== conv.id) {
+                                    console.log('[Layout] Incrementing global badge for chat', conv.id)
+                                    incrementChatUnreadCount()
+                                } else {
+                                    console.log('[Layout] Skipping global increment - Chat active:', conv.id)
+                                }
+                            }
+                        }
+                    })
+                })
+                unsubscribesRef.current = unsubscribes
+            } catch (error) {
+                console.error('[Layout] Failed to setup global subscriptions:', error)
+            }
+        }
+
+        // Wait a bit for connection to be ready (it connects in parallel effect)
+        const timer = setTimeout(() => {
+            setupGlobalSubscriptions()
+        }, 1000)
+
+        return () => {
+            clearTimeout(timer)
+            unsubscribesRef.current.forEach(u => u())
+            unsubscribesRef.current = []
+        }
+    }, [refreshUnreadCount, refreshChatUnreadCount, refreshPendingBookingCount, incrementChatUnreadCount, user?.workingClinicId])
+
+
+    const navGroups: NavGroup[] = [
+        {
+            title: 'QUẢN LÝ',
+            items: [
+                { path: '/clinic-manager', label: 'DASHBOARD', icon: Squares2X2Icon, end: true },
+                { path: '/clinic-manager/staff', label: 'NHÂN SỰ', icon: UserGroupIcon },
+                { path: '/clinic-manager/shifts', label: 'LỊCH LÀM VIỆC', icon: CalendarIcon },
+                { path: '/clinic-manager/bookings', label: 'BOOKING', icon: ClipboardDocumentListIcon, unreadCount: pendingBookingCount },
+                { path: '/clinic-manager/services', label: 'DỊCH VỤ', icon: ClipboardDocumentCheckIcon },
+                { path: '/clinic-manager/clinic', label: 'PHÒNG KHÁM', icon: HomeModernIcon },
+                { path: '/clinic-manager/vouchers', label: 'VOUCHER', icon: TicketIcon },
+            ]
+        },
+        {
+            title: 'HỆ THỐNG',
+            items: [
+                { path: '/clinic-manager/chat', label: 'CHAT', icon: ChatBubbleLeftRightIcon, unreadCount: chatUnreadCount },
+                { path: '/clinic-manager/revenue', label: 'DOANH THU', icon: ChartBarIcon },
+                { path: '/clinic-manager/notifications', label: 'THÔNG BÁO', icon: BellIcon, unreadCount },
+                { path: '/clinic-manager/profile', label: 'HỒ SƠ CÁ NHÂN', icon: UserCircleIcon },
+            ]
+        }
     ]
 
     const handleLogout = () => {
@@ -33,53 +177,33 @@ export const ClinicManagerLayout = () => {
     }
 
     return (
-        <div className="min-h-screen bg-stone-50 flex">
-            {/* Sidebar */}
-            <aside className="w-64 bg-white border-r-4 border-stone-900 flex flex-col">
-                {/* Logo/Header */}
-                <div className="px-6 py-6 border-b-4 border-stone-900">
-                    <h2 className="text-xl font-bold text-amber-600 uppercase tracking-wider">PETTIES</h2>
-                    <p className="text-xs font-bold text-stone-600 uppercase tracking-wide mt-1">CLINIC MANAGER</p>
-                </div>
+        <div className="h-screen h-screen-safe min-h-screen-safe bg-stone-50 flex overflow-hidden safe-area-padding">
+            {/* SOS Alert Modal - shows incoming SOS requests */}
+            {user?.workingClinicId && (
+                <SosAlertModal clinicId={user.workingClinicId} />
+            )}
 
-                {/* Navigation */}
-                <nav className="flex-1 py-4 overflow-y-auto">
-                    {navItems.map((link) => (
-                        <NavLink
-                            key={link.path}
-                            to={link.path}
-                            end={link.end}
-                            className={({ isActive }) =>
-                                `block px-6 py-3 text-sm font-bold uppercase tracking-wide border-l-4 transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 ${isActive
-                                    ? 'bg-amber-500 !text-white border-stone-900'
-                                    : '!text-stone-900 border-transparent hover:bg-amber-200 hover:border-stone-900 hover:translate-x-[-2px]'
-                                }`
-                            }
-                        >
-                            {String(link.label)}
-                        </NavLink>
-                    ))}
-                </nav>
-
-                {/* User & Logout */}
-                <div className="px-6 py-4 border-t-4 border-stone-900">
-                    <p className="text-xs font-bold text-stone-700 uppercase mb-3 truncate">
-                        {user?.fullName || 'Manager'}
-                    </p>
-                    <button
-                        onClick={handleLogout}
-                        className="w-full py-2 px-4 bg-white text-stone-950 text-sm font-black uppercase tracking-widest border-4 border-stone-950 shadow-[4px_4px_0_#000] hover:bg-amber-400 hover:shadow-[6px_6px_0_#000] hover:-translate-x-1 hover:-translate-y-1 active:translate-x-0.5 active:translate-y-0.5 active:shadow-[2px_2px_0_#000] transition-all duration-200 cursor-pointer focus:outline-none focus:ring-4 focus:ring-amber-500"
-                    >
-                        ĐĂNG XUẤT
-                    </button>
-                    <p className="text-xs text-stone-500 text-center mt-3">V0.0.1</p>
-                </div>
-            </aside>
+            <Sidebar
+                groups={navGroups}
+                user={user}
+                roleName="QUẢN LÝ PHÒNG KHÁM"
+                state={state}
+                toggleSidebar={toggleSidebar}
+                onLogout={handleLogout}
+                isMobile={isMobile}
+                isVIP={false}
+                planName="MANAGEMENT"
+            />
 
             {/* Main Content */}
-            <main className="flex-1 overflow-auto">
-                <Outlet />
+            <main className="flex-1 overflow-auto bg-stone-50 relative">
+                <div className="p-0 h-full">
+                    <Outlet />
+                </div>
+
             </main>
+
+            <MascotProvider />
         </div>
     )
 }

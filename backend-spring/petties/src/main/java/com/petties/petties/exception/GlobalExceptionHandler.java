@@ -14,25 +14,34 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
+import org.springframework.core.env.Environment;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
+
+import java.util.Arrays;
 
 /**
  * Global Exception Handler for REST API
  *
- * Handles all exceptions thrown by controllers and returns consistent error responses.
+ * Handles all exceptions thrown by controllers and returns consistent error
+ * responses.
  * All error messages are in Vietnamese for better UX.
  *
  * Error Response Format:
  * {
- *   "timestamp": "2025-12-24T18:30:00",
- *   "status": 400,
- *   "error": "Bad Request",
- *   "message": "Thong bao loi bang tieng Viet",
- *   "path": "/api/v1/resource",
- *   "errors": {"field": "message"}  // Optional, for validation errors
+ * "timestamp": "2025-12-24T18:30:00",
+ * "status": 400,
+ * "error": "Bad Request",
+ * "message": "Thong bao loi bang tieng Viet",
+ * "path": "/api/v1/resource",
+ * "errors": {"field": "message"} // Optional, for validation errors
  * }
  *
  * @author Petties Team
@@ -41,6 +50,42 @@ import java.util.Map;
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+
+        private final Environment environment;
+
+        public GlobalExceptionHandler(Environment environment) {
+                this.environment = environment;
+        }
+
+        @ExceptionHandler(IllegalStateException.class)
+        public ResponseEntity<ErrorResponse> handleIllegalStateException(
+                        IllegalStateException ex,
+                        HttpServletRequest request) {
+                log.info("IllegalStateException at {}", request.getRequestURI());
+                ErrorResponse error = ErrorResponse.builder()
+                                .timestamp(LocalDateTime.now())
+                                .status(HttpStatus.BAD_REQUEST.value())
+                                .error("Bad Request")
+                                .message(ex.getMessage())
+                                .path(request.getRequestURI())
+                                .build();
+                return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        }
+
+        @ExceptionHandler(IllegalArgumentException.class)
+        public ResponseEntity<ErrorResponse> handleIllegalArgumentException(
+                        IllegalArgumentException ex,
+                        HttpServletRequest request) {
+                log.error("IllegalArgumentException at {}: ", request.getRequestURI(), ex);
+                ErrorResponse error = ErrorResponse.builder()
+                                .timestamp(LocalDateTime.now())
+                                .status(HttpStatus.BAD_REQUEST.value())
+                                .error("Bad Request")
+                                .message("Lỗi tham số không hợp lệ: " + ex.getMessage())
+                                .path(request.getRequestURI())
+                                .build();
+                return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        }
 
         @ExceptionHandler(ResourceAlreadyExistsException.class) // Code: 409
         public ResponseEntity<ErrorResponse> handleResourceAlreadyExists(
@@ -74,7 +119,7 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ErrorResponse> handleUnauthorized(
                         UnauthorizedException ex,
                         HttpServletRequest request) {
-                log.warn("Unauthorized access to {}: {}", request.getRequestURI(), ex.getMessage());
+                log.warn("Unauthorized access to {}", request.getRequestURI());
                 ErrorResponse error = ErrorResponse.builder()
                                 .timestamp(LocalDateTime.now())
                                 .status(HttpStatus.UNAUTHORIZED.value())
@@ -103,7 +148,7 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ErrorResponse> handleForbidden(
                         ForbiddenException ex,
                         HttpServletRequest request) {
-                log.warn("Forbidden access to {}: {}", request.getRequestURI(), ex.getMessage());
+                log.warn("Forbidden access to {}", request.getRequestURI());
 
                 // Fallback to Vietnamese if message is null/empty
                 String message = ex.getMessage();
@@ -125,7 +170,7 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ErrorResponse> handleAccessDenied(
                         AccessDeniedException ex,
                         HttpServletRequest request) {
-                log.warn("Access Denied to {}: {}", request.getRequestURI(), ex.getMessage());
+                log.warn("Access denied to {}", request.getRequestURI());
                 ErrorResponse error = ErrorResponse.builder()
                                 .timestamp(LocalDateTime.now())
                                 .status(HttpStatus.FORBIDDEN.value())
@@ -155,7 +200,7 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ErrorResponse> handleAuthenticationException(
                         AuthenticationException ex,
                         HttpServletRequest request) {
-                log.warn("Authentication failed at {}: {}", request.getRequestURI(), ex.getMessage());
+                log.warn("Authentication failed at {}", request.getRequestURI());
 
                 // Fallback to Vietnamese if message is null/empty
                 String message = ex.getMessage();
@@ -238,29 +283,180 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(
                         HttpMessageNotReadableException ex,
                         HttpServletRequest request) {
+
+                String message = "Dữ liệu đầu vào không đúng định dạng";
+                Throwable cause = ex.getMostSpecificCause();
+
+                if (cause != null) {
+                        message = "Lỗi định dạng dữ liệu: " + cause.getMessage();
+                        // Try to get field name if possible
+                        if (cause instanceof JsonMappingException) {
+                                JsonMappingException jsonEx = (JsonMappingException) cause;
+                                if (jsonEx.getPath() != null && !jsonEx.getPath().isEmpty()) {
+                                        String fieldName = jsonEx.getPath().get(0).getFieldName();
+                                        message = "Giá trị không hợp lệ tại trường: " + fieldName;
+                                }
+                        }
+                }
+
                 ErrorResponse error = ErrorResponse.builder()
                                 .timestamp(LocalDateTime.now())
                                 .status(HttpStatus.BAD_REQUEST.value())
                                 .error("Bad Request")
-                                .message("Dữ liệu đầu vào không đúng định dạng hoặc giá trị không hợp lệ")
+                                .message(message)
                                 .path(request.getRequestURI())
                                 .build();
                 return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        }
+
+        @ExceptionHandler(DataIntegrityViolationException.class) // Code: 409
+        public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(
+                        DataIntegrityViolationException ex,
+                        HttpServletRequest request) {
+                log.warn("Data integrity violation at {}", request.getRequestURI());
+
+                // Parse specific constraint violations for user-friendly messages
+                String message = "Dữ liệu đã tồn tại trong hệ thống";
+                String rootCause = ex.getMostSpecificCause().getMessage();
+
+                if (rootCause != null) {
+                        if (rootCause.contains("users_username_key") || rootCause.contains("users_email_key")) {
+                                message = "Email này đã được đăng ký. Vui lòng đăng nhập hoặc sử dụng email khác.";
+                        } else if (rootCause.contains("users_phone_key")) {
+                                message = "Số điện thoại này đã được sử dụng.";
+                        } else if (rootCause.contains("clinics_") && rootCause.contains("_key")) {
+                                message = "Thông tin phòng khám đã tồn tại trong hệ thống.";
+                        } else if (rootCause.contains("unique_active_booking_per_pet_time")) {
+                                message = "Bạn đã có lịch hẹn đang hoạt động cho thú cưng này vào thời gian này. " +
+                                                "Vui lòng hủy lịch cũ trước hoặc chọn thời gian khác.";
+                        } else if (rootCause.contains("unique_active_sos_booking_per_pet")) {
+                                message = "Bạn đã có yêu cầu SOS đang hoạt động cho thú cưng này. " +
+                                                "Vui lòng đợi hoặc hủy yêu cầu cũ trước khi tạo mới.";
+                        } else if (rootCause.contains("booking_code_key")) {
+                                message = "Lỗi trùng lặp mã booking. Vui lòng thử lại đặt lịch.";
+                        } else if (rootCause.contains("bookings_") && rootCause.contains("_key")) {
+                                message = "Lỗi trùng lặp dữ liệu booking. Vui lòng thử lại.";
+                        } else if (rootCause.contains("unique_staff_date")) {
+                                message = "Nhân viên đã có ca làm việc trong ngày này. Vui lòng cập nhật ca hiện tại thay vì tạo mới.";
+                        } else if (rootCause.contains("_key") || rootCause.contains("unique")) {
+                                message = "Dữ liệu trùng lặp. Vui lòng kiểm tra và thử lại.";
+                        }
+                }
+
+                ErrorResponse error = ErrorResponse.builder()
+                                .timestamp(LocalDateTime.now())
+                                .status(HttpStatus.CONFLICT.value())
+                                .error("Conflict")
+                                .message(message)
+                                .path(request.getRequestURI())
+                                .build();
+                return new ResponseEntity<>(error, HttpStatus.CONFLICT);
+        }
+
+        @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+        public ResponseEntity<ErrorResponse> handleOptimisticLockingFailure(
+                        ObjectOptimisticLockingFailureException ex,
+                        HttpServletRequest request) {
+                log.warn("Optimistic locking failure at {}", request.getRequestURI());
+
+                ErrorResponse error = ErrorResponse.builder()
+                                .timestamp(LocalDateTime.now())
+                                .status(HttpStatus.CONFLICT.value())
+                                .error("Conflict")
+                                .message("Dữ liệu đã được thay đổi bởi một người dùng khác. Vui lòng tải lại trang và thử lại.")
+                                .path(request.getRequestURI())
+                                .build();
+                return new ResponseEntity<>(error, HttpStatus.CONFLICT);
+        }
+
+        /**
+         * Handle SOS Matching specific exceptions - Code: 422 (Unprocessable Entity)
+         * Returns detailed error message with error code for client handling
+         */
+        @ExceptionHandler(SosMatchingException.class)
+        public ResponseEntity<ErrorResponse> handleSosMatchingException(
+                        SosMatchingException ex,
+                        HttpServletRequest request) {
+                log.warn("SOS matching error at {}: {} (code: {})",
+                                request.getRequestURI(), ex.getMessage(), ex.getErrorCode());
+
+                // Map error codes to appropriate HTTP status
+                HttpStatus status = switch (ex.getErrorCode()) {
+                        case ACTIVE_BOOKING_EXISTS -> HttpStatus.CONFLICT;
+                        case PET_NOT_FOUND, SESSION_NOT_FOUND -> HttpStatus.NOT_FOUND;
+                        case PET_NOT_OWNED, MANAGER_NOT_AUTHORIZED, NOT_OWNER -> HttpStatus.FORBIDDEN;
+                        default -> HttpStatus.UNPROCESSABLE_ENTITY;
+                };
+
+                Map<String, String> errors = new HashMap<>();
+                errors.put("errorCode", ex.getErrorCode().name());
+
+                ErrorResponse error = ErrorResponse.builder()
+                                .timestamp(LocalDateTime.now())
+                                .status(status.value())
+                                .error(status.getReasonPhrase())
+                                .message(ex.getMessage())
+                                .path(request.getRequestURI())
+                                .errors(errors)
+                                .build();
+
+                return new ResponseEntity<>(error, status);
+        }
+
+        /**
+         * Handle SSE async request timeout - không trả JSON, chỉ log DEBUG
+         * SSE timeout là hành vi bình thường, client sẽ tự reconnect
+         */
+        @ExceptionHandler(AsyncRequestTimeoutException.class)
+        public void handleAsyncRequestTimeout(AsyncRequestTimeoutException ex, HttpServletRequest request) {
+                log.debug("SSE connection timeout for path: {}", request.getRequestURI());
+                // Không trả về response, để connection close tự nhiên
+        }
+
+        /**
+         * Handle TimeoutException - log DEBUG level
+         */
+        @ExceptionHandler(java.util.concurrent.TimeoutException.class)
+        public void handleTimeoutException(java.util.concurrent.TimeoutException ex, HttpServletRequest request) {
+                log.debug("Timeout exception for path: {}", request.getRequestURI());
+        }
+
+        @ExceptionHandler(NoResourceFoundException.class)
+        public ResponseEntity<ErrorResponse> handleNoResourceFoundException(
+                        NoResourceFoundException ex,
+                        HttpServletRequest request) {
+                ErrorResponse error = ErrorResponse.builder()
+                                .timestamp(LocalDateTime.now())
+                                .status(HttpStatus.NOT_FOUND.value())
+                                .error(HttpStatus.NOT_FOUND.getReasonPhrase())
+                                .message("Không tìm thấy tài nguyên yêu cầu")
+                                .path(request.getRequestURI())
+                                .build();
+
+                log.warn("Resource not found at {}", request.getRequestURI());
+                return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
         }
 
         @ExceptionHandler(Exception.class) // Code: 500
         public ResponseEntity<ErrorResponse> handleGenericException(
                         Exception ex,
                         HttpServletRequest request) {
+                boolean isDev = environment != null
+                                && Arrays.stream(environment.getActiveProfiles()).anyMatch(p -> "dev".equals(p));
+
+                String userMessage = "Đã xảy ra lỗi không mong muốn. Vui lòng thử lại sau hoặc liên hệ bộ phận hỗ trợ";
+                if (isDev && ex != null && ex.getMessage() != null) {
+                        userMessage = userMessage + " [DEV: " + ex.getClass().getSimpleName() + ": " + ex.getMessage() + "]";
+                }
+
                 ErrorResponse error = ErrorResponse.builder()
                                 .timestamp(LocalDateTime.now())
                                 .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
                                 .error("Internal Server Error")
-                                .message("Đã xảy ra lỗi không mong muốn. Vui lòng thử lại sau hoặc liên hệ bộ phận hỗ trợ")
+                                .message(userMessage)
                                 .path(request.getRequestURI())
                                 .build();
 
-                // Log error with logger instead of printStackTrace()
                 log.error("Unexpected error occurred at {}: ", request.getRequestURI(), ex);
 
                 return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
