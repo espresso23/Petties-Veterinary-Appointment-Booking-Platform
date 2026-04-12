@@ -404,7 +404,9 @@ class AiChatService {
     final uri = Uri.parse(
       '$wsBase/ws/chat/$sessionId?token=${Uri.encodeComponent(token)}&context_type=$_contextType',
     );
-    debugPrint('[AiChat] WebSocket uri=$uri');
+    debugPrint(
+      '[AiChat] WebSocket connecting: /ws/chat/$sessionId?context_type=$_contextType',
+    );
 
     try {
       return IOWebSocketChannel.connect(

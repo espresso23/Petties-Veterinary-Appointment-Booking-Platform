@@ -77,6 +77,7 @@ class AgentInfoMessage(BaseWebSocketMessage):
     provider: Optional[str] = None
     model: Optional[str] = None
     allowed_tools: List[str] = []
+    allowed_resources: List[str] = []
 
 
 class ThinkingMessage(BaseWebSocketMessage):

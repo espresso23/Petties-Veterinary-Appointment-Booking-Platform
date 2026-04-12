@@ -102,11 +102,6 @@ from app.core.agents.fast_path import (
 
 
 from app.core.agents.prompt_builder import build_context, create_think_prompt
-from app.core.agents.booking_session import (
-    BookingSessionState,
-    complete_booking_session,
-)
-from app.core.database.mongodb import update_booking_state_in_db
 from app.core.tool_runtime_context import get_tool_runtime_context
 
 
@@ -373,37 +368,6 @@ class SingleAgent:
             f"SingleAgent initialized with {len(self.enabled_tools)} enabled tools, "
             f"temperature={self.temperature}, max_tokens={self.max_tokens}"
         )
-
-    async def _sync_booking_state_after_tool(
-        self,
-        tool_name: Optional[str],
-        tool_result: Any,
-    ) -> None:
-        if tool_name != "create_booking_for_user":
-            return
-
-        if not isinstance(tool_result, dict):
-            return
-
-        if not tool_result.get("success") or not tool_result.get("ready_to_create"):
-            return
-
-        ctx = get_tool_runtime_context()
-        if not ctx or not ctx.booking_state:
-            return
-
-        try:
-            state = BookingSessionState.model_validate(ctx.booking_state)
-        except Exception as exc:
-            logger.warning(f"Cannot parse booking state after tool execution: {exc}")
-            return
-
-        updated_state = complete_booking_session(state)
-        payload = updated_state.model_dump(mode="json")
-        ctx.booking_state = payload
-
-        if ctx.session_id:
-            await update_booking_state_in_db(ctx.session_id, payload)
 
     @classmethod
     async def create(
@@ -1198,7 +1162,6 @@ class SingleAgent:
             from app.core.tools.executor import execute_tool
 
             result = await execute_tool(tool_name, tool_params)
-            await self._sync_booking_state_after_tool(tool_name, result)
 
             step = ReActStep(
                 step_type="action",

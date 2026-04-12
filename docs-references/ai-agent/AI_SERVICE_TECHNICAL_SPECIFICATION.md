@@ -2,7 +2,7 @@
 
 **Version:** 1.5.1  
 **Updated:** 2026-04-01  
-**Primary references:** `D:/SEP490/petties/docs-references/ai_diagnose_service/01_RUNTIME_FLOW.md`, `D:/SEP490/petties/docs-references/documentation/SRS/PETTIES_SRS.md`, `D:/SEP490/petties/docs-references/documentation/SDD/REPORT_4_SDD_SYSTEM_DESIGN.md`
+**Primary references:** `D:/SEP490/petties/docs-references/ai_diagnose_service/01_RUNTIME_FLOW.md`, `D:/SEP490/petties/docs-references/documentation/SRS/PETTIES_SRS.md`, `D:/SEP490/petties/docs-references/documentation/SDD/PETTIES_SDD.md`
 
 > This document defines role rules, trust boundaries, and service-level architecture. Detailed AI diagnosis lifecycle and payload contracts should be maintained in the dedicated runtime flow, SRS, and SDD references above.
 

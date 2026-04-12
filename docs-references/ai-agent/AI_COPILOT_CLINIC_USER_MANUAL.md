@@ -1,8 +1,8 @@
-# AI Copilot Clinic - User Manual
+# Trợ lý AI Petties Clinic - User Manual
 
 ## 1. Giới Thiệu
 
-AI Copilot là trợ lý AI thông minh dành cho phòng khám trên Petties Web Dashboard, giúp quản lý và vận hành phòng khám bằng ngôn ngữ tự nhiên.
+Trợ lý AI Petties là trợ lý AI thông minh dành cho phòng khám trên Petties Web Dashboard, giúp quản lý và vận hành phòng khám bằng ngôn ngữ tự nhiên.
 
 ### 1.1 Ai Có Thể Sử Dụng
 
@@ -32,7 +32,7 @@ Chủ phòng khám có quyền cao nhất, bao gồm: setup phòng khám, quản
 
 **Bước thực hiện**:
 
-1. Mở AI Copilot từ thanh điều hướng
+1. Mở Trợ lý AI Petties từ thanh điều hướng
 2. Nhập một trong các prompt:
    - `"Gợi ý dịch vụ cho phòng khám của tôi"`
    - `"Tôi muốn setup danh mục dịch vụ cho phòng khám chó mèo"`
@@ -398,7 +398,7 @@ Quản lý phòng khám có quyền vận hành hàng ngày nhưng KHÔNG thể 
 
 ## 4. STAFF - Hướng Dẫn Sử Dụng
 
-Nhân viên sử dụng AI Copilot để hỗ trợ chẩn đoán và tra cứu thông tin bệnh án.
+Nhân viên sử dụng Trợ lý AI Petties để hỗ trợ chẩn đoán và tra cứu thông tin bệnh án.
 
 ### 4.1 Tìm Kiếm Thú Cưng
 
@@ -477,13 +477,13 @@ Nhân viên sử dụng AI Copilot để hỗ trợ chẩn đoán và tra cứu 
 
 ---
 
-## 5. Giao Diện AI Copilot
+## 5. Giao Diện Trợ lý AI Petties
 
 ### 5.1 Bố Cục Chính
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  🤖 AI Copilot - [Tên Phòng Khám]                [👤 Vai Trò] │
+│  🤖 Trợ lý AI Petties - [Tên Phòng Khám]         [👤 Vai Trò] │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  ┌───────────────────────────────────────────────────────────┐ │
@@ -574,7 +574,7 @@ Hiển thị ngữ cảnh hiện tại (auto-populated):
 
 | Vấn Đề | Nguyên Nhân | Giải Pháp |
 |--------|-------------|-----------|
-| Không thấy AI Copilot | Chưa đăng nhập | Đăng nhập bằng tài khoản Owner/Manager/Staff |
+| Không thấy Trợ lý AI Petties | Chưa đăng nhập | Đăng nhập bằng tài khoản Owner/Manager/Staff |
 | "Công cụ chưa được kích hoạt" | Admin chưa bật tool | Liên hệ quản trị viên hệ thống |
 | AI không phản hồi | Mất kết nối mạng | Kiểm tra internet, thử lại |
 | Không tìm thấy dịch vụ/thú cưng | Tên không chính xác | Kiểm tra lại tên, dùng từ khóa ngắn hơn |
@@ -612,11 +612,11 @@ Hiển thị ngữ cảnh hiện tại (auto-populated):
 **Q: AI có tự động lưu/thay đổi dữ liệu không?**
 **A**: KHÔNG. AI luôn hiển thị preview và chờ xác nhận trước khi thực hiện bất kỳ thay đổi nào.
 
-**Q: Tôi có thể dùng AI Copilot trên mobile không?**
+**Q: Tôi có thể dùng Trợ lý AI Petties trên mobile không?**
 **A**: Hiện tại chỉ hỗ trợ trên Web Dashboard.
 
 **Q: AI có hiểu tiếng Việt không?**
-**A**: Có. AI Copilot hỗ trợ tiếng Việt 100%. Bạn có thể hỏi bằng ngôn ngữ tự nhiên.
+**A**: Có. Trợ lý AI Petties hỗ trợ tiếng Việt 100%. Bạn có thể hỏi bằng ngôn ngữ tự nhiên.
 
 ### CLINIC_OWNER
 
@@ -640,7 +640,7 @@ Hiển thị ngữ cảnh hiện tại (auto-populated):
 ### STAFF
 
 **Q: Tôi có thể xác nhận booking không?**
-**A**: KHÔNG qua AI Copilot. Chức năng xác nhận booking chỉ dành cho CLINIC_OWNER và CLINIC_MANAGER.
+**A**: KHÔNG qua Trợ lý AI Petties. Chức năng xác nhận booking chỉ dành cho CLINIC_OWNER và CLINIC_MANAGER.
 
 **Q: Tôi có thể xem hồ sơ bệnh án của thú cưng bất kỳ không?**
 **A**: Bạn chỉ có thể xem hồ sơ của thú cưng thuộc phòng khám nơi bạn làm việc.
@@ -727,7 +727,7 @@ Hiển thị ngữ cảnh hiện tại (auto-populated):
 
 ## 11. Liên Hệ & Hỗ Trợ
 
-Nếu gặp vấn đề khi sử dụng AI Copilot:
+Nếu gặp vấn đề khi sử dụng Trợ lý AI Petties:
 
 1. **Tự khắc phục**: Refresh trang, thử lại
 2. **Kiểm tra logs**: Mở Developer Tools (F12) → Console
@@ -738,4 +738,4 @@ Nếu gặp vấn đề khi sử dụng AI Copilot:
 **Version**: 2.0.0  
 **Last Updated**: 2026-04-03  
 **Document Status**: Active  
-**Scope**: AI Copilot Clinic - Phase 0 + Phase 1
+**Scope**: Trợ lý AI Petties Clinic - Phase 0 + Phase 1

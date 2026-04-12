@@ -70,7 +70,7 @@ Record the exact environment in every bug report and test run.
 |---|---|---|---|---|---|
 | AI-PO-MOB | PET_OWNER | Mobile | AI chat bubble / pet AI chat screen | Active | Pet care Q&A and booking assistant |
 | AI-ST-MOB | STAFF | Mobile | Staff AI chat screen | Active | Staff business chat and patient-context support |
-| AI-ST-WEB | STAFF | Web | `StaffAIChatPage` | Active | Staff business chat, structured renderer, diagnosis entry |
+| AI-ST-WEB | STAFF | Web | `MascotDockPanel` on `/staff` workspace | Active | Staff business chat, structured renderer, diagnosis entry |
 | AI-EMR-WEB | STAFF | Web | Create EMR page + chat sidebar + diagnosis panel | Active | Diagnosis support and EMR draft sync |
 | AI-DIAG-API | STAFF / ADMIN | Web or Mobile caller | `/api/v1/staff-diagnosis/analyze` | Active | Diagnosis analysis pipeline |
 
@@ -606,7 +606,7 @@ Use the same format for every scenario:
 
 - **Goal:** Verify staff chat surface on the web with structured rendering.
 - **Role / Platform:** STAFF on Web
-- **Dependencies:** `StaffAIChatPage`, `ui_schema`, session APIs, tool routing
+- **Dependencies:** `MascotDockPanel`, `MascotProvider`, `ui_schema`, session APIs, tool routing
 - **Expected UI output type:** `text`, `ui_schema`, and safe error states
 - **Preconditions:** Logged in as STAFF with valid clinic context
 - **Test Steps:**

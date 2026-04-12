@@ -28,27 +28,19 @@ INTENT_MAP: Dict[str, str] = {
     "update_service_info": "show_service_update_preview",
     "check_available_slots": "show_available_slots",
     "create_booking_for_user": "show_booking_summary",
-    "sync_booking_draft": "show_booking_summary",
-    "get_booking_session_info": "show_booking_summary",
-    "start_booking_session": "show_booking_summary",
-    "get_booking_session": "show_booking_summary",
-    "update_booking_draft": "show_booking_summary",
-    "get_booking_draft_summary": "show_booking_summary",
-    "resume_booking_session": "show_booking_summary",
     "get_patient_summary": "show_emr_summary",
     "check_vaccination_status": "show_vaccination_status",
     "web_search": "show_web_search_results",
 }
 
+RESOURCE_FALLBACK_TOOL_MAP: Dict[str, str] = {
+    "user_pets": "get_user_pets",
+    "clinic_services": "get_clinic_services",
+    "slot_availability": "check_available_slots",
+}
+
 BOOKING_SUMMARY_TOOLS = {
     "create_booking_for_user",
-    "sync_booking_draft",
-    "get_booking_session_info",
-    "start_booking_session",
-    "get_booking_session",
-    "update_booking_draft",
-    "get_booking_draft_summary",
-    "resume_booking_session",
 }
 
 BOOKING_PAYLOAD_KEYS = {
@@ -242,6 +234,32 @@ def _dedupe_services(services: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return deduped
 
 
+def _normalize_tool_result_for_presentation(
+    tool_result: Dict[str, Any],
+) -> tuple[str, bool, Dict[str, Any]]:
+    raw_tool_name = str(tool_result.get("tool_name", "") or "")
+    success = tool_result.get("success", True)
+    data = (
+        tool_result.get("data", tool_result)
+        if success
+        else tool_result.get("error", tool_result)
+    )
+
+    if raw_tool_name != "read_resource" or not isinstance(data, dict):
+        return raw_tool_name, success, data if isinstance(data, dict) else {}
+
+    resource_name = str(data.get("resource_name") or "").strip()
+    effective_tool_name = RESOURCE_FALLBACK_TOOL_MAP.get(resource_name, "").strip()
+    if not effective_tool_name:
+        effective_tool_name = str(data.get("deprecated_tool") or "").strip() or raw_tool_name
+
+    payload = data.get("payload")
+    if isinstance(payload, dict):
+        return effective_tool_name, success, payload
+
+    return effective_tool_name, success, data
+
+
 def resolve_intent(tool_name: str, result: Dict[str, Any]) -> str:
     data = result.get("data", {})
 
@@ -250,6 +268,15 @@ def resolve_intent(tool_name: str, result: Dict[str, Any]) -> str:
 
     if not result.get("success", True):
         return "show_error"
+
+    if tool_name == "generate_clinic_services":
+        if (
+            isinstance(data, dict)
+            and bool(data.get("needs_clarification"))
+            and isinstance(data.get("clinics"), list)
+            and len(data.get("clinics") or []) > 0
+        ):
+            return "show_clinic_list"
 
     intent = INTENT_MAP.get(tool_name)
     if intent is None:
@@ -1168,6 +1195,8 @@ def _build_components_for_intent(
                         payload={
                             "item_id": clinic_id,
                             "item_type": "clinic",
+                            "clinic_id": clinic_id,
+                            "clinic_name": clinic.get("name"),
                         },
                     )
                 ]
@@ -1243,12 +1272,12 @@ def _build_components_for_intent(
 
 def _has_successful_service_context(tool_results: List[Dict[str, Any]]) -> bool:
     for tool_result in tool_results:
-        if str(tool_result.get("tool_name") or "") != "get_clinic_services":
+        tool_name, success, payload = _normalize_tool_result_for_presentation(
+            tool_result
+        )
+        if tool_name != "get_clinic_services":
             continue
-        if not tool_result.get("success", True):
-            continue
-        payload = tool_result.get("data", tool_result)
-        if not isinstance(payload, dict):
+        if not success:
             continue
         services = payload.get("services")
         total_services = payload.get("total_services")
@@ -1331,13 +1360,7 @@ def build_ui_schema(tool_results: List[Dict[str, Any]]) -> Optional[UISchemaV1]:
     has_successful_service_context = _has_successful_service_context(tool_results)
 
     for index, tool_result in enumerate(tool_results):
-        tool_name = str(tool_result.get("tool_name", "") or "")
-        success = tool_result.get("success", True)
-        data = (
-            tool_result.get("data", tool_result)
-            if success
-            else tool_result.get("error", tool_result)
-        )
+        tool_name, success, data = _normalize_tool_result_for_presentation(tool_result)
 
         if (
             success

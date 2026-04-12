@@ -1,13 +1,13 @@
-# AI Copilot cho Clinic - Implementation Plan
+# AI Assistant cho Clinic - Implementation Plan
 
 ## IMPORTANT - Scope Separation (2026-04-03)
 
 **Plan này bao gồm 3 scope khác nhau, cần tách rõ:**
 
 **Platform clarification:**
-- AI Copilot cho `CLINIC_OWNER` và `CLINIC_MANAGER` nằm trên Web Dashboard.
+- AI Assistant cho `CLINIC_OWNER` và `CLINIC_MANAGER` nằm trên Web Dashboard.
 - Mobile AI chỉ dành cho `STAFF`.
-- `PET_OWNER` khong nam trong scope AI Copilot va khong duoc expose route AI tren mobile.
+- `PET_OWNER` khong nam trong scope AI Assistant va khong duoc expose route AI tren mobile.
 
 | Package | Scope | Priority | Status |
 |---------|-------|----------|--------|
@@ -21,9 +21,9 @@
 
 ## 1. Overview
 
-### 1.0 Tại Sao Cần AI Copilot Cho Clinic
+### 1.0 Tại Sao Cần AI Assistant Cho Clinic
 
-#### 1.0.1 Vấn Đề Hiện Tại (Nếu Không Có AI Copilot)
+#### 1.0.1 Vấn Đề Hiện Tại (Nếu Không Có AI Assistant)
 
 | Vấn đề | Impact | Frequency |
 |--------|--------|-----------|
@@ -34,9 +34,9 @@
 | **Không có insights** | Không biết dịch vụ nào hot, dịch vụ nào ế | Hàng tuần |
 | **Thao tác thủ công** | Phải vào form CRUD để đổi giá, toggle status | Thường xuyên |
 
-#### 1.0.2 Nếu Có AI Copilot - Làm Được Gì
+#### 1.0.2 Nếu Có AI Assistant - Làm Được Gì
 
-| Use Case | Trước (Manual) | Sau (AI Copilot) |
+| Use Case | Trước (Manual) | Sau (AI Assistant) |
 |----------|----------------|------------------|
 | **Setup danh mục dịch vụ** | 2-4 giờ nhập tay | 5-10 phút + review |
 | **Xem doanh thu** | Vào 3-4 màn hình khác nhau | 1 prompt: "Doanh thu tuần này" |
@@ -87,7 +87,7 @@ AI hỗ trợ CLINIC_OWNER thiết lập danh mục dịch vụ khởi tạo:
 | CLINIC_OWNER | Web | ✅ Full access (generate + review + save) |
 | CLINIC_MANAGER | Web | ⚠️ View only (sau Phase 0) |
 | STAFF | Mobile | Out of scope cho Clinic Setup AI; chi dung mobile AI staff workflow |
-| PET_OWNER | Mobile | Khong co AI Copilot |
+| PET_OWNER | Mobile | Khong co AI Assistant |
 
 ### 1.3 SRS References
 
@@ -285,11 +285,11 @@ AI hỗ trợ CLINIC_OWNER thiết lập danh mục dịch vụ khởi tạo:
 
 ## 5. UI Design Notes
 
-### 5.1 AI Copilot Composer (Required Spec)
+### 5.1 AI Assistant Composer (Required Spec)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  🤖 AI Copilot - Pet Care Quận 1                              [User: Owner]│
+│  🤖 AI Assistant - Pet Care Quận 1                            [User: Owner]│
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  [MoonClipboardIcon Dịch vụ] [CalendarIcon Lịch trực] [ChartBarIcon Metrics]│
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -429,7 +429,7 @@ flowchart LR
 
 ---
 
-## 6. AI Copilot Business Logic (Standard Flows)
+## 6. AI Assistant Business Logic (Standard Flows)
 
 ### 6.1 Prompt Classification Flow
 
@@ -583,7 +583,7 @@ def handle_tool_error(error: ToolError, tool: Tool) -> Response:
 
 ```python
 class CopilotSession:
-    """Manage AI Copilot conversation state"""
+    """Manage AI assistant conversation state"""
     
     def __init__(self, user_id: str, clinic_id: str, role: str):
         self.user_id = user_id
@@ -771,7 +771,7 @@ async def execute_write_on_confirm(tool: Tool, params: dict, user_id: str) -> Re
 - [x] `get_clinic_metrics` - Metrics tổng quan (top_services removed - placeholder)
 - [x] `get_owner_stats_overview` - **NEW**: Thống kê tổng hợp TẤT CẢ các clinic của Owner
 - [x] `get_clinic_staff` / `get_clinic_shifts` / `check_booking_availability` - Staff & shifts
-- [x] Frontend: Route `/clinic-manager/ai-copilot` + `ClinicManagerAIChatPage` (2026-04-06)
+- [x] Frontend: Mascot dock entrypoint on clinic manager workspace route (2026-04-06)
 - [ ] Frontend: UISchemaRenderer - render các card mới:
   - [ ] `staff_schedule_card`
   - [ ] `slot_grid_card`
@@ -803,7 +803,7 @@ async def execute_write_on_confirm(tool: Tool, params: dict, user_id: str) -> Re
 
 ## 5. UI Design Notes
 
-### 5.1 AI Copilot Composer Layout
+### 5.1 AI Assistant Composer Layout
 
 | Row | Component | Description |
 |-----|-----------|-------------|
@@ -846,7 +846,7 @@ Success Toast
 
 ---
 
-## 6. AI Copilot Business Logic
+## 6. AI Assistant Business Logic
 
 ### 6.1 Prompt Classification Flow
 

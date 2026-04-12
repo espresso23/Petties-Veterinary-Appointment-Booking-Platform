@@ -63,9 +63,28 @@ class EmrCaseMemorySyncService:
             mapping_result,
         )
 
+        vitals = emr_record.get("vitals") if isinstance(emr_record.get("vitals"), dict) else {}
+        symptoms = emr_record.get("symptoms", []) or []
+        if not isinstance(symptoms, list):
+            symptoms = []
+        physical_exam = emr_record.get("physical_exam", []) or []
+        if not isinstance(physical_exam, list):
+            physical_exam = []
+
         payload = {
+            "emr_id": emr_record.get("emr_id"),
+            "pet_id": str(emr_record.get("pet_id") or "").strip() or None,
+            "booking_id": str(emr_record.get("booking_id") or "").strip() or None,
+            "clinic_id": str(emr_record.get("clinic_id") or "").strip() or None,
             "species": emr_record.get("species"),
+            "breed": emr_record.get("breed"),
+            "age_months": emr_record.get("age_months"),
+            "sex": emr_record.get("sex"),
+            "allergies": emr_record.get("allergies"),
             "chief_complaint": emr_record.get("chief_complaint"),
+            "symptoms": symptoms,
+            "physical_exam": physical_exam,
+            "vitals": vitals,
             "clinical_notes": emr_record.get("clinical_notes"),
             "final_diagnosis_text": emr_record.get("final_diagnosis_text"),
             "canonical_code": mapping_result.canonical_code,

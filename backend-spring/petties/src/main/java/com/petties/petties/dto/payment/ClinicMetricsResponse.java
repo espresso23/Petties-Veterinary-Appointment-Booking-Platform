@@ -5,7 +5,7 @@ import java.util.Map;
 
 /**
  * Clinic performance metrics response.
- * Used by AI Copilot analytics tools.
+ * Used by AI assistant analytics tools.
  */
 public class ClinicMetricsResponse {
 

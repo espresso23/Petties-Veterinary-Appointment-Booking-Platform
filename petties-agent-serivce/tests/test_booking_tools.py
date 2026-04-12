@@ -22,11 +22,6 @@ from app.core.tool_runtime_context import (
     reset_tool_runtime_context,
     set_tool_runtime_context,
 )
-from app.core.agents.booking_session import (
-    BookingDraft,
-    BookingSessionState,
-    STATUS_CONFIRMING,
-)
 from app.core.tools.mcp_tools.booking_tools import (
     _resolve_booking_datetime_inputs,
     check_available_slots,
@@ -52,39 +47,20 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
         home_lat: float | None = None,
         home_long: float | None = None,
         distance_km: float | None = None,
-    ) -> dict:
-        normalized_service_ids = service_ids or ["service-1"]
-        snapshot = {
-            "pet_id": pet_id,
-            "clinic_id": clinic_id,
-            "clinic_name": None,
-            "booking_date": booking_date,
-            "start_time": start_time,
-            "service_ids": normalized_service_ids,
-            "booking_type": booking_type,
-            "notes": None,
-            "home_address": home_address,
-            "distance_km": distance_km,
-            "items": [],
-        }
-        state = BookingSessionState(
-            active=True,
-            status=STATUS_CONFIRMING,
-            intent="create_booking",
-            draft=BookingDraft(
-                pet_id=pet_id,
-                clinic_id=clinic_id,
-                service_ids=normalized_service_ids,
-                booking_date=booking_date,
-                start_time=start_time,
-                booking_type=booking_type,
-                home_address=home_address,
-                home_lat=home_lat,
-                home_long=home_long,
-            ),
-            last_confirmed_snapshot=snapshot,
+    ) -> None:
+        _ = (
+            pet_id,
+            clinic_id,
+            booking_date,
+            start_time,
+            service_ids,
+            booking_type,
+            home_address,
+            home_lat,
+            home_long,
+            distance_km,
         )
-        return state.model_dump(mode="json")
+        return None
 
     async def test_get_user_pets_uses_runtime_context(self):
         runtime_token = set_tool_runtime_context(
@@ -198,8 +174,17 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
             reset_tool_runtime_context(runtime_token)
 
         client.get_booking_clinic_options.assert_awaited_once()
+        client.resolve_booking_context.assert_awaited_once()
+        context_payload = client.resolve_booking_context.await_args.args[1]
+        self.assertEqual(context_payload["clinicHint"], "PetCare")
+        self.assertNotIn("latitude", context_payload)
+        self.assertNotIn("longitude", context_payload)
+        self.assertNotIn("address", context_payload)
         sent_payload = client.get_booking_clinic_options.await_args.args[1]
         self.assertEqual(sent_payload["clinicHint"], "PetCare")
+        self.assertNotIn("latitude", sent_payload)
+        self.assertNotIn("longitude", sent_payload)
+        self.assertNotIn("radiusKm", sent_payload)
         self.assertEqual(result["total_found"], 1)
         self.assertEqual(result["clinics"][0]["name"], "Benh Vien Thu Y PetCare")
         self.assertEqual(result["match_mode"], "explicit_name")
@@ -395,10 +380,19 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
             reset_tool_runtime_context(runtime_token)
 
         client.resolve_booking_context.assert_awaited_once()
+        context_payload = client.resolve_booking_context.await_args.args[1]
+        self.assertEqual(context_payload["clinicHint"], "PetCare")
+        self.assertNotIn("latitude", context_payload)
+        self.assertNotIn("longitude", context_payload)
+        self.assertNotIn("address", context_payload)
         client.get_booking_clinic_options.assert_awaited_once()
         sent_payload = client.get_booking_clinic_options.await_args.args[1]
-        self.assertEqual(sent_payload["latitude"], 15.975)
-        self.assertEqual(sent_payload["longitude"], 108.25)
+        self.assertEqual(sent_payload["clinicHint"], "PetCare")
+        self.assertEqual(sent_payload["serviceHint"], "kham benh")
+        self.assertNotIn("latitude", sent_payload)
+        self.assertNotIn("longitude", sent_payload)
+        self.assertNotIn("address", sent_payload)
+        self.assertNotIn("radiusKm", sent_payload)
         self.assertEqual(result["clinics"][0]["name"], "Benh Vien Thu Y PetCare")
 
     async def test_search_clinics_nearby_does_not_fallback_to_nearest_when_explicit_clinic_not_found(
@@ -687,57 +681,6 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(sent_payload["homeAddress"], "123 Duong ABC, Da Nang")
         self.assertTrue(result["success"])
         self.assertEqual(result["booking"]["type"], "HOME_VISIT")
-
-    async def test_create_booking_rejects_confirm_without_confirmation_context(self):
-        runtime_token = set_tool_runtime_context(
-            ToolRuntimeContext(
-                user_id="user-1",
-                role="PET_OWNER",
-                auth_token="jwt-token",
-            )
-        )
-
-        try:
-            result = await create_booking_for_user(
-                pet_id="pet-1",
-                clinic_id="550e8400-e29b-41d4-a716-446655440000",
-                booking_date="2026-12-25",
-                start_time="09:00",
-                service_ids=["svc-1"],
-                confirmed=True,
-            )
-        finally:
-            reset_tool_runtime_context(runtime_token)
-
-        self.assertFalse(result["success"])
-        self.assertEqual(result["error_code"], "CONFIRMATION_CONTEXT_MISSING")
-
-    async def test_create_booking_rejects_stale_confirmation_snapshot(self):
-        runtime_token = set_tool_runtime_context(
-            ToolRuntimeContext(
-                user_id="user-1",
-                role="PET_OWNER",
-                auth_token="jwt-token",
-                booking_state=self._build_confirmation_booking_state(
-                    service_ids=["svc-1"]
-                ),
-            )
-        )
-
-        try:
-            result = await create_booking_for_user(
-                pet_id="pet-1",
-                clinic_id="550e8400-e29b-41d4-a716-446655440001",
-                booking_date="2026-12-25",
-                start_time="09:00",
-                service_ids=["svc-2"],
-                confirmed=True,
-            )
-        finally:
-            reset_tool_runtime_context(runtime_token)
-
-        self.assertFalse(result["success"])
-        self.assertEqual(result["error_code"], "CONFIRMATION_MISMATCH")
 
     async def test_create_booking_blocks_when_user_explicitly_denies_action(self):
         runtime_token = set_tool_runtime_context(

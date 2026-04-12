@@ -1242,6 +1242,7 @@ class ParsedMessage(NamedTuple):
     location: Optional[Dict[str, Any]]
     ui_action: Optional[Dict[str, Any]]
     ui_action_error: Optional[str]
+    context_data: Dict[str, Any]
     raw_message: str
 
 
@@ -1256,12 +1257,18 @@ def _parse_raw_message(
     ui_action: Optional[Dict[str, Any]] = None
     location: Optional[Dict[str, Any]] = None
     display_message: Optional[str] = None
+    context_data: Dict[str, Any] = {}
     try:
         data = json.loads(message)
         user_message = data.get("message", message)
         raw_display_message = data.get("display_message")
         if isinstance(raw_display_message, str):
             display_message = raw_display_message.strip() or None
+        raw_context_data = data.get("context_data")
+        if isinstance(raw_context_data, dict):
+            context_data = {
+                str(key): value for key, value in raw_context_data.items() if key
+            }
         agent_id = data.get("agent_id", agent_id)
         provider_override = data.get("provider", provider_override)
         model_override = data.get("model", model_override)
@@ -1269,6 +1276,15 @@ def _parse_raw_message(
 
         raw_ui_action = data.get("ui_action")
         ui_action, ui_action_error = _validate_ui_action_payload(raw_ui_action)
+
+        if (
+            isinstance(ui_action, dict)
+            and not str(user_message or "").strip()
+            and not ui_action_error
+        ):
+            synthesized_user_message = _build_user_message_from_ui_action(ui_action)
+            if synthesized_user_message:
+                user_message = synthesized_user_message
 
         raw_location = data.get("location")
         lat = data.get("latitude")
@@ -1328,8 +1344,102 @@ def _parse_raw_message(
         location=location,
         ui_action=ui_action,
         ui_action_error=ui_action_error,
+        context_data=context_data,
         raw_message=message,
     )
+
+
+def _build_user_message_from_ui_action(
+    ui_action: Optional[Dict[str, Any]],
+) -> Optional[str]:
+    if not isinstance(ui_action, dict):
+        return None
+
+    action_type = str(ui_action.get("type") or "").strip().lower()
+    if action_type != "select_item":
+        return None
+
+    item_type = str(ui_action.get("item_type") or "").strip().lower()
+    item_id = str(ui_action.get("item_id") or "").strip()
+
+    if item_type == "clinic":
+        clinic_name = str(ui_action.get("clinic_name") or "").strip()
+        clinic_id = str(ui_action.get("clinic_id") or item_id).strip()
+        if clinic_name:
+            return (
+                f"Tôi chọn phòng khám {clinic_name}. "
+                "Hãy tiếp tục tạo gợi ý dịch vụ cho phòng khám này."
+            )
+        if clinic_id:
+            return (
+                f"Tôi đã chọn phòng khám có mã {clinic_id}. "
+                "Hãy tiếp tục tạo gợi ý dịch vụ cho phòng khám này."
+            )
+
+    if item_type == "service":
+        service_name = str(ui_action.get("service_name") or "").strip()
+        if service_name:
+            return f"Tôi chọn dịch vụ {service_name}."
+        if item_id:
+            return f"Tôi chọn dịch vụ có mã {item_id}."
+
+    if item_type == "pet":
+        pet_name = str(ui_action.get("pet_name") or "").strip()
+        if pet_name:
+            return f"Tôi chọn thú cưng {pet_name}."
+        if item_id:
+            return f"Tôi chọn thú cưng có mã {item_id}."
+
+    if item_type == "slot":
+        slot_date = str(ui_action.get("slot_date") or "").strip()
+        slot_time = str(ui_action.get("slot_time") or "").strip()
+        if slot_date and slot_time:
+            return f"Tôi chọn khung giờ {slot_time} ngày {slot_date}."
+
+    return None
+
+
+def _resolve_runtime_clinic_id_from_ui_action(
+    ui_action: Optional[Dict[str, Any]],
+) -> Optional[str]:
+    if not isinstance(ui_action, dict):
+        return None
+
+    action_type = str(ui_action.get("type") or "").strip().lower()
+    if action_type != "select_item":
+        return None
+
+    item_type = str(ui_action.get("item_type") or "").strip().lower()
+    if item_type != "clinic":
+        return None
+
+    clinic_id = str(
+        ui_action.get("clinic_id") or ui_action.get("item_id") or ""
+    ).strip()
+    return clinic_id or None
+
+
+def _resolve_runtime_clinic_id_for_request(
+    user: CurrentUser,
+    request_context_data: Optional[Dict[str, Any]],
+    request_ui_action: Optional[Dict[str, Any]] = None,
+) -> Optional[str]:
+    clinic_id_from_action = _resolve_runtime_clinic_id_from_ui_action(request_ui_action)
+    if clinic_id_from_action:
+        return clinic_id_from_action
+
+    if isinstance(request_context_data, dict):
+        for key in ("clinic_id", "workingClinicId", "working_clinic_id"):
+            value = request_context_data.get(key)
+            if value is None:
+                continue
+            text = str(value).strip()
+            if text:
+                return text
+
+    if user.clinic_id is not None and str(user.clinic_id).strip():
+        return str(user.clinic_id).strip()
+    return None
 
 
 async def _send_ack(
@@ -1392,6 +1502,8 @@ async def _setup_agent(
     model_override: Optional[str],
     session_context: str,
     booking_state: Optional[Dict[str, Any]] = None,
+    request_context_data: Optional[Dict[str, Any]] = None,
+    request_ui_action: Optional[Dict[str, Any]] = None,
 ) -> tuple:
     if agent_id:
         agent = await AgentFactory.get_agent_by_id(
@@ -1431,8 +1543,15 @@ async def _setup_agent(
             "provider": provider_override or "openrouter",
             "model": model_override or "default",
             "allowed_tools": agent.enabled_tools,
+            "allowed_resources": getattr(agent, "allowed_resources", []),
             "timestamp": datetime.now(timezone.utc).isoformat(),
         },
+    )
+
+    resolved_runtime_clinic_id = _resolve_runtime_clinic_id_for_request(
+        user,
+        request_context_data,
+        request_ui_action,
     )
 
     runtime_token = set_tool_runtime_context(
@@ -1440,7 +1559,7 @@ async def _setup_agent(
             user_id=user.user_id,
             role=user.role,
             auth_token=auth_token,
-            clinic_id=user.clinic_id,
+            clinic_id=resolved_runtime_clinic_id,
             session_id=session_id,
             context_type=session_context,
             booking_state=booking_state,
@@ -1848,6 +1967,7 @@ async def handle_chat_message(
                 location=parsed.location,
                 ui_action=parsed.ui_action,
                 ui_action_error=parsed.ui_action_error,
+                context_data=parsed.context_data,
                 raw_message=parsed.raw_message,
             )
 
@@ -1904,6 +2024,8 @@ async def handle_chat_message(
                     parsed.model_override,
                     session_context,
                     booking_state=booking_state,
+                    request_context_data=parsed.context_data,
+                    request_ui_action=parsed.ui_action,
                 )
             except ValueError:
                 return

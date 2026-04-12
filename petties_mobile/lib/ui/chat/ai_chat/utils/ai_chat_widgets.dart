@@ -699,59 +699,80 @@ class AiClinicSuggestionCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    if (clinic.distanceKm != null) ...[
-                      const Icon(
-                        Icons.location_on,
-                        size: 14,
-                        color: AppColors.primary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${clinic.distanceKm!.toStringAsFixed(1)} km',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                if (clinic.distanceKm != null || clinic.rating != null)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (clinic.distanceKm != null) ...[
+                        const Icon(
+                          Icons.location_on,
+                          size: 14,
                           color: AppColors.primary,
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                    ],
-                    if (clinic.rating != null) ...[
-                      const Icon(
-                        Icons.star,
-                        size: 14,
-                        color: Color(0xFFFBBF24),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${clinic.rating!.toStringAsFixed(1)} (${clinic.totalReviews ?? 0})',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.stone700,
+                        const SizedBox(width: 4),
+                        Text(
+                          '${clinic.distanceKm!.toStringAsFixed(1)} km',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primary,
+                          ),
                         ),
-                      ),
+                        if (clinic.rating != null) const SizedBox(width: 12),
+                      ],
+                      if (clinic.rating != null) ...[
+                        const Icon(
+                          Icons.star,
+                          size: 14,
+                          color: Color(0xFFFBBF24),
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            '${clinic.rating!.toStringAsFixed(1)} (${clinic.totalReviews ?? 0})',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.stone700,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ],
-                    if (clinic.operatingHours != null) ...[
-                      const SizedBox(width: 12),
-                      const Icon(
-                        Icons.access_time,
-                        size: 14,
-                        color: AppColors.stone500,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        clinic.operatingHours!,
-                        style: const TextStyle(
-                          fontSize: 12,
+                  ),
+                if (clinic.operatingHours != null &&
+                    clinic.operatingHours!.trim().isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Icon(
+                          Icons.access_time,
+                          size: 14,
                           color: AppColors.stone500,
                         ),
                       ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          clinic.operatingHours!,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.stone500,
+                            height: 1.35,
+                          ),
+                          maxLines: 5,
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: true,
+                        ),
+                      ),
                     ],
-                  ],
-                ),
+                  ),
+                ],
                 if (clinic.reasonMatched != null &&
                     clinic.reasonMatched!.trim().isNotEmpty) ...[
                   const SizedBox(height: 8),

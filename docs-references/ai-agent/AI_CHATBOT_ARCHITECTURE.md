@@ -753,7 +753,7 @@ asyncio.run(test())
 
 ### Client-Side Retry Mechanism
 
-- **Web (StaffAIChatPage.tsx):** Auto-reconnect với MAX_RECONNECT_ATTEMPTS = 3, RECONNECT_INTERVAL_MS = 2000, hiển thị số lần reconnect đang thực hiện
+- **Web (MascotProvider.tsx + MascotDockPanel.tsx):** Auto-reconnect với MAX_RECONNECT_ATTEMPTS = 3, RECONNECT_INTERVAL_MS = 2000, hiển thị số lần reconnect đang thực hiện
 - **Mobile (Flutter):** Auto-reconnect với _maxReconnectAttempts = 2, error mapping + friendly message
 
 ---

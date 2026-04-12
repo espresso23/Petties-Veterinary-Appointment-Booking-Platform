@@ -96,11 +96,6 @@ export const MascotDockPanel = ({
   }, [routePath])
 
   useEffect(() => {
-    if (!isOpen) {
-      setInputValue('')
-      return
-    }
-
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
@@ -274,7 +269,8 @@ export const MascotDockPanel = ({
                       <div className={message.content.trim() ? 'mt-3' : ''}>
                         <UISchemaRenderer
                           schema={message.uiSchema}
-                          onAction={(action: UIAction, _component: UIComponent) => {
+                          onAction={(action: UIAction, component: UIComponent) => {
+                            void component
                             void handleUiAction(action)
                           }}
                         />

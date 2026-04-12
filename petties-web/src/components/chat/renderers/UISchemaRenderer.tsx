@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import type { UIAction, UIComponent, UISchemaV1 } from '../../../types/chat-copilot'
 import {
   BookingListCard,
@@ -13,6 +14,7 @@ import {
 interface UISchemaRendererProps {
   schema: UISchemaV1
   onAction?: (action: UIAction, component: UIComponent) => void
+  selectedClinicId?: string
 }
 
 function ActionButtons({
@@ -47,6 +49,26 @@ function renderSimpleValue(value: unknown): string {
   return String(value)
 }
 
+function getStringFromRecord(record: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = record[key]
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim()
+    }
+  }
+  return undefined
+}
+
+function resolveClinicIdFromAction(action: UIAction): string | undefined {
+  const payload = asRecord(action.payload)
+  if (!payload) return undefined
+  return getStringFromRecord(payload, ['clinic_id', 'clinicId'])
+}
+
+function resolveClinicIdFromComponent(component: UIComponent): string | undefined {
+  return getStringFromRecord(component.data, ['clinic_id', 'clinicId', 'id'])
+}
+
 function pickFirst(data: Record<string, unknown>, keys: string[]): unknown {
   for (const key of keys) {
     const value = data[key]
@@ -77,17 +99,152 @@ function asRecordArray(value: unknown): Array<Record<string, unknown>> {
   return value.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
 }
 
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined
+  }
+  return value as Record<string, unknown>
+}
+
+function sanitizeDigits(value: string): string {
+  return value.replace(/\D+/g, '')
+}
+
+function parseNonNegativeInteger(value: string): number | undefined {
+  const trimmed = value.trim()
+  if (!trimmed || !/^\d+$/.test(trimmed)) {
+    return undefined
+  }
+  const parsed = Number(trimmed)
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return undefined
+  }
+  return Math.trunc(parsed)
+}
+
+function toEditablePriceString(value: unknown): string {
+  const parsed = toNumber(value)
+  if (parsed == null || parsed < 0) {
+    return ''
+  }
+  return String(Math.trunc(parsed))
+}
+
+function hasCreateServiceConfirmAction(action: UIAction): boolean {
+  if (action.type !== 'open_native_confirm') {
+    return false
+  }
+
+  const actionPayload = asRecord(action.payload)
+  if (!actionPayload) {
+    return false
+  }
+
+  const confirmAction = asRecord(actionPayload['confirm_action'])
+  return confirmAction?.['type'] === 'confirm_service_create'
+}
+
+function cloneActionWithEditedPricing({
+  action,
+  fallbackBasePrice,
+  fallbackWeightPrices,
+  fallbackDosePrices,
+  basePriceInput,
+  weightPriceInputs,
+  dosePriceInputs,
+}: {
+  action: UIAction
+  fallbackBasePrice: unknown
+  fallbackWeightPrices: Array<Record<string, unknown>>
+  fallbackDosePrices: Array<Record<string, unknown>>
+  basePriceInput: string
+  weightPriceInputs: string[]
+  dosePriceInputs: string[]
+}): UIAction {
+  const actionPayload = asRecord(action.payload)
+  if (!actionPayload) {
+    return action
+  }
+
+  const confirmAction = asRecord(actionPayload['confirm_action'])
+  if (!confirmAction || confirmAction['type'] !== 'confirm_service_create') {
+    return action
+  }
+
+  const confirmPayload = asRecord(confirmAction['payload']) ?? {}
+  const nextConfirmPayload: Record<string, unknown> = { ...confirmPayload }
+
+  const editedBasePrice = parseNonNegativeInteger(basePriceInput)
+  const fallbackBasePriceNumber = toNumber(fallbackBasePrice)
+  if (editedBasePrice != null) {
+    nextConfirmPayload['base_price'] = editedBasePrice
+  } else if (confirmPayload['base_price'] == null && fallbackBasePriceNumber != null) {
+    nextConfirmPayload['base_price'] = fallbackBasePriceNumber
+  }
+
+  const confirmWeightPrices = asRecordArray(confirmPayload['weight_prices'])
+  const sourceWeightPrices =
+    confirmWeightPrices.length > 0 ? confirmWeightPrices : fallbackWeightPrices
+  if (sourceWeightPrices.length > 0) {
+    nextConfirmPayload['weight_prices'] = sourceWeightPrices.map((item, index) => {
+      const editedValue = parseNonNegativeInteger(weightPriceInputs[index] ?? '')
+      if (editedValue == null) {
+        return { ...item }
+      }
+      return {
+        ...item,
+        price: editedValue,
+      }
+    })
+  }
+
+  const confirmDosePrices = asRecordArray(confirmPayload['dose_prices'])
+  const sourceDosePrices = confirmDosePrices.length > 0 ? confirmDosePrices : fallbackDosePrices
+  if (sourceDosePrices.length > 0) {
+    nextConfirmPayload['dose_prices'] = sourceDosePrices.map((item, index) => {
+      const editedValue = parseNonNegativeInteger(dosePriceInputs[index] ?? '')
+      if (editedValue == null) {
+        return { ...item }
+      }
+      return {
+        ...item,
+        price: editedValue,
+      }
+    })
+  }
+
+  const nextConfirmAction: Record<string, unknown> = {
+    ...confirmAction,
+    payload: nextConfirmPayload,
+  }
+
+  return {
+    ...action,
+    payload: {
+      ...actionPayload,
+      confirm_action: nextConfirmAction,
+    },
+  }
+}
+
 function renderClinicCard(
   component: UIComponent,
   onAction?: (action: UIAction, component: UIComponent) => void,
+  selectedClinicId?: string,
 ) {
   const clinic = component.data
   const logo = typeof clinic['logo'] === 'string' ? clinic['logo'] : undefined
+  const componentClinicId = resolveClinicIdFromComponent(component)
+  const isSelectedClinic = Boolean(selectedClinicId && componentClinicId === selectedClinicId)
 
   return (
     <div
       key={component.id}
-      className="bg-white border-2 border-stone-900 rounded-xl p-4 shadow-[4px_4px_0_#1c1917]"
+      className={`rounded-xl border-2 p-4 shadow-[4px_4px_0_#1c1917] transition-colors ${
+        isSelectedClinic
+          ? 'bg-amber-50 border-amber-700'
+          : 'bg-white border-stone-900'
+      }`}
     >
       <div className="flex gap-4">
         <div className="w-16 h-16 rounded-lg bg-amber-100 border-2 border-stone-900 flex items-center justify-center overflow-hidden">
@@ -103,12 +260,44 @@ function renderClinicCard(
         </div>
         <div className="flex-1">
           <h4 className="font-bold text-stone-900 text-sm">{renderSimpleValue(clinic['name'])}</h4>
+          {isSelectedClinic && (
+            <div className="mt-1 inline-flex items-center border-2 border-stone-900 bg-amber-300 px-2 py-1 text-[10px] font-black uppercase text-stone-900 shadow-[2px_2px_0_#1c1917]">
+              Đang chọn
+            </div>
+          )}
           <p className="text-xs text-stone-600 mt-1">{renderSimpleValue(clinic['address'])}</p>
           <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold text-stone-700">
             {clinic['distance'] != null && <span>Cách đây {renderSimpleValue(clinic['distance'])}</span>}
             {clinic['rating'] != null && <span>Đánh giá {renderSimpleValue(clinic['rating'])}</span>}
           </div>
-          <ActionButtons component={component} onAction={onAction} />
+          {!!component.actions?.length && onAction && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {component.actions.map((action) => {
+                const actionClinicId = resolveClinicIdFromAction(action) || componentClinicId
+                const isSelectedAction = Boolean(
+                  selectedClinicId &&
+                  action.type === 'select_item' &&
+                  actionClinicId === selectedClinicId,
+                )
+
+                return (
+                  <button
+                    key={`${component.id}-${action.type}-${action.label}`}
+                    type="button"
+                    onClick={() => onAction(action, component)}
+                    disabled={isSelectedAction}
+                    className={`cursor-pointer px-3 py-2 rounded-lg border-2 text-xs font-bold uppercase shadow-[2px_2px_0_#1c1917] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70 ${
+                      isSelectedAction
+                        ? 'bg-amber-500 border-amber-700 text-stone-900'
+                        : 'bg-white border-stone-900 text-stone-900'
+                    }`}
+                  >
+                    {isSelectedAction ? 'Đã chọn' : action.label}
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -119,6 +308,16 @@ function renderServiceCard(
   component: UIComponent,
   onAction?: (action: UIAction, component: UIComponent) => void,
 ) {
+  return <ServiceCard key={component.id} component={component} onAction={onAction} />
+}
+
+function ServiceCard({
+  component,
+  onAction,
+}: {
+  component: UIComponent
+  onAction?: (action: UIAction, component: UIComponent) => void
+}) {
   const data = component.data
   const name = renderSimpleValue(pickFirst(data, ['name', 'service_name']))
   const description = renderSimpleValue(data['description'])
@@ -132,8 +331,53 @@ function renderServiceCard(
   const weightPrices = asRecordArray(pickFirst(data, ['weight_prices', 'weightPrices']))
   const dosePrices = asRecordArray(pickFirst(data, ['dose_prices', 'dosePrices']))
 
+  const hasCreateAction = (component.actions ?? []).some((action) =>
+    hasCreateServiceConfirmAction(action),
+  )
+  const canQuickEdit = Boolean(onAction) && hasCreateAction
+
+  const [basePriceInput, setBasePriceInput] = useState<string>(() =>
+    toEditablePriceString(basePrice),
+  )
+  const [weightPriceInputs, setWeightPriceInputs] = useState<string[]>(() =>
+    weightPrices.map((item) => toEditablePriceString(item['price'])),
+  )
+  const [dosePriceInputs, setDosePriceInputs] = useState<string[]>(() =>
+    dosePrices.map((item) => toEditablePriceString(item['price'])),
+  )
+
+  useEffect(() => {
+    setBasePriceInput(toEditablePriceString(basePrice))
+    setWeightPriceInputs(weightPrices.map((item) => toEditablePriceString(item['price'])))
+    setDosePriceInputs(dosePrices.map((item) => toEditablePriceString(item['price'])))
+  }, [component.id])
+
+  const previewBasePrice = parseNonNegativeInteger(basePriceInput) ?? toNumber(basePrice)
+
+  const handleServiceCardAction = (action: UIAction, currentComponent: UIComponent) => {
+    if (!onAction) {
+      return
+    }
+
+    if (!canQuickEdit || !hasCreateServiceConfirmAction(action)) {
+      onAction(action, currentComponent)
+      return
+    }
+
+    const updatedAction = cloneActionWithEditedPricing({
+      action,
+      fallbackBasePrice: basePrice,
+      fallbackWeightPrices: weightPrices,
+      fallbackDosePrices: dosePrices,
+      basePriceInput,
+      weightPriceInputs,
+      dosePriceInputs,
+    })
+    onAction(updatedAction, currentComponent)
+  }
+
   return (
-    <div key={component.id} className="bg-white border-2 border-stone-900 rounded-xl p-4 shadow-[4px_4px_0_#1c1917]">
+    <div className="bg-white border-2 border-stone-900 rounded-xl p-4 shadow-[4px_4px_0_#1c1917]">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1">
           <h4 className="font-bold text-stone-900 text-sm">{name}</h4>
@@ -158,7 +402,7 @@ function renderServiceCard(
             )}
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-4 text-xs font-bold">
-            {basePrice != null && <span className="text-amber-600">{formatCurrency(basePrice)}</span>}
+            {previewBasePrice != null && <span className="text-amber-600">{formatCurrency(previewBasePrice)}</span>}
             {duration != null && durationLabel !== 'Chưa có' && (
               <span className="text-stone-500">{durationLabel} phút</span>
             )}
@@ -201,9 +445,100 @@ function renderServiceCard(
               </div>
             </div>
           )}
+
+          {canQuickEdit && (
+            <div className="mt-3 border-2 border-amber-200 rounded-lg p-3 bg-amber-50 space-y-3">
+              <p className="text-[11px] font-black uppercase text-amber-700">Chỉnh giá nhanh trước khi lưu</p>
+              <div className="space-y-1">
+                <label htmlFor={`${component.id}-base-price`} className="text-[11px] font-bold text-stone-700">
+                  Giá cơ bản (đ)
+                </label>
+                <input
+                  id={`${component.id}-base-price`}
+                  aria-label="Giá cơ bản chỉnh nhanh"
+                  type="text"
+                  inputMode="numeric"
+                  value={basePriceInput}
+                  onChange={(event) => setBasePriceInput(sanitizeDigits(event.target.value))}
+                  className="w-full border-2 border-stone-900 rounded-lg bg-white px-2 py-1 text-sm font-bold text-stone-900"
+                />
+              </div>
+
+              {weightPrices.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[11px] font-bold text-stone-700">Giá theo cân nặng (đ)</p>
+                  {weightPrices.map((item, index) => {
+                    const minWeight = renderSimpleValue(item['min_weight'] ?? item['minWeight'])
+                    const maxWeight = renderSimpleValue(item['max_weight'] ?? item['maxWeight'])
+                    return (
+                      <div key={`${component.id}-weight-edit-${index}`} className="space-y-1">
+                        <label
+                          htmlFor={`${component.id}-weight-price-${index}`}
+                          className="text-[11px] font-bold text-stone-600"
+                        >
+                          {minWeight} - {maxWeight} kg
+                        </label>
+                        <input
+                          id={`${component.id}-weight-price-${index}`}
+                          aria-label={`Giá cân nặng ${index + 1}`}
+                          type="text"
+                          inputMode="numeric"
+                          value={weightPriceInputs[index] ?? ''}
+                          onChange={(event) => {
+                            const sanitizedValue = sanitizeDigits(event.target.value)
+                            setWeightPriceInputs((prev) => {
+                              const next = [...prev]
+                              next[index] = sanitizedValue
+                              return next
+                            })
+                          }}
+                          className="w-full border-2 border-stone-900 rounded-lg bg-white px-2 py-1 text-sm font-bold text-stone-900"
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {dosePrices.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[11px] font-bold text-stone-700">Giá theo mũi tiêm (đ)</p>
+                  {dosePrices.map((item, index) => {
+                    const label = renderSimpleValue(item['dose_label'] ?? item['doseLabel'] ?? item['dose_number'] ?? item['doseNumber'])
+                    return (
+                      <div key={`${component.id}-dose-edit-${index}`} className="space-y-1">
+                        <label
+                          htmlFor={`${component.id}-dose-price-${index}`}
+                          className="text-[11px] font-bold text-stone-600"
+                        >
+                          {label}
+                        </label>
+                        <input
+                          id={`${component.id}-dose-price-${index}`}
+                          aria-label={`Giá mũi tiêm ${index + 1}`}
+                          type="text"
+                          inputMode="numeric"
+                          value={dosePriceInputs[index] ?? ''}
+                          onChange={(event) => {
+                            const sanitizedValue = sanitizeDigits(event.target.value)
+                            setDosePriceInputs((prev) => {
+                              const next = [...prev]
+                              next[index] = sanitizedValue
+                              return next
+                            })
+                          }}
+                          className="w-full border-2 border-stone-900 rounded-lg bg-white px-2 py-1 text-sm font-bold text-stone-900"
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
-      <ActionButtons component={component} onAction={onAction} />
+      <ActionButtons component={component} onAction={handleServiceCardAction} />
     </div>
   )
 }
@@ -455,10 +790,11 @@ function renderButtonComponent(
 function renderComponent(
   component: UIComponent,
   onAction?: (action: UIAction, component: UIComponent) => void,
+  selectedClinicId?: string,
 ) {
   switch (component.type) {
     case 'clinic_card':
-      return renderClinicCard(component, onAction)
+      return renderClinicCard(component, onAction, selectedClinicId)
     case 'service_card':
       return renderServiceCard(component, onAction)
     case 'pet_card':
@@ -510,7 +846,7 @@ function renderComponent(
   }
 }
 
-export function UISchemaRenderer({ schema, onAction }: UISchemaRendererProps) {
+export function UISchemaRenderer({ schema, onAction, selectedClinicId }: UISchemaRendererProps) {
   const layoutClass =
     schema.layout === 'grid'
       ? 'grid grid-cols-1 gap-3'
@@ -520,7 +856,7 @@ export function UISchemaRenderer({ schema, onAction }: UISchemaRendererProps) {
 
   return (
     <div className={layoutClass}>
-      {schema.components.map((component) => renderComponent(component, onAction))}
+      {schema.components.map((component) => renderComponent(component, onAction, selectedClinicId))}
     </div>
   )
 }

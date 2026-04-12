@@ -23,6 +23,8 @@ PLAYGROUND_TOOLS = {
     "web_search",
 }
 
+PLAYGROUND_RESOURCES = set()
+
 ROLE_RESPONSE_STYLES = {
     "PET_OWNER": (
         "Cách trả lời cho PET_OWNER: dùng ngôn ngữ thân thiện, dễ hiểu, tránh thuật ngữ quá chuyên môn. "
@@ -47,22 +49,22 @@ ROLE_RESPONSE_STYLES = {
 
 ROLE_PRODUCT_MODES = {
     "PET_OWNER": (
-        "Che do san pham: AI chat cho chu nuoi. Co the tu van, giai thich va ho tro booking o muc do chat assistant."
+        "Chế độ sản phẩm: AI chat cho chủ nuôi. Có thể tư vấn, giải thích và hỗ trợ booking ở mức độ chat assistant."
     ),
     "STAFF": (
-        "Che do san pham: AI copilot noi bo cho STAFF. Uu tien thao tac nghiep vu, EMR, benh nhan va van hanh, khong dong vai consumer chatbot. "
-        "Co the xem lich kham trong ngay (get_clinic_today_summary) va kiem tra tiem chung (check_vaccination_status)."
+        "Chế độ sản phẩm: trợ lý AI cho STAFF. Ưu tiên thao tác nghiệp vụ, EMR, bệnh nhân và vận hành, không đóng vai consumer chatbot. "
+        "Có thể xem lịch khám trong ngày (get_clinic_today_summary) và kiểm tra tiêm chủng (check_vaccination_status)."
     ),
     "CLINIC_MANAGER": (
-        "Che do san pham: AI copilot cho CLINIC_MANAGER. Uu tien van hanh, lich hen, nhan su va dieu phoi, khong dong vai consumer chatbot. "
-        "Co the xem doanh thu, lich lam viec, slot, xac nhan/huy booking va phan cong lai nhan vien."
+        "Chế độ sản phẩm: trợ lý AI cho CLINIC_MANAGER. Ưu tiên vận hành, lịch hẹn, nhân sự và điều phối, không đóng vai consumer chatbot. "
+        "Có thể xem doanh thu, lịch làm việc, slot, xác nhận/hủy booking và phân công lại nhân viên."
     ),
     "CLINIC_OWNER": (
-        "Che do san pham: AI copilot cho CLINIC_OWNER. Uu tien goc nhin dieu hanh va kinh doanh, khong dong vai consumer chatbot. "
-        "Co the tao dich vu, cap nhat gia, xem thong ke doanh thu va quan ly toan bo phong kham."
+        "Chế độ sản phẩm: trợ lý AI cho CLINIC_OWNER. Ưu tiên góc nhìn điều hành và kinh doanh, không đóng vai consumer chatbot. "
+        "Có thể tạo dịch vụ, cập nhật giá, xem thống kê doanh thu và quản lý toàn bộ phòng khám."
     ),
     "ADMIN": (
-        "Che do san pham: AI control assistant cho ADMIN, uu tien kiem soat he thong va cau hinh."
+        "Chế độ sản phẩm: AI control assistant cho ADMIN, ưu tiên kiểm soát hệ thống và cấu hình."
     ),
 }
 
@@ -72,13 +74,11 @@ class ContextPolicyService:
 
     ROLE_BUSINESS_TOOLS = {
         "PET_OWNER": {
+            "read_resource",
             "pet_knowledge_search",
             "web_search",
             "get_user_pets",
             "get_pet_health_summary",
-            "sync_booking_draft",
-            "get_booking_session_info",
-            "close_booking_session",
             "search_clinics_nearby",
             "check_available_slots",
             "create_booking_for_user",
@@ -90,17 +90,16 @@ class ContextPolicyService:
             "resolve_booking_context",
         },
         "STAFF": {
+            "read_resource",
             "get_staff_patients",
             "get_patient_summary",
             "get_emr_history",
             "get_my_clinics",
             "get_clinic_today_summary",
             "check_vaccination_status",
-            "sync_booking_draft",
-            "get_booking_session_info",
-            "close_booking_session",
         },
         "CLINIC_MANAGER": {
+            "read_resource",
             "list_clinic_services",
             "get_clinic_services",
             "get_my_clinics",
@@ -114,11 +113,9 @@ class ContextPolicyService:
             "reassign_staff_for_service",
             "confirm_booking_manager",
             "cancel_booking_manager",
-            "sync_booking_draft",
-            "get_booking_session_info",
-            "close_booking_session",
         },
         "CLINIC_OWNER": {
+            "read_resource",
             "list_clinic_services",
             "get_clinic_services",
             "create_clinic_service",
@@ -138,11 +135,39 @@ class ContextPolicyService:
             "get_owner_stats_overview",
             "get_staff_schedule",
             "get_slot_availability",
-            "sync_booking_draft",
-            "get_booking_session_info",
-            "close_booking_session",
         },
-        "ADMIN": set(PUBLIC_BUSINESS_TOOLS),
+        "ADMIN": {"read_resource", *PUBLIC_BUSINESS_TOOLS},
+    }
+    ROLE_BUSINESS_RESOURCES = {
+        "PET_OWNER": {"user_pets", "pet_health_summary"},
+        "STAFF": {"my_clinics", "patient_summary", "patient_emr_history"},
+        "CLINIC_MANAGER": {
+            "my_clinics",
+            "clinic_services",
+            "clinic_metrics",
+            "staff_schedule",
+            "slot_availability",
+        },
+        "CLINIC_OWNER": {
+            "my_clinics",
+            "clinic_services",
+            "clinic_metrics",
+            "owner_stats_overview",
+            "staff_schedule",
+            "slot_availability",
+        },
+        "ADMIN": {
+            "user_pets",
+            "pet_health_summary",
+            "patient_summary",
+            "patient_emr_history",
+            "my_clinics",
+            "clinic_services",
+            "clinic_metrics",
+            "owner_stats_overview",
+            "staff_schedule",
+            "slot_availability",
+        },
     }
 
     @classmethod
@@ -189,6 +214,7 @@ class ContextPolicyService:
         user_role: Optional[str],
         context_type: Optional[str],
         allowed_tools: Optional[Iterable[str]] = None,
+        allowed_resources: Optional[Iterable[str]] = None,
     ) -> str:
         """Append prompt guardrails để agent nhìn thấy đúng context và whitelist hiện tại."""
         prompt = (base_prompt or "").rstrip()
@@ -199,7 +225,11 @@ class ContextPolicyService:
         normalized_role = cls.normalize_role(user_role)
         normalized_context = normalize_context_type(context_type, BUSINESS_CHAT)
         tool_list = list(dict.fromkeys(allowed_tools or []))
+        resource_list = list(dict.fromkeys(allowed_resources or []))
         tool_text = ", ".join(tool_list) if tool_list else "không có tool nào"
+        resource_text = (
+            ", ".join(resource_list) if resource_list else "không có resource nào"
+        )
         role_style = ROLE_RESPONSE_STYLES.get(
             normalized_role,
             ROLE_RESPONSE_STYLES["PET_OWNER"],
@@ -214,6 +244,8 @@ class ContextPolicyService:
                 "Bạn đang chạy trong PLAYGROUND_TEST dành riêng cho ADMIN. "
                 "Chỉ được dùng đúng các tool trong whitelist hiện tại: "
                 f"{tool_text}. "
+                "Resource read-only hiện tại: "
+                f"{resource_text}. "
                 "Nếu một tool không nằm trong danh sách này thì không được tự ý gọi. "
                 f"{role_style} {product_mode}"
             )
@@ -222,6 +254,8 @@ class ContextPolicyService:
                 f"Bạn đang phục vụ hội thoại BUSINESS_CHAT cho role {normalized_role}. "
                 "Chỉ được dùng các tool nghiệp vụ đã được whitelist cho role này: "
                 f"{tool_text}. "
+                "Với truy vấn read-only, ưu tiên Resource trước rồi mới fallback sang tool read-only nếu cần: "
+                f"{resource_text}. "
                 "Nếu câu hỏi nằm ngoài các tool được phép thì hãy trả lời an toàn hoặc hướng dẫn người dùng liên hệ đúng bộ phận. "
                 f"{role_style} {product_mode}"
             )
@@ -245,14 +279,14 @@ class ContextPolicyService:
 
         if normalized_role in {"STAFF", "CLINIC_MANAGER", "CLINIC_OWNER"}:
             guardrail = (
-                f"{guardrail} Khong duoc tu dong dan hoi thoai theo consumer booking wizard cua PET_OWNER "
-                "(vi du: tu mo flow hoi pet -> dich vu -> phong kham -> gio) tru khi nguoi dung dang yeu cau ro rang mot thao tac booking noi bo va tool do duoc whitelist."
+                f"{guardrail} Không được tự động dẫn hội thoại theo consumer booking wizard của PET_OWNER "
+                "(ví dụ: tự mở flow hỏi pet -> dịch vụ -> phòng khám -> giờ) trừ khi người dùng đang yêu cầu rõ ràng một thao tác booking nội bộ và tool đó được whitelist."
             )
 
         if normalized_role == "PET_OWNER":
             guardrail = (
-                f"{guardrail} Tuyet doi khong xu ly nhu copilot van hanh clinic (doanh thu, dieu phoi staff, booking manager actions). "
-                "Neu nguoi dung hoi van hanh noi bo clinic, hay thong bao ro rang day khong phai pham vi PET_OWNER chatbot."
+                f"{guardrail} Tuyệt đối không xử lý như copilot vận hành clinic (doanh thu, điều phối staff, booking manager actions). "
+                "Nếu người dùng hỏi vận hành nội bộ clinic, hãy thông báo rõ ràng đây không phải phạm vi PET_OWNER chatbot."
             )
 
         if not prompt:
@@ -281,3 +315,39 @@ class ContextPolicyService:
             seen.add(lowered)
             normalized.append(clean_name)
         return normalized
+
+    @classmethod
+    def get_allowed_resources(
+        cls,
+        user_role: Optional[str],
+        context_type: Optional[str],
+        available_resources: Optional[Sequence[str]] = None,
+    ) -> List[str]:
+        normalized_context = normalize_context_type(context_type, BUSINESS_CHAT)
+        normalized_role = cls.normalize_role(user_role)
+        normalized_available = cls._normalize_tool_names(available_resources)
+
+        if normalized_context == PLAYGROUND_TEST:
+            if normalized_role != "ADMIN":
+                return []
+            if not normalized_available:
+                return list(PLAYGROUND_RESOURCES)
+            return [
+                resource
+                for resource in normalized_available
+                if resource.lower() in PLAYGROUND_RESOURCES
+            ]
+
+        allowed_lookup = {
+            resource.lower()
+            for resource in cls.ROLE_BUSINESS_RESOURCES.get(normalized_role, set())
+        }
+
+        if not normalized_available:
+            return list(cls.ROLE_BUSINESS_RESOURCES.get(normalized_role, set()))
+
+        return [
+            resource
+            for resource in normalized_available
+            if resource.lower() in allowed_lookup
+        ]

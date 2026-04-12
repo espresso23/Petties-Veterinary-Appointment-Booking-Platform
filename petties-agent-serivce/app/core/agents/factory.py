@@ -25,6 +25,7 @@ from app.services.llm_client import (
     OpenRouterClient,
 )
 from app.db.postgres.models import Agent as AgentModel, Tool
+from app.core.tools.mcp_resources import list_resources_metadata
 
 
 class AgentFactory:
@@ -129,6 +130,12 @@ class AgentFactory:
         ]
 
         logger.info(f"Enabled tools: {enabled_tools}")
+        available_resources = [item["name"] for item in list_resources_metadata()]
+        allowed_resources = ContextPolicyService.get_allowed_resources(
+            user_role=user_role,
+            context_type=context_type,
+            available_resources=available_resources,
+        )
 
         # System prompt is hardcoded in single_agent.py - no longer load from DB
         # Role guardrails and tool whitelist are added via ContextPolicyService
@@ -139,6 +146,7 @@ class AgentFactory:
             user_role=user_role,
             context_type=context_type,
             allowed_tools=enabled_tools,
+            allowed_resources=allowed_resources,
         )
 
         # 5. Build Single Agent voi ReAct pattern
@@ -153,6 +161,7 @@ class AgentFactory:
             enabled_tools=enabled_tools,
             tool_schemas=tool_schemas,
         )
+        agent.allowed_resources = allowed_resources
 
         actual_model = model_override or agent_config.model
         logger.info(
@@ -245,6 +254,12 @@ class AgentFactory:
             }
             for t in tools_list
         ]
+        available_resources = [item["name"] for item in list_resources_metadata()]
+        allowed_resources = ContextPolicyService.get_allowed_resources(
+            user_role=user_role,
+            context_type=context_type,
+            available_resources=available_resources,
+        )
 
         # System prompt is hardcoded in single_agent.py - no longer load from DB
         from app.core.agents.single_agent import DEFAULT_SYSTEM_PROMPT
@@ -254,6 +269,7 @@ class AgentFactory:
             user_role=user_role,
             context_type=context_type,
             allowed_tools=enabled_tools,
+            allowed_resources=allowed_resources,
         )
 
         # Build agent
@@ -268,6 +284,7 @@ class AgentFactory:
             enabled_tools=enabled_tools,
             tool_schemas=tool_schemas,
         )
+        agent.allowed_resources = allowed_resources
 
         # Cache the agent
         AgentFactory._agent_cache[cache_key] = agent

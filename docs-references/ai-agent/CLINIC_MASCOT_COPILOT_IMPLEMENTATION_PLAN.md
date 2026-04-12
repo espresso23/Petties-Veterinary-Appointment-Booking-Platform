@@ -27,8 +27,8 @@ Transition policy:
 
 Current implementation is still page-centric for role AI interactions:
 - staff ai chat page
-- clinic manager ai copilot page
-- clinic owner ai copilot page
+- clinic manager mascot assistant panel
+- clinic owner mascot assistant panel
 
 Routing and sidebar entries currently expose AI as dedicated destinations.
 
@@ -77,7 +77,7 @@ All write operations remain HITL:
 | petties-web/src/components/chat/renderers/** | modify | align card handling for panel usage |
 | petties-agent-serivce/app/core/tools/tool_policy.py | verify/modify | enforce role gating for clinic internal mascot tools |
 | docs-references/documentation/SRS/PETTIES_SRS.md | modify | add functional requirement for mascot copilot |
-| docs-references/documentation/SDD/REPORT_4_SDD_SYSTEM_DESIGN.md | modify | add architecture and sequence design |
+| docs-references/documentation/SDD/PETTIES_SDD.md | modify | add architecture and sequence design |
 | PROJECT_STATUS.md | modify | update implementation progress and evidence |
 
 ## 6. Execution Plan
@@ -125,7 +125,7 @@ Verification
 
 ### Phase 4: Remove Page-Centric AI Flow
 
-- [ ] Remove or disable ai-chat and ai-copilot routes from primary app routing.
+- [ ] Remove or disable dedicated AI page routes from primary app routing.
 - [ ] Remove sidebar links that point to dedicated AI pages.
 - [ ] Remove dead imports and obsolete page-specific state.
 

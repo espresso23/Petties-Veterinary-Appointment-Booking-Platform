@@ -40,6 +40,7 @@ from .schemas import (
     GeminiVisionDiagnosisRequest,
     GeminiVisionDiagnosisResponse,
     PrescriptionSuggestion,
+    Sex,
     SoapSuggestions,
     StaffDiagnosisRequest,
 )
@@ -709,6 +710,10 @@ class StaffDiagnosisService:
         parts: List[str] = [request.species.value]
         if request.breed:
             parts.append(request.breed)
+        if request.age_months is not None:
+            parts.append(f"Tuổi: {request.age_months} tháng")
+        if request.sex != Sex.UNKNOWN:
+            parts.append(f"Giới: {request.sex.value}")
         if request.body_part:
             parts.append(f"Vùng nghi ngờ: {request.body_part}")
         if request.doctor_description:
@@ -751,6 +756,10 @@ class StaffDiagnosisService:
 
         if request.breed:
             parts.append(request.breed)
+        if request.age_months is not None:
+            parts.append(f"Tuổi: {request.age_months} tháng")
+        if request.sex != Sex.UNKNOWN:
+            parts.append(f"Giới: {request.sex.value}")
         if request.weight_kg:
             parts.append(f"Cân nặng: {request.weight_kg:.1f} kg")
         if request.body_part:
@@ -1114,10 +1123,13 @@ class StaffDiagnosisService:
                 "breed": request.breed,
                 "age_months": request.age_months,
                 "weight_kg": request.weight_kg,
+                "sex": request.sex.value,
                 "body_part": request.body_part,
                 "doctor_description": request.doctor_description,
                 "symptoms": request.symptoms,
                 "allergies": request.allergies,
+                "linked_pet_or_booking": bool((request.pet_id or "").strip())
+                or bool((request.booking_id or "").strip()),
                 "selected_diagnosis_code": request.selected_diagnosis_code,
                 "selected_diagnosis_label": request.selected_diagnosis_label,
             },
@@ -1158,6 +1170,12 @@ class StaffDiagnosisService:
     Nếu dữ liệu ảnh rỗng thì không được bịa thêm mô tả ảnh.
 Nếu Case Memory đã đủ mạnh thì ưu tiên tổng hợp từ Case Memory và Knowledge Base, không cần giả định rằng vision đã chạy.
 
+QUAN TRỌNG về bối cảnh bệnh nhân (bắt buộc cân nhắc trong chẩn đoán phân biệt, plan và safety):
+- Luôn tính đến `request.species`, `request.age_months`, `request.weight_kg`, `request.sex`, `request.allergies` khi đánh giá khả năng bệnh, mức độ nghiêm trọng và đề xuất thăm khám/xét nghiệm.
+- Nếu `linked_pet_or_booking` là false: coi các trường trên là do người dùng nhập tay, có thể không khớp hồ sơ; ưu tiên gợi ý bổ sung dữ liệu còn thiếu trong `safety_suggestions.missing_inputs` (không bịa số liệu).
+- Nếu thiếu tuổi hoặc cân nặng: phải phản ánh trong safety (ví dụ cần cân nặng để tính liều) chứ không giả định giá trị.
+- Dị ứng đã biết phải được tôn trọng trong `safety_suggestions.cautions` và không đề xuất thuốc/chất gây xung đột nếu có trong `request.allergies`.
+
 QUY TẮC GROUNDED SOAP:
 - `soap_suggestions.subjective_draft` chỉ được dùng dữ liệu từ `grounding_bundle.subjective`.
 - `subjective_draft` KHÔNG liệt kê thông tin dị ứng; phần dị ứng để bác sĩ ghi riêng khi cần.
@@ -1167,6 +1185,14 @@ QUY TẮC GROUNDED SOAP:
 - `soap_suggestions.plan_draft` chỉ nói về hành động lâm sàng tiếp theo: thăm khám, xét nghiệm, theo dõi, tái khám, dặn dò.
 - `plan_draft` KHÔNG được nhắc tên thuốc, liều, tần suất, hoặc bất kỳ thông tin nào thuộc về đơn thuốc, vì đơn thuốc đã có phần `prescription_suggestions` riêng.
 - Nếu dữ liệu chưa đủ cho plan, phải ghi rõ kiểu an toàn như `Cần bổ sung thêm dữ liệu trước khi chốt hướng xử trí`.
+- `plan_draft` KHÔNG thêm dòng mở đầu kiểu "Định hướng điều trị/xử trí theo chẩn đoán đã chọn: ..." (chẩn đoán đã nằm trong các dòng có nhãn bên dưới).
+- `plan_draft` BẮT BUỘC viết rõ ràng theo 4 dòng có nhãn:
+  1) `Mục tiêu: ...`
+  2) `Hướng xử trí trước mắt: ...`
+  3) `Theo dõi: ...`
+  4) `Tái khám/Cảnh báo: ...`
+- Mỗi dòng phải cụ thể, có thể hành động ngay trong EMR; tránh câu chung chung kiểu "theo dõi đáp ứng điều trị" nếu không có ngữ cảnh.
+- Mốc `Tái khám/Cảnh báo` phải do AI suy luận từ dữ liệu ca bệnh hiện tại (triệu chứng, mức độ, tiến triển, dữ liệu sẵn có), không dùng bảng ánh xạ cứng theo tên bệnh.
 - Không nhắc tới từ khóa `KB`, `Knowledge Base`, `Case Memory`, `RAG`, hay `bundle` trong SOAP cuối cùng.
 
 QUAN TRỌNG về đơn thuốc:
@@ -1185,6 +1211,7 @@ QUAN TRỌNG về safety:
 
 QUAN TRỌNG về tên chẩn đoán:
 - `display_name_vi` phải là TÊN BỆNH NGẮN GỌN, KHÔNG mô tả triệu chứng hay nguyên nhân
+- `display_name_vi` chỉ được là MỘT tên bệnh chuẩn duy nhất, không dùng `hoặc`, `và`, `A/B` hay dạng liệt kê nhiều bệnh.
 - ĐÚNG: "Viêm ruột cấp tính" hoặc "Viêm da do vi khuẩn"
 - SAI: "Viêm ruột cấp tính, nghi do thay đổi thức ăn hoặc ăn phải thức ăn không phù hợp. Theo dõi thêm triệu chứng."
 - Nếu chưa chắc chắn, dùng tên chung như "Rối loạn tiêu hóa" thay vì mô tả dài dòng
@@ -1579,6 +1606,7 @@ RÀNG BUỘC CỰC KỲ QUAN TRỌNG về đơn thuốc:
             differential.canonical_code is None
             and "cần phân biệt" in label
         )
+
 
     def _merge_safety_suggestions(
         self,
@@ -2522,12 +2550,6 @@ RÀNG BUỘC CỰC KỲ QUAN TRỌNG về đơn thuốc:
     ) -> str:
         parts: List[str] = []
 
-        normalized_label = (top_label or "").strip()
-        if normalized_label and "chưa" not in normalized_label.lower():
-            parts.append(
-                f"Định hướng xử trí theo chẩn đoán đã chọn: {normalized_label}."
-            )
-
         if protocol_decision.cautions:
             for caution in protocol_decision.cautions:
                 if caution.strip() and caution not in " ".join(parts):
@@ -2557,9 +2579,15 @@ RÀNG BUỘC CỰC KỲ QUAN TRỌNG về đơn thuốc:
         fallback = (fallback_plan or "").strip()
 
         if not selected_label:
-            return candidate or fallback
+            return self._normalize_selected_plan_format(
+                selected_diagnosis_label="",
+                plan_text=candidate or fallback,
+            )
         if not candidate:
-            return fallback
+            return self._normalize_selected_plan_format(
+                selected_diagnosis_label=selected_label,
+                plan_text=fallback,
+            )
 
         candidate_lower = candidate.lower()
         selected_lower = selected_label.lower()
@@ -2571,16 +2599,59 @@ RÀNG BUỘC CỰC KỲ QUAN TRỌNG về đơn thuốc:
         ]
 
         if selected_lower in candidate_lower:
-            return candidate
+            return self._normalize_selected_plan_format(
+                selected_diagnosis_label=selected_label,
+                plan_text=candidate,
+            )
         if any(marker in candidate_lower for marker in generic_markers):
-            return (
-                fallback
-                or f"Định hướng điều trị theo chẩn đoán đã chọn: {selected_label}."
+            return self._normalize_selected_plan_format(
+                selected_diagnosis_label=selected_label,
+                plan_text=fallback,
             )
 
-        return (
-            f"Định hướng điều trị theo chẩn đoán đã chọn: {selected_label}. {candidate}"
+        return self._normalize_selected_plan_format(
+            selected_diagnosis_label=selected_label,
+            plan_text=candidate,
         )
+
+    def _normalize_selected_plan_format(
+        self,
+        *,
+        selected_diagnosis_label: str,
+        plan_text: str,
+    ) -> str:
+        candidate = " ".join((plan_text or "").split()).strip()
+        selected_label = " ".join((selected_diagnosis_label or "").split()).strip()
+        if not candidate and not selected_label:
+            return ""
+
+        if all(
+            marker in candidate
+            for marker in (
+                "Mục tiêu:",
+                "Hướng xử trí trước mắt:",
+                "Theo dõi:",
+                "Tái khám/Cảnh báo:",
+            )
+        ):
+            return candidate
+
+        diagnosis_phrase = (
+            f"theo chẩn đoán {selected_label}" if selected_label else "theo chẩn đoán hiện tại"
+        )
+        base_goal = f"Mục tiêu: Kiểm soát triệu chứng và ổn định tiến triển lâm sàng {diagnosis_phrase}."
+        base_action = (
+            f"Hướng xử trí trước mắt: {candidate.rstrip('.')}."
+            if candidate
+            else "Hướng xử trí trước mắt: Cần bổ sung thêm dữ liệu trước khi chốt hướng xử trí."
+        )
+        base_follow_up = (
+            "Theo dõi: Đánh giá triệu chứng chính hằng ngày, ghi nhận mức độ cải thiện/không cải thiện để điều chỉnh kế hoạch."
+        )
+        base_warning = (
+            "Tái khám/Cảnh báo: Nêu rõ mốc tái khám phù hợp theo mức độ đáp ứng của ca bệnh; tái khám sớm hơn nếu triệu chứng nặng lên, xuất hiện dấu hiệu toàn thân, hoặc không đáp ứng."
+        )
+        return "\n".join((base_goal, base_action, base_follow_up, base_warning))
 
     def _resolve_evidence_mode(
         self,

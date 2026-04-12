@@ -213,3 +213,61 @@ async def resolve_booking_context() -> Dict[str, Any]:
             suggestion="Vui lòng đăng nhập lại rồi thử lại.",
             metadata={"root_error": str(exc)},
         )
+
+
+@mcp_server.tool(
+    name="read_resource",
+    description="Đọc dữ liệu nghiệp vụ read-only theo Resource URI (compatibility layer cho migration Resource vs Tool).",
+)
+async def read_resource(
+    resource_uri: str,
+    fallback_params: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    if not str(resource_uri or "").strip():
+        return build_tool_error_response(
+            error_code="INVALID_INPUT",
+            message="Thiếu resource_uri để đọc dữ liệu.",
+            recoverable=True,
+            suggestion="Vui lòng gửi resource URI theo định dạng petties://...",
+        )
+
+    try:
+        _require_auth_token()
+    except AuthenticationRequiredError as exc:
+        return build_tool_error_response(
+            error_code="UNAUTHORIZED",
+            message=str(exc),
+            recoverable=True,
+            suggestion="Vui lòng đăng nhập lại để truy cập dữ liệu.",
+        )
+
+    try:
+        from app.core.tools.mcp_server import call_mcp_resource
+
+        resource_result = await call_mcp_resource(resource_uri, fallback_params or {})
+        telemetry = resource_result.get("telemetry") or {}
+        return build_tool_success_response(
+            {
+                "resource_uri": resource_result.get("resource_uri"),
+                "resource_name": resource_result.get("resource_name"),
+                "cache_ttl_seconds": resource_result.get("cache_ttl_seconds"),
+                "payload": resource_result.get("data"),
+                "deprecated_tool": telemetry.get("deprecated_tool"),
+                "migration_phase": "phase0_compatibility",
+            }
+        )
+    except PermissionError as exc:
+        return build_tool_error_response(
+            error_code="FORBIDDEN",
+            message=str(exc),
+            recoverable=False,
+        )
+    except Exception as exc:
+        logger.error(f"Error reading resource {resource_uri}: {exc}")
+        return build_tool_error_response(
+            error_code=classify_error_code(str(exc)),
+            message="Không thể đọc resource ở thời điểm hiện tại.",
+            recoverable=True,
+            suggestion="Vui lòng thử lại sau hoặc fallback sang tool cũ.",
+            metadata={"resource_uri": resource_uri, "root_error": str(exc)},
+        )

@@ -9,10 +9,38 @@ export interface EmrAiDiagnosisContextPrescription {
   medicine_name?: string
   dosage?: string
   frequency?: string
+  times_of_day?: Array<'sang' | 'trua' | 'chieu'>
+  before_after_meal?: 'BEFORE_MEAL' | 'AFTER_MEAL' | 'WITH_MEAL' | 'NONE'
   duration_days?: number
   instructions?: string
   source?: string
   source_detail?: string
+}
+
+const normalizeTimesOfDay = (
+  value?: string[]
+): Array<'sang' | 'trua' | 'chieu'> | undefined => {
+  if (!value?.length) return undefined
+  const allowed = new Set(['sang', 'trua', 'chieu'])
+  const normalized = value.filter((item): item is 'sang' | 'trua' | 'chieu' =>
+    allowed.has(item)
+  )
+  return normalized.length ? normalized : undefined
+}
+
+const normalizeBeforeAfterMeal = (
+  value?: string
+): 'BEFORE_MEAL' | 'AFTER_MEAL' | 'WITH_MEAL' | 'NONE' | undefined => {
+  if (!value) return undefined
+  if (
+    value === 'BEFORE_MEAL' ||
+    value === 'AFTER_MEAL' ||
+    value === 'WITH_MEAL' ||
+    value === 'NONE'
+  ) {
+    return value
+  }
+  return undefined
 }
 
 export interface EmrAiDiagnosisContextPayload {
@@ -43,6 +71,10 @@ export const buildEmrAiDiagnosisContext = (
       medicine_name: item.medicine_name || undefined,
       dosage: item.dosage || undefined,
       frequency: item.frequency || undefined,
+      times_of_day: normalizeTimesOfDay(item.times_of_day || item.timesOfDay),
+      before_after_meal: normalizeBeforeAfterMeal(
+        item.before_after_meal || item.beforeAfterMeal
+      ),
       duration_days: item.duration_days ?? undefined,
       instructions: item.instructions || item.caution || undefined,
       source: item.source || undefined,

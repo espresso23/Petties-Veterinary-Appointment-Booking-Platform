@@ -1002,6 +1002,121 @@ function renderTextBlock(label: string, value?: string, extraClassName = '') {
   )
 }
 
+function formatCaseMemorySpeciesVi(species?: string | null): string {
+  const s = (species || '').toLowerCase()
+  if (s === 'dog') return 'Chó'
+  if (s === 'cat') return 'Mèo'
+  if (s === 'other') return 'Khác'
+  return species?.trim() || '--'
+}
+
+function formatCaseMemorySexVi(raw?: string | null): string {
+  if (!raw?.trim()) return '--'
+  const u = raw.trim().toUpperCase()
+  if (u === 'MALE' || u === 'ĐỰC' || u === 'DUC') return 'Đực'
+  if (u === 'FEMALE' || u === 'CÁI' || u === 'CAI') return 'Cái'
+  if (u === 'UNKNOWN') return 'Chưa rõ'
+  return raw.trim()
+}
+
+function CaseMemoryPatientContextSection({ item }: { item: CaseMemoryDetailItem }) {
+  const vitals =
+    item.vitals && typeof item.vitals === 'object' && !Array.isArray(item.vitals)
+      ? (item.vitals as Record<string, unknown>)
+      : {}
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+  const weightKg = num(vitals.weight_kg)
+  const tempC = num(vitals.temperature_c)
+  const heartRate = num(vitals.heart_rate)
+  const bcs = num(vitals.bcs)
+  const symptoms = (item.symptoms || []).filter((s) => Boolean(s?.trim()))
+  const physical = (item.physical_exam || []).filter((s) => Boolean(s?.trim()))
+
+  const hasStructured =
+    Boolean(item.breed?.trim()) ||
+    item.age_months != null ||
+    Boolean(item.sex?.trim()) ||
+    Boolean(item.allergies?.trim()) ||
+    symptoms.length > 0 ||
+    physical.length > 0 ||
+    weightKg != null ||
+    tempC != null ||
+    heartRate != null ||
+    bcs != null ||
+    Boolean(item.pet_id?.trim()) ||
+    Boolean(item.emr_id?.trim()) ||
+    Boolean(item.booking_id?.trim())
+
+  if (!hasStructured) {
+    return (
+      <div className="rounded-xl border-2 border-dashed border-stone-300 bg-stone-50/90 p-4">
+        <p className="text-[10px] font-black uppercase text-stone-600 mb-1">Ngữ cảnh bệnh nhân</p>
+        <p className="text-xs text-stone-600">
+          Ca được tạo trước khi lưu đủ trường cấu trúc (giống, tuổi, sinh hiệu, dị ứng…). Xem phần nội dung đầy đủ
+          bên dưới hoặc đồng bộ lại từ EMR đã xác nhận.
+        </p>
+      </div>
+    )
+  }
+
+  const field = (label: string, value: string) => (
+    <div className="min-w-0">
+      <p className="text-[10px] font-black uppercase text-teal-900/80">{label}</p>
+      <p className="font-bold text-stone-900 break-words">{value}</p>
+    </div>
+  )
+
+  return (
+    <div className="rounded-xl border-2 border-stone-900 bg-teal-50/90 p-4 shadow-[4px_4px_0_#1c1917]">
+      <h4 className="text-xs font-black uppercase tracking-wide text-stone-900 mb-3">Ngữ cảnh bệnh nhân</h4>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 text-xs">
+        {field('Loài', formatCaseMemorySpeciesVi(item.species))}
+        {field('Giống', item.breed?.trim() || '--')}
+        {field('Tuổi (tháng)', item.age_months != null ? String(item.age_months) : '--')}
+        {field('Giới tính', formatCaseMemorySexVi(item.sex))}
+        {field('Cân nặng lúc khám (kg)', weightKg != null ? String(weightKg) : '--')}
+        {field('Nhiệt độ (°C)', tempC != null ? String(tempC) : '--')}
+        {field('Mạch (nhịp/phút)', heartRate != null ? String(heartRate) : '--')}
+        {field('BCS', bcs != null ? String(bcs) : '--')}
+        {field('Dị ứng (hồ sơ)', item.allergies?.trim() || '--')}
+        {field('Mã EMR', item.emr_id?.trim() || '--')}
+        {field('Mã thú cưng', item.pet_id?.trim() || '--')}
+        {field('Mã booking', item.booking_id?.trim() || '--')}
+      </div>
+      {symptoms.length > 0 && (
+        <div className="mt-3">
+          <p className="text-[10px] font-black uppercase text-teal-900/80 mb-1.5">Triệu chứng / tín hiệu (tách)</p>
+          <div className="flex flex-wrap gap-1.5">
+            {symptoms.map((s) => (
+              <span
+                key={s}
+                className="rounded-lg border-2 border-stone-900 bg-white px-2 py-0.5 text-[11px] font-semibold text-stone-800 shadow-[2px_2px_0_#1c1917]"
+              >
+                {s}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      {physical.length > 0 && (
+        <div className="mt-3">
+          <p className="text-[10px] font-black uppercase text-teal-900/80 mb-1.5">Khám lâm sàng (tách)</p>
+          <div className="flex flex-wrap gap-1.5">
+            {physical.map((s) => (
+              <span
+                key={s}
+                className="rounded-lg border-2 border-stone-800 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-stone-800"
+              >
+                {s}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ===== CASE MEMORY COMPONENTS =====
 
 interface CaseRowProps {
@@ -1103,16 +1218,12 @@ function CaseDetailModal({ case: item, isLoading, onClose }: CaseDetailModalProp
               <EmptyState text="Không có dữ liệu ca bệnh" />
             ) : (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Mã ca bệnh</label>
+              <CaseMemoryPatientContextSection item={item} />
+
+              <div>
+                    <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Mã ca bệnh (Case Memory)</label>
                   <p className="font-mono text-xs text-stone-700">{item.case_id}</p>
                 </div>
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Loài</label>
-                  <p className="font-bold text-stone-900 capitalize">{item.species || '--'}</p>
-                </div>
-              </div>
 
               <div>
                 <label className="block text-[10px] font-black uppercase text-stone-500 mb-1">Chẩn đoán dùng cho AI</label>

@@ -45,64 +45,51 @@ class ClinicToolsTests(unittest.IsolatedAsyncioTestCase):
     def tearDown(self):
         reset_tool_runtime_context(self.runtime_token)
 
-    async def test_tc_unit_005_001_generate_clinic_services_maps_master_services(self):
+    async def test_tc_unit_005_001_generate_clinic_services_ai_generated_only(self):
         client = AsyncMock()
-        client.get_master_services.return_value = [
-            {
-                "id": "ms-1",
-                "name": "Khám tổng quát",
-                "description": "Khám định kỳ",
-                "defaultPrice": 150000,
-                "durationTime": 30,
-                "slotsRequired": 1,
-                "serviceCategory": "HEALTHCARE",
-                "petType": "DOG",
-            },
-            {
-                "id": "ms-2",
-                "name": "Spa mèo",
-                "defaultPrice": 200000,
-                "serviceCategory": "BEAUTY",
-                "petType": "CAT",
-            },
-        ]
+        client.get_my_clinic_services.return_value = []
 
-        with patch(
-            "app.core.tools.mcp_tools.clinic_tools.get_backend_client",
-            return_value=client,
+        llm_response = type(
+            "Resp",
+            (),
+            {
+                "content": '{"suggestions":[{"name":"Khám tim mạch chuyên sâu","display_name":"Khám tim mạch chuyên sâu","description":"Sàng lọc bệnh tim cho thú cưng lớn tuổi","basePrice":350000,"durationTime":50,"slotsRequired":2,"isActive":true,"isHomeVisit":false,"serviceCategory":"CHECK_UP","petType":"DOG","recommended_action":"create"}]}'
+            },
+        )()
+        llm_client = AsyncMock()
+        llm_client.generate.return_value = llm_response
+
+        with (
+            patch(
+                "app.core.tools.mcp_tools.clinic_tools.get_backend_client",
+                return_value=client,
+            ),
+            patch(
+                "app.core.tools.mcp_tools.clinic_tools.get_llm_client",
+                return_value=llm_client,
+            ),
         ):
             result = await generate_clinic_services(
-                pet_types=["DOG"], service_scope=["HEALTHCARE"]
+                pet_types=["DOG"], service_scope=["CHECK_UP"]
             )
 
         self.assertTrue(result["success"])
         self.assertEqual(result["data"]["total_suggestions"], 1)
+        self.assertEqual(result["data"]["recommendation_mode"], "ai_generated")
         suggestion = result["data"]["suggestions"][0]
-        self.assertEqual(suggestion["name"], "Khám tổng quát")
-        self.assertEqual(suggestion["basePrice"], 150000)
-        self.assertEqual(suggestion["slotsRequired"], 1)
-        self.assertEqual(suggestion["serviceCategory"], "HEALTHCARE")
+        self.assertEqual(suggestion["name"], "Khám tim mạch chuyên sâu")
+        self.assertEqual(suggestion["basePrice"], 350000)
+        self.assertEqual(suggestion["slotsRequired"], 2)
+        self.assertEqual(suggestion["serviceCategory"], "CHECK_UP")
+        self.assertIsNone(suggestion.get("master_service_id"))
 
-    async def test_tc_unit_005_001b_generate_clinic_services_recommends_updates_for_existing_only(
+    async def test_tc_unit_005_001b_generate_clinic_services_deduplicates_existing_names(
         self,
     ):
         client = AsyncMock()
-        client.get_master_services.return_value = [
-            {
-                "masterServiceId": "ms-1",
-                "name": "Khám tổng quát",
-                "description": "Khám sức khỏe tổng quát chuẩn",
-                "defaultPrice": 180000,
-                "durationTime": 35,
-                "slotsRequired": 2,
-                "serviceCategory": "HEALTHCARE",
-                "petType": "DOG",
-            }
-        ]
         client.get_my_clinic_services.return_value = [
             {
                 "serviceId": "svc-1",
-                "masterServiceId": "ms-1",
                 "name": "Khám tổng quát",
                 "description": "Khám định kỳ",
                 "basePrice": 150000,
@@ -114,49 +101,42 @@ class ClinicToolsTests(unittest.IsolatedAsyncioTestCase):
             }
         ]
 
-        with patch(
-            "app.core.tools.mcp_tools.clinic_tools.get_backend_client",
-            return_value=client,
+        llm_response = type(
+            "Resp",
+            (),
+            {
+                "content": '{"suggestions":[{"name":"Khám tổng quát","display_name":"Khám tổng quát","description":"Bản trùng","basePrice":180000,"durationTime":35,"slotsRequired":2,"isActive":true,"isHomeVisit":false,"serviceCategory":"KHAM","petType":"DOG","recommended_action":"create"},{"name":"Khám tiêu hóa chuyên sâu","display_name":"Khám tiêu hóa chuyên sâu","description":"Đánh giá rối loạn tiêu hóa","basePrice":310000,"durationTime":45,"slotsRequired":2,"isActive":true,"isHomeVisit":false,"serviceCategory":"CHECK_UP","petType":"DOG","recommended_action":"create"}]}'
+            },
+        )()
+        llm_client = AsyncMock()
+        llm_client.generate.return_value = llm_response
+
+        with (
+            patch(
+                "app.core.tools.mcp_tools.clinic_tools.get_backend_client",
+                return_value=client,
+            ),
+            patch(
+                "app.core.tools.mcp_tools.clinic_tools.get_llm_client",
+                return_value=llm_client,
+            ),
         ):
             result = await generate_clinic_services(
-                pet_types=["DOG"], service_scope=["HEALTHCARE"]
+                pet_types=["DOG"]
             )
 
         self.assertTrue(result["success"])
-        self.assertEqual(result["data"]["recommendation_mode"], "update_existing_only")
-        self.assertEqual(result["data"]["update_suggestions"], 1)
-        self.assertEqual(result["data"]["create_suggestions"], 0)
+        self.assertEqual(result["data"]["recommendation_mode"], "ai_generated")
+        self.assertEqual(result["data"]["update_suggestions"], 0)
+        self.assertEqual(result["data"]["create_suggestions"], 1)
         suggestion = result["data"]["suggestions"][0]
-        self.assertEqual(suggestion["recommended_action"], "update")
-        self.assertEqual(suggestion["service_id"], "svc-1")
-        self.assertEqual(suggestion["proposed_updates"]["base_price"], 180000)
-        self.assertEqual(suggestion["proposed_updates"]["duration_time"], 35)
-        self.assertEqual(suggestion["proposed_updates"]["slots_required"], 2)
+        self.assertEqual(suggestion["recommended_action"], "create")
+        self.assertEqual(suggestion["name"], "Khám tiêu hóa chuyên sâu")
 
     async def test_tc_unit_005_001c_generate_clinic_services_prefers_missing_categories(
         self,
     ):
         client = AsyncMock()
-        client.get_master_services.return_value = [
-            {
-                "id": "ms-1",
-                "name": "Khám tổng quát",
-                "defaultPrice": 150000,
-                "durationTime": 30,
-                "slotsRequired": 1,
-                "serviceCategory": "HEALTHCARE",
-                "petType": "DOG",
-            },
-            {
-                "id": "ms-2",
-                "name": "Spa chó",
-                "defaultPrice": 200000,
-                "durationTime": 40,
-                "slotsRequired": 1,
-                "serviceCategory": "GROOMING_SPA",
-                "petType": "DOG",
-            },
-        ]
         client.get_my_clinic_services.return_value = [
             {
                 "serviceId": "svc-1",
@@ -170,33 +150,32 @@ class ClinicToolsTests(unittest.IsolatedAsyncioTestCase):
             }
         ]
 
-        with patch(
-            "app.core.tools.mcp_tools.clinic_tools.get_backend_client",
-            return_value=client,
+        llm_client = AsyncMock()
+        llm_client.generate.side_effect = RuntimeError("LLM timeout")
+
+        with (
+            patch(
+                "app.core.tools.mcp_tools.clinic_tools.get_backend_client",
+                return_value=client,
+            ),
+            patch(
+                "app.core.tools.mcp_tools.clinic_tools.get_llm_client",
+                return_value=llm_client,
+            ),
         ):
             result = await generate_clinic_services(pet_types=["DOG"])
 
         self.assertTrue(result["success"])
         self.assertGreaterEqual(result["data"]["total_suggestions"], 1)
         top_suggestion = result["data"]["suggestions"][0]
-        self.assertEqual(top_suggestion["name"], "Spa chó")
-        self.assertIn(result["data"]["recommendation_mode"], ["mixed", "create"])
+        self.assertEqual(top_suggestion["name"], "Khám da liễu chuyên sâu")
+        self.assertEqual(result["data"]["recommendation_mode"], "ai_generated")
+        self.assertEqual(result["data"].get("llm_generated", 0), 0)
 
     async def test_tc_unit_005_001d_generate_clinic_services_uses_llm_when_catalog_sparse(
         self,
     ):
         client = AsyncMock()
-        client.get_master_services.return_value = [
-            {
-                "id": "ms-1",
-                "name": "Tiêm phòng",
-                "defaultPrice": 100000,
-                "durationTime": 30,
-                "slotsRequired": 1,
-                "serviceCategory": "VACCINATION",
-                "petType": "DOG",
-            }
-        ]
         client.get_my_clinic_services.return_value = []
 
         llm_response = type(
@@ -227,6 +206,39 @@ class ClinicToolsTests(unittest.IsolatedAsyncioTestCase):
             any(s.get("name") == "Khám da liễu" for s in result["data"]["suggestions"])
         )
         self.assertGreaterEqual(result["data"].get("llm_generated", 0), 1)
+
+    async def test_tc_unit_005_001e_generate_clinic_services_requests_clinic_selection_when_missing_context(
+        self,
+    ):
+        with (
+            patch(
+                "app.core.tools.mcp_tools.clinic_tools._resolve_runtime_clinic_id",
+                return_value=None,
+            ),
+            patch(
+                "app.core.tools.mcp_tools.clinic_tools.get_my_clinics",
+                new=AsyncMock(
+                    return_value={
+                        "success": True,
+                        "clinics": [
+                            {"clinicId": "clinic-1", "name": "Petties Hà Nội"},
+                            {"clinicId": "clinic-2", "name": "Petties Đà Nẵng"},
+                        ],
+                    }
+                ),
+            ),
+        ):
+            result = await generate_clinic_services(
+                pet_types=["DOG"],
+                service_scope=["CHECK_UP"],
+            )
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["ui_card"], "clinic_list_card")
+        self.assertEqual(result["data"]["recommendation_mode"], "awaiting_clinic_selection")
+        self.assertTrue(result["data"]["needs_clarification"])
+        self.assertEqual(len(result["data"]["clinics"]), 2)
+        self.assertIn("phòng khám nào", result["message"])
 
     async def test_tc_unit_005_002_list_clinic_services_formats_summary(self):
         client = AsyncMock()
@@ -349,6 +361,36 @@ class ClinicToolsTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result["success"])
         self.assertEqual(len(result["clinics"]), 1)
         self.assertEqual(result["clinics"][0]["clinicId"], "clinic-1")
+
+    async def test_tc_unit_005_007b_get_my_clinics_resolves_active_runtime_clinic(self):
+        client = AsyncMock()
+        client.get_my_clinics.return_value = {
+            "content": [
+                {
+                    "clinicId": "clinic-1",
+                    "name": "Petties Clinic HN",
+                    "status": "ACTIVE",
+                },
+                {
+                    "clinicId": "clinic-2",
+                    "name": "Petties Clinic DN",
+                    "status": "ACTIVE",
+                },
+            ]
+        }
+
+        with patch(
+            "app.core.tools.mcp_tools.clinic_tools.BackendClient",
+            return_value=client,
+        ):
+            result = await get_my_clinics()
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result.get("target_clinic_id"), "clinic-1")
+        self.assertFalse(result.get("needs_clarification"))
+        self.assertIsInstance(result.get("matched_clinic"), dict)
+        self.assertEqual(result["matched_clinic"].get("clinicId"), "clinic-1")
+        self.assertEqual(result.get("resolved_clinic", {}).get("clinicId"), "clinic-1")
 
     async def test_tc_unit_005_005_execute_update_service_confirmed_maps_backend_fields(
         self,

@@ -23,9 +23,19 @@ from app.core.agents.text_utils import (
     extract_all_user_messages,
     extract_latest_user_message,
 )
-from app.core.tool_runtime_context import get_booking_context_cache
+from app.core.tool_runtime_context import (
+    get_booking_context_cache,
+    get_tool_runtime_context,
+)
+from app.core.tools.mcp_resources import get_resource_by_backing_tool
 
 logger = logging.getLogger(__name__)
+_BOOKING_ALLOWED_ROLES = {"PET_OWNER", "ADMIN"}
+_READONLY_TOOL_RESOURCE_CANDIDATES = {
+    "get_user_pets",
+    "get_clinic_services",
+    "check_available_slots",
+}
 
 
 BOOKING_TOOL_PARAM_ALLOWLIST: Dict[str, set[str]] = {
@@ -40,31 +50,7 @@ BOOKING_TOOL_PARAM_ALLOWLIST: Dict[str, set[str]] = {
         "transcript",
         "latest_message",
     },
-    # Booking State Tools
-    "start_booking_session": set(),
-    "get_booking_session": set(),
-    "end_booking_session": {"reason"},
-    "update_booking_draft": {
-        "pet_id",
-        "pet_name",
-        "clinic_id",
-        "clinic_hint",
-        "clinic_name",
-        "service_ids",
-        "service_names",
-        "booking_date",
-        "start_time",
-        "time_preference",
-        "booking_type",
-        "home_address",
-        "home_lat",
-        "home_long",
-    },
-    "get_booking_draft_summary": set(),
-    "suspend_booking_session": {"reason"},
-    "resume_booking_session": set(),
     # Utility Tools
-    "resolve_date_time": {"time_expression", "reference_date_iso"},
     "resolve_booking_context": set(),
     "search_clinics_nearby": {
         "latitude",
@@ -251,6 +237,49 @@ def _build_missing_input_response(message: str) -> Dict[str, Any]:
     }
 
 
+def _build_resource_uri_for_tool(
+    tool_name: str,
+    tool_params: Dict[str, Any],
+) -> Optional[str]:
+    ctx = get_tool_runtime_context()
+    if tool_name == "get_user_pets":
+        user_id = str(tool_params.get("user_id") or getattr(ctx, "user_id", "") or "").strip()
+        if not user_id:
+            return None
+        return f"petties://users/{user_id}/pets"
+
+    if tool_name == "get_clinic_services":
+        clinic_id = str(tool_params.get("clinic_id") or "").strip()
+        if clinic_id:
+            return f"petties://clinics/{clinic_id}/services"
+        return None
+
+    if tool_name == "check_available_slots":
+        clinic_id = str(tool_params.get("clinic_id") or "").strip()
+        if not clinic_id:
+            return None
+        date_value = str(tool_params.get("date") or "").strip()
+        query = f"?date={date_value}" if date_value else ""
+        return f"petties://clinics/{clinic_id}/slots{query}"
+
+    return None
+
+
+def _get_runtime_role() -> str:
+    ctx = get_tool_runtime_context()
+    return str(getattr(ctx, "role", "") or "").strip().upper()
+
+
+def _get_runtime_booking_draft() -> Dict[str, Any]:
+    ctx = get_tool_runtime_context()
+    if not ctx or not isinstance(ctx.booking_state, dict):
+        return {}
+    draft = ctx.booking_state.get("draft")
+    if not isinstance(draft, dict):
+        return {}
+    return draft
+
+
 def _filter_allowed_params(
     tool_name: str, tool_params: Dict[str, Any]
 ) -> Dict[str, Any]:
@@ -295,6 +324,7 @@ def _normalize_booking_tool_params(
     react_steps: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
     params = dict(tool_params or {})
+    runtime_draft = _get_runtime_booking_draft()
     params = _filter_allowed_params(tool_name, params)
     _enrich_context_fields(tool_name, params, messages)
 
@@ -329,9 +359,18 @@ def _normalize_booking_tool_params(
             params["clinic_id"] = clinic_hint
 
         params.pop("clinic_hint", None)
+        if not str(params.get("clinic_id") or "").strip():
+            draft_clinic_id = str(runtime_draft.get("clinic_id") or "").strip()
+            if draft_clinic_id:
+                params["clinic_id"] = draft_clinic_id
 
     if tool_name in {"check_available_slots", "create_booking_for_user"}:
-        params["service_ids"] = _normalize_service_ids(params.get("service_ids"))
+        incoming_service_ids = _normalize_service_ids(params.get("service_ids"))
+        if not incoming_service_ids:
+            incoming_service_ids = _normalize_service_ids(
+                runtime_draft.get("service_ids")
+            )
+        params["service_ids"] = incoming_service_ids
 
         resolved_datetime = resolve_booking_datetime_inputs(
             date=params.get("date")
@@ -352,8 +391,16 @@ def _normalize_booking_tool_params(
 
         if not params.get(date_key) and resolved_datetime.get("date"):
             params[date_key] = resolved_datetime["date"]
+        if not params.get(date_key):
+            draft_date = str(runtime_draft.get("booking_date") or "").strip()
+            if draft_date:
+                params[date_key] = draft_date
         if not params.get(time_key) and resolved_datetime.get("exact_time"):
             params[time_key] = resolved_datetime["exact_time"]
+        if not params.get(time_key):
+            draft_time = str(runtime_draft.get("start_time") or "").strip()
+            if draft_time:
+                params[time_key] = draft_time
         if not params.get("time_preference") and resolved_datetime.get(
             "time_preference"
         ):
@@ -422,7 +469,7 @@ def apply_booking_tool_routing(
     """
     Thin validator for booking tools.
 
-    It never changes the selected tool into another tool and never builds a rigid flow.
+    It normalizes booking params and can redirect read-only calls to resource path.
     """
     if not isinstance(parsed, dict):
         return parsed
@@ -437,6 +484,16 @@ def apply_booking_tool_routing(
 
     if normalized_tool not in BOOKING_TOOL_NAMES:
         return parsed
+
+    runtime_role = _get_runtime_role()
+    if runtime_role and runtime_role not in _BOOKING_ALLOWED_ROLES:
+        return {
+            **parsed,
+            **_build_missing_input_response(
+                "Booking voi AI hien chi ap dung cho Pet Owner tren mobile. "
+                "Vui long dung tro ly theo che do copilot noi bo."
+            ),
+        }
 
     tool_params = _normalize_booking_tool_params(
         normalized_tool,
@@ -499,6 +556,22 @@ def apply_booking_tool_routing(
                     + ", ".join(missing_fields)
                     + " de tao yeu cau booking."
                 ),
+            }
+
+    if (
+        normalized_tool in _READONLY_TOOL_RESOURCE_CANDIDATES
+        and "read_resource" in set(enabled_tools_lower)
+    ):
+        mapped_resource = get_resource_by_backing_tool(normalized_tool)
+        resource_uri = _build_resource_uri_for_tool(normalized_tool, tool_params)
+        if mapped_resource and resource_uri:
+            return {
+                **parsed,
+                "tool_name": "read_resource",
+                "tool_params": {
+                    "resource_uri": resource_uri,
+                    "fallback_params": tool_params,
+                },
             }
 
     return {

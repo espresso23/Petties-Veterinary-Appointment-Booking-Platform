@@ -37,7 +37,7 @@
 ## 2. Frontend Web
 
 ### 2.1 Chat UI
-- [x] StaffAIChatPage render đúng
+- [x] MascotDockPanel render đúng
 - [x] Message bubble hiển thị text + images + citations
 - [x] Thinking process display (ReAct trace)
 - [x] Tool calls expandable view

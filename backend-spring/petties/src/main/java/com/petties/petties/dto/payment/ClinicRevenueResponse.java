@@ -6,7 +6,7 @@ import java.util.Map;
 
 /**
  * Revenue summary response for a clinic.
- * Used by AI Copilot analytics tools.
+ * Used by AI assistant analytics tools.
  */
 public class ClinicRevenueResponse {
 

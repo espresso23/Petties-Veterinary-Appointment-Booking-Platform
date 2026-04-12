@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../config/constants/app_colors.dart';
 import '../../../../data/models/ai_chat.dart';
+import 'ai_booking_service_merge.dart';
 import 'ai_chat_widgets.dart';
 
 class AiServiceOptionCard extends StatelessWidget {
@@ -30,11 +31,11 @@ class AiServiceOptionCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.primaryBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.stone900, width: 2),
+        color: AppColors.white.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.stone900, width: 1.5),
         boxShadow: const [
-          BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
+          BoxShadow(color: AppColors.stone300, blurRadius: 12, offset: Offset(0, 4)),
         ],
       ),
       child: Column(
@@ -95,10 +96,10 @@ class AiServiceOptionCard extends StatelessWidget {
                 disabledForegroundColor: AppColors.stone500,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                   side: const BorderSide(
                     color: AppColors.stone900,
-                    width: 2,
+                    width: 1.5,
                   ),
                 ),
               ),
@@ -146,11 +147,11 @@ class AiSlotGridCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.primaryBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.stone900, width: 2),
+        color: AppColors.white.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.stone900, width: 1.5),
         boxShadow: const [
-          BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
+          BoxShadow(color: AppColors.stone300, blurRadius: 12, offset: Offset(0, 4)),
         ],
       ),
       child: Column(
@@ -242,6 +243,13 @@ class _AiStructuredBookingSummaryCardState
   double? _homeLong;
   Set<String> _selectedServiceIds = <String>{};
 
+  List<AiBookingServiceOption> _dedupedServiceOptionsForForm() {
+    return dedupeBookingServiceOptionsPreferCanonical(
+      widget.serviceOptions,
+      scopeClinicId: _clean(_selectedClinicId),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -260,6 +268,14 @@ class _AiStructuredBookingSummaryCardState
 
   void _syncFromSummary() {
     final summary = widget.summary;
+    _selectedClinicId = _clean(summary.clinicId);
+    _selectedClinicName = _clean(summary.clinicName);
+
+    final dedupedServiceOptions = dedupeBookingServiceOptionsPreferCanonical(
+      widget.serviceOptions,
+      scopeClinicId: _selectedClinicId,
+    );
+
     final idsFromSummary = summary.serviceIds
         .map((item) => item.trim())
         .where((item) => item.isNotEmpty)
@@ -271,7 +287,7 @@ class _AiStructuredBookingSummaryCardState
           .map((item) => item.trim().toLowerCase())
           .where((item) => item.isNotEmpty)
           .toSet();
-      for (final service in widget.serviceOptions) {
+      for (final service in dedupedServiceOptions) {
         final serviceId = service.id.trim();
         final serviceName = service.name.trim().toLowerCase();
         if (serviceId.isEmpty || serviceName.isEmpty) continue;
@@ -280,9 +296,6 @@ class _AiStructuredBookingSummaryCardState
         }
       }
     }
-
-    _selectedClinicId = _clean(summary.clinicId);
-    _selectedClinicName = _clean(summary.clinicName);
     _selectedBookingDate = _clean(summary.bookingDate);
     _selectedStartTime = _clean(summary.startTime);
     _selectedBookingType =
@@ -290,8 +303,10 @@ class _AiStructuredBookingSummaryCardState
     _homeAddress = _clean(summary.homeAddress);
     _homeLat = summary.homeLat;
     _homeLong = summary.homeLong;
-    _selectedServiceIds =
-        idsFromSummary.isNotEmpty ? idsFromSummary : idsByName;
+    _selectedServiceIds = canonicalizeSelectedBookingServiceIds(
+      idsFromSummary.isNotEmpty ? idsFromSummary : idsByName,
+      dedupedServiceOptions,
+    );
 
     // Auto-bind mandatory fields when there is only one safe candidate.
     if ((_selectedClinicId ?? '').trim().isEmpty &&
@@ -307,8 +322,8 @@ class _AiStructuredBookingSummaryCardState
       }
     }
 
-    if (_selectedServiceIds.isEmpty && widget.serviceOptions.length == 1) {
-      final serviceId = widget.serviceOptions.first.id.trim();
+    if (_selectedServiceIds.isEmpty && dedupedServiceOptions.length == 1) {
+      final serviceId = dedupedServiceOptions.first.id.trim();
       if (serviceId.isNotEmpty) {
         _selectedServiceIds = <String>{serviceId};
       }
@@ -334,6 +349,10 @@ class _AiStructuredBookingSummaryCardState
     final bookingTypeItems = _buildBookingTypeItems();
     final bookingTypeValue = _resolveBookingTypeValue(bookingTypeItems);
     final isHomeVisit = _selectedBookingType == bookingTypeHomeVisit;
+    final canRequestOptions = !widget.isBusy &&
+        !widget.isConfirmed &&
+        widget.onFormChanged != null &&
+        (_clean(_selectedClinicId) != null || _clean(_selectedClinicName) != null);
     final canConfirm = _canConfirm(
       hasClinic: _resolveClinicValue(clinicItems) != null,
       hasDate: _resolveDateValue(dateItems) != null,
@@ -355,11 +374,11 @@ class _AiStructuredBookingSummaryCardState
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.primaryBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.stone900, width: 2),
+        color: AppColors.white.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.stone900, width: 1.5),
         boxShadow: const [
-          BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
+          BoxShadow(color: AppColors.stone300, blurRadius: 12, offset: Offset(0, 4)),
         ],
       ),
       child: Column(
@@ -427,7 +446,8 @@ class _AiStructuredBookingSummaryCardState
             isEnabled: !widget.isBusy && !widget.isConfirmed,
             hintText: 'Chọn ngày khám',
             emptyMessage: 'Chưa có danh sách ngày khám',
-            onRequestOptions: null,
+            onRequestOptions:
+                canRequestOptions ? _requestClinicDrivenOptions : null,
             onChanged: (nextValue) {
               setState(() {
                 _selectedBookingDate = nextValue;
@@ -457,7 +477,8 @@ class _AiStructuredBookingSummaryCardState
           _buildServiceMultiSelect(
             selectedLabels: selectedServiceLabels,
             isEnabled: !widget.isBusy && !widget.isConfirmed,
-            onRequestOptions: null,
+            onRequestOptions:
+                canRequestOptions ? _requestClinicDrivenOptions : null,
           ),
           if (isHomeVisit) ...[
             const SizedBox(height: 8),
@@ -501,7 +522,11 @@ class _AiStructuredBookingSummaryCardState
                 ),
               ),
               child: Text(
-                widget.isConfirmed ? 'ĐÃ GỬI XÁC NHẬN' : 'XÁC NHẬN ĐẶT LỊCH',
+                widget.isConfirmed
+                    ? 'ĐÃ GỬI XÁC NHẬN'
+                    : widget.isBusy
+                        ? 'ĐANG GỬI XÁC NHẬN...'
+                        : 'XÁC NHẬN ĐẶT LỊCH',
                 style: const TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
@@ -535,12 +560,21 @@ class _AiStructuredBookingSummaryCardState
     callback(_buildCurrentSummaryPayload());
   }
 
+  void _requestClinicDrivenOptions() {
+    _notifyFormChanged('clinic');
+  }
+
   AiBookingSummaryPayload _buildCurrentSummaryPayload() {
-    final selectedServiceIds = _selectedServiceIds
+    final deduped = _dedupedServiceOptionsForForm();
+    final canonIds = canonicalizeSelectedBookingServiceIds(
+      _selectedServiceIds,
+      deduped,
+    );
+    final selectedServiceIds = canonIds
         .map((item) => item.trim())
         .where((item) => item.isNotEmpty)
         .toList();
-    final selectedServices = widget.serviceOptions
+    final selectedServices = deduped
         .where((service) => selectedServiceIds.contains(service.id.trim()))
         .toList();
     final selectedServiceNames = selectedServices
@@ -575,10 +609,11 @@ class _AiStructuredBookingSummaryCardState
     required bool isEnabled,
     VoidCallback? onRequestOptions,
   }) {
-    final hasOptions = widget.serviceOptions.isNotEmpty;
+    final svcOptions = _dedupedServiceOptionsForForm();
+    final hasOptions = svcOptions.isNotEmpty;
     final shouldShowReload = onRequestOptions != null &&
         isEnabled &&
-        widget.serviceOptions.length <= 1;
+        svcOptions.length <= 1;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(10),
@@ -675,7 +710,10 @@ class _AiStructuredBookingSummaryCardState
   }
 
   Future<void> _openServicePicker() async {
-    final tempSelected = Set<String>.from(_selectedServiceIds);
+    final pickerOptions = _dedupedServiceOptionsForForm();
+    final tempSelected = Set<String>.from(
+      canonicalizeSelectedBookingServiceIds(_selectedServiceIds, pickerOptions),
+    );
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -706,11 +744,11 @@ class _AiStructuredBookingSummaryCardState
                     SizedBox(
                       height: MediaQuery.of(context).size.height * 0.42,
                       child: ListView.separated(
-                        itemCount: widget.serviceOptions.length,
+                        itemCount: pickerOptions.length,
                         separatorBuilder: (_, __) =>
                             const Divider(height: 1, thickness: 1),
                         itemBuilder: (context, index) {
-                          final service = widget.serviceOptions[index];
+                          final service = pickerOptions[index];
                           final serviceId = service.id.trim();
                           final selected = tempSelected.contains(serviceId);
 
@@ -761,7 +799,10 @@ class _AiStructuredBookingSummaryCardState
                         onPressed: () {
                           setState(() {
                             _selectedServiceIds =
-                                Set<String>.from(tempSelected);
+                                canonicalizeSelectedBookingServiceIds(
+                              tempSelected,
+                              pickerOptions,
+                            );
                           });
                           _notifyFormChanged('service');
                           Navigator.of(sheetContext).pop();
@@ -833,9 +874,9 @@ class _AiStructuredBookingSummaryCardState
           if (hasItems)
             DropdownButtonFormField<String>(
               key: ValueKey<String>(
-                '$label|${value ?? ''}|${items.length}',
+                '$label|${value ?? ''}|${items.map((e) => e.value).join('|')}',
               ),
-              initialValue: value,
+              initialValue: _coerceSummaryDropdownValue(value, items),
               isExpanded: true,
               items: items
                   .map(
@@ -1057,7 +1098,7 @@ class _AiStructuredBookingSummaryCardState
 
   List<String> _resolveSelectedServiceLabels() {
     final byId = <String, String>{
-      for (final service in widget.serviceOptions)
+      for (final service in _dedupedServiceOptionsForForm())
         if (service.id.trim().isNotEmpty && service.name.trim().isNotEmpty)
           service.id.trim(): service.name.trim(),
     };
@@ -1106,7 +1147,26 @@ class _AiStructuredBookingSummaryCardState
   }
 
   bool _isValidTimeValue(String value) {
-    return RegExp(r'^([01]\d|2[0-3]):[0-5]\d$').hasMatch(value.trim());
+    final match = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(value.trim());
+    if (match == null) {
+      return false;
+    }
+    final hour = int.tryParse(match.group(1) ?? '');
+    final minute = int.tryParse(match.group(2) ?? '');
+    if (hour == null || minute == null) {
+      return false;
+    }
+    return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
+  }
+
+  String? _coerceSummaryDropdownValue(
+    String? value,
+    List<_SummarySelectItem> items,
+  ) {
+    if (value == null || items.isEmpty) {
+      return null;
+    }
+    return items.any((item) => item.value == value) ? value : null;
   }
 
   bool _requiresLocationForHomeVisit() {
@@ -1250,8 +1310,8 @@ class _AiStructuredBookingSummaryCardState
           const SizedBox(height: 6),
           Text(
             (_homeLat != null && _homeLong != null)
-                ? 'Da co toa do GPS de tao booking tai nha'
-                : 'Can bat vi tri de lay toa do GPS cho booking tai nha',
+                ? 'Đã có tọa độ GPS để tạo booking tại nhà'
+                : 'Cần bật vị trí để lấy tọa độ GPS cho booking tại nhà',
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,

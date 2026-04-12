@@ -695,6 +695,38 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(differential.display_name_vi, "Viêm da do vi khuẩn")
         self.assertEqual(differential.canonical_code, "bacterial_dermatosis")
 
+    def test_parse_llm_synthesis_response_keeps_llm_selected_label(self):
+        service = StaffDiagnosisService()
+        fallback = [
+            DiagnosisSuggestion(
+                canonical_code="ocular_infection",
+                display_name_vi="Viêm kết mạc hoặc nhiễm trùng mắt",
+                rank=1,
+                score_percent=61,
+                score_basis="matching_internal",
+                confidence_note="Độ tự tin: 61%",
+                supporting_reasons=["Khớp triệu chứng mắt."],
+            )
+        ]
+
+        payload = """{
+          "top_differentials": [
+            {
+              "display_name_vi": "Viêm kết mạc hoặc nhiễm trùng mắt",
+              "supporting_reasons": ["Khớp triệu chứng mắt"]
+            }
+          ]
+        }"""
+
+        parsed = service._parse_llm_synthesis_response(payload, fallback, "dog")
+
+        self.assertIsNotNone(parsed)
+        differential = parsed["top_differentials"][0]
+        self.assertEqual(
+            differential.display_name_vi,
+            "Viêm kết mạc hoặc nhiễm trùng mắt",
+        )
+
     def test_parse_llm_synthesis_response_extracts_safety_suggestions(self):
         service = StaffDiagnosisService()
         fallback = [
@@ -819,6 +851,39 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertNotIn("Chống chỉ định với dị ứng", plan)
         self.assertNotIn("Cân nặng: 12.0 kg", plan)
+
+    def test_build_retrieval_query_includes_age_and_sex(self):
+        service = StaffDiagnosisService()
+        from app.ai_diagnose.schemas import Sex
+
+        req = StaffDiagnosisRequest(
+            species=Species.CAT,
+            age_months=8,
+            sex=Sex.FEMALE,
+            doctor_description="Ói",
+        )
+        vision = GeminiVisionDiagnosisResponse(request_id="r1")
+        q = service._build_retrieval_query(req, vision)
+        self.assertIn("Tuổi: 8 tháng", q)
+        self.assertIn("Giới: female", q)
+
+    def test_coerce_plan_for_selected_diagnosis_formats_professional_structure(self):
+        service = StaffDiagnosisService()
+
+        plan = service._coerce_plan_for_selected_diagnosis(
+            llm_plan="Tiếp tục theo dõi tình trạng da và đáp ứng điều trị.",
+            selected_diagnosis_label="Viêm da do vi khuẩn (Pyoderma)",
+            fallback_plan="",
+        )
+
+        lines = [line.strip() for line in plan.split("\n") if line.strip()]
+        self.assertGreaterEqual(len(lines), 4)
+        self.assertTrue(lines[0].startswith("Mục tiêu:"))
+        self.assertTrue(lines[1].startswith("Hướng xử trí trước mắt:"))
+        self.assertTrue(lines[2].startswith("Theo dõi:"))
+        self.assertTrue(lines[3].startswith("Tái khám/Cảnh báo:"))
+        self.assertIn("Viêm da do vi khuẩn (Pyoderma)", plan)
+        self.assertIn("Nêu rõ mốc tái khám", lines[3])
 
     async def test_analyze_case_reports_missing_internal_information_when_retrieval_empty(
         self,

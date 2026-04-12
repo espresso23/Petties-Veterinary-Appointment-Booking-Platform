@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
@@ -28,12 +30,30 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
   List<Pet> _pets = [];
   bool _isLoading = true;
   int _currentIndex = 0;
+  bool _showDogIndicator = true;
+  Timer? _aiPetIndicatorTimer;
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialTabIndex;
     _fetchPets();
+    _startAiPetIndicatorTimer();
+  }
+
+  void _startAiPetIndicatorTimer() {
+    _aiPetIndicatorTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (!mounted) return;
+      setState(() {
+        _showDogIndicator = !_showDogIndicator;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _aiPetIndicatorTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _fetchPets() async {
@@ -143,7 +163,7 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
                   : [],
             ),
       body: SafeArea(bottom: false, child: bodyContent),
-      floatingActionButton: _buildAiChatBubble(context),
+      floatingActionButton: _buildAiFloatingBar(context),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: PetOwnerBottomNav(
         currentIndex: _currentIndex,
@@ -152,15 +172,16 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
     );
   }
 
-  Widget _buildAiChatBubble(BuildContext context) {
+  Widget _buildAiFloatingBar(BuildContext context) {
     return GestureDetector(
       onTap: () => context.push(AppRoutes.aiChat),
       behavior: HitTestBehavior.opaque,
       child: Container(
+        width: 230,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: AppColors.primary,
-          borderRadius: BorderRadius.circular(12),
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: AppColors.stone900, width: 2),
           boxShadow: const [
             BoxShadow(
@@ -169,22 +190,60 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
             ),
           ],
         ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
+        child: Row(
           children: [
-            Icon(
-              Icons.auto_awesome,
-              color: AppColors.stone900,
-              size: 18,
-            ),
-            SizedBox(width: 6),
-            Text(
-              'TRỢ LÝ AI',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                color: AppColors.stone900,
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 320),
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              transitionBuilder: (child, animation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: ScaleTransition(scale: animation, child: child),
+                );
+              },
+              child: Container(
+                key: ValueKey<bool>(_showDogIndicator),
+                width: 28,
+                height: 28,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight.withValues(alpha: 0.35),
+                  border: Border.all(color: AppColors.stone900, width: 1.5),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(
+                  _showDogIndicator ? Icons.pets : Icons.cruelty_free,
+                  color: AppColors.stone900,
+                  size: 16,
+                ),
               ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: IgnorePointer(
+                child: TextField(
+                  readOnly: true,
+                  enabled: false,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: 'Hỏi trợ lý AI...',
+                    hintStyle: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.stone500,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Icon(
+              Icons.send_rounded,
+              color: AppColors.primary,
+              size: 18,
             ),
           ],
         ),

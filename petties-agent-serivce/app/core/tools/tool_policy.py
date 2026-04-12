@@ -55,6 +55,12 @@ _tool_policies: Dict[str, ToolPolicy] = {}
 
 # Default policies for all tools
 DEFAULT_POLICIES = {
+    "read_resource": ToolPolicy(
+        allow_empty_params=False,
+        requires_context=True,
+        requires_auth=True,
+        description="Read-only resource access gateway with role/context guardrails",
+    ),
     # Booking Tools
     "get_user_pets": ToolPolicy(
         allow_empty_params=True,
@@ -87,24 +93,6 @@ DEFAULT_POLICIES = {
         requires_context=True,
         requires_auth=True,
         description="Create booking - requires full params and auth",
-    ),
-    "sync_booking_draft": ToolPolicy(
-        allow_empty_params=False,
-        requires_context=True,
-        requires_auth=True,
-        description="Synchronize booking draft with extracted parameters and real-time service mapping",
-    ),
-    "get_booking_session_info": ToolPolicy(
-        allow_empty_params=True,
-        requires_context=True,
-        requires_auth=True,
-        description="Get current booking session information and state",
-    ),
-    "close_booking_session": ToolPolicy(
-        allow_empty_params=True,
-        requires_context=True,
-        requires_auth=True,
-        description="Close the active booking session and cleanup state",
     ),
     # Medical/Staff Tools
     "pet_knowledge_search": ToolPolicy(

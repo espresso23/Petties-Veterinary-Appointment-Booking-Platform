@@ -35,6 +35,7 @@ export const MySubscriptionPage = () => {
     const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null)
     const [showPaymentModal, setShowPaymentModal] = useState(false)
     const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+    const [pendingCancelSubscriptionId, setPendingCancelSubscriptionId] = useState<string | undefined>(undefined)
     const [showAllPlans, setShowAllPlans] = useState(false)
     const [showPayQr, setShowPayQr] = useState(false)
 
@@ -65,6 +66,7 @@ export const MySubscriptionPage = () => {
             setMembership(status.active)
             setPendingSubscription(status.pending)
             setSubscriptionHistory(history)
+            setPendingCancelSubscriptionId(undefined)
         } catch (error) {
             console.error('Failed to fetch subscription data:', error)
             showToast('error', 'Không thể tải thông tin gói dịch vụ')
@@ -336,7 +338,10 @@ export const MySubscriptionPage = () => {
                                                         <button onClick={() => setShowPayQr(false)} className="flex-1 h-10 text-[10px] font-black uppercase text-gray-400 hover:text-gray-600 bg-gray-50 rounded-lg">Thu gọn</button>
                                                     )}
                                                     <button
-                                                        onClick={() => { if (window.confirm('Bạn có muốn hủy đăng ký chờ này để chọn gói khác?')) handleCancel(pendingSubscription.subscriptionId); }}
+                                                        onClick={() => {
+                                                            setPendingCancelSubscriptionId(pendingSubscription.subscriptionId)
+                                                            setShowCancelConfirm(true)
+                                                        }}
                                                         className="flex-1 h-10 text-[10px] font-black uppercase text-red-500 hover:text-red-600 bg-red-50 rounded-lg"
                                                     >
                                                         Hủy đăng ký này
@@ -527,8 +532,11 @@ export const MySubscriptionPage = () => {
 
             <CancelSubscriptionModal
                 isOpen={showCancelConfirm}
-                onClose={() => setShowCancelConfirm(false)}
-                onConfirm={() => handleCancel(activeSubscription?.subscriptionId)}
+                onClose={() => {
+                    setShowCancelConfirm(false)
+                    setPendingCancelSubscriptionId(undefined)
+                }}
+                onConfirm={() => handleCancel(pendingCancelSubscriptionId ?? activeSubscription?.subscriptionId)}
                 isLoading={isLoading}
             />
         </div >

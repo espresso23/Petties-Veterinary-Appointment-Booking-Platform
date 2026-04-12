@@ -3,7 +3,7 @@
 > Last Updated: 2026-04-03
 > Status: Active source of truth for deployed AI diagnosis runtime behavior
 > Scope: `petties-agent-serivce`, `backend-spring/petties`, `petties-web`, `petties_mobile`, confirmed EMR to Case Memory sync, and runtime diagnosis for `STAFF` / `ADMIN`
-> Companion documents: SRS `docs-references/documentation/SRS/PETTIES_SRS.md` section `3.11.11`, SDD `docs-references/documentation/SDD/REPORT_4_SDD_SYSTEM_DESIGN.md` section `4.21`
+> Companion documents: SRS `docs-references/documentation/SRS/PETTIES_SRS.md` section `3.11.11`, SDD `docs-references/documentation/SDD/PETTIES_SDD.md` section `4.21`
 > Planned next-step design: `docs-references/ai_diagnose_service/08_AUTONOMOUS_CANONICALIZATION_PROPOSAL.md`
 
 ---

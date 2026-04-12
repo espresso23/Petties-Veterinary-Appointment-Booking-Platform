@@ -1,4 +1,4 @@
-> Legacy Note (2026-03-25): This document may contain historical references to `prompt_versions`, editable system-prompt versioning, or older AI schema/ERD counts. It is retained for historical or presentation context only. For current database truth and active AI storage architecture, use `docs-references/database/PETTIES_DBML.dbml`, `docs-references/documentation/PETTIES_ERD_DIAGRAM.md`, `docs-references/documentation/DATABASE_SCHEMA_ANALYSIS.md`, `docs-references/documentation/SRS/PETTIES_SRS.md`, and `docs-references/documentation/SDD/REPORT_4_SDD_SYSTEM_DESIGN.md`.
+> Legacy Note (2026-03-25): This document may contain historical references to `prompt_versions`, editable system-prompt versioning, or older AI schema/ERD counts. It is retained for historical or presentation context only. For current database truth and active AI storage architecture, use `docs-references/database/PETTIES_DBML.dbml`, `docs-references/documentation/PETTIES_ERD_DIAGRAM.md`, `docs-references/documentation/DATABASE_SCHEMA_ANALYSIS.md`, `docs-references/documentation/SRS/PETTIES_SRS.md`, and `docs-references/documentation/SDD/PETTIES_SDD.md`.
 # PETTIES V0.0.1 - FEATURES & HAPPY FLOWS
 
 > Lưu ý cập nhật ngày 2026-03-22:
@@ -170,6 +170,14 @@
 | View aggregate feedback stats | ADMIN | SRS 3.11.7, SDD 3.2.5 | ✅ Done |
 | Provide AI's Response Feedback | Authenticated Users | SRS 3.11.7, SDD 3.2.5 | ✅ Done |
 | Use AI Diagnostic Support | STAFF | SRS 3.11.11, SDD 4.21 | ✅ Done |
+
+#### Web Mascot Interactive Flow (Embedded Copilot)
+
+- **Entry point:** Global mascot launcher + dock panel embedded in web layouts for `STAFF`, `CLINIC_MANAGER`, and `CLINIC_OWNER`.
+- **Route policy:** Legacy dedicated AI routes are deprecated on web; interaction is centralized through mascot panel in current workspace.
+- **Interactive cards:** WebSocket `ui_schema` cards are rendered directly in mascot panel and support `ui_action` dispatch for operational flows.
+- **Confirm flow:** `open_native_confirm` actions trigger `ConfirmModal` before executing create/update service actions.
+- **Context injection:** Requests include role, active route, clinic scope, and user scope to keep answers context-aware.
 
 - 🤖 Chat với AI Chatbot thông minh ✅
 - 🤖 Tư vấn chăm sóc thú cưng ✅

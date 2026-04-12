@@ -111,9 +111,13 @@ class EmrCaseMemorySyncServiceTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertNotIn("ai_diagnosis_context", payload)
         self.assertNotIn("soap", payload)
-        self.assertNotIn("vitals", payload)
+        self.assertIn("vitals", payload)
+        self.assertEqual(payload["vitals"]["weight_kg"], 12.0)
+        self.assertEqual(payload["emr_id"], "emr-10")
+        self.assertEqual(payload["pet_id"], "pet-10")
+        self.assertEqual(payload["clinic_id"], "clinic-1")
+        self.assertEqual(payload["symptoms"], ["itching"])
         self.assertNotIn("prescriptions", payload)
-        self.assertNotIn("clinic_id", payload)
 
     async def test_sync_record_accepts_legacy_camel_case_ai_context(self):
         service = EmrCaseMemorySyncService()

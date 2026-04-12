@@ -1,4 +1,4 @@
-# AI Copilot Clinic - Gap Analysis & Refined Plan
+# AI Assistant Clinic - Gap Analysis & Refined Plan
 
 ## Executive Summary
 
@@ -111,15 +111,16 @@ interface UISchemaV1 {
 
 ```typescript
 // petties-web/src/App.tsx
-- /staff/chat → StaffAIChatPage (existing)
+- /staff → Staff dashboard + mascot dock (existing)
 - /clinic-manager/chat → ChatPage (existing - customer chat)
 ```
 
-**Issue:** Chưa có route AI copilot cho Owner/Manager
+**Issue:** Chưa đồng bộ hoàn toàn role context cho mascot dock giữa Owner/Manager
 
 **Recommendation:**
-- Tạo route mới: `/clinic/ai-copilot` hoặc `/owner/ai-copilot`
-- Reuse component StaffAIChatPage với config khác
+- Dùng mascot dock trên các workspace route hiện có, không tạo route AI standalone mới
+- Chuẩn hóa role context mapping trong `MascotProvider`
+- Reuse `MascotDockPanel` với config theo vai trò
 
 ---
 
@@ -233,7 +234,7 @@ Replace ASCII art diagrams với:
 - [x] Confirm: Dùng BUSINESS_CHAT runtime (không tạo mới)? -> Yes, Backend is DONE.
 - [x] Fix: API paths trong plan document -> DONE in Backend implementation.
 - [x] Fix: Remove emoji, use Heroicons in mockups -> Applied to plan.
-- [x] Create: Technical spec chi tiết cho Phase 0 -> Completed AI Copilot integration.
+- [x] Create: Technical spec chi tiết cho Phase 0 -> Completed AI Assistant integration.
 - [ ] Next Phase: Xây dựng React Frontend UI Cards (`staff_schedule_card`, `slot_grid_card`, `booking_list_card`, `clinic_service_list_card`, etc.) trong `UISchemaRenderer.tsx`.
 
 ---

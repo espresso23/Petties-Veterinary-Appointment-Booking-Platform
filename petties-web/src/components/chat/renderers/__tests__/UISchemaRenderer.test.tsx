@@ -75,4 +75,139 @@ describe('UISchemaRenderer', () => {
     expect(onAction).toHaveBeenCalledTimes(1)
     expect(onAction.mock.calls[0][0].type).toBe('open_native_confirm')
   })
+
+  it('TC-UNIT-010-003: applies edited pricing fields for confirm_service_create action', () => {
+    const onAction = vi.fn()
+    const schema: UISchemaV1 = {
+      version: '1.0',
+      layout: 'grid',
+      components: [
+        {
+          type: 'service_card',
+          id: 'svc-edit-price',
+          data: {
+            name: 'Tiêm phòng tổng quát',
+            base_price: 150000,
+            duration_time: 30,
+            service_category: 'VACCINATION',
+            pet_type: 'DOG',
+            weight_prices: [
+              {
+                min_weight: 0,
+                max_weight: 5,
+                price: 120000,
+              },
+            ],
+            dose_prices: [
+              {
+                dose_label: 'Mũi 1',
+                price: 140000,
+              },
+            ],
+          },
+          actions: [
+            {
+              type: 'open_native_confirm',
+              label: 'Lưu dịch vụ',
+              payload: {
+                title: 'Lưu dịch vụ',
+                confirm_action: {
+                  type: 'confirm_service_create',
+                  label: 'Xác nhận lưu',
+                  payload: {
+                    name: 'Tiêm phòng tổng quát',
+                    base_price: 150000,
+                    slots_required: 1,
+                    weight_prices: [
+                      {
+                        min_weight: 0,
+                        max_weight: 5,
+                        price: 120000,
+                      },
+                    ],
+                    dose_prices: [
+                      {
+                        dose_label: 'Mũi 1',
+                        price: 140000,
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+          ],
+        },
+      ],
+    }
+
+    render(<UISchemaRenderer schema={schema} onAction={onAction} />)
+
+    expect(screen.getByText('Chỉnh giá nhanh trước khi lưu')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Giá cơ bản chỉnh nhanh'), {
+      target: { value: '200000' },
+    })
+    fireEvent.change(screen.getByLabelText('Giá cân nặng 1'), {
+      target: { value: '250000' },
+    })
+    fireEvent.change(screen.getByLabelText('Giá mũi tiêm 1'), {
+      target: { value: '180000' },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu dịch vụ' }))
+
+    expect(onAction).toHaveBeenCalledTimes(1)
+    const dispatchedAction = onAction.mock.calls[0][0] as {
+      payload?: {
+        confirm_action?: {
+          payload?: {
+            base_price?: number
+            weight_prices?: Array<{ price?: number }>
+            dose_prices?: Array<{ price?: number }>
+          }
+        }
+      }
+    }
+
+    expect(dispatchedAction.payload?.confirm_action?.payload?.base_price).toBe(200000)
+    expect(dispatchedAction.payload?.confirm_action?.payload?.weight_prices?.[0]?.price).toBe(250000)
+    expect(dispatchedAction.payload?.confirm_action?.payload?.dose_prices?.[0]?.price).toBe(180000)
+  })
+
+  it('TC-UNIT-010-004: hides quick pricing editor when action is not confirm_service_create', () => {
+    const onAction = vi.fn()
+    const schema: UISchemaV1 = {
+      version: '1.0',
+      layout: 'grid',
+      components: [
+        {
+          type: 'service_card',
+          id: 'svc-no-edit',
+          data: {
+            name: 'Khám cơ bản',
+            base_price: 100000,
+          },
+          actions: [
+            {
+              type: 'open_native_confirm',
+              label: 'Lưu dịch vụ',
+              payload: {
+                title: 'Xác nhận thao tác',
+              },
+            },
+          ],
+        },
+      ],
+    }
+
+    render(<UISchemaRenderer schema={schema} onAction={onAction} />)
+
+    expect(screen.queryByText('Chỉnh giá nhanh trước khi lưu')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu dịch vụ' }))
+    expect(onAction).toHaveBeenCalledTimes(1)
+    expect(onAction.mock.calls[0][0].payload).toEqual({
+      title: 'Xác nhận thao tác',
+    })
+  })
 })

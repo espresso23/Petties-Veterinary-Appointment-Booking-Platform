@@ -15,6 +15,7 @@ interface ChatMessageProps {
   onFeedback?: (feedback: 'good' | 'bad') => void
   uiSchema?: UISchemaV1
   stage?: ChatStage
+  selectedClinicId?: string
   onUiAction?: (action: UIAction, component: UIComponent) => void
 }
 
@@ -99,6 +100,7 @@ export const ChatMessage = ({
   onFeedback,
   uiSchema,
   stage,
+  selectedClinicId,
   onUiAction,
 }: ChatMessageProps) => {
   const isUser = role === 'user'
@@ -194,7 +196,11 @@ export const ChatMessage = ({
 
             {!isUser && uiSchema && (
               <div className="mt-4">
-                <UISchemaRenderer schema={uiSchema} onAction={onUiAction} />
+                <UISchemaRenderer
+                  schema={uiSchema}
+                  onAction={onUiAction}
+                  selectedClinicId={selectedClinicId}
+                />
               </div>
             )}
 
@@ -230,12 +236,16 @@ export const ChatMessage = ({
                 <div className="flex gap-2">
                   <button
                     onClick={() => onFeedback('good')}
+                    aria-label="Phản hồi tích cực"
+                    title="Phản hồi tích cực"
                     className={`p-1.5 border-2 border-stone-900 transition-all ${feedback === 'good' ? 'bg-green-400' : 'bg-white hover:bg-green-100 shadow-[2px_2px_0_#1c1917]'}`}
                   >
                     <CheckIcon className="w-4 h-4 font-black text-stone-900" />
                   </button>
                   <button
                     onClick={() => onFeedback('bad')}
+                    aria-label="Phản hồi chưa tốt"
+                    title="Phản hồi chưa tốt"
                     className={`p-1.5 border-2 border-stone-900 transition-all ${feedback === 'bad' ? 'bg-red-400' : 'bg-white hover:bg-red-100 shadow-[2px_2px_0_#1c1917]'}`}
                   >
                     <XMarkIcon className="w-4 h-4 font-black text-stone-900" />
@@ -297,6 +307,8 @@ export const ChatMessage = ({
               <button
                 type="button"
                 onClick={() => setPreviewImage(null)}
+                aria-label="Đóng ảnh xem trước"
+                title="Đóng ảnh xem trước"
                 className="border-2 border-stone-900 bg-white p-1 text-stone-900 shadow-[2px_2px_0_#1c1917] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none"
               >
                 <XMarkIcon className="h-4 w-4" />

@@ -14,14 +14,8 @@ from app.core.agents.booking_context import (
     parse_conditional_intent,
     resolve_booking_datetime_inputs as _shared_resolve_booking_datetime_inputs,
 )
-from app.core.agents.booking_session import (
-    BookingSessionState,
-    STATUS_COMPLETED,
-    mark_booking_session_confirming,
-)
 from app.core.agents.text_utils import normalize_vietnamese_text
 from app.core.tool_runtime_context import (
-    get_tool_runtime_context,
     require_tool_runtime_context,
     get_booking_context_cache,
 )
@@ -33,7 +27,6 @@ from app.core.tools.contracts import (
 )
 from app.core.tools.mcp_server import mcp_server
 from app.services.backend_client import BackendClientError, get_backend_client
-from app.core.database.mongodb import update_booking_state_in_db
 
 
 def _normalize_booking_type(
@@ -336,29 +329,6 @@ def _build_booking_confirmation_snapshot(
     return snapshot
 
 
-async def _persist_confirmation_snapshot_if_possible(
-    snapshot: Dict[str, Any],
-) -> None:
-    ctx = get_tool_runtime_context()
-    if not ctx or not ctx.booking_state:
-        return
-
-    try:
-        state = BookingSessionState.model_validate(ctx.booking_state)
-    except Exception as exc:
-        logger.warning(f"Cannot parse booking session for confirmation snapshot: {exc}")
-        return
-
-    if not state.active:
-        return
-
-    updated_state = mark_booking_session_confirming(state, snapshot)
-    payload = updated_state.model_dump(mode="json")
-    ctx.booking_state = payload
-    if ctx.session_id:
-        await update_booking_state_in_db(ctx.session_id, payload)
-
-
 def _evaluate_booking_confirmation_guard(
     *,
     confirmation_snapshot: Dict[str, Any],
@@ -367,26 +337,6 @@ def _evaluate_booking_confirmation_guard(
     latest_message: Optional[str],
     transcript: Optional[str],
 ) -> Optional[Dict[str, Any]]:
-    ctx = get_tool_runtime_context()
-    state: Optional[BookingSessionState] = None
-    if ctx and ctx.booking_state:
-        try:
-            state = BookingSessionState.model_validate(ctx.booking_state)
-        except Exception as exc:
-            logger.warning(
-                f"Cannot parse booking session for confirmation guard: {exc}"
-            )
-
-    if state and state.status == STATUS_COMPLETED:
-        if state.last_confirmed_snapshot == confirmation_snapshot:
-            return build_tool_error_response(
-                error_code="BOOKING_ALREADY_COMPLETED",
-                message="Phiên đặt lịch này đã được tạo trước đó. Không tạo lại để tránh trùng lặp.",
-                recoverable=False,
-                suggestion="Nếu bạn muốn tạo lịch mới, hãy bắt đầu một phiên đặt lịch khác.",
-                metadata={"duplicate_confirmation": True},
-            )
-
     conditional = None
     if auto_create_if_available:
         conditional = parse_conditional_intent(latest_message or "", transcript)
@@ -400,49 +350,6 @@ def _evaluate_booking_confirmation_guard(
 
     if not confirmed and not auto_create_if_available:
         return None
-
-    if state:
-        if not state.active:
-            return build_tool_error_response(
-                error_code="BOOKING_SESSION_INACTIVE",
-                message="Phiên đặt lịch hiện tại không còn hoạt động nên chưa thể xác nhận tạo booking.",
-                recoverable=True,
-                suggestion="Hãy bắt đầu hoặc khôi phục phiên đặt lịch trước khi xác nhận.",
-            )
-
-        if state.missing_fields:
-            return build_tool_error_response(
-                error_code="INVALID_CONFIRMATION",
-                message="Không thể xác nhận tạo booking khi vẫn còn thiếu dữ liệu bắt buộc.",
-                recoverable=True,
-                suggestion="Vui lòng bổ sung đầy đủ thông tin còn thiếu rồi xác nhận lại.",
-                metadata={"missing_fields": state.missing_fields},
-            )
-
-        if not state.last_confirmed_snapshot:
-            return build_tool_error_response(
-                error_code="CONFIRMATION_EXPIRED",
-                message="Bạn chưa có bản tóm tắt xác nhận hiện hành cho booking này.",
-                recoverable=True,
-                suggestion="Vui lòng xem lại tóm tắt booking rồi xác nhận lại.",
-            )
-
-        if state.last_confirmed_snapshot != confirmation_snapshot:
-            return build_tool_error_response(
-                error_code="CONFIRMATION_MISMATCH",
-                message="Thông tin booking đã thay đổi sau lần tóm tắt gần nhất nên không thể tạo ngay.",
-                recoverable=True,
-                suggestion="Vui lòng xem lại bản tóm tắt mới và xác nhận lại để tiếp tục.",
-                metadata={"requires_reconfirmation": True},
-            )
-
-    elif confirmed:
-        return build_tool_error_response(
-            error_code="CONFIRMATION_CONTEXT_MISSING",
-            message="Không tìm thấy ngữ cảnh xác nhận booking hiện tại.",
-            recoverable=True,
-            suggestion="Vui lòng yêu cầu bot tóm tắt lại booking rồi xác nhận lại.",
-        )
 
     return None
 
@@ -1093,11 +1000,12 @@ async def _resolve_backend_booking_context(
     if not token:
         return {}
 
+    has_explicit_clinic_hint = bool(str(clinic_hint or "").strip())
     normalized_pet_species = _normalize_pet_species_enum(pet_species)
     payload = {
-        "latitude": latitude,
-        "longitude": longitude,
-        "address": address,
+        "latitude": None if has_explicit_clinic_hint else latitude,
+        "longitude": None if has_explicit_clinic_hint else longitude,
+        "address": None if has_explicit_clinic_hint else address,
         "petId": pet_id,
         "clinicHint": clinic_hint,
         "serviceHint": service_hint,
@@ -1767,13 +1675,9 @@ async def search_clinics_nearby(
     service_hint = service_hint or resolved_service_hint
 
     if effective_clinic_hint:
-        effective_radius = radius_km  # Dùng bán kính thực thay vì None
+        # Exact clinic-name resolution must not be constrained by nearby radius/GPS filters.
         payload = {
-            "latitude": latitude,
-            "longitude": longitude,
-            "radiusKm": effective_radius,
             "limit": top_k,
-            "address": address,
             "clinicHint": effective_clinic_hint,
             "serviceHint": service_hint,
             "petId": pet_id,
@@ -3234,7 +3138,6 @@ async def create_booking_for_user(
         distance_km=distance_km,
         items=items,
     )
-
     if _is_create_booking_denied_by_user(latest_message, transcript):
         return _attach_booking_error_metadata(
             {
@@ -3253,7 +3156,6 @@ async def create_booking_for_user(
 
     effective_confirmed = confirmed or auto_create_if_available
     if not effective_confirmed:
-        await _persist_confirmation_snapshot_if_possible(confirmation_snapshot)
         return _attach_booking_error_metadata(
             {
                 "success": False,
@@ -3369,7 +3271,7 @@ async def create_booking_for_user(
             )
 
         summary = booking.get("multiPetSummary", {})
-        return {
+        result_payload = {
             "success": booking.get("success", True),
             "ready_to_create": True,
             "is_final": True,
@@ -3388,6 +3290,7 @@ async def create_booking_for_user(
             "message": booking.get("message")
             or f"Da tao {len(bookings_list)} yeu cau booking. Clinic manager se xac nhan sau.",
         }
+        return result_payload
 
     # Handle single-pet response (legacy)
     services = []
@@ -3404,7 +3307,7 @@ async def create_booking_for_user(
     if not services:
         services = normalized_service_ids
 
-    return {
+    result_payload = {
         "success": True,
         "ready_to_create": True,
         "is_final": True,
@@ -3456,6 +3359,7 @@ async def create_booking_for_user(
             f"{booking.get('clinicName') or 'phong kham da chon'}. Clinic manager se xac nhan sau."
         ),
     }
+    return result_payload
 
 
 @mcp_server.tool

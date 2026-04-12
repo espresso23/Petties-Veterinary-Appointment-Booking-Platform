@@ -14,7 +14,9 @@ import com.petties.petties.exception.BadRequestException;
 import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.exception.ResourceNotFoundException;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -478,6 +480,11 @@ public class EmrService {
                                 .doctorId(emr.getStaffId())
                                 .species(resolvePetSpecies(pet))
                                 .breed(pet != null ? pet.getBreed() : null)
+                                .ageMonths(resolvePetAgeMonths(pet))
+                                .sex(pet != null && pet.getGender() != null ? pet.getGender().trim() : null)
+                                .allergies(pet != null && pet.getAllergies() != null && !pet.getAllergies().isBlank()
+                                                ? pet.getAllergies().trim()
+                                                : null)
                                 .chiefComplaint(firstNonBlank(emr.getSubjective(), emr.getNotes()))
                                 .symptoms(toSignalList(emr.getSubjective()))
                                 .physicalExam(toSignalList(emr.getObjective()))
@@ -531,6 +538,20 @@ public class EmrService {
                         return null;
                 }
                 return pet.getSpecies().name().toLowerCase();
+        }
+
+        private Integer resolvePetAgeMonths(Pet pet) {
+                if (pet == null || pet.getDateOfBirth() == null) {
+                        return null;
+                }
+                long months = ChronoUnit.MONTHS.between(pet.getDateOfBirth(), LocalDate.now());
+                if (months < 0L) {
+                        return 0;
+                }
+                if (months > Integer.MAX_VALUE) {
+                        return Integer.MAX_VALUE;
+                }
+                return (int) months;
         }
 
         private List<String> toSignalList(String value) {

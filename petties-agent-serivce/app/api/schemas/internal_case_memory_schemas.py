@@ -14,6 +14,9 @@ class ConfirmedEmrSyncRequest(BaseModel):
     doctor_id: Optional[str] = None
     species: Optional[str] = None
     breed: Optional[str] = None
+    age_months: Optional[int] = None
+    sex: Optional[str] = None
+    allergies: Optional[str] = None
     chief_complaint: Optional[str] = None
     symptoms: List[str] = Field(default_factory=list)
     physical_exam: List[str] = Field(default_factory=list)

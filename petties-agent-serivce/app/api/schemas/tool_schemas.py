@@ -132,9 +132,13 @@ class ScanToolsResponse(BaseModel):
     success: bool
     message: str
     total_tools: int
+    total_resources: int = 0
     new_tools: int
     updated_tools: int
+    unchanged_tools: int = 0
     tool_list: List[str]
+    resource_list: List[str] = Field(default_factory=list)
+    resource_metadata: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 # ===== ERROR RESPONSE =====

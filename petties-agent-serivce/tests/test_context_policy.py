@@ -55,12 +55,26 @@ class ContextPolicyTests(unittest.TestCase):
             user_role="PET_OWNER",
             context_type=BUSINESS_CHAT,
             allowed_tools=["pet_knowledge_search", "web_search"],
+            allowed_resources=["user_pets"],
         )
 
         self.assertIn("Base prompt", prompt)
         self.assertIn("BUSINESS_CHAT", prompt)
         self.assertIn("pet_knowledge_search, web_search", prompt)
+        self.assertIn("user_pets", prompt)
         self.assertIn("dễ hiểu", prompt)
+
+    def test_pet_owner_business_chat_filters_resources_by_role(self):
+        allowed = ContextPolicyService.get_allowed_resources(
+            user_role="PET_OWNER",
+            context_type=BUSINESS_CHAT,
+            available_resources=[
+                "user_pets",
+                "patient_summary",
+                "pet_health_summary",
+            ],
+        )
+        self.assertEqual(allowed, ["user_pets", "pet_health_summary"])
 
     def test_build_system_prompt_appends_pet_owner_style(self):
         prompt = ContextPolicyService.build_system_prompt(
@@ -98,7 +112,7 @@ class ContextPolicyTests(unittest.TestCase):
 
         self.assertEqual(allowed, ["get_clinic_services", "check_vaccination_status"])
 
-    def test_pet_owner_business_chat_allows_booking_session_tools(self):
+    def test_pet_owner_business_chat_blocks_removed_booking_session_tools(self):
         allowed = ContextPolicyService.get_allowed_tools(
             user_role="PET_OWNER",
             context_type=BUSINESS_CHAT,
@@ -110,14 +124,7 @@ class ContextPolicyTests(unittest.TestCase):
             ],
         )
 
-        self.assertEqual(
-            allowed,
-            [
-                "sync_booking_draft",
-                "get_booking_session_info",
-                "close_booking_session",
-            ],
-        )
+        self.assertEqual(allowed, [])
 
     def test_clinic_manager_no_phantom_tools(self):
         """Phantom tools not in MCP registry must NOT appear in CLINIC_MANAGER whitelist."""
@@ -220,7 +227,7 @@ class ContextPolicyTests(unittest.TestCase):
             allowed_tools=["pet_knowledge_search", "web_search"],
         )
 
-        self.assertIn("khong phai pham vi PET_OWNER chatbot", prompt)
+        self.assertIn("không phải phạm vi PET_OWNER chatbot", prompt)
 
 
 if __name__ == "__main__":

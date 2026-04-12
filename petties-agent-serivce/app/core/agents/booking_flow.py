@@ -17,10 +17,6 @@ BOOKING_TOOL_NAMES: Set[str] = {
     "search_clinics_nearby",
     "check_available_slots",
     "create_booking_for_user",
-    # Booking State MCP Tools (Consolidated)
-    "sync_booking_draft",
-    "get_booking_session_info",
-    "close_booking_session",
     # Utility MCP Tools
     "get_current_datetime",
     "resolve_booking_context",
@@ -77,21 +73,18 @@ def build_booking_prompt_guidance(
             "- Neu nguoi dung hoi slot, dich vu hoac lich hen, tra loi nhu dong nghiep noi bo: uu tien tra cuu, tom tat, de xuat thao tac tiep theo."
         )
     else:
-        # PET_OWNER Guidance - FAST DRAFT FLOW
+        # PET_OWNER Guidance - form-first simple flow
         lines.append(
-            "- FAST DRAFT FLOW: Khi user muon dat lich, luon uu tien goi sync_booking_draft de tao/cap nhat ban nhap NGAY TRONG 1 LUOT."
+            "- FORM-FIRST FLOW: Khi user muon dat lich, uu tien thu thap du thong tin can thiet de hien thi form/xac nhan nhanh."
         )
         lines.append(
-            "- Neu co thong tin (pet, clinic, service, date, time) tu message dau tiên, hay truyen het vao sync_booking_draft."
+            "- Neu co thong tin (pet, clinic, service, date, time) tu message dau tien, hay truyen het vao cac tool lookup/create phu hop."
         )
         lines.append(
-            "- SERVICE MAPPING: Truyen ten dich vu vao service_names; tool se tu anh xa sang ID thuc cho ban (dung service_ids neu da biet ID)."
+            "- SERVICE MAPPING: uu tien service_ids neu da co tu UI; neu user noi ten dich vu thi dung service_hint de tra cuu."
         )
         lines.append(
-            "- Sau khi goi sync_booking_draft, hay chao moi nguoi dung xem va hoan thien Form tren UI Card thay vi tiep tuc hoi text."
-        )
-        lines.append(
-            "- Luon dung get_booking_session_info neu can nho lai trang thai hien tai cua ban nhap."
+            "- Uu tien de nguoi dung chon tren UI Card thay vi hoi dap qua nhieu bang text."
         )
 
     if "search_clinics_nearby" in enabled_tools_lower:
@@ -114,7 +107,6 @@ def build_booking_prompt_guidance(
 
     if "create_booking_for_user" in enabled_tools_lower and is_pet_owner_chat_role(user_role):
         lines.append("- Chi goi create_booking_for_user khi user da xac nhan hoan tat tren UI Card.")
-        lines.append("- Sau khi thanh cong, luon goi close_booking_session(status='COMPLETED') de danh dau hoan tat.")
 
     lines.append("- Dung semantic params: clinic_hint, service_hint, date_expression, time_preference.")
 

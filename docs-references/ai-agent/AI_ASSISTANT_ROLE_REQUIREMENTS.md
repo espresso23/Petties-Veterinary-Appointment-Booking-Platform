@@ -430,7 +430,7 @@ class ProactiveNotificationService:
 2. `ai_chat_messages` - Messages + ReAct trace
 3. `ai_proactive_notifications` - Log proactive notifications sent
 
-**Schema đã được document chi tiết trong `AI_AGENT_DATA_IMPROVEMENT_STRATEGY.md`**
+**Schema đã được document chi tiết trong `docs-references/ai_diagnose_service/01_RUNTIME_FLOW.md` và `docs-references/documentation/SDD/PETTIES_SDD.md` (Database Design + AI Assistant sections).**
 
 ---
 

@@ -1,4 +1,3 @@
-export { SpotlightModal } from './SpotlightModal'
 export { SpotlightProvider } from './SpotlightProvider'
-export { MascotDockPanel } from './MascotDockPanel'
-export type { AIAction, SpotlightMessage } from './SpotlightModal'
+export { MascotDockPanel } from '../mascot/MascotDockPanel'
+export { MascotLauncher } from '../mascot/MascotLauncher'

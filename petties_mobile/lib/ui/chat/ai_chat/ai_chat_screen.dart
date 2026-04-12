@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:web_socket_channel/io.dart';
@@ -8,16 +10,28 @@ import 'package:geolocator/geolocator.dart';
 
 import '../../../config/constants/app_colors.dart';
 import '../../../data/models/ai_chat.dart';
+import '../../../data/models/clinic.dart';
+import '../../../data/models/clinic_service.dart';
+import '../../../data/models/pet.dart';
 import '../../../data/services/ai_chat_service.dart';
 import '../../../data/services/booking_service.dart';
 import '../../../providers/auth_provider.dart';
+import '../../../providers/booking_wizard_provider.dart';
 import '../../../routing/app_routes.dart';
 import 'utils/ai_booking_tracker.dart';
 import 'utils/ai_chat_autocomplete.dart';
 import 'utils/ai_booking_cards.dart';
+import 'utils/ai_booking_service_merge.dart';
 import 'utils/ai_chat_panels.dart';
 import 'utils/ai_chat_widgets.dart';
 import 'widgets/web_search_results_card.dart';
+
+const double _chatBubbleRadiusLg = 14;
+const double _chatBubbleRadiusSm = 4;
+const double _chatBubbleBorderWidth = 2;
+const double _chatBubblePaddingX = 12;
+const double _chatBubblePaddingY = 10;
+const double _chatBubbleShadowOffset = 2;
 
 class AiChatScreen extends StatefulWidget {
   const AiChatScreen({
@@ -51,6 +65,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   final AiChatService _aiChatService = AiChatService();
   final BookingService _bookingService = BookingService();
   final TextEditingController _messageController = TextEditingController();
+  final FocusNode _composerFocusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
 
   IOWebSocketChannel? _channel;
@@ -89,6 +104,13 @@ class _AiChatScreenState extends State<AiChatScreen> {
   bool _thinkingDetailsExpanded = false;
   String _resolvedRoleFromToken = '';
   bool _isRoleResolvedFromToken = false;
+  int _silentPendingCompletions = 0;
+  String? _silentFormTargetMessageId;
+
+  /// Cho phép merge `ui_schema`/`booking_state` vào form sau nhiều lần gửi silent,
+  /// tránh lệch thứ tự với `_silentPendingCompletions`.
+  DateTime? _silentFormMergeUntil;
+  String? _hoveredBubbleMessageId;
 
   bool get _bookingAssistantEnabled {
     if (_isRoleResolvedFromToken) {
@@ -97,12 +119,15 @@ class _AiChatScreenState extends State<AiChatScreen> {
     return widget.bookingAssistantEnabled;
   }
 
-  String get _assistantTitle =>
-      _bookingAssistantEnabled ? 'TRỢ LÝ AI' : 'AI COPILOT';
+  String get _assistantTitle => 'Petties AI';
+
+  String get _assistantSubtitle => _bookingAssistantEnabled
+      ? 'Trợ lý thú cưng cho bạn'
+      : 'Copilot hỗ trợ ca khám';
 
   String get _assistantReadyMessage => _bookingAssistantEnabled
       ? 'Đang chuẩn bị trợ lý AI...'
-      : 'Đang khởi tạo AI Copilot...';
+      : 'Đang khởi tạo trợ lý AI...';
 
   String get _emptyStateTitle => _bookingAssistantEnabled
       ? 'Hỏi bất cứ điều gì!'
@@ -113,16 +138,16 @@ class _AiChatScreenState extends State<AiChatScreen> {
       : 'Tóm tắt hồ sơ bệnh án, kiểm tra lịch trống, chuẩn bị thông tin cho ca khám.';
 
   String get _composerHintText => _bookingAssistantEnabled
-      ? 'Nhập câu hỏi cho trợ lý AI...'
-      : 'Nhập yêu cầu cho AI Copilot phòng khám...';
+      ? 'Hỏi tôi bất cứ điều gì về thú cưng...'
+      : 'Nhập yêu cầu copilot cho ca khám...';
 
   String get _sendingStatusMessage => _bookingAssistantEnabled
       ? 'Đang gửi câu hỏi cho trợ lý AI...'
-      : 'Đang gửi yêu cầu cho AI Copilot...';
+      : 'Đang gửi yêu cầu cho trợ lý AI...';
 
   String get _sendFailedMessage => _bookingAssistantEnabled
       ? 'Không gửi được câu hỏi tới trợ lý AI'
-      : 'Không gửi được yêu cầu tới AI Copilot';
+      : 'Không gửi được yêu cầu tới trợ lý AI';
 
   Color get _assistantAccentColor =>
       _bookingAssistantEnabled ? AppColors.primary : AppColors.teal600;
@@ -188,6 +213,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     _channel?.sink.close();
     _messageController.removeListener(_handleComposerChanged);
     _messageController.dispose();
+    _composerFocusNode.dispose();
     _scrollController.dispose();
     FocusManager.instance.primaryFocus?.unfocus();
     super.dispose();
@@ -566,6 +592,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
       _latestKnownHomeAddress = null;
       _latestKnownHomeLat = null;
       _latestKnownHomeLong = null;
+      _silentFormTargetMessageId = null;
+      _silentFormMergeUntil = null;
+      _silentPendingCompletions = 0;
       _messages = source
           .where((message) =>
               message.role == 'user' || message.role == 'assistant')
@@ -638,8 +667,65 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
     setState(() {
       _bookingTracker = _bookingTracker.mergeSummaryData(mergedSummary);
+      final silentTargetMessageId = (_silentFormTargetMessageId ?? '').trim();
+      if (silentTargetMessageId.isNotEmpty &&
+          _canMergeSilentBookingUiIntoMessage(silentTargetMessageId)) {
+        final messageIndex =
+            _messages.indexWhere((item) => item.id == silentTargetMessageId);
+        if (messageIndex >= 0) {
+          final current = _messages[messageIndex];
+          final mergedBookingSummary = _buildBookingSummaryFromState(
+              current.bookingSummary, mergedSummary);
+          _messages[messageIndex] = current.copyWith(
+            timestamp: DateTime.now(),
+            bookingSummary: mergedBookingSummary,
+          );
+        }
+      }
     });
     _refreshComposerSuggestions();
+  }
+
+  AiBookingSummaryPayload? _buildBookingSummaryFromState(
+    AiBookingSummaryPayload? current,
+    Map<String, dynamic> mergedSummary,
+  ) {
+    final serviceIds =
+        (mergedSummary['service_ids'] as List<dynamic>? ?? const [])
+            .map((item) => item.toString().trim())
+            .where((item) => item.isNotEmpty)
+            .toList();
+    final serviceNames =
+        (mergedSummary['service_names'] as List<dynamic>? ?? const [])
+            .map((item) => item.toString().trim())
+            .where((item) => item.isNotEmpty)
+            .toList();
+    final draftSummary = AiBookingSummaryPayload(
+      petId: mergedSummary['pet_id']?.toString(),
+      petName: mergedSummary['pet_name']?.toString(),
+      clinicId: mergedSummary['clinic_id']?.toString(),
+      clinicName: mergedSummary['clinic_name']?.toString(),
+      bookingDate: mergedSummary['booking_date']?.toString(),
+      startTime: mergedSummary['start_time']?.toString(),
+      serviceIds: serviceIds,
+      serviceNames: serviceNames,
+      bookingType: mergedSummary['booking_type']?.toString(),
+      homeAddress: mergedSummary['home_address']?.toString(),
+      homeLat: mergedSummary['home_lat'] is num
+          ? (mergedSummary['home_lat'] as num).toDouble()
+          : null,
+      homeLong: mergedSummary['home_long'] is num
+          ? (mergedSummary['home_long'] as num).toDouble()
+          : null,
+      distanceKm: mergedSummary['distance_km'] is num
+          ? (mergedSummary['distance_km'] as num).toDouble()
+          : null,
+      message: current?.message,
+      readyToCreate: current?.readyToCreate,
+      nextBestAction: current?.nextBestAction,
+      missingFields: current?.missingFields ?? const <String>[],
+    );
+    return _normalizeBookingSummaryPayload(draftSummary);
   }
 
   void _applyUiSchemaEvent(
@@ -677,31 +763,88 @@ class _AiChatScreenState extends State<AiChatScreen> {
         _bookingTracker = _bookingTracker.mergeSlot(payload.slotGrid!, null);
       }
 
-      _upsertAssistantMessage(
-        content: payload.message ?? fallbackMessage ?? '',
-        isStreaming: false,
-        clinicSuggestions: payload.clinics.isNotEmpty ? payload.clinics : null,
-        serviceOptions:
-            payload.serviceOptions.isNotEmpty ? payload.serviceOptions : null,
-        serviceClinicId: payload.serviceClinicId,
-        slotGrid: payload.slotGrid,
-        bookingSummary: normalizedSummary,
-        bookingCreated: payload.bookingCreated,
-        webSearchResults: payload.webSearchResults.isNotEmpty
-            ? payload.webSearchResults
-            : null,
-        webSearchImages:
-            payload.webSearchImages.isNotEmpty ? payload.webSearchImages : null,
-        webSearchAnswer: payload.webSearchAnswer,
-        webSearchFollowUpQuestions:
-            payload.webSearchFollowUpQuestions.isNotEmpty
-                ? payload.webSearchFollowUpQuestions
-                : null,
-        preferExistingContent: true,
-      );
+      final silentTargetMessageId = (_silentFormTargetMessageId ?? '').trim();
+      if (silentTargetMessageId.isNotEmpty &&
+          _canMergeSilentBookingUiIntoMessage(silentTargetMessageId)) {
+        _mergeStructuredPayloadIntoMessage(
+          messageId: silentTargetMessageId,
+          payload: payload,
+          normalizedSummary: normalizedSummary,
+        );
+      } else {
+        _upsertAssistantMessage(
+          content: payload.message ?? fallbackMessage ?? '',
+          isStreaming: false,
+          clinicSuggestions:
+              payload.clinics.isNotEmpty ? payload.clinics : null,
+          serviceOptions:
+              payload.serviceOptions.isNotEmpty ? payload.serviceOptions : null,
+          serviceClinicId: payload.serviceClinicId,
+          slotGrid: payload.slotGrid,
+          bookingSummary: normalizedSummary,
+          bookingCreated: payload.bookingCreated,
+          webSearchResults: payload.webSearchResults.isNotEmpty
+              ? payload.webSearchResults
+              : null,
+          webSearchImages: payload.webSearchImages.isNotEmpty
+              ? payload.webSearchImages
+              : null,
+          webSearchAnswer: payload.webSearchAnswer,
+          webSearchFollowUpQuestions:
+              payload.webSearchFollowUpQuestions.isNotEmpty
+                  ? payload.webSearchFollowUpQuestions
+                  : null,
+          preferExistingContent: true,
+        );
+      }
     });
     _refreshComposerSuggestions();
     _scrollToBottom();
+  }
+
+  void _mergeStructuredPayloadIntoMessage({
+    required String messageId,
+    required _UiSchemaStructuredPayload payload,
+    required AiBookingSummaryPayload? normalizedSummary,
+  }) {
+    final messageIndex = _messages.indexWhere((item) => item.id == messageId);
+    if (messageIndex < 0) {
+      return;
+    }
+    final current = _messages[messageIndex];
+    final mergedClinicSuggestions = payload.clinics.isNotEmpty
+        ? _mergeClinicOptions(
+            current.clinicSuggestions ?? const <AiClinic>[], payload.clinics)
+        : current.clinicSuggestions;
+    final mergedServiceOptions = payload.serviceOptions.isNotEmpty
+        ? _mergeServiceOptions(
+            current.serviceOptions ?? const <AiBookingServiceOption>[],
+            payload.serviceOptions,
+          )
+        : current.serviceOptions;
+
+    _messages[messageIndex] = current.copyWith(
+      timestamp: DateTime.now(),
+      clinicSuggestions: mergedClinicSuggestions,
+      serviceOptions: mergedServiceOptions,
+      serviceClinicId: payload.serviceClinicId ?? current.serviceClinicId,
+      slotGrid: payload.slotGrid ?? current.slotGrid,
+      bookingSummary: normalizedSummary ?? current.bookingSummary,
+      bookingCreated: payload.bookingCreated ?? current.bookingCreated,
+      webSearchResults: payload.webSearchResults.isNotEmpty
+          ? payload.webSearchResults
+          : current.webSearchResults,
+      webSearchImages: payload.webSearchImages.isNotEmpty
+          ? payload.webSearchImages
+          : current.webSearchImages,
+      webSearchAnswer: (payload.webSearchAnswer ?? '').trim().isNotEmpty
+          ? payload.webSearchAnswer
+          : current.webSearchAnswer,
+      webSearchFollowUpQuestions: payload.webSearchFollowUpQuestions.isNotEmpty
+          ? payload.webSearchFollowUpQuestions
+          : current.webSearchFollowUpQuestions,
+      isStreaming: false,
+    );
   }
 
   _UiSchemaStructuredPayload _schemaToStructuredPayload(UiSchemaV1 schema) {
@@ -1213,6 +1356,14 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   void _completeAssistantMessage(String fullResponse,
       {List<dynamic>? reactTrace}) {
+    if (_silentPendingCompletions > 0) {
+      _silentPendingCompletions -= 1;
+      setState(() {
+        _agentStatus = null;
+        _isSending = false;
+      });
+      return;
+    }
     setState(() {
       _agentStatus = null;
       _isSending = false;
@@ -1465,8 +1616,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
               (service.clinicId ?? '').trim().toLowerCase() ==
               effectiveClinicId.toLowerCase())
           .toList();
+      final unscoped = merged
+          .where((service) => (service.clinicId ?? '').trim().isEmpty)
+          .toList();
       if (matched.isNotEmpty) {
-        merged = matched;
+        merged = _mergeServiceOptions(matched, unscoped);
       }
     }
 
@@ -1490,7 +1644,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
           .toList();
 
       if (summaryServiceIds.isEmpty && summaryServiceNames.isEmpty) {
-        return merged;
+        return dedupeBookingServiceOptionsPreferCanonical(
+          merged,
+          scopeClinicId: effectiveClinicId,
+        );
       }
 
       final summaryFallbacks = <AiBookingServiceOption>[];
@@ -1515,7 +1672,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
         );
       }
 
-      return _mergeServiceOptions(merged, summaryFallbacks);
+      return dedupeBookingServiceOptionsPreferCanonical(
+        _mergeServiceOptions(merged, summaryFallbacks),
+        scopeClinicId: effectiveClinicId,
+      );
     }
 
     final trackerFallbacks = <AiBookingServiceOption>[];
@@ -1539,7 +1699,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
       );
     }
 
-    return _mergeServiceOptions(merged, trackerFallbacks);
+    return dedupeBookingServiceOptionsPreferCanonical(
+      _mergeServiceOptions(merged, trackerFallbacks),
+      scopeClinicId: effectiveClinicId,
+    );
   }
 
   List<String> _resolveBookingDateOptionsForMessage(
@@ -1563,6 +1726,18 @@ class _AiChatScreenState extends State<AiChatScreen> {
     }
     final sorted = values.toList()..sort();
     return sorted;
+  }
+
+  bool _canMergeSilentBookingUiIntoMessage(String messageId) {
+    final target = (_silentFormTargetMessageId ?? '').trim();
+    if (target.isEmpty || target != messageId.trim()) {
+      return false;
+    }
+    final deadline = _silentFormMergeUntil;
+    if (deadline == null) {
+      return false;
+    }
+    return !DateTime.now().isAfter(deadline);
   }
 
   List<String> _resolveStartTimeOptionsForMessage(
@@ -1617,12 +1792,13 @@ class _AiChatScreenState extends State<AiChatScreen> {
   Future<void> _handleBookingFormChanged(
     AiBookingSummaryPayload summary,
     String field,
+    String? sourceMessageId,
   ) async {
     final normalizedSummary = _normalizeBookingSummaryPayload(summary);
     _cacheHomeVisitInfo(normalizedSummary);
 
     final payload = _buildBookingContextPayload(
-      _buildConfirmBookingPayload(
+      _buildBookingDraftPayload(
         summaryPetId: normalizedSummary.petId,
         summaryClinicId: normalizedSummary.clinicId,
         summaryClinicName: normalizedSummary.clinicName,
@@ -1642,10 +1818,25 @@ class _AiChatScreenState extends State<AiChatScreen> {
         (payload['booking_type']?.toString().trim().toUpperCase() ??
                 bookingTypeInClinic)
             .trim();
+    _silentFormTargetMessageId = sourceMessageId;
+    _silentFormMergeUntil = DateTime.now().add(const Duration(seconds: 12));
 
     Future<void> requestSlotRefresh({required String reason}) async {
-      final bookingDate = payload['booking_date']?.toString().trim() ?? '';
+      var bookingDate = payload['booking_date']?.toString().trim() ?? '';
       if (bookingDate.isEmpty) {
+        bookingDate = (_bookingTracker.bookingDate ?? '').trim();
+      }
+      if (bookingDate.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Không thể tải khung giờ: chưa có ngày khám từ máy chủ. '
+              'Vui lòng đợi trợ lý cập nhật lịch hoặc thử lại.',
+            ),
+            backgroundColor: AppColors.error,
+          ),
+        );
         return;
       }
       await _sendStructuredBookingAction(
@@ -1662,6 +1853,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
           if (selectedBookingType.isNotEmpty)
             'booking_type': selectedBookingType,
         },
+        silentFormSync: true,
       );
     }
 
@@ -1686,6 +1878,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
           'type': 'select_booking_type',
           'booking_type': selectedBookingType,
         },
+        silentFormSync: true,
       );
 
       if ((payload['clinic_id']?.toString().trim().isNotEmpty ?? false)) {
@@ -1698,6 +1891,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
               'clinic_name': normalizedSummary.clinicName!.trim(),
           },
           includeLocation: true,
+          silentFormSync: true,
         );
       }
       await requestSlotRefresh(reason: 'Cập nhật lại khung giờ rảnh');
@@ -1720,6 +1914,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
             if (normalizedSummary.serviceNames.isNotEmpty)
               'service_names': normalizedSummary.serviceNames,
           },
+          silentFormSync: true,
         );
       }
       await requestSlotRefresh(reason: 'Cập nhật lại khung giờ theo dịch vụ');
@@ -1749,6 +1944,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
             if ((payload['pet_id']?.toString().trim().isNotEmpty ?? false))
               'pet_id': payload['pet_id'],
           },
+          silentFormSync: true,
         );
       }
       return;
@@ -2004,22 +2200,37 @@ class _AiChatScreenState extends State<AiChatScreen> {
     );
   }
 
-  Future<void> _confirmBookingSummary(
+  void _confirmBookingSummary(
     AiBookingSummaryPayload summary,
     String messageId,
-  ) async {
-    final payload = _buildConfirmBookingPayload(
-      summaryPetId: summary.petId,
-      summaryClinicId: summary.clinicId,
-      summaryClinicName: summary.clinicName,
-      summaryBookingDate: summary.bookingDate,
-      summaryStartTime: summary.startTime,
-      summaryServiceIds: summary.serviceIds,
-      summaryBookingType: summary.bookingType,
-      summaryHomeAddress: summary.homeAddress,
-      summaryHomeLat: summary.homeLat,
-      summaryHomeLong: summary.homeLong,
-      summaryDistanceKm: summary.distanceKm,
+  ) {
+    if (_confirmedMessageIds.contains(messageId)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content:
+              Text('Yêu cầu đặt lịch đang được gửi. Vui lòng chờ phản hồi.'),
+          backgroundColor: AppColors.info,
+        ),
+      );
+      return;
+    }
+
+    final normalizedSummary = _normalizeBookingSummaryPayload(summary);
+    _cacheHomeVisitInfo(normalizedSummary);
+
+    final payload = _buildBookingDraftPayload(
+      summaryPetId: normalizedSummary.petId,
+      summaryClinicId: normalizedSummary.clinicId,
+      summaryClinicName: normalizedSummary.clinicName,
+      summaryBookingDate: normalizedSummary.bookingDate,
+      summaryStartTime: normalizedSummary.startTime,
+      summaryServiceIds: normalizedSummary.serviceIds,
+      summaryBookingType: normalizedSummary.bookingType,
+      summaryHomeAddress: normalizedSummary.homeAddress,
+      summaryHomeLat: normalizedSummary.homeLat,
+      summaryHomeLong: normalizedSummary.homeLong,
+      summaryDistanceKm: normalizedSummary.distanceKm,
     );
 
     final serviceIds = (payload['service_ids'] as List<dynamic>? ?? const [])
@@ -2032,53 +2243,309 @@ class _AiChatScreenState extends State<AiChatScreen> {
     final bookingType = payload['booking_type']?.toString().trim() ?? '';
 
     if (serviceIds.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content:
+              Text('Vui lòng chọn ít nhất một dịch vụ trước khi xác nhận.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
       return;
     }
 
     if (clinicId.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng chọn phòng khám trước khi xác nhận.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
       return;
     }
 
     if (bookingDate.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng chọn ngày khám trước khi xác nhận.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
       return;
     }
 
     if (startTime.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng chọn giờ khám trước khi xác nhận.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
       return;
     }
 
     if (bookingType.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng chọn hình thức khám trước khi xác nhận.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
       return;
     }
 
     if (bookingType == 'HOME_VISIT') {
-      final homeAddress = (summary.homeAddress ?? '').trim();
-      final hasLatLng = summary.homeLat != null && summary.homeLong != null;
+      final homeAddress = (payload['home_address']?.toString() ?? '').trim();
+      final hasLatLng =
+          payload['home_lat'] != null && payload['home_long'] != null;
       if (homeAddress.isEmpty || !hasLatLng) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Khám tại nhà cần địa chỉ và vị trí hợp lệ trước khi xác nhận.',
+            ),
+            backgroundColor: AppColors.error,
+          ),
+        );
         return;
       }
     }
 
+    final clinic = _resolveClinicForNativeConfirm(
+      clinicId: clinicId,
+      clinicName: normalizedSummary.clinicName,
+    );
+    if (clinic == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không tìm thấy thông tin phòng khám để mở trang xác nhận.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final selectedServices = _resolveSelectedServicesForNativeConfirm(
+      clinicId: clinic.clinicId,
+      selectedServiceIds: serviceIds,
+      selectedServiceNames: normalizedSummary.serviceNames,
+    );
+    if (selectedServices.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không tìm thấy dịch vụ hợp lệ để mở trang xác nhận.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final pet = _resolvePetForNativeConfirm(
+      petId: payload['pet_id']?.toString(),
+      petName: normalizedSummary.petName,
+    );
+    if (pet == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng chọn thú cưng trước khi chuyển sang trang xác nhận.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final bookingDateTime = _parseBookingDateForNativeConfirm(bookingDate);
+    if (bookingDateTime == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ngày khám chưa hợp lệ để mở trang xác nhận.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final homeLatRaw = payload['home_lat'];
+    final homeLongRaw = payload['home_long'];
+    final bookingTypeForProvider = bookingType == bookingTypeHomeVisit
+        ? BookingType.homeVisit
+        : BookingType.atClinic;
+
+    final bookingProvider = context.read<BookingWizardProvider>();
     setState(() {
       _confirmedMessageIds.add(messageId);
     });
-
-    await _sendStructuredBookingAction(
-      userMessage: 'Xác nhận đặt lịch',
-      uiAction: payload,
+    bookingProvider.hydrateDraftFromAiChat(
+      clinic: clinic,
+      pet: pet,
+      availableServices: selectedServices,
+      selectedServices: selectedServices,
+      bookingType: bookingTypeForProvider,
+      userAddress: bookingType == bookingTypeHomeVisit
+          ? payload['home_address']?.toString()
+          : null,
+      userLatitude: bookingType == bookingTypeHomeVisit && homeLatRaw is num
+          ? homeLatRaw.toDouble()
+          : null,
+      userLongitude: bookingType == bookingTypeHomeVisit && homeLongRaw is num
+          ? homeLongRaw.toDouble()
+          : null,
+      notes: normalizedSummary.notes,
+      bookingDate: bookingDateTime,
+      selectedTime: startTime,
     );
+
+    if (!mounted) return;
+    context.push(AppRoutes.bookingConfirm);
+  }
+
+  Clinic? _resolveClinicForNativeConfirm({
+    required String clinicId,
+    String? clinicName,
+  }) {
+    final normalizedClinicId = clinicId.trim();
+    final normalizedClinicName = (clinicName ?? '').trim().toLowerCase();
+
+    AiClinic? matched;
+    for (final clinic in _latestClinicOptions) {
+      if (clinic.id.trim() == normalizedClinicId) {
+        matched = clinic;
+        break;
+      }
+    }
+
+    if (matched == null && normalizedClinicName.isNotEmpty) {
+      for (final clinic in _latestClinicOptions) {
+        if (clinic.name.trim().toLowerCase() == normalizedClinicName) {
+          matched = clinic;
+          break;
+        }
+      }
+    }
+
+    final resolvedName = (matched?.name ?? clinicName ?? '').trim();
+    if (normalizedClinicId.isEmpty || resolvedName.isEmpty) {
+      return null;
+    }
+
+    final resolvedAddress = (matched?.address ?? '').trim();
+    return Clinic(
+      clinicId: normalizedClinicId,
+      name: resolvedName,
+      address: resolvedAddress,
+      status: 'ACTIVE',
+      distance: matched?.distanceKm,
+    );
+  }
+
+  List<ClinicServiceModel> _resolveSelectedServicesForNativeConfirm({
+    required String clinicId,
+    required List<String> selectedServiceIds,
+    required List<String> selectedServiceNames,
+  }) {
+    final normalizedClinicId = clinicId.trim();
+    final normalizedIds = selectedServiceIds
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toSet();
+    final normalizedNames = selectedServiceNames
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toSet();
+
+    final sourceServices = _latestServiceOptions.where((service) {
+      final sourceClinicId = (service.clinicId ?? '').trim();
+      if (sourceClinicId.isEmpty) {
+        return true;
+      }
+      return sourceClinicId == normalizedClinicId;
+    }).toList();
+
+    final selected = <ClinicServiceModel>[];
+    final addedIds = <String>{};
+
+    void addService(ClinicServiceModel service) {
+      if (addedIds.contains(service.serviceId)) {
+        return;
+      }
+      addedIds.add(service.serviceId);
+      selected.add(service);
+    }
+
+    for (final service in sourceServices) {
+      final serviceId = service.id.trim();
+      final serviceName = service.name.trim();
+      if (normalizedIds.contains(serviceId) ||
+          (serviceName.isNotEmpty && normalizedNames.contains(serviceName))) {
+        addService(
+          ClinicServiceModel(
+            serviceId: serviceId,
+            clinicId: normalizedClinicId,
+            name: serviceName,
+            basePrice: service.basePrice ?? 0,
+            durationMinutes: 30,
+            serviceCategory: service.category,
+          ),
+        );
+      }
+    }
+
+    return selected;
+  }
+
+  Pet? _resolvePetForNativeConfirm({
+    String? petId,
+    String? petName,
+  }) {
+    final resolvedPetId = _pickFirstNonEmpty(petId, _bookingTracker.petId);
+    final resolvedPetName = _pickFirstNonEmpty(petName, _bookingTracker.petName);
+    if (resolvedPetId == null || resolvedPetName == null) {
+      return null;
+    }
+
+    return Pet(
+      id: resolvedPetId,
+      name: resolvedPetName,
+      species: PetSpecies.OTHER,
+      breed: 'Không rõ',
+      dateOfBirth: DateTime(2020, 1, 1),
+      weight: 0,
+      gender: 'UNKNOWN',
+    );
+  }
+
+  DateTime? _parseBookingDateForNativeConfirm(String raw) {
+    final value = raw.trim();
+    if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value)) {
+      return null;
+    }
+    return DateTime.tryParse(value);
   }
 
   Future<void> _sendStructuredBookingAction({
     required String userMessage,
     required Map<String, dynamic> uiAction,
     bool includeLocation = false,
+    bool silentFormSync = false,
   }) async {
+    if (silentFormSync) {
+      _silentPendingCompletions += 1;
+    }
     await _sendMessage(
       preset: '',
       userVisibleMessage: userMessage,
       uiAction: uiAction,
       includeLocation: includeLocation,
+      appendUserBubble: !silentFormSync,
     );
   }
 
@@ -2264,6 +2731,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     Map<String, dynamic>? uiAction,
     bool includeLocation = true,
     bool allowActiveLocationFetch = false,
+    bool appendUserBubble = true,
   }) async {
     final message = (preset ?? _messageController.text).trim();
     final safeMessage = _sanitizeUserVisibleMessage(message);
@@ -2278,21 +2746,28 @@ class _AiChatScreenState extends State<AiChatScreen> {
     }
 
     setState(() {
-      _messages.add(
-        _UiChatMessage(
-          id: UniqueKey().toString(),
-          role: 'user',
-          content: bubbleMessage,
-          timestamp: DateTime.now(),
-        ),
-      );
+      if (appendUserBubble) {
+        _messages.add(
+          _UiChatMessage(
+            id: UniqueKey().toString(),
+            role: 'user',
+            content: bubbleMessage,
+            timestamp: DateTime.now(),
+          ),
+        );
+        _silentFormTargetMessageId = null;
+        _silentFormMergeUntil = null;
+        _silentPendingCompletions = 0;
+      }
       _error = null;
       _agentStatus = _sendingStatusMessage;
       _isSending = true;
     });
 
     _messageController.clear();
-    _scrollToBottom();
+    if (appendUserBubble) {
+      _scrollToBottom();
+    }
 
     try {
       final location = includeLocation
@@ -2539,67 +3014,182 @@ class _AiChatScreenState extends State<AiChatScreen> {
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
     final screenWidth = mediaQuery.size.width;
-    final horizontalPadding = screenWidth < 380 ? 12.0 : 16.0;
+    final isCompact = screenWidth <= 360;
+    final horizontalPadding = isCompact
+        ? AppSpacing.sm + 2
+        : (screenWidth < 380 ? AppSpacing.md : AppSpacing.lg);
+    final isKeyboardVisible = mediaQuery.viewInsets.bottom > 0;
 
     return Scaffold(
       backgroundColor: AppColors.primaryBackground,
       appBar: AppBar(
-        backgroundColor: _assistantAccentColor,
+        backgroundColor: AppColors.white,
         foregroundColor: AppColors.stone900,
         elevation: 0,
+        centerTitle: true,
         leading: IconButton(
-          onPressed: () {
-            FocusManager.instance.primaryFocus?.unfocus();
-            context.pop();
-          },
-          icon: const Icon(Icons.close),
+          onPressed: _isInitializing ? null : _showSessionListSheet,
+          tooltip: 'Lịch sử phiên chat',
+          icon: const Icon(Icons.history),
         ),
         title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: _assistantSurfaceColor,
+                    borderRadius: BorderRadius.circular(AppRadius.sm + 2),
+                    border: Border.all(color: AppColors.stone900, width: 1.4),
+                  ),
+                  child: Icon(
+                    Icons.auto_awesome,
+                    size: 15,
+                    color: _assistantAccentColor,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _assistantTitle,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                    fontSize: isCompact ? 14 : 15,
+                  ),
+                ),
+              ],
+            ),
             Text(
-              _assistantTitle,
-              style: const TextStyle(
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.6,
+              _assistantSubtitle,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: isCompact ? 10 : 11,
+                color: AppColors.stone600,
               ),
             ),
           ],
         ),
         actions: [
           IconButton(
-            onPressed: _isInitializing ? null : _showSessionListSheet,
-            tooltip: 'Lịch sử phiên chat',
-            icon: const Icon(Icons.history),
-          ),
-          IconButton(
             onPressed: _isInitializing ? null : _startNewSession,
             tooltip: 'Phiên chat mới',
             icon: const Icon(Icons.add_comment_outlined),
           ),
+          IconButton(
+            onPressed: () {
+              FocusManager.instance.primaryFocus?.unfocus();
+              context.pop();
+            },
+            tooltip: 'Đóng',
+            icon: const Icon(Icons.close),
+          ),
         ],
       ),
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            Expanded(child: _buildContent()),
-            AiChatComposer(
-              horizontalPadding: horizontalPadding,
-              tracker: _activeTracker,
-              showTracker: false,
-              suggestions: _composerSuggestions,
-              errorText: _messages.isNotEmpty ? _error : null,
-              controller: _messageController,
-              onSuggestionTap: _applyComposerSuggestion,
-              onSend: () {
-                _sendMessage();
-              },
-              isSending: _isSending,
-              isReconnecting: _isReconnecting,
-              hintText: _composerHintText,
-              accentColor: _assistantAccentColor,
-              suggestionBackgroundColor: _assistantSurfaceColor,
-              suggestionTextColor: AppColors.stone900,
+            Column(
+              children: [
+                Expanded(child: _buildContent()),
+                // flex: 0 để Expanded giữ phần chat; loose + scroll khi composer cao vượt màn (bàn phím + nhiều dòng).
+                Flexible(
+                  flex: 0,
+                  fit: FlexFit.loose,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return SingleChildScrollView(
+                        physics: const ClampingScrollPhysics(),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minWidth: constraints.maxWidth,
+                            maxWidth: constraints.maxWidth,
+                          ),
+                          child: AnimatedPadding(
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeOutCubic,
+                            padding: EdgeInsets.only(
+                              bottom: isKeyboardVisible ? 2 : 8,
+                            ),
+                            child: AnimatedSlide(
+                              duration: const Duration(milliseconds: 220),
+                              curve: Curves.easeOutCubic,
+                              offset: isKeyboardVisible
+                                  ? const Offset(0, 0)
+                                  : const Offset(0, 0.03),
+                              child: AnimatedOpacity(
+                                duration: const Duration(milliseconds: 180),
+                                opacity: isKeyboardVisible ? 1 : 0.98,
+                                child: AiChatComposer(
+                                  horizontalPadding: horizontalPadding,
+                                  tracker: _activeTracker,
+                                  showTracker: false,
+                                  suggestions: _composerSuggestions,
+                                  errorText:
+                                      _messages.isNotEmpty ? _error : null,
+                                  controller: _messageController,
+                                  focusNode: _composerFocusNode,
+                                  onSuggestionTap: _applyComposerSuggestion,
+                                  onSend: () {
+                                    _sendMessage();
+                                  },
+                                  isSending: _isSending,
+                                  isReconnecting: _isReconnecting,
+                                  hintText: _composerHintText,
+                                  accentColor: _assistantAccentColor,
+                                  suggestionBackgroundColor:
+                                      _assistantSurfaceColor,
+                                  suggestionTextColor: AppColors.stone900,
+                                  onSettingsTap: () {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Tùy chọn phản hồi sẽ sớm khả dụng trong bản cập nhật tới.',
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            IgnorePointer(
+              ignoring: !isKeyboardVisible,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 180),
+                opacity: isKeyboardVisible ? 1 : 0,
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: ClipRect(
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 2.0, sigmaY: 2.0),
+                      child: Container(
+                        height: 64,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              AppColors.white.withValues(alpha: 0.22),
+                              AppColors.white.withValues(alpha: 0.08),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ],
         ),
@@ -2734,43 +3324,64 @@ class _AiChatScreenState extends State<AiChatScreen> {
     }
 
     if (_messages.isEmpty) {
-      return Column(
-        children: [
-          const Spacer(),
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: AppColors.primarySurface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.stone900, width: 2),
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            physics: const ClampingScrollPhysics(),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: constraints.maxHeight,
+                minWidth: constraints.maxWidth,
+              ),
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: AppColors.primarySurface,
+                          borderRadius: BorderRadius.circular(16),
+                          border:
+                              Border.all(color: AppColors.stone900, width: 2),
+                        ),
+                        child: const Icon(
+                          Icons.auto_awesome,
+                          color: AppColors.primary,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        _emptyStateTitle,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.stone900,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _emptyStateSubtitle,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.stone600,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      _buildQuickPromptChips(),
+                    ],
+                  ),
+                ),
+              ),
             ),
-            child: const Icon(Icons.auto_awesome,
-                color: AppColors.primary, size: 28),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            _emptyStateTitle,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: AppColors.stone900,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            _emptyStateSubtitle,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: AppColors.stone600,
-            ),
-          ),
-          const SizedBox(height: 20),
-          _buildQuickPromptChips(),
-          const Spacer(),
-        ],
+          );
+        },
       );
     }
 
@@ -2876,6 +3487,132 @@ class _AiChatScreenState extends State<AiChatScreen> {
     return null;
   }
 
+  String _messageCopyPlainText(_UiChatMessage message) {
+    final parts = <String>[];
+    final content = message.content.trim();
+    if (content.isNotEmpty) {
+      parts.add(content);
+    }
+    final webAns = (message.webSearchAnswer ?? '').trim();
+    if (webAns.isNotEmpty && webAns != content) {
+      parts.add(webAns);
+    }
+    return parts.join('\n\n').trim();
+  }
+
+  /// SnackBar ngắn, có nút đóng; khi bàn phím mở thì đẩy lên gần AppBar để không dính keyboard/form.
+  void _showTransientChatSnackBar({
+    required String text,
+    required Color backgroundColor,
+    Color closeIconColor = AppColors.white,
+  }) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
+    final mq = MediaQuery.of(context);
+    final keyboardH = mq.viewInsets.bottom;
+    final safeTop = mq.padding.top;
+    final safeBottom = mq.padding.bottom;
+    final belowAppBar = safeTop + kToolbarHeight + 12;
+    final double bottomMargin;
+    if (keyboardH > 0) {
+      final targetFromBottom = mq.size.height - belowAppBar - 56;
+      bottomMargin = targetFromBottom.clamp(120.0, mq.size.height * 0.92);
+    } else {
+      bottomMargin = 20.0 + safeBottom;
+    }
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(text),
+        backgroundColor: backgroundColor,
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.fromLTRB(16, 0, 16, bottomMargin),
+        duration: const Duration(milliseconds: 2200),
+        dismissDirection: DismissDirection.horizontal,
+        showCloseIcon: true,
+        closeIconColor: closeIconColor,
+      ),
+    );
+  }
+
+  Future<void> _copyMessageToClipboard(_UiChatMessage message) async {
+    final text = _messageCopyPlainText(message);
+    if (text.isEmpty) {
+      if (!mounted) return;
+      _showTransientChatSnackBar(
+        text: 'Không có nội dung chữ để sao chép',
+        backgroundColor: AppColors.stone600,
+      );
+      return;
+    }
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    _showTransientChatSnackBar(
+      text: 'Đã sao chép',
+      backgroundColor: AppColors.success,
+    );
+  }
+
+  void _prefillComposerForResend(_UiChatMessage message) {
+    if (message.role != 'user') return;
+    final text = message.content.trim();
+    if (text.isEmpty) return;
+    setState(() {
+      _hoveredBubbleMessageId = null;
+      _messageController.value = TextEditingValue(
+        text: text,
+        selection: TextSelection.collapsed(offset: text.length),
+      );
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _composerFocusNode.requestFocus();
+      _scrollToBottom();
+    });
+  }
+
+  Future<void> _showMessageBubbleActionSheet(_UiChatMessage message) async {
+    final copyText = _messageCopyPlainText(message);
+    final isUser = message.role == 'user';
+    final canEditResend = isUser && message.content.trim().isNotEmpty;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.copy_rounded),
+                title: const Text('Sao chép'),
+                enabled: copyText.isNotEmpty,
+                onTap: copyText.isEmpty
+                    ? null
+                    : () {
+                        Navigator.pop(ctx);
+                        _copyMessageToClipboard(message);
+                      },
+              ),
+              if (isUser)
+                ListTile(
+                  leading: const Icon(Icons.edit_outlined),
+                  title: const Text('Sửa và gửi lại'),
+                  enabled: canEditResend,
+                  onTap: !canEditResend
+                      ? null
+                      : () {
+                          Navigator.pop(ctx);
+                          _prefillComposerForResend(message);
+                        },
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildMessageBubble(_UiChatMessage message) {
     final isUser = message.role == 'user';
     final displayContent =
@@ -2932,234 +3669,347 @@ class _AiChatScreenState extends State<AiChatScreen> {
                       ? MediaQuery.of(context).size.width * 0.76
                       : MediaQuery.of(context).size.width * 0.8,
                 ),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: isUser ? AppColors.primary : AppColors.white,
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(14),
-                      topRight: const Radius.circular(14),
-                      bottomLeft: Radius.circular(isUser ? 14 : 4),
-                      bottomRight: Radius.circular(isUser ? 4 : 14),
-                    ),
-                    border: Border.all(
-                      color: isBookingReady
-                          ? AppColors.successDark
-                          : AppColors.stone900,
-                      width: 2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: isBookingReady
-                            ? AppColors.successDark
-                            : AppColors.stone900,
-                        offset: const Offset(2, 2),
+                child: MouseRegion(
+                  onEnter: (_) {
+                    if (!mounted || message.isStreaming) return;
+                    setState(() => _hoveredBubbleMessageId = message.id);
+                  },
+                  onExit: (_) {
+                    if (!mounted) return;
+                    setState(() {
+                      if (_hoveredBubbleMessageId == message.id) {
+                        _hoveredBubbleMessageId = null;
+                      }
+                    });
+                  },
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onLongPress: message.isStreaming
+                        ? null
+                        : () => _showMessageBubbleActionSheet(message),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: _chatBubblePaddingX,
+                        vertical: _chatBubblePaddingY,
                       ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: isUser
-                        ? CrossAxisAlignment.end
-                        : CrossAxisAlignment.start,
-                    children: [
-                      if (showBookingCreatedVisual) ...[
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            AiBookingReadyBadge(),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        const AiBookingReadyBanner(),
-                        const SizedBox(height: 8),
-                      ],
-                      if (!renderFormOnly && displayContent.trim().isNotEmpty)
-                        Text(
-                          displayContent,
-                          style: TextStyle(
-                            fontSize: 13,
-                            height: 1.55,
-                            color:
-                                isUser ? AppColors.white : AppColors.stone900,
-                            fontWeight: FontWeight.w500,
+                      decoration: BoxDecoration(
+                        color: isUser ? AppColors.primary : AppColors.white,
+                        borderRadius: BorderRadius.only(
+                          topLeft: const Radius.circular(_chatBubbleRadiusLg),
+                          topRight: const Radius.circular(_chatBubbleRadiusLg),
+                          bottomLeft: Radius.circular(
+                            isUser ? _chatBubbleRadiusLg : _chatBubbleRadiusSm,
+                          ),
+                          bottomRight: Radius.circular(
+                            isUser ? _chatBubbleRadiusSm : _chatBubbleRadiusLg,
                           ),
                         ),
-                      if (!renderFormOnly &&
-                          !isUser &&
-                          ((message.webSearchResults?.isNotEmpty ?? false) ||
-                              (message.webSearchImages?.isNotEmpty ?? false) ||
-                              (message.webSearchAnswer ?? '')
-                                  .trim()
-                                  .isNotEmpty)) ...[
-                        const SizedBox(height: 12),
-                        WebSearchResultsCard(
-                          results: message.webSearchResults ??
-                              const <WebSearchResult>[],
-                          images: message.webSearchImages ??
-                              const <WebSearchImage>[],
-                          answer: message.webSearchAnswer,
-                          followUpQuestions:
-                              message.webSearchFollowUpQuestions ??
-                                  const <String>[],
-                          onFollowUpTap: (_isSending || _isReconnecting)
-                              ? null
-                              : _handleWebSearchFollowUpTap,
+                        border: Border.all(
+                          color: isBookingReady
+                              ? AppColors.successDark
+                              : AppColors.stone900,
+                          width: _chatBubbleBorderWidth,
                         ),
-                      ],
-                      if (!renderFormOnly &&
-                          message.clinicSuggestions != null &&
-                          message.clinicSuggestions!.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        ...message.clinicSuggestions!.map(
-                          (clinic) => AiClinicSuggestionCard(
-                            clinic: clinic,
-                            isBusy: _isSending || _isReconnecting,
-                            onBookingTap: () => _handleClinicBookingTap(clinic),
+                        boxShadow: [
+                          BoxShadow(
+                            color: isBookingReady
+                                ? AppColors.successDark
+                                : AppColors.stone900,
+                            offset: const Offset(
+                              _chatBubbleShadowOffset,
+                              _chatBubbleShadowOffset,
+                            ),
                           ),
-                        ),
-                      ],
-                      if (!renderFormOnly &&
-                          message.serviceOptions != null &&
-                          message.serviceOptions!.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        AiServiceOptionCard(
-                          services: message.serviceOptions ??
-                              const <AiBookingServiceOption>[],
-                          selectedIds:
-                              _selectedServiceIdsByMessage[message.id] ??
-                                  const <String>{},
-                          isBusy: _isSending || _isReconnecting,
-                          onToggleService: (service) =>
-                              _handleServiceSelection(message, service),
-                          onContinue: () => _submitSelectedServices(message),
-                        ),
-                      ],
-                      if (!renderFormOnly && message.slotGrid != null) ...[
-                        const SizedBox(height: 12),
-                        AiSlotGridCard(
-                          slotGrid: message.slotGrid!,
-                          isBusy: _isSending || _isReconnecting,
-                          formatBookingDate: _formatBookingDate,
-                          onSelectSlot: (slot) =>
-                              _handleSlotSelection(message.slotGrid!, slot),
-                        ),
-                      ],
-                      if (message.isStreaming) ...[
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const AiChatTypingDots(),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Đang trả lời...',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: isUser
-                                    ? AppColors.white.withValues(alpha: 0.7)
-                                    : AppColors.stone500,
-                                fontWeight: FontWeight.w600,
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: isUser
+                            ? CrossAxisAlignment.end
+                            : CrossAxisAlignment.start,
+                        children: [
+                          if (_hoveredBubbleMessageId == message.id &&
+                              !message.isStreaming) ...[
+                            Align(
+                              alignment: isUser
+                                  ? Alignment.centerRight
+                                  : Alignment.centerLeft,
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: AppColors.stone900,
+                                    width: 2,
+                                  ),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: AppColors.stone900,
+                                      offset: Offset(2, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Tooltip(
+                                      message: 'Sao chép',
+                                      child: InkWell(
+                                        onTap: () =>
+                                            _copyMessageToClipboard(message),
+                                        child: const Padding(
+                                          padding: EdgeInsets.all(8),
+                                          child: Icon(
+                                            Icons.copy_rounded,
+                                            size: 18,
+                                            color: AppColors.stone900,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    if (isUser &&
+                                        message.content.trim().isNotEmpty) ...[
+                                      Container(
+                                        width: 2,
+                                        height: 22,
+                                        color: AppColors.stone300,
+                                      ),
+                                      Tooltip(
+                                        message: 'Sửa và gửi lại',
+                                        child: InkWell(
+                                          onTap: () =>
+                                              _prefillComposerForResend(
+                                                  message),
+                                          child: const Padding(
+                                            padding: EdgeInsets.all(8),
+                                            child: Icon(
+                                              Icons.edit_outlined,
+                                              size: 18,
+                                              color: AppColors.stone900,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
                               ),
                             ),
                           ],
-                        ),
-                      ],
-                      if (!isUser && effectiveBookingSummary != null) ...[
-                        const SizedBox(height: 10),
-                        AiStructuredBookingSummaryCard(
-                          summary: effectiveBookingSummary,
-                          isConfirmed:
-                              _confirmedMessageIds.contains(message.id),
-                          isBusy: _isSending || _isReconnecting,
-                          clinicOptions: _resolveClinicOptionsForMessage(
-                            message,
-                            summary: effectiveBookingSummary,
-                          ),
-                          serviceOptions: _resolveServiceOptionsForMessage(
-                            message,
-                            summary: effectiveBookingSummary,
-                          ),
-                          bookingDateOptions:
-                              _resolveBookingDateOptionsForMessage(
-                            message,
-                            summary: effectiveBookingSummary,
-                          ),
-                          startTimeOptions: _resolveStartTimeOptionsForMessage(
-                            message,
-                            summary: effectiveBookingSummary,
-                          ),
-                          formatBookingDate: _formatBookingDate,
-                          onFormChanged: (updatedSummary, field) =>
-                              _handleBookingFormChanged(updatedSummary, field),
-                          onRequestSlotRefresh: (updatedSummary) =>
-                              _handleBookingFormChanged(
-                            updatedSummary,
-                            'refresh_slot',
-                          ),
-                          onConfirm: (editedSummary) =>
-                              _confirmBookingSummary(editedSummary, message.id),
-                        ),
-                      ],
-                      if (!isUser && message.bookingCreated != null) ...[
-                        const SizedBox(height: 10),
-                        AiBookingCreatedCard(
-                          bookingCreated: message.bookingCreated!,
-                          formatBookingDate: _formatBookingDate,
-                          onViewBooking: () =>
-                              _openBookingCreated(message.bookingCreated!),
-                        ),
-                      ],
-                      if (!isUser &&
-                          message.multiPetBookingCreated != null) ...[
-                        const SizedBox(height: 10),
-                        AiMultiPetBookingCreatedCard(
-                          multiPetBooking: message.multiPetBookingCreated!,
-                          formatBookingDate: _formatBookingDate,
-                          onViewBooking: () => _openMultiPetBookingCreated(
-                              message.multiPetBookingCreated!),
-                        ),
-                      ],
-                      if (!isUser && trace.isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        AiChatTracePanel(trace: trace),
-                      ],
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: isUser
-                            ? MainAxisAlignment.end
-                            : MainAxisAlignment.spaceBetween,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (!isUser && message.messageId != null)
-                            _buildFeedbackButtons(message),
+                          if (showBookingCreatedVisual) ...[
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                AiBookingReadyBadge(),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            const AiBookingReadyBanner(),
+                            const SizedBox(height: 8),
+                          ],
+                          if (!renderFormOnly &&
+                              displayContent.trim().isNotEmpty)
+                            Text(
+                              displayContent,
+                              style: TextStyle(
+                                fontSize: 13,
+                                height: 1.55,
+                                color: isUser
+                                    ? AppColors.white
+                                    : AppColors.stone900,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          if (!renderFormOnly &&
+                              !isUser &&
+                              ((message.webSearchResults?.isNotEmpty ??
+                                      false) ||
+                                  (message.webSearchImages?.isNotEmpty ??
+                                      false) ||
+                                  (message.webSearchAnswer ?? '')
+                                      .trim()
+                                      .isNotEmpty)) ...[
+                            const SizedBox(height: 12),
+                            WebSearchResultsCard(
+                              results: message.webSearchResults ??
+                                  const <WebSearchResult>[],
+                              images: message.webSearchImages ??
+                                  const <WebSearchImage>[],
+                              answer: message.webSearchAnswer,
+                              followUpQuestions:
+                                  message.webSearchFollowUpQuestions ??
+                                      const <String>[],
+                              onFollowUpTap: (_isSending || _isReconnecting)
+                                  ? null
+                                  : _handleWebSearchFollowUpTap,
+                            ),
+                          ],
+                          if (!renderFormOnly &&
+                              message.clinicSuggestions != null &&
+                              message.clinicSuggestions!.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            ...message.clinicSuggestions!.map(
+                              (clinic) => AiClinicSuggestionCard(
+                                clinic: clinic,
+                                isBusy: _isSending || _isReconnecting,
+                                onBookingTap: () =>
+                                    _handleClinicBookingTap(clinic),
+                              ),
+                            ),
+                          ],
+                          if (!renderFormOnly &&
+                              message.serviceOptions != null &&
+                              message.serviceOptions!.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            AiServiceOptionCard(
+                              services: message.serviceOptions ??
+                                  const <AiBookingServiceOption>[],
+                              selectedIds:
+                                  _selectedServiceIdsByMessage[message.id] ??
+                                      const <String>{},
+                              isBusy: _isSending || _isReconnecting,
+                              onToggleService: (service) =>
+                                  _handleServiceSelection(message, service),
+                              onContinue: () =>
+                                  _submitSelectedServices(message),
+                            ),
+                          ],
+                          if (!renderFormOnly && message.slotGrid != null) ...[
+                            const SizedBox(height: 12),
+                            AiSlotGridCard(
+                              slotGrid: message.slotGrid!,
+                              isBusy: _isSending || _isReconnecting,
+                              formatBookingDate: _formatBookingDate,
+                              onSelectSlot: (slot) =>
+                                  _handleSlotSelection(message.slotGrid!, slot),
+                            ),
+                          ],
+                          if (message.isStreaming) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const AiChatTypingDots(),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Đang trả lời...',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: isUser
+                                        ? AppColors.white.withValues(alpha: 0.7)
+                                        : AppColors.stone500,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                          if (!isUser && effectiveBookingSummary != null) ...[
+                            const SizedBox(height: 10),
+                            AiStructuredBookingSummaryCard(
+                              summary: effectiveBookingSummary,
+                              isConfirmed:
+                                  _confirmedMessageIds.contains(message.id),
+                              isBusy: _isSending || _isReconnecting,
+                              clinicOptions: _resolveClinicOptionsForMessage(
+                                message,
+                                summary: effectiveBookingSummary,
+                              ),
+                              serviceOptions: _resolveServiceOptionsForMessage(
+                                message,
+                                summary: effectiveBookingSummary,
+                              ),
+                              bookingDateOptions:
+                                  _resolveBookingDateOptionsForMessage(
+                                message,
+                                summary: effectiveBookingSummary,
+                              ),
+                              startTimeOptions:
+                                  _resolveStartTimeOptionsForMessage(
+                                message,
+                                summary: effectiveBookingSummary,
+                              ),
+                              formatBookingDate: _formatBookingDate,
+                              onFormChanged: (updatedSummary, field) =>
+                                  _handleBookingFormChanged(
+                                updatedSummary,
+                                field,
+                                message.id,
+                              ),
+                              onRequestSlotRefresh: (updatedSummary) =>
+                                  _handleBookingFormChanged(
+                                updatedSummary,
+                                'refresh_slot',
+                                message.id,
+                              ),
+                              onConfirm: (editedSummary) =>
+                                  _confirmBookingSummary(
+                                      editedSummary, message.id),
+                            ),
+                          ],
+                          if (!isUser && message.bookingCreated != null) ...[
+                            const SizedBox(height: 10),
+                            AiBookingCreatedCard(
+                              bookingCreated: message.bookingCreated!,
+                              formatBookingDate: _formatBookingDate,
+                              onViewBooking: () =>
+                                  _openBookingCreated(message.bookingCreated!),
+                            ),
+                          ],
+                          if (!isUser &&
+                              message.multiPetBookingCreated != null) ...[
+                            const SizedBox(height: 10),
+                            AiMultiPetBookingCreatedCard(
+                              multiPetBooking: message.multiPetBookingCreated!,
+                              formatBookingDate: _formatBookingDate,
+                              onViewBooking: () => _openMultiPetBookingCreated(
+                                  message.multiPetBookingCreated!),
+                            ),
+                          ],
+                          if (!isUser && trace.isNotEmpty) ...[
+                            const SizedBox(height: 10),
+                            AiChatTracePanel(trace: trace),
+                          ],
+                          const SizedBox(height: 8),
                           Row(
+                            mainAxisAlignment: isUser
+                                ? MainAxisAlignment.end
+                                : MainAxisAlignment.spaceBetween,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(
-                                Icons.access_time,
-                                size: 12,
-                                color: isUser
-                                    ? AppColors.white.withValues(alpha: 0.82)
-                                    : AppColors.stone500,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                _formatTime(message.timestamp),
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: isUser
-                                      ? AppColors.white.withValues(alpha: 0.82)
-                                      : AppColors.stone500,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                              if (!isUser && message.messageId != null)
+                                _buildFeedbackButtons(message),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.access_time,
+                                    size: 12,
+                                    color: isUser
+                                        ? AppColors.white
+                                            .withValues(alpha: 0.82)
+                                        : AppColors.stone500,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    _formatTime(message.timestamp),
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: isUser
+                                          ? AppColors.white
+                                              .withValues(alpha: 0.82)
+                                          : AppColors.stone500,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -3178,7 +4028,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     );
   }
 
-  Map<String, dynamic> _buildConfirmBookingPayload({
+  Map<String, dynamic> _buildBookingDraftPayload({
     String? summaryPetId,
     String? summaryClinicId,
     String? summaryClinicName,
@@ -3233,7 +4083,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
     final distanceKm = summaryDistanceKm;
 
     return <String, dynamic>{
-      'type': 'confirm_booking',
       if (petId != null) 'pet_id': petId,
       if (clinicId != null) 'clinic_id': clinicId,
       if (bookingDate != null) 'booking_date': bookingDate,
@@ -3335,31 +4184,31 @@ class _AiChatScreenState extends State<AiChatScreen> {
   }
 
   Map<String, dynamic> _buildBookingContextPayload(
-    Map<String, dynamic> confirmPayload, {
+    Map<String, dynamic> draftPayload, {
     List<String> serviceNamesFallback = const <String>[],
   }) {
     final payload = <String, dynamic>{
-      if (confirmPayload['pet_id'] != null) 'pet_id': confirmPayload['pet_id'],
-      if (confirmPayload['clinic_id'] != null)
-        'clinic_id': confirmPayload['clinic_id'],
-      if (confirmPayload['booking_date'] != null)
-        'booking_date': confirmPayload['booking_date'],
-      if (confirmPayload['start_time'] != null)
-        'start_time': confirmPayload['start_time'],
-      if (confirmPayload['booking_type'] != null)
-        'booking_type': confirmPayload['booking_type'],
-      if (confirmPayload['home_address'] != null)
-        'home_address': confirmPayload['home_address'],
-      if (confirmPayload['home_lat'] != null)
-        'home_lat': confirmPayload['home_lat'],
-      if (confirmPayload['home_long'] != null)
-        'home_long': confirmPayload['home_long'],
-      if (confirmPayload['distance_km'] != null)
-        'distance_km': confirmPayload['distance_km'],
+      if (draftPayload['pet_id'] != null) 'pet_id': draftPayload['pet_id'],
+      if (draftPayload['clinic_id'] != null)
+        'clinic_id': draftPayload['clinic_id'],
+      if (draftPayload['booking_date'] != null)
+        'booking_date': draftPayload['booking_date'],
+      if (draftPayload['start_time'] != null)
+        'start_time': draftPayload['start_time'],
+      if (draftPayload['booking_type'] != null)
+        'booking_type': draftPayload['booking_type'],
+      if (draftPayload['home_address'] != null)
+        'home_address': draftPayload['home_address'],
+      if (draftPayload['home_lat'] != null)
+        'home_lat': draftPayload['home_lat'],
+      if (draftPayload['home_long'] != null)
+        'home_long': draftPayload['home_long'],
+      if (draftPayload['distance_km'] != null)
+        'distance_km': draftPayload['distance_km'],
     };
 
     final serviceIds =
-        (confirmPayload['service_ids'] as List<dynamic>? ?? const [])
+        (draftPayload['service_ids'] as List<dynamic>? ?? const [])
             .map((item) => item.toString().trim())
             .where((item) => item.isNotEmpty)
             .toList();

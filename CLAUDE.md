@@ -308,7 +308,7 @@ const [showConfirm, setShowConfirm] = useState(false)
     - **Abnormal case:** [Error scenarios]
     ```
 
-    **B. REPORT_4_SDD_SYSTEM_DESIGN.md - Phần 3. DETAILED DESIGN:**
+    **B. PETTIES_SDD.md - Phần 3. DETAILED DESIGN:**
     Theo format mẫu đã có (xem 3.1, 3.2, 3.3):
     ```
     ### 3.X [Feature Name]
@@ -895,7 +895,8 @@ participant UI as [Tên Screen]     %% Mobile/Web
 participant [Abbrev] as [ControllerName]
 participant [Abbrev] as [ServiceName]
 participant [Abbrev] as [RepositoryName]
-participant DB as Database          %% BẮT BUỘC có
+participant [Abbrev] as [ExternalServiceName]   %% Optional
+participant DB as Database          %% BẮT BUỘC có và nằm cuối cùng
 ```
 
 **2. Message Numbering:**
@@ -903,13 +904,13 @@ participant DB as Database          %% BẮT BUỘC có
 - Số bắt đầu từ 1, liên tục đến hết sequence
 - **KHÔNG dùng `autonumber`**
 
-**3. SQL Operations:**
-Khi Repository gọi Database, phải ghi rõ câu SQL:
+**3. Database Actions (No SQL):**
+Khi Repository gọi Database, chỉ ghi hành động nghiệp vụ, không ghi câu SQL:
 ```
-SELECT COUNT(*) FROM users WHERE email = ?
-INSERT INTO users (username, email, password, ...)
-UPDATE ... SET ... WHERE id = ?
-DELETE FROM ... WHERE ...
+Check user existence by email
+Create user record
+Update booking status
+Delete report by id
 ```
 
 **4. Activation Boxes:**
@@ -1059,7 +1060,7 @@ Dùng skill petties-onboarding để giúp tôi hiểu project
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **petties** (13525 symbols, 36133 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **petties** (13441 symbols, 36189 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

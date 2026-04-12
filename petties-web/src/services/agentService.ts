@@ -221,7 +221,26 @@ export interface CaseMemoryProtocolPattern {
     common_recommendations?: string[]
 }
 
+/** Chỉ số lúc khám lưu trong Case Memory (đồng bộ từ EMR). */
+export interface CaseMemoryVitals {
+    weight_kg?: number | null
+    temperature_c?: number | null
+    heart_rate?: number | null
+    bcs?: number | null
+}
+
 export interface CaseMemoryDetailItem extends CaseMemoryItem {
+    emr_id?: string | null
+    pet_id?: string | null
+    booking_id?: string | null
+    clinic_id?: string | null
+    breed?: string | null
+    age_months?: number | null
+    sex?: string | null
+    allergies?: string | null
+    symptoms?: string[]
+    physical_exam?: string[]
+    vitals?: CaseMemoryVitals | Record<string, unknown> | null
     clinical_notes?: string
     clinical_image_urls?: string[]
     text_content: string
@@ -356,7 +375,12 @@ export interface StaffDiagnosisPrescriptionSuggestion {
     medicine_name: string
     dosage: string
     frequency: string
+    times_of_day?: string[]
+    timesOfDay?: string[]
+    before_after_meal?: string
+    beforeAfterMeal?: string
     duration_days?: number | null
+    durationDays?: number | null
     instructions: string
     caution?: string | null
     source?: string

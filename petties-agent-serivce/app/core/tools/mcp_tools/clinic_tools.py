@@ -315,6 +315,124 @@ async def _generate_service_suggestions_with_llm(
     return normalized
 
 
+def _build_practical_fallback_suggestions(
+    *,
+    existing_services: List[Dict[str, Any]],
+    pet_type_filters: set[str],
+    category_filters: set[str],
+    limit: int,
+) -> List[Dict[str, Any]]:
+    """Fallback gợi ý dịch vụ thực tế khi LLM không trả kết quả.
+
+    Không sử dụng master catalog; chỉ dựa trên gap danh mục và mẫu dịch vụ phổ biến.
+    """
+    if limit <= 0:
+        return []
+
+    existing_name_norms = {
+        _normalize_text(str(item.get("name") or ""))
+        for item in existing_services
+        if str(item.get("name") or "").strip()
+    }
+
+    templates: List[Dict[str, Any]] = [
+        {
+            "name": "Khám da liễu chuyên sâu",
+            "description": "Đánh giá các bệnh lý da, nấm và ký sinh trùng ngoài da.",
+            "basePrice": 280000,
+            "durationTime": 45,
+            "slotsRequired": 2,
+            "isHomeVisit": False,
+            "serviceCategory": "DERMATOLOGY",
+            "petType": "DOG",
+        },
+        {
+            "name": "Gói check-up tim mạch cơ bản",
+            "description": "Khám tổng quát và sàng lọc sớm vấn đề tim mạch cho thú cưng lớn tuổi.",
+            "basePrice": 320000,
+            "durationTime": 50,
+            "slotsRequired": 2,
+            "isHomeVisit": False,
+            "serviceCategory": "CHECK_UP",
+            "petType": "CAT",
+        },
+        {
+            "name": "Vệ sinh răng miệng và cạo vôi",
+            "description": "Làm sạch cao răng, giảm hôi miệng, tư vấn chăm sóc răng tại nhà.",
+            "basePrice": 360000,
+            "durationTime": 60,
+            "slotsRequired": 2,
+            "isHomeVisit": False,
+            "serviceCategory": "DENTAL",
+            "petType": "DOG",
+        },
+        {
+            "name": "Tắm thuốc và phục hồi da nhạy cảm",
+            "description": "Liệu trình tắm thuốc dành cho thú cưng có da nhạy cảm hoặc viêm da tái phát.",
+            "basePrice": 240000,
+            "durationTime": 40,
+            "slotsRequired": 1,
+            "isHomeVisit": False,
+            "serviceCategory": "GROOMING_SPA",
+            "petType": "CAT",
+        },
+        {
+            "name": "Tiêm nhắc và theo dõi phản ứng sau tiêm",
+            "description": "Tiêm nhắc vaccine định kỳ kèm theo dõi phản ứng trong ngày.",
+            "basePrice": 220000,
+            "durationTime": 30,
+            "slotsRequired": 1,
+            "isHomeVisit": True,
+            "serviceCategory": "VACCINATION",
+            "petType": "DOG",
+        },
+    ]
+
+    fallback: List[Dict[str, Any]] = []
+    for template in templates:
+        name = str(template.get("name") or "").strip()
+        if not name:
+            continue
+        norm_name = _normalize_text(name)
+        if norm_name in existing_name_norms:
+            continue
+
+        category = str(template.get("serviceCategory") or "OTHER").strip().upper()
+        pet_type = str(template.get("petType") or "OTHER").strip().upper()
+
+        if category_filters and category not in category_filters:
+            continue
+        if pet_type_filters and pet_type not in pet_type_filters:
+            continue
+
+        fallback.append(
+            {
+                "name": name,
+                "display_name": name,
+                "description": template.get("description"),
+                "basePrice": template.get("basePrice"),
+                "durationTime": template.get("durationTime"),
+                "slotsRequired": template.get("slotsRequired"),
+                "isActive": True,
+                "isHomeVisit": bool(template.get("isHomeVisit")),
+                "serviceCategory": category,
+                "petType": pet_type,
+                "reminderInterval": None,
+                "reminderUnit": None,
+                "weightPrices": [],
+                "vaccineTemplateId": None,
+                "dosePrices": [],
+                "recommended_action": "create",
+                "master_service_id": None,
+            }
+        )
+        existing_name_norms.add(norm_name)
+        if len(fallback) >= limit:
+            break
+
+    return fallback
+
+
 def _match_existing_service(
     existing_services: List[Dict[str, Any]],
     mapped_master: Dict[str, Any],
@@ -962,6 +1080,8 @@ async def get_my_clinics(
             normalized["clinicId"] = str(clinic_id)
         normalized_clinics.append(normalized)
 
+    active_runtime_clinic_id = _resolve_runtime_clinic_id(None)
+
     # Optional logic to resolve ID from name
     matched_clinic = None
     if clinic_name_hint:
@@ -982,9 +1102,25 @@ async def get_my_clinics(
         if not matched_clinic:
             logger.warning(f"  ├─ No clinic matched for hint: '{clinic_name_hint}'")
 
+    # Fallback: ưu tiên clinic đang thao tác trong runtime context (ví dụ clinic được chọn trên web).
+    if not matched_clinic and active_runtime_clinic_id:
+        for clinic in normalized_clinics:
+            runtime_match_candidate = _pick_value(clinic, "id", "clinicId")
+            if runtime_match_candidate is None:
+                continue
+            if str(runtime_match_candidate).strip() == active_runtime_clinic_id:
+                matched_clinic = clinic
+                logger.info(
+                    f"  ├─ Resolved active runtime clinic: '{clinic.get('name')}' ({active_runtime_clinic_id})"
+                )
+                break
+
     message = None
     if matched_clinic:
-        message = f"Đã tìm thấy phòng khám '{matched_clinic.get('name')}' khớp với thông tin bạn cung cấp."
+        if clinic_name_hint:
+            message = f"Đã tìm thấy phòng khám '{matched_clinic.get('name')}' khớp với thông tin bạn cung cấp."
+        elif active_runtime_clinic_id:
+            message = f"Đã xác định phòng khám đang thao tác là '{matched_clinic.get('name')}'."
 
     needs_clarification = (
         bool(clinic_name_hint)
@@ -1005,6 +1141,7 @@ async def get_my_clinics(
         "success": True,
         "clinics": normalized_clinics,
         "matched_clinic": matched_clinic,
+        "resolved_clinic": matched_clinic,
         "target_clinic_id": target_clinic_id,
         "needs_clarification": needs_clarification,
         "total": len(normalized_clinics),
@@ -1022,13 +1159,66 @@ async def generate_clinic_services(
     session_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Gợi ý thay đổi thông minh cho dịch vụ clinic.
-    Nếu clinic đã có dịch vụ, ưu tiên đề xuất cập nhật dịch vụ hiện có (không sửa master).
-    Nếu clinic chưa có dịch vụ, fallback gợi ý tạo mới từ master catalog."""
+    Sinh đề xuất bằng AI dựa trên ngữ cảnh thực tế của clinic,
+    KHÔNG phụ thuộc master service catalog."""
     token = _require_auth_token()
     client = get_backend_client()
-    response = await client.get_master_services(token)
-    services = response if isinstance(response, list) else response.get("data", [])
     resolved_clinic_id = _resolve_runtime_clinic_id(target_clinic_id)
+
+    pet_type_filters = {
+        str(item).upper() for item in (pet_types or []) if str(item).strip()
+    }
+    category_filters = {
+        str(item).upper() for item in (service_scope or []) if str(item).strip()
+    }
+
+    if not resolved_clinic_id:
+        clinic_lookup = await get_my_clinics()
+        if not clinic_lookup.get("success"):
+            return clinic_lookup
+
+        clinics = clinic_lookup.get("clinics") or []
+        if len(clinics) == 1:
+            resolved_clinic_id = str(
+                _pick_value(clinics[0], "id", "clinicId") or ""
+            ).strip() or None
+        else:
+            if not category_filters:
+                category_filters = {
+                    "KHAM",
+                    "GROOMING_SPA",
+                    "VACCINATION",
+                    "CHECK_UP",
+                    "SURGERY",
+                    "DENTAL",
+                    "DERMATOLOGY",
+                    "OTHER",
+                }
+
+            return {
+                "success": True,
+                "data": {
+                    "clinics": clinics,
+                    "matched_clinic": None,
+                    "resolved_clinic": None,
+                    "target_clinic_id": None,
+                    "needs_clarification": True,
+                    "suggestions": [],
+                    "total_suggestions": 0,
+                    "pet_types": sorted(list(pet_type_filters))
+                    if pet_type_filters
+                    else [],
+                    "service_scope": sorted(list(category_filters))
+                    if category_filters
+                    else [],
+                    "recommendation_mode": "awaiting_clinic_selection",
+                    "update_suggestions": 0,
+                    "create_suggestions": 0,
+                    "llm_generated": 0,
+                },
+                "ui_card": "clinic_list_card",
+                "message": "Bạn muốn đề xuất cho phòng khám nào? Vui lòng chọn một phòng khám bên dưới.",
+            }
 
     existing_services: List[Dict[str, Any]] = []
     try:
@@ -1044,13 +1234,6 @@ async def generate_clinic_services(
         logger.warning(f"Không thể lấy dịch vụ hiện có của clinic để so sánh: {exc}")
         existing_services = []
 
-    pet_type_filters = {
-        str(item).upper() for item in (pet_types or []) if str(item).strip()
-    }
-    category_filters = {
-        str(item).upper() for item in (service_scope or []) if str(item).strip()
-    }
-
     if not category_filters:
         category_filters = {
             "KHAM",
@@ -1063,130 +1246,22 @@ async def generate_clinic_services(
             "OTHER",
         }
 
-    update_suggestions: List[Dict[str, Any]] = []
-    create_suggestions: List[Dict[str, Any]] = []
-    for service in services if isinstance(services, list) else []:
-        if not isinstance(service, dict):
-            continue
+    suggestions: List[Dict[str, Any]] = await _generate_service_suggestions_with_llm(
+        existing_services=existing_services,
+        pet_type_filters=pet_type_filters,
+        category_filters=category_filters,
+        limit=12,
+    )
 
-        mapped = {
-            "master_service_id": _pick_value(
-                service,
-                "master_service_id",
-                "masterServiceId",
-                "id",
-            ),
-            "name": _pick_value(service, "name"),
-            "display_name": _pick_value(service, "name"),
-            "description": _pick_value(service, "description"),
-            "basePrice": _pick_value(service, "basePrice", "defaultPrice"),
-            "durationTime": _pick_value(service, "durationTime", "duration_minutes"),
-            "slotsRequired": _pick_value(service, "slotsRequired"),
-            "isActive": True,
-            "isHomeVisit": bool(_pick_value(service, "isHomeVisit") or False),
-            "serviceCategory": _pick_value(service, "serviceCategory", "category"),
-            "petType": _pick_value(service, "petType"),
-            "reminderInterval": _pick_value(service, "reminderInterval"),
-            "reminderUnit": _pick_value(service, "reminderUnit"),
-            "weightPrices": _to_list(
-                _pick_value(service, "weightPrices", "weight_prices")
-            ),
-            "dosePrices": _to_list(_pick_value(service, "dosePrices", "dose_prices")),
-            "vaccineTemplateId": _pick_value(
-                service, "vaccineTemplateId", "vaccine_template_id"
-            ),
-        }
+    llm_generated_count = len(suggestions)
 
-        mapped_pet_type = str(mapped.get("petType") or "").upper()
-        mapped_category = str(mapped.get("serviceCategory") or "").upper()
-
-        if pet_type_filters and mapped_pet_type not in pet_type_filters:
-            continue
-        if category_filters and mapped_category not in category_filters:
-            continue
-
-        if existing_services:
-            matched_existing = _match_existing_service(existing_services, mapped)
-            if matched_existing:
-                proposed_updates = _build_proposed_updates(matched_existing, mapped)
-                if proposed_updates:
-                    change_summary = [
-                        FIELD_SPECS[ALIASES_TO_FIELD[key]]["label"]
-                        for key in proposed_updates.keys()
-                        if key in ALIASES_TO_FIELD
-                    ]
-                    update_suggestion = {
-                        **mapped,
-                        "recommended_action": "update",
-                        "service_id": matched_existing.get("service_id"),
-                        "service_name": matched_existing.get("name"),
-                        "current_values": {
-                            "base_price": matched_existing.get("base_price"),
-                            "duration_time": matched_existing.get("duration_time"),
-                            "slots_required": matched_existing.get("slots_required"),
-                            "is_home_visit": matched_existing.get("is_home_visit"),
-                            "service_category": matched_existing.get(
-                                "service_category"
-                            ),
-                            "pet_type": matched_existing.get("pet_type"),
-                        },
-                        "proposed_updates": proposed_updates,
-                        "change_summary": change_summary,
-                    }
-                    update_suggestion["display_name"] = (
-                        matched_existing.get("name")
-                        or mapped.get("display_name")
-                        or mapped.get("name")
-                    )
-                    update_suggestion["description"] = mapped.get(
-                        "description"
-                    ) or matched_existing.get("description")
-                    update_suggestions.append(update_suggestion)
-                continue
-
-        mapped["recommended_action"] = "create"
-        mapped["priority_score"] = _score_create_suggestion(mapped, existing_services)
-        create_suggestions.append(mapped)
-
-    if existing_services and update_suggestions:
-        update_suggestions.sort(
-            key=lambda item: len(item.get("proposed_updates") or {}),
-            reverse=True,
-        )
-
-    if create_suggestions:
-        create_suggestions.sort(
-            key=lambda item: (
-                int(item.get("priority_score") or 0),
-                str(item.get("display_name") or item.get("name") or "").lower(),
-            ),
-            reverse=True,
-        )
-
-    suggestions: List[Dict[str, Any]] = [
-        *create_suggestions,
-        *update_suggestions,
-    ]
-
-    llm_generated: List[Dict[str, Any]] = []
-    if len(suggestions) < 6:
-        llm_generated = await _generate_service_suggestions_with_llm(
+    if not suggestions:
+        suggestions = _build_practical_fallback_suggestions(
             existing_services=existing_services,
             pet_type_filters=pet_type_filters,
             category_filters=category_filters,
-            limit=max(0, 8 - len(suggestions)),
+            limit=8,
         )
-        if llm_generated:
-            existing_suggested_names = {
-                _normalize_text(str(item.get("name") or ""))
-                for item in suggestions
-                if str(item.get("name") or "").strip()
-            }
-            for item in llm_generated:
-                norm_name = _normalize_text(str(item.get("name") or ""))
-                if norm_name and norm_name not in existing_suggested_names:
-                    suggestions.append(item)
-                    existing_suggested_names.add(norm_name)
 
     if len(suggestions) > 12:
         suggestions = suggestions[:12]
@@ -1205,27 +1280,12 @@ async def generate_clinic_services(
         if str(item.get("recommended_action") or "").strip().lower() != "update"
     )
 
-    message = (
-        "Đã chuẩn bị danh mục dịch vụ gợi ý với đầy đủ thông tin để bạn chọn nhanh."
-    )
-    recommendation_mode = "create"
-    if existing_services:
-        recommendation_mode = "mixed"
-        if update_suggestions_count > 0 and create_suggestions_count == 0:
-            recommendation_mode = "update_existing_only"
-        elif update_suggestions_count == 0 and create_suggestions_count > 0:
-            recommendation_mode = "create"
-
-        if suggestions:
-            message = (
-                "Đã phân tích danh mục dịch vụ hiện có và đề xuất linh hoạt: "
-                "ưu tiên dịch vụ mới để mở rộng danh mục, đồng thời gợi ý cập nhật các dịch vụ cần tối ưu."
-            )
-        else:
-            message = (
-                "Dịch vụ hiện có của phòng khám đã khá đồng bộ với chuẩn hệ thống. "
-                "Hiện chưa có đề xuất cập nhật cần thiết."
-            )
+    recommendation_mode = "ai_generated"
+    message = "Đã tạo danh sách dịch vụ do AI đề xuất dựa trên dữ liệu thực tế và ngữ cảnh hiện tại của phòng khám."
+    if not suggestions:
+        message = "Hiện chưa đủ dữ liệu để tạo đề xuất dịch vụ phù hợp. Vui lòng thử lại với phạm vi dịch vụ cụ thể hơn."
+    elif llm_generated_count == 0:
+        message = "Đã tạo danh sách dịch vụ gợi ý theo bộ tham chiếu thực tế khi AI chưa trả về đủ dữ liệu."
 
     return {
         "success": True,
@@ -1238,7 +1298,7 @@ async def generate_clinic_services(
             "recommendation_mode": recommendation_mode,
             "update_suggestions": update_suggestions_count,
             "create_suggestions": create_suggestions_count,
-            "llm_generated": len(llm_generated),
+            "llm_generated": llm_generated_count,
         },
         "ui_card": "clinic_service_suggestion_card",
         "message": message,

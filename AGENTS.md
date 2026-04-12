@@ -18,6 +18,21 @@ Petties is a veterinary appointment booking platform connecting pet owners with 
 - Hạn chế dùng PowerShell để replace text trong file; ưu tiên `apply_patch` để chỉnh sửa nội dung một cách rõ ràng, an toàn và dễ review.
 - Nếu bắt buộc phải dùng PowerShell cho thay đổi nội dung, chỉ dùng cho thao tác nhỏ và phải kiểm tra lại diff ngay sau đó.
 
+## Learned User Preferences
+
+- AI chat mobile (đặt lịch): không tự seed nhiều ngày hay fallback `DateTime.now()` khi chưa có `booking_date` hợp lệ từ server/tracker; không gửi `select_date` với ngày giả — hiển thị SnackBar lỗi tiếng Việt và chờ dữ liệu máy chủ.
+- AI chat: muốn thao tác trên bubble tin nhắn (ví dụ khi hover trên web hoặc gesture tương đương trên mobile) để sao chép nội dung hoặc chỉnh sửa rồi gửi lại.
+- AI diagnosis: không hiển thị các cảnh báo ngữ cảnh bệnh nhân dạng “payload warnings” trên UI; giữ thông tin này trong prompt/payload xử lý nội bộ khi cần.
+- AI diagnosis (tên bệnh): hiển thị một tên bệnh chuẩn duy nhất; không gộp nhiều phương án trong một nhãn bằng “hoặc”/“và” trên UI.
+- Booking qua chatbot cho Pet Owner: ưu tiên luồng đơn giản form-first (chat hỗ trợ điền form, tải dữ liệu backend để chọn, tạo booking khi người dùng xác nhận), tránh over-engineering; phạm vi chỉ cho chủ thú cưng, không kéo luồng nhân sự/phân công nội bộ phòng khám vào trải nghiệm này.
+- Booking/AI: ưu tiên trải nghiệm AI linh hoạt, thông minh ở phía FE; khi cần đánh đổi, giữ backend ở mức đơn giản hợp lý thay vì làm UI cứng nhắc.
+- Mobile AI chat (UI): ưu tiên phân cấp thị giác rõ (brand Petties AI ở header), tách khung chat khỏi nền (overlay/semi-transparent hoặc tương đương), input/placeholder và vùng soạn thảo dễ đọc — không giống màn soạn văn bản thuần.
+
+## Learned Workspace Facts
+
+- Luồng structured booking và `requestSlotRefresh` nằm trong `petties_mobile/lib/ui/chat/ai_chat/ai_chat_screen.dart`; widget/util hỗ trợ trong `petties_mobile/lib/ui/chat/ai_chat/utils/`.
+- AI service (read-only resource redirect): cần khớp tên tool giữa router hậu xử lý và registry — ví dụ `tool_routing.py` có thể tham chiếu `get_clinic_services` / `check_available_slots` trong khi `resource_registry.py` map backing tool là `list_clinic_services` / `get_slot_availability`; lệch tên khiến redirect read-only không ổn định cho một số tool booking.
+
 ## Architecture
 
 **Monorepo with 4 main services:**
@@ -295,7 +310,7 @@ Lưu ý: Giữa Version và Mô tả phải có 2 dấu gạch dưới (__).
     **A. PETTIES_SRS.md - Phần 3.2 Functional Requirements:**
     Theo format mẫu đã có (xem 3.2.1 - 3.2.6):
 
-    **B. REPORT_4_SDD_SYSTEM_DESIGN.md - Phần 3. DETAILED DESIGN:**
+    **B. PETTIES_SDD.md - Phần 3. DETAILED DESIGN:**
     Theo format mẫu đã có (xem 3.1, 3.2, 3.3):
 
 18. **Deadcode Detection Rule**: Trước khi commit hoặc khi user yêu cầu, PHẢI kiểm tra deadcode:
@@ -495,7 +510,7 @@ A skill is a set of local instructions to follow that is stored in a `SKILL.md` 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **petties** (13525 symbols, 36133 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **petties** (13441 symbols, 36189 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

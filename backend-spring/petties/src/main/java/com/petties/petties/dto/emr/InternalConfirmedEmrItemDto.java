@@ -27,6 +27,12 @@ public class InternalConfirmedEmrItemDto {
     private UUID doctorId;
     private String species;
     private String breed;
+    /** Tuổi thú cưng tính theo tháng (từ ngày sinh trên hồ sơ), phục vụ Case Memory / AI. */
+    private Integer ageMonths;
+    /** Giới tính trên hồ sơ thú cưng (ví dụ MALE/FEMALE hoặc chuỗi lưu trong DB). */
+    private String sex;
+    /** Tiền sử dị ứng trên hồ sơ thú cưng (text). */
+    private String allergies;
     private String chiefComplaint;
     private List<String> symptoms;
     private List<String> physicalExam;

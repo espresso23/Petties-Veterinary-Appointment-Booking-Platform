@@ -18,7 +18,7 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.tools.mcp_server import get_mcp_tools_metadata
+from app.core.tools.mcp_server import get_mcp_resources_metadata, get_mcp_tools_metadata
 from app.db.postgres.models import Tool, ToolType
 from app.db.postgres.session import AsyncSessionLocal
 
@@ -31,6 +31,7 @@ ADMIN_CONFIGURABLE_TOOLS = {
 }
 
 SYSTEM_MANAGED_TOOLS = {
+    "read_resource",
     "get_user_pets",
     "search_clinics_nearby",
     "get_clinic_detail",
@@ -40,9 +41,6 @@ SYSTEM_MANAGED_TOOLS = {
     "create_booking_for_user",
     "get_my_booking_info",
     "list_my_bookings",
-    "sync_booking_draft",
-    "get_booking_session_info",
-    "close_booking_session",
     "get_current_datetime",
     "resolve_booking_context",
     "get_staff_patients",
@@ -89,6 +87,7 @@ class ToolScanner:
 
     async def scan_and_sync_tools(self) -> Dict[str, Any]:
         mcp_tools = await get_mcp_tools_metadata()
+        mcp_resources = await get_mcp_resources_metadata()
         total_tools = len(mcp_tools)
 
         self.logger.info("Found %s tools in FastMCP server", total_tools)
@@ -100,10 +99,13 @@ class ToolScanner:
 
         return {
             "total_tools": total_tools,
+            "total_resources": len(mcp_resources),
             "new_tools": new_count,
             "updated_tools": updated_count,
             "unchanged_tools": unchanged_count,
             "tool_list": [tool["name"] for tool in mcp_tools],
+            "resource_list": [resource["name"] for resource in mcp_resources],
+            "resource_metadata": mcp_resources,
         }
 
     async def _sync_tools_to_db(

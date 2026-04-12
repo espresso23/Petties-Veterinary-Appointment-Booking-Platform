@@ -30,6 +30,7 @@ from app.api.middleware.auth import get_admin_user
 from app.db.postgres.models import Tool
 from app.db.postgres.session import get_db
 from app.core.tools.mcp_server import call_mcp_tool
+from app.core.tools.mcp_resources import list_resources_metadata
 
 # Initialize router
 router = APIRouter(
@@ -127,6 +128,22 @@ async def get_tools(
 
     except Exception as e:
         logger.error(f"Error fetching tools: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/resources",
+    summary="Get MCP resources",
+    description="List read-only MCP resources and migration metadata",
+)
+async def get_resources():
+    try:
+        return {
+            "total": len(list_resources_metadata()),
+            "resources": list_resources_metadata(),
+        }
+    except Exception as e:
+        logger.error(f"Error fetching resources: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

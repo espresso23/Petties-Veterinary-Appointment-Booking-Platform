@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -8,6 +9,7 @@ if str(ROOT) not in sys.path:
 
 from app.core.agents.prompt_builder import build_context, create_think_prompt
 from app.core.agents.tool_routing import apply_booking_tool_routing
+from app.core.tool_runtime_context import ToolRuntimeContext
 
 
 class TestBookingContextPrompt:
@@ -30,9 +32,6 @@ class TestBookingContextPrompt:
     def test_create_think_prompt_includes_semantic_booking_guidance(self):
         enabled_tools = {
             "get_user_pets",
-            "start_booking_session",
-            "get_booking_session",
-            "update_booking_draft",
             "search_clinics_nearby",
             "check_available_slots",
             "create_booking_for_user",
@@ -56,7 +55,7 @@ class TestBookingContextPrompt:
         assert "BOOKING TOOLS" in prompt
         assert "semantic params" in prompt
         assert "create_booking" in prompt
-        assert "conditional booking" in prompt.lower()
+        assert "sync_booking_draft" not in prompt.lower()
         assert "clinic_hint" in prompt
         assert "search_clinics_by_name" not in prompt
 
@@ -281,3 +280,61 @@ class TestBookingContextPrompt:
         assert result["tool_name"] == "get_clinic_services"
         assert result["tool_params"]["clinic_id"] == "Pet Care"
         assert "clinic_hint" not in result["tool_params"]
+
+    def test_booking_routing_redirects_to_read_resource_when_enabled_and_mapped(
+        self,
+    ):
+        ctx = ToolRuntimeContext(
+            user_id="u1",
+            role="PET_OWNER",
+            auth_token="tok",
+            clinic_id=None,
+            session_id="s1",
+            context_type="BUSINESS_CHAT",
+        )
+        parsed = {
+            "thought": "Lay danh sach dich vu",
+            "tool_name": "get_clinic_services",
+            "tool_params": {"clinic_id": "clinic-1"},
+            "should_end": False,
+        }
+        with patch(
+            "app.core.agents.tool_routing.get_tool_runtime_context",
+            return_value=ctx,
+        ):
+            result = apply_booking_tool_routing(
+                parsed,
+                messages=[],
+                react_steps=[],
+                enabled_tools_lower={"get_clinic_services", "read_resource"},
+                build_context_fn=lambda _: "",
+            )
+        assert result["tool_name"] == "read_resource"
+        assert (
+            result["tool_params"]["resource_uri"]
+            == "petties://clinics/clinic-1/services"
+        )
+        assert result["tool_params"]["fallback_params"]["clinic_id"] == "clinic-1"
+
+        parsed_slots = {
+            "thought": "Kiem tra slot",
+            "tool_name": "check_available_slots",
+            "tool_params": {"clinic_id": "clinic-2", "date": "2026-04-15"},
+            "should_end": False,
+        }
+        with patch(
+            "app.core.agents.tool_routing.get_tool_runtime_context",
+            return_value=ctx,
+        ):
+            out = apply_booking_tool_routing(
+                parsed_slots,
+                messages=[],
+                react_steps=[],
+                enabled_tools_lower={"check_available_slots", "read_resource"},
+                build_context_fn=lambda _: "",
+            )
+        assert out["tool_name"] == "read_resource"
+        assert (
+            out["tool_params"]["resource_uri"]
+            == "petties://clinics/clinic-2/slots?date=2026-04-15"
+        )

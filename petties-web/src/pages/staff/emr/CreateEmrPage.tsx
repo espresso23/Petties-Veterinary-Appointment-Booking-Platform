@@ -579,13 +579,15 @@ export const CreateEmrPage = () => {
                     </div>
 
                     <div className="mt-2 space-y-2">
-                        {aiDiagnosisResult.prescription_suggestions.map((item, index) => (
+                        {aiDiagnosisResult.prescription_suggestions.map((item, index) => {
+                            const suggestionTimes = item.times_of_day || item.timesOfDay || []
+                            return (
                             <div key={`${item.medicine_name}-${index}`} className="rounded-xl border border-stone-300 bg-white p-2.5">
                                 <div className="flex flex-wrap items-start justify-between gap-3">
                                     <div className="min-w-0">
                                         <p className="break-words text-sm font-bold text-stone-900">{item.medicine_name}</p>
                                         <p className="mt-1 break-words text-[11px] text-stone-600">
-                                            {(item.times_of_day || item.timesOfDay || []).length ? (item.times_of_day || item.timesOfDay).map(timeLabel).join(', ') : 'Theo chỉ định'}
+                                            {suggestionTimes.length ? suggestionTimes.map(timeLabel).join(', ') : 'Theo chỉ định'}
                                             {' | '}
                                             {mealLabel(item.before_after_meal || item.beforeAfterMeal)}
                                             {' | '}
@@ -603,7 +605,7 @@ export const CreateEmrPage = () => {
                                     </button>
                                 </div>
                             </div>
-                        ))}
+                        )})}
                     </div>
                 </div>
             ) : null}

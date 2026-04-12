@@ -26,10 +26,6 @@ from app.api.schemas.websocket_schemas import (
 from app.api.websocket import chat as websocket_chat
 from app.core.chat_context import BUSINESS_CHAT
 from app.core.tool_runtime_context import ToolRuntimeContext
-from app.core.tools.mcp_tools.booking_session_tools import (
-    close_booking_session,
-    sync_booking_draft,
-)
 
 
 class FakeSessionContext:
@@ -66,130 +62,32 @@ class FakeThoughtStreamingAgent:
         yield {"type": "final_answer", "content": "phan hoi test"}
 
 
-class FakeBookingJourneyAgent:
-    name = "petties_agent"
-    agent_type = "single_agent"
-    enabled_tools = ["start_booking_session", "close_booking_session"]
-
+class FakeUiSchemaAgent:
     async def stream(self, user_message, session_id, **kwargs):
-        normalized = str(user_message or "").lower()
-
-        if (
-            "khong dat" in normalized
-            or "không đặt" in normalized
-            or "huy" in normalized
-        ):
-            tool_result = await close_booking_session(reason="CANCELLED")
-            yield {
-                "type": "react_step",
-                "step": {
-                    "step_type": "action",
-                    "content": "Called close_booking_session",
-                    "tool_name": "close_booking_session",
-                    "tool_params": {"reason": "CANCELLED"},
-                    "tool_result": tool_result,
-                },
-            }
-            yield {
-                "type": "react_step",
-                "step": {
-                    "step_type": "observation",
-                    "content": "booking session cancelled",
-                    "tool_name": "close_booking_session",
-                    "tool_params": {"reason": "CANCELLED"},
-                    "tool_result": tool_result,
-                },
-            }
-            yield {
-                "type": "final_answer",
-                "content": "Đã hủy flow đặt lịch theo yêu cầu của bạn.",
-            }
-            return
-
-        if "dat lai" in normalized or "đặt lại" in normalized:
-            tool_result = await sync_booking_draft(
-                initial_draft={
-                    "pet_id": "pet-1",
-                    "clinic_id": "clinic-1",
-                    "booking_type": "IN_CLINIC",
-                }
-            )
-            yield {
-                "type": "react_step",
-                "step": {
-                    "step_type": "action",
-                    "content": "Called start_booking_session",
-                    "tool_name": "start_booking_session",
-                    "tool_params": {
-                        "initial_draft": {
-                            "pet_id": "pet-1",
-                            "clinic_id": "clinic-1",
-                            "booking_type": "IN_CLINIC",
-                        }
-                    },
-                    "tool_result": tool_result,
-                },
-            }
-            yield {
-                "type": "react_step",
-                "step": {
-                    "step_type": "observation",
-                    "content": "booking session restarted",
-                    "tool_name": "start_booking_session",
-                    "tool_params": {},
-                    "tool_result": tool_result,
-                },
-            }
-            yield {
-                "type": "final_answer",
-                "content": "Mình đã khởi động lại flow đặt lịch.",
-            }
-            return
-
-        if "dat lich" in normalized or "đặt lịch" in normalized:
-            tool_result = await sync_booking_draft(
-                initial_draft={
-                    "pet_id": "pet-1",
-                    "clinic_id": "clinic-1",
-                    "booking_type": "IN_CLINIC",
-                }
-            )
-            yield {
-                "type": "react_step",
-                "step": {
-                    "step_type": "action",
-                    "content": "Called start_booking_session",
-                    "tool_name": "start_booking_session",
-                    "tool_params": {
-                        "initial_draft": {
-                            "pet_id": "pet-1",
-                            "clinic_id": "clinic-1",
-                            "booking_type": "IN_CLINIC",
-                        }
-                    },
-                    "tool_result": tool_result,
-                },
-            }
-            yield {
-                "type": "react_step",
-                "step": {
-                    "step_type": "observation",
-                    "content": "booking session started",
-                    "tool_name": "start_booking_session",
-                    "tool_params": {},
-                    "tool_result": tool_result,
-                },
-            }
-            yield {
-                "type": "final_answer",
-                "content": "Mình đã bắt đầu flow đặt lịch cho bạn.",
-            }
-            return
-
         yield {
-            "type": "final_answer",
-            "content": "Đây là phản hồi chat bình thường, chưa vào booking.",
+            "type": "react_step",
+            "step": {
+                "step_type": "observation",
+                "tool_name": "get_user_pets",
+                "tool_result": {
+                    "success": True,
+                    "data": {
+                        "success": True,
+                        "data": {
+                            "pets": [
+                                {
+                                    "id": "pet-1",
+                                    "name": "Mimi",
+                                    "species": "CAT",
+                                }
+                            ]
+                        },
+                    },
+                    "tool_name": "get_user_pets",
+                },
+            },
         }
+        yield {"type": "final_answer", "content": "Minh tim thay thu cung cua ban."}
 
 
 class FakeWebSocket:
@@ -304,6 +202,30 @@ class WebSocketChatTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(parsed.ui_action)
         self.assertIn("booking_date", parsed.ui_action_error)
 
+    async def test_parse_raw_message_extracts_context_data(self):
+        parsed = websocket_chat._parse_raw_message(
+            json.dumps(
+                {
+                    "message": "Gợi ý dịch vụ cho phòng khám hiện tại",
+                    "context_data": {
+                        "clinic_id": "clinic-active-1",
+                        "route_path": "/clinic-owner/dashboard",
+                        "quick_action": "owner_services",
+                    },
+                }
+            ),
+            agent_id=None,
+            provider_override=None,
+            model_override=None,
+            images=None,
+        )
+
+        self.assertEqual(parsed.context_data.get("clinic_id"), "clinic-active-1")
+        self.assertEqual(
+            parsed.context_data.get("route_path"), "/clinic-owner/dashboard"
+        )
+        self.assertEqual(parsed.context_data.get("quick_action"), "owner_services")
+
     async def test_parse_raw_message_accepts_select_item_payload(self):
         parsed = websocket_chat._parse_raw_message(
             json.dumps(
@@ -328,6 +250,49 @@ class WebSocketChatTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(parsed.ui_action.get("type"), "select_item")
         self.assertEqual(parsed.ui_action.get("item_id"), "clinic-1")
         self.assertEqual(parsed.ui_action.get("item_type"), "clinic")
+
+    async def test_parse_raw_message_synthesizes_message_for_empty_select_item(self):
+        parsed = websocket_chat._parse_raw_message(
+            json.dumps(
+                {
+                    "message": "",
+                    "ui_action": {
+                        "type": "select_item",
+                        "item_id": "clinic-1",
+                        "item_type": "clinic",
+                        "clinic_name": "Pet Care Da Nang",
+                    },
+                }
+            ),
+            agent_id=None,
+            provider_override=None,
+            model_override=None,
+            images=None,
+        )
+
+        self.assertIsNone(parsed.ui_action_error)
+        self.assertIn("Tôi chọn phòng khám", parsed.user_message)
+        self.assertIn("Pet Care Da Nang", parsed.user_message)
+
+    async def test_resolve_runtime_clinic_id_prefers_select_item_ui_action(self):
+        user = CurrentUser(
+            user_id="owner-1",
+            role="CLINIC_OWNER",
+            clinic_id="clinic-from-user",
+            is_admin=False,
+        )
+
+        resolved = websocket_chat._resolve_runtime_clinic_id_for_request(
+            user,
+            {"clinic_id": "clinic-from-context"},
+            {
+                "type": "select_item",
+                "item_id": "clinic-selected",
+                "item_type": "clinic",
+            },
+        )
+
+        self.assertEqual(resolved, "clinic-selected")
 
     async def test_parse_raw_message_accepts_confirm_service_update_with_extended_fields(self):
         parsed = websocket_chat._parse_raw_message(
@@ -363,6 +328,73 @@ class WebSocketChatTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(parsed.ui_action.get("reminder_unit"), "MONTH")
         self.assertEqual(len(parsed.ui_action.get("weight_prices") or []), 1)
         self.assertEqual(len(parsed.ui_action.get("dose_prices") or []), 1)
+
+    async def test_parse_raw_message_accepts_confirm_service_create(self):
+        parsed = websocket_chat._parse_raw_message(
+            json.dumps(
+                {
+                    "message": "Xác nhận tạo dịch vụ",
+                    "ui_action": {
+                        "type": "confirm_service_create",
+                        "name": "Khám tổng quát",
+                        "base_price": 150000,
+                        "slots_required": 1,
+                        "duration_time": 30,
+                        "service_category": "HEALTHCARE",
+                        "pet_type": "DOG",
+                        "description": "Khám sức khỏe định kỳ",
+                    },
+                }
+            ),
+            agent_id=None,
+            provider_override=None,
+            model_override=None,
+            images=None,
+        )
+
+        self.assertIsNone(parsed.ui_action_error)
+        self.assertIsNotNone(parsed.ui_action)
+        self.assertEqual(parsed.ui_action.get("type"), "confirm_service_create")
+        self.assertEqual(parsed.ui_action.get("name"), "Khám tổng quát")
+
+    async def test_parse_raw_message_accepts_confirm_service_batch_create(self):
+        parsed = websocket_chat._parse_raw_message(
+            json.dumps(
+                {
+                    "message": "Xác nhận tạo nhiều dịch vụ",
+                    "ui_action": {
+                        "type": "confirm_service_batch_create",
+                        "services": [
+                            {
+                                "name": "Khám tổng quát",
+                                "base_price": 150000,
+                                "slots_required": 1,
+                                "duration_time": 30,
+                                "service_category": "HEALTHCARE",
+                                "pet_type": "DOG",
+                            },
+                            {
+                                "name": "Tiêm phòng",
+                                "base_price": 120000,
+                                "slots_required": 1,
+                                "duration_time": 15,
+                                "service_category": "VACCINATION",
+                                "pet_type": "CAT",
+                            },
+                        ],
+                    },
+                }
+            ),
+            agent_id=None,
+            provider_override=None,
+            model_override=None,
+            images=None,
+        )
+
+        self.assertIsNone(parsed.ui_action_error)
+        self.assertIsNotNone(parsed.ui_action)
+        self.assertEqual(parsed.ui_action.get("type"), "confirm_service_batch_create")
+        self.assertEqual(len(parsed.ui_action.get("services") or []), 2)
 
     async def test_handle_chat_message_passes_role_and_context_to_factory(self):
         captured = {}
@@ -616,6 +648,36 @@ class WebSocketChatTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(thinking_payload["content"].startswith("Đang suy luận:"))
         self.assertEqual(thinking_payload["step_index"], 0)
 
+    async def test_stream_and_collect_emits_ui_schema_when_tool_result_available(self):
+        sent_payloads = []
+
+        async def fake_send_message(session_id, payload):
+            sent_payloads.append(payload)
+            return {"session_id": session_id, "payload": payload}
+
+        with patch.object(websocket_chat.manager, "send_message", fake_send_message):
+            (
+                _,
+                _,
+                _,
+                persisted_ui_schema,
+            ) = await websocket_chat._stream_and_collect(
+                FakeUiSchemaAgent(),
+                "Dat lich cho Mimi",
+                "session-1",
+                images=None,
+                location=None,
+                chat_history=[],
+                user_role="PET_OWNER",
+            )
+
+        self.assertIsNotNone(persisted_ui_schema)
+        ui_schema_payload = next(
+            payload for payload in sent_payloads if payload.get("type") == "ui_schema"
+        )
+        self.assertIn("ui_schema", ui_schema_payload)
+        self.assertIsInstance(ui_schema_payload["ui_schema"].get("components"), list)
+
     def test_map_react_step_to_message_formats_action_as_reasoning(self):
         payload = websocket_chat.map_react_step_to_message(
             {
@@ -848,167 +910,9 @@ class WebSocketChatTests(unittest.IsolatedAsyncioTestCase):
             )
         )
 
+    @unittest.skip("Booking session tools removed in simplified booking flow")
     async def test_handle_chat_message_end_to_end_booking_journey(self):
-        sent_payloads = []
-        chat_history_store = []
-        session_store = {
-            "session-journey": {
-                "session_id": "session-journey",
-                "user_id": "user-1",
-                "context_type": BUSINESS_CHAT,
-                "booking_state": None,
-            }
-        }
-
-        async def fake_send_message(session_id, payload):
-            sent_payloads.append(payload)
-            return {"session_id": session_id, "payload": payload}
-
-        async def fake_get_chat_session(session_id):
-            return dict(session_store.get(session_id) or {})
-
-        async def fake_expire(session_id, session_data, **kwargs):
-            return session_data
-
-        async def fake_touch_chat_session(session_id, data=None):
-            base = session_store.setdefault(
-                session_id,
-                {
-                    "session_id": session_id,
-                    "user_id": "user-1",
-                    "context_type": BUSINESS_CHAT,
-                    "booking_state": None,
-                },
-            )
-            if isinstance(data, dict):
-                base.update(data)
-            return base
-
-        async def fake_save_chat_message(data):
-            chat_history_store.append(data)
-            return data
-
-        async def fake_get_chat_history(session_id, limit=50):
-            return chat_history_store[-limit:]
-
-        async def fake_update_booking_state_in_db(session_id, booking_state):
-            session_store.setdefault(
-                session_id,
-                {
-                    "session_id": session_id,
-                    "user_id": "user-1",
-                    "context_type": BUSINESS_CHAT,
-                },
-            )["booking_state"] = booking_state
-            return True
-
-        async def fake_get_agent(**kwargs):
-            return FakeBookingJourneyAgent()
-
-        user = CurrentUser(user_id="user-1", role="PET_OWNER", is_admin=False)
-
-        with (
-            patch.object(websocket_chat.AgentFactory, "get_agent", fake_get_agent),
-            patch.object(
-                websocket_chat,
-                "AsyncSessionLocal",
-                lambda: FakeSessionContext(),
-            ),
-            patch.object(websocket_chat, "get_chat_session", fake_get_chat_session),
-            patch.object(
-                websocket_chat,
-                "expire_chat_session_state_if_needed",
-                fake_expire,
-            ),
-            patch.object(websocket_chat, "touch_chat_session", fake_touch_chat_session),
-            patch.object(websocket_chat, "save_chat_message", fake_save_chat_message),
-            patch.object(websocket_chat, "get_chat_history", fake_get_chat_history),
-            patch.object(websocket_chat.manager, "send_message", fake_send_message),
-            patch(
-                "app.core.tools.mcp_tools.booking_session_tools.update_booking_state_in_db",
-                new=AsyncMock(side_effect=fake_update_booking_state_in_db),
-            ),
-        ):
-            checkpoint = 0
-
-            await websocket_chat.handle_chat_message(
-                websocket=None,
-                session_id="session-journey",
-                user=user,
-                session_context=BUSINESS_CHAT,
-                message=json.dumps(
-                    {"message": "Cho mình hỏi giờ làm việc của phòng khám"}
-                ),
-                auth_token="jwt-token",
-            )
-            first_batch = sent_payloads[checkpoint:]
-            checkpoint = len(sent_payloads)
-            self.assertFalse(
-                any(
-                    payload.get("type") == "booking_state_update"
-                    for payload in first_batch
-                )
-            )
-
-            await websocket_chat.handle_chat_message(
-                websocket=None,
-                session_id="session-journey",
-                user=user,
-                session_context=BUSINESS_CHAT,
-                message=json.dumps({"message": "Mình muốn đặt lịch khám cho bé Mimi"}),
-                auth_token="jwt-token",
-            )
-            second_batch = sent_payloads[checkpoint:]
-            checkpoint = len(sent_payloads)
-            second_booking_update = next(
-                payload
-                for payload in second_batch
-                if payload.get("type") == "booking_state_update"
-            )
-            self.assertTrue(second_booking_update["booking_state"]["active"])
-            self.assertEqual(
-                second_booking_update["booking_state"]["status"], "COLLECTING"
-            )
-
-            await websocket_chat.handle_chat_message(
-                websocket=None,
-                session_id="session-journey",
-                user=user,
-                session_context=BUSINESS_CHAT,
-                message=json.dumps({"message": "Thôi mình không đặt nữa"}),
-                auth_token="jwt-token",
-            )
-            third_batch = sent_payloads[checkpoint:]
-            checkpoint = len(sent_payloads)
-            third_booking_update = next(
-                payload
-                for payload in third_batch
-                if payload.get("type") == "booking_state_update"
-            )
-            self.assertFalse(third_booking_update["booking_state"]["active"])
-            self.assertEqual(
-                third_booking_update["booking_state"]["status"], "CANCELLED"
-            )
-
-            await websocket_chat.handle_chat_message(
-                websocket=None,
-                session_id="session-journey",
-                user=user,
-                session_context=BUSINESS_CHAT,
-                message=json.dumps({"message": "Ok đặt lại giúp mình vào cuối tuần"}),
-                auth_token="jwt-token",
-            )
-            fourth_batch = sent_payloads[checkpoint:]
-            fourth_booking_update = next(
-                payload
-                for payload in fourth_batch
-                if payload.get("type") == "booking_state_update"
-            )
-            self.assertTrue(fourth_booking_update["booking_state"]["active"])
-            self.assertEqual(
-                fourth_booking_update["booking_state"]["status"],
-                "COLLECTING",
-            )
+        pass
 
     async def test_websocket_schema_models_accept_runtime_payload_shapes(self):
         ConnectedMessage(

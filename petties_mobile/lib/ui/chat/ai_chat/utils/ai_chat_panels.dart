@@ -7,6 +7,13 @@ import '../../../../config/constants/app_colors.dart';
 import '../../../../data/models/ai_chat.dart';
 import 'ai_booking_tracker.dart';
 
+const double _composerRadius = 18;
+const double _composerBorderWidth = 1.6;
+const double _composerActionSize = 34;
+const double _composerActionSizeCompact = 32;
+const double _composerSendSize = 42;
+const double _composerSendSizeCompact = 39;
+
 Future<void> showAiChatSessionListSheet({
   required BuildContext context,
   required List<AiChatSession> sessions,
@@ -430,6 +437,8 @@ class AiChatComposer extends StatelessWidget {
   final Color accentColor;
   final Color suggestionBackgroundColor;
   final Color suggestionTextColor;
+  final VoidCallback? onSettingsTap;
+  final FocusNode? focusNode;
 
   const AiChatComposer({
     super.key,
@@ -449,6 +458,8 @@ class AiChatComposer extends StatelessWidget {
     this.accentColor = AppColors.primary,
     this.suggestionBackgroundColor = AppColors.primarySurface,
     this.suggestionTextColor = AppColors.stone900,
+    this.onSettingsTap,
+    this.focusNode,
   });
 
   Future<void> _pickImages(BuildContext context) async {
@@ -475,7 +486,12 @@ class AiChatComposer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompact = screenWidth <= 360;
     final isBusy = isSending || isReconnecting;
+    final hasDraftToSend =
+        controller.text.trim().isNotEmpty || (selectedImages?.isNotEmpty ?? false);
+    final canSend = !isBusy && hasDraftToSend;
     final hasImages = selectedImages != null && selectedImages!.isNotEmpty;
     final isKeyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
     final shouldShowSuggestions = suggestions.isNotEmpty && !isKeyboardVisible;
@@ -483,7 +499,11 @@ class AiChatComposer extends StatelessWidget {
         showTracker && tracker.hasData && !isKeyboardVisible;
     final shouldShowError = errorText != null && !isKeyboardVisible;
     final shouldShowImages = hasImages && !isKeyboardVisible;
-    final composerMaxLines = isKeyboardVisible ? 8 : 10;
+    // Khi bàn phím mở, giảm maxLines / khung để tránh overflow cột cha trên màn nhỏ.
+    final composerMaxLines = isKeyboardVisible ? (isCompact ? 4 : 5) : 9;
+    final textFieldBoxMaxHeight = isKeyboardVisible
+        ? (isCompact ? 160.0 : 180.0)
+        : (isCompact ? 200.0 : 220.0);
     final verticalPadding = isKeyboardVisible ? 6.0 : 8.0;
 
     return Container(
@@ -491,13 +511,10 @@ class AiChatComposer extends StatelessWidget {
         horizontalPadding,
         verticalPadding,
         horizontalPadding,
-        verticalPadding,
+        verticalPadding + 4,
       ),
-      decoration: const BoxDecoration(
-        color: AppColors.white,
-        border: Border(
-          top: BorderSide(color: AppColors.stone900, width: 2),
-        ),
+      decoration: BoxDecoration(
+        color: AppColors.white.withValues(alpha: isKeyboardVisible ? 0.9 : 0.94),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -597,107 +614,184 @@ class AiChatComposer extends StatelessWidget {
             ),
             const SizedBox(height: 8),
           ],
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              if (onImagesSelected != null)
-                GestureDetector(
-                  onTap: isBusy ? null : () => _pickImages(context),
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: AppColors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.stone900, width: 2),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: AppColors.stone900,
-                          offset: Offset(2, 2),
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      Icons.add_photo_alternate_outlined,
-                      color: accentColor,
-                      size: 20,
-                    ),
+          Container(
+            constraints: BoxConstraints(maxHeight: textFieldBoxMaxHeight),
+            decoration: BoxDecoration(
+              color: AppColors.white.withValues(alpha: 0.98),
+              borderRadius: BorderRadius.circular(_composerRadius),
+              border: Border.all(
+                color: AppColors.stone900,
+                width: _composerBorderWidth,
+              ),
+              boxShadow: const [
+                BoxShadow(color: AppColors.stone900, offset: Offset(2, 2)),
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (onImagesSelected != null) ...[
+                  _ComposerActionButton(
+                    icon: Icons.add,
+                    tooltip: 'Đính kèm ảnh',
+                    onTap: isBusy ? null : () => _pickImages(context),
+                    accentColor: accentColor,
                   ),
+                ],
+                _ComposerActionButton(
+                  icon: Icons.tune,
+                  tooltip: 'Tùy chọn phản hồi',
+                  onTap: isBusy ? null : onSettingsTap,
+                  accentColor: accentColor,
                 ),
-              if (onImagesSelected != null) const SizedBox(width: 8),
-              Expanded(
-                child: Container(
-                  constraints: const BoxConstraints(maxHeight: 200),
-                  decoration: BoxDecoration(
-                    color: AppColors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.stone900, width: 2),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: AppColors.stone900,
-                        offset: Offset(2, 2),
-                      ),
-                    ],
-                  ),
+                Expanded(
                   child: Scrollbar(
                     child: TextField(
                       controller: controller,
+                      focusNode: focusNode,
                       keyboardType: TextInputType.multiline,
                       textCapitalization: TextCapitalization.sentences,
                       minLines: 1,
                       maxLines: composerMaxLines,
                       scrollPadding: const EdgeInsets.symmetric(vertical: 8),
                       textInputAction: TextInputAction.newline,
-                      style: const TextStyle(fontSize: 14),
+                        style: TextStyle(
+                          fontSize: isCompact ? 13 : 14,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.stone900,
+                      ),
                       decoration: InputDecoration(
                         hintText: hintText,
-                        hintStyle: const TextStyle(
-                          fontSize: 13,
+                        hintStyle: TextStyle(
+                          fontSize: isCompact ? 12 : 13,
                           fontWeight: FontWeight.w600,
                           color: AppColors.stone400,
                         ),
                         border: InputBorder.none,
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: isCompact ? 6 : 8,
+                          vertical: isCompact ? 10 : 12,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: isBusy ? null : onSend,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: isBusy ? AppColors.stone300 : accentColor,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.stone900, width: 2),
-                    boxShadow: isSending
-                        ? null
-                        : const [
-                            BoxShadow(
-                              color: AppColors.stone900,
-                              offset: Offset(2, 2),
-                            ),
-                          ],
+                Padding(
+                  padding: EdgeInsets.only(
+                    right: isCompact ? 5 : 6,
+                    bottom: isCompact ? 5 : 6,
+                    left: 4,
                   ),
-                  child: Icon(
-                    isReconnecting
-                        ? Icons.sync
-                        : isSending
-                            ? Icons.hourglass_top
-                            : Icons.send_rounded,
-                    color: AppColors.white,
-                    size: 20,
+                  child: GestureDetector(
+                    onTap: canSend ? onSend : null,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      width: isCompact
+                          ? _composerSendSizeCompact
+                          : _composerSendSize,
+                      height: isCompact
+                          ? _composerSendSizeCompact
+                          : _composerSendSize,
+                      decoration: BoxDecoration(
+                        color: isBusy
+                            ? AppColors.stone300
+                            : (hasDraftToSend
+                                ? accentColor
+                                : AppColors.stone500.withValues(alpha: 0.7)),
+                        borderRadius: BorderRadius.circular(13),
+                        border: Border.all(color: AppColors.stone900, width: 1.8),
+                        boxShadow: isSending
+                            ? null
+                            : const [
+                                BoxShadow(
+                                  color: AppColors.stone900,
+                                  offset: Offset(1.5, 1.5),
+                                ),
+                              ],
+                      ),
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 160),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        child: Icon(
+                          isReconnecting
+                              ? Icons.sync
+                              : isSending
+                                  ? Icons.hourglass_top
+                                  : Icons.arrow_upward_rounded,
+                          key: ValueKey<String>(
+                            isReconnecting
+                                ? 'reconnecting'
+                                : isSending
+                                    ? 'sending'
+                                    : 'idle',
+                          ),
+                          color: AppColors.white,
+                          size: isCompact ? 17 : 18,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ComposerActionButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onTap;
+  final Color accentColor;
+
+  const _ComposerActionButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    required this.accentColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompact = screenWidth <= 360;
+    return Padding(
+      padding: EdgeInsets.only(
+        left: isCompact ? 4 : 6,
+        right: 2,
+        bottom: isCompact ? 5 : 6,
+      ),
+      child: Tooltip(
+        message: tooltip,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(isCompact ? 10 : 11),
+            onTap: onTap,
+            child: Container(
+              width: isCompact
+                  ? _composerActionSizeCompact
+                  : _composerActionSize,
+              height: isCompact
+                  ? _composerActionSizeCompact
+                  : _composerActionSize,
+              decoration: BoxDecoration(
+                color: AppColors.stone100,
+                borderRadius: BorderRadius.circular(isCompact ? 10 : 11),
+                border: Border.all(color: AppColors.stone300, width: 1.2),
+              ),
+              child: Icon(
+                icon,
+                size: isCompact ? 17 : 18,
+                color: onTap == null ? AppColors.stone400 : accentColor,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -1,5 +1,5 @@
 import { Suspense, lazy, type ComponentType, useEffect } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { ToastProvider } from './components/Toast'
 import { ProtectedRoute } from './components/common/ProtectedRoute'
 import { useAuthStore } from './store/authStore'
@@ -206,7 +206,6 @@ function App() {
               <Route path="schedule" element={<StaffSchedulePage />} />
               <Route path="bookings" element={<StaffBookingsPage />} />
               <Route path="patients" element={<StaffPatientsPage />} />
-              <Route path="ai-chat" element={<Navigate to="/staff" replace />} />
               <Route path="notifications" element={<StaffNotificationsPage />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="emr/create/:petId" element={<CreateEmrPage />} />
@@ -235,7 +234,6 @@ function App() {
               <Route path="master-services" element={<MasterServicesPage />} />
               <Route path="revenue" element={<ClinicOwnerRevenuePage />} />
               <Route path="subscriptions" element={<MySubscriptionPage />} />
-              <Route path="ai-copilot" element={<Navigate to="/clinic-owner" replace />} />
             </Route>
 
             <Route
@@ -253,7 +251,6 @@ function App() {
               <Route path="shifts" element={<StaffShiftPage />} />
               <Route path="services" element={<ServicesViewPage />} />
               <Route path="chat" element={<ClinicManagerChatPage />} />
-              <Route path="ai-copilot" element={<Navigate to="/clinic-manager" replace />} />
               <Route path="refunds" element={<RefundsPage />} />
               <Route path="revenue" element={<RevenuePage />} />
               <Route path="notifications" element={<ClinicManagerNotificationsPage />} />

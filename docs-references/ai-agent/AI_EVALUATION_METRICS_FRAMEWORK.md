@@ -502,7 +502,7 @@ Use these files for `ui_schema`, fallback, and intent-resolution metrics:
 
 Use these files for fallback rate, action success, and user-visible rendering quality:
 
-- `petties-web/src/pages/staff/StaffAIChatPage.tsx`
+- `petties-web/src/components/mascot/MascotDockPanel.tsx`
 - `petties-web/src/components/chat/`
 - `petties-web/src/components/emr/AIDiagnosisPanel.tsx`
 - `petties_mobile/lib/ui/chat/ai_chat/`

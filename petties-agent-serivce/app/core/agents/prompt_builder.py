@@ -24,53 +24,27 @@ from app.core.agents.booking_flow import (
     is_clinic_copilot_role,
     normalize_agent_role,
 )
-from app.core.tool_runtime_context import get_tool_runtime_context
 
 # Hardcoded defaults - only change via code
 MAX_CONTEXT_STEPS = 5
 OBSERVATION_MAX_LENGTH = 1500
 OBSERVATION_HEAD_LENGTH = 1000
 OBSERVATION_TAIL_LENGTH = 200
-BOOKING_SESSION_TOOLS = {
-    "sync_booking_draft",
-    "get_booking_session_info",
-    "close_booking_session",
-}
-
-
 def _build_pet_owner_booking_section(
     *,
     enabled_tools_lower: Set[str],
-    current_stage: str,
-    collected_params_json: str,
-    missing_fields_json: str,
-    booking_state_json: str,
 ) -> str:
-    draft_state_block = ""
-    if enabled_tools_lower.intersection(BOOKING_SESSION_TOOLS):
-        draft_state_block = f"""
-=== TRẠNG THÁI BẢN NHÁP (BOOKING DRAFT) ===
-[SYSTEM STATE]
-Stage: {current_stage}
-Hiện có: {collected_params_json}
-Cần thêm: {missing_fields_json}
-Luôn dùng `sync_booking_draft` để cập nhật bản nháp thay vì hỏi nhiều câu hỏi text.
-Draft JSON: {booking_state_json}
-[END SYSTEM STATE]
-"""
-
     return f"""
 === CHẾ ĐỘ PET_OWNER CHATBOT ===
-- Bạn là AI hỗ trợ PET_OWNER. Mục tiêu tối thượng khi đặt lịch là: **TẠO BẢN NHÁP NHANH NHẤT CÓ THỂ (FAST DRAFT)**.
-- Khi người dùng muốn đặt lịch, hãy dùng `sync_booking_draft` để điền tất cả những gì bạn hiểu được ngay trong 1 lượt ReAct.
+- Bạn là AI hỗ trợ PET_OWNER. Mục tiêu tối thượng khi đặt lịch là: **FORM-FIRST, ĐƠN GIẢN VÀ NHANH**.
+- Khi người dùng muốn đặt lịch, ưu tiên lấy đúng dữ liệu cần thiết để đưa ra lựa chọn trên UI Card.
 - **Không hỏi lại những gì đã biết hoặc có thể suy luận.** Ví dụ: Nếu user chỉ có 1 pet, hãy tự điền `pet_name`. Nếu user nói "ngày mai", hãy tự tính ngày.
-- **Ưu tiên UI Card**: Sau khi tạo/cập nhật draft, hãy mời người dùng xem và hoàn thiện nốt các trường còn thiếu trên **Thẻ Đặt Lịch (UI Card)** thay vì tiếp tục hội thoại hỏi đáp.
-- Không lộ các tên tool hoặc khái niệm lập trình (json, draft, session) trong câu trả lời cuối.
-{draft_state_block}
+- **Ưu tiên UI Card**: sau khi có dữ liệu đủ dùng, mời người dùng chọn/chỉnh trên thẻ đặt lịch thay vì hỏi đáp dài dòng.
+- Không lộ các tên tool hoặc khái niệm lập trình (json, state, session) trong câu trả lời cuối.
 === QUY TẮC NGHIỆP VỤ ===
 - Nếu user nói "bé nhà tôi", hãy gọi `get_user_pets` trước.
 - `search_clinics_nearby` dùng để tìm clinic. `check_available_slots` dùng để xem lịch trống thực tế.
-- `create_booking_for_user` chỉ gọi sau khi user đã xác nhận trên UI Card. Sau đó gọi `close_booking_session(status='COMPLETED')`.
+- `create_booking_for_user` chỉ gọi sau khi user đã xác nhận trên UI Card.
 """
 
 
@@ -208,25 +182,6 @@ def create_think_prompt(
     user_message = extract_latest_user_message(messages)
     recent_dialogue = build_recent_dialogue(messages, limit=10) or "(không có)"
     normalized_role = normalize_agent_role(user_role)
-    booking_state_json = "Trống (Không có phiên đặt lịch active)"
-    current_stage = "IDLE"
-    collected_params_json = "{}"
-    missing_fields_json = "[]"
-
-    # Load booking state before rendering f-string template.
-    ctx = get_tool_runtime_context()
-    if ctx and ctx.booking_state:
-        booking_state_json = json.dumps(ctx.booking_state, ensure_ascii=False, indent=2)
-        current_stage = str(
-            ctx.booking_state.get("stage") or ctx.booking_state.get("status") or "IDLE"
-        )
-        collected_params_json = json.dumps(
-            ctx.booking_state.get("draft") or {}, ensure_ascii=False, indent=2
-        )
-        missing_fields_json = json.dumps(
-            ctx.booking_state.get("missing_fields") or [], ensure_ascii=False, indent=2
-        )
-
     booking_section = ""
     if has_booking_tools_enabled(enabled_tools_lower):
         booking_section = (
@@ -234,10 +189,6 @@ def create_think_prompt(
             if is_clinic_copilot_role(normalized_role)
             else _build_pet_owner_booking_section(
                 enabled_tools_lower=enabled_tools_lower,
-                current_stage=current_stage,
-                collected_params_json=collected_params_json,
-                missing_fields_json=missing_fields_json,
-                booking_state_json=booking_state_json,
             )
         )
 

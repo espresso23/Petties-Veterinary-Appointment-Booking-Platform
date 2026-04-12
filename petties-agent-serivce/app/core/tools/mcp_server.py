@@ -21,12 +21,18 @@ import json
 logger = logging.getLogger(__name__)
 
 from app.core.tools.fastmcp_app import mcp_server
+from app.core.tools.mcp_resources import (
+    list_resources_metadata,
+    resolve_resource_request,
+)
 from app.core.tools.contracts import normalize_tool_input, normalize_tool_output
 
 # ===== MCP TOOLS CACHE =====
 # Cache cho list_tools() để tránh gọi lại mỗi request
 _mcp_tools_cache = None
 _mcp_tools_cache_lock = asyncio.Lock()
+_mcp_resources_cache: List[Dict[str, Any]] | None = None
+_resource_runtime_cache: Dict[str, Dict[str, Any]] = {}
 
 
 async def _get_tools_with_cache() -> List[Any]:
@@ -58,6 +64,12 @@ def invalidate_mcp_tools_cache() -> None:
     global _mcp_tools_cache
     _mcp_tools_cache = None
     logger.info("♻️ MCP tools cache invalidated")
+
+
+def invalidate_mcp_resources_cache() -> None:
+    global _mcp_resources_cache
+    _mcp_resources_cache = None
+    logger.info("♻️ MCP resources cache invalidated")
 
 
 # Note: health_check is NOT an MCP tool for agents
@@ -96,6 +108,14 @@ async def get_mcp_tools_metadata() -> List[Dict[str, Any]]:
 
     logger.info(f"📋 Retrieved {len(tools_metadata)} tools from FastMCP")
     return tools_metadata
+
+
+async def get_mcp_resources_metadata() -> List[Dict[str, Any]]:
+    """Return read-only resource metadata for MCP migration path."""
+    global _mcp_resources_cache
+    if _mcp_resources_cache is None:
+        _mcp_resources_cache = list_resources_metadata()
+    return _mcp_resources_cache
 
 
 def get_mcp_tools_metadata_sync() -> List[Dict[str, Any]]:
@@ -284,6 +304,53 @@ async def call_mcp_tool(tool_name: str, parameters: Dict[str, Any] = None) -> An
 
         logger.error(f"  └─ Traceback: {traceback.format_exc()}")
         raise
+
+
+async def call_mcp_resource(
+    resource_uri: str,
+    fallback_params: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
+    """Resolve a resource URI to its backing tool and execute it."""
+    resolved = resolve_resource_request(resource_uri, fallback_params)
+    cache_key = (
+        f"{resolved['resource_name']}::{resource_uri}::"
+        f"{json.dumps(resolved['tool_params'], sort_keys=True, ensure_ascii=False)}"
+    )
+    cached = _resource_runtime_cache.get(cache_key)
+    if cached:
+        expires_at = float(cached.get("expires_at", 0))
+        now_ts = asyncio.get_running_loop().time()
+        if expires_at > now_ts:
+            return {
+                "success": True,
+                "resource_uri": resource_uri,
+                "resource_name": resolved["resource_name"],
+                "cache_ttl_seconds": resolved["cache_ttl_seconds"],
+                "telemetry": {
+                    **resolved["telemetry"],
+                    "cache_hit": True,
+                },
+                "data": cached.get("data"),
+            }
+
+    tool_result = await call_mcp_tool(resolved["tool_name"], resolved["tool_params"])
+    ttl = max(int(resolved.get("cache_ttl_seconds") or 0), 0)
+    if ttl > 0:
+        _resource_runtime_cache[cache_key] = {
+            "data": tool_result,
+            "expires_at": asyncio.get_running_loop().time() + ttl,
+        }
+    return {
+        "success": True,
+        "resource_uri": resource_uri,
+        "resource_name": resolved["resource_name"],
+        "cache_ttl_seconds": resolved["cache_ttl_seconds"],
+        "telemetry": {
+            **resolved["telemetry"],
+            "cache_hit": False,
+        },
+        "data": tool_result,
+    }
 
 
 # ===== MCP SERVER INFO =====

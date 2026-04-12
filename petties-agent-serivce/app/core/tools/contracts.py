@@ -264,6 +264,23 @@ def normalize_tool_input(tool_name: str, parameters: Dict[str, Any]) -> Dict[str
         if p.get("limit") is not None:
             p["limit"] = _to_int(p.get("limit"))
 
+    if name == "generate_clinic_services":
+        def _normalize_string_list(raw: Any) -> List[str]:
+            if raw is None:
+                return []
+            if isinstance(raw, str):
+                return [part.strip() for part in raw.split(",") if part.strip()]
+            if isinstance(raw, list):
+                return [str(item).strip() for item in raw if str(item).strip()]
+            text = str(raw).strip()
+            return [text] if text else []
+
+        p["pet_types"] = _normalize_string_list(p.get("pet_types"))
+        p["service_scope"] = _normalize_string_list(p.get("service_scope"))
+        if p.get("target_clinic_id") is not None:
+            clinic_id = str(p.get("target_clinic_id") or "").strip()
+            p["target_clinic_id"] = clinic_id or None
+
     if name == "get_clinic_services":
         if p.get("clinic_id") is None and p.get("clinicId") is not None:
             p["clinic_id"] = p.get("clinicId")
@@ -462,42 +479,6 @@ def normalize_tool_input(tool_name: str, parameters: Dict[str, Any]) -> Dict[str
         if "booking_code" in p and p["booking_code"] is not None:
             p["booking_code"] = str(p["booking_code"]).strip()
 
-    # Booking Session tools
-    if name == "start_booking_session":
-        if p.get("intent") is None:
-            p["intent"] = "create_booking"
-        p["intent"] = str(p["intent"]).strip().lower()
-
-    if name == "update_booking_draft":
-        # Handle complex list coercion for service_ids & service_names
-        for k in ["service_ids", "service_names"]:
-            if k in p:
-                p[k] = [str(x).strip() for x in _as_list(p[k]) if str(x).strip()]
-        # Coerce numeric fields
-        for k in ["home_lat", "home_long"]:
-            if k in p:
-                p[k] = _to_float(p[k])
-        # Strip strings
-        for k in [
-            "pet_id",
-            "pet_name",
-            "clinic_id",
-            "clinic_hint",
-            "clinic_name",
-            "booking_date",
-            "start_time",
-            "time_preference",
-            "booking_type",
-            "home_address",
-        ]:
-            if k in p and p[k] is not None:
-                p[k] = str(p[k]).strip()
-
-    if name == "end_booking_session":
-        if p.get("reason") is None:
-            p["reason"] = "CANCELLED"
-        p["reason"] = str(p["reason"]).strip().upper()
-
     # Utility tools
     if name == "get_current_datetime":
         if p.get("time_expression") is None and p.get("expression") is not None:
@@ -691,20 +672,6 @@ def normalize_tool_output(tool_name: str, result: Any) -> Any:
             data["shifts"] = [
                 s for s in _as_list(data.get("shifts")) if isinstance(s, dict)
             ]
-
-        if name in {
-            "start_booking_session",
-            "get_booking_session",
-            "update_booking_draft",
-            "get_booking_draft_summary",
-            "suspend_booking_session",
-            "resume_booking_session",
-        }:
-            if "state" in data and isinstance(data["state"], dict):
-                # Ensure state is cleaned up for LLM consumption if needed, but usually kept as-is
-                pass
-            data["missing_fields"] = _as_list(data.get("missing_fields"))
-            data["ready_for_review"] = bool(data.get("ready_for_review", False))
 
         if name == "get_patient_summary":
             if "pet_info" in data and isinstance(data["pet_info"], dict):

@@ -51,7 +51,7 @@ Use these files/modules as the primary audit surface:
 - `petties-agent-serivce/app/core/tools/`
 - `petties-agent-serivce/app/core/presentation/`
 - `petties-web/src/components/chat/`
-- `petties-web/src/pages/staff/StaffAIChatPage.tsx`
+- `petties-web/src/components/mascot/MascotDockPanel.tsx`
 - `petties_mobile/lib/ui/chat/ai_chat/`
 - `docs-references/development/ai-chat-rendering-architecture/PLAN.md`
 

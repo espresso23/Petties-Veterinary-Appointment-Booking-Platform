@@ -56,6 +56,19 @@ def test_resolve_intent_mapping():
     )
     assert (
         resolve_intent(
+            "generate_clinic_services",
+            {
+                "success": True,
+                "data": {
+                    "needs_clarification": True,
+                    "clinics": [{"id": "clinic-1", "name": "Petties Hà Nội"}],
+                },
+            },
+        )
+        == "show_clinic_list"
+    )
+    assert (
+        resolve_intent(
             "list_clinic_services",
             {"success": True, "data": {"services": [{"service_id": "svc-1"}]}},
         )
@@ -313,6 +326,66 @@ def test_build_ui_schema_service_group_includes_resolved_clinic_name_from_db():
     assert service_chip.data["clinic_id"] == "clinic-petcare-1"
     assert service_chip.data["clinic_name"] == "Phòng khám thú y Petcare"
     assert service_chip.actions[0].payload["clinic_name"] == "Phòng khám thú y Petcare"
+
+
+def test_build_ui_schema_unwraps_read_resource_to_booking_service_intent():
+    tool_results = [
+        {
+            "tool_name": "read_resource",
+            "success": True,
+            "data": {
+                "resource_name": "clinic_services",
+                "deprecated_tool": "list_clinic_services",
+                "payload": {
+                    "clinic_id": "clinic-1",
+                    "services": [
+                        {"id": "svc-1", "name": "Tắm chó"},
+                        {"id": "svc-2", "name": "Khám tổng quát"},
+                    ],
+                },
+            },
+        }
+    ]
+
+    schema = build_ui_schema(tool_results)
+
+    assert schema is not None
+    component_types = [component.type for component in schema.components]
+    assert ComponentType.SERVICE_CHIP in component_types
+    assert all(
+        not (
+            component.type == ComponentType.TEXT
+            and component.data.get("content") == "Read Resource"
+        )
+        for component in schema.components
+    )
+
+
+def test_build_ui_schema_unwraps_read_resource_slot_availability_to_booking_slots():
+    tool_results = [
+        {
+            "tool_name": "read_resource",
+            "success": True,
+            "data": {
+                "resource_name": "slot_availability",
+                "deprecated_tool": "get_slot_availability",
+                "payload": {
+                    "resolved_clinic_id": "clinic-1",
+                    "date": "2026-04-15",
+                    "available_slots": [{"start_time": "09:00"}],
+                },
+            },
+        }
+    ]
+
+    schema = build_ui_schema(tool_results)
+
+    assert schema is not None
+    assert schema.layout == LayoutType.SLOT_GRID
+    slot = schema.components[0]
+    assert slot.type == ComponentType.SLOT_BUTTON
+    assert slot.actions[0].payload["clinic_id"] == "clinic-1"
+    assert slot.actions[0].payload["booking_date"] == "2026-04-15"
 
 
 def test_build_ui_schema_available_slots_include_booking_context():
@@ -634,13 +707,13 @@ def test_update_service_info_builds_confirmable_preview_card():
     assert confirm_action["payload"]["service_id"] == "svc-1"
 
 
-def test_booking_session_draft_maps_to_summary_with_form_handoff():
+def test_booking_summary_maps_to_form_handoff():
     tool_results = [
         {
-            "tool_name": "update_booking_draft",
+            "tool_name": "create_booking_for_user",
             "success": True,
             "data": {
-                "message": "Đã cập nhật booking draft.",
+                "message": "Đã tạo bản tóm tắt booking.",
                 "state": {
                     "draft": {
                         "clinic_id": "clinic-1",

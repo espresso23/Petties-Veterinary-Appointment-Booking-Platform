@@ -321,7 +321,7 @@ Không. Bác sĩ là người chịu trách nhiệm chẩn đoán và chỉ đ�
 - `docs-references/ai_diagnose_service/03_COMPONENTS.md`
 - `docs-references/ai_diagnose_service/05_E2E_TEST_SCENARIOS.md`
 - `docs-references/documentation/SRS/PETTIES_SRS.md`
-- `docs-references/documentation/SDD/REPORT_4_SDD_SYSTEM_DESIGN.md`
+- `docs-references/documentation/SDD/PETTIES_SDD.md`
 
 ---
 
