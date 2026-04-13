@@ -168,7 +168,7 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
          * Check if there's an active booking for the same pet at the same clinic/date/time.
          * Used to prevent duplicate booking before insert.
          */
-        @Query("SELECT COUNT(b) > 0 FROM Booking b WHERE b.pet.petId = :petId " +
+        @Query("SELECT COUNT(b) > 0 FROM Booking b WHERE b.pet.id = :petId " +
                         "AND b.clinic.clinicId = :clinicId " +
                         "AND b.bookingDate = :bookingDate " +
                         "AND b.bookingTime = :bookingTime " +

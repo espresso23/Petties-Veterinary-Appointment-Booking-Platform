@@ -16,7 +16,8 @@ class AppointmentDetailScreen extends StatefulWidget {
   const AppointmentDetailScreen({super.key, required this.booking});
 
   @override
-  State<AppointmentDetailScreen> createState() => _AppointmentDetailScreenState();
+  State<AppointmentDetailScreen> createState() =>
+      _AppointmentDetailScreenState();
 }
 
 class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
@@ -742,15 +743,15 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
     final bool hasSosFee = (booking.sosFee ?? 0) > 0;
     final bool hasDistanceFee = (booking.distanceFee ?? 0) > 0;
     final double originalTotal = booking.totalPrice ?? 0;
-    
+
     // Use selected voucher discount if available, otherwise use booking's discount
-    final double discountAmount = _selectedVoucher?.discountAmount ?? booking.discountAmount ?? 0;
-    final double finalTotal = _selectedVoucher != null 
-        ? (originalTotal - discountAmount).clamp(0, double.infinity) 
+    final double discountAmount =
+        _selectedVoucher?.discountAmount ?? booking.discountAmount ?? 0;
+    final double finalTotal = _selectedVoucher != null
+        ? (originalTotal - discountAmount).clamp(0, double.infinity)
         : (booking.finalPrice ?? originalTotal);
-        
-    final bool canUseVoucher =
-        booking.clinicId != null &&
+
+    final bool canUseVoucher = booking.clinicId != null &&
         originalTotal > 0 &&
         ['PENDING', 'CONFIRMED', 'IN_PROGRESS'].contains(booking.status) &&
         booking.paymentStatus != 'PAID';
@@ -792,7 +793,7 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
             ],
             const Divider(height: 24),
           ],
-          
+
           // Show voucher row even if canUseVoucher is false but booking has a voucher applied
           if (!canUseVoucher && discountAmount > 0) ...[
             _buildFeeRow('Giảm voucher', -discountAmount),
@@ -812,7 +813,7 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  if (discountAmount > 0) ...[  
+                  if (discountAmount > 0) ...[
                     Text(
                       FormatUtils.formatCurrency(originalTotal),
                       style: const TextStyle(
@@ -842,15 +843,14 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
 
   Widget _buildVoucherRow(BuildContext context, double orderAmount) {
     if (_isLoadingVoucher) {
-        return const Center(
+      return const Center(
           child: Padding(
-            padding: EdgeInsets.all(8.0),
-            child: SizedBox(
-               width: 20, height: 20,
-               child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          )
-        );
+              padding: EdgeInsets.all(8.0),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )));
     }
     return GestureDetector(
       onTap: () async {
@@ -870,7 +870,7 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
           paymentMethod: paymentMethod,
           serviceCategories: serviceCategories,
         );
-        
+
         if (!mounted || picked == null) return;
 
         bool shouldApply = false;
@@ -883,7 +883,8 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
             targetVoucherId = null;
           }
         } else if (picked is VoucherModel) {
-          if (picked.voucherId != (_selectedVoucher?.voucherId ?? booking.voucherId)) {
+          if (picked.voucherId !=
+              (_selectedVoucher?.voucherId ?? booking.voucherId)) {
             shouldApply = true;
             targetVoucherId = picked.voucherId;
           }
@@ -894,25 +895,26 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
             _isLoadingVoucher = true;
           });
           try {
-             final updatedBooking = await _bookingService.applyVoucher(booking.bookingId!, targetVoucherId);
-             if (mounted) {
-               setState(() {
-                 _selectedVoucher = picked is VoucherModel ? picked : null;
-                 _booking = updatedBooking;
-               });
-             }
-          } catch(e) {
-             if (mounted) {
-               ScaffoldMessenger.of(context).showSnackBar(
-                 SnackBar(content: Text('Lỗi áp dụng voucher: ${e.toString()}')),
-               );
-             }
+            final updatedBooking = await _bookingService.applyVoucher(
+                booking.bookingId!, targetVoucherId);
+            if (mounted) {
+              setState(() {
+                _selectedVoucher = picked is VoucherModel ? picked : null;
+                _booking = updatedBooking;
+              });
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Lỗi áp dụng voucher: ${e.toString()}')),
+              );
+            }
           } finally {
-             if (mounted) {
-               setState(() {
-                 _isLoadingVoucher = false;
-               });
-             }
+            if (mounted) {
+              setState(() {
+                _isLoadingVoucher = false;
+              });
+            }
           }
         }
       },
@@ -943,7 +945,9 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
               child: Text(
                 _selectedVoucher != null
                     ? '${_selectedVoucher!.code} - ${_selectedVoucher!.discountLabel}'
-                    : (booking.voucherId != null ? 'Voucher đã áp dụng' : 'Chọn voucher giảm giá'),
+                    : (booking.voucherId != null
+                        ? 'Voucher đã áp dụng'
+                        : 'Chọn voucher giảm giá'),
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -1175,8 +1179,7 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
                   ),
                 ),
               ),
-            if (showQrButton && showCashButton)
-              const SizedBox(height: 12),
+            if (showQrButton && showCashButton) const SizedBox(height: 12),
             if (showCashButton)
               SizedBox(
                 width: double.infinity,
@@ -1228,7 +1231,8 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
           children: [
             Icon(Icons.payments, color: Colors.green),
             SizedBox(width: 8),
-            Text('Thanh toán tiền mặt', style: TextStyle(fontWeight: FontWeight.bold)),
+            Text('Thanh toán tiền mặt',
+                style: TextStyle(fontWeight: FontWeight.bold)),
           ],
         ),
         content: const Text('Bạn đã thanh toán tiền mặt cho staff chưa?'),
@@ -1247,7 +1251,7 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
                 ),
               );
             },
-            child: const Text('Đà THANH TOÁN'),
+            child: const Text('Đã THANH TOÁN'),
           ),
         ],
       ),
@@ -1259,7 +1263,7 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
   bool _shouldShowQrButton() {
     final status = booking.status?.trim().toUpperCase() ?? '';
     final paymentStatus = booking.paymentStatus?.trim().toUpperCase();
-    
+
     // Ẩn khi đã thanh toán
     if (paymentStatus == 'PAID') {
       return false;
@@ -1289,7 +1293,7 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
     final paymentStatus = booking.paymentStatus?.trim().toUpperCase();
 
     // QR payment booking: method = QR và chưa paid (PENDING hoặc COMPLETED với PENDING)
-    return paymentMethod == 'QR' && 
+    return paymentMethod == 'QR' &&
         paymentStatus != 'PAID' &&
         ((booking.qrImageUrl?.trim().isNotEmpty ?? false) ||
             (booking.paymentDescription?.trim().isNotEmpty ?? false));
@@ -1313,7 +1317,7 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
     try {
       // Refetch booking từ backend để lấy dữ liệu tươi
       final freshBooking = await _bookingService.getBookingById(bookingId);
-      
+
       // Kiểm tra nếu đây có phải QR payment booking không
       if (_isQrPaymentBooking(freshBooking)) {
         if (context.mounted) {
@@ -1366,7 +1370,8 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
     return null;
   }
 
-  Future<void> _showQrDialog(BuildContext context, BookingResponse qrBooking) async {
+  Future<void> _showQrDialog(
+      BuildContext context, BookingResponse qrBooking) async {
     final isPaid = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1374,7 +1379,8 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
           children: [
             Icon(Icons.qr_code_2, color: Colors.amber),
             SizedBox(width: 8),
-            Text('Thanh toán QR', style: TextStyle(fontWeight: FontWeight.bold)),
+            Text('Thanh toán QR',
+                style: TextStyle(fontWeight: FontWeight.bold)),
           ],
         ),
         content: Column(
@@ -1386,7 +1392,8 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
               style: const TextStyle(fontSize: 13),
             ),
             const SizedBox(height: 16),
-            if (qrBooking.qrImageUrl != null && qrBooking.qrImageUrl!.isNotEmpty)
+            if (qrBooking.qrImageUrl != null &&
+                qrBooking.qrImageUrl!.isNotEmpty)
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: Image.network(
@@ -1417,7 +1424,8 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
               ),
             const SizedBox(height: 16),
             Text(
-              FormatUtils.formatCurrency(qrBooking.finalPrice ?? qrBooking.totalPrice ?? 0),
+              FormatUtils.formatCurrency(
+                  qrBooking.finalPrice ?? qrBooking.totalPrice ?? 0),
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -1434,7 +1442,8 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
                 if (ctx.mounted) {
                   ScaffoldMessenger.of(ctx).showSnackBar(
                     const SnackBar(
-                      content: Text('Không tìm thấy mã lịch hẹn để kiểm tra thanh toán.'),
+                      content: Text(
+                          'Không tìm thấy mã lịch hẹn để kiểm tra thanh toán.'),
                       backgroundColor: Colors.red,
                     ),
                   );
@@ -1453,7 +1462,8 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
                 }
 
                 final message =
-                    (result['message'] ?? 'Chưa nhận được thanh toán.').toString();
+                    (result['message'] ?? 'Chưa nhận được thanh toán.')
+                        .toString();
                 if (ctx.mounted) {
                   ScaffoldMessenger.of(ctx).showSnackBar(
                     SnackBar(
@@ -1466,7 +1476,8 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
                 if (ctx.mounted) {
                   ScaffoldMessenger.of(ctx).showSnackBar(
                     const SnackBar(
-                      content: Text('Không thể kiểm tra trạng thái thanh toán. Vui lòng thử lại.'),
+                      content: Text(
+                          'Không thể kiểm tra trạng thái thanh toán. Vui lòng thử lại.'),
                       backgroundColor: Colors.red,
                     ),
                   );
@@ -1486,7 +1497,8 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
     if (isPaid == true && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Thanh toán thành công! Đang cập nhật trạng thái thanh toán.'),
+          content: Text(
+              'Thanh toán thành công! Đang cập nhật trạng thái thanh toán.'),
           backgroundColor: Colors.green,
         ),
       );
