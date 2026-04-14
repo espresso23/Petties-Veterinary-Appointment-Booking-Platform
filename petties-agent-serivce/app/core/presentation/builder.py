@@ -255,7 +255,9 @@ def _normalize_tool_result_for_presentation(
     resource_name = str(data.get("resource_name") or "").strip()
     effective_tool_name = RESOURCE_FALLBACK_TOOL_MAP.get(resource_name, "").strip()
     if not effective_tool_name:
-        effective_tool_name = str(data.get("deprecated_tool") or "").strip() or raw_tool_name
+        effective_tool_name = (
+            str(data.get("deprecated_tool") or "").strip() or raw_tool_name
+        )
 
     payload = data.get("payload")
     if isinstance(payload, dict):
@@ -358,7 +360,11 @@ def _build_service_selection_components(data: Dict[str, Any]) -> List[UIComponen
     clinic_id = str(
         data.get("resolved_clinic_id") or data.get("clinic_id") or ""
     ).strip()
-    resolved_clinic = data.get("resolved_clinic") if isinstance(data.get("resolved_clinic"), dict) else {}
+    resolved_clinic = (
+        data.get("resolved_clinic")
+        if isinstance(data.get("resolved_clinic"), dict)
+        else {}
+    )
     clinic_name = str(
         resolved_clinic.get("name")
         or data.get("clinic_name")
@@ -383,12 +389,19 @@ def _build_service_selection_components(data: Dict[str, Any]) -> List[UIComponen
 
     for idx, service in enumerate(ordered_services):
         service_id = str(service.get("id") or idx)
+        canonical_name = str(
+            service.get("display_name")
+            or service.get("canonical_name")
+            or service.get("name")
+            or ""
+        ).strip()
         components.append(
             UIComponent(
                 type=ComponentType.SERVICE_CHIP,
                 id=f"svc_{service_id}",
                 data={
                     **service,
+                    "name": canonical_name,
                     "group_id": group_id,
                     "clinic_id": clinic_id,
                     **({"clinic_name": clinic_name} if clinic_name else {}),
@@ -403,7 +416,7 @@ def _build_service_selection_components(data: Dict[str, Any]) -> List[UIComponen
                             "group_id": group_id,
                             "clinic_id": clinic_id,
                             **({"clinic_name": clinic_name} if clinic_name else {}),
-                            "service_name": service.get("name"),
+                            "service_name": canonical_name,
                         },
                     )
                 ],
@@ -497,7 +510,9 @@ def _build_service_update_confirm_action_from_suggestion(
             continue
         update_payload[str(field_key)] = value
 
-    change_count = len([k for k in update_payload.keys() if k not in {"service_id", "service_name"}])
+    change_count = len(
+        [k for k in update_payload.keys() if k not in {"service_id", "service_name"}]
+    )
     if change_count <= 0:
         return None
 
@@ -538,8 +553,7 @@ def _build_service_batch_create_component(
         for item in suggestions
         if isinstance(item, dict)
         and item.get("name")
-        and str(item.get("recommended_action") or "create").strip().lower()
-        != "update"
+        and str(item.get("recommended_action") or "create").strip().lower() != "update"
     ]
     if not valid_suggestions:
         return None
@@ -601,10 +615,14 @@ def _build_service_update_confirm_action(data: Dict[str, Any]) -> UIAction:
                         "new"
                     ),
                     "pet_type": (changes.get("petType") or {}).get("new"),
-                    "reminder_interval": (changes.get("reminderInterval") or {}).get("new"),
+                    "reminder_interval": (changes.get("reminderInterval") or {}).get(
+                        "new"
+                    ),
                     "reminder_unit": (changes.get("reminderUnit") or {}).get("new"),
                     "weight_prices": (changes.get("weightPrices") or {}).get("new"),
-                    "vaccine_template_id": (changes.get("vaccineTemplateId") or {}).get("new"),
+                    "vaccine_template_id": (changes.get("vaccineTemplateId") or {}).get(
+                        "new"
+                    ),
                     "dose_prices": (changes.get("dosePrices") or {}).get("new"),
                 },
                 "display_message": f"Xác nhận cập nhật dịch vụ {service_name}",
@@ -651,7 +669,8 @@ def _build_clinic_service_suggestion_components(
                     "weight_prices": suggestion.get("weightPrices") or [],
                     "dose_prices": suggestion.get("dosePrices") or [],
                     "service_id": suggestion.get("service_id"),
-                    "recommended_action": suggestion.get("recommended_action") or "create",
+                    "recommended_action": suggestion.get("recommended_action")
+                    or "create",
                     "selected": False,
                 },
                 actions=[_build_service_suggestion_action(suggestion)],
@@ -783,6 +802,8 @@ def _build_booking_handoff_payload(data: Dict[str, Any]) -> Dict[str, Any]:
     ready_to_create = _resolve_ready_to_create(data, missing_fields)
     next_best_action = _resolve_next_best_action(data, missing_fields, ready_to_create)
 
+    resolved_service_names = _normalize_list(data.get("resolved_service_names"))
+
     return {
         "clinic_id": booking_payload.get("clinic_id"),
         "clinic_name": booking_payload.get("clinic_name"),
@@ -793,7 +814,9 @@ def _build_booking_handoff_payload(data: Dict[str, Any]) -> Dict[str, Any]:
         "start_time": booking_payload.get("start_time"),
         "service_ids": _normalize_list(booking_payload.get("service_ids")),
         "service_names": _normalize_list(
-            booking_payload.get("service_names") or data.get("services")
+            booking_payload.get("service_names")
+            or resolved_service_names
+            or data.get("services")
         ),
         "notes": booking_payload.get("notes"),
         "home_address": booking_payload.get("home_address"),
@@ -1082,9 +1105,7 @@ def _build_web_search_components(data: Dict[str, Any]) -> List[UIComponent]:
 
     sources_used = data.get("sources_used")
     source_count = (
-        int(sources_used)
-        if isinstance(sources_used, int)
-        else len(normalized_results)
+        int(sources_used) if isinstance(sources_used, int) else len(normalized_results)
     )
 
     summary_parts: List[str] = []
@@ -1097,7 +1118,9 @@ def _build_web_search_components(data: Dict[str, Any]) -> List[UIComponent]:
 
     summary_content = "\n\n".join(part for part in summary_parts if part.strip())
     if not summary_content:
-        summary_content = "Mình đã tìm thông tin từ web nhưng chưa đủ dữ liệu để tổng hợp rõ ràng."
+        summary_content = (
+            "Mình đã tìm thông tin từ web nhưng chưa đủ dữ liệu để tổng hợp rõ ràng."
+        )
 
     components: List[UIComponent] = [
         UIComponent(
@@ -1189,8 +1212,7 @@ def _build_components_for_intent(
             clinic_id = _resolve_clinic_id(clinic)
             actions = None
             if clinic_id and not (
-                matched_clinic
-                and str(data.get("target_clinic_id") or "").strip()
+                matched_clinic and str(data.get("target_clinic_id") or "").strip()
             ):
                 actions = [
                     UIAction(
@@ -1297,8 +1319,9 @@ def _should_skip_redundant_clinic_list(
     data: Dict[str, Any],
     *,
     has_successful_service_context: bool,
+    has_slot_error_context: bool,
 ) -> bool:
-    if not has_successful_service_context:
+    if not has_successful_service_context and not has_slot_error_context:
         return False
 
     if tool_name not in {"get_my_clinics", "search_clinics_nearby"}:
@@ -1317,9 +1340,7 @@ def _should_skip_redundant_clinic_list(
     if isinstance(matched_clinic, dict):
         clinic_id = _resolve_clinic_id(matched_clinic)
         clinic_name = str(
-            matched_clinic.get("name")
-            or matched_clinic.get("clinic_name")
-            or ""
+            matched_clinic.get("name") or matched_clinic.get("clinic_name") or ""
         ).strip()
         if clinic_id and clinic_name:
             return True
@@ -1327,9 +1348,7 @@ def _should_skip_redundant_clinic_list(
     if isinstance(resolved_clinic, dict):
         clinic_id = _resolve_clinic_id(resolved_clinic)
         clinic_name = str(
-            resolved_clinic.get("name")
-            or resolved_clinic.get("clinic_name")
-            or ""
+            resolved_clinic.get("name") or resolved_clinic.get("clinic_name") or ""
         ).strip()
         if clinic_id and clinic_name:
             return True
@@ -1344,9 +1363,7 @@ def _should_skip_redundant_clinic_list(
         clinic_id = _resolve_clinic_id(clinic)
         if clinic_id != target_clinic_id:
             continue
-        clinic_name = str(
-            clinic.get("name") or clinic.get("clinic_name") or ""
-        ).strip()
+        clinic_name = str(clinic.get("name") or clinic.get("clinic_name") or "").strip()
         if clinic_name:
             return True
 
@@ -1371,13 +1388,15 @@ def _has_complete_booking_context(tool_results: List[Dict[str, Any]]) -> bool:
             if matched and isinstance(matched, dict):
                 # Try multiple possible ID field names
                 clinic_id = (
-                    matched.get("id") or
-                    matched.get("clinic_id") or
-                    matched.get("clinicId")
+                    matched.get("id")
+                    or matched.get("clinic_id")
+                    or matched.get("clinicId")
                 )
                 if clinic_id:
                     has_clinic = True
-                    has_booking_intent = True  # If we resolved a clinic, user had intent
+                    has_booking_intent = (
+                        True  # If we resolved a clinic, user had intent
+                    )
 
             # Also check if clinics list has results
             if not has_clinic:
@@ -1390,41 +1409,41 @@ def _has_complete_booking_context(tool_results: List[Dict[str, Any]]) -> bool:
         if tool_name == "get_clinic_services":
             services = data.get("services", [])
             resolved_ids = (
-                data.get("resolved_service_ids") or
-                data.get("service_ids") or
-                []
+                data.get("resolved_service_ids") or data.get("service_ids") or []
             )
-            if (isinstance(services, list) and len(services) > 0) or \
-               (isinstance(resolved_ids, list) and len(resolved_ids) > 0):
+            if (isinstance(services, list) and len(services) > 0) or (
+                isinstance(resolved_ids, list) and len(resolved_ids) > 0
+            ):
                 has_service = True
 
         # Check for slot resolution - handle multiple field patterns
         if tool_name == "check_available_slots":
-            slots = (
-                data.get("available_slots") or
-                data.get("availableSlots") or
-                []
-            )
+            slots = data.get("available_slots") or data.get("availableSlots") or []
             recommended = (
-                data.get("recommended_slots") or
-                data.get("recommendedSlots") or
-                []
+                data.get("recommended_slots") or data.get("recommendedSlots") or []
             )
-            if (isinstance(slots, list) and len(slots) > 0) or \
-               (isinstance(recommended, list) and len(recommended) > 0):
+            if (isinstance(slots, list) and len(slots) > 0) or (
+                isinstance(recommended, list) and len(recommended) > 0
+            ):
                 has_slot = True
 
     return has_clinic and has_service and has_slot and has_booking_intent
 
 
-def _build_booking_context_from_tools(tool_results: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+def _build_booking_context_from_tools(
+    tool_results: List[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
     """Build a booking context dict from tool results for summary card."""
     context: Dict[str, Any] = {}
     missing_fields = []
 
     for tool_result in tool_results:
         tool_name, success, data = _normalize_tool_result_for_presentation(tool_result)
-        if not success or not isinstance(data, dict):
+        if not isinstance(data, dict):
+            continue
+        # Allow using recoverable slot-error payload to keep booking context
+        # (date/service/clinic) instead of dropping to generic clinic cards.
+        if not success and tool_name != "check_available_slots":
             continue
 
         if tool_name == "search_clinics_nearby":
@@ -1432,14 +1451,14 @@ def _build_booking_context_from_tools(tool_results: List[Dict[str, Any]]) -> Opt
             if matched and isinstance(matched, dict):
                 # Try multiple possible field names
                 context["clinic_id"] = (
-                    matched.get("id") or
-                    matched.get("clinic_id") or
-                    matched.get("clinicId")
+                    matched.get("id")
+                    or matched.get("clinic_id")
+                    or matched.get("clinicId")
                 )
                 context["clinic_name"] = (
-                    matched.get("name") or
-                    matched.get("clinic_name") or
-                    matched.get("clinicName")
+                    matched.get("name")
+                    or matched.get("clinic_name")
+                    or matched.get("clinicName")
                 )
 
             # Fallback: check clinics list
@@ -1448,27 +1467,21 @@ def _build_booking_context_from_tools(tool_results: List[Dict[str, Any]]) -> Opt
                 if isinstance(clinics, list) and len(clinics) > 0:
                     first_clinic = clinics[0]
                     if isinstance(first_clinic, dict):
-                        context["clinic_id"] = (
-                            first_clinic.get("id") or
-                            first_clinic.get("clinic_id")
-                        )
-                        context["clinic_name"] = (
-                            first_clinic.get("name") or
-                            first_clinic.get("clinic_name")
-                        )
+                        context["clinic_id"] = first_clinic.get(
+                            "id"
+                        ) or first_clinic.get("clinic_id")
+                        context["clinic_name"] = first_clinic.get(
+                            "name"
+                        ) or first_clinic.get("clinic_name")
 
         if tool_name == "get_clinic_services":
             # Try multiple field patterns for service IDs
             resolved_ids = (
-                data.get("resolved_service_ids") or
-                data.get("service_ids") or
-                []
+                data.get("resolved_service_ids") or data.get("service_ids") or []
             )
             # Try multiple field patterns for service names
             resolved_names = (
-                data.get("resolved_service_names") or
-                data.get("service_names") or
-                []
+                data.get("resolved_service_names") or data.get("service_names") or []
             )
             if resolved_ids:
                 context["service_ids"] = list(resolved_ids)
@@ -1478,16 +1491,16 @@ def _build_booking_context_from_tools(tool_results: List[Dict[str, Any]]) -> Opt
         if tool_name == "check_available_slots":
             # Try multiple field patterns for date
             date = (
-                data.get("resolved_date") or
-                data.get("date") or
-                data.get("booking_date") or
-                data.get("bookingDate")
+                data.get("resolved_date")
+                or data.get("date")
+                or data.get("booking_date")
+                or data.get("bookingDate")
             )
             # Try multiple field patterns for time
             time = (
-                data.get("resolved_time") or
-                data.get("start_time") or
-                data.get("startTime")
+                data.get("resolved_time")
+                or data.get("start_time")
+                or data.get("startTime")
             )
             if date:
                 context["booking_date"] = str(date)
@@ -1508,7 +1521,9 @@ def _build_booking_context_from_tools(tool_results: List[Dict[str, Any]]) -> Opt
 
     context["missing_fields"] = missing_fields
     context["ready_to_create"] = len(missing_fields) == 0
-    context["next_best_action"] = "fill_booking_form" if missing_fields else "confirm_booking"
+    context["next_best_action"] = (
+        "fill_booking_form" if missing_fields else "confirm_booking"
+    )
 
     return context if context else None
 
@@ -1535,6 +1550,21 @@ def build_ui_schema(tool_results: List[Dict[str, Any]]) -> Optional[UISchemaV1]:
     is_composite = len(tool_results) > 1
     final_layout = LayoutType.LIST
     has_successful_service_context = _has_successful_service_context(tool_results)
+    has_slot_error_context = any(
+        (
+            _normalize_tool_result_for_presentation(tool_result)[0]
+            == "check_available_slots"
+            and bool(
+                str(
+                    _normalize_tool_result_for_presentation(tool_result)[2].get(
+                        "error_code"
+                    )
+                    or ""
+                ).strip()
+            )
+        )
+        for tool_result in tool_results
+    )
 
     # Detect if we have enough booking context to show summary
     has_booking_context = _has_complete_booking_context(tool_results)
@@ -1549,6 +1579,7 @@ def build_ui_schema(tool_results: List[Dict[str, Any]]) -> Optional[UISchemaV1]:
                 tool_name,
                 data,
                 has_successful_service_context=has_successful_service_context,
+                has_slot_error_context=has_slot_error_context,
             )
         ):
             continue
@@ -1609,10 +1640,21 @@ def build_ui_schema(tool_results: List[Dict[str, Any]]) -> Optional[UISchemaV1]:
             ):
                 final_layout = LayoutType.CARD
 
-    # If we have complete booking context but no booking_summary was generated, build one
-    if has_booking_context and not _has_booking_summary_component(all_components):
+    # If we have complete booking context (or slot check failed but context is still usable)
+    # and no booking_summary was generated, build one.
+    if (
+        has_booking_context or has_slot_error_context
+    ) and not _has_booking_summary_component(all_components):
         context_data = _build_booking_context_from_tools(tool_results)
-        if context_data:
+        has_clinic_context = bool(
+            str((context_data or {}).get("clinic_id") or "").strip()
+            or str((context_data or {}).get("clinic_name") or "").strip()
+        )
+        has_service_context = bool(
+            (context_data or {}).get("service_ids")
+            or (context_data or {}).get("service_names")
+        )
+        if context_data and has_clinic_context and has_service_context:
             all_components.append(_build_booking_summary_component(context_data))
             final_layout = LayoutType.CARD
 

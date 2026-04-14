@@ -169,6 +169,25 @@ void main() {
       expect(event.uiSchema, isNull);
     });
 
+    test('service option prefers canonical display_name from backend', () {
+      final event = AiChatSocketEvent.fromJson({
+        'type': 'service_chips',
+        'services': [
+          {
+            'id': 'svc-dog-bath',
+            'name': 'Tắm',
+            'display_name': 'Tắm chó',
+            'canonical_name': 'Tắm chó',
+          }
+        ],
+      });
+
+      expect(event.type, AiChatSocketEventType.serviceChips);
+      expect(event.serviceOptions, hasLength(1));
+      expect(event.serviceOptions.first.id, 'svc-dog-bath');
+      expect(event.serviceOptions.first.name, 'Tắm chó');
+    });
+
     test('parse booking_state_update event with draft snapshot', () {
       final event = AiChatSocketEvent.fromJson({
         'type': 'booking_state_update',

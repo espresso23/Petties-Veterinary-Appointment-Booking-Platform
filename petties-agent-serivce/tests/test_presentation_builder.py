@@ -288,7 +288,9 @@ def test_build_ui_schema_service_group_prefers_full_services_over_matched_subset
 
     assert schema is not None
     service_chips = [
-        component for component in schema.components if component.type == ComponentType.SERVICE_CHIP
+        component
+        for component in schema.components
+        if component.type == ComponentType.SERVICE_CHIP
     ]
     assert len(service_chips) == 3
     assert {chip.data["name"] for chip in service_chips} == {
@@ -296,6 +298,38 @@ def test_build_ui_schema_service_group_prefers_full_services_over_matched_subset
         "Cắt móng",
         "Vệ sinh tai",
     }
+
+
+def test_build_ui_schema_service_group_uses_canonical_display_name_from_backend():
+    tool_results = [
+        {
+            "tool_name": "get_clinic_services",
+            "success": True,
+            "data": {
+                "clinic_id": "clinic-1",
+                "services": [
+                    {
+                        "id": "svc-1",
+                        "name": "Tắm",
+                        "display_name": "Tắm chó",
+                        "pet_type": "DOG",
+                    }
+                ],
+            },
+        }
+    ]
+
+    schema = build_ui_schema(tool_results)
+
+    assert schema is not None
+    service_chip = next(
+        component
+        for component in schema.components
+        if component.type == ComponentType.SERVICE_CHIP
+    )
+    assert service_chip.data["name"] == "Tắm chó"
+    assert service_chip.actions is not None
+    assert service_chip.actions[0].payload["service_name"] == "Tắm chó"
 
 
 def test_build_ui_schema_service_group_includes_resolved_clinic_name_from_db():
@@ -321,7 +355,9 @@ def test_build_ui_schema_service_group_includes_resolved_clinic_name_from_db():
 
     assert schema is not None
     service_chip = next(
-        component for component in schema.components if component.type == ComponentType.SERVICE_CHIP
+        component
+        for component in schema.components
+        if component.type == ComponentType.SERVICE_CHIP
     )
     assert service_chip.data["clinic_id"] == "clinic-petcare-1"
     assert service_chip.data["clinic_name"] == "Phòng khám thú y Petcare"
@@ -745,3 +781,62 @@ def test_booking_summary_maps_to_form_handoff():
     assert summary.actions[0].payload["missing_fields"] == ["start_time"]
     assert summary.data["missing_fields"] == ["start_time"]
     assert summary.data["ready_to_create"] is False
+
+
+def test_build_ui_schema_skips_redundant_clinic_list_when_slot_check_errors_but_context_exists():
+    tool_results = [
+        {
+            "tool_name": "search_clinics_nearby",
+            "success": True,
+            "data": {
+                "clinics": [
+                    {
+                        "id": "clinic-1",
+                        "name": "Bệnh viện thú y PetCare",
+                        "address": "Đà Nẵng",
+                    }
+                ],
+                "matched_clinic": {
+                    "id": "clinic-1",
+                    "name": "Bệnh viện thú y PetCare",
+                },
+                "target_clinic_id": "clinic-1",
+                "needs_clarification": False,
+            },
+        },
+        {
+            "tool_name": "get_clinic_services",
+            "success": True,
+            "data": {
+                "resolved_clinic_id": "clinic-1",
+                "resolved_service_ids": ["svc-1"],
+                "resolved_service_names": ["Vắc-xin 5 bệnh (Chó)"],
+                "services": [
+                    {
+                        "id": "svc-1",
+                        "name": "Vắc-xin 5 bệnh (Chó)",
+                    }
+                ],
+            },
+        },
+        {
+            "tool_name": "check_available_slots",
+            "success": False,
+            "error": {
+                "error_code": "INTERNAL_ERROR",
+                "message": "Không thể kiểm tra slot lúc này",
+                "recoverable": True,
+                "date": "2026-04-14",
+                "resolved_clinic_id": "clinic-1",
+                "resolved_service_ids": ["svc-1"],
+                "resolved_service_names": ["Vắc-xin 5 bệnh (Chó)"],
+            },
+        },
+    ]
+
+    schema = build_ui_schema(tool_results)
+
+    assert schema is not None
+    component_types = [component.type for component in schema.components]
+    assert ComponentType.CLINIC_CARD not in component_types
+    assert ComponentType.BOOKING_SUMMARY in component_types
