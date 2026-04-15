@@ -3,16 +3,20 @@ package com.petties.petties.controller;
 import com.petties.petties.dto.clinic.ClinicLocationResponse;
 import com.petties.petties.dto.clinic.AdminBanClinicRequest;
 import com.petties.petties.dto.clinic.ApproveClinicRequest;
+import com.petties.petties.dto.clinic.ClinicDeletionRequestResponse;
 import com.petties.petties.dto.clinic.ClinicRequest;
 import com.petties.petties.dto.clinic.ClinicResponse;
 import com.petties.petties.dto.clinic.DistanceResponse;
 import com.petties.petties.dto.clinic.GeocodeResponse;
 import com.petties.petties.dto.clinic.PublicStaffResponse;
 import com.petties.petties.dto.clinic.RejectClinicRequest;
+import com.petties.petties.dto.clinic.ReviewClinicDeletionRequest;
+import com.petties.petties.dto.clinic.SubmitClinicDeletionRequest;
 import com.petties.petties.dto.file.UploadResponse;
 import com.petties.petties.model.User;
 import com.petties.petties.model.enums.ClinicStatus;
 import com.petties.petties.service.AuthService;
+import com.petties.petties.service.ClinicDeletionRequestService;
 import com.petties.petties.service.ClinicService;
 import com.petties.petties.service.ClinicStaffService;
 import com.petties.petties.service.CloudinaryService;
@@ -49,6 +53,7 @@ public class ClinicController {
     private final AuthService authService;
     private final CloudinaryService cloudinaryService;
     private final ClinicStaffService clinicStaffService;
+    private final ClinicDeletionRequestService clinicDeletionRequestService;
 
     /**
      * GET /api/clinics
@@ -141,6 +146,93 @@ public class ClinicController {
         User currentUser = authService.getCurrentUser();
         clinicService.deleteClinic(id, currentUser.getUserId());
         return ResponseEntity.ok(Map.of("message", "Xóa phòng khám thành công"));
+    }
+
+    /**
+     * POST /api/clinics/{id}/suspend
+     * Suspend clinic (Owner only, clinic must be APPROVED)
+     */
+    @PostMapping("/{id}/suspend")
+    @PreAuthorize("hasRole('CLINIC_OWNER')")
+    public ResponseEntity<ClinicResponse> suspendClinic(@PathVariable UUID id) {
+        User currentUser = authService.getCurrentUser();
+        return ResponseEntity.ok(clinicService.updateOwnerClinicStatus(id, currentUser.getUserId(), ClinicStatus.SUSPENDED));
+    }
+
+    /**
+     * POST /api/clinics/{id}/activate
+     * Reactivate clinic (Owner only, clinic must be SUSPENDED)
+     */
+    @PostMapping("/{id}/activate")
+    @PreAuthorize("hasRole('CLINIC_OWNER')")
+    public ResponseEntity<ClinicResponse> activateClinic(@PathVariable UUID id) {
+        User currentUser = authService.getCurrentUser();
+        return ResponseEntity.ok(clinicService.updateOwnerClinicStatus(id, currentUser.getUserId(), ClinicStatus.APPROVED));
+    }
+
+    /**
+     * POST /api/clinics/{id}/deletion-requests
+     * Submit deletion request for clinic (Owner only)
+     */
+    @PostMapping("/{id}/deletion-requests")
+    @PreAuthorize("hasRole('CLINIC_OWNER')")
+    public ResponseEntity<ClinicDeletionRequestResponse> submitClinicDeletionRequest(
+            @PathVariable UUID id,
+            @Valid @RequestBody SubmitClinicDeletionRequest request) {
+        User currentUser = authService.getCurrentUser();
+        ClinicDeletionRequestResponse response = clinicDeletionRequestService.submitDeletionRequest(
+                id,
+                currentUser.getUserId(),
+                request.getReason());
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /**
+     * GET /api/clinics/owner/deletion-requests
+     * Get deletion requests of current owner
+     */
+    @GetMapping("/owner/deletion-requests")
+    @PreAuthorize("hasRole('CLINIC_OWNER')")
+    public ResponseEntity<Page<ClinicDeletionRequestResponse>> getOwnerDeletionRequests(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "requestedAt") String sortBy,
+            @RequestParam(defaultValue = "DESC") Sort.Direction sortDir) {
+        User currentUser = authService.getCurrentUser();
+        Pageable pageable = PageRequest.of(page, size, Sort.by(sortDir, sortBy));
+        return ResponseEntity.ok(clinicDeletionRequestService.getOwnerDeletionRequests(currentUser.getUserId(), pageable));
+    }
+
+    /**
+     * GET /api/clinics/admin/deletion-requests/pending
+     * Get pending deletion requests for admin
+     */
+    @GetMapping("/admin/deletion-requests/pending")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Page<ClinicDeletionRequestResponse>> getPendingDeletionRequests(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "requestedAt") String sortBy,
+            @RequestParam(defaultValue = "DESC") Sort.Direction sortDir) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(sortDir, sortBy));
+        return ResponseEntity.ok(clinicDeletionRequestService.getPendingRequests(pageable));
+    }
+
+    /**
+     * POST /api/clinics/admin/deletion-requests/{requestId}/review
+     * Review deletion request by admin
+     */
+    @PostMapping("/admin/deletion-requests/{requestId}/review")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ClinicDeletionRequestResponse> reviewDeletionRequest(
+            @PathVariable UUID requestId,
+            @Valid @RequestBody ReviewClinicDeletionRequest request) {
+        User currentUser = authService.getCurrentUser();
+        return ResponseEntity.ok(clinicDeletionRequestService.reviewRequest(
+                requestId,
+                request.getAction(),
+                request.getAdminNote(),
+                currentUser.getUserId()));
     }
 
     @GetMapping("/search")

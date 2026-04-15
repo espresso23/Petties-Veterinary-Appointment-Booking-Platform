@@ -1,5 +1,8 @@
 import { apiClient } from './client'
 import type {
+  ClinicDeletionRequestListResponse,
+  ClinicDeletionRequestResponse,
+  ClinicDeletionReviewAction,
   ClinicResponse,
   ClinicRequest,
   ClinicListResponse,
@@ -58,6 +61,51 @@ export const clinicService = {
    */
   deleteClinic: async (clinicId: string): Promise<void> => {
     await apiClient.delete(`/clinics/${clinicId}`)
+  },
+
+  suspendClinic: async (clinicId: string): Promise<ClinicResponse> => {
+    const response = await apiClient.post<ClinicResponse>(`/clinics/${clinicId}/suspend`, {})
+    return response.data
+  },
+
+  activateClinic: async (clinicId: string): Promise<ClinicResponse> => {
+    const response = await apiClient.post<ClinicResponse>(`/clinics/${clinicId}/activate`, {})
+    return response.data
+  },
+
+  submitClinicDeletionRequest: async (clinicId: string, reason: string): Promise<ClinicDeletionRequestResponse> => {
+    const response = await apiClient.post<ClinicDeletionRequestResponse>(`/clinics/${clinicId}/deletion-requests`, { reason })
+    return response.data
+  },
+
+  getOwnerDeletionRequests: async (page = 0, size = 20): Promise<ClinicDeletionRequestListResponse> => {
+    const params = new URLSearchParams({
+      page: String(page),
+      size: String(size),
+    })
+    const response = await apiClient.get<ClinicDeletionRequestListResponse>(`/clinics/owner/deletion-requests?${params.toString()}`)
+    return response.data
+  },
+
+  getPendingDeletionRequests: async (page = 0, size = 20): Promise<ClinicDeletionRequestListResponse> => {
+    const params = new URLSearchParams({
+      page: String(page),
+      size: String(size),
+    })
+    const response = await apiClient.get<ClinicDeletionRequestListResponse>(`/clinics/admin/deletion-requests/pending?${params.toString()}`)
+    return response.data
+  },
+
+  reviewDeletionRequest: async (
+    requestId: string,
+    action: ClinicDeletionReviewAction,
+    adminNote?: string,
+  ): Promise<ClinicDeletionRequestResponse> => {
+    const response = await apiClient.post<ClinicDeletionRequestResponse>(`/clinics/admin/deletion-requests/${requestId}/review`, {
+      action,
+      adminNote,
+    })
+    return response.data
   },
 
   /**

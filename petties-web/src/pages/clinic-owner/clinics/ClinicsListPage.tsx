@@ -3,26 +3,32 @@ import { useNavigate } from 'react-router-dom'
 import { QuestionMarkCircleIcon } from '@heroicons/react/24/outline'
 import { useClinicStore } from '../../../store/clinicStore'
 import { useSandboxStore } from '../../../store/sandboxStore'
+import { useToast } from '../../../components/Toast'
+import { clinicService } from '../../../services/api/clinicService'
 import { ClinicList } from '../../../components/clinic/ClinicList'
 import { SandboxGuideModal } from '../../../components/sandbox/SandboxGuideModal'
 import { useSandboxStepTracker } from '../../../hooks/useSandboxStepTracker'
-import { ConfirmDialog } from '../../../components/common/ConfirmDialog'
 import { ROUTES } from '../../../config/routes'
-import type { ClinicStatus } from '../../../types/clinic'
+import type { ClinicDeletionRequestResponse, ClinicStatus } from '../../../types/clinic'
 
 export function ClinicsListPage() {
   const navigate = useNavigate()
-  const { deleteClinic, fetchClinics, getMyClinics } = useClinicStore()
+  const { fetchClinics, getMyClinics } = useClinicStore()
   const { enterSandbox, currentSandboxClinic, isSandboxMode, currentGuideStep } = useSandboxStore()
+  const { showToast } = useToast()
   const trackSandboxStepAction = useSandboxStepTracker('clinic_info')
   const [statusFilter, setStatusFilter] = useState<ClinicStatus | undefined>(undefined)
   const [searchName, setSearchName] = useState('')
   const [showSandboxModal, setShowSandboxModal] = useState(false)
   const [isLoadingSandbox, setIsLoadingSandbox] = useState(false)
-  const [confirmDialog, setConfirmDialog] = useState<{
+  const [deletionRequests, setDeletionRequests] = useState<ClinicDeletionRequestResponse[]>([])
+  const [isLoadingDeletionRequests, setIsLoadingDeletionRequests] = useState(false)
+  const [deleteModal, setDeleteModal] = useState<{
     isOpen: boolean
     clinicId: string
-  }>({ isOpen: false, clinicId: '' })
+    reason: string
+    isSubmitting: boolean
+  }>({ isOpen: false, clinicId: '', reason: '', isSubmitting: false })
 
   const handleCreate = () => {
     if (isSandboxMode && currentGuideStep < 5) {
@@ -37,17 +43,41 @@ export function ClinicsListPage() {
   }
 
   const handleDeleteClick = (clinicId: string) => {
-    setConfirmDialog({ isOpen: true, clinicId })
+    setDeleteModal({ isOpen: true, clinicId, reason: '', isSubmitting: false })
   }
 
-  const handleConfirmDelete = async () => {
-    const { clinicId } = confirmDialog
-    setConfirmDialog({ isOpen: false, clinicId: '' })
+  const loadDeletionRequests = async () => {
+    setIsLoadingDeletionRequests(true)
     try {
-      await deleteClinic(clinicId)
-      fetchClinics({ status: statusFilter, name: searchName })
+      const response = await clinicService.getOwnerDeletionRequests(0, 5)
+      setDeletionRequests(response.content)
     } catch {
-      // Error handled by store
+      showToast('error', 'Không thể tải danh sách đơn xóa phòng khám')
+    } finally {
+      setIsLoadingDeletionRequests(false)
+    }
+  }
+
+  const handleSubmitDeleteRequest = async () => {
+    if (deleteModal.reason.trim().length < 10) {
+      showToast('error', 'Lý do xóa phải có ít nhất 10 ký tự')
+      return
+    }
+
+    setDeleteModal((prev) => ({ ...prev, isSubmitting: true }))
+    try {
+      await clinicService.submitClinicDeletionRequest(deleteModal.clinicId, deleteModal.reason.trim())
+      showToast('success', 'Đã gửi đơn xóa phòng khám, vui lòng chờ quản trị viên duyệt')
+      setDeleteModal({ isOpen: false, clinicId: '', reason: '', isSubmitting: false })
+      await getMyClinics()
+      await loadDeletionRequests()
+    } catch (error: unknown) {
+      const message =
+        error && typeof error === 'object' && 'response' in error
+          ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined
+      showToast('error', message || 'Không thể gửi đơn xóa phòng khám')
+      setDeleteModal((prev) => ({ ...prev, isSubmitting: false }))
     }
   }
 
@@ -58,6 +88,7 @@ export function ClinicsListPage() {
   // Load owner's clinics on first render
   useEffect(() => {
     getMyClinics()
+    void loadDeletionRequests()
   }, [getMyClinics])
 
   const handleEnterSandbox = async () => {
@@ -190,6 +221,40 @@ export function ClinicsListPage() {
             />
           </div>
 
+          <div className="mt-8 bg-white border-[3px] border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] p-6">
+            <h2 className="text-xl font-black uppercase tracking-tight mb-4">Đơn xóa phòng khám gần đây</h2>
+            {isLoadingDeletionRequests ? (
+              <div className="text-sm font-bold text-stone-600">Đang tải danh sách đơn xóa...</div>
+            ) : deletionRequests.length === 0 ? (
+              <div className="text-sm font-semibold text-stone-600">Bạn chưa gửi đơn xóa phòng khám nào.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full border-2 border-black">
+                  <thead>
+                    <tr className="bg-stone-100 border-b-2 border-black text-left text-xs font-black uppercase">
+                      <th className="p-2">Phòng khám</th>
+                      <th className="p-2">Trạng thái</th>
+                      <th className="p-2">Ghi chú Admin</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {deletionRequests.map((request) => (
+                      <tr key={request.requestId} className="border-b border-stone-300 text-sm">
+                        <td className="p-2 font-bold">{request.clinicName || request.clinicId}</td>
+                        <td className="p-2">
+                          {request.status === 'PENDING' && 'Đang chờ duyệt'}
+                          {request.status === 'APPROVED' && 'Đã duyệt xóa'}
+                          {request.status === 'REJECTED' && 'Đã từ chối'}
+                        </td>
+                        <td className="p-2">{request.adminNote || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
           <SandboxGuideModal
             isOpen={showSandboxModal}
             featureName="Thông tin phòng khám"
@@ -200,17 +265,41 @@ export function ClinicsListPage() {
         </div>
       </div>
 
-      {/* Confirm Dialog */}
-      <ConfirmDialog
-        isOpen={confirmDialog.isOpen}
-        onClose={() => setConfirmDialog({ isOpen: false, clinicId: '' })}
-        onConfirm={handleConfirmDelete}
-        title="Xóa phòng khám"
-        message="Bạn có chắc muốn xóa phòng khám này? Hành động này không thể hoàn tác."
-        confirmText="Xóa phòng khám"
-        cancelText="Hủy bỏ"
-        variant="danger"
-      />
+      {deleteModal.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-white border-4 border-black shadow-[16px_16px_0px_0px_rgba(0,0,0,1)] p-6">
+            <h3 className="text-xl font-black uppercase mb-3">Gửi đơn xóa phòng khám</h3>
+            <p className="text-sm font-semibold text-stone-700 mb-3">
+              Đơn xóa sẽ được gửi tới quản trị viên để duyệt. Vui lòng nhập lý do chi tiết.
+            </p>
+            <textarea
+              value={deleteModal.reason}
+              onChange={(e) => setDeleteModal((prev) => ({ ...prev, reason: e.target.value }))}
+              rows={4}
+              className="w-full border-4 border-black p-3 font-medium text-sm"
+              placeholder="Nhập lý do xóa phòng khám (ít nhất 10 ký tự)..."
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteModal({ isOpen: false, clinicId: '', reason: '', isSubmitting: false })}
+                className="px-4 py-2 font-black uppercase border-2 border-black bg-white"
+                disabled={deleteModal.isSubmitting}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSubmitDeleteRequest()}
+                className="px-4 py-2 font-black uppercase border-2 border-black bg-red-500 text-white disabled:opacity-50"
+                disabled={deleteModal.isSubmitting}
+              >
+                {deleteModal.isSubmitting ? 'Đang gửi...' : 'Gửi đơn xóa'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

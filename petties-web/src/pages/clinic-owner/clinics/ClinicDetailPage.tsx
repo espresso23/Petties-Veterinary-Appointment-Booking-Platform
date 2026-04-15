@@ -15,19 +15,24 @@ import { useClinicStore } from '../../../store/clinicStore'
 import { ClinicMapOSM } from '../../../components/clinic/ClinicMapOSM'
 import { DistanceCalculator } from '../../../components/clinic/DistanceCalculator'
 import { ClinicLogoDisplay } from '../../../components/clinic/ClinicLogoDisplay'
-import { ConfirmDialog } from '../../../components/common/ConfirmDialog'
+import { useToast } from '../../../components/Toast'
+import { clinicService } from '../../../services/api/clinicService'
 import { useSandboxStepTracker } from '../../../hooks/useSandboxStepTracker'
 import { ROUTES } from '../../../config/routes'
 
 export function ClinicDetailPage() {
   const { clinicId } = useParams<{ clinicId: string }>()
   const navigate = useNavigate()
-  const { currentClinic, fetchClinicById, deleteClinic, isLoading, error } = useClinicStore()
+  const { currentClinic, fetchClinicById, isLoading, error } = useClinicStore()
+  const { showToast } = useToast()
   const trackSandboxStepAction = useSandboxStepTracker('clinic_info')
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleteReason, setDeleteReason] = useState('')
+  const [isSubmittingDeleteRequest, setIsSubmittingDeleteRequest] = useState(false)
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
 
   const loadClinic = useCallback(() => {
     if (clinicId) {
@@ -75,17 +80,54 @@ export function ClinicDetailPage() {
   }, [currentClinic?.images])
 
   const handleDeleteClick = () => {
-    setShowDeleteConfirm(true)
+    setDeleteReason('')
+    setShowDeleteModal(true)
   }
 
-  const handleConfirmDelete = async () => {
+  const handleSubmitDeleteRequest = async () => {
     if (!clinicId) return
-    setShowDeleteConfirm(false)
+    if (deleteReason.trim().length < 10) {
+      showToast('error', 'Lý do xóa phải có ít nhất 10 ký tự')
+      return
+    }
+
+    setIsSubmittingDeleteRequest(true)
     try {
-      await deleteClinic(clinicId)
+      await clinicService.submitClinicDeletionRequest(clinicId, deleteReason.trim())
+      showToast('success', 'Đã gửi đơn xóa phòng khám, vui lòng chờ quản trị viên duyệt')
+      setShowDeleteModal(false)
       navigate(ROUTES.clinicOwner.clinics)
-    } catch {
-      // Error handled by store
+    } catch (error: unknown) {
+      const message =
+        error && typeof error === 'object' && 'response' in error
+          ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined
+      showToast('error', message || 'Không thể gửi đơn xóa phòng khám')
+    } finally {
+      setIsSubmittingDeleteRequest(false)
+    }
+  }
+
+  const handleToggleActiveStatus = async () => {
+    if (!clinicId || !currentClinic) return
+    setIsUpdatingStatus(true)
+    try {
+      if (currentClinic.status === 'APPROVED') {
+        await clinicService.suspendClinic(clinicId)
+        showToast('success', 'Đã tạm ngưng phòng khám')
+      } else if (currentClinic.status === 'SUSPENDED') {
+        await clinicService.activateClinic(clinicId)
+        showToast('success', 'Đã kích hoạt lại phòng khám')
+      }
+      await fetchClinicById(clinicId)
+    } catch (error: unknown) {
+      const message =
+        error && typeof error === 'object' && 'response' in error
+          ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined
+      showToast('error', message || 'Không thể cập nhật trạng thái phòng khám')
+    } finally {
+      setIsUpdatingStatus(false)
     }
   }
 
@@ -179,12 +221,25 @@ export function ClinicDetailPage() {
                     <PencilIcon className="w-4 h-4 mr-2" />
                     SỬA
                   </Link>
+                  {(currentClinic.status === 'APPROVED' || currentClinic.status === 'SUSPENDED') && (
+                    <button
+                      onClick={() => void handleToggleActiveStatus()}
+                      className="btn-brutal-outline text-blue-700 border-blue-700 hover:bg-blue-50"
+                      disabled={isUpdatingStatus}
+                    >
+                      {isUpdatingStatus
+                        ? 'Đang xử lý...'
+                        : currentClinic.status === 'APPROVED'
+                          ? 'TẠM NGƯNG'
+                          : 'KÍCH HOẠT'}
+                    </button>
+                  )}
                   <button
                     onClick={handleDeleteClick}
                     className="btn-brutal-outline text-red-600 border-red-600 hover:bg-red-50"
                   >
                     <TrashIcon className="w-4 h-4 mr-2" />
-                    XÓA
+                    GỬI ĐƠN XÓA
                   </button>
                 </div>
               </div>
@@ -584,17 +639,41 @@ export function ClinicDetailPage() {
         </div>
       </div>
 
-      {/* Confirm Dialog */}
-      <ConfirmDialog
-        isOpen={showDeleteConfirm}
-        onClose={() => setShowDeleteConfirm(false)}
-        onConfirm={handleConfirmDelete}
-        title="Xóa phòng khám"
-        message="Bạn có chắc muốn xóa phòng khám này? Hành động này không thể hoàn tác."
-        confirmText="Xóa phòng khám"
-        cancelText="Hủy bỏ"
-        variant="danger"
-      />
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-white border-4 border-black shadow-[16px_16px_0px_0px_rgba(0,0,0,1)] p-6">
+            <h3 className="text-xl font-black uppercase mb-3">Gửi đơn xóa phòng khám</h3>
+            <p className="text-sm font-semibold text-stone-700 mb-3">
+              Đơn xóa sẽ được gửi tới quản trị viên để duyệt. Vui lòng nhập lý do chi tiết.
+            </p>
+            <textarea
+              value={deleteReason}
+              onChange={(e) => setDeleteReason(e.target.value)}
+              rows={4}
+              className="w-full border-4 border-black p-3 font-medium text-sm"
+              placeholder="Nhập lý do xóa phòng khám (ít nhất 10 ký tự)..."
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 font-black uppercase border-2 border-black bg-white"
+                disabled={isSubmittingDeleteRequest}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSubmitDeleteRequest()}
+                className="px-4 py-2 font-black uppercase border-2 border-black bg-red-500 text-white disabled:opacity-50"
+                disabled={isSubmittingDeleteRequest}
+              >
+                {isSubmittingDeleteRequest ? 'Đang gửi...' : 'Gửi đơn xóa'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

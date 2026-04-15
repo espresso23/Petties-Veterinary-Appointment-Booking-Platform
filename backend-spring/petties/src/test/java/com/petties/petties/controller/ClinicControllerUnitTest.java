@@ -3,16 +3,20 @@ package com.petties.petties.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petties.petties.dto.clinic.ClinicRequest;
 import com.petties.petties.dto.clinic.ClinicResponse;
+import com.petties.petties.dto.clinic.ClinicDeletionRequestResponse;
+import com.petties.petties.dto.clinic.ClinicDeletionReviewAction;
 import com.petties.petties.dto.file.UploadResponse;
 import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.exception.ResourceNotFoundException;
 import com.petties.petties.model.User;
+import com.petties.petties.model.enums.ClinicDeletionRequestStatus;
 import com.petties.petties.model.enums.ClinicStatus;
 import com.petties.petties.config.JwtAuthenticationFilter;
 import com.petties.petties.config.JwtTokenProvider;
 import com.petties.petties.config.UserDetailsServiceImpl;
 import com.petties.petties.repository.BlacklistedTokenRepository;
 import com.petties.petties.service.AuthService;
+import com.petties.petties.service.ClinicDeletionRequestService;
 import com.petties.petties.service.ClinicService;
 import com.petties.petties.service.ClinicStaffService;
 import com.petties.petties.service.CloudinaryService;
@@ -76,6 +80,9 @@ class ClinicControllerUnitTest {
 
         @MockitoBean
         private ClinicStaffService clinicStaffService;
+
+        @MockitoBean
+        private ClinicDeletionRequestService clinicDeletionRequestService;
 
         @Autowired
         private ObjectMapper objectMapper;
@@ -468,5 +475,94 @@ class ClinicControllerUnitTest {
                                                                 Map.of("reason", "Lý do đủ mười ký tự trở lên để test"))))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.clinicId").value(clinicId.toString()));
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-CLINIC-052: Success - owner suspend clinic")
+        void suspendClinic_validRequest_returns200() throws Exception {
+                UUID clinicId = UUID.randomUUID();
+                User user = mockUser();
+                ClinicResponse response = mockClinic(clinicId, "Clinic Suspend");
+                response.setStatus(ClinicStatus.SUSPENDED);
+
+                when(authService.getCurrentUser()).thenReturn(user);
+                when(clinicService.updateOwnerClinicStatus(eq(clinicId), eq(user.getUserId()), eq(ClinicStatus.SUSPENDED)))
+                                .thenReturn(response);
+
+                mockMvc.perform(post("/clinics/{id}/suspend", clinicId))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.status").value("SUSPENDED"));
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-CLINIC-053: Success - owner activate clinic")
+        void activateClinic_validRequest_returns200() throws Exception {
+                UUID clinicId = UUID.randomUUID();
+                User user = mockUser();
+                ClinicResponse response = mockClinic(clinicId, "Clinic Active");
+                response.setStatus(ClinicStatus.APPROVED);
+
+                when(authService.getCurrentUser()).thenReturn(user);
+                when(clinicService.updateOwnerClinicStatus(eq(clinicId), eq(user.getUserId()), eq(ClinicStatus.APPROVED)))
+                                .thenReturn(response);
+
+                mockMvc.perform(post("/clinics/{id}/activate", clinicId))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.status").value("APPROVED"));
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-CLINIC-054: Success - owner submit deletion request")
+        void submitDeletionRequest_validRequest_returns201() throws Exception {
+                UUID clinicId = UUID.randomUUID();
+                UUID requestId = UUID.randomUUID();
+                User user = mockUser();
+
+                ClinicDeletionRequestResponse response = ClinicDeletionRequestResponse.builder()
+                                .requestId(requestId)
+                                .clinicId(clinicId)
+                                .ownerId(user.getUserId())
+                                .status(ClinicDeletionRequestStatus.PENDING)
+                                .reason("Lý do xóa hợp lệ để test")
+                                .build();
+
+                when(authService.getCurrentUser()).thenReturn(user);
+                when(clinicDeletionRequestService.submitDeletionRequest(eq(clinicId), eq(user.getUserId()), anyString()))
+                                .thenReturn(response);
+
+                mockMvc.perform(post("/clinics/{id}/deletion-requests", clinicId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(Map.of("reason", "Lý do xóa hợp lệ để test"))))
+                                .andExpect(status().isCreated())
+                                .andExpect(jsonPath("$.status").value("PENDING"));
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-CLINIC-055: Success - admin review deletion request")
+        void reviewDeletionRequest_validRequest_returns200() throws Exception {
+                UUID requestId = UUID.randomUUID();
+                User admin = mockUser();
+
+                ClinicDeletionRequestResponse response = ClinicDeletionRequestResponse.builder()
+                                .requestId(requestId)
+                                .status(ClinicDeletionRequestStatus.REJECTED)
+                                .adminNote("Không đủ điều kiện")
+                                .build();
+
+                when(authService.getCurrentUser()).thenReturn(admin);
+                when(clinicDeletionRequestService.reviewRequest(
+                                eq(requestId),
+                                eq(ClinicDeletionReviewAction.REJECT),
+                                eq("Không đủ điều kiện"),
+                                eq(admin.getUserId())))
+                                .thenReturn(response);
+
+                mockMvc.perform(post("/clinics/admin/deletion-requests/{requestId}/review", requestId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(Map.of(
+                                                "action", "REJECT",
+                                                "adminNote", "Không đủ điều kiện"))))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.status").value("REJECTED"));
         }
 }

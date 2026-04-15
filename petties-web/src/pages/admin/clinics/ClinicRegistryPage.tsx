@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { clinicService } from '../../../services/api/clinicService'
-import type { ClinicResponse, ClinicStatus } from '../../../types/clinic'
+import type { ClinicDeletionRequestResponse, ClinicResponse, ClinicStatus } from '../../../types/clinic'
 import { useToast } from '../../../components/Toast'
 import { ConfirmModal } from '../../../components/ConfirmModal'
 import { ArrowLeftIcon, XMarkIcon } from '@heroicons/react/24/outline'
@@ -38,6 +38,11 @@ export const ClinicRegistryPage = () => {
   const [banReason, setBanReason] = useState('')
   const [liftTarget, setLiftTarget] = useState<ClinicResponse | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [pendingDeletionRequests, setPendingDeletionRequests] = useState<ClinicDeletionRequestResponse[]>([])
+  const [loadingDeletionRequests, setLoadingDeletionRequests] = useState(false)
+  const [reviewingRequest, setReviewingRequest] = useState<ClinicDeletionRequestResponse | null>(null)
+  const [reviewAction, setReviewAction] = useState<'APPROVE' | 'REJECT'>('APPROVE')
+  const [reviewNote, setReviewNote] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -59,9 +64,22 @@ export const ClinicRegistryPage = () => {
     }
   }, [filterStatus, nameQuery, page, showToast])
 
+  const loadPendingDeletionRequests = useCallback(async () => {
+    setLoadingDeletionRequests(true)
+    try {
+      const data = await clinicService.getPendingDeletionRequests(0, 20)
+      setPendingDeletionRequests(data.content ?? [])
+    } catch {
+      showToast('error', 'Không thể tải danh sách đơn xóa phòng khám')
+    } finally {
+      setLoadingDeletionRequests(false)
+    }
+  }, [showToast])
+
   useEffect(() => {
     void load()
-  }, [load])
+    void loadPendingDeletionRequests()
+  }, [load, loadPendingDeletionRequests])
 
   const handleSearch = () => {
     setPage(0)
@@ -107,6 +125,42 @@ export const ClinicRegistryPage = () => {
           ? (e as { response?: { data?: { message?: string } } }).response?.data?.message
           : undefined
       showToast('error', msg ? String(msg) : 'Không thể gỡ hạn chế')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleOpenReviewDeletionRequest = (request: ClinicDeletionRequestResponse, action: 'APPROVE' | 'REJECT') => {
+    setReviewingRequest(request)
+    setReviewAction(action)
+    setReviewNote('')
+  }
+
+  const handleReviewDeletionRequest = async () => {
+    if (!reviewingRequest || submitting) return
+    if (reviewAction === 'REJECT' && reviewNote.trim().length === 0) {
+      showToast('error', 'Vui lòng nhập lý do từ chối')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      await clinicService.reviewDeletionRequest(
+        reviewingRequest.requestId,
+        reviewAction,
+        reviewNote.trim() || undefined,
+      )
+      showToast('success', reviewAction === 'APPROVE' ? 'Đã duyệt đơn xóa phòng khám' : 'Đã từ chối đơn xóa phòng khám')
+      setReviewingRequest(null)
+      setReviewNote('')
+      await load()
+      await loadPendingDeletionRequests()
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === 'object' && 'response' in e
+          ? (e as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined
+      showToast('error', msg ? String(msg) : 'Không thể xử lý đơn xóa phòng khám')
     } finally {
       setSubmitting(false)
     }
@@ -271,6 +325,60 @@ export const ClinicRegistryPage = () => {
         </div>
       )}
 
+      <div className="mt-8 bg-white border-4 border-stone-900 shadow-brutal overflow-hidden">
+        <div className="p-4 border-b-4 border-stone-900 bg-stone-100">
+          <h2 className="text-lg font-black uppercase">Đơn xóa phòng khám chờ duyệt</h2>
+        </div>
+        {loadingDeletionRequests ? (
+          <div className="p-6 text-sm font-bold text-stone-600">Đang tải danh sách đơn xóa...</div>
+        ) : pendingDeletionRequests.length === 0 ? (
+          <div className="p-6 text-sm font-bold text-stone-600">Hiện không có đơn xóa nào đang chờ duyệt.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="border-b-4 border-stone-900 bg-stone-100">
+                <tr className="text-left font-bold uppercase text-xs tracking-wider">
+                  <th className="p-3">Phòng khám</th>
+                  <th className="p-3">Chủ sở hữu</th>
+                  <th className="p-3">Lý do</th>
+                  <th className="p-3 text-center">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingDeletionRequests.map((request) => (
+                  <tr key={request.requestId} className="border-b-2 border-stone-200 hover:bg-amber-50">
+                    <td className="p-3">
+                      <div className="font-bold">{request.clinicName || 'Phòng khám'}</div>
+                      <div className="text-[10px] text-stone-500 font-mono">{request.clinicId}</div>
+                    </td>
+                    <td className="p-3 text-sm">{request.ownerName || '—'}</td>
+                    <td className="p-3 text-sm max-w-[420px]">{request.reason}</td>
+                    <td className="p-3">
+                      <div className="flex justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenReviewDeletionRequest(request, 'APPROVE')}
+                          className="px-3 py-1 text-xs font-bold uppercase bg-green-500 text-white border-2 border-stone-900"
+                        >
+                          Duyệt xóa
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenReviewDeletionRequest(request, 'REJECT')}
+                          className="px-3 py-1 text-xs font-bold uppercase bg-red-500 text-white border-2 border-stone-900"
+                        >
+                          Từ chối
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       {banTarget && (
         <div className="fixed inset-0 bg-stone-900/80 flex items-center justify-center z-100 p-4 backdrop-blur-sm">
           <div className="bg-white border-4 border-stone-900 shadow-[8px_8px_0_#1c1917] max-w-lg w-full p-6">
@@ -335,6 +443,60 @@ export const ClinicRegistryPage = () => {
         onCancel={() => !submitting && setLiftTarget(null)}
         isDanger={false}
       />
+
+      {reviewingRequest && (
+        <div className="fixed inset-0 bg-stone-900/80 flex items-center justify-center z-100 p-4 backdrop-blur-sm">
+          <div className="bg-white border-4 border-stone-900 shadow-[8px_8px_0_#1c1917] max-w-lg w-full p-6">
+            <div className="flex justify-between items-start mb-4">
+              <h2 className="text-lg font-bold uppercase">
+                {reviewAction === 'APPROVE' ? 'Duyệt đơn xóa phòng khám' : 'Từ chối đơn xóa phòng khám'}
+              </h2>
+              <button
+                type="button"
+                onClick={() => !submitting && setReviewingRequest(null)}
+                className="p-1 border-2 border-stone-900"
+                aria-label="Đóng"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-stone-700 mb-2">
+              Phòng khám: <span className="font-bold">{reviewingRequest.clinicName || reviewingRequest.clinicId}</span>
+            </p>
+            <p className="text-sm text-stone-700 mb-3">
+              Lý do: {reviewingRequest.reason}
+            </p>
+            <label className="block text-xs font-bold uppercase text-stone-600 mb-1">
+              {reviewAction === 'APPROVE' ? 'Ghi chú (không bắt buộc)' : 'Lý do từ chối (bắt buộc)'}
+            </label>
+            <textarea
+              value={reviewNote}
+              onChange={(e) => setReviewNote(e.target.value)}
+              rows={4}
+              className="w-full border-4 border-stone-900 p-3 font-medium text-sm mb-4"
+              placeholder={reviewAction === 'APPROVE' ? 'Nhập ghi chú nếu cần...' : 'Nhập lý do từ chối...'}
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => setReviewingRequest(null)}
+                className="px-4 py-2 font-bold uppercase border-2 border-stone-900 bg-white"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                disabled={submitting || (reviewAction === 'REJECT' && reviewNote.trim().length === 0)}
+                onClick={() => void handleReviewDeletionRequest()}
+                className={`px-4 py-2 font-bold uppercase text-white border-2 border-stone-900 disabled:opacity-50 ${reviewAction === 'APPROVE' ? 'bg-green-600' : 'bg-red-600'}`}
+              >
+                {submitting ? 'Đang xử lý...' : reviewAction === 'APPROVE' ? 'Xác nhận duyệt xóa' : 'Xác nhận từ chối'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

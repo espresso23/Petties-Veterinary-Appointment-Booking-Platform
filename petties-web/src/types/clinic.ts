@@ -1,4 +1,6 @@
 export type ClinicStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED'
+export type ClinicDeletionRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+export type ClinicDeletionReviewAction = 'APPROVE' | 'REJECT'
 
 export interface OperatingHours {
   openTime?: string // HH:mm format
@@ -158,4 +160,29 @@ export interface NearbyClinicsParams {
   radius?: number // kilometers, default 10
   page?: number
   size?: number
+}
+
+export interface ClinicDeletionRequestResponse {
+  requestId: string
+  clinicId: string
+  clinicName?: string
+  ownerId?: string
+  ownerName?: string
+  status: ClinicDeletionRequestStatus
+  reason: string
+  adminNote?: string
+  reviewedBy?: string
+  reviewedByName?: string
+  requestedAt?: string
+  reviewedAt?: string
+}
+
+export interface ClinicDeletionRequestListResponse {
+  content: ClinicDeletionRequestResponse[]
+  totalElements: number
+  totalPages: number
+  number: number
+  size: number
+  first: boolean
+  last: boolean
 }

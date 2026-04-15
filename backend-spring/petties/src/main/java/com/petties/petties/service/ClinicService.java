@@ -201,17 +201,35 @@ public class ClinicService {
 
         @Transactional
         public void deleteClinic(UUID clinicId, UUID ownerId) {
+                throw new BadRequestException("Tính năng xóa trực tiếp đã bị tắt. Vui lòng gửi đơn xóa để quản trị viên duyệt.");
+        }
+
+        @Transactional
+        public ClinicResponse updateOwnerClinicStatus(UUID clinicId, UUID ownerId, ClinicStatus targetStatus) {
+                if (targetStatus != ClinicStatus.APPROVED && targetStatus != ClinicStatus.SUSPENDED) {
+                        throw new BadRequestException("Trạng thái cập nhật không hợp lệ");
+                }
+
                 Clinic clinic = clinicRepository.findByIdAndNotDeleted(clinicId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
 
-                // Check ownership
-                // Note: Only Owners should be able to delete clinics. Managers can only update.
                 if (!clinic.getOwner().getUserId().equals(ownerId)) {
-                        throw new ForbiddenException("Chỉ chủ phòng khám mới có quyền xóa phòng khám");
+                        throw new ForbiddenException("Chỉ chủ phòng khám mới có quyền cập nhật trạng thái phòng khám");
                 }
 
-                clinicRepository.delete(clinic);
-                log.info("Clinic deleted (soft): {} by owner: {}", clinicId, ownerId);
+                if (targetStatus == ClinicStatus.SUSPENDED && clinic.getStatus() != ClinicStatus.APPROVED) {
+                        throw new BadRequestException("Chỉ có thể tạm ngưng phòng khám đang ở trạng thái đã duyệt");
+                }
+
+                if (targetStatus == ClinicStatus.APPROVED && clinic.getStatus() != ClinicStatus.SUSPENDED) {
+                        throw new BadRequestException("Chỉ có thể kích hoạt lại phòng khám đang tạm ngưng");
+                }
+
+                clinic.setStatus(targetStatus);
+                clinic = clinicRepository.save(clinic);
+                log.info("Clinic status updated by owner. clinicId={}, ownerId={}, targetStatus={}", clinicId, ownerId,
+                                targetStatus);
+                return mapToResponse(clinic);
         }
 
         @Transactional(readOnly = true)
