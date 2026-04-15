@@ -58,8 +58,11 @@ export function MasterServiceGrid() {
   const [isClinicModalOpen, setIsClinicModalOpen] = useState(false)
   const [showSandboxModal, setShowSandboxModal] = useState(false)
   const [isLoadingSandbox, setIsLoadingSandbox] = useState(false)
-  const { enterSandbox } = useSandboxStore()
+  const { enterSandbox, isSandboxMode, currentFeature, currentGuideStep } = useSandboxStore()
   const trackSandboxStepAction = useSandboxStepTracker('master_services')
+  const sandboxFeaturedServiceId = isSandboxMode && currentFeature === 'master_services' && currentGuideStep >= 3 && services.length > 0
+    ? services[0].id
+    : null
 
   // Fetch master services on mount
   useEffect(() => {
@@ -289,6 +292,15 @@ export function MasterServiceGrid() {
                 <button
                   onClick={(e) => {
                     setIsApplyMode(true)
+                    if (
+                      isSandboxMode
+                      && currentFeature === 'master_services'
+                      && currentGuideStep === 3
+                      && services.length > 0
+                      && selectedServiceIds.size === 0
+                    ) {
+                      setSelectedServiceIds(new Set([services[0].id]))
+                    }
                     trackSandboxStepAction('master_services.enter_apply_mode', e.currentTarget)
                   }}
                   style={{ backgroundColor: '#16a34a' }}
@@ -423,8 +435,8 @@ export function MasterServiceGrid() {
                 onClick={() => { }}
                 isSelectable={isApplyMode}
                 isSelected={selectedServiceIds.has(service.id)}
+                isSandboxFeatured={sandboxFeaturedServiceId === service.id}
                 onSelect={(selected) => {
-                  trackSandboxStepAction('master_services.open_template_card', document.activeElement)
                   const newSet = new Set(selectedServiceIds)
                   if (selected) {
                     newSet.add(service.id)

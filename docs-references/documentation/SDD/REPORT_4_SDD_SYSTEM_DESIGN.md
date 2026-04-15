@@ -4,7 +4,7 @@
 
 **Project:** Petties - Veterinary Appointment Booking Platform
 **Version:** 3.4.0 (Added clinic-owner sandbox guided flow rewrite)
-**Last Updated:** 2026-04-09
+**Last Updated:** 2026-04-15
 **Document Status:** In Progress
 
 ## TABLE OF CONTENTS
@@ -5218,6 +5218,18 @@ sequenceDiagram
     UI-->>Owner: 10. Show uploaded image
     deactivate UI
 ```
+
+#### 4.10.5 Cross-Reference to SRS
+
+| SDD Section | SRS Reference | Description |
+|-------------|---------------|-------------|
+| 4.10.2 Create Clinic (UC-CO-03) | 3.6.9.1 Register Clinic | Create a new clinic, upload required documents, and return the created record |
+| 4.10.3 Approve/Reject Clinic (Admin Approval Flow) | 3.6.9.5 View Clinic Pending List | Admin reviews the pending queue, opens the detail modal, and decides approve/reject |
+| 4.10.4 Upload Clinic Image | 3.6.9.1 Register Clinic, 3.6.9.2 Update Clinic | Image upload is available after clinic creation or while editing the clinic |
+| 4.10.5 View Clinic List | 3.6.9.3 View Clinic List | Owner browses the clinic list, filters by status, and opens clinic cards |
+| 4.10.6 View Clinic Details | 3.6.9.4 View Clinic Details | Owner inspects clinic profile, gallery, status, and quick actions |
+| 4.10.7 Update Clinic | 3.6.9.2 Update Clinic | Owner updates an existing clinic through the edit form |
+| 4.10.8 View Clinic Pending List | 3.6.9.5 View Clinic Pending List | Admin views the pending clinic table and the approve/reject actions |
 
 ---
 

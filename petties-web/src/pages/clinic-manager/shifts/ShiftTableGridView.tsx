@@ -41,9 +41,9 @@ export interface ShiftTableGridViewProps {
     selectedShift: StaffShiftResponse | null
     /** staffId đang được chọn trong form gán lịch (để đồng bộ highlight) */
     formStaffId?: string | null
-    onRowClick: (staffId: string, staffShift: StaffShiftResponse | undefined, dateStr: string) => void
+    onRowClick: (staffId: string, staffShift: StaffShiftResponse | undefined, dateStr: string, source?: EventTarget | null) => void
     /** Khi user chọn khung giờ (click hoặc kéo thả) để gán lịch */
-    onTimeRangeSelect: (staffId: string, dateStr: string, startTime: string, endTime: string) => void
+    onTimeRangeSelect: (staffId: string, dateStr: string, startTime: string, endTime: string, source?: EventTarget | null) => void
 }
 
 export const ShiftTableGridView = ({
@@ -132,7 +132,7 @@ export const ShiftTableGridView = ({
         const hi = Math.max(startIdx, endIdx)
         const startTime = slots[lo]
         const endTime = getSlotEnd(slots[hi])
-        onTimeRangeSelect(dragRef.current.staffId, dateStr, startTime, endTime)
+        onTimeRangeSelect(dragRef.current.staffId, dateStr, startTime, endTime, scrollContainerRef.current)
         setCommittedSelection({ staffId: dragRef.current.staffId, startIdx: lo, endIdx: hi })
         dragRef.current = { isSelecting: false, staffId: '', startIdx: -1 }
         setSelectingStaffId(null)
@@ -305,7 +305,7 @@ export const ShiftTableGridView = ({
                                         className={`border-b border-stone-200 hover:bg-stone-50/50 cursor-pointer ${
                                             selectedShift?.shiftId === staffShift?.shiftId ? 'bg-amber-50' : ''
                                         }`}
-                                        onClick={() => onRowClick(staff.userId, staffShift, dateStr)}
+                                        onClick={(e) => onRowClick(staff.userId, staffShift, dateStr, e.currentTarget)}
                                     >
                                         <td className="sticky left-0 z-10 bg-white border-r-2 border-stone-200 p-3 font-bold text-stone-900 min-w-[160px]">
                                             <div className="flex items-center gap-3">

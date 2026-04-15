@@ -6,6 +6,8 @@ import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.exception.ResourceNotFoundException;
 import com.petties.petties.model.*;
 import com.petties.petties.model.enums.ClinicStatus;
+import com.petties.petties.model.enums.Role;
+import com.petties.petties.model.enums.StaffSpecialty;
 import com.petties.petties.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -146,8 +148,9 @@ public class SandboxService {
                     break;
 
                 case "scheduling":
-                    // Seed example shifts and slots using the current user as demo staff
-                    createSampleShiftsAndSlots(sandbox, currentUser);
+                    // Seed example shifts and slots with a valid STAFF account to avoid transactional rollback.
+                    User sandboxStaff = resolveSandboxSchedulingStaff(sandbox, currentUser);
+                    createSampleShiftsAndSlots(sandbox, sandboxStaff);
                     log.info("Sandbox scheduling initialized with sample staff and shifts");
                     break;
 
@@ -210,9 +213,29 @@ public class SandboxService {
         }
     }
 
-    /**
-     * Create sample staff for sandbox
-     */
+    private User resolveSandboxSchedulingStaff(Clinic sandboxClinic, User currentUser) {
+        if (currentUser != null && currentUser.getRole() == Role.STAFF) {
+            return currentUser;
+        }
+
+        List<User> existingSandboxStaff = userRepository.findByWorkingClinicAndRole(sandboxClinic, Role.STAFF);
+        if (!existingSandboxStaff.isEmpty()) {
+            return existingSandboxStaff.get(0);
+        }
+
+        User sandboxStaff = User.builder()
+                .username("sandbox_staff_" + sandboxClinic.getClinicId().toString().substring(0, 8))
+                .password("sandbox-not-for-login")
+                .email("sandbox.staff." + sandboxClinic.getClinicId().toString().substring(0, 8) + "@petties.local")
+                .fullName("Nhân viên mẫu Sandbox")
+                .role(Role.STAFF)
+                .specialty(StaffSpecialty.VET)
+                .workingClinic(sandboxClinic)
+                .build();
+
+        return userRepository.save(sandboxStaff);
+    }
+
     /**
      * Create sample shifts and slots for sandbox
      */

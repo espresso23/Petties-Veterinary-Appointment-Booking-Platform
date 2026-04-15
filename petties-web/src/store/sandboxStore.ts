@@ -289,16 +289,20 @@ export const SANDBOX_GUIDE_DEFINITIONS: Record<SandboxFeature, SandboxStepDefini
       description: 'Chuyển sang chế độ chọn nhiều dịch vụ mẫu trước khi áp dụng sang clinic.',
       actionLabel: 'Hãy bấm nút chọn & áp dụng để chuyển sang chế độ chọn.',
       actionKey: 'master_services.enter_apply_mode',
-      hint: 'Sau khi bật chế độ chọn, hãy tick một hoặc nhiều dịch vụ mẫu trong danh sách.',
+      hint: 'Sau khi bật chế độ chọn, một dịch vụ mẫu sandbox sẽ được làm nổi bật để bạn tick nhanh.',
       checklist: [
-        { id: 'apply-mode', label: 'Đã bật chế độ chọn & áp dụng' },
         { id: 'select-template', label: 'Đã chọn ít nhất một dịch vụ mẫu' },
+        { id: 'apply-mode', label: 'Đã bật chế độ chọn & áp dụng' },
       ],
+      focusTargets: {
+        'apply-mode': '[data-sandbox-target="master-services-apply-mode"]',
+        'select-template': '[data-sandbox-target="master-services-sandbox-service"]',
+      },
       focusSelector: '[data-sandbox-target="master-services-apply-mode"]',
     },
     {
       title: 'Bước 4: Áp dụng dịch vụ mẫu cho clinic',
-      description: 'Chọn clinic nhận template rồi xác nhận áp dụng.',
+      description: 'Chọn clinic nhận template rồi xác nhận áp dụng. Nút áp dụng chỉ hiện sau khi đã chọn ít nhất một dịch vụ mẫu.',
       actionLabel: 'Hãy bấm nút áp dụng để mở danh sách clinic.',
       actionKey: 'master_services.open_apply_clinics',
       hint: 'Sau khi chọn clinic, hệ thống sẽ tạo dịch vụ phòng khám tương ứng từ template đã chọn.',
@@ -338,12 +342,12 @@ export const SANDBOX_GUIDE_DEFINITIONS: Record<SandboxFeature, SandboxStepDefini
       description: 'Quan sát dữ liệu ca làm việc để hiểu cấu trúc hiển thị.',
       actionLabel: 'Hãy bấm vào một ca hoặc chọn một ô lịch để hệ thống ghi nhận.',
       actionKey: 'scheduling.inspect_shift',
-      hint: 'Ở bảng khung giờ, bấm vào một ô đã có ca hoặc kéo chọn một ô để mở phần thao tác bên phải.',
+      hint: 'Quan sát panel Chi tiết ca bên phải và bấm vào tab hoặc nội dung chi tiết để ghi nhận thao tác bắt buộc.',
       checklist: [
         { id: 'check-shift', label: 'Đã kiểm tra một ca làm việc' },
         { id: 'check-status', label: 'Đã kiểm tra trạng thái ca' },
       ],
-      focusSelector: '[data-sandbox-target="schedule-content"]',
+      focusSelector: '[data-sandbox-target="schedule-shift-detail"]',
     },
     {
       title: 'Bước 3: Kiểm tra thao tác quản lý nhanh',
@@ -469,7 +473,11 @@ export function resolveSandboxFocusSelector(
   }
 
   const currentProgress = stepProgress[guideStep]
-  if (!currentProgress || !stepDefinition.focusTargets) {
+  if (!currentProgress) {
+    return stepDefinition.focusSelector || null
+  }
+
+  if (!currentProgress.actionCompleted || !stepDefinition.focusTargets) {
     return stepDefinition.focusSelector || null
   }
 

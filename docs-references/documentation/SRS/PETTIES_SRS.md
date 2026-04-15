@@ -9,7 +9,7 @@
 **Project:** Petties - Veterinary Appointment Booking Platform
 
 **Version:** 2.4.0 (Added clinic-owner sandbox guided flow rewrite)
-**Last Updated:** 2026-04-09
+**Last Updated:** 2026-04-15
 **Document Status:** In Progress
 
 
@@ -4115,6 +4115,256 @@ Figure 29. Screen Branch Pricing Configuration (Web)
     2. System deletes the demo clinic and all linked sandbox data.
 
     3. Owner listing no longer shows the sandbox card.
+
+
+#### *3.6.9 Clinic Management User Guide*
+
+This section documents the actual clinic-management screens and actions currently implemented in the web client. Button labels are kept exactly as they appear in the UI, while the guide text is written in English for documentation consistency.
+
+##### *3.6.9.1 Register Clinic*
+
+**User Story:**
+
+> *As a Clinic Owner, I want to register a new clinic so that my branch can be reviewed and approved before it becomes publicly available.*
+
+**Function trigger**
+
+- **Navigation path:** Clinic Owner Dashboard → My Clinics → "Đăng kí phòng khám".
+- **Timing frequency:** On demand.
+
+**Function description**
+
+- **Actors/Roles:** Clinic Owner.
+- **Purpose:** Create a new clinic record with the required legal and contact information.
+- **Interface:** Clinic form, business license upload, operating hours editor, logo upload, and image upload after creation.
+
+**Data processing**
+
+1. The owner opens the create-clinic page from the My Clinics screen.
+2. The owner fills in the clinic name, description, address, province/district/ward, specific location, phone, email, operating hours, SOS fee, and bank information.
+3. The owner uploads the business license file and submits the form by clicking "LƯU".
+4. The system creates the clinic with `PENDING` status and keeps the record linked to the current owner.
+5. After creation, the system shows the success state, allows image upload, and provides the actions "XEM CHI TIẾT" and "QUAY LẠI DANH SÁCH".
+
+**Screen layout**
+
+Figure 26. Screen Clinic Registration (Web)
+
+**Function details**
+
+- **Data:**
+    - **Input fields:** `name`, `description`, `address`, `ward`, `district`, `province`, `specificLocation`, `phone`, `email`, `operatingHours`, `latitude`, `longitude`, `businessLicenseUrl`, `logo`, `sosFee`, `bankName`, `accountNumber`.
+    - **Output fields:** Created clinic record with `PENDING` status, owner linkage, and optional image upload state.
+- **Validation:**
+    - Clinic name, address, phone, and business license are required.
+    - Phone must match the local phone format.
+    - Email must be valid when provided.
+- **Business rules:**
+    - The clinic is created with `PENDING` status.
+    - The business license is required before the clinic can be approved.
+    - Image upload is available only after the clinic record exists.
+- **Normal case:**
+    1. Owner fills in the form and clicks "LƯU".
+    2. System creates the clinic successfully.
+    3. Owner uploads the clinic logo and images.
+    4. Owner clicks "XEM CHI TIẾT" to review the created clinic.
+- **Abnormal case:**
+    - A1. Missing required fields — The form blocks submission and shows an error.
+    - A2. Invalid business license file — Upload is rejected before submission.
+    - A3. API failure — The system keeps the user on the create page and shows the store error state.
+
+##### *3.6.9.2 Update Clinic*
+
+**User Story:**
+
+> *As a Clinic Owner, I want to edit the clinic information that I already created so that the public profile stays accurate and up to date.*
+
+**Function trigger**
+
+- **Navigation path:** My Clinics → clinic card / detail page → "Chỉnh sửa" or "SỬA".
+- **Timing frequency:** On demand.
+
+**Function description**
+
+- **Actors/Roles:** Clinic Owner, Clinic Manager for editable fields when allowed by the UI.
+- **Purpose:** Update existing clinic information without creating a new clinic record.
+- **Interface:** Prefilled clinic form, confirm dialog for sandbox branch decisions, image management sections.
+
+**Data processing**
+
+1. The user opens the clinic detail page and selects "SỬA" or opens edit from the clinic card.
+2. The form loads the current clinic data, including contact information, operating hours, and pricing-related fields.
+3. The user edits the fields and clicks "LƯU".
+4. The system updates the clinic via the existing clinic ID and returns the user to the clinic detail page.
+5. In sandbox mode, the system may show a branch dialog after step completion so the guided flow can continue.
+
+**Screen layout**
+
+Figure 27. Screen Clinic Edit (Web)
+
+**Function details**
+
+- **Data:**
+    - **Input fields:** Same clinic form fields as register clinic, loaded from the current clinic record.
+    - **Output fields:** Updated clinic summary and refreshed detail view.
+- **Validation:**
+    - The same form-level validation rules as register clinic apply.
+    - The clinic must exist and belong to the current owner.
+- **Business rules:**
+    - The update uses `PUT /api/clinics/{id}`.
+    - The save action is labeled "LƯU" in the form.
+    - Sandbox mode can branch back to the clinic list after the guided step is completed.
+- **Normal case:**
+    1. Owner opens the edit form.
+    2. Owner updates the description or contact details.
+    3. Owner clicks "LƯU".
+    4. System saves the changes and returns to the detail page.
+- **Abnormal case:**
+    - A1. Validation failure — The form blocks saving.
+    - A2. Ownership mismatch — The backend rejects the update.
+    - A3. Sandbox branch declined — The system exits sandbox and returns to the clinic list.
+
+##### *3.6.9.3 View Clinic List*
+
+**User Story:**
+
+> *As a Clinic Owner, I want to view my clinic list so that I can search, inspect, edit, or delete each clinic from one place.*
+
+**Function trigger**
+
+- **Navigation path:** Clinic Owner Dashboard → "Phòng Khám Của Tôi".
+- **Timing frequency:** On demand.
+
+**Function description**
+
+- **Actors/Roles:** Clinic Owner.
+- **Purpose:** Show all clinics owned by the current user.
+- **Interface:** Search/filter controls, "Đăng kí phòng khám" button, clinic cards, "Chỉnh sửa" and "Xóa" actions.
+
+**Data processing**
+
+1. The page loads the current owner's clinics on first render.
+2. The owner can filter by status and clinic name.
+3. The owner can click "Đăng kí phòng khám" to create a new clinic.
+4. The owner can click a clinic card to open the detail page.
+5. The owner can use "Chỉnh sửa" or "Xóa" from the card actions.
+
+**Screen layout**
+
+Figure 28. Screen My Clinics (Web)
+
+**Function details**
+
+- **Data:**
+    - **Input fields:** `status`, `name`, page index.
+    - **Output fields:** Paginated clinic cards with status, address, and action buttons.
+- **Validation:**
+    - The page must load data for the authenticated clinic owner.
+    - Filter values are optional.
+- **Business rules:**
+    - Sandbox mode highlights the demo clinic card and blocks the create button until the guided flow reaches the correct step.
+- **Normal case:**
+    1. Owner opens the clinic list.
+    2. Owner filters by `PENDING` or searches by name.
+    3. Owner opens a clinic card or selects "Chỉnh sửa".
+- **Abnormal case:**
+    - A1. No clinics found — The screen shows an empty state.
+    - A2. Data load failure — The store error message is displayed.
+
+##### *3.6.9.4 View Clinic Details*
+
+**User Story:**
+
+> *As a Clinic Owner, I want to open a clinic detail page so that I can review the profile, gallery, status, and quick actions before editing or deleting.*
+
+**Function trigger**
+
+- **Navigation path:** My Clinics → clinic card click or "SỬA" / "Chỉnh sửa" entry.
+- **Timing frequency:** On demand.
+
+**Function description**
+
+- **Actors/Roles:** Clinic Owner.
+- **Purpose:** Show the clinic profile in detail.
+- **Interface:** Clinic header, status badge, gallery, operating hours, logo, back button, edit button, and delete button.
+
+**Data processing**
+
+1. The user opens a clinic card from the list.
+2. The system loads the clinic profile by ID.
+3. The page renders images, contact details, operating hours, and status information.
+4. The user can go back using "← QUAY LẠI DANH SÁCH", edit using "SỬA", or delete using "XÓA".
+
+**Screen layout**
+
+Figure 29. Screen Clinic Detail (Web)
+
+**Function details**
+
+- **Data:**
+    - **Input fields:** `clinicId`.
+    - **Output fields:** Full clinic profile, gallery, and quick-action buttons.
+- **Validation:** The clinic must exist and must not be deleted.
+- **Business rules:**
+    - Only the owner can use the edit and delete actions from this page.
+    - Gallery and status are read from the current clinic record.
+- **Normal case:**
+    1. Owner opens a clinic card.
+    2. Owner reviews details and gallery.
+    3. Owner clicks "SỬA" or returns to the list.
+- **Abnormal case:**
+    - A1. Clinic not found — The page shows a not-found state.
+    - A2. Fetch failure — The error message is displayed in the content area.
+
+##### *3.6.9.5 View Clinic Pending List*
+
+**User Story:**
+
+> *As an Admin, I want to view the pending clinic list so that I can review new registrations and decide whether to approve or reject them.*
+
+**Function trigger**
+
+- **Navigation path:** Admin Dashboard → Pending Clinics.
+- **Timing frequency:** On demand.
+
+**Function description**
+
+- **Actors/Roles:** Admin.
+- **Purpose:** Review clinic registration requests that are waiting for approval.
+- **Interface:** Pending clinic table, "LÀM MỚI" button, "Xem", "Duyệt", "Từ chối" actions, pagination.
+
+**Data processing**
+
+1. The admin opens the pending clinics page.
+2. The system loads clinics with `PENDING` status.
+3. The admin can inspect one row with "Xem" to open the detail modal.
+4. The admin can approve or reject the selected clinic from the action buttons.
+5. After a decision, the system reloads the queue and updates the pending count badge.
+
+**Screen layout**
+
+Figure 30. Screen Clinic Approval Queue (Web)
+
+**Function details**
+
+- **Data:**
+    - **Input fields:** page index, page size, sort settings.
+    - **Output fields:** pending clinic table, total count, approve/reject modal states.
+- **Validation:**
+    - Approve is allowed only for clinics that are still `PENDING`.
+    - Reject requires a non-empty reason.
+- **Business rules:**
+    - The list uses `/api/clinics/admin/pending`.
+    - The counter uses `/api/clinics/admin/pending/count`.
+- **Normal case:**
+    1. Admin opens the queue.
+    2. Admin clicks "Xem" to inspect the clinic.
+    3. Admin clicks "Duyệt" or "Từ chối".
+    4. The list refreshes after the decision.
+- **Abnormal case:**
+    - A1. Empty queue — The table shows no pending clinics.
+    - A2. Rejection without reason — The modal blocks submission.
+    - A3. Network failure — The page shows the error toast and keeps the current list state.
 
 
 ### 3.7 Staff Management & Scheduling

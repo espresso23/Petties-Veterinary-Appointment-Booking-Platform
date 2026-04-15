@@ -34,6 +34,7 @@ interface MasterServiceCardProps {
   onClick: () => void
   isSelectable?: boolean
   isSelected?: boolean
+  isSandboxFeatured?: boolean
   onSelect?: (selected: boolean) => void
 }
 
@@ -45,6 +46,7 @@ export function MasterServiceCard({
   onClick,
   isSelectable = false,
   isSelected = false,
+  isSandboxFeatured = false,
   onSelect,
 }: MasterServiceCardProps) {
   const [showPriceModal, setShowPriceModal] = useState(false)
@@ -91,10 +93,16 @@ export function MasterServiceCard({
   return (
     <div
       onClick={onClick}
-      data-sandbox-target="master-service-card"
+      data-sandbox-target={isSandboxFeatured ? 'master-services-sandbox-service' : 'master-service-card'}
       className={`group relative bg-white border-4 border-black p-6 cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between h-full min-h-[200px] ${isSelectable && isSelected ? 'ring-4 ring-green-500' : ''
-        }`}
+        } ${isSandboxFeatured ? 'ring-4 ring-amber-500 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] scale-[1.015]' : ''}`}
     >
+      {isSandboxFeatured && (
+        <div className="absolute top-4 right-4 z-20 bg-amber-100 border-2 border-black px-2 py-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+          <span className="text-[10px] font-black uppercase text-black">Dịch vụ sandbox</span>
+        </div>
+      )}
+
       {/* Checkbox for selection mode */}
       {isSelectable && (
         <div className="absolute top-4 left-4 z-20">
