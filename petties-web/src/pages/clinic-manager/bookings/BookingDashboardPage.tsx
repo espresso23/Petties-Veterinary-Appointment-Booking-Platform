@@ -1306,33 +1306,6 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
                         </div>
                     )}
 
-                    {/* QR Code Display (when QR checkout is active) */}
-                    {booking.paymentStatus === 'PENDING' && booking.qrImageUrl && (
-                        <div className="border-2 border-blue-500 bg-blue-50 p-4 mb-4">
-                            <h3 className="font-bold uppercase text-sm mb-3 text-blue-700 text-center">
-                                Quét mã QR để thanh toán
-                            </h3>
-                            <div className="flex justify-center mb-3">
-                                <img
-                                    src={booking.qrImageUrl}
-                                    alt={booking.bookingCode}
-                                    className="w-56 h-56 border-2 border-stone-900"
-                                />
-                            </div>
-                            <div className="text-center">
-                                <div className="text-lg font-bold text-stone-900">
-                                    {Number(booking.finalPrice ?? booking.totalPrice).toLocaleString('vi-VN')} VNĐ
-                                </div>
-                                <div className="flex items-center justify-center gap-2 mt-2">
-                                    <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-                                    <span className="text-sm text-blue-600 font-medium">
-                                        Đang chờ thanh toán...
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
                     {/* Assigned Staff (Top level - e.g. for SOS) */}
                     {booking.type === 'SOS' && booking.assignedStaffName && (
                         <div className="border-2 border-stone-900 p-4 bg-mint-50">

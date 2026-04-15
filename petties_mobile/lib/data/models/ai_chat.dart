@@ -391,7 +391,14 @@ class AiBookingServiceOption {
 
     return AiBookingServiceOption(
       id: _pickString(['id', 'service_id', 'serviceId', 'item_id']),
-      name: _pickString(['name', 'service_name', 'serviceName', 'label']),
+      name: _pickString([
+        'display_name',
+        'canonical_name',
+        'name',
+        'service_name',
+        'serviceName',
+        'label',
+      ]),
       clinicId: _pickNullableString(['clinic_id', 'clinicId']),
       category: _pickNullableString(['category']),
       basePrice: _pickDouble(['base_price', 'basePrice', 'price']),

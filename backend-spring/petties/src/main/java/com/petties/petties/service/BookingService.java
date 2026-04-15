@@ -508,6 +508,19 @@ public class BookingService {
                         }
                         log.debug("Services added to booking object");
 
+                        // ========== DUPLICATE BOOKING CHECK ==========
+                        // Check before insert to give clear Vietnamese error message
+                        boolean hasDuplicate = bookingRepository.existsActiveBookingAtTime(
+                                        request.getPetId(),
+                                        request.getClinicId(),
+                                        request.getBookingDate(),
+                                        request.getBookingTime());
+                        if (hasDuplicate) {
+                                throw new BadRequestException(
+                                                "Thú cưng này đã có lịch hẹn đang hoạt động vào thời gian này tại phòng khám. " +
+                                                                "Vui lòng hủy lịch cũ trước hoặc chọn thời gian khác.");
+                        }
+
                         // Generate unique booking code using UUID (no race condition)
                         String bookingCode = Booking.generateUniqueBookingCode(request.getBookingDate());
                                         booking.setBookingCode(bookingCode);
