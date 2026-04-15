@@ -3,8 +3,8 @@
 > Update note dated 2026-03-17: older sections describing `analyze_pet_image`, Visual Case Memory from image feedback, Label Studio, or the previous feedback loop are no longer the deployed architecture. The current AI diagnosis technical reference is defined in [AI_SERVICE_TECHNICAL_SPECIFICATION.md](D:/SEP490/petties/docs-references/documentation/AI_SERVICE_TECHNICAL_SPECIFICATION.md) and [AI_DIAGNOSIS_FEATURE_PLAN.md](D:/SEP490/petties/docs-references/documentation/AI_DIAGNOSIS_FEATURE_PLAN.md).
 
 **Project:** Petties - Veterinary Appointment Booking Platform
-**Version:** 3.3.8 (Aligned API coverage with merged commercial and AI runtime modules)
-**Last Updated:** 2026-03-25
+**Version:** 3.4.0 (Added clinic-owner sandbox guided flow rewrite)
+**Last Updated:** 2026-04-09
 **Document Status:** In Progress
 
 ## TABLE OF CONTENTS
@@ -2614,6 +2614,122 @@ Use separate vectors for text and image retrieval:
 | GET | `/api/clinics/nearby` | Geo-search nearby | Public |
 | GET | `/api/clinics/search` | Name search | Public |
 | GET | `/api/clinics/owner/my-clinics` | Get my clinics | Clinic Owner |
+
+#### 3.1.3.1 Clinic Owner Sandbox Guided Clinic Management
+
+This flow supports the temporary demo experience used by Clinic Owners to learn clinic list browsing, detail inspection, description editing, and create-clinic navigation. The UI is driven by the web sandbox store, while the backend sandbox service creates and deletes the demo clinic and its related sample data.
+
+##### Class Diagram
+```mermaid
+classDiagram
+    class SandboxController {
+        +enterSandbox(String, UUID) ClinicResponse
+        +getCurrentSandbox() ClinicResponse
+        +exitSandbox(UUID) void
+    }
+
+    class SandboxService {
+        +enterSandboxMode(String, UUID) ClinicResponse
+        +getCurrentSandbox(UUID) ClinicResponse
+        +exitSandboxMode(UUID, UUID) void
+    }
+
+    class ClinicRepository {
+        <<interface>>
+        +findByOwnerUserId(UUID, Pageable) Page~Clinic~
+        +findByIdAndNotDeleted(UUID) Optional~Clinic~
+    }
+
+    class ClinicsListPage {
+        +handleEnterSandbox() void
+        +handleOpenClinic(UUID) void
+        +handleOpenCreateClinic() void
+    }
+
+    class ClinicDetailPage {
+        +handleEditClinic() void
+        +handleDeleteClinic() void
+    }
+
+    class ClinicEditPage {
+        +handleSubmit(ClinicRequest) void
+        +handleBranchChoice(boolean) void
+    }
+
+    class ClinicForm {
+        +handleSubmit(FormData) void
+    }
+
+    class SandboxGuideSteps {
+        +goToNextStep() void
+        +toggleChecklistItem(String) void
+    }
+
+    SandboxController --> SandboxService
+    SandboxService --> ClinicRepository
+    ClinicsListPage --> SandboxGuideSteps
+    ClinicsListPage --> ClinicDetailPage
+    ClinicDetailPage --> ClinicEditPage
+    ClinicEditPage --> ClinicForm
+    ClinicForm --> SandboxGuideSteps
+```
+
+##### Class Specifications
+
+**1. SandboxController**
+- **Responsibility:** Exposes sandbox lifecycle endpoints for the web client.
+- **Key Methods:** `enterSandbox`, `getCurrentSandbox`, `exitSandbox`.
+
+**2. SandboxService**
+- **Responsibility:** Creates the demo clinic, seeds feature-specific data, and deletes sandbox records on exit or cleanup.
+- **Key Methods:** `enterSandboxMode`, `getCurrentSandbox`, `exitSandboxMode`.
+
+**3. ClinicsListPage**
+- **Responsibility:** Starts the sandbox tutorial, highlights the demo clinic, and routes the user into the detail/create flows.
+- **Key Methods:** `handleEnterSandbox`, `handleOpenClinic`, `handleOpenCreateClinic`.
+
+**4. ClinicDetailPage**
+- **Responsibility:** Displays the clinic detail walkthrough and emits sandbox actions for the reviewed sections.
+- **Key Methods:** `handleEditClinic`, `handleDeleteClinic`.
+
+**5. ClinicEditPage**
+- **Responsibility:** Lets the owner change the demo clinic description and resolves the yes/no branch after save.
+- **Key Methods:** `handleSubmit`, `handleBranchChoice`.
+
+##### Sequence Diagram: Sandbox Entry and Guided Clinic Flow
+```mermaid
+sequenceDiagram
+    actor CO as Clinic Owner
+    participant UI as ClinicsListPage
+    participant SS as SandboxService
+    participant DB as Database
+
+    1. CO->>UI: Click sandbox guide entry
+    2. UI->>SS: enterSandboxMode("clinic_info", userId)
+    3. SS->>DB: INSERT INTO clinics (... is_sandbox = true ...)
+    4. DB-->>SS: Created demo clinic
+    5. SS-->>UI: Sandbox clinic response
+    6. UI->>UI: Highlight demo clinic card and show step 1 guidance
+    7. CO->>UI: Open demo clinic card
+    8. UI->>UI: Navigate to detail page and show step 3 checklist targets
+    9. CO->>UI: Click edit and save description
+    10. UI->>SS: Update demo clinic description
+    11. SS-->>UI: Updated clinic
+    12. UI->>UI: Ask yes/no branch question
+    13. alt Yes
+        14. UI->>UI: Keep sandbox mode, return to /clinic-owner/clinics, continue step 5
+    else No
+        14. UI->>SS: exitSandboxMode(clinicId, userId)
+        15. SS->>DB: UPDATE clinics SET deleted_at = CURRENT_TIMESTAMP ...
+        16. SS-->>UI: Sandbox cleaned up
+        17. UI->>UI: Navigate back to /clinic-owner/clinics
+    end
+```
+
+##### Cross-Reference to SRS
+| SDD Section | SRS Reference | Description |
+|-------------|---------------|-------------|
+| 3.1.3.1 Clinic Owner Sandbox Guided Clinic Management | 3.6.8 Clinic Owner Sandbox Guided Clinic Management | Temporary demo clinic lifecycle and guided learning flow |
 
 #### 3.1.4 Clinic Staff Management (`/clinics/{id}/staff`)
 | Method | Endpoint | Description | Access |

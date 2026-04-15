@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { useEffect } from 'react'
 import { useAuthStore } from './store/authStore'
+import { useSandboxStore } from './store/sandboxStore'
 import { ToastProvider } from './components/Toast'
 import { SpotlightProvider } from './components/spotlight'
 
@@ -72,11 +73,28 @@ import { ProtectedRoute } from './components/common/ProtectedRoute'
 import './styles/global.css'
 
 function App() {
-  const { initializeAuth } = useAuthStore()
+  const initializeAuth = useAuthStore((state) => state.initializeAuth)
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+  const isLoading = useAuthStore((state) => state.isLoading)
+  const loadCurrentSandbox = useSandboxStore((state) => state.loadCurrentSandbox)
+  const resetSandbox = useSandboxStore((state) => state.reset)
 
   useEffect(() => {
     initializeAuth()
   }, [initializeAuth])
+
+  useEffect(() => {
+    if (isLoading) {
+      return
+    }
+
+    if (isAuthenticated) {
+      void loadCurrentSandbox()
+      return
+    }
+
+    resetSandbox()
+  }, [isAuthenticated, isLoading, loadCurrentSandbox, resetSandbox])
 
   return (
     <ToastProvider>

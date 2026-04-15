@@ -8,6 +8,7 @@ import {
     PencilIcon,
     ChevronLeftIcon,
     ChevronRightIcon,
+    QuestionMarkCircleIcon,
 } from '@heroicons/react/24/outline'
 import { useClinicStore } from '../../../store/clinicStore'
 import { useAuthStore } from '../../../store/authStore'
@@ -16,6 +17,9 @@ import { ClinicLogoDisplay } from '../../../components/clinic/ClinicLogoDisplay'
 import { VIETQR_BANKS } from '../../../utils/vietqr'
 import { useToast } from '../../../components/Toast'
 import { updateClinicPricing } from '../../../services/endpoints/clinic'
+import { useSandboxStore } from '../../../store/sandboxStore'
+import { SandboxGuideModal } from '../../../components/sandbox/SandboxGuideModal'
+import { useSandboxStepTracker } from '../../../hooks/useSandboxStepTracker'
 
 export function ClinicInfoPage() {
     const navigate = useNavigate()
@@ -36,6 +40,12 @@ export function ClinicInfoPage() {
         accountNumber: ''
     })
     const [isSaving, setIsSaving] = useState(false)
+
+    // Sandbox state
+    const { enterSandbox } = useSandboxStore()
+    const trackSandboxStepAction = useSandboxStepTracker('clinic_info')
+    const [showSandboxModal, setShowSandboxModal] = useState(false)
+    const [isLoadingSandbox, setIsLoadingSandbox] = useState(false)
 
     useEffect(() => {
         if (clinicId) {
@@ -79,6 +89,7 @@ export function ClinicInfoPage() {
     }, [currentClinic?.images])
 
     const handleStartEditingPayment = () => {
+        trackSandboxStepAction('clinic_info.review_payment', document.activeElement)
         if (!currentClinic) return
         setEditPaymentData({
             sosFee: currentClinic.sosFee || 0,
@@ -197,11 +208,27 @@ export function ClinicInfoPage() {
         'SUNDAY',
     ] as const
 
+    const handleEnterSandbox = async () => {
+        setIsLoadingSandbox(true)
+        try {
+            await enterSandbox('clinic_info')
+            setShowSandboxModal(false)
+        } catch (error) {
+            console.error('Lỗi vào chế độ dùng thử:', error)
+        } finally {
+            setIsLoadingSandbox(false)
+        }
+    }
+
     return (
         <div className="min-h-screen bg-[#FFFDF8] text-black">
             <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
                 {/* Header */}
-                <div className="flex items-start justify-between mb-6 gap-4">
+                <div
+                    className="flex items-start justify-between mb-6 gap-4"
+                    data-sandbox-target="clinic-info-actions"
+                    onClick={(e) => trackSandboxStepAction('clinic_info.open_edit', e.target)}
+                >
                     <div className="flex-1">
                         <div className="flex items-center justify-between gap-4 mb-2">
                             <Link
@@ -211,9 +238,17 @@ export function ClinicInfoPage() {
                                 ← QUAY LẠI DASHBOARD
                             </Link>
                             <div className="flex gap-2">
+                                <button
+                                    onClick={() => setShowSandboxModal(true)}
+                                    className="btn-brutal-outline px-3 py-2 text-sm shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex items-center"
+                                >
+                                    <QuestionMarkCircleIcon className="w-4 h-4 mr-2" />
+                                    HƯỚNG DẪN
+                                </button>
                                 <Link
                                     to="/clinic-manager/clinic/edit"
                                     className="btn-brutal"
+                                    onClick={(e) => trackSandboxStepAction('clinic_info.open_edit', e.currentTarget)}
                                 >
                                     <PencilIcon className="w-4 h-4 mr-2" />
                                     CHỈNH SỬA THÔNG TIN
@@ -314,7 +349,11 @@ export function ClinicInfoPage() {
                 })()}
 
                 {/* Basic Information */}
-                <div className="card-brutal p-6 mb-6">
+                <div
+                    className="card-brutal p-6 mb-6"
+                    data-sandbox-target="clinic-info-basic"
+                    onClick={(e) => trackSandboxStepAction('clinic_info.view_basic', e.currentTarget)}
+                >
                     <h2 className="text-lg font-bold uppercase text-stone-900 mb-4">THÔNG TIN CƠ BẢN</h2>
                     <div className="space-y-3">
                         {currentClinic.description && (
@@ -352,7 +391,11 @@ export function ClinicInfoPage() {
                 </div>
 
                 {/* Payment & SOS Information */}
-                <div className="card-brutal p-6 mb-6">
+                <div
+                    className="card-brutal p-6 mb-6"
+                    data-sandbox-target="clinic-info-payment"
+                    onClick={(e) => trackSandboxStepAction('clinic_info.review_payment', e.currentTarget)}
+                >
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-lg font-bold uppercase text-stone-900">THANH TOÁN & DỊCH VỤ SOS</h2>
                         {!isEditingPayment ? (
@@ -554,6 +597,16 @@ export function ClinicInfoPage() {
                         <ClinicMapOSM clinic={currentClinic} />
                     </div>
                 )}
+
+                    {/* Sandbox Components */}
+                    <SandboxGuideModal
+                        isOpen={showSandboxModal}
+                        featureName="Thông tin phòng khám"
+                        onConfirm={handleEnterSandbox}
+                        onCancel={() => setShowSandboxModal(false)}
+                        isLoading={isLoadingSandbox}
+                    />
+    
             </div>
         </div>
     )

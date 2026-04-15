@@ -1,4 +1,4 @@
-import { Outlet, useNavigate } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useEffect } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useNotificationStore } from '../store/notificationStore'
@@ -10,6 +10,10 @@ import { useSyncProfile } from '../hooks/useSyncProfile'
 import { useMembershipStore } from '../store/membershipStore'
 import { useClinicStore } from '../store/clinicStore'
 import { subscriptionService } from '../services/api/subscriptionService'
+import { useSandboxStore } from '../store/sandboxStore'
+import { SandboxHeader } from '../components/sandbox/SandboxHeader'
+import { SandboxGuideSteps } from '../components/sandbox/SandboxGuideSteps'
+import { SandboxFocusOverlay } from '../components/sandbox/SandboxFocusOverlay'
 import {
     Squares2X2Icon,
     HomeModernIcon,
@@ -25,6 +29,7 @@ import '../styles/brutalist.css'
 
 export const ClinicOwnerLayout = () => {
     const navigate = useNavigate()
+    const location = useLocation()
     const clearAuth = useAuthStore((state) => state.clearAuth)
     const user = useAuthStore((state) => state.user)
     const unreadCount = useNotificationStore((state) => state.unreadCount)
@@ -37,6 +42,7 @@ export const ClinicOwnerLayout = () => {
     const isVIP = useMembershipStore(state => state.isVIP())
     const planName = useMembershipStore(state => state.getPlanName())
     const remainingDays = useMembershipStore(state => state.getRemainingDays())
+    const { isSandboxMode, currentFeature, currentGuideStep, currentSandboxClinic, exitSandbox } = useSandboxStore()
 
     // Initialize SSE
     useSseNotification()
@@ -89,8 +95,38 @@ export const ClinicOwnerLayout = () => {
         navigate('/login', { replace: true })
     }
 
+    const handleExitSandbox = async () => {
+        try {
+            await exitSandbox()
+            navigate('/clinic-owner/clinics', { replace: true })
+        } catch (error) {
+            console.error('Lỗi thoát chế độ dùng thử:', error)
+        }
+    }
+
+    const handleFinishSandboxGuide = async () => {
+        if (currentFeature === 'clinic_info') {
+            navigate('/clinic-owner/clinics/new', { replace: true })
+            return
+        }
+
+        await handleExitSandbox()
+    }
+
+    useEffect(() => {
+        if (!isSandboxMode || currentFeature !== 'clinic_info' || currentGuideStep !== 5) {
+            return
+        }
+
+        if (location.pathname !== '/clinic-owner/clinics/new') {
+            navigate('/clinic-owner/clinics/new', { replace: true })
+        }
+    }, [currentFeature, currentGuideStep, isSandboxMode, location.pathname, navigate])
+
     return (
         <div className="h-screen h-screen-safe min-h-screen-safe bg-stone-50 flex overflow-hidden safe-area-padding">
+            <SandboxFocusOverlay />
+
             <Sidebar
                 groups={navGroups}
                 user={user}
@@ -106,6 +142,21 @@ export const ClinicOwnerLayout = () => {
 
             {/* Main Content */}
             <main className="flex-1 overflow-auto bg-stone-50 relative">
+                {isSandboxMode && (
+                    <SandboxHeader
+                        clinicName={currentSandboxClinic?.name}
+                        onExit={handleExitSandbox}
+                    />
+                )}
+
+                {isSandboxMode && currentFeature && (
+                    <div className="pointer-events-none fixed inset-0 z-40 hidden xl:block">
+                        <div className="pointer-events-auto">
+                            <SandboxGuideSteps feature={currentFeature} onFinish={handleFinishSandboxGuide} draggable />
+                        </div>
+                    </div>
+                )}
+
                 <div className="p-0 h-full">
                     <Outlet />
                 </div>

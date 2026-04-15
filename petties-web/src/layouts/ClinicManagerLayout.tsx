@@ -13,6 +13,10 @@ import SosAlertModal from '../components/booking/SosAlertModal'
 import { chatService } from '../services/api/chatService'
 import type { ChatWebSocketMessage } from '../types/chat'
 import { useSyncProfile } from '../hooks/useSyncProfile'
+import { useSandboxStore } from '../store/sandboxStore'
+import { SandboxHeader } from '../components/sandbox/SandboxHeader'
+import { SandboxGuideSteps } from '../components/sandbox/SandboxGuideSteps'
+import { SandboxFocusOverlay } from '../components/sandbox/SandboxFocusOverlay'
 import {
     Squares2X2Icon,
     UserGroupIcon,
@@ -41,6 +45,7 @@ export const ClinicManagerLayout = () => {
     const refreshChatUnreadCount = useChatStore((state) => state.refreshUnreadCount)
     const incrementChatUnreadCount = useChatStore((state) => state.incrementUnreadCount)
     const { state, toggleSidebar, isMobile } = useSidebar()
+    const { isSandboxMode, currentFeature, currentSandboxClinic, exitSandbox } = useSandboxStore()
 
 
 
@@ -175,8 +180,18 @@ export const ClinicManagerLayout = () => {
         navigate('/login', { replace: true })
     }
 
+    const handleExitSandbox = async () => {
+        try {
+            await exitSandbox()
+        } catch (error) {
+            console.error('Lỗi thoát chế độ dùng thử:', error)
+        }
+    }
+
     return (
         <div className="h-screen h-screen-safe min-h-screen-safe bg-stone-50 flex overflow-hidden safe-area-padding">
+            <SandboxFocusOverlay />
+
             {/* SOS Alert Modal - shows incoming SOS requests */}
             {user?.workingClinicId && (
                 <SosAlertModal clinicId={user.workingClinicId} />
@@ -196,6 +211,21 @@ export const ClinicManagerLayout = () => {
 
             {/* Main Content */}
             <main className="flex-1 overflow-auto bg-stone-50 relative">
+                {isSandboxMode && (
+                    <SandboxHeader
+                        clinicName={currentSandboxClinic?.name}
+                        onExit={handleExitSandbox}
+                    />
+                )}
+
+                {isSandboxMode && currentFeature && (
+                    <div className="pointer-events-none fixed inset-0 z-40 hidden xl:block">
+                        <div className="pointer-events-auto">
+                            <SandboxGuideSteps feature={currentFeature} onFinish={handleExitSandbox} draggable />
+                        </div>
+                    </div>
+                )}
+
                 <div className="p-0 h-full">
                     <Outlet />
                 </div>

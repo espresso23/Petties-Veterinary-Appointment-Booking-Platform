@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuthStore } from '../../../store/authStore'
+import { useSandboxStore } from '../../../store/sandboxStore'
 import { getServicesByClinicId } from '../../../services/endpoints/service'
 import type { ClinicServiceResponse, WeightPriceDto, VaccineDosePriceDTO } from '../../../types/service'
 import { getCategoryById } from '../../../constants/serviceCategory'
@@ -9,8 +10,11 @@ import {
     XMarkIcon,
     ScaleIcon,
     MagnifyingGlassIcon,
-    ListBulletIcon
+    ListBulletIcon,
+    QuestionMarkCircleIcon
 } from '@heroicons/react/24/outline'
+import { SandboxGuideModal } from '../../../components/sandbox/SandboxGuideModal'
+import { useSandboxStepTracker } from '../../../hooks/useSandboxStepTracker'
 import '../../../styles/brutalist.css'
 
 /**
@@ -20,10 +24,14 @@ import '../../../styles/brutalist.css'
  */
 export const ServicesViewPage = () => {
     const { user } = useAuthStore()
+    const { enterSandbox } = useSandboxStore()
     const [services, setServices] = useState<ClinicServiceResponse[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
     const [selectedService, setSelectedService] = useState<ClinicServiceResponse | null>(null)
+    const [showSandboxModal, setShowSandboxModal] = useState(false)
+    const [isLoadingSandbox, setIsLoadingSandbox] = useState(false)
+    const trackSandboxStepAction = useSandboxStepTracker('services')
 
     // Fetch services
     const fetchServices = useCallback(async () => {
@@ -75,6 +83,19 @@ export const ServicesViewPage = () => {
         return `${minFormatted} - ${maxFormatted}đ`
     }
 
+    // Sandbox handlers
+    const handleEnterSandbox = async () => {
+        setIsLoadingSandbox(true)
+        try {
+            await enterSandbox('services')
+            setShowSandboxModal(false)
+        } catch (error) {
+            console.error('Lỗi vào chế độ dùng thử:', error)
+        } finally {
+            setIsLoadingSandbox(false)
+        }
+    }
+
     return (
         <div className="min-h-screen bg-stone-50 p-6 font-sans">
             {/* Header */}
@@ -87,33 +108,55 @@ export const ServicesViewPage = () => {
                         Phòng khám: <span className="text-amber-600 font-bold">{user?.workingClinicName || 'N/A'}</span>
                     </p>
                 </div>
+                <button
+                    onClick={() => setShowSandboxModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-stone-900 rounded-lg font-bold text-stone-900 shadow-[3px_3px_0_#1c1917] hover:shadow-[4px_4px_0_#1c1917] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all"
+                >
+                    <QuestionMarkCircleIcon className="w-5 h-5" />
+                    Hướng dẫn
+                </button>
             </div>
 
             {/* Search - Neobrutalism style */}
-            <div className="mb-6">
+            <div className="mb-6" data-sandbox-target="services-search">
                 <div className="relative max-w-md">
                     <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
                     <input
                         type="text"
                         placeholder="Tìm kiếm dịch vụ..."
                         value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onChange={(e) => {
+                            const nextSearchTerm = e.target.value
+                            setSearchTerm(nextSearchTerm)
+                            if (nextSearchTerm.trim().length > 0) {
+                                trackSandboxStepAction('services.search', e.target)
+                            }
+                        }}
                         className="w-full pl-12 pr-4 py-3 bg-white border-2 border-stone-900 rounded-lg font-medium shadow-[2px_2px_0_#1c1917] focus:outline-none focus:shadow-[3px_3px_0_#1c1917] focus:border-amber-600 focus:-translate-x-0.5 focus:-translate-y-0.5 transition-all"
                     />
                 </div>
             </div>
 
             {/* Stats - Neobrutalism cards */}
-            <div className="mb-6 grid grid-cols-3 gap-4 max-w-xl">
-                <div className="bg-white border-2 border-stone-900 rounded-xl p-4 shadow-[4px_4px_0_#1c1917]">
+            <div className="mb-6 grid grid-cols-3 gap-4 max-w-xl" data-sandbox-target="services-stats">
+                <div
+                    className="bg-white border-2 border-stone-900 rounded-xl p-4 shadow-[4px_4px_0_#1c1917]"
+                    onClick={(e) => trackSandboxStepAction('services.review_stats', e.currentTarget)}
+                >
                     <span className="text-xs font-bold text-stone-500 uppercase">Tổng dịch vụ</span>
                     <span className="block text-2xl font-bold text-stone-900 mt-1">{services.length}</span>
                 </div>
-                <div className="bg-amber-50 border-2 border-stone-900 rounded-xl p-4 shadow-[4px_4px_0_#1c1917]">
+                <div
+                    className="bg-amber-50 border-2 border-stone-900 rounded-xl p-4 shadow-[4px_4px_0_#1c1917]"
+                    onClick={(e) => trackSandboxStepAction('services.review_stats', e.currentTarget)}
+                >
                     <span className="text-xs font-bold text-amber-700 uppercase">Hoạt động</span>
                     <span className="block text-2xl font-bold text-amber-600 mt-1">{services.filter(s => s.isActive).length}</span>
                 </div>
-                <div className="bg-blue-50 border-2 border-stone-900 rounded-xl p-4 shadow-[4px_4px_0_#1c1917]">
+                <div
+                    className="bg-blue-50 border-2 border-stone-900 rounded-xl p-4 shadow-[4px_4px_0_#1c1917]"
+                    onClick={(e) => trackSandboxStepAction('services.review_stats', e.currentTarget)}
+                >
                     <span className="text-xs font-bold text-blue-700 uppercase">Tại nhà</span>
                     <span className="block text-2xl font-bold text-blue-600 mt-1">{services.filter(s => s.isHomeVisit).length}</span>
                 </div>
@@ -129,13 +172,16 @@ export const ServicesViewPage = () => {
                     <p className="text-stone-500 font-bold">Không tìm thấy dịch vụ nào</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" data-sandbox-target="services-list">
                     {filteredServices.map(service => {
                         const categoryInfo = getCategoryById(service.serviceCategory)
                         return (
                             <div
                                 key={service.serviceId}
-                                onClick={() => setSelectedService(service)}
+                                onClick={() => {
+                                    setSelectedService(service)
+                                    trackSandboxStepAction('services.open_service', document.activeElement)
+                                }}
                                 className={`group relative bg-white border-2 border-stone-900 rounded-xl p-5 cursor-pointer shadow-[4px_4px_0_#1c1917] hover:shadow-[6px_6px_0_#1c1917] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all ${!service.isActive ? 'opacity-60 grayscale' : ''}`}
                             >
                                 {/* Header Row with Badges */}
@@ -317,6 +363,14 @@ export const ServicesViewPage = () => {
                     </div>
                 </div>
             )}
+
+            <SandboxGuideModal
+                isOpen={showSandboxModal}
+                featureName="Quản lý dịch vụ"
+                onConfirm={handleEnterSandbox}
+                onCancel={() => setShowSandboxModal(false)}
+                isLoading={isLoadingSandbox}
+            />
         </div>
     )
 }

@@ -16,12 +16,14 @@ import { ClinicMapOSM } from '../../../components/clinic/ClinicMapOSM'
 import { DistanceCalculator } from '../../../components/clinic/DistanceCalculator'
 import { ClinicLogoDisplay } from '../../../components/clinic/ClinicLogoDisplay'
 import { ConfirmDialog } from '../../../components/common/ConfirmDialog'
+import { useSandboxStepTracker } from '../../../hooks/useSandboxStepTracker'
 import { ROUTES } from '../../../config/routes'
 
 export function ClinicDetailPage() {
   const { clinicId } = useParams<{ clinicId: string }>()
   const navigate = useNavigate()
   const { currentClinic, fetchClinicById, deleteClinic, isLoading, error } = useClinicStore()
+  const trackSandboxStepAction = useSandboxStepTracker('clinic_info')
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
@@ -170,6 +172,8 @@ export function ClinicDetailPage() {
                 <div className="flex gap-2">
                   <Link
                     to={`${ROUTES.clinicOwner.clinics}/${clinicId}/edit`}
+                    data-sandbox-target="clinic-detail-edit-button"
+                    onClick={(e) => trackSandboxStepAction('clinic_info.open_edit', e.currentTarget)}
                     className="btn-brutal-outline"
                   >
                     <PencilIcon className="w-4 h-4 mr-2" />
@@ -184,7 +188,7 @@ export function ClinicDetailPage() {
                   </button>
                 </div>
               </div>
-              <div className="flex items-center gap-4 mb-3">
+              <div className="flex items-center gap-4 mb-3" data-sandbox-target="clinic-detail-basic">
                 {/* Clinic Logo */}
                 <ClinicLogoDisplay logoUrl={currentClinic.logo} alt={`${currentClinic.name} Logo`} size="md" />
                 <div className="flex-1">
@@ -229,7 +233,7 @@ export function ClinicDetailPage() {
             if (!images || images.length === 0) return null
 
             return (
-              <div className="card-brutal p-6 mb-6">
+              <div className="card-brutal p-6 mb-6" data-sandbox-target="clinic-detail-gallery" onClick={(e) => trackSandboxStepAction('clinic_info.review_detail', e.currentTarget)}>
                 <h2 className="text-lg font-bold uppercase text-stone-900 mb-4">ẢNH PHÒNG KHÁM</h2>
                 {images.length === 1 ? (
                   <div className="relative">
@@ -304,7 +308,7 @@ export function ClinicDetailPage() {
           })()}
 
           {/* Basic Information */}
-          <div className="card-brutal p-6 mb-6">
+          <div className="card-brutal p-6 mb-6" data-sandbox-target="clinic-detail-basic" onClick={(e) => trackSandboxStepAction('clinic_info.review_detail', e.currentTarget)}>
             <h2 className="text-lg font-bold uppercase text-stone-900 mb-4">THÔNG TIN CƠ BẢN</h2>
             <div className="space-y-3">
               {currentClinic.description && (
@@ -313,7 +317,7 @@ export function ClinicDetailPage() {
                   <div className="text-stone-900">{currentClinic.description}</div>
                 </div>
               )}
-              <div className="flex items-start gap-2">
+              <div className="flex items-start gap-2" data-sandbox-target="clinic-detail-address" onClick={(e) => trackSandboxStepAction('clinic_info.review_detail', e.currentTarget)}>
                 <MapPinIcon className="w-5 h-5 text-stone-600 mt-0.5 flex-shrink-0" />
                 <div>
                   <div className="text-sm font-bold uppercase text-stone-600 mb-1">ĐỊA CHỈ</div>
@@ -346,7 +350,7 @@ export function ClinicDetailPage() {
                 </div>
               </div>
               {currentClinic.phone && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2" data-sandbox-target="clinic-detail-contact" onClick={(e) => trackSandboxStepAction('clinic_info.review_detail', e.currentTarget)}>
                   <PhoneIcon className="w-5 h-5 text-stone-600 flex-shrink-0" />
                   <div>
                     <div className="text-sm font-bold uppercase text-stone-600 mb-1">SỐ ĐIỆN THOẠI</div>
@@ -355,7 +359,7 @@ export function ClinicDetailPage() {
                 </div>
               )}
               {currentClinic.email && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2" data-sandbox-target="clinic-detail-contact" onClick={(e) => trackSandboxStepAction('clinic_info.review_detail', e.currentTarget)}>
                   <EnvelopeIcon className="w-5 h-5 text-stone-600 flex-shrink-0" />
                   <div>
                     <div className="text-sm font-bold uppercase text-stone-600 mb-1">EMAIL</div>
@@ -368,7 +372,7 @@ export function ClinicDetailPage() {
 
           {/* Payment & SOS Information */}
           {(currentClinic.bankName || currentClinic.accountNumber || (currentClinic.sosFee && currentClinic.sosFee > 0)) && (
-            <div className="card-brutal p-6 mb-6">
+            <div className="card-brutal p-6 mb-6" data-sandbox-target="clinic-detail-payment" onClick={(e) => trackSandboxStepAction('clinic_info.review_detail', e.currentTarget)}>
               <h2 className="text-lg font-bold uppercase text-stone-900 mb-4">THANH TOÁN & DỊCH VỤ SOS</h2>
 
               {currentClinic.sosFee && currentClinic.sosFee > 0 && (
@@ -421,7 +425,7 @@ export function ClinicDetailPage() {
 
           {/* Operating Hours */}
           {currentClinic.operatingHours && Object.keys(currentClinic.operatingHours).length > 0 && (
-            <div className="card-brutal p-6 mb-6">
+            <div className="card-brutal p-6 mb-6" data-sandbox-target="clinic-detail-hours" onClick={(e) => trackSandboxStepAction('clinic_info.review_detail', e.currentTarget)}>
               <h2 className="text-lg font-bold uppercase text-stone-900 mb-4">GIỜ LÀM VIỆC</h2>
               {/* Check if clinic is 24/7 */}
               {DAYS_OF_WEEK.every((day) => {
@@ -489,7 +493,7 @@ export function ClinicDetailPage() {
 
           {/* Business License */}
           {currentClinic.businessLicenseUrl && (
-            <div className="card-brutal p-6 mb-6">
+            <div className="card-brutal p-6 mb-6" data-sandbox-target="clinic-detail-license" onClick={(e) => trackSandboxStepAction('clinic_info.review_detail', e.currentTarget)}>
               <h2 className="text-lg font-bold uppercase text-stone-900 mb-4 flex items-center gap-2">
                 <DocumentTextIcon className="w-6 h-6" />
                 GIẤY PHÉP KINH DOANH
@@ -533,7 +537,7 @@ export function ClinicDetailPage() {
 
           {/* Map */}
           {currentClinic.latitude && currentClinic.longitude && (
-            <div className="card-brutal p-6 mb-6">
+            <div className="card-brutal p-6 mb-6" data-sandbox-target="clinic-detail-map" onClick={(e) => trackSandboxStepAction('clinic_info.review_detail', e.currentTarget)}>
               <h2 className="text-lg font-bold uppercase text-stone-900 mb-4">VỊ TRÍ</h2>
               <ClinicMapOSM clinic={currentClinic} />
               <div className="mt-4">
