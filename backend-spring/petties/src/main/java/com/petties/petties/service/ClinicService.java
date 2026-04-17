@@ -548,6 +548,23 @@ public class ClinicService {
                 return mapToResponsePage(clinics);
         }
 
+        @Transactional(readOnly = true)
+        public Page<ClinicResponse> getClinicsByOwner(UUID userId, Pageable pageable, boolean includeSandbox) {
+                if (!includeSandbox) {
+                        return getClinicsByOwner(userId, pageable);
+                }
+
+                User user = userRepository.findById(userId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
+
+                if (user.getRole() == Role.CLINIC_MANAGER && user.getWorkingClinic() != null) {
+                        return new PageImpl<>(List.of(mapToResponse(user.getWorkingClinic())), pageable, 1);
+                }
+
+                Page<Clinic> clinics = clinicRepository.findByOwnerUserIdIncludingSandbox(userId, pageable);
+                return mapToResponsePage(clinics);
+        }
+
         @Transactional
         public ClinicResponse uploadClinicImage(UUID clinicId, String imageUrl, String caption,
                         Integer displayOrder, Boolean isPrimary, UUID ownerId) {

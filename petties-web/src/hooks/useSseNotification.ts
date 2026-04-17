@@ -31,6 +31,10 @@ type NotificationType =
   // Admin notifications
   | 'CLINIC_PENDING_APPROVAL'
   | 'CLINIC_VERIFIED'
+  | 'CLINIC_SUSPEND_REQUEST'
+  | 'CLINIC_SUSPEND_APPROVED'
+  | 'CLINIC_SUSPEND_REJECTED'
+  | 'CLINIC_ACTIVATED'
 
 /**
  * SSE Event data structure from backend
@@ -190,6 +194,18 @@ export function useSseNotification(
           break
         case 'REJECTED':
           showToast('error', message || `Phong kham "${clinicName}" khong duoc duyet`)
+          break
+        case 'CLINIC_SUSPEND_REQUEST':
+          showToast('info', message || 'Có yêu cầu tạm ngưng phòng khám mới')
+          break
+        case 'CLINIC_SUSPEND_APPROVED':
+          showToast('success', message || 'Yêu cầu tạm ngưng phòng khám đã được duyệt')
+          break
+        case 'CLINIC_SUSPEND_REJECTED':
+          showToast('warning', message || 'Yêu cầu tạm ngưng phòng khám đã bị từ chối')
+          break
+        case 'CLINIC_ACTIVATED':
+          showToast('success', message || 'Phòng khám đã được kích hoạt trở lại')
           break
         case 'STAFF_SHIFT_ASSIGNED':
           showToast('info', message || 'Ban duoc gan ca lam viec moi')

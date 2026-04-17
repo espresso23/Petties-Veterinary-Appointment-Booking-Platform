@@ -23,9 +23,14 @@ public class WebMvcConfig implements WebMvcConfigurer {
     private String allowedOrigins;
 
     private final LoggingInterceptor loggingInterceptor;
+    private final SandboxWriteGuardInterceptor sandboxWriteGuardInterceptor;
 
-    public WebMvcConfig(LoggingInterceptor loggingInterceptor) {
+    public WebMvcConfig(
+            LoggingInterceptor loggingInterceptor,
+            SandboxWriteGuardInterceptor sandboxWriteGuardInterceptor
+    ) {
         this.loggingInterceptor = loggingInterceptor;
+        this.sandboxWriteGuardInterceptor = sandboxWriteGuardInterceptor;
     }
 
     @Override
@@ -52,6 +57,14 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(sandboxWriteGuardInterceptor)
+            .addPathPatterns("/api/**")
+            .excludePathPatterns(
+                "/api/actuator/**",
+                "/health",
+                "/favicon.ico"
+            );
+
         registry.addInterceptor(loggingInterceptor)
             .addPathPatterns("/**")
                 .excludePathPatterns(

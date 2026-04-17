@@ -4,6 +4,7 @@ interface ConfirmDialogProps {
   isOpen: boolean
   onClose: () => void
   onConfirm: () => void
+  onCancelAction?: () => void | Promise<void>
   title: string
   message: string
   confirmText?: string
@@ -15,6 +16,7 @@ export function ConfirmDialog({
   isOpen,
   onClose,
   onConfirm,
+  onCancelAction,
   title,
   message,
   confirmText = 'Xác nhận',
@@ -32,7 +34,7 @@ export function ConfirmDialog({
   const colors = variantColors[variant]
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" data-sandbox-modal="true">
       <div
         className="relative w-full max-w-md bg-white border-4 border-black shadow-[16px_16px_0px_0px_rgba(0,0,0,1)] animate-in zoom-in duration-200"
         onClick={(e) => e.stopPropagation()}
@@ -74,7 +76,10 @@ export function ConfirmDialog({
         {/* Actions */}
         <div className="border-t-4 border-black p-6 flex gap-4">
           <button
-            onClick={onClose}
+            onClick={() => {
+              void onCancelAction?.()
+              onClose()
+            }}
             className="flex-1 py-3 px-6 bg-white text-black font-black uppercase border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all"
           >
             {cancelText}

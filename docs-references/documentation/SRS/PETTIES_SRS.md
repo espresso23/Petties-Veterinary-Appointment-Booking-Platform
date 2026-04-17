@@ -3336,7 +3336,88 @@ Figure 29. Screen Branch Pricing Configuration (Web)
 
 
 
+<<<<<<< HEAD
+#### *3.6.8 Clinic Owner Sandbox Guided Clinic Management*
+
+**User Story:**
+
+> *As a Clinic Owner, I want to enter a guided sandbox clinic-management flow so that I can learn the list, detail, edit, and create-clinic workflow using temporary demo data before touching real records.*
+
+
+**Function trigger**
+
+- **Navigation path:** Clinic Owner Dashboard → Quản lý phòng khám → Hướng dẫn sandbox.
+
+- **Timing frequency:** On demand.
+
+
+**Function description**
+
+- **Actors/Roles:** Clinic Owner.
+
+- **Purpose:** Create a temporary demo clinic, guide the user through the clinic list, detail page, edit page, and create-clinic form, then clean up sandbox data when the flow ends.
+
+- **Interface:** Sandbox header, floating guide panel, highlighted demo clinic card, detail/edit/create forms, yes/no branch dialog.
+
+
+**Data processing**
+
+1. System creates a sandbox clinic immediately when the owner enters the guided sandbox.
+
+2. User learns the list screen: register button, search/filter controls, and clinic cards.
+
+3. System highlights the demo clinic card and requires the user to open it.
+
+4. System guides the clinic detail sections, then the edit page, and asks whether the user wants to continue to the create-clinic section.
+
+5. If the user chooses yes, the system keeps sandbox mode active, returns to `/clinic-owner/clinics`, and guides the create-clinic form.
+
+6. If the user chooses no, the system exits sandbox mode and deletes the demo clinic.
+
+7. The demo clinic is also removed when the user completes the sandbox or when the 2-hour TTL expires.
+
+
+**Function details**
+
+- **Data:**
+
+    - **Input:** sandbox feature key, clinic description update, branch choice (yes/no).
+
+    - **Output:** sandbox clinic summary, guided checklist state, exit cleanup status.
+
+- **Validation:** Demo clinic actions must target the highlighted sandbox clinic; non-sandbox clinics remain protected by the write guard.
+
+- **Business rules:**
+
+    - Sandbox data is temporary and must be deleted on exit, completion, or TTL expiry.
+
+    - The detail/edit/create guidance must always return to `/clinic-owner/clinics` when the branch decision is made.
+
+    - Step 5 only becomes available after the user chooses to continue from step 4.
+
+- **Normal case:**
+
+    1. Owner enters sandbox.
+
+    2. System creates demo clinic.
+
+    3. Owner reviews list, opens demo clinic, reads details, edits description, and chooses to continue.
+
+    4. System returns to list, keeps sandbox active, and shows create-clinic guidance.
+
+- **Abnormal case:**
+
+    1. Owner exits sandbox or the TTL expires.
+
+    2. System deletes the demo clinic and all linked sandbox data.
+
+    3. Owner listing no longer shows the sandbox card.
+
+
+### 3.7 Staff Management & Scheduling
+=======
 ### 3.7 Staff and Scheduling Management
+>>>>>>> 216415515b836ac0515d52ad65bd6f01fc8ae69b
 
 
 

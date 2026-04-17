@@ -12,20 +12,31 @@ import {
   DocumentTextIcon,
 } from '@heroicons/react/24/outline'
 import { useClinicStore } from '../../../store/clinicStore'
+import { clinicService } from '../../../services/api/clinicService'
 import { ClinicMapOSM } from '../../../components/clinic/ClinicMapOSM'
 import { DistanceCalculator } from '../../../components/clinic/DistanceCalculator'
 import { ClinicLogoDisplay } from '../../../components/clinic/ClinicLogoDisplay'
 import { ConfirmDialog } from '../../../components/common/ConfirmDialog'
+import { useSandboxStepTracker } from '../../../hooks/useSandboxStepTracker'
+import { useToast } from '../../../components/Toast'
 import { ROUTES } from '../../../config/routes'
+import type { ClinicSuspendRequestResponse } from '../../../types/clinic'
 
 export function ClinicDetailPage() {
   const { clinicId } = useParams<{ clinicId: string }>()
   const navigate = useNavigate()
   const { currentClinic, fetchClinicById, deleteClinic, isLoading, error } = useClinicStore()
+  const { showToast } = useToast()
+  const trackSandboxStepAction = useSandboxStepTracker('clinic_info')
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [suspendReason, setSuspendReason] = useState('')
+  const [showSuspendConfirm, setShowSuspendConfirm] = useState(false)
+  const [isSuspendSubmitting, setIsSuspendSubmitting] = useState(false)
+  const [isSuspendHistoryLoading, setIsSuspendHistoryLoading] = useState(false)
+  const [suspendHistory, setSuspendHistory] = useState<ClinicSuspendRequestResponse[]>([])
 
   const loadClinic = useCallback(() => {
     if (clinicId) {
@@ -36,6 +47,24 @@ export function ClinicDetailPage() {
   useEffect(() => {
     loadClinic()
   }, [loadClinic])
+
+  const loadSuspendHistory = useCallback(async () => {
+    if (!clinicId) return
+    setIsSuspendHistoryLoading(true)
+    try {
+      const requests = await clinicService.getMySuspendRequests()
+      const byClinic = requests.filter((request) => request.clinicId === clinicId)
+      setSuspendHistory(byClinic)
+    } catch {
+      showToast('error', 'Không thể tải lịch sử yêu cầu tạm ngưng')
+    } finally {
+      setIsSuspendHistoryLoading(false)
+    }
+  }, [clinicId, showToast])
+
+  useEffect(() => {
+    void loadSuspendHistory()
+  }, [loadSuspendHistory])
 
   const updateScrollState = () => {
     const el = scrollRef.current
@@ -85,6 +114,60 @@ export function ClinicDetailPage() {
     } catch {
       // Error handled by store
     }
+  }
+
+  const latestPendingSuspendRequest = suspendHistory.find((request) => request.status === 'PENDING')
+  const requestActionLabel = currentClinic?.status === 'SUSPENDED' ? 'bỏ tạm ngưng' : 'tạm ngưng'
+
+  const handleOpenSuspendConfirm = () => {
+    if (!clinicId) return
+    if (currentClinic?.status !== 'APPROVED' && currentClinic?.status !== 'SUSPENDED') {
+      showToast('error', 'Chỉ có thể gửi đơn khi phòng khám đang hoạt động hoặc tạm ngưng')
+      return
+    }
+    if (latestPendingSuspendRequest) {
+      showToast('warning', 'Phòng khám đã có yêu cầu tạm ngưng đang chờ duyệt')
+      return
+    }
+    if (suspendReason.trim().length < 10) {
+      showToast('error', 'Lý do phải có ít nhất 10 ký tự')
+      return
+    }
+    setShowSuspendConfirm(true)
+  }
+
+  const handleConfirmSuspendRequest = async () => {
+    if (!clinicId || isSuspendSubmitting) return
+    setIsSuspendSubmitting(true)
+    try {
+      await clinicService.createSuspendRequest({
+        clinicId,
+        reason: suspendReason.trim(),
+      })
+      showToast('success', `Đã gửi yêu cầu ${requestActionLabel} phòng khám`)
+      setSuspendReason('')
+      await Promise.all([loadClinic(), loadSuspendHistory()])
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === 'object' && 'response' in e
+          ? (e as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined
+      showToast('error', msg ? String(msg) : 'Không thể gửi yêu cầu tạm ngưng')
+    } finally {
+      setIsSuspendSubmitting(false)
+    }
+  }
+
+  const suspendStatusLabel: Record<string, string> = {
+    PENDING: 'CHỜ DUYỆT',
+    APPROVED: 'ĐÃ DUYỆT',
+    REJECTED: 'TỪ CHỐI',
+  }
+
+  const suspendStatusColors: Record<string, string> = {
+    PENDING: 'bg-amber-100 text-amber-800 border-amber-600',
+    APPROVED: 'bg-green-100 text-green-800 border-green-600',
+    REJECTED: 'bg-red-100 text-red-800 border-red-600',
   }
 
   if (isLoading) {
@@ -170,6 +253,8 @@ export function ClinicDetailPage() {
                 <div className="flex gap-2">
                   <Link
                     to={`${ROUTES.clinicOwner.clinics}/${clinicId}/edit`}
+                    data-sandbox-target="clinic-detail-edit-button"
+                    onClick={(e) => trackSandboxStepAction('clinic_info.open_edit', e.currentTarget)}
                     className="btn-brutal-outline"
                   >
                     <PencilIcon className="w-4 h-4 mr-2" />
@@ -184,7 +269,7 @@ export function ClinicDetailPage() {
                   </button>
                 </div>
               </div>
-              <div className="flex items-center gap-4 mb-3">
+              <div className="flex items-center gap-4 mb-3" data-sandbox-target="clinic-detail-basic">
                 {/* Clinic Logo */}
                 <ClinicLogoDisplay logoUrl={currentClinic.logo} alt={`${currentClinic.name} Logo`} size="md" />
                 <div className="flex-1">
@@ -229,7 +314,7 @@ export function ClinicDetailPage() {
             if (!images || images.length === 0) return null
 
             return (
-              <div className="card-brutal p-6 mb-6">
+              <div className="card-brutal p-6 mb-6" data-sandbox-target="clinic-detail-gallery" onClick={(e) => trackSandboxStepAction('clinic_info.review_detail', e.currentTarget)}>
                 <h2 className="text-lg font-bold uppercase text-stone-900 mb-4">ẢNH PHÒNG KHÁM</h2>
                 {images.length === 1 ? (
                   <div className="relative">
@@ -304,7 +389,7 @@ export function ClinicDetailPage() {
           })()}
 
           {/* Basic Information */}
-          <div className="card-brutal p-6 mb-6">
+          <div className="card-brutal p-6 mb-6" data-sandbox-target="clinic-detail-basic" onClick={(e) => trackSandboxStepAction('clinic_info.review_detail', e.currentTarget)}>
             <h2 className="text-lg font-bold uppercase text-stone-900 mb-4">THÔNG TIN CƠ BẢN</h2>
             <div className="space-y-3">
               {currentClinic.description && (
@@ -313,7 +398,7 @@ export function ClinicDetailPage() {
                   <div className="text-stone-900">{currentClinic.description}</div>
                 </div>
               )}
-              <div className="flex items-start gap-2">
+              <div className="flex items-start gap-2" data-sandbox-target="clinic-detail-address" onClick={(e) => trackSandboxStepAction('clinic_info.review_detail', e.currentTarget)}>
                 <MapPinIcon className="w-5 h-5 text-stone-600 mt-0.5 flex-shrink-0" />
                 <div>
                   <div className="text-sm font-bold uppercase text-stone-600 mb-1">ĐỊA CHỈ</div>
@@ -346,7 +431,7 @@ export function ClinicDetailPage() {
                 </div>
               </div>
               {currentClinic.phone && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2" data-sandbox-target="clinic-detail-contact" onClick={(e) => trackSandboxStepAction('clinic_info.review_detail', e.currentTarget)}>
                   <PhoneIcon className="w-5 h-5 text-stone-600 flex-shrink-0" />
                   <div>
                     <div className="text-sm font-bold uppercase text-stone-600 mb-1">SỐ ĐIỆN THOẠI</div>
@@ -355,7 +440,7 @@ export function ClinicDetailPage() {
                 </div>
               )}
               {currentClinic.email && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2" data-sandbox-target="clinic-detail-contact" onClick={(e) => trackSandboxStepAction('clinic_info.review_detail', e.currentTarget)}>
                   <EnvelopeIcon className="w-5 h-5 text-stone-600 flex-shrink-0" />
                   <div>
                     <div className="text-sm font-bold uppercase text-stone-600 mb-1">EMAIL</div>
@@ -368,7 +453,7 @@ export function ClinicDetailPage() {
 
           {/* Payment & SOS Information */}
           {(currentClinic.bankName || currentClinic.accountNumber || (currentClinic.sosFee && currentClinic.sosFee > 0)) && (
-            <div className="card-brutal p-6 mb-6">
+            <div className="card-brutal p-6 mb-6" data-sandbox-target="clinic-detail-payment" onClick={(e) => trackSandboxStepAction('clinic_info.review_detail', e.currentTarget)}>
               <h2 className="text-lg font-bold uppercase text-stone-900 mb-4">THANH TOÁN & DỊCH VỤ SOS</h2>
 
               {currentClinic.sosFee && currentClinic.sosFee > 0 && (
@@ -421,7 +506,7 @@ export function ClinicDetailPage() {
 
           {/* Operating Hours */}
           {currentClinic.operatingHours && Object.keys(currentClinic.operatingHours).length > 0 && (
-            <div className="card-brutal p-6 mb-6">
+            <div className="card-brutal p-6 mb-6" data-sandbox-target="clinic-detail-hours" onClick={(e) => trackSandboxStepAction('clinic_info.review_detail', e.currentTarget)}>
               <h2 className="text-lg font-bold uppercase text-stone-900 mb-4">GIỜ LÀM VIỆC</h2>
               {/* Check if clinic is 24/7 */}
               {DAYS_OF_WEEK.every((day) => {
@@ -489,7 +574,7 @@ export function ClinicDetailPage() {
 
           {/* Business License */}
           {currentClinic.businessLicenseUrl && (
-            <div className="card-brutal p-6 mb-6">
+            <div className="card-brutal p-6 mb-6" data-sandbox-target="clinic-detail-license" onClick={(e) => trackSandboxStepAction('clinic_info.review_detail', e.currentTarget)}>
               <h2 className="text-lg font-bold uppercase text-stone-900 mb-4 flex items-center gap-2">
                 <DocumentTextIcon className="w-6 h-6" />
                 GIẤY PHÉP KINH DOANH
@@ -533,7 +618,7 @@ export function ClinicDetailPage() {
 
           {/* Map */}
           {currentClinic.latitude && currentClinic.longitude && (
-            <div className="card-brutal p-6 mb-6">
+            <div className="card-brutal p-6 mb-6" data-sandbox-target="clinic-detail-map" onClick={(e) => trackSandboxStepAction('clinic_info.review_detail', e.currentTarget)}>
               <h2 className="text-lg font-bold uppercase text-stone-900 mb-4">VỊ TRÍ</h2>
               <ClinicMapOSM clinic={currentClinic} />
               <div className="mt-4">
@@ -549,6 +634,101 @@ export function ClinicDetailPage() {
               <div className="text-red-700">{currentClinic.rejectionReason}</div>
             </div>
           )}
+
+          {/* Suspend Request */}
+          <div className="card-brutal p-6 mb-6">
+            <h2 className="text-lg font-bold uppercase text-stone-900 mb-4">YÊU CẦU TẠM NGƯNG / BỎ TẠM NGƯNG</h2>
+
+            <div className="border-2 border-stone-900 bg-stone-50 p-4 mb-4">
+              <p className="text-sm font-bold text-stone-900 mb-2">Trạng thái hiện tại: {statusLabels[currentClinic.status] || currentClinic.status}</p>
+              {latestPendingSuspendRequest ? (
+                <p className="text-sm text-amber-700 font-bold">Đang có một yêu cầu chờ duyệt. Bạn chưa thể gửi thêm yêu cầu mới.</p>
+              ) : currentClinic.status !== 'APPROVED' && currentClinic.status !== 'SUSPENDED' ? (
+                <p className="text-sm text-stone-700">Chức năng này chỉ khả dụng khi phòng khám đang ở trạng thái hoạt động.</p>
+              ) : (
+                <p className="text-sm text-stone-700">
+                  {currentClinic.status === 'SUSPENDED'
+                    ? 'Nhập lý do để gửi đơn bỏ tạm ngưng đến quản trị viên.'
+                    : 'Nhập lý do để gửi yêu cầu tạm ngưng đến quản trị viên.'}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-3 mb-5">
+              <label className="block text-xs font-bold uppercase text-stone-600">
+                {currentClinic.status === 'SUSPENDED' ? 'Lý do bỏ tạm ngưng' : 'Lý do tạm ngưng'}
+              </label>
+              <textarea
+                value={suspendReason}
+                onChange={(e) => setSuspendReason(e.target.value)}
+                rows={4}
+                disabled={Boolean(latestPendingSuspendRequest) || (currentClinic.status !== 'APPROVED' && currentClinic.status !== 'SUSPENDED') || isSuspendSubmitting}
+                className="w-full border-2 border-stone-900 p-3 font-medium text-sm disabled:bg-stone-100"
+                placeholder={currentClinic.status === 'SUSPENDED'
+                  ? 'Ví dụ: đã hoàn tất bảo trì, đủ điều kiện hoạt động lại...'
+                  : 'Ví dụ: tạm đóng cửa để bảo trì cơ sở vật chất...'}
+              />
+              <p className="text-xs text-stone-500">Tối thiểu 10 ký tự.</p>
+              <button
+                type="button"
+                onClick={handleOpenSuspendConfirm}
+                disabled={Boolean(latestPendingSuspendRequest) || (currentClinic.status !== 'APPROVED' && currentClinic.status !== 'SUSPENDED') || isSuspendSubmitting}
+                className="btn-brutal disabled:opacity-50"
+              >
+                {isSuspendSubmitting
+                  ? 'Đang gửi...'
+                  : currentClinic.status === 'SUSPENDED'
+                    ? 'GỬI ĐƠN BỎ TẠM NGƯNG'
+                    : 'GỬI YÊU CẦU TẠM NGƯNG'}
+              </button>
+            </div>
+
+            <div className="border-t-2 border-stone-200 pt-4">
+              <div className="flex items-center justify-between mb-3 gap-2">
+                <h3 className="text-sm font-bold uppercase text-stone-900">Lịch sử yêu cầu của phòng khám này</h3>
+                <button
+                  type="button"
+                  onClick={() => void loadSuspendHistory()}
+                  className="btn-brutal-outline px-3 py-1 text-xs"
+                >
+                  Làm mới
+                </button>
+              </div>
+
+              {isSuspendHistoryLoading ? (
+                <div className="text-sm text-stone-600">Đang tải lịch sử...</div>
+              ) : suspendHistory.length === 0 ? (
+                <div className="text-sm text-stone-600">Chưa có yêu cầu tạm ngưng nào.</div>
+              ) : (
+                <div className="space-y-3">
+                  {suspendHistory.map((request) => (
+                    <div key={request.clinicSuspendRequestId} className="border-2 border-stone-900 bg-white p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`inline-block px-2 py-1 border-2 border-black font-black text-[10px] uppercase ${suspendStatusColors[request.status] || 'bg-stone-100 text-stone-700 border-stone-400'}`}
+                          >
+                            {suspendStatusLabel[request.status] || request.status}
+                          </span>
+                          <span className="inline-block px-2 py-1 border-2 border-black font-black text-[10px] uppercase bg-stone-100 text-stone-800 border-stone-400">
+                            {request.requestType === 'UNSUSPEND' ? 'Bỏ tạm ngưng' : 'Tạm ngưng'}
+                          </span>
+                        </div>
+                        <span className="text-xs text-stone-500">{new Date(request.createdAt).toLocaleString('vi-VN')}</span>
+                      </div>
+                      <p className="text-sm text-stone-800 whitespace-pre-wrap">{request.reason}</p>
+                      {request.adminNote && (
+                        <div className="mt-2 p-2 border-2 border-stone-900 bg-stone-50">
+                          <div className="text-[10px] font-bold uppercase text-stone-600 mb-1">Ghi chú quản trị</div>
+                          <p className="text-sm text-stone-800 whitespace-pre-wrap">{request.adminNote}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* Timestamps */}
           <div className="card-brutal p-6">
@@ -590,6 +770,19 @@ export function ClinicDetailPage() {
         confirmText="Xóa phòng khám"
         cancelText="Hủy bỏ"
         variant="danger"
+      />
+
+      <ConfirmDialog
+        isOpen={showSuspendConfirm}
+        onClose={() => setShowSuspendConfirm(false)}
+        onConfirm={() => {
+          void handleConfirmSuspendRequest()
+        }}
+        title="Gửi yêu cầu tạm ngưng"
+        message={`Bạn có chắc muốn gửi yêu cầu ${requestActionLabel} phòng khám này không?`}
+        confirmText="Gửi yêu cầu"
+        cancelText="Hủy"
+        variant="warning"
       />
     </>
   )
