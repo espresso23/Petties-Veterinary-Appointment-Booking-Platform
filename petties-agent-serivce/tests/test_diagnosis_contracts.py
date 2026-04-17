@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.api.schemas.diagnosis_contracts import (
+from app.ai_diagnose.schemas import (
     GeminiVisionDiagnosisRequest,
     GeminiVisionDiagnosisResponse,
     Species,

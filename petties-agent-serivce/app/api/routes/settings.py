@@ -17,6 +17,7 @@ from app.db.postgres.session import get_db
 from app.db.postgres.models import (
     SystemSetting,
     DEFAULT_SETTINGS,
+    ToolType,
     SettingCategory,
 )
 from app.api.middleware.auth import get_admin_user
@@ -204,7 +205,7 @@ async def seed_database(
     Changes from Multi-Agent:
     - Chi tao 1 agent (petties_agent) thay vi 4 agents
     - Su dung OpenRouter Cloud API
-    - Tools duoc quan ly toan cuc cho single agent
+    - Tools duoc assign cho petties_agent
 
     Args:
         force: Neu True, seed lai du da co data
@@ -213,17 +214,423 @@ async def seed_database(
         Status message voi so luong agents/tools da seed
     """
     try:
-        from app.core.tools.scanner import tool_scanner
-        from app.db.postgres.seed import seed_data
+        from app.db.postgres.models import (
+            Agent,
+            Tool,
+            SystemSetting,
+            DEFAULT_SETTINGS,
+            PromptVersion,
+        )
+        from sqlalchemy import select, delete
+        from pathlib import Path
 
-        results = await seed_data(db, force=force)
-        scan_result = await tool_scanner.scan_and_sync_tools()
+        # Templates directory
+        templates_dir = (
+            Path(__file__).parent.parent.parent / "core" / "prompts" / "templates"
+        )
+
+        def load_template(agent_name: str) -> str:
+            """Load template file"""
+            template_path = templates_dir / f"{agent_name}.txt"
+            try:
+                if template_path.exists():
+                    return template_path.read_text(encoding="utf-8").strip()
+            except Exception as e:
+                logger.warning(f"Failed to load template {agent_name}: {e}")
+            return ""
+
+        results = {"system_settings": 0, "agents": 0, "tools": 0}
+
+        # 1. Seed system settings
+        if force:
+            await db.execute(delete(SystemSetting))
+
+        existing_settings = await db.execute(select(SystemSetting))
+        if not existing_settings.scalars().first() or force:
+            settings = []
+            for setting_data in DEFAULT_SETTINGS:
+                setting = SystemSetting(
+                    key=setting_data["key"],
+                    value=setting_data["value"],
+                    category=setting_data["category"],  # Simple string
+                    is_sensitive=setting_data["is_sensitive"],
+                    description=setting_data["description"],
+                )
+                settings.append(setting)
+            db.add_all(settings)
+            results["system_settings"] = len(settings)
+            logger.info(f"Seeded {len(settings)} system settings")
+
+        # 2. Seed Single Agent (thay vi 4 Multi-Agents)
+        if force:
+            await db.execute(delete(PromptVersion))
+            await db.execute(delete(Agent))
+
+        existing_agents = await db.execute(select(Agent))
+        if not existing_agents.scalars().first() or force:
+            # Load prompt tu template hoac dung default
+            single_agent_prompt = load_template("single_agent") or load_template(
+                "main_agent"
+            )
+
+            # Fallback prompt cho Single Agent + ReAct
+            if not single_agent_prompt:
+                single_agent_prompt = """Ban la Petties AI Assistant - tro ly AI chuyen ve cham soc thu cung.
+
+## NHIEM VU
+- Tu van suc khoe thu cung, chan doan so bo dua tren trieu chung
+- Ho tro dat lich kham tai phong kham thu y
+- Tim kiem thong tin ve cham soc thu cung, san pham, dich vu
+- Tra loi cac cau hoi ve thu cung bang tieng Viet than thien
+
+## QUY TAC CHINH
+1. Luon tra loi bang tieng Viet, than thien va de hieu
+2. Khi can thong tin y te, PHAI su dung tool tra cuu knowledge base
+3. Khong dua ra chan doan cuoi cung - luon khuyen khich gap bac si thu y
+4. Uu tien an toan va suc khoe cua thu cung
+
+## NGUYEN TAC DUNG (CRITICAL)
+- CHI GOI TOOL TOI DA 1-2 LAN cho moi cau hoi
+- Sau khi nhan Observation co thong tin huu ich, PHAI chuyen sang Final Answer
+- KHONG tim kiem them neu da co ket qua tot. Mot ket qua co thong tin la DU de tra loi
+- KHONG su dung nhieu tool khac nhau cho cung mot cau hoi. Chon MOT tool phu hop nhat
+- Neu tool tra ve loi, DUNG LAI va thong bao cho user, KHONG thu lai voi tool khac
+
+## QUY TAC VANG
+- Tuyet doi khong goi cung mot tool voi tham so tuong tu qua 1 lan
+- Neu Observation da co thong tin, DU KHONG HOAN HAO, van phai dung no de tra loi
+- KHONG lap lai hanh dong cu hoac thu nhieu cach khac nhau
+
+## LUU Y VE TOOL INPUT
+- KHONG duoc viet "Tool: Khong" hoac "Tool: None"
+- Neu khong can goi tool, di thang den Final Answer
+- Tool Input PHAI la JSON hop le voi day du tham so required"""
+
+            # Create Single Agent
+            single_agent = Agent(
+                name="petties_agent",
+                description="Petties AI Assistant - Single Agent voi ReAct pattern",
+                temperature=0.7,
+                max_tokens=2000,
+                top_p=0.9,
+                model="google/gemini-2.5-flash-lite",  # OpenRouter model
+                system_prompt=single_agent_prompt,
+                enabled=True,
+            )
+
+            db.add(single_agent)
+            results["agents"] = 1
+            logger.info("Seeded 1 Single Agent (petties_agent)")
+
+        # 3. Seed tools cho Single Agent (chi 2 RAG tools)
+        existing_tools = await db.execute(select(Tool))
+        if not existing_tools.scalars().first() or force:
+            if force:
+                await db.execute(delete(Tool))
+
+            # Chi seed 1 unified RAG tool + web fallback
+            # Cac tools khac (booking, clinic search) se duoc add sau khi co API integration
+            tools = [
+                Tool(
+                    name="pet_knowledge_search",
+                    description="""Tim kiem kien thuc cham soc thu cung va phan tich trieu chung tu Knowledge Base (RAG).
+
+Su dung tool nay khi user:
+- Hoi cach cham soc thu cung (cho an, tam rua, tap luyen)
+- Hoi ve thong tin giong loai, dinh duong, thuc pham
+- Mo ta trieu chung (sot, non, tieu chay, bo an, ngua, rung long)
+- Hoi ve benh, chan doan, dieu tri tham khao
+
+Tool tra cuu kien thuc thu y (benh, trieu chung, cham soc) tu knowledge base va tra ve ket qua tho (raw data).
+LLM se tu tong hop va format cau tra loi tu ket qua tool.
+
+WARNING: Tool nay chi cung cap thong tin tham khao.
+Luon khuyen nguoi dung den phong kham thu y de duoc chan doan chinh xac.""",
+                    tool_type=ToolType.CODE_BASED,
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "Cau hoi hoac mo ta trieu chung (tieng Viet hoac English)",
+                            },
+                            "pet_type": {
+                                "type": "string",
+                                "description": "Loai thu cung: dog, cat, bird, rabbit, hamster",
+                                "default": "dog",
+                            },
+                            "top_k": {
+                                "type": "integer",
+                                "description": "So luong ket qua tra ve (default: 5)",
+                                "default": 5,
+                            },
+                            "min_score": {
+                                "type": "number",
+                                "description": "Diem tuong dong toi thieu (default: 0.4)",
+                                "default": 0.4,
+                            },
+                        },
+                        "required": ["query"],
+                    },
+                    output_schema={
+                        "type": "object",
+                        "properties": {
+                            "query": {"type": "string"},
+                            "pet_type": {"type": "string"},
+                            "results": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "content": {"type": "string"},
+                                        "score": {"type": "number"},
+                                        "source": {"type": "string"},
+                                        "chunk_index": {"type": "integer"},
+                                    },
+                                },
+                            },
+                            "sources_used": {"type": "integer"},
+                            "search_source": {"type": "string"},
+                        },
+                    },
+                    enabled=True,
+                    assigned_agents=["petties_agent"],
+                ),
+                Tool(
+                    name="web_search",
+                    description="""Tim thong tin tu web khi knowledge base chua du du lieu.
+
+Chi su dung tool nay cho cau hoi lien quan den:
+- Thu cung, thu y, dinh duong, cham soc
+- Trieu chung, benh ly, huong dan xu ly tham khao
+
+Tool nay dung DuckDuckGo search va tu dong loc ket qua theo pham vi thu cung/thu y.""",
+                    tool_type=ToolType.CODE_BASED,
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "Cau hoi can tim tren web (chi nhan noi dung lien quan thu cung/thu y)",
+                            },
+                            "max_results": {
+                                "type": "integer",
+                                "description": "So luong ket qua toi da (default: 5)",
+                                "default": 5,
+                            },
+                        },
+                        "required": ["query"],
+                    },
+                    output_schema={
+                        "type": "object",
+                        "properties": {
+                            "query": {"type": "string"},
+                            "results": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "title": {"type": "string"},
+                                        "snippet": {"type": "string"},
+                                        "url": {"type": "string"},
+                                        "source": {"type": "string"},
+                                    },
+                                },
+                            },
+                            "sources_used": {"type": "integer"},
+                            "search_source": {"type": "string"},
+                        },
+                    },
+                    enabled=True,
+                    assigned_agents=["petties_agent"],
+                ),
+                Tool(
+                    name="get_user_pets",
+                    description="Lấy danh sách thú cưng của pet owner hiện tại để phục vụ booking flow.",
+                    tool_type=ToolType.CODE_BASED,
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "user_id": {
+                                "type": "string",
+                                "description": "User ID duoc auto-inject tu business chat session",
+                            }
+                        },
+                        "required": [],
+                    },
+                    output_schema={
+                        "type": "object",
+                        "properties": {
+                            "user_id": {"type": "string"},
+                            "pets": {"type": "array", "items": {"type": "object"}},
+                            "total_pets": {"type": "integer"},
+                        },
+                    },
+                    enabled=True,
+                    assigned_agents=["petties_agent"],
+                ),
+                Tool(
+                    name="search_clinics_nearby",
+                    description="Tim phong kham gan vi tri user va loc theo dich vu neu can.",
+                    tool_type=ToolType.CODE_BASED,
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "latitude": {"type": "number"},
+                            "longitude": {"type": "number"},
+                            "radius_km": {"type": "number", "default": 5},
+                            "service_names": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                            "top_k": {"type": "integer", "default": 5},
+                        },
+                        "required": ["latitude", "longitude"],
+                    },
+                    output_schema={
+                        "type": "object",
+                        "properties": {
+                            "clinics": {"type": "array", "items": {"type": "object"}},
+                            "total_found": {"type": "integer"},
+                        },
+                    },
+                    enabled=True,
+                    assigned_agents=["petties_agent"],
+                ),
+                Tool(
+                    name="get_clinic_services",
+                    description="Lay danh sach dich vu cua clinic de AI de xuat booking.",
+                    tool_type=ToolType.CODE_BASED,
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "clinic_id": {"type": "string"},
+                            "pet_species": {"type": "string"},
+                            "is_home_visit": {"type": "boolean"},
+                        },
+                        "required": ["clinic_id"],
+                    },
+                    output_schema={
+                        "type": "object",
+                        "properties": {
+                            "services": {"type": "array", "items": {"type": "object"}},
+                            "total_services": {"type": "integer"},
+                        },
+                    },
+                    enabled=True,
+                    assigned_agents=["petties_agent"],
+                ),
+                Tool(
+                    name="check_vaccination_status",
+                    description="Lay lich su tiem va goi y mui sap toi cua pet de ho tro tu van booking tiem chung trong flow binh thuong.",
+                    tool_type=ToolType.CODE_BASED,
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "pet_id": {"type": "string"},
+                            "vaccine_template_id": {"type": "string"},
+                        },
+                        "required": ["pet_id"],
+                    },
+                    output_schema={
+                        "type": "object",
+                        "properties": {
+                            "history": {"type": "array", "items": {"type": "object"}},
+                            "upcoming": {"type": "array", "items": {"type": "object"}},
+                            "recommended_next": {"type": "object"},
+                            "message": {"type": "string"},
+                        },
+                    },
+                    enabled=True,
+                    assigned_agents=["petties_agent"],
+                ),
+                Tool(
+                    name="check_available_slots",
+                    description="Kiem tra khung gio con trong cua clinic cho booking AI.",
+                    tool_type=ToolType.CODE_BASED,
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "clinic_id": {"type": "string"},
+                            "date": {"type": "string"},
+                            "service_ids": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                        },
+                        "required": ["clinic_id", "date", "service_ids"],
+                    },
+                    output_schema={
+                        "type": "object",
+                        "properties": {
+                            "available_slots": {
+                                "type": "array",
+                                "items": {"type": "object"},
+                            },
+                            "total_slots": {"type": "integer"},
+                        },
+                    },
+                    enabled=True,
+                    assigned_agents=["petties_agent"],
+                ),
+                Tool(
+                    name="create_booking_for_user",
+                    description="Tao booking cho pet owner sau khi da co human confirmation.",
+                    tool_type=ToolType.CODE_BASED,
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "pet_id": {"type": "string"},
+                            "clinic_id": {"type": "string"},
+                            "booking_date": {"type": "string"},
+                            "start_time": {"type": "string"},
+                            "service_ids": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                            "booking_type": {
+                                "type": "string",
+                                "enum": ["IN_CLINIC", "HOME_VISIT"],
+                            },
+                            "notes": {"type": "string"},
+                            "home_address": {"type": "string"},
+                            "home_lat": {"type": "number"},
+                            "home_long": {"type": "number"},
+                            "distance_km": {"type": "number"},
+                            "confirmed": {"type": "boolean", "default": false},
+                        },
+                        "required": [
+                            "pet_id",
+                            "clinic_id",
+                            "booking_date",
+                            "start_time",
+                            "service_ids",
+                            "confirmed",
+                        ],
+                    },
+                    output_schema={
+                        "type": "object",
+                        "properties": {
+                            "success": {"type": "boolean"},
+                            "booking": {"type": "object"},
+                            "message": {"type": "string"},
+                        },
+                    },
+                    enabled=True,
+                    assigned_agents=["petties_agent"],
+                ),
+            ]
+
+            db.add_all(tools)
+            results["tools"] = len(tools)
+            logger.info(f"Seeded {len(tools)} RAG tools for Single Agent")
+
+        await db.commit()
 
         return {
             "status": "success",
             "message": "Database seeded successfully with Single Agent architecture",
             "results": results,
-            "tool_scan": scan_result,
         }
 
     except Exception as e:
@@ -283,10 +690,7 @@ async def test_openrouter_connection(
         )
 
     # Get configured model or fallback default
-    model = (
-        await get_setting("OPENROUTER_DEFAULT_MODEL", db)
-        or "google/gemini-2.5-flash-lite"
-    )
+    model = await get_setting("OPENROUTER_MODEL", db) or "google/gemini-2.5-flash-lite"
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
@@ -481,57 +885,4 @@ async def test_jina_image_embeddings(
 
     except Exception as e:
         logger.error(f"Jina test error: {e}")
-        return TestResult(status="error", message=str(e))
-
-
-@router.post("/test-tavily", response_model=TestResult)
-async def test_tavily_connection(
-    db: AsyncSession = Depends(get_db), _: dict = Depends(get_admin_user)
-):
-    """
-    Test Tavily Web Search API connection.
-
-    Verifies:
-    - TAVILY_API_KEY is configured
-    - Can connect to Tavily API
-    - Can perform search query
-    """
-    api_key = await get_setting("TAVILY_API_KEY", db)
-
-    if not api_key:
-        return TestResult(
-            status="error",
-            message="TAVILY_API_KEY chưa được cấu hình. Hãy thiết lập trong Admin Settings.",
-        )
-
-    try:
-        from tavily import TavilyClient
-
-        client = TavilyClient(api_key=api_key)
-        response = client.search(
-            query="dog health",
-            max_results=3,
-            include_answer=False,
-            include_raw_content=False,
-        )
-
-        results = response.get("results", [])
-
-        if results:
-            return TestResult(
-                status="success",
-                message=f"Kết nối Tavily thành công! Tìm thấy {len(results)} kết quả.",
-                details={
-                    "results_count": len(results),
-                    "sample_title": results[0].get("title", "")[:50],
-                },
-            )
-        else:
-            return TestResult(
-                status="warning",
-                message="Kết nối Tavily thành công nhưng không tìm thấy kết quả nào.",
-            )
-
-    except Exception as e:
-        logger.error(f"Tavily test error: {e}")
         return TestResult(status="error", message=str(e))

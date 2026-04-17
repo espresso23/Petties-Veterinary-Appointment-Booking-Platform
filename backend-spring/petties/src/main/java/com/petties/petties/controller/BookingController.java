@@ -108,8 +108,7 @@ public class BookingController {
             @Valid @RequestBody ProxyBookingRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        log.info("POST /bookings/proxy - Creating proxy booking for recipient: {}", 
-                request.getRecipient().getFullName());
+        log.info("POST /bookings/proxy - Creating proxy booking");
         
         com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
         BookingResponse response = bookingService.createProxyBooking(request, userPrincipal.getUserId());
@@ -215,7 +214,7 @@ public class BookingController {
     /**
      * Get detailed availability info for a specific booking
      */
-    @PreAuthorize("hasAnyRole('CLINIC_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CLINIC_MANAGER', 'CLINIC_OWNER', 'ADMIN')")
     @GetMapping("/{bookingId}/availability")
     public ResponseEntity<StaffAvailabilityCheckResponse> getStaffAvailability(@PathVariable UUID bookingId) {
         StaffAvailabilityCheckResponse response = bookingService.checkStaffAvailability(bookingId);
@@ -267,7 +266,7 @@ public class BookingController {
      * Confirm booking (Clinic Manager action)
      * Auto-assigns or manual-assigns staff and reserves slots
      */
-    @PreAuthorize("hasAnyRole('CLINIC_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CLINIC_MANAGER', 'CLINIC_OWNER', 'ADMIN')")
     @PostMapping("/{bookingId}/confirm")
     public ResponseEntity<BookingResponse> confirmBooking(
             @PathVariable UUID bookingId,
@@ -280,7 +279,7 @@ public class BookingController {
     /**
      * Reassign staff for a specific service item
      */
-    @PreAuthorize("hasAnyRole('CLINIC_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CLINIC_MANAGER', 'CLINIC_OWNER', 'ADMIN')")
     @PutMapping("/{bookingId}/services/{serviceId}/reassign")
     public ResponseEntity<BookingResponse> reassignStaff(
             @PathVariable UUID bookingId,
@@ -329,7 +328,7 @@ public class BookingController {
     /**
      * Cancel booking
      */
-    @PreAuthorize("hasAnyRole('PET_OWNER', 'CLINIC_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('PET_OWNER', 'CLINIC_MANAGER', 'CLINIC_OWNER', 'ADMIN')")
     @PostMapping("/{bookingId}/cancel")
     public ResponseEntity<BookingResponse> cancelBooking(
             @PathVariable UUID bookingId,
@@ -454,7 +453,7 @@ public class BookingController {
      * @param clinicId Clinic ID
      * @return List of ClinicTodayBookingResponse with isMyAssignment flag
      */
-    @PreAuthorize("hasRole('STAFF')")
+    @PreAuthorize("hasAnyRole('STAFF', 'CLINIC_MANAGER', 'CLINIC_OWNER', 'ADMIN')")
     @GetMapping("/clinic/{clinicId}/today")
     public ResponseEntity<List<com.petties.petties.dto.booking.ClinicTodayBookingResponse>> getClinicTodayBookings(
             @PathVariable UUID clinicId,
@@ -462,10 +461,10 @@ public class BookingController {
 
         com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
         UUID userId = userPrincipal.getUserId();
-        com.petties.petties.model.User currentStaff = bookingService.getCurrentUserById(userId);
+        com.petties.petties.model.User currentUser = bookingService.getCurrentUserById(userId);
 
         List<com.petties.petties.dto.booking.ClinicTodayBookingResponse> response = bookingService
-                .getClinicTodayBookings(clinicId, currentStaff);
+                .getClinicTodayBookings(clinicId, currentUser);
         return ResponseEntity.ok(response);
     }
 }

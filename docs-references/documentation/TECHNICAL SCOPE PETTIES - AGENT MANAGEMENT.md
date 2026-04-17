@@ -1,5 +1,8 @@
-> Legacy Note (2026-03-25): This document may contain historical references to `prompt_versions`, editable system-prompt versioning, or older AI schema/ERD counts. It is retained for historical or presentation context only. For current database truth and active AI storage architecture, use `docs-references/database/PETTIES_DBML.dbml`, `docs-references/documentation/PETTIES_ERD_DIAGRAM.md`, `docs-references/documentation/DATABASE_SCHEMA_ANALYSIS.md`, `docs-references/documentation/SRS/PETTIES_SRS.md`, and `docs-references/documentation/SDD/REPORT_4_SDD_SYSTEM_DESIGN.md`.
+> Legacy Note (2026-03-25): This document may contain historical references to `prompt_versions`, editable system-prompt versioning, or older AI schema/ERD counts. It is retained for historical or presentation context only. For current database truth and active AI storage architecture, use `docs-references/database/PETTIES_DBML.dbml`, `docs-references/documentation/PETTIES_ERD_DIAGRAM.md`, `docs-references/documentation/DATABASE_SCHEMA_ANALYSIS.md`, `docs-references/documentation/SRS/PETTIES_SRS.md`, and `docs-references/documentation/SDD/PETTIES_SDD.md`.
 # **TECHNICAL SCOPE: PETTIES - AGENT MANAGEMENT**
+
+**Version:** 2.1.1 (Runtime-truth alignment pass)
+**Last Updated:** 2026-04-09
 
 > **Lưu ý cập nhật ngày 2026-03-22:** 
 > - **Tool Self-Contained UI Cards (v2.0):** Tools định nghĩa `ui_card` trong return value, chat.py dùng generic dispatcher. Không còn hardcoded extraction logic.
@@ -47,7 +50,7 @@ Thay vì xây dựng một công cụ tạo Agent (No-code builder), hệ thốn
 │                                                                     │
 │  ⚙️ Admin Config (Hot-reload)                                       │
 │  ├── Enable/Disable Agent                                           │
-│  ├── System Prompt (editable, versioned)                            │
+│  ├── Runtime Guardrails (role/context policy)                       │
 │  ├── Parameters: Temperature, Max Tokens, Top-P                     │
 │  ├── Tool Management: Enable/Disable individual tools              │
 │  └── Knowledge Base: Upload/Remove documents                        │
@@ -238,9 +241,9 @@ Admin config một Single Agent với các tham số sau:
    * Khi tắt, user sẽ thấy message "Trợ lý AI đang bảo trì"
 
 2. **System Prompt:**
-   * Admin điều chỉnh prompt để hướng dẫn Agent cách xử lý
-   * Version control: Lưu lịch sử các phiên bản prompt
-   * Ví dụ: "Bạn là trợ lý Petties, chuyên về chăm sóc thú cưng..."
+  * Prompt baseline hiện được quản lý trong code để đảm bảo ổn định runtime.
+  * Admin tập trung điều chỉnh cấu hình vận hành (model, token limits, tool governance, settings) thay vì prompt versioning ở DB.
+  * Guardrails theo role/context được ghép động ở runtime.
 
 3. **Model Hyperparameters:**
    * **Temperature Slider:** 0.0 - 1.0 (mặc định 0.7)
@@ -319,13 +322,13 @@ Quản lý dữ liệu kiến thức thú y mà Agent sử dụng để trả l�
 
 ### **Frontend (React + Tailwind CSS)**
 
-* **Agent Config UI:** Form đơn giản để config System Prompt, Model, Parameters.
+* **Agent Config UI:** Form cấu hình runtime (Model, Parameters, Tool Governance).
 * **Playground:** Chat Interface với ReAct Debug Panel.
 * **Settings UI:** Form quản lý API Key và System Settings.
 
 ### **Database & Storage**
 
-* **PostgreSQL:** Lưu trữ cấu hình Agent, **Encrypted API Keys**, danh sách Tools, Prompt Versions (không lưu message chat AI-user).
+* **PostgreSQL:** Lưu trữ cấu hình Agent, **Encrypted API Keys**, danh sách Tools và System Settings (không lưu message chat AI-user).
 * **MongoDB:** Lưu trữ lịch sử hội thoại AI-user (`ai_chat_sessions`, `ai_chat_messages`) và metadata để audit/phân tích.
 * **Qdrant Cloud (Managed Service):** Lưu trữ vector cho RAG (documents & knowledge base).
 
@@ -333,12 +336,12 @@ Quản lý dữ liệu kiến thức thú y mà Agent sử dụng để trả l�
 ## **5\. User Flow cho Admin (Người quản trị)**
 
 1. **Trường hợp 1: Sửa lỗi Điều phối qua System Prompt**
-   * **Vấn đề:** Main Agent điều hướng nhầm câu "Mua thuốc xổ giun" sang Medical Agent (vì nghĩ là chữa bệnh) thay vì Research Agent (vì đây là nhu cầu mua sắm/tìm kiếm).
+   * **Vấn đề:** Single Agent chọn tool chưa phù hợp cho ngữ cảnh nghiệp vụ (ví dụ dùng tool tư vấn thay vì tool booking/context resolution).
    * **Hành động:**
-     * Admin vào tab "Agent Configuration" → chọn Main Agent.
-     * Chỉnh sửa System Prompt, thêm hướng dẫn rõ ràng hơn về routing rules.
+     * Admin vào tab "Agent Configuration".
+     * Điều chỉnh parameters/tool governance và kiểm thử lại trên Playground.
      * Bấm **Save**.
-   * **Kết quả:** Main Agent sử dụng LLM + Updated Prompt để điều hướng chính xác hơn.
+   * **Kết quả:** Runtime context + tool policy được áp dụng nhất quán, giảm chọn sai tool ở luồng chat.
 2. **Trường hợp 2: Thêm Tool mới cho Agent**
    * **Actor:** Developer.
    * **Context:** Cần thêm tool `check_vaccine_history` cho Medical Agent.
@@ -510,17 +513,16 @@ Danh sách chi tiết các công nghệ được sử dụng để xây dựng h
 
 * **Domain Knowledge & Intelligence:**
 
-  * **Knowledge Graph (LlamaIndex KnowledgeGraphIndex):**
-    * Extracts triplets from veterinary documents: (Symptom) --points_to--> (Disease) --common_in--> (Species)
-    * Hybrid Query: RAG (vector similarity) + KG (graph traversal) for reasoning over chains
-    * Backend: SimpleGraphStore (MVP) → Neo4j (at scale)
-    * Example: "Dry cough + runny nose" → KG infers "Upper respiratory infection" → "Antibiotics + keep warm"
+  * **RAG Knowledge Base:**
+    * Vector-indexed veterinary documents via Qdrant Cloud + Cohere embeddings
+    * Sentence-level chunking for accurate retrieval
+    * Example: "Dry cough + runny nose" → RAG retrieves relevant veterinary guidance → "Antibiotics + keep warm"
 
-* **Case Memory từ EMR xác nhận:**
-    * Vision LLM describes the image, then embeds the **textual description** (visual_description + diagnosis + symptoms) with Cohere and stores it together with metadata (species, disease, feedback, image_url, etc.)
+  * **Case Memory từ EMR xác nhận:**
+    * Vision LLM describes the image, then embeds the **textual description** actually used by retrieval together with metadata (species, canonical disease mapping, quality gate, image_url, etc.)
     * On similar future images, retrieves confirmed cases to increase accuracy and provide explanations such as "based on a previous case confirmed by Staff/Vet"
-    * Feedback-weighted retrieval: cases confirmed many times are boosted in ranking
-    * **Phase 2 (Done):** Add a layer of **CLIP-style image embeddings** in a dedicated Qdrant collection (`petties_kb_images`) for images extracted from PDFs, combined with text embeddings to better capture purely visual patterns. Implemented with Jina CLIP v2 (1024 dim) for image vectors and Cohere for text vectors. Supports hybrid search (text + image similarity).
+    * Quality-gated retrieval: ranking is boosted by `quality_gate.score` and by support metrics aggregated from multiple confirmed EMRs of the same disease/species
+    * **Phase 2 (Done):** Add a layer of **CLIP-style image embeddings** in `petties_case_memory_v2` for confirmed EMR cases with named vectors (`text` + `image`). Implemented with Jina CLIP v2 (1024 dim) for image vectors and Cohere for text vectors.
 
   * **Query Expansion:**
     * LLM automatically expands short queries ("dog not eating" → synonyms, clinical terms, related symptoms)
@@ -531,7 +533,7 @@ Danh sách chi tiết các công nghệ được sử dụng để xây dựng h
     * Prompt optimization based on patterns found in feedback data
     * Periodic prune: remove low-value cases, prioritize verified ones
 
-  * **Details:** See `AI_AGENT_DATA_IMPROVEMENT_STRATEGY.md` Sections 7–11
+  * **Details:** See `docs-references/ai_diagnose_service/01_RUNTIME_FLOW.md` and `docs-references/documentation/SDD/PETTIES_SDD.md` (AI Assistant sections)
 
 ### **D. Infrastructure & Real-time (AWS EC2 Production)**
 
@@ -565,7 +567,7 @@ Các tính năng được phân nhóm theo chức năng và mức độ ưu tiê
 | ID | Feature Name | Tech Stack Context & Description | Priority |
 | :---- | :---- | :---- | :---- |
 | **AG-01** | **Agent Enable/Disable** | Bật/tắt Agent. Khi tắt, user thấy message "Trợ lý AI đang bảo trì". | **✅ Done** |
-| **AG-02** | **System Prompt Editor** | Giao diện chỉnh sửa System Prompt cho Single Agent. Dữ liệu được versioning và lưu trong PostgreSQL. | **✅ Done** |
+| **AG-02** | **Runtime Prompt/Guardrail Governance** | Prompt baseline do code quản lý; runtime ghép guardrails theo role/context và cho phép tinh chỉnh vận hành qua cấu hình Agent/Tools/Settings. | **✅ Done** |
 | **AG-03** | **Model Parameter Tuning** | Cấu hình tham số: Temperature, Max Tokens, Top-P, Model selection. | **✅ Done** |
 
 ### **Tools Management (@mcp.tool)**
@@ -586,9 +588,8 @@ Các tính năng được phân nhóm theo chức năng và mức độ ưu tiê
 | **KB-02** | **Indexing Status** | Theo dõi trạng thái indexing: parsing → chunking → embedding → Qdrant. | **✅ Done** |
 | **KB-03** | **RAG Retrieval Test** | Admin nhập query test để xem RAG trả về chunks nào từ knowledge base. | **✅ Done** |
 | **KB-04** | **Query Expansion** | LLM tu dong mo rong query ngan gon truoc khi RAG search. Tang recall cho cau hoi ngan cua Staff. | **✅ Done** |
-| **KB-05** | **Knowledge Graph Index** | LlamaIndex KG extract triplets (trieu chung->benh->loai) tu tai lieu. Hybrid query RAG + KG. Hash-based deduplication for consistent builds. | **✅ Done** |
 | **KB-06** | **Case Memory từ EMR xác nhận** | Tái sử dụng EMR đã xác nhận làm nguồn case memory nội bộ để truy xuất ca tương tự. | **🔄 Redesigned** |
-| **KB-07** | **KB Image Embeddings** | Extract images from PDF documents and index with Jina CLIP v2. Support hybrid search (text + image similarity) via `/query-hybrid` endpoint. | **✅ Done (2026-03-19)** |
+| **KB-07** | ~~**KB Image Embeddings**~~ | ~~Extract images from PDF documents and index with Jina CLIP v2. Support hybrid search (text + image similarity) via `/query-hybrid` endpoint.~~ | **❌ Removed (2026-04-03)** - Unused feature, no production usage |
 | **KB-08** | **Feedback & dữ liệu học** | Chat feedback chỉ dùng cho audit/chất lượng UX; nguồn học chính của chẩn đoán là EMR xác nhận. | **🔄 Redesigned** |
 
 ### **Agent Testing & Debugging**

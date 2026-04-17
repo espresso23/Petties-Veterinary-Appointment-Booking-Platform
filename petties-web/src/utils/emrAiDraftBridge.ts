@@ -52,11 +52,12 @@ export const saveEmrAiDraft = (draft: EmrAiDraft): void => {
 
 export const buildEmrAiChatUrl = (draft: EmrAiDraft, returnTo?: string): string => {
   const params = new URLSearchParams()
-  params.set('emrBridge', '1')
+  params.set('openMascot', '1')
+  params.set('source', 'emr_draft_bridge')
   if (draft.pet_id) params.set('petId', draft.pet_id)
   if (draft.booking_id) params.set('bookingId', draft.booking_id)
   if (returnTo) params.set('returnTo', returnTo)
-  return `/staff/ai-chat?${params.toString()}`
+  return `/staff?${params.toString()}`
 }
 
 export const matchesEmrContext = (

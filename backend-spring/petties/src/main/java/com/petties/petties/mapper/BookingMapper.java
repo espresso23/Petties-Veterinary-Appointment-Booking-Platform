@@ -468,13 +468,25 @@ public class BookingMapper {
     }
 
         private boolean shouldShowQrPaymentButton(Booking booking) {
-                if (booking == null || booking.getStatus() != BookingStatus.IN_PROGRESS) {
+                if (booking == null) {
+                        return false;
+                }
+
+                // Hiển thị QR cho IN_PROGRESS (đang khám) và COMPLETED (đã hoàn thành nhưng chưa thanh toán)
+                BookingStatus status = booking.getStatus();
+                boolean isActiveStatus = status == BookingStatus.IN_PROGRESS || status == BookingStatus.COMPLETED;
+                
+                if (!isActiveStatus) {
                         return false;
                 }
 
                 Payment payment = booking.getPayment();
-                return payment != null
-                                && payment.getMethod() == PaymentMethod.QR
+                if (payment == null) {
+                        return false;
+                }
+
+                // Chỉ hiển thị QR khi chưa thanh toán
+                return payment.getMethod() == PaymentMethod.QR
                                 && payment.getStatus() != PaymentStatus.PAID;
         }
 }

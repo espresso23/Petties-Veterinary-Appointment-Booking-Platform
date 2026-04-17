@@ -168,11 +168,12 @@ public class RegistrationOtpService {
 
         User savedUser = userRepository.save(user);
 
-        // Generate tokens
+        // Generate tokens (workingClinicId not available during registration)
         String accessToken = tokenProvider.generateToken(
                 savedUser.getUserId(),
                 savedUser.getUsername(),
-                savedUser.getRole().name());
+                savedUser.getRole().name(),
+                null);
         String refreshToken = tokenProvider.generateRefreshToken(
                 savedUser.getUserId(),
                 savedUser.getUsername());
@@ -263,11 +264,12 @@ public class RegistrationOtpService {
         // 6. Xoa pending registration tu Redis
         otpRedisService.deletePendingRegistration(email);
 
-        // 7. Generate tokens
+        // 7. Generate tokens (workingClinicId not available during registration)
         String accessToken = tokenProvider.generateToken(
                 savedUser.getUserId(),
                 savedUser.getUsername(),
-                savedUser.getRole().name());
+                savedUser.getRole().name(),
+                null);
         String refreshToken = tokenProvider.generateRefreshToken(
                 savedUser.getUserId(),
                 savedUser.getUsername());

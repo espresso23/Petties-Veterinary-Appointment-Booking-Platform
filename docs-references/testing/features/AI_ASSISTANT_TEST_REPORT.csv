@@ -1,0 +1,632 @@
+Interact with ChatBot,,,,
+TC_SYS_AI_01_01,Happy Path - Successful Chat Interaction,"1. Open mobile app -> Login as PET_OWNER
+2. Tap AI Chat bubble -> Open AI Chat screen
+3. Send message: ""How to care for a kitten?""
+4. Wait for AI response (5-10 seconds)
+5. Send follow-up: ""What if it stops eating?""
+6. Verify context preservation","1. AI Chat screen opens successfully
+2. AI responds in Vietnamese within 5-10 seconds
+3. Answer is relevant to pet care topic
+4. Context preserved in follow-up question
+5. No booking UI appears unless user requests it
+6. WebSocket connection stable","- PET_OWNER account logged in
+- At least 1 pet owned
+- Stable WebSocket connection
+- AI service reachable"
+TC_SYS_AI_01_02,Empty Message Validation,"1. Open AI Chat on mobile
+2. Leave input field empty
+3. Observe Send button state
+4. Try to tap Send button multiple times","1. Send button is disabled when input is empty
+2. Empty message cannot be sent
+3. No app crash or error toast
+4. No WebSocket message sent with empty content","- PET_OWNER logged in
+- AI Chat screen is open"
+TC_SYS_AI_01_03,Session Restore After App Restart,"1. Open AI Chat -> Send 2-3 messages with AI responses
+2. Close app completely (kill process)
+3. Reopen app -> Login -> Navigate to AI Chat
+4. Verify chat history is restored
+5. Send new message to verify session continuity","1. Chat history restored in correct chronological order
+2. No duplicate assistant messages appear
+3. Conversation context preserved for follow-up
+4. New message integrates with restored history
+5. Session ID remains consistent","- PET_OWNER has previous chat session
+- MongoDB storing history correctly
+- Session not expired"
+TC_SYS_AI_01_04,Network Disconnection and Recovery,"1. Open AI Chat -> Send message
+2. Disable network while AI is processing (thinking state)
+3. Wait 30 seconds
+4. Observe error handling
+5. Re-enable network
+6. Verify auto-reconnection","1. Display Vietnamese error message for network loss
+2. No app freeze or crash
+3. Auto-reconnect when network restored
+4. Chat screen returns to usable state
+5. Reconnect attempts shown to user (if applicable)","- PET_OWNER in active chat session
+- Ability to toggle network on/off
+- WebSocket connection active"
+TC_SYS_AI_01_05,Unauthorized Access Prevention,"1. Logout from app
+2. Try to open AI Chat via deep link or direct route
+3. Observe redirect behavior
+4. Login with expired token -> Try accessing AI Chat
+5. Verify re-login modal","1. Redirect to Login screen when not authenticated
+2. Cannot access AI Chat without valid token
+3. Expired token -> Display ConfirmationModal requesting re-login
+4. No WebSocket connection established without auth
+5. No error logs expose sensitive token data","- Not logged in or token expired
+- Deep link or route to AI Chat known"
+,,,,
+Config Agent Parameter,,,,
+TC_SYS_AI_02_01,Edit Temperature Parameter,"1. Login as ADMIN
+2. Navigate to /admin/ai/agent-config
+3. Adjust Temperature slider from 0.7 -> 1.0
+4. Observe real-time value display
+5. Click Save button
+6. Reload page -> Verify value persists
+7. Test AI chat with new temperature","1. Slider operates smoothly with real-time value display
+2. Toast message ""Đã lưu thành công"" in Vietnamese
+3. Value persists after page reload
+4. AI responses reflect new temperature
+5. No console errors","- ADMIN account logged in
+- AI Agent Config page accessible
+- Agent is enabled"
+TC_SYS_AI_02_02,Invalid Parameter Values Validation,"1. Navigate to Admin AI Config page
+2. Enter Temperature = 1.5 (> 1.0)
+3. Enter Temperature = -0.5 (< 0.0)
+4. Enter Max Tokens = 0
+5. Enter Max Tokens = -100
+6. Enter Top-P = 2.0
+7. Click Save after each invalid entry","1. Display Vietnamese validation errors for each invalid value
+2. Cannot save invalid values (Save button disabled or rejected)
+3. Input fields highlighted in red with error message
+4. Error messages specific to each field
+5. Valid values can still be saved","- ADMIN logged in
+- Config form is open
+- Browser dev tools open to inspect network requests"
+TC_SYS_AI_02_03,Select LLM Model,"1. Navigate to /admin/ai/agent-config
+2. Open LLM Model dropdown
+3. Verify list of available models displayed
+4. Select different model (e.g., gemini-2.0-flash -> llama-3.3-70b)
+5. Click Save
+6. Test AI chat with new model
+7. Verify model change in AI service logs","1. Dropdown shows list of available models from OpenRouter
+2. Save successful -> Vietnamese toast message
+3. New model applied to AI service
+4. AI chat uses new model for responses
+5. Model name visible in backend logs","- ADMIN logged in
+- OpenRouter has credits for multiple models
+- AI service reachable"
+TC_SYS_AI_02_04,Reset to Default Parameters,"1. Modify multiple parameters (Temperature, Max Tokens, Top-P)
+2. Record current values
+3. Click ""Reset to Default"" button
+4. ConfirmModal appears -> Click Confirm
+5. Verify all values return to defaults
+6. Reload page -> Verify persistence","1. All parameters return to default values
+2. ConfirmationModal shown before reset (no browser confirm)
+3. Toast message ""Đã reset thành công"" in Vietnamese
+4. Changes persist after reload
+5. AI chat behavior returns to baseline","- ADMIN has previously modified parameters
+- Default values are known/documented"
+TC_SYS_AI_02_05,Configuration Authorization Check,"1. Login as PET_OWNER
+2. Try navigating to /admin/ai/agent-config
+3. Observe redirect/error
+4. Login as STAFF -> Try same route
+5. Try calling config API directly with non-Admin token","1. Redirect to appropriate dashboard (not admin page)
+2. Cannot access AI Config page
+3. API returns 403 Forbidden for non-Admin roles
+4. Vietnamese error message if attempted
+5. No config data exposed in network responses","- PET_OWNER and STAFF accounts available
+- Admin route known"
+,,,,
+Test Agent Playground,,,,
+TC_SYS_AI_03_01,Access Playground,"1. Login as ADMIN
+2. Navigate to /admin/ai/playground
+3. Send test prompt: ""Hello AI""
+4. Verify ReAct trace displays","1. Playground loads successfully
+2. Prompt processed -> Response displayed
+3. ReAct Flow (Thought → Action → Observation) visible
+4. Playground session isolated from business chat","- ADMIN account
+- Agent is enabled"
+TC_SYS_AI_03_02,Session Isolation,"1. Create playground session A -> Send pet care prompt
+2. Create playground session B -> Send booking prompt
+3. Reopen session A -> Verify history
+4. Verify no cross-contamination","1. Session A and B completely isolated
+2. No message leakage between sessions
+3. Each session has independent history
+4. Session IDs are unique and correct","- ADMIN can create multiple sessions
+- Playground functional"
+TC_SYS_AI_03_03,Tool Call Inspection,"1. Open playground
+2. Send prompt triggering tool: ""Find clinics near me""
+3. Expand Tool Calls section
+4. Verify request/response schema
+5. Check citation sources","1. Tool call fully logged
+2. Request/Response schema displayed correctly
+3. Citation sources visible (if applicable)
+4. Tool parameters match expected format","- Playground session active
+- Tool search_clinics_nearby enabled"
+TC_SYS_AI_03_04,Error Handling,"1. Open playground
+2. Send prompt causing error: special characters or excessively long query
+3. Observe error handling
+4. Verify playground stability","1. Display understandable Vietnamese error
+2. Playground does not crash
+3. ReAct trace records error state
+4. Can continue using playground after error","- Playground is operational
+- Error-inducing prompts testable"
+TC_SYS_AI_03_05,Playground Admin-Only Access,"1. Login as non-Admin user (PET_OWNER or STAFF)
+2. Try navigating to /admin/ai/playground
+3. Verify access denied
+4. Try API call to playground endpoint","1. Redirect away from playground page
+2. API returns 403 Forbidden
+3. Vietnamese error message shown
+4. No playground data exposed","- Non-Admin accounts available
+- Playground route known"
+,,,,
+Turn On/Off Agent Tools,,,,
+TC_SYS_AI_04_01,Disable Tool,"1. Login as ADMIN -> Navigate to /admin/ai/tools
+2. Find tool ""search_clinics_nearby""
+3. Uncheck box -> Click Save
+4. Test via AI chat with clinic search intent","1. Checkbox state changes successfully
+2. Toast message ""Tools updated"" in Vietnamese
+3. AI chat no longer calls disabled tool
+4. User receives message explaining tool unavailable","- ADMIN logged in
+- Tools list loaded
+- AI chat accessible"
+TC_SYS_AI_04_02,Enable Tool,"1. Navigate to Admin Tools page
+2. Re-check previously disabled tool
+3. Click Save
+4. Test via AI chat with corresponding intent","1. Tool re-enabled successfully
+2. AI chat calls tool normally
+3. Full functionality restored
+4. Tool status shows as active in list","- At least 1 tool is currently disabled"
+TC_SYS_AI_04_03,Disable All Critical Tools,"1. Disable all booking-related tools (5+ tools)
+2. Test AI chat with booking intent
+3. Observe behavior and user messaging","1. System warns when disabling critical tools
+2. AI chat still operates but without booking capability
+3. User receives clear explanatory message
+4. No system crash or broken state","- At least 5 booking tools available
+- Warning system for bulk disable"
+TC_SYS_AI_04_04,Bulk Operations,"1. Select/deselect multiple tools simultaneously
+2. Click ""Enable Selected"" or ""Disable Selected""
+3. Verify all states changed
+4. Reload page -> Verify persistence","1. Multiple tools updated at once
+2. Changes persist after reload
+3. Toast message confirms bulk update success
+4. Tool states consistent in DB","- Multiple tools in list
+- At least 3 tools selectable"
+TC_SYS_AI_04_05,Tool List Authorization,"1. Login as non-Admin user
+2. Try accessing /admin/ai/tools
+3. Try enabling/disabling tools via API
+4. Verify access control","1. Redirect from tools page
+2. API returns 403 Forbidden
+3. Cannot modify tool states
+4. Tool list not exposed to non-Admin","- Non-Admin account
+- Tools API endpoint known"
+,,,,
+Upload Document To Knowledge Base,,,,
+TC_SYS_AI_05_01,Single PDF Upload,"1. Login as ADMIN -> /admin/ai/knowledge-base
+2. Click Upload -> Select PDF file (< 10MB)
+3. Wait for processing -> Verify status
+4. Test querying document content via AI chat","1. Upload successful -> Progress bar shown
+2. Status changes from ""Indexing"" -> ""Indexed""
+3. Document content queryable via AI chat
+4. Vector count increases in Qdrant
+5. Document appears in KB list","- ADMIN logged in
+- Valid PDF file (< 10MB)
+- Qdrant Cloud available"
+TC_SYS_AI_05_02,Multiple Files Upload,"1. Upload 3 files simultaneously (PDF + DOCX + TXT)
+2. Wait for all to process
+3. Verify status of each file individually","1. Multi-file upload works
+2. Each file has separate indexing status
+3. All files transition to ""Indexed"" when complete
+4. Total vector count increases accordingly
+5. All files appear in KB list","- 3 valid files in PDF/DOCX/TXT formats
+- Upload supports multiple selection"
+TC_SYS_AI_05_03,Invalid File Upload,"1. Try uploading file > 10MB
+2. Try uploading .exe or unsupported format
+3. Observe validation and error handling","1. Display Vietnamese validation error
+2. Indexing does not start for invalid file
+3. File does not appear in knowledge base list
+4. Error message specific to issue (size/format)","- File > 10MB or unsupported format
+- Upload validation active"
+TC_SYS_AI_05_04,Duplicate Upload Handling,"1. Upload file A -> Wait for indexed
+2. Upload identical file A again
+3. Observe system behavior and options","1. System warns file already exists
+2. Options: Overwrite or Cancel
+3. If overwrite -> Re-indexing successful
+4. If cancel -> No changes made","- File previously uploaded and indexed
+- Duplicate detection active"
+TC_SYS_AI_05_05,Indexing Failure,"1. Upload corrupt file or unreadable content
+2. Wait for processing
+3. Verify error handling and status update","1. Status changes to ""Failed""
+2. Detailed indexing error displayed
+3. Option to delete or retry upload
+4. Failed file does not affect other documents","- Corrupt or unparseable file
+- Error handling for indexing"
+,,,,
+Delete Document from Knowledge Base,,,,
+TC_SYS_AI_06_01,Single Document Delete,"1. Navigate to /admin/ai/knowledge-base
+2. Select document -> Click Delete
+3. ConfirmModal -> Confirm deletion
+4. Verify document removed from list
+5. Test querying deleted content via AI chat","1. Vietnamese confirmation modal shown
+2. Document removed from list
+3. Vector count decreases accordingly
+4. AI chat cannot retrieve deleted content anymore
+5. Toast message ""Deleted successfully""","- At least 1 indexed document exists
+- Delete permission granted"
+TC_SYS_AI_06_02,Bulk Document Delete,"1. Select multiple documents (3+)
+2. Click ""Delete Selected""
+3. Confirm action in modal
+4. Verify vector count decrease
+5. Reload page -> Verify persistence","1. Multiple documents deleted simultaneously
+2. Vector count decreases by correct amount
+3. Toast message ""Deleted successfully"" in Vietnamese
+4. Changes persist after reload
+5. All deleted docs removed from list","- At least 3 documents available
+- Multi-select functional"
+TC_SYS_AI_06_03,Cancel Delete Operation,"1. Select document -> Click Delete
+2. Click Cancel in confirmation modal
+3. Verify document still exists and unchanged","1. Modal closes without changes
+2. Document remains in list
+3. Vector count unchanged
+4. No API call to delete endpoint","- Document is currently indexed
+- Cancel button in modal"
+TC_SYS_AI_06_04,Delete Non-existent Document,"1. Try deleting non-existent document ID via API
+2. Or delete when document already deleted by another user
+3. Observe error handling","1. Display error ""Document does not exist""
+2. Knowledge base page does not crash
+3. Document list remains stable
+4. Vietnamese error message shown","- Invalid document ID or already deleted
+- API handles 404 gracefully"
+,,,,
+View Case Memory,,,,
+TC_SYS_AI_07_01,Access Case Memory List,"1. Login as ADMIN -> /admin/ai/knowledge-base
+2. Switch tab to ""Case Memory""
+3. Verify case list displays correctly
+4. Test pagination if many cases","1. Case Memory tab loads successfully
+2. List of confirmed cases displayed
+3. Each case shows: pet name, disease, date, confidence score
+4. Pagination works if many cases exist
+5. Tab switching smooth","- ADMIN logged in
+- Confirmed cases exist in Qdrant
+- Case Memory tab exists"
+TC_SYS_AI_07_02,Case Detail Inspection,"1. Open Case Memory tab
+2. Click on specific case
+3. Verify detail view opens
+4. Check all metadata fields display","1. Case detail opens (modal or expanded)
+2. Displays: symptoms, diagnosis, images (if any), EMR reference
+3. Quality score and embedding metadata visible
+4. Detail view formatted clearly
+5. Can close detail and return to list","- Case has complete metadata
+- Images attached to case (if any)"
+TC_SYS_AI_07_03,Search and Filter Cases,"1. Navigate to Case Memory list
+2. Search by pet name
+3. Filter by disease type
+4. Filter by date range
+5. Verify results accuracy","1. Search box functional
+2. Results filter accurately by query
+3. Display ""No results found"" if no match
+4. Filters can be combined
+5. Clear filters button resets all","- Multiple cases with variety
+- Search/filter UI components"
+TC_SYS_AI_07_04,Empty State Display,"1. Navigate to Case Memory with no confirmed cases
+2. Observe UI and messaging
+3. Verify no errors or crashes","1. Display empty state with Vietnamese message
+2. Suggest next step: ""Case memory created when EMR confirmed""
+3. No crash or error
+4. Empty state visually clear (no broken layout)
+5. Can navigate away from empty tab","- No confirmed cases in system yet
+- Empty state design implemented"
+,,,,
+Delete Case Memory,,,,
+TC_SYS_AI_08_01,Single Case Delete,"1. Navigate to Case Memory tab
+2. Select case -> Click Delete
+3. ConfirmModal -> Confirm deletion
+4. Verify case removed
+5. Test AI chat cannot retrieve deleted case","1. Vietnamese confirmation modal shown
+2. Case removed successfully
+3. AI RAG no longer returns deleted case
+4. Toast message ""Case memory deleted""
+5. Qdrant vectors decreased","- At least 1 confirmed case exists
+- Delete permission granted"
+TC_SYS_AI_08_02,Bulk Case Delete,"1. Select multiple cases (3+)
+2. Delete selected
+3. Confirm action
+4. Verify count decreased and persistence","1. Multiple cases deleted
+2. Qdrant vectors decreased accordingly
+3. Changes persist after reload
+4. Toast message confirms bulk deletion
+5. All selected cases removed from list","- At least 3 cases available
+- Multi-select functional"
+TC_SYS_AI_08_03,Quality Gate Warning,"1. Try deleting case with high quality score (>0.9)
+2. Observe warning message
+3. Confirm extra confirmation if required
+4. Complete deletion","1. Warning shown for high-quality case
+2. Still allows deletion but requires extra confirmation
+3. Deletion successful after confirmation
+4. Warning text in Vietnamese
+5. Can cancel if warning concerns user","- Case has quality score > 0.9
+- Quality gate logic implemented"
+TC_SYS_AI_08_04,Delete Non-existent Case,"1. Try deleting non-existent case ID
+2. Or case already deleted by another admin
+3. Verify error handling","1. Error ""Case does not exist"" in Vietnamese
+2. Page does not crash
+3. Case list remains stable
+4. API returns 404 appropriately","- Invalid case ID
+- Error handling for case deletion"
+,,,,
+Use AI-Assisted Clinic Setup & Operation,,,,
+TC_SYS_AI_09_01,Generate Clinic Services,"1. Login as CLINIC_OWNER
+2. Navigate to Clinic Setup page
+3. Click ""AI Generate Services""
+4. Select clinic type (General Practice)
+5. Review generated services
+6. Edit 1-2 services -> Save","1. AI generates relevant service catalog
+2. Services displayed as cards for review
+3. Can edit name, price, description
+4. Save successful -> Vietnamese toast message
+5. Services appear in clinic service list","- CLINIC_OWNER logged in
+- Clinic in setup mode
+- AI generation endpoint accessible"
+TC_SYS_AI_09_02,Reject Generated Services,"1. Generate services via AI
+2. Click ""Cancel"" or ""Do not use""
+3. Verify no services saved to database
+4. User returns to setup page","1. Generated services discarded
+2. No services created in database
+3. User returns to initial setup page
+4. No side effects from generation
+5. Can retry generation if desired","- Generated services not yet saved
+- Cancel/reject button available"
+TC_SYS_AI_09_03,Manager Service Update via AI,"1. Login as CLINIC_MANAGER
+2. Open Mascot panel -> Request service update
+3. AI suggests update -> Confirm via modal
+4. Verify service updated in database","1. Mascot panel recognizes clinic context
+2. AI suggestion accurate for clinic services
+3. Confirmation modal -> Update successful
+4. Service data updated in database
+5. Toast message confirms update","- CLINIC_MANAGER belongs to clinic with services
+- Mascot panel operational"
+TC_SYS_AI_09_04,Invalid Clinic Context,"1. CLINIC_MANAGER not assigned to any clinic
+2. Try using AI assistant for operations
+3. Observe error handling and messaging","1. AI informs no clinic context found
+2. Suggests contacting admin for clinic assignment
+3. No crash or error
+4. Vietnamese message explaining issue
+5. Can still use other non-clinic features","- CLINIC_MANAGER user has no clinic_id
+- Clinic context validation active"
+TC_SYS_AI_09_05,Unauthorized Role Access,"1. Login as PET_OWNER
+2. Try accessing clinic operation AI features
+3. Try generating services via API
+4. Verify authorization denial","1. Cannot access clinic setup/operation features
+2. Display error ""You do not have permission""
+3. Redirect to appropriate page
+4. API returns 403 for service generation
+5. No clinic data exposed","- PET_OWNER account
+- Clinic operation routes/APIs known"
+TC_SYS_AI_09_06,Edit Generated Services Before Save,"1. Generate services via AI
+2. Edit 2-3 services (change price, name, description)
+3. Save edited services only
+4. Verify saved services match edits","1. Editable fields in generated cards
+2. Validation for price > 0 and required fields
+3. Only edited services saved (not all generated)
+4. Changes persist after reload
+5. Saved services appear in clinic catalog","- Generated services not yet saved
+- Edit functionality in cards"
+,,,,
+Use Summarize Patient Info & EMR,,,,
+TC_SYS_AI_10_01,Staff View Patient EMR Summary,"1. Login as STAFF -> Web
+2. Open detailed booking for patient
+3. Click ""Summarize EMR"" or ask AI mascot
+4. Review summary content","1. AI summarizes patient EMR in Vietnamese
+2. Displays: medical history, vaccinations, recent diagnoses
+3. Readable format with bullet points
+4. Context correct for current booking/patient
+5. Professional medical terminology used","- STAFF logged in
+- Patient has EMR history
+- Booking has valid pet_id
+- EMR data accessible"
+TC_SYS_AI_10_02,No EMR History Available,"1. Select patient with no EMR records
+2. Request EMR summary
+3. Observe handling and messaging","1. AI informs patient has no EMR yet
+2. Suggests creating new EMR during examination
+3. No crash or error
+4. Vietnamese message explains clearly
+5. Option to create EMR offered","- Patient has no EMR records
+- Summary endpoint handles empty data"
+TC_SYS_AI_10_03,EMR Summary with Image Context,"1. Open EMR with attached images (X-ray, lab results)
+2. Request AI summary including image context
+3. Verify image findings included","1. AI recognizes and summarizes image context
+2. Mentions findings from images in summary
+3. Summary accurate with medical data
+4. Image reference links visible
+5. Professional diagnostic language","- EMR has at least 1 attached image
+- Image analysis integrated"
+TC_SYS_AI_10_04,Authorization Check for EMR Summary,"1. Login as PET_OWNER
+2. Try accessing staff EMR summary via API
+3. Try viewing another patient's EMR summary","1. Access denied -> 403 Forbidden
+2. Cannot view another patient's EMR summary
+3. Safe Vietnamese error message
+4. No patient data leaked in response
+5. API enforces role-based access","- PET_OWNER account
+- Staff-only API endpoint
+- Multiple patients exist"
+TC_SYS_AI_10_05,Out-of-Scope Booking Access,"1. STAFF from clinic A
+2. Try summarizing EMR from booking in clinic B
+3. Verify scope validation and denial","1. Returns 403 Forbidden
+2. Message: ""You do not have access to this booking""
+3. No data leakage from other clinic
+4. Logging records unauthorized attempt
+5. User redirected to valid scope","- STAFF only has access to clinic A
+- Booking belongs to clinic B
+- Scope validation active"
+,,,,
+Use Summarize Pet's EMR,,,,
+TC_SYS_AI_11_01,Pet Owner Views Pet EMR Summary,"1. Login as PET_OWNER on mobile
+2. Open Pet Health Record
+3. Select pet with EMR history
+4. Click ""Summarize record"" or ask AI chat
+5. Review summary","1. AI summarizes pet's EMR in Vietnamese
+2. Displays: recent visits, vaccinations, health overview
+3. Friendly tone, easy for pet owner to understand
+4. No complex medical jargon
+5. Option to ask follow-up questions","- PET_OWNER has pet with EMR history
+- Mobile app built with AI features
+- Pet health record accessible"
+TC_SYS_AI_11_02,Pet Has No EMR Yet,"1. Select pet with no EMR records
+2. Request summary
+3. Observe handling and suggestions","1. AI informs pet has no medical records yet
+2. Suggests booking appointment to create first EMR
+3. Friendly empty state UI
+4. Vietnamese message encouraging
+5. Link to booking flow provided","- Pet has no EMR records
+- Empty state design implemented"
+TC_SYS_AI_11_03,Multiple Pets Selection,"1. PET_OWNER has 3 pets
+2. Request summary without selecting specific pet
+3. Observe AI asking for pet selection","1. AI asks to select specific pet before summarizing
+2. Displays pet list for selection
+3. Summary only for selected pet
+4. Can switch pets and request new summary
+5. Each pet's EMR isolated","- PET_OWNER has >= 2 pets
+- Pet selection UI functional"
+TC_SYS_AI_11_04,Incorrect Pet Access Attempt,"1. PET_OWNER A
+2. Try accessing EMR summary of pet owned by owner B
+3. Verify authorization enforcement","1. Access denied
+2. Only shows current user's pets
+3. Cannot query another user's pet_id
+4. API returns 403 for cross-owner access
+5. No error exposes other owner's data","- Two PET_OWNER accounts with separate pets
+- Authorization enforced at API level"
+,,,,
+View Aggregate Feedback Stats,,,,
+TC_SYS_AI_12_01,Dashboard Access and Overview,"1. Login as ADMIN -> /admin/ai/analytics
+2. Verify feedback dashboard loads
+3. Review displayed stats: avg rating, total feedback, trends","1. Dashboard loads successfully
+2. Displays: average rating (1-5 stars), total responses
+3. Chart/graph showing trends over time
+4. Data accurate from feedback collection
+5. Dashboard refreshes with new data","- ADMIN logged in
+- Feedback data exists in system
+- Analytics page accessible"
+TC_SYS_AI_12_02,Time Range Filter,"1. Navigate to AI Analytics dashboard
+2. Select time range: 7 days
+3. Change to 30 days
+4. Select custom date range
+5. Verify stats update for each","1. Filter operates correctly
+2. Stats recalculate based on time range
+3. Graphs update accordingly
+4. Custom range date picker functional
+5. Default range shown on first load","- Feedback data from multiple time periods
+- Time range filter UI implemented"
+TC_SYS_AI_12_03,Empty State Display,"1. When no feedback exists yet
+2. Navigate to analytics dashboard
+3. Observe UI and messaging","1. Display empty state with message
+2. Empty graphs shown without errors
+3. Suggestion: ""No feedback yet. Stats will appear when users rate.""
+4. No broken charts or errors
+5. Dashboard structure intact","- No feedback submissions yet
+- Empty state for analytics designed"
+TC_SYS_AI_12_04,Export Feedback Data,"1. Navigate to analytics dashboard
+2. Click ""Export CSV"" or ""Export Report"" button
+3. Select time range for export
+4. Verify downloaded file","1. File downloads successfully
+2. CSV/Excel format with correct structure
+3. Data complete according to selected time range
+4. Column headers meaningful
+5. File opens correctly in spreadsheet app","- Feedback data available to export
+- Export functionality implemented"
+,,,,
+Provide AI's Response Feedback,,,,
+TC_SYS_AI_13_01,Good Rating Submission,"1. Open AI chat (mobile or web)
+2. Receive AI response
+3. Click 👍 button or rate 4-5 stars
+4. Verify submission and confirmation","1. Rating submitted successfully
+2. Toast message ""Cảm ơn phản hồi của bạn"" in Vietnamese
+3. Stats in admin dashboard increase accordingly
+4. Cannot rate same message again
+5. UI shows rating submitted state","- User logged in
+- AI response received
+- Feedback buttons visible"
+TC_SYS_AI_13_02,Bad Rating with Reason,"1. Receive AI response
+2. Click 👎 button or rate 1-2 stars
+3. Enter reason for bad rating (optional)
+4. Submit rating","1. Negative rating recorded
+2. Option to enter reason for bad rating
+3. Admin analytics updated with negative feedback
+4. Current chat session unaffected
+5. Vietnamese confirmation message","- AI response available
+- Reason input field for bad ratings"
+TC_SYS_AI_13_03,Multiple Ratings in Session,"1. Rate 5 different messages in same session
+2. Verify each rating recorded independently
+3. Check admin dashboard for aggregated stats","1. Each message can be rated independently
+2. Cannot rate same message twice
+3. Aggregate stats accurate after 5 ratings
+4. Average rating calculated correctly
+5. All ratings visible in admin dashboard","- Session with >= 5 AI responses
+- Multiple rating capability"
+TC_SYS_AI_13_04,Unauthorized Feedback Attempt,"1. Not logged in or token expired
+2. Try submitting feedback via UI or API
+3. Observe authentication requirement","1. Requires login before rating
+2. Cannot submit feedback when unauthorized
+3. Redirect to login or modal requesting auth
+4. API returns 401/403 for feedback endpoint
+5. No feedback recorded without auth","- User not logged in
+- Token expired or invalid"
+,,,,
+Use AI Diagnostic Support,,,,
+TC_SYS_AI_14_01,Staff Diagnosis Request,"1. Login as STAFF -> Web
+2. Open Create EMR page
+3. Enter symptoms: ""Fever, loss of appetite, vomiting""
+4. Click ""Analyze diagnosis""
+5. Review diagnosis result","1. Diagnosis API call successful
+2. AI returns differential diagnoses list
+3. Each diagnosis includes: name, confidence, matched symptoms, recommended tests
+4. Red flag warnings if serious
+5. Professional medical language, Vietnamese","- STAFF logged in
+- Valid booking/pet context
+- KB evidence available for diagnosis
+- Symptoms entered"
+TC_SYS_AI_14_02,Image-Based Diagnosis,"1. Create EMR with attached image (X-ray, skin lesion)
+2. Request diagnosis including image
+3. Verify image analysis integration
+4. Review combined diagnosis","1. Gemini Vision analyzes image
+2. Diagnosis combines image findings + symptoms
+3. Summary mentions observations from image
+4. Image analysis results visible
+5. Professional diagnostic language","- EMR has image attachment
+- Gemini Vision API available
+- Image upload functional"
+TC_SYS_AI_14_03,Insufficient Evidence Handling,"1. Request diagnosis for very generic symptoms
+2. KB/Case Memory has no relevant evidence
+3. Observe AI handling of low-evidence scenario","1. AI informs insufficient evidence
+2. Does NOT fabricate treatment plan from keywords alone
+3. Suggests additional information or tests needed
+4. Vietnamese message explains limitation
+5. Can retry with more specific symptoms","- Query too generic
+- KB has no matching cases
+- Low-evidence handling implemented"
+TC_SYS_AI_14_04,Authorization Bypass Attempt,"1. Login as PET_OWNER
+2. Try calling /api/v1/staff-diagnosis/analyze
+3. Verify permission denial","1. 403 Forbidden returned
+2. Error message safe, does not leak diagnosis logic
+3. PET_OWNER cannot access staff diagnosis
+4. No partial diagnosis returned
+5. Logging records unauthorized attempt","- PET_OWNER account
+- Staff diagnosis API endpoint known
+- Auth enforcement active"
+TC_SYS_AI_14_05,Out-of-Scope Booking ID,"1. STAFF from clinic A
+2. Send diagnosis request with booking_id from clinic B
+3. Verify scope validation and rejection","1. Backend verifies booking scope
+2. Returns 403 if booking not in staff's clinic
+3. Does not synthesize diagnosis from out-of-scope data
+4. Vietnamese error message explaining scope
+5. Cannot access another clinic's patient data","- STAFF only has access to clinic A
+- Booking belongs to clinic B
+- Scope validation in backend"
+TC_SYS_AI_14_06,Booking/Pet Mismatch Detection,"1. Send diagnosis request with booking_id for pet X
+2. But send pet_id for pet Y (mismatch)
+3. Verify backend validation catches mismatch","1. Backend detects mismatch
+2. Returns 422 Unprocessable Entity
+3. Message: ""Booking and pet information does not match""
+4. Does not use fake client-supplied pet data
+5. Backend verifies pet from booking context","- Booking pet_id != request pet_id
+- Mismatch validation implemented
+- Backend context verification active"

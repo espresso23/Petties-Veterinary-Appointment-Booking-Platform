@@ -81,6 +81,8 @@ export interface Tool {
     name: string
     description?: string
     enabled: boolean
+    is_system_managed?: boolean
+    is_admin_configurable?: boolean
 }
 
 export interface Document {
@@ -168,24 +170,6 @@ export interface SubmitFeedbackResponse {
     error?: string
 }
 
-export interface KGStatsResponse {
-    success: boolean
-    triplet_count: number
-    entity_count: number
-    relation_types: string[]
-    relation_type_count: number
-    sample_triplets?: Array<{ subject: string; predicate: string; object: string }>
-}
-
-export interface KGBuildResponse {
-    success: boolean
-    message: string
-    documents_processed: number
-    documents_skipped: number[]
-    triplets_extracted: number
-    processing_time_ms: number
-}
-
 export interface CaseMemoryStatsResponse {
     success: boolean
     points_count: number
@@ -201,27 +185,66 @@ export interface CaseMemoryPruneResponse {
     message: string
     pruned_count: number
     criteria: {
-        max_feedback_below: number
         older_than_days: number
     }
 }
 
 export interface CaseMemoryItem {
     case_id: string
-    text_content: string
     species: string
-    breed?: string
     chief_complaint: string
-    symptoms: string[]
+    display_name_vi?: string
     final_diagnosis_text: string
     canonical_code?: string
-    confirmation_count: number
-    created_at: string
-    last_confirmed_at?: string
-    image_urls: string[]
-    image_descriptions?: string[]
-    emr_id?: string
-    clinic_id?: string
+    mapping_status?: string
+    exam_at?: string
+}
+
+export interface CaseMemoryPrescription {
+    medicine_name?: string
+    medicine?: string
+    dosage?: string
+    frequency?: string
+    duration_days?: number
+    duration?: string | number
+    instructions?: string
+    source?: string
+    source_detail?: string
+}
+
+export interface CaseMemoryProtocolPattern {
+    soap_template?: {
+        assessment?: string
+    }
+    common_prescriptions?: CaseMemoryPrescription[]
+    common_tests?: Array<{ test?: string; result?: string }>
+    common_recommendations?: string[]
+}
+
+/** Chỉ số lúc khám lưu trong Case Memory (đồng bộ từ EMR). */
+export interface CaseMemoryVitals {
+    weight_kg?: number | null
+    temperature_c?: number | null
+    heart_rate?: number | null
+    bcs?: number | null
+}
+
+export interface CaseMemoryDetailItem extends CaseMemoryItem {
+    emr_id?: string | null
+    pet_id?: string | null
+    booking_id?: string | null
+    clinic_id?: string | null
+    breed?: string | null
+    age_months?: number | null
+    sex?: string | null
+    allergies?: string | null
+    symptoms?: string[]
+    physical_exam?: string[]
+    vitals?: CaseMemoryVitals | Record<string, unknown> | null
+    clinical_notes?: string
+    clinical_image_urls?: string[]
+    text_content: string
+    protocol_pattern?: CaseMemoryProtocolPattern
 }
 
 export interface CaseMemoryListResponse {
@@ -234,7 +257,7 @@ export interface CaseMemoryListResponse {
 
 export interface CaseMemoryDetailResponse {
     success: boolean
-    case: CaseMemoryItem
+    case: CaseMemoryDetailItem
 }
 
 export interface CaseMemoryListParams {
@@ -279,7 +302,7 @@ export interface ChatSessionMessage {
         tool_result?: unknown
         timestamp?: string
     }>
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
 }
 
 export interface ChatSessionDetail {
@@ -313,6 +336,7 @@ export interface SessionListResponse {
 
 export interface StaffDiagnosisRequest {
     request_id?: string
+    previous_request_id?: string
     pet_id?: string
     booking_id?: string
     species: 'dog' | 'cat' | 'other'
@@ -326,6 +350,9 @@ export interface StaffDiagnosisRequest {
     symptoms?: string[]
     image_urls?: string[]
     image_analysis_mode?: 'full' | 'describe_only'
+    synthesis_mode?: 'full' | 'selected_only'
+    selected_diagnosis_code?: string
+    selected_diagnosis_label?: string
     soap_draft?: {
         subjective?: string
         objective?: string
@@ -337,6 +364,9 @@ export interface StaffDiagnosisRequest {
 export interface StaffDiagnosisSuggestion {
     canonical_code?: string | null
     display_name_vi: string
+    rank: number
+    score_percent: number
+    score_basis: string
     confidence_note: string
     supporting_reasons: string[]
 }
@@ -345,13 +375,23 @@ export interface StaffDiagnosisPrescriptionSuggestion {
     medicine_name: string
     dosage: string
     frequency: string
+    times_of_day?: string[]
+    timesOfDay?: string[]
+    before_after_meal?: string
+    beforeAfterMeal?: string
     duration_days?: number | null
+    durationDays?: number | null
     instructions: string
     caution?: string | null
+    source?: string
+    source_detail?: string
 }
 
 export interface StaffDiagnosisResponse {
     request_id: string
+    evidence_mode: 'internal_grounded' | 'vlm_fallback' | 'llm_fallback'
+    evidence_banner: string
+    score_label: string
     top_differentials: StaffDiagnosisSuggestion[]
     supporting_evidence_from_kb: string[]
     similar_confirmed_cases: string[]
@@ -366,6 +406,8 @@ export interface StaffDiagnosisResponse {
         plan_draft: string
     }
     prescription_suggestions: StaffDiagnosisPrescriptionSuggestion[]
+    payload_status?: 'ok' | 'incomplete'
+    payload_warnings?: string[]
     disclaimer: string
 }
 
@@ -663,77 +705,6 @@ export const feedbackApi = {
     },
 }
 
-// ===== KNOWLEDGE GRAPH API =====
-
-export interface KGVisualizeResponse extends KGStatsResponse {
-    nodes: { id: string; label: string; type: string }[]
-    edges: { id: string; source: string; target: string; label: string }[]
-}
-
-export interface KGQueryRequest {
-    query: string
-    top_k?: number
-}
-
-export interface KGQueryResultItem {
-    subject: string
-    predicate: string
-    object: string
-    score?: number
-    source_nodes?: string[]
-}
-
-export interface KGQueryResponse {
-    success: boolean
-    query: string
-    results: KGQueryResultItem[]
-    message?: string
-}
-
-export const kgApi = {
-    async getStats(): Promise<KGStatsResponse> {
-        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/kg-stats`)
-        if (!response.ok) throw new Error('Không thể lấy thống kê Knowledge Graph')
-        return response.json()
-    },
-
-    async build(documentIds?: number[], maxTriplets: number = 10): Promise<KGBuildResponse> {
-        const params = new URLSearchParams()
-        if (documentIds?.length) {
-            documentIds.forEach(id => params.append('document_ids', String(id)))
-        }
-        params.set('max_triplets', String(maxTriplets))
-
-        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/build-kg?${params.toString()}`, {
-            method: 'POST'
-        })
-        if (!response.ok) {
-            const err = await response.json().catch(() => null)
-            throw new Error(err?.detail || 'Không thể xây dựng Knowledge Graph')
-        }
-        return response.json()
-    },
-
-    async visualize(): Promise<KGVisualizeResponse> {
-        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/kg-visualize`)
-        if (!response.ok) throw new Error('Không thể lấy dữ liệu visualization KG')
-        return response.json()
-    },
-
-    async queryKG(data: KGQueryRequest): Promise<KGQueryResponse> {
-        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/kg-query`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        })
-        if (!response.ok) {
-            const err = await response.json().catch(() => null)
-            throw new Error(err?.detail || 'Không thể truy vấn Knowledge Graph')
-        }
-        return response.json()
-    }
-}
-
 // ===== CASE MEMORY API =====
 
 export const caseMemoryApi = {
@@ -771,19 +742,6 @@ export const caseMemoryApi = {
         return response.json()
     },
 
-    async update(caseId: string, data: { diagnosis?: string; symptoms?: string[] }): Promise<{ success: boolean; message: string }> {
-        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/case-memory/${caseId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        })
-        if (!response.ok) {
-            const err = await response.json().catch(() => null)
-            throw new Error(err?.detail || 'Không thể cập nhật Case')
-        }
-        return response.json()
-    },
-
     async delete(caseId: string): Promise<{ success: boolean; message: string }> {
         const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/case-memory/${caseId}`, {
             method: 'DELETE'
@@ -795,10 +753,9 @@ export const caseMemoryApi = {
         return response.json()
     },
 
-    async prune(olderThanDays: number = 90, maxFeedbackBelow: number = 0): Promise<CaseMemoryPruneResponse> {
+    async prune(olderThanDays: number = 90): Promise<CaseMemoryPruneResponse> {
         const params = new URLSearchParams({
-            older_than_days: String(olderThanDays),
-            max_feedback_below: String(maxFeedbackBelow)
+            older_than_days: String(olderThanDays)
         })
         const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/case-memory/prune?${params.toString()}`, {
             method: 'POST'
@@ -843,5 +800,5 @@ export const createChatWebSocket = (sessionId: string, contextType?: string): We
     return new WebSocket(fullWsUrl)
 }
 
-export default { agentApi, toolApi, knowledgeApi, chatApi, diagnosisApi, feedbackApi, kgApi, caseMemoryApi, createChatWebSocket }
+export default { agentApi, toolApi, knowledgeApi, chatApi, diagnosisApi, feedbackApi, caseMemoryApi, createChatWebSocket }
 

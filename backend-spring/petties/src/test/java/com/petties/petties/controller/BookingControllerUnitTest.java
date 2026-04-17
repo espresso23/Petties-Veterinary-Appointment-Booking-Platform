@@ -1337,4 +1337,67 @@ class BookingControllerUnitTest {
 
                 verify(bookingService).getClinicTodayBookings(eq(clinicId), any(com.petties.petties.model.User.class));
         }
+
+        @Test
+        @DisplayName("TC-BOOKING-TODAY-002: Clinic manager can get clinic today bookings - Returns 200")
+        @WithMockUser(username = "11111111-1111-1111-1111-111111111111", roles = "CLINIC_MANAGER")
+        void getClinicTodayBookings_managerRole_returns200() throws Exception {
+                UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+                setupUserPrincipalAuth(userId);
+
+                UUID clinicId = UUID.randomUUID();
+                com.petties.petties.dto.booking.ClinicTodayBookingResponse todayBooking =
+                                com.petties.petties.dto.booking.ClinicTodayBookingResponse.builder()
+                                                .bookingId(UUID.randomUUID())
+                                                .bookingCode("B-20250120-002")
+                                                .petName("Milo")
+                                                .build();
+
+                com.petties.petties.model.User managerUser = new com.petties.petties.model.User();
+                managerUser.setUserId(userId);
+                managerUser.setRole(com.petties.petties.model.enums.Role.CLINIC_MANAGER);
+                com.petties.petties.model.Clinic workingClinic = new com.petties.petties.model.Clinic();
+                workingClinic.setClinicId(clinicId);
+                managerUser.setWorkingClinic(workingClinic);
+
+                when(bookingService.getCurrentUserById(userId)).thenReturn(managerUser);
+                when(bookingService.getClinicTodayBookings(eq(clinicId), any(com.petties.petties.model.User.class)))
+                                .thenReturn(List.of(todayBooking));
+
+                mockMvc.perform(get("/bookings/clinic/{clinicId}/today", clinicId))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$[0].bookingCode").value("B-20250120-002"));
+
+                verify(bookingService).getClinicTodayBookings(eq(clinicId), any(com.petties.petties.model.User.class));
+        }
+
+        @Test
+        @DisplayName("TC-BOOKING-TODAY-003: Clinic owner can get clinic today bookings - Returns 200")
+        @WithMockUser(username = "11111111-1111-1111-1111-111111111111", roles = "CLINIC_OWNER")
+        void getClinicTodayBookings_ownerRole_returns200() throws Exception {
+                UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+                setupUserPrincipalAuth(userId);
+
+                UUID clinicId = UUID.randomUUID();
+                com.petties.petties.dto.booking.ClinicTodayBookingResponse todayBooking =
+                                com.petties.petties.dto.booking.ClinicTodayBookingResponse.builder()
+                                                .bookingId(UUID.randomUUID())
+                                                .bookingCode("B-20250120-003")
+                                                .petName("Luna")
+                                                .build();
+
+                com.petties.petties.model.User ownerUser = new com.petties.petties.model.User();
+                ownerUser.setUserId(userId);
+                ownerUser.setRole(com.petties.petties.model.enums.Role.CLINIC_OWNER);
+
+                when(bookingService.getCurrentUserById(userId)).thenReturn(ownerUser);
+                when(bookingService.getClinicTodayBookings(eq(clinicId), any(com.petties.petties.model.User.class)))
+                                .thenReturn(List.of(todayBooking));
+
+                mockMvc.perform(get("/bookings/clinic/{clinicId}/today", clinicId))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$[0].bookingCode").value("B-20250120-003"));
+
+                verify(bookingService).getClinicTodayBookings(eq(clinicId), any(com.petties.petties.model.User.class));
+        }
 }

@@ -21,12 +21,11 @@ from fastapi import (
     UploadFile,
     File,
     Form,
-    Body,
 )
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from loguru import logger
 from pathlib import Path
 import asyncio
@@ -34,6 +33,7 @@ import os
 import shutil
 import tempfile
 from datetime import datetime
+import uuid
 from app.api.middleware.auth import get_admin_user
 from app.api.middleware.subscription_guard import check_active_subscription
 from app.config.settings import settings
@@ -46,20 +46,14 @@ from app.api.schemas.knowledge_schemas import (
     UploadErrorResponse,
     ProcessDocumentRequest,
     ProcessDocumentResponse,
-    KGQueryRequest,
-    KGQueryResponse,
-    KGQueryResultItem,
     QueryKnowledgeRequest,
     QueryKnowledgeResponse,
     RetrievedChunk,
     DeleteDocumentResponse,
     KnowledgeBaseStatusResponse,
-    HybridQueryRequest,
-    HybridQueryResponse,
-    ImageSearchResult,
 )
 from app.db.postgres.models import KnowledgeDocument
-from app.db.postgres.session import get_db
+from app.db.postgres.session import get_db, AsyncSessionLocal
 
 # Initialize router - no global auth, add individually per endpoint
 router = APIRouter(prefix="/knowledge", tags=["Knowledge Base"])
@@ -264,11 +258,7 @@ async def process_document(
             )
 
         # Allow reprocessing if document has 0 vectors (failed previous attempt)
-        if (
-            document.processed
-            and document.vector_count > 0
-            and document.image_count > 0
-        ):
+        if document.processed and document.vector_count > 0:
             return ProcessDocumentResponse(
                 success=True,
                 message=f"Tài liệu '{document.filename}' đã được xử lý trước đó",
@@ -277,11 +267,9 @@ async def process_document(
                 processing_time_ms=0,
             )
 
-        if document.processed and (
-            document.vector_count == 0 or document.image_count == 0
-        ):
+        if document.processed and document.vector_count == 0:
             logger.warning(
-                f"Document {document_id} was marked processed with {document.vector_count} vectors, {document.image_count} images. Reprocessing for missing data..."
+                f"Document {document_id} was marked processed with {document.vector_count} vectors. Reprocessing..."
             )
             # Reset processed status for retry
             document.processed = False
@@ -325,7 +313,6 @@ async def process_document(
         # Update document status (only if vectors were created successfully)
         document.processed = True
         document.vector_count = index_result.text_chunks
-        document.image_count = index_result.image_vectors
         from datetime import timezone
 
         document.processed_at = datetime.now(timezone.utc)
@@ -334,8 +321,7 @@ async def process_document(
         processing_time = int((time.time() - start_time) * 1000)
 
         logger.info(
-            f"Processed document {document_id}: {index_result.text_chunks} text chunks, "
-            f"{index_result.image_vectors} images in {processing_time}ms"
+            f"Processed document {document_id}: {index_result.text_chunks} text chunks in {processing_time}ms"
         )
 
         return ProcessDocumentResponse(
@@ -739,92 +725,6 @@ async def query_knowledge(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ===== HYBRID QUERY (TEXT + IMAGE) =====
-
-
-@router.post(
-    "/query-hybrid",
-    response_model=HybridQueryResponse,
-    summary="[KB-01] Hybrid search (text + image)",
-    description="""
-    Hybrid search using both text and image embeddings.
-    
-    Use this when:
-    - Query contains both text and image URLs
-    - Want to find similar cases by image
-    - Combined text + image similarity search
-    
-    Requires:
-    - JINA_API_KEY configured in Knowledge settings
-    - PDF documents with extracted images
-    """,
-)
-async def query_hybrid(request: HybridQueryRequest, db: AsyncSession = Depends(get_db)):
-    """
-    Hybrid query with text and/or image search
-
-    Body:
-        {
-            "query": "triệu chứng ghẻ",
-            "image_urls": ["https://example.com/pet_lesion.jpg"],
-            "top_k": 5,
-            "min_score": 0.5
-        }
-    """
-    try:
-        import time
-
-        start_time = time.time()
-
-        rag = get_rag_engine()
-        result = await rag.query_with_images(
-            query=request.query,
-            image_urls=request.image_urls,
-            top_k=request.top_k,
-            min_score=request.min_score,
-        )
-
-        text_chunks = [
-            RetrievedChunk(
-                document_id=r.document_id,
-                document_name=r.document_name,
-                chunk_index=r.chunk_index,
-                content=r.content,
-                score=r.score,
-                metadata={"source": r.document_name},
-            )
-            for r in result.get("text_results", [])
-        ]
-
-        image_results = [
-            ImageSearchResult(
-                document_id=r.get("document_id", 0),
-                filename=r.get("filename", ""),
-                image_id=r.get("image_id", ""),
-                score=r.get("score", 0.0),
-                payload=r.get("payload"),
-            )
-            for r in result.get("image_results", [])
-        ]
-
-        retrieval_time = int((time.time() - start_time) * 1000)
-
-        return HybridQueryResponse(
-            success=True,
-            query=request.query,
-            text_results=text_chunks,
-            image_results=image_results,
-            has_image_query=result.get("has_image_query", False),
-            total_text_results=len(text_chunks),
-            total_image_results=len(image_results),
-            retrieval_time_ms=retrieval_time,
-        )
-
-    except Exception as e:
-        logger.error(f"Error in hybrid query: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 # ===== RECREATE COLLECTION =====
 
 
@@ -980,12 +880,6 @@ async def get_status(db: AsyncSession = Depends(get_db)):
         )
         total_vectors = vectors_result.scalar() or 0
 
-        # Sum image vectors from database
-        image_vectors_result = await db.execute(
-            select(func.sum(KnowledgeDocument.image_count))
-        )
-        total_image_vectors = image_vectors_result.scalar() or 0
-
         # Sum file sizes
         size_result = await db.execute(select(func.sum(KnowledgeDocument.file_size)))
         storage_size = size_result.scalar() or 0
@@ -1012,7 +906,6 @@ async def get_status(db: AsyncSession = Depends(get_db)):
             processed_documents=processed_documents,
             pending_documents=total_documents - processed_documents,
             total_vectors=total_vectors,
-            total_image_vectors=total_image_vectors,
             storage_size_bytes=storage_size,
             last_updated=last_updated,
             qdrant_info=qdrant_info,
@@ -1020,329 +913,6 @@ async def get_status(db: AsyncSession = Depends(get_db)):
 
     except Exception as e:
         logger.error(f"Error getting knowledge base status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# =============================================================
-# KNOWLEDGE GRAPH (KG) ENDPOINTS  [KB-04]
-# =============================================================
-
-
-def get_kg_service():
-    """Lazy import KnowledgeGraphService to avoid circular imports."""
-    from app.core.rag.knowledge_graph import get_knowledge_graph_service
-
-    return get_knowledge_graph_service()
-
-
-@router.post(
-    "/build-kg",
-    summary="[KB-04] Build Knowledge Graph từ documents đã xử lý",
-    description="""
-    Trích xuất triplets (subject, predicate, object) từ tài liệu đã processed
-    và xây dựng Knowledge Graph.
-
-    Flow:
-    1. Đọc tất cả documents đã processed từ PostgreSQL
-    2. Load nội dung file -> tạo LlamaIndex Document objects
-    3. LLM extract triplets từ mỗi chunk
-    4. Lưu vào SimpleGraphStore (persist to disk)
-
-    Lưu ý: Quá trình này có thể mất vài phút tùy số lượng tài liệu.
-    """,
-    dependencies=[Depends(get_admin_user)],
-)
-async def build_knowledge_graph(
-    document_ids: Optional[List[int]] = Query(
-        None, description="IDs tài liệu cụ thể. Để trống = tất cả đã processed."
-    ),
-    max_triplets: int = Query(
-        default=200,
-        ge=1,
-        le=1000,
-        description="Số triplets tối đa tổng cộng sau deduplication",
-    ),
-    db: AsyncSession = Depends(get_db),
-):
-    """Build/extend Knowledge Graph từ processed documents."""
-    import time
-
-    start_time = time.time()
-
-    try:
-        # Query documents
-        query = select(KnowledgeDocument).where(KnowledgeDocument.processed == True)
-        if document_ids:
-            query = query.where(KnowledgeDocument.id.in_(document_ids))
-
-        result = await db.execute(query)
-        documents = result.scalars().all()
-
-        # Check if there are documents but none are processed
-        all_docs_query = select(KnowledgeDocument)
-        all_result = await db.execute(all_docs_query)
-        all_docs = all_result.scalars().all()
-
-        if not documents:
-            if all_docs:
-                # Documents exist but none are processed
-                processed_count = sum(1 for d in all_docs if d.processed)
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Tìm thấy {len(all_docs)} tài liệu nhưng không có tài liệu nào được xử lý (processed). "
-                    f"Để xử lý tài liệu, bạn cần: "
-                    f"(1) Cấu hình COHERE_API_KEY và QDRANT_URL trong trang Knowledge, "
-                    f"(2) Upload lại tài liệu (quá trình xử lý sẽ tự động chạy).",
-                )
-            else:
-                raise HTTPException(
-                    status_code=404,
-                    detail="Không tìm thấy tài liệu nào trong hệ thống. Vui lòng upload tài liệu trước.",
-                )
-
-        # Read file contents and create LlamaIndex Documents
-        from llama_index.core import Document as LlamaDocument
-        import unicodedata
-
-        def _normalize_text(text: str) -> str:
-            text = unicodedata.normalize("NFC", text or "")
-            cleaned = []
-            for ch in text:
-                cat = unicodedata.category(ch)
-                if cat.startswith("C") and ch not in ("\n", "\r", "\t"):
-                    continue
-                cleaned.append(ch)
-            return "".join(cleaned).strip()
-
-        def _extract_text_from_file(path: Path, file_type: Optional[str]) -> str:
-            ft = (file_type or "").lower().strip()
-
-            if ft in ("txt", "md"):
-                return path.read_text(encoding="utf-8", errors="replace")
-
-            if ft == "docx":
-                from docx import Document as DocxDocument
-
-                docx = DocxDocument(str(path))
-                return "\n".join(p.text for p in docx.paragraphs if p.text)
-
-            if ft == "pdf":
-                text_parts: List[str] = []
-                # Prefer PyMuPDF if available
-                try:
-                    import fitz  # PyMuPDF
-
-                    with fitz.open(str(path)) as pdf:
-                        for page in pdf:
-                            t = page.get_text("text") or ""
-                            if t.strip():
-                                text_parts.append(t)
-                    return "\n".join(text_parts)
-                except Exception:
-                    from PyPDF2 import PdfReader
-
-                    reader = PdfReader(str(path))
-                    for page in reader.pages:
-                        t = page.extract_text() or ""
-                        if t.strip():
-                            text_parts.append(t)
-                    return "\n".join(text_parts)
-
-            return path.read_text(encoding="utf-8", errors="replace")
-
-        # Get storage directory for resolving relative paths
-        storage_dir = get_storage_dir()
-        logger.info(f"Build KG using storage_dir: {storage_dir}")
-
-        llama_docs: List[LlamaDocument] = []
-        skipped: List[int] = []
-        skipped_reasons: Dict[int, str] = {}
-        for doc in documents:
-            # Resolve file path - try multiple approaches
-            doc_path = None
-
-            # 1. Try as absolute path first
-            if Path(doc.file_path).is_absolute():
-                doc_path = Path(doc.file_path)
-
-            # 2. Try relative to storage_dir
-            if not doc_path or not doc_path.exists():
-                doc_path = storage_dir / doc.file_path
-
-            # 3. Try just the filename in storage_dir
-            if not doc_path or not doc_path.exists():
-                doc_path = storage_dir / Path(doc.file_path).name
-
-            logger.info(
-                f"Document {doc.id} ({doc.filename}): stored_path='{doc.file_path}', resolved='{doc_path}', exists={doc_path.exists() if doc_path else False}"
-            )
-
-            if not doc_path or not doc_path.exists():
-                logger.warning(
-                    f"Document {doc.id} file not found after trying all paths"
-                )
-                skipped.append(doc.id)
-                skipped_reasons[doc.id] = "Không tìm thấy file trên ổ đĩa"
-                continue
-            try:
-                # Use asyncio.to_thread for blocking file IO
-                raw_text = await asyncio.to_thread(
-                    _extract_text_from_file, doc_path, doc.file_type
-                )
-                text = _normalize_text(raw_text)
-
-                # PDF scan/image-only thường gần như không có text -> KG không thể extract
-                if len(text) < 200:
-                    logger.warning(
-                        f"Document {doc.id} has too little text for KG extraction (len={len(text)})."
-                    )
-                    skipped.append(doc.id)
-                    skipped_reasons[doc.id] = (
-                        "Tài liệu quá ít chữ (có thể là PDF dạng hình ảnh). "
-                        "Vui lòng dùng tài liệu có text hoặc bổ sung OCR."
-                    )
-                    continue
-
-                logger.info(
-                    f"Document {doc.id} loaded successfully for KG, text length: {len(text)}"
-                )
-                llama_docs.append(
-                    LlamaDocument(
-                        text=text,
-                        metadata={
-                            "document_id": doc.id,
-                            "filename": doc.filename,
-                            "file_type": doc.file_type,
-                        },
-                    )
-                )
-            except Exception as e:
-                logger.warning(f"Could not read document {doc.id}: {e}")
-                skipped.append(doc.id)
-                skipped_reasons[doc.id] = f"Lỗi đọc nội dung: {e}"
-
-        if not llama_docs:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Không thể đọc nội dung từ tài liệu. "
-                f"Đã kiểm tra {len(documents)} tài liệu, {len(skipped)} bị bỏ qua do lỗi đọc file. "
-                f"Vui lòng kiểm tra: (1) File có tồn tại trong thư mục uploads/documents? (2) Thư mục lưu trữ có đúng không?",
-            )
-
-        # Build KG
-        kg = get_kg_service()
-        triplet_count = await kg.build_from_documents(
-            llama_docs, max_triplets_per_chunk=max_triplets
-        )
-
-        processing_time = int((time.time() - start_time) * 1000)
-
-        return {
-            "success": True,
-            "message": f"Knowledge Graph đã xây dựng thành công",
-            "documents_processed": len(llama_docs),
-            "documents_skipped": skipped,
-            "documents_skipped_reasons": skipped_reasons,
-            "triplets_extracted": triplet_count,
-            "processing_time_ms": processing_time,
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error building Knowledge Graph: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# =============================================================
-# PUBLIC KG ENDPOINTS (No Auth Required)
-# =============================================================
-
-
-@router.get(
-    "/kg-stats",
-    summary="[KB-04] Thống kê Knowledge Graph",
-    description="Thông tin chi tiết về Knowledge Graph: số triplets, entities, relation types.",
-)
-async def get_kg_stats():
-    """Get Knowledge Graph statistics."""
-    try:
-        kg = get_kg_service()
-        stats = await kg.get_graph_stats()
-        return {"success": True, **stats}
-    except Exception as e:
-        logger.error(f"Error getting KG stats: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get(
-    "/kg-visualize",
-    summary="[KB-05] Lấy dữ liệu để visualize Knowledge Graph",
-    description="Trả về nodes và edges dạng JSON cho D3.js visualization.",
-)
-async def get_kg_visualize():
-    """Get Knowledge Graph data for visualization."""
-    try:
-        kg = get_kg_service()
-        data = await kg.get_graph_visualization_data()
-        return {"success": True, **data}
-    except Exception as e:
-        logger.error(f"Error getting KG visualization data: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post(
-    "/kg-query",
-    response_model=KGQueryResponse,
-    summary="[KB-05] Truy vấn Knowledge Graph",
-    description="Truy vấn tri thức có cấu trúc từ đồ thị tri thức (triplets).",
-)
-async def query_knowledge_graph(request: KGQueryRequest):
-    """
-    Query the Knowledge Graph directly.
-
-    Returns structured triplets related to the query.
-    """
-    try:
-        kg = get_kg_service()
-        results = await kg.query_graph(request.query, top_k=request.top_k)
-
-        logger.info(f"[KG Query API] Got {len(results)} results")
-
-        formatted_results = []
-
-        # Now query_graph returns structured triplets in triplets_used
-        for r in results:
-            logger.info(
-                f"[KG Query API] Result: content={r.content[:50] if r.content else 'None'}..., triplets_used={len(r.triplets_used) if r.triplets_used else 0}"
-            )
-
-            if r.triplets_used:
-                # Use actual triplets from the response
-                for t in r.triplets_used:
-                    logger.info(f"[KG Query API] Triplet type: {type(t)}, value: {t}")
-                    if isinstance(t, dict):
-                        formatted_results.append(
-                            KGQueryResultItem(
-                                subject=t.get("subject", ""),
-                                predicate=t.get("predicate", ""),
-                                object=t.get("object", ""),
-                                score=r.score,
-                                source_nodes=r.source_nodes,
-                            )
-                        )
-                    else:
-                        # Fallback for non-dict format
-                        logger.warning(f"[KG Query API] Triplet is not a dict: {t}")
-
-        return KGQueryResponse(
-            success=True,
-            query=request.query,
-            results=formatted_results,
-            message=f"Tìm thấy {len(formatted_results)} triplets từ Knowledge Graph",
-        )
-    except Exception as e:
-        logger.error(f"Error querying KG: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1378,7 +948,7 @@ async def get_case_memory_stats():
     "/case-memory/prune",
     summary="[KB-05] Dọn dẹp Case Memory",
     description="""
-    Xóa các cases cũ không có feedback (feedback_count = 0) để giữ collection sạch.
+    Xóa các cases cũ theo tuổi dữ liệu để giữ collection sạch.
 
     Chỉ xóa cases cũ hơn `older_than_days` ngày.
     """,
@@ -1387,23 +957,16 @@ async def prune_case_memory(
     older_than_days: int = Query(
         default=90, ge=1, le=365, description="Chỉ xóa cases cũ hơn X ngày"
     ),
-    max_feedback_below: int = Query(
-        default=0, ge=0, le=5, description="Xóa cases có feedback_count <= X"
-    ),
 ):
-    """Prune low-score / stale cases from Case Memory."""
+    """Prune stale cases from Case Memory."""
     try:
         cm = get_cm_service()
-        pruned_count = await cm.prune_low_score_cases(
-            max_feedback_below=max_feedback_below,
-            older_than_days=older_than_days,
-        )
+        pruned_count = await cm.prune_low_score_cases(older_than_days=older_than_days)
         return {
             "success": True,
-            "message": f"Đã xóa {pruned_count} cases không có feedback",
+            "message": f"Đã xóa {pruned_count} cases cũ",
             "pruned_count": pruned_count,
             "criteria": {
-                "max_feedback_below": max_feedback_below,
                 "older_than_days": older_than_days,
             },
         }
@@ -1467,39 +1030,6 @@ async def get_case_memory(
         raise
     except Exception as e:
         logger.error(f"Error getting Case Memory {case_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.patch(
-    "/case-memory/{case_id}",
-    summary="[KB-05] Cập nhật Case",
-    description="Cập nhật metadata của một case (diagnosis, symptoms)",
-)
-async def update_case_memory(
-    case_id: str,
-    diagnosis: Optional[str] = Body(default=None, description="Chẩn đoán mới"),
-    symptoms: Optional[List[str]] = Body(
-        default=None, description="Danh sách triệu chứng mới"
-    ),
-    _: dict = Depends(get_admin_user),
-):
-    """Update case metadata."""
-    try:
-        cm = get_cm_service()
-        success = await cm.update_case(
-            case_id=case_id,
-            diagnosis=diagnosis,
-            symptoms=symptoms,
-        )
-        if not success:
-            raise HTTPException(
-                status_code=404, detail="Không tìm thấy case hoặc cập nhật thất bại"
-            )
-        return {"success": True, "message": "Cập nhật case thành công"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error updating Case Memory {case_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

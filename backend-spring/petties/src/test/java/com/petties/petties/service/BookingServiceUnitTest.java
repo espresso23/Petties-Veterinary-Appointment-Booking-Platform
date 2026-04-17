@@ -505,4 +505,5 @@ class BookingServiceUnitTest {
             verify(bookingRepository).save(booking);
         }
     }
+
 }

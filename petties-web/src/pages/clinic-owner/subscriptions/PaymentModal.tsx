@@ -41,11 +41,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, pla
             )
             onSuccess()
             onClose()
-        } catch (error: any) {
-            showToast(
-                'error',
-                error.response?.data?.message || 'Có lỗi xảy ra khi đăng ký'
-            )
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : (error as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Có lỗi xảy ra khi đăng ký'
+            showToast('error', message)
         } finally {
             setIsSubmitting(false)
         }

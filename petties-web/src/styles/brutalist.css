@@ -577,6 +577,12 @@
   height: calc(100dvh - var(--sat) - var(--sab));
 }
 
+/* Hide sidebar collapse control when EMR prescription modal is open */
+body.emr-prescription-modal-open .sidebar-collapse-toggle {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 /* ============================================
    React DatePicker - Soft Modern Style (Vaccine Form)
    ============================================ */

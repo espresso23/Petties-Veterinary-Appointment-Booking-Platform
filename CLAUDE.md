@@ -225,6 +225,7 @@ Sai: V2__add_phone.sql (Dễ trùng nếu 2 người cùng làm).
 Đúng: V202412301030__add_phone_to_users.sql (Định dạng: V + NămThángNgàyGiờPhút).
 Lưu ý: Giữa Version và Mô tả phải có 2 dấu gạch dưới (__).
 Áp dụng: Flyway sẽ tự động chạy script này khi ứng dụng khởi động.
+14.1. Nếu thực hiện thay đổi lớn/quan trọng (major feature, refactor lớn, bugfix production, thay đổi kiến trúc), PHẢI cập nhật `PROJECT_STATUS.md` thường xuyên, rõ ràng, và theo code-based evidence (liệt kê module/files/test-status thực tế), không cập nhật theo ước lượng cảm tính.
 
 ## Vietnamese-Only Rule (User-Facing Text)
 
@@ -307,7 +308,7 @@ const [showConfirm, setShowConfirm] = useState(false)
     - **Abnormal case:** [Error scenarios]
     ```
 
-    **B. REPORT_4_SDD_SYSTEM_DESIGN.md - Phần 3. DETAILED DESIGN:**
+    **B. PETTIES_SDD.md - Phần 3. DETAILED DESIGN:**
     Theo format mẫu đã có (xem 3.1, 3.2, 3.3):
     ```
     ### 3.X [Feature Name]
@@ -894,7 +895,8 @@ participant UI as [Tên Screen]     %% Mobile/Web
 participant [Abbrev] as [ControllerName]
 participant [Abbrev] as [ServiceName]
 participant [Abbrev] as [RepositoryName]
-participant DB as Database          %% BẮT BUỘC có
+participant [Abbrev] as [ExternalServiceName]   %% Optional
+participant DB as Database          %% BẮT BUỘC có và nằm cuối cùng
 ```
 
 **2. Message Numbering:**
@@ -902,13 +904,13 @@ participant DB as Database          %% BẮT BUỘC có
 - Số bắt đầu từ 1, liên tục đến hết sequence
 - **KHÔNG dùng `autonumber`**
 
-**3. SQL Operations:**
-Khi Repository gọi Database, phải ghi rõ câu SQL:
+**3. Database Actions (No SQL):**
+Khi Repository gọi Database, chỉ ghi hành động nghiệp vụ, không ghi câu SQL:
 ```
-SELECT COUNT(*) FROM users WHERE email = ?
-INSERT INTO users (username, email, password, ...)
-UPDATE ... SET ... WHERE id = ?
-DELETE FROM ... WHERE ...
+Check user existence by email
+Create user record
+Update booking status
+Delete report by id
 ```
 
 **4. Activation Boxes:**
@@ -1055,3 +1057,104 @@ Dùng skill petties-onboarding để giúp tôi hiểu project
 └── petties-onboarding/SKILL.md
 ```
 
+<!-- gitnexus:start -->
+# GitNexus — Code Intelligence
+
+This project is indexed by GitNexus as **petties** (13441 symbols, 36189 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+
+> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
+
+## Always Do
+
+- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
+- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
+- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
+- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
+- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
+
+## When Debugging
+
+1. `gitnexus_query({query: "<error or symptom>"})` — find execution flows related to the issue
+2. `gitnexus_context({name: "<suspect function>"})` — see all callers, callees, and process participation
+3. `READ gitnexus://repo/petties/process/{processName}` — trace the full execution flow step by step
+4. For regressions: `gitnexus_detect_changes({scope: "compare", base_ref: "main"})` — see what your branch changed
+
+## When Refactoring
+
+- **Renaming**: MUST use `gitnexus_rename({symbol_name: "old", new_name: "new", dry_run: true})` first. Review the preview — graph edits are safe, text_search edits need manual review. Then run with `dry_run: false`.
+- **Extracting/Splitting**: MUST run `gitnexus_context({name: "target"})` to see all incoming/outgoing refs, then `gitnexus_impact({target: "target", direction: "upstream"})` to find all external callers before moving code.
+- After any refactor: run `gitnexus_detect_changes({scope: "all"})` to verify only expected files changed.
+
+## Never Do
+
+- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
+- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
+- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
+- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
+
+## Tools Quick Reference
+
+| Tool | When to use | Command |
+|------|-------------|---------|
+| `query` | Find code by concept | `gitnexus_query({query: "auth validation"})` |
+| `context` | 360-degree view of one symbol | `gitnexus_context({name: "validateUser"})` |
+| `impact` | Blast radius before editing | `gitnexus_impact({target: "X", direction: "upstream"})` |
+| `detect_changes` | Pre-commit scope check | `gitnexus_detect_changes({scope: "staged"})` |
+| `rename` | Safe multi-file rename | `gitnexus_rename({symbol_name: "old", new_name: "new", dry_run: true})` |
+| `cypher` | Custom graph queries | `gitnexus_cypher({query: "MATCH ..."})` |
+
+## Impact Risk Levels
+
+| Depth | Meaning | Action |
+|-------|---------|--------|
+| d=1 | WILL BREAK — direct callers/importers | MUST update these |
+| d=2 | LIKELY AFFECTED — indirect deps | Should test |
+| d=3 | MAY NEED TESTING — transitive | Test if critical path |
+
+## Resources
+
+| Resource | Use for |
+|----------|---------|
+| `gitnexus://repo/petties/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/petties/clusters` | All functional areas |
+| `gitnexus://repo/petties/processes` | All execution flows |
+| `gitnexus://repo/petties/process/{name}` | Step-by-step execution trace |
+
+## Self-Check Before Finishing
+
+Before completing any code modification task, verify:
+1. `gitnexus_impact` was run for all modified symbols
+2. No HIGH/CRITICAL risk warnings were ignored
+3. `gitnexus_detect_changes()` confirms changes match expected scope
+4. All d=1 (WILL BREAK) dependents were updated
+
+## Keeping the Index Fresh
+
+After committing code changes, the GitNexus index becomes stale. Re-run analyze to update it:
+
+```bash
+npx gitnexus analyze
+```
+
+If the index previously included embeddings, preserve them by adding `--embeddings`:
+
+```bash
+npx gitnexus analyze --embeddings
+```
+
+To check whether embeddings exist, inspect `.gitnexus/meta.json` — the `stats.embeddings` field shows the count (0 means no embeddings). **Running analyze without `--embeddings` will delete any previously generated embeddings.**
+
+> Claude Code users: A PostToolUse hook handles this automatically after `git commit` and `git merge`.
+
+## CLI
+
+| Task | Read this skill file |
+|------|---------------------|
+| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
+| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
+| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
+| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
+| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
+
+<!-- gitnexus:end -->

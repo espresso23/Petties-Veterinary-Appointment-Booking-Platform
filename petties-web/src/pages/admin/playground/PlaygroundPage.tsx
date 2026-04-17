@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { agentApi, chatApi, feedbackApi, type Agent, type ChatContextType, type ChatSessionMessage, type ChatSessionSummary } from '../../../services/agentService'
+import { agentApi, chatApi, createChatWebSocket, feedbackApi, type Agent, type ChatContextType, type ChatSessionMessage, type ChatSessionSummary } from '../../../services/agentService'
 import { ChatMessage } from '../../../components/admin/ChatMessage'
 import { ModelParametersConfig } from '../../../components/admin/ModelParametersConfig'
 import { ConfirmModal } from '../../../components/ConfirmModal'
@@ -27,7 +27,6 @@ import {
   PhotoIcon,
 } from '@heroicons/react/24/outline'
 const AI_API_BASE_URL = env.AGENT_API_BASE_URL
-const AI_WS_BASE_URL = env.AGENT_WS_BASE_URL
 const getAuthHeaders = (): Record<string, string> => {
   const token = useAuthStore.getState().accessToken
   return token ? { Authorization: `Bearer ${token}` } : {}
@@ -124,6 +123,7 @@ export const PlaygroundPage = () => {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
+  const [liveReasoning, setLiveReasoning] = useState('')
   const [seeding, setSeeding] = useState(false)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   // ReAct trace state
@@ -339,6 +339,7 @@ export const PlaygroundPage = () => {
     try {
       disconnectWebSocket()
       setStreamingContent('')
+      setLiveReasoning('')
       setSending(false)
       setReactSteps([])
       setAllowedTools([])
@@ -366,6 +367,7 @@ export const PlaygroundPage = () => {
         setMessages([])
         setReactSteps([])
         setStreamingContent('')
+        setLiveReasoning('')
         setAllowedTools([])
         setSending(false)
       }
@@ -403,6 +405,7 @@ export const PlaygroundPage = () => {
       setMessages([])
       setReactSteps([])
       setStreamingContent('')
+      setLiveReasoning('')
       setAllowedTools([])
       await loadPlaygroundSessions()
     } catch (err) {
@@ -420,9 +423,7 @@ export const PlaygroundPage = () => {
       wsRef.current?.readyState === WebSocket.CONNECTING
     ) return
     setConnectionStatus('connecting')
-    const token = useAuthStore.getState().accessToken
-    const fullWsUrl = `${AI_WS_BASE_URL}/ws/chat/${sessionInfo.sessionId}?token=${token}&context_type=${sessionInfo.contextType}`
-    const ws = new WebSocket(fullWsUrl)
+    const ws = createChatWebSocket(sessionInfo.sessionId, sessionInfo.contextType)
     ws.onopen = () => {
       console.log('WebSocket connected')
       setConnectionStatus('connected')
@@ -496,16 +497,24 @@ export const PlaygroundPage = () => {
       case 'history':
         setMessages((data.messages || []).map(mapHistoryMessage))
         setStreamingContent('')
+        setLiveReasoning('')
         setSending(false)
         break
       case 'ack':
         setStreamingContent('')
+        setLiveReasoning('Đang suy luận: mình đã nhận yêu cầu và bắt đầu xử lý.')
         setReactSteps([])
         break
       case 'agent_info':
         setAllowedTools(data.allowed_tools || [])
         break
+      case 'thinking_stream':
+        setSending(true)
+        setLiveReasoning(data.content ?? 'Đang suy luận: mình đang phân tích yêu cầu của bạn.')
+        break
       case 'thinking':
+        setSending(true)
+        setLiveReasoning(data.content ?? 'Đang suy luận: mình đang phân tích yêu cầu của bạn.')
         setReactSteps(prev => [...prev, {
           step_index: data.step_index ?? prev.length,
           step_type: 'thought',
@@ -517,6 +526,10 @@ export const PlaygroundPage = () => {
         setExpandedSteps(prev => new Set([...prev, data.step_index ?? 0]))
         break
       case 'tool_call':
+        setSending(true)
+        if (data.content?.trim()) {
+          setLiveReasoning(data.content)
+        }
         setReactSteps(prev => [...prev, {
           step_index: data.step_index ?? prev.length,
           step_type: 'action',
@@ -528,6 +541,10 @@ export const PlaygroundPage = () => {
         setExpandedSteps(prev => new Set([...prev, data.step_index ?? 0]))
         break
       case 'tool_result':
+        setSending(true)
+        if (data.content?.trim()) {
+          setLiveReasoning(data.content)
+        }
         setReactSteps(prev => [...prev, {
           step_index: data.step_index ?? prev.length,
           step_type: 'observation',
@@ -539,11 +556,13 @@ export const PlaygroundPage = () => {
         setExpandedSteps(prev => new Set([...prev, data.step_index ?? 0]))
         break
       case 'stream':
+        setLiveReasoning('')
         setStreamingContent(prev => prev + (data.content ?? ''))
         break
       case 'complete': {
         setSending(false)
         setStreamingContent('')
+        setLiveReasoning('')
         const thinkingProcess: string[] = []
         const toolCalls: Array<{ tool: string; input: unknown; output?: unknown }> = []
         if (data.react_trace) {
@@ -571,6 +590,7 @@ export const PlaygroundPage = () => {
       case 'error':
         setSending(false)
         setStreamingContent('')
+        setLiveReasoning('')
         setMessages(prev => [...prev, {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
@@ -616,6 +636,7 @@ export const PlaygroundPage = () => {
     setInput('')
     setSending(true)
     setReactSteps([])
+    setLiveReasoning('')
     // Build WebSocket message with optional images
     const wsPayload: Record<string, unknown> = {
       message: userMessage.content,
@@ -653,6 +674,7 @@ export const PlaygroundPage = () => {
     setMessages([])
     setReactSteps([])
     setStreamingContent('')
+    setLiveReasoning('')
     setSelectedImages([])
   }
   // Image handling
@@ -680,7 +702,7 @@ export const PlaygroundPage = () => {
       newImages.push({
         file,
         preview: URL.createObjectURL(file),
-        base64: base64.split(',')[1], // Remove data:image/xxx;base64, prefix
+        base64,
       })
     }
     if (newImages.length > 0) {
@@ -967,7 +989,7 @@ export const PlaygroundPage = () => {
             ref={scrollContainerRef}
             className="flex-1 overflow-y-auto p-6 bg-stone-50"
           >
-            {messages.length === 0 && !streamingContent ? (
+            {messages.length === 0 && !streamingContent && !liveReasoning ? (
               <div className="flex items-center justify-center h-full text-center">
                 <div className="p-8 bg-white border-4 border-stone-900 shadow-[8px_8px_0_#1c1917] max-w-md">
                   <div className="w-16 h-16 bg-amber-100 border-4 border-stone-900 flex items-center justify-center mx-auto mb-4">
@@ -1018,7 +1040,7 @@ export const PlaygroundPage = () => {
                     onFeedback={(feedback) => handleFeedback(msg.id, feedback)}
                   />
                 ))}
-                {(sending || streamingContent) && (
+                {(sending || streamingContent || liveReasoning) && (
                   <div className="flex gap-3 flex-row mb-6">
                     <div className="flex-shrink-0 w-9 h-9 border-2 border-stone-900 shadow-[2px_2px_0_#1c1917] flex items-center justify-center bg-amber-400">
                       <ArrowPathIcon className="w-5 h-5 text-stone-900 animate-spin" />
@@ -1031,7 +1053,7 @@ export const PlaygroundPage = () => {
                       </div>
                       <div className="relative border-2 border-stone-900 p-3.5 w-fit bg-white text-stone-900 shadow-[3px_3px_0_#1c1917] animate-pulse">
                         <div className="text-sm md:text-base font-bold whitespace-pre-wrap leading-relaxed">
-                          {streamingContent || 'Thinking...'}
+                          {streamingContent || liveReasoning || 'Đang suy luận: mình đang phân tích yêu cầu của bạn.'}
                         </div>
                       </div>
                     </div>

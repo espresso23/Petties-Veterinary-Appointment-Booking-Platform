@@ -1,9 +1,16 @@
 import { useState } from 'react'
 import type { ChatMessage } from '../../types/chat'
+import type { ChatStage, UISchemaV1 } from '../../types/chat-copilot'
 import { useToast } from '../../hooks/useToast'
+import * as AIRenderers from './renderers'
+
+type MessageBubbleMessage = ChatMessage & {
+  ui_schema?: UISchemaV1
+  stage?: ChatStage
+}
 
 interface MessageBubbleProps {
-  message: ChatMessage
+  message: MessageBubbleMessage
   onImageClick?: (imageUrl: string) => void
 }
 
@@ -214,68 +221,91 @@ export function MessageBubble({ message, onImageClick, myAvatar, partnerAvatar }
     )
   }
 
+  // Helper to render AI components based on UI Schema
+  const renderAICard = () => {
+    if (!message.ui_schema) return null
+    return <AIRenderers.UISchemaRenderer schema={message.ui_schema} />
+  }
+
   return (
     <div className={containerClass}>
       {renderAvatar()}
-      <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[75%]`}>
+      <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[85%] sm:max-w-[75%]`}>
         {/* Sender name */}
         <span className={`text-xs font-bold mb-1 px-1 ${isMe ? 'text-amber-700' : 'text-stone-600'}`}>
           {message.senderName}
         </span>
 
-        {/* Message bubble */}
-        <div
-          className={`
-            w-full ${message.messageType === 'IMAGE' ? '' : 'px-4 py-3'} border-2 border-stone-900
-            ${isMe
-              ? 'bg-amber-500 text-white rounded-l-xl rounded-tr-xl shadow-[3px_3px_0_#1c1917]'
-              : 'bg-white text-stone-900 rounded-r-xl rounded-tl-xl shadow-[3px_3px_0_#1c1917]'
-            }
-          `}
-        >
-          {message.messageType === 'IMAGE' && (message.imageUrl || message.isUploading) ? (
-            <div className={message.content ? "space-y-2" : ""}>
-              {message.isUploading ? (
-                <UploadingPlaceholder className="w-[220px] h-[180px]" />
-              ) : (
-                <LoadingImage
-                  src={message.imageUrl!}
-                  alt="Hình ảnh"
-                  className="w-[220px] h-[180px] object-cover rounded-lg cursor-pointer transition-shadow"
-                  onClick={() => handleImageClick(message.imageUrl!)}
-                />
-              )}
-              {message.content && (
-                <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">
-                  {message.content}
-                </p>
-              )}
-            </div>
-          ) : (
-            <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">
-              {message.content}
-            </p>
+        {/* Message bubble / AI Card */}
+        <div className="w-full space-y-3">
+          {/* Main message bubble content */}
+          {(message.content || (message.messageType === 'IMAGE' && (message.imageUrl || message.isUploading))) && (
+             <div
+             className={`
+               w-full ${message.messageType === 'IMAGE' ? '' : 'px-4 py-3'} border-2 border-stone-900
+               ${isMe
+                 ? 'bg-amber-500 text-white rounded-l-xl rounded-tr-xl shadow-[3px_3px_0_#1c1917]'
+                 : 'bg-white text-stone-900 rounded-r-xl rounded-tl-xl shadow-[3px_3px_0_#1c1917]'
+               }
+             `}
+           >
+             {message.messageType === 'IMAGE' && (message.imageUrl || message.isUploading) ? (
+               <div className={message.content ? "space-y-2" : ""}>
+                 {message.isUploading ? (
+                   <UploadingPlaceholder className="w-[220px] h-[180px]" />
+                 ) : (
+                   <LoadingImage
+                     src={message.imageUrl!}
+                     alt="Hình ảnh"
+                     className="w-[220px] h-[180px] object-cover rounded-lg cursor-pointer transition-shadow"
+                     onClick={() => handleImageClick(message.imageUrl!)}
+                   />
+                 )}
+                 {message.content && (
+                   <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">
+                     {message.content}
+                   </p>
+                 )}
+               </div>
+             ) : (
+               <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">
+                 {message.content}
+               </p>
+             )}
+   
+             {/* Action Buttons Render */}
+             {message.actionButtons && message.actionButtons.length > 0 && !isMe && (
+               <div className="mt-3 flex flex-col gap-2 border-t-2 border-stone-200 pt-3">
+                 {message.actionButtons.map((btn) => (
+                   <button
+                     key={btn.id}
+                     onClick={() => handleActionButtonClick(btn.type, btn.label)}
+                     className={`
+                       w-full py-2 px-4 rounded-lg border-2 font-bold text-sm transition-all text-center
+                       ${isMe
+                         ? 'bg-amber-600 border-amber-800 text-white hover:bg-amber-700 shadow-[2px_2px_0_#92400e]'
+                         : 'bg-white border-stone-900 text-stone-900 hover:bg-stone-50 shadow-[2px_2px_0_#1c1917] hover:shadow-[3px_3px_0_#1c1917] hover:-translate-y-0.5'
+                       }
+                     `}
+                   >
+                     {btn.label}
+                   </button>
+                 ))}
+               </div>
+             )}
+           </div>
           )}
 
-          {/* Action Buttons Render */}
-          {message.actionButtons && message.actionButtons.length > 0 && !isMe && (
-            <div className="mt-3 flex flex-col gap-2 border-t-2 border-stone-200 pt-3">
-              {message.actionButtons.map((btn) => (
-                <button
-                  key={btn.id}
-                  onClick={() => handleActionButtonClick(btn.type, btn.label)}
-                  className={`
-                    w-full py-2 px-4 rounded-lg border-2 font-bold text-sm transition-all text-center
-                    ${isMe
-                      ? 'bg-amber-600 border-amber-800 text-white hover:bg-amber-700 shadow-[2px_2px_0_#92400e]'
-                      : 'bg-white border-stone-900 text-stone-900 hover:bg-stone-50 shadow-[2px_2px_0_#1c1917] hover:shadow-[3px_3px_0_#1c1917] hover:-translate-y-0.5'
-                    }
-                  `}
-                >
-                  {btn.label}
-                </button>
-              ))}
+          {/* AI Structured Data / UI Cards */}
+          {!isMe && message.ui_schema && (
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+              {renderAICard()}
             </div>
+          )}
+
+          {/* Loading Indicator for AI Thinking/Tool Calling */}
+          {!isMe && message.stage === 'COLLECTING' && !message.ui_schema && (
+            <AIRenderers.LoadingCard />
           )}
         </div>
 

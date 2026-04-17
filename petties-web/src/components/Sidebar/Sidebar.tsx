@@ -115,7 +115,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {!isMobile && (
                         <button
                             onClick={toggleSidebar}
-                            className={`p-1.5 rounded-md bg-white border-2 border-stone-900 shadow-[2px_2px_0_0_#000] hover:bg-amber-400 transition-all ${isCollapsed ? 'absolute -right-3.5 top-8 z-50' : ''}`}
+                            className={`sidebar-collapse-toggle p-1.5 rounded-md bg-white border-2 border-stone-900 shadow-[2px_2px_0_0_#000] hover:bg-amber-400 transition-all ${isCollapsed ? 'absolute -right-3.5 top-8 z-50' : ''}`}
                         >
                             {isCollapsed ? <ChevronRightIcon className="w-4 h-4" /> : <ChevronLeftIcon className="w-4 h-4" />}
                         </button>

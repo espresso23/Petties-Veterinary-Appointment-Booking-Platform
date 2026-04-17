@@ -121,7 +121,8 @@ public class ReportController {
             @AuthenticationPrincipal UserDetails userDetails) {
 
         UserPrincipal userPrincipal = (UserPrincipal) userDetails;
-        log.debug("getMyReports: reporterId={}, page={}, size={}", userPrincipal.getUserId(), pageable.getPageNumber(), pageable.getPageSize());
+        log.debug("getMyReports: reporterId={}, page={}, size={}", userPrincipal.getUserId(), pageable.getPageNumber(),
+                pageable.getPageSize());
         Page<ReportResponse> reports = reportService.getMyReports(userPrincipal.getUserId(), pageable);
         log.debug("getMyReports: found {} reports", reports.getTotalElements());
         return ResponseEntity.ok(reports);

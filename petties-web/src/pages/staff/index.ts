@@ -1,7 +1,6 @@
 export { default as StaffDashboardPage } from './DashboardPage'
 export { default as StaffSchedulePage } from './StaffSchedulePage'
 export { default as StaffBookingsPage } from './StaffBookingsPage'
-export { default as StaffAIChatPage } from './StaffAIChatPage'
 export { CreateEmrPage } from './emr/CreateEmrPage'
 export { EditEmrPage } from './emr/EditEmrPage'
 export { EmrDetailPage } from './emr/EmrDetailPage'

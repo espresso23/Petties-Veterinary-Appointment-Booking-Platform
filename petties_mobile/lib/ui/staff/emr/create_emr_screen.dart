@@ -60,7 +60,9 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
   DateTime? _reExaminationDate;
 
   // Draft management
-  String get _draftKey => widget.bookingId != null ? '${widget.petId}_${widget.bookingId}' : widget.petId;
+  String get _draftKey => widget.bookingId != null
+      ? '${widget.petId}_${widget.bookingId}'
+      : widget.petId;
 
   // Re-examination Date
   bool _enableReExam = false;
@@ -73,6 +75,9 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
   final Map<String, TextEditingController> _imageDescriptionControllers = {};
   bool _isSubmitting = false;
   bool _isEditingPrescription = false;
+  StaffDiagnosisResponse? _aiDiagnosisResult;
+  String? _selectedAiDiagnosisLabel;
+  String? _selectedAiDiagnosisCode;
 
   static const List<String> _medicineSuggestions = [
     'Amoxicillin 500mg',
@@ -95,15 +100,15 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
     final draftProvider = context.read<EmrDraftProvider>();
     await draftProvider.loadDraft(_draftKey);
     if (!mounted) return;
-    
+
     if (draftProvider.hasDraft(_draftKey)) {
       final draft = draftProvider.getDraft(_draftKey);
       if (draft != null && _hasDraftContent(draft)) {
         final ageMinutes = draftProvider.getDraftAgeMinutes(_draftKey) ?? 0;
-        final ageText = ageMinutes < 60 
-            ? '$ageMinutes phút trước' 
+        final ageText = ageMinutes < 60
+            ? '$ageMinutes phút trước'
             : '${(ageMinutes / 60).floor()} giờ trước';
-        
+
         final shouldRestore = await showDialog<bool>(
           context: context,
           barrierDismissible: false,
@@ -124,9 +129,9 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
             ],
           ),
         );
-        
+
         if (!mounted) return;
-        
+
         if (shouldRestore == true) {
           _restoreDraft(draft);
         }
@@ -163,7 +168,9 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
     try {
       final results = await Future.wait([
         _petService.getPetById(widget.petId),
-        _emrService.getEmrsByPetId(widget.petId).catchError((_) => <EmrRecord>[]),
+        _emrService
+            .getEmrsByPetId(widget.petId)
+            .catchError((_) => <EmrRecord>[]),
         _petService.getHealthSummary(widget.petId).catchError((_) => null),
       ]);
       final pet = results[0] as Pet;
@@ -207,28 +214,63 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
 
   void _openAiDiagnosis() {
     String? speciesStr;
+    final dateOfBirth = _petInfo?.dateOfBirth;
     if (_petInfo?.species != null) {
       speciesStr = _petInfo!.species.value;
     }
-    
+
     AiDiagnosisSheet.show(
       context,
       petId: widget.petId,
       bookingId: widget.bookingId,
       species: speciesStr,
       breed: _petInfo?.breed,
-      ageMonths: _petInfo?.dateOfBirth != null
-          ? DateTime.now().difference(_petInfo!.dateOfBirth!).inDays ~/ 30
-          : null,
+      ageMonths:
+          dateOfBirth != null ? DateTime.now().difference(dateOfBirth).inDays ~/ 30 : null,
       weightKg: _petInfo?.weight,
       allergies: _petInfo?.allergies?.split(',').map((e) => e.trim()).toList(),
-      initialSubjective: _subjectiveController.text.isNotEmpty ? _subjectiveController.text : null,
-      initialObjective: _objectiveController.text.isNotEmpty ? _objectiveController.text : null,
-      initialAssessment: _assessmentController.text.isNotEmpty ? _assessmentController.text : null,
-      initialPlan: _planController.text.isNotEmpty ? _planController.text : null,
+      initialSubjective: _subjectiveController.text.isNotEmpty
+          ? _subjectiveController.text
+          : null,
+      initialObjective: _objectiveController.text.isNotEmpty
+          ? _objectiveController.text
+          : null,
+      initialAssessment: _assessmentController.text.isNotEmpty
+          ? _assessmentController.text
+          : null,
+      initialPlan:
+          _planController.text.isNotEmpty ? _planController.text : null,
       imageUrls: _images.map((image) => image.url).toList(),
+      initialResult: _aiDiagnosisResult,
+      initialSelectedDiagnosisLabel: _selectedAiDiagnosisLabel,
+      initialSelectedDiagnosisCode: _selectedAiDiagnosisCode,
+      onDiagnosisResult: (result) {
+        if (!mounted) return;
+        setState(() {
+          _aiDiagnosisResult = result;
+          if (result == null) {
+            _selectedAiDiagnosisLabel = null;
+            _selectedAiDiagnosisCode = null;
+          }
+        });
+      },
       onApplyDiagnosis: (result, diagnosisImageUrls) {
         _applyDiagnosisResult(result, diagnosisImageUrls);
+      },
+      onDiagnosisLocked: (result, diagnosisImageUrls, label, code) {
+        if (!mounted) return;
+        setState(() {
+          _aiDiagnosisResult = result;
+          _selectedAiDiagnosisLabel = label;
+          _selectedAiDiagnosisCode = code;
+        });
+
+        _applyDiagnosisResult(
+          result,
+          diagnosisImageUrls,
+          applySubjectiveAssessment: false,
+          selectedDiagnosisLabel: label,
+        );
       },
     );
   }
@@ -236,20 +278,27 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
   void _applyDiagnosisResult(
     StaffDiagnosisResponse result,
     List<String> diagnosisImageUrls,
-  ) {
+    {
+    bool applySubjectiveAssessment = true,
+    String? selectedDiagnosisLabel,
+  }) {
     final addedPrescriptions =
         _mergePrescriptionSuggestions(result.prescriptionSuggestions);
     final addedImages =
         _mergeDiagnosisImages(diagnosisImageUrls, result.imageAnalysis);
 
     setState(() {
-      if (result.soapSuggestions.subjectiveDraft.isNotEmpty) {
+      if (applySubjectiveAssessment &&
+          result.soapSuggestions.subjectiveDraft.isNotEmpty) {
         _subjectiveController.text = result.soapSuggestions.subjectiveDraft;
       }
       if (result.soapSuggestions.objectiveDraft.isNotEmpty) {
         _objectiveController.text = result.soapSuggestions.objectiveDraft;
       }
-      if (result.soapSuggestions.assessmentDraft.isNotEmpty) {
+      if (selectedDiagnosisLabel != null && selectedDiagnosisLabel.isNotEmpty) {
+        _assessmentController.text = selectedDiagnosisLabel;
+      } else if (applySubjectiveAssessment &&
+          result.soapSuggestions.assessmentDraft.isNotEmpty) {
         _assessmentController.text = result.soapSuggestions.assessmentDraft;
       }
       if (result.soapSuggestions.planDraft.isNotEmpty) {
@@ -298,8 +347,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
       _prescriptions.add(
         Prescription(
           medicineName: medicineName,
-          dosage: suggestion.dosage.isEmpty ? null : suggestion.dosage,
-          frequency: suggestion.frequency,
+          timesOfDay: suggestion.timesOfDay ?? const [],
+          beforeAfterMeal: suggestion.beforeAfterMeal ?? 'AFTER_MEAL',
           durationDays: suggestion.durationDays,
           instructions:
               suggestion.instructions.isEmpty ? null : suggestion.instructions,
@@ -324,14 +373,16 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
     };
 
     for (final imageUrl in diagnosisImageUrls) {
-      final existingIndex = _images.indexWhere((image) => image.url == imageUrl);
+      final existingIndex =
+          _images.indexWhere((image) => image.url == imageUrl);
       final aiDescription = descriptionsByUrl[imageUrl];
 
       if (existingIndex >= 0) {
         final current = _images[existingIndex];
-        final nextDescription = (current.description?.trim().isNotEmpty ?? false)
-            ? current.description
-            : aiDescription;
+        final nextDescription =
+            (current.description?.trim().isNotEmpty ?? false)
+                ? current.description
+                : aiDescription;
         _images[existingIndex] = EmrImage(
           url: current.url,
           description: nextDescription,
@@ -369,7 +420,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
         }
         finalUrl = await _emrService.uploadImageBytes(
           bytes,
-          fileName: 'emr-image-${DateTime.now().millisecondsSinceEpoch}-$index.jpg',
+          fileName:
+              'emr-image-${DateTime.now().millisecondsSinceEpoch}-$index.jpg',
         );
       }
 
@@ -423,10 +475,12 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
       objective: _objectiveController.text,
       assessment: _assessmentController.text,
       plan: _planController.text,
-      images: _images.map((img) => {
-        'url': img.url,
-        'description': img.description ?? '',
-      }).toList(),
+      images: _images
+          .map((img) => {
+                'url': img.url,
+                'description': img.description ?? '',
+              })
+          .toList(),
     );
     context.read<EmrDraftProvider>().saveDraft(draft);
   }
@@ -1089,7 +1143,7 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Biểu mẫu SOAP',
+                'Biểu mẫu bệnh án',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w900,
@@ -1118,8 +1172,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
           ),
           const SizedBox(height: 20),
 
-          // S - Subjective
-          _buildSectionHeader('S - Chủ quan (Subjective)', Colors.blue, false),
+          // Triệu chứng
+          _buildSectionHeader('Triệu chứng', Colors.blue, false),
           TextFormField(
             controller: _subjectiveController,
             maxLines: 3,
@@ -1138,8 +1192,9 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
           ),
           const SizedBox(height: 20),
 
-          // O - Objective (Vital signs)
-          _buildSectionHeader('O - Khách quan (Objective)', Colors.teal, false),
+          // Khách quan
+          _buildSectionHeader(
+              'Khách quan / Chỉ số sức khỏe', Colors.teal, false),
           const SizedBox(height: 12),
 
           Row(
@@ -1227,8 +1282,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
           ),
           const SizedBox(height: 20),
 
-          // A - Assessment
-          _buildSectionHeader('A - Đánh giá (Assessment)', Colors.purple, true),
+          // Chẩn đoán
+          _buildSectionHeader('Chẩn đoán', Colors.purple, true),
           TextFormField(
             controller: _assessmentController,
             maxLines: 3,
@@ -1245,8 +1300,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
           ),
           const SizedBox(height: 20),
 
-          // P - Plan
-          _buildSectionHeader('P - Kế hoạch (Plan)', Colors.orange, true),
+          // Kế hoạch điều trị
+          _buildSectionHeader('Kế hoạch điều trị', Colors.orange, true),
           TextFormField(
             controller: _planController,
             maxLines: 3,
@@ -1687,8 +1742,17 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                               runSpacing: 4,
                               children: [
                                 _buildDetailLabel(
-                                    '${p.dosage ?? "0"} viên/lần'),
-                                _buildDetailLabel('${p.frequency} lần/ngày'),
+                                    (p.timesOfDay != null &&
+                                            p.timesOfDay!.isNotEmpty)
+                                        ? p.timesOfDay!.join(', ')
+                                        : 'Theo chỉ định'),
+                                _buildDetailLabel(
+                                    (p.beforeAfterMeal == null ||
+                                            p.beforeAfterMeal!.isEmpty)
+                                        ? 'Sau ăn'
+                                        : (p.beforeAfterMeal == 'BEFORE_MEAL'
+                                            ? 'Trước ăn'
+                                            : 'Sau ăn')),
                                 _buildDetailLabel(
                                     '${p.durationDays ?? "0"} ngày',
                                     isHighlight: true),
@@ -1964,9 +2028,9 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
     setState(() {
       _prescriptions.add(Prescription(
         medicineName: '',
-        frequency: '',
+        timesOfDay: const [],
+        beforeAfterMeal: 'AFTER_MEAL',
         durationDays: null,
-        dosage: null,
         instructions: null,
       ));
     });
@@ -1979,26 +2043,26 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
         case 'medicineName':
           _prescriptions[index] = Prescription(
             medicineName: value as String,
-            dosage: p.dosage,
-            frequency: p.frequency,
+            timesOfDay: p.timesOfDay,
+            beforeAfterMeal: p.beforeAfterMeal,
             durationDays: p.durationDays,
             instructions: p.instructions,
           );
           break;
-        case 'dosage':
+        case 'timesOfDay':
           _prescriptions[index] = Prescription(
             medicineName: p.medicineName,
-            dosage: value as String?,
-            frequency: p.frequency,
+            timesOfDay: (value as List<String>),
+            beforeAfterMeal: p.beforeAfterMeal,
             durationDays: p.durationDays,
             instructions: p.instructions,
           );
           break;
-        case 'frequency':
+        case 'beforeAfterMeal':
           _prescriptions[index] = Prescription(
             medicineName: p.medicineName,
-            dosage: p.dosage,
-            frequency: value as String,
+            timesOfDay: p.timesOfDay,
+            beforeAfterMeal: value as String?,
             durationDays: p.durationDays,
             instructions: p.instructions,
           );
@@ -2006,8 +2070,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
         case 'durationDays':
           _prescriptions[index] = Prescription(
             medicineName: p.medicineName,
-            dosage: p.dosage,
-            frequency: p.frequency,
+            timesOfDay: p.timesOfDay,
+            beforeAfterMeal: p.beforeAfterMeal,
             durationDays: value as int?,
             instructions: p.instructions,
           );
@@ -2015,8 +2079,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
         case 'instructions':
           _prescriptions[index] = Prescription(
             medicineName: p.medicineName,
-            dosage: p.dosage,
-            frequency: p.frequency,
+            timesOfDay: p.timesOfDay,
+            beforeAfterMeal: p.beforeAfterMeal,
             durationDays: p.durationDays,
             instructions: value as String?,
           );
@@ -2173,29 +2237,79 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
           }),
           const SizedBox(height: 10),
 
-          // Dosage and Frequency row
-          Row(
-            children: [
-              Expanded(
-                child: _buildInlineField(
-                  label: 'Liều lượng',
-                  value: p.dosage ?? '',
-                  hint: '1 viên',
-                  onChanged: (v) => _updatePrescriptionField(
-                      index, 'dosage', v.isEmpty ? null : v),
+          // Times of day + meal timing
+          const Text(
+            'Thời điểm uống',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: AppColors.stone700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: ['sang', 'trua', 'chieu'].map((slot) {
+              final active = (p.timesOfDay ?? const []).contains(slot);
+              return InkWell(
+                onTap: () {
+                  final current = List<String>.from(p.timesOfDay ?? const []);
+                  if (active) {
+                    current.remove(slot);
+                  } else {
+                    current.add(slot);
+                  }
+                  _updatePrescriptionField(index, 'timesOfDay', current);
+                },
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: active ? const Color(0xFFFFF7ED) : Colors.white,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: active
+                          ? const Color(0xFFFB923C)
+                          : AppColors.stone200,
+                    ),
+                  ),
+                  child: Text(
+                    slot.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      color: active ? const Color(0xFF9A3412) : AppColors.stone700,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
                 ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            value: (p.beforeAfterMeal == null || p.beforeAfterMeal!.isEmpty)
+                ? 'AFTER_MEAL'
+                : p.beforeAfterMeal,
+            decoration: InputDecoration(
+              labelText: 'Trước/Sau ăn',
+              filled: true,
+              fillColor: AppColors.stone50,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: AppColors.stone200),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _buildInlineField(
-                  label: 'Tần suất *',
-                  value: p.frequency,
-                  hint: '2 lần/ngày',
-                  onChanged: (v) =>
-                      _updatePrescriptionField(index, 'frequency', v),
-                ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: AppColors.stone200),
               ),
+            ),
+            items: const [
+              DropdownMenuItem(value: 'BEFORE_MEAL', child: Text('Trước ăn')),
+              DropdownMenuItem(value: 'AFTER_MEAL', child: Text('Sau ăn')),
             ],
+            onChanged: (v) => _updatePrescriptionField(index, 'beforeAfterMeal', v),
           ),
           const SizedBox(height: 10),
 
@@ -2218,7 +2332,7 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                 child: _buildInlineField(
                   label: 'Hướng dẫn',
                   value: p.instructions ?? '',
-                  hint: 'Uống sau ăn',
+                  hint: 'VD: Cho uống sau ăn...',
                   onChanged: (v) => _updatePrescriptionField(
                       index, 'instructions', v.isEmpty ? null : v),
                 ),
@@ -2435,7 +2549,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                     ),
                     style: const TextStyle(fontSize: 11),
                     onChanged: (value) {
-                      _images[index] = EmrImage(url: img.url, description: value);
+                      _images[index] =
+                          EmrImage(url: img.url, description: value);
                     },
                   ),
                 ],

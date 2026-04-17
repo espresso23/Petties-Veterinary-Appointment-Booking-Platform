@@ -102,7 +102,7 @@ export const SmartVaccinationForm = ({
             setNotes(isTemporaryNote ? '' : initialNotes)
         } else {
             // Reset if no initial data (Create Mode default)
-            // eslint-disable-next-line react-hooks/set-state-in-effect
+             
             setVaccineName('')
             setSelectedTemplateId(null)
             setDoseSequence('1')
@@ -130,13 +130,13 @@ export const SmartVaccinationForm = ({
             if (!isNaN(seqNum) && seqNum < template.seriesDoses) {
                 const nextDate = new Date(vaccinationDate)
                 nextDate.setDate(nextDate.getDate() + template.repeatIntervalDays)
-                // eslint-disable-next-line react-hooks/set-state-in-effect
+                 
                 setNextDueDate(nextDate)
             } else if (!isNaN(seqNum) && seqNum >= template.seriesDoses) {
                 // Final dose in series, suggest annual follow up
                 const nextDate = new Date(vaccinationDate)
                 nextDate.setFullYear(nextDate.getFullYear() + 1)
-                // eslint-disable-next-line react-hooks/set-state-in-effect
+                 
                 setNextDueDate(nextDate)
             }
         }

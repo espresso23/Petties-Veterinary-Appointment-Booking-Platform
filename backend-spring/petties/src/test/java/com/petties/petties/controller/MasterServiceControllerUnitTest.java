@@ -81,7 +81,6 @@ class MasterServiceControllerUnitTest {
 		testRequest.setDurationTime(60);
 		testRequest.setSlotsRequired(2);
 		testRequest.setIsHomeVisit(true);
-		testRequest.setDefaultPricePerKm(new BigDecimal("5000.0"));
 		testRequest.setServiceCategory("Grooming");
 		testRequest.setPetType("Chó");
 		testRequest.setWeightPrices(weightPrices);
@@ -94,7 +93,6 @@ class MasterServiceControllerUnitTest {
 		testResponse.setDurationTime(testRequest.getDurationTime());
 		testResponse.setSlotsRequired(testRequest.getSlotsRequired());
 		testResponse.setIsHomeVisit(testRequest.getIsHomeVisit());
-		testResponse.setDefaultPricePerKm(testRequest.getDefaultPricePerKm());
 		testResponse.setServiceCategory(testRequest.getServiceCategory());
 		testResponse.setPetType(testRequest.getPetType());
 		testResponse.setWeightPrices(weightPrices);

@@ -115,9 +115,13 @@ apiClient.interceptors.response.use(
 
     // Log error trong dev mode
     if (import.meta.env.DEV) {
-
-      console.error('API error', error)
-
+      console.error('API error', {
+        method: originalRequest?.method,
+        url: originalRequest?.url,
+        status: error.response?.status,
+        code: error.code,
+        message: error.message,
+      })
       console.error('User message:', userMessage)
     }
 

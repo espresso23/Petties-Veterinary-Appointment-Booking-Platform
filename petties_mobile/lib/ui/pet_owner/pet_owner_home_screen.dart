@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
@@ -8,7 +10,6 @@ import '../../data/services/pet_service.dart';
 import '../../data/models/pet.dart';
 import '../clinics/clinic_search_view.dart';
 import '../booking/my_bookings_tab.dart';
-import '../chat/ai_chat/ai_chat_bubble.dart';
 import '../common/pet_owner_bottom_nav.dart';
 
 /// Pet Owner Home Screen - Neobrutalism Style
@@ -29,12 +30,30 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
   List<Pet> _pets = [];
   bool _isLoading = true;
   int _currentIndex = 0;
+  bool _showDogIndicator = true;
+  Timer? _aiPetIndicatorTimer;
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialTabIndex;
     _fetchPets();
+    _startAiPetIndicatorTimer();
+  }
+
+  void _startAiPetIndicatorTimer() {
+    _aiPetIndicatorTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (!mounted) return;
+      setState(() {
+        _showDogIndicator = !_showDogIndicator;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _aiPetIndicatorTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _fetchPets() async {
@@ -144,7 +163,7 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
                   : [],
             ),
       body: SafeArea(bottom: false, child: bodyContent),
-      floatingActionButton: const AiChatBubble(),
+      floatingActionButton: _buildAiFloatingBar(context),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: PetOwnerBottomNav(
         currentIndex: _currentIndex,
@@ -152,6 +171,86 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
       ),
     );
   }
+
+  Widget _buildAiFloatingBar(BuildContext context) {
+    return GestureDetector(
+      onTap: () => context.push(AppRoutes.aiChat),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: 230,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.stone900, width: 2),
+          boxShadow: const [
+            BoxShadow(
+              color: AppColors.stone900,
+              offset: Offset(3, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 320),
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              transitionBuilder: (child, animation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: ScaleTransition(scale: animation, child: child),
+                );
+              },
+              child: Container(
+                key: ValueKey<bool>(_showDogIndicator),
+                width: 28,
+                height: 28,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight.withValues(alpha: 0.35),
+                  border: Border.all(color: AppColors.stone900, width: 1.5),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(
+                  _showDogIndicator ? Icons.pets : Icons.cruelty_free,
+                  color: AppColors.stone900,
+                  size: 16,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: IgnorePointer(
+                child: TextField(
+                  readOnly: true,
+                  enabled: false,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: 'Hỏi trợ lý AI...',
+                    hintStyle: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.stone500,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Icon(
+              Icons.send_rounded,
+              color: AppColors.primary,
+              size: 18,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildHomeTab(BuildContext context, AuthProvider authProvider) {
     final user = authProvider.user;
     return RefreshIndicator(
@@ -578,5 +677,4 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
       ),
     );
   }
-
 }

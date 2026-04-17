@@ -52,7 +52,7 @@ export const adminNotificationService = {
   },
 
   getAll: (page: number = 0, size: number = 10) => {
-    return axiosClient.get<any>("/admin/notifications", {
+    return axiosClient.get<{ data: PageResponse<SystemNotificationResponse> }>("/admin/notifications", {
       params: { page, size },
     });
   },
@@ -62,6 +62,6 @@ export const adminNotificationService = {
   },
 
   searchUsers: (params: UserParams) => {
-    return axiosClient.get<any>("/admin/users", { params });
+    return axiosClient.get<{ data: { content: AdminUserSummary[]; totalPages: number; totalElements: number } }>("/admin/users", { params });
   },
 };

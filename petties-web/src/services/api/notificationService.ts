@@ -14,6 +14,10 @@ export interface ClinicNotification {
   shiftDate?: string
   shiftStartTime?: string
   shiftEndTime?: string
+
+  // Actionable payload from backend (optional)
+  actionType?: string
+  actionData?: string
 }
 
 export interface NotificationListResponse {

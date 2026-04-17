@@ -35,7 +35,10 @@ def build_final_answer_from_tool_result(
     data = tool_result.get("data") if isinstance(tool_result.get("data"), dict) else {}
 
     if tool_result.get("success") is False:
-        error_message = tool_result.get("error")
+        error_message = tool_result.get("message") or tool_result.get("error")
+        error_obj = tool_result.get("error")
+        if not error_message and isinstance(error_obj, dict):
+            error_message = error_obj.get("message")
         if error_message:
             return f"Tôi chưa thể hoàn tất tra cứu do lỗi công cụ: {error_message}"
         return None
@@ -45,6 +48,17 @@ def build_final_answer_from_tool_result(
             tool_name.strip().lower(),
             data,
         )
+
+    # Khi đã có UI schema, không auto-final bằng JSON text từ tool.
+    # Trả None để LLM tự tạo câu trả lời tiếng Việt tự nhiên.
+    if tool_name and tool_name.strip().lower() in {
+        "generate_clinic_services",
+        "list_clinic_services",
+        "get_clinic_today_summary",
+        "get_clinic_metrics",
+    }:
+        if isinstance(data, dict) and data:
+            return None
 
     return None
 

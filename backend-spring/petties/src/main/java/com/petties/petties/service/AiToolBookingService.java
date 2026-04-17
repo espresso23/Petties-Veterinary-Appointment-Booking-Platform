@@ -691,6 +691,7 @@ public class AiToolBookingService {
             return services.stream().limit(3).toList();
         }
         String normalizedHint = normalizeForMatch(serviceHint);
+        java.util.Set<String> hintTokens = extractMeaningfulTokens(serviceHint);
         return services.stream()
                 .filter(service -> {
                     String category = service.getServiceCategory() != null ? service.getServiceCategory().name() : "";
@@ -698,9 +699,37 @@ public class AiToolBookingService {
                             valueOrEmpty(service.getName()),
                             valueOrEmpty(service.getDescription()),
                             category));
-                    return haystack.contains(normalizedHint);
+                    if (haystack.contains(normalizedHint)) {
+                        return true;
+                    }
+                    if (hintTokens.isEmpty()) {
+                        return false;
+                    }
+                    int matched = 0;
+                    for (String token : hintTokens) {
+                        if (haystack.contains(token)) {
+                            matched++;
+                        }
+                    }
+                    return matched > 0;
                 })
                 .toList();
+    }
+
+    private java.util.Set<String> extractMeaningfulTokens(String value) {
+        String normalized = normalizeForMatch(value);
+        if (normalized.isBlank()) {
+            return java.util.Set.of();
+        }
+        return java.util.Arrays.stream(normalized.split("\\s+"))
+                .map(String::trim)
+                .filter(token -> !token.isBlank())
+                .filter(token -> token.length() > 1)
+                .filter(token -> !java.util.Set.of(
+                        "toi", "muon", "dat", "lich", "cho", "be", "o", "tai",
+                        "phong", "kham", "vao", "luc", "ngay", "mai", "nay", "gio", "h",
+                        "dich", "vu").contains(token))
+                .collect(java.util.stream.Collectors.toSet());
     }
 
     private AiClinicOptionsResponse.MatchedService toMatchedService(ClinicServiceResponse service) {

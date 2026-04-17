@@ -17,6 +17,7 @@ public class AdminUserSummaryResponse {
     private String email;
     private Role role;
     private LocalDateTime createdAt;
+    private LocalDateTime strikeUntil;
 
     public static AdminUserSummaryResponse fromEntity(User user) {
         return AdminUserSummaryResponse.builder()
@@ -26,6 +27,7 @@ public class AdminUserSummaryResponse {
                 .email(user.getEmail())
                 .role(user.getRole())
                 .createdAt(user.getCreatedAt())
+                .strikeUntil(user.getStrikeUntil())
                 .build();
     }
 }

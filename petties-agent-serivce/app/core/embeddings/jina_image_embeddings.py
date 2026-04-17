@@ -158,7 +158,7 @@ async def embed_image_urls(urls: List[str]) -> List[List[float]]:
         if not url:
             continue
         parsed = urlparse(url)
-        if parsed.scheme.lower() not in ("https", "http", "data"):
+        if parsed.scheme.lower() not in ("https", "data"):
             continue
         inputs.append(url)
 

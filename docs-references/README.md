@@ -1,6 +1,6 @@
 # PETTIES Documentation Index
 
-**Last Updated:** 2026-03-25
+**Last Updated:** 2026-04-12
 
 This folder contains the project documentation used by the Petties team.
 The core source-of-truth set is intentionally smaller than the full archive of working notes, presentations, and historical analyses.
@@ -10,7 +10,7 @@ The core source-of-truth set is intentionally smaller than the full archive of w
 ### Product and design
 
 - `documentation/SRS/PETTIES_SRS.md` - Software Requirements Specification
-- `documentation/SDD/REPORT_4_SDD_SYSTEM_DESIGN.md` - Software Design Document
+- `documentation/SDD/PETTIES_SDD.md` - Software Design Document
 - `documentation/PETTIES_Features.md` - feature inventory and scope reference
 
 ### Data model

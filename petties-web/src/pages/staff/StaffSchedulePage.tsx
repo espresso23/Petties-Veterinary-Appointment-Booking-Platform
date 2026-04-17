@@ -127,26 +127,6 @@ export const StaffSchedulePage = () => {
     const [viewMode, setViewMode] = useState<'week' | 'day' | 'month'>('week')
     const [selectedDay, setSelectedDay] = useState<Date>(new Date())
 
-    useEffect(() => {
-        setWeekDates(getWeekDates(new Date(currentWeek)))
-    }, [currentWeek.getTime()])
-
-    // Sync selectedDay when switching to Day view
-    useEffect(() => {
-        if (viewMode === 'day' && weekDates.length > 0) {
-            const dayStr = formatDate(selectedDay)
-            const weekStart = formatDate(weekDates[0])
-            const weekEnd = formatDate(weekDates[6])
-            if (dayStr < weekStart || dayStr > weekEnd) {
-                setSelectedDay(weekDates[0])
-            }
-        }
-    }, [viewMode, weekDates])
-
-    useEffect(() => {
-        if (weekDates.length > 0) fetchShifts()
-    }, [weekDates])
-
     const fetchShifts = useCallback(async () => {
         if (!staffId || weekDates.length === 0) return
         setLoading(true)
@@ -163,6 +143,26 @@ export const StaffSchedulePage = () => {
             setLoading(false)
         }
     }, [staffId, weekDates, showToast])
+
+    useEffect(() => {
+        setWeekDates(getWeekDates(new Date(currentWeek)))
+    }, [currentWeek.getTime()]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Sync selectedDay when switching to Day view
+    useEffect(() => {
+        if (viewMode === 'day' && weekDates.length > 0) {
+            const dayStr = formatDate(selectedDay)
+            const weekStart = formatDate(weekDates[0])
+            const weekEnd = formatDate(weekDates[6])
+            if (dayStr < weekStart || dayStr > weekEnd) {
+                setSelectedDay(weekDates[0])
+            }
+        }
+    }, [viewMode, weekDates]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        if (weekDates.length > 0) fetchShifts()
+    }, [weekDates, fetchShifts]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Subscribe to SSE for real-time booking updates
     useSseNotification({

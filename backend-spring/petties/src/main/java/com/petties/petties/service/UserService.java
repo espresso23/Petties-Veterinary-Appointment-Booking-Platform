@@ -3,6 +3,7 @@ package com.petties.petties.service;
 import com.petties.petties.dto.auth.UserResponse;
 import com.petties.petties.dto.file.UploadResponse;
 import com.petties.petties.dto.response.AdminUserSummaryResponse;
+import com.petties.petties.dto.user.AdminRestrictUserRequest;
 import com.petties.petties.dto.user.ChangePasswordRequest;
 import com.petties.petties.dto.user.UpdateProfileRequest;
 import com.petties.petties.exception.BadRequestException;
@@ -13,8 +14,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +36,7 @@ public class UserService {
         private final CloudinaryService cloudinaryService;
         private final PasswordEncoder passwordEncoder;
         private final ChatConversationRepository chatConversationRepository;
+        private final UserStrikeService userStrikeService;
 
         @Transactional(readOnly = true)
         public UserResponse getUserById(UUID userId) {
@@ -179,6 +179,7 @@ public class UserService {
                         String search,
                         LocalDate createdFrom,
                         LocalDate createdTo,
+                        String strikeStatus,
                         Pageable pageable) {
 
                 Specification<User> spec = Specification.where(null);
@@ -206,7 +207,63 @@ public class UserService {
                         spec = spec.and((root, query, cb) -> cb.lessThanOrEqualTo(root.get("createdAt"), endDateTime));
                 }
 
+                String normalizedStrikeStatus = strikeStatus == null ? "ALL" : strikeStatus.trim().toUpperCase();
+                switch (normalizedStrikeStatus) {
+                        case "ALL":
+                                break;
+                        case "ACTIVE":
+                                spec = spec.and((root, query, cb) -> cb.and(
+                                                cb.isNotNull(root.get("strikeUntil")),
+                                                cb.greaterThan(root.get("strikeUntil"), LocalDateTime.now()),
+                                                cb.notEqual(root.get("strikeUntil"), LocalDateTime.of(9999, 12, 31, 23, 59))));
+                                break;
+                        case "NONE":
+                                spec = spec.and((root, query, cb) -> cb.or(
+                                                cb.isNull(root.get("strikeUntil")),
+                                                cb.lessThanOrEqualTo(root.get("strikeUntil"), LocalDateTime.now())));
+                                break;
+                        case "PERMANENT":
+                                spec = spec.and((root, query, cb) -> cb.equal(root.get("strikeUntil"),
+                                                LocalDateTime.of(9999, 12, 31, 23, 59)));
+                                break;
+                        default:
+                                throw new BadRequestException("Trạng thái hạn chế không hợp lệ");
+                }
+
                 return userRepository.findAll(spec, pageable).map(AdminUserSummaryResponse::fromEntity);
+        }
+
+        @Transactional
+        public AdminUserSummaryResponse restrictUserForAdmin(UUID userId, AdminRestrictUserRequest request) {
+                User user = userRepository.findById(userId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
+
+                boolean isPermanent = Boolean.TRUE.equals(request.getIsPermanent());
+                if (!isPermanent && request.getDays() == null) {
+                        throw new BadRequestException("Vui lòng cung cấp số ngày hạn chế");
+                }
+
+                if (userStrikeService.isPermanentStrike(user.getStrikeUntil())) {
+                        throw new BadRequestException("Người dùng đã bị hạn chế vĩnh viễn, vui lòng gỡ hạn chế trước");
+                }
+
+                user.setStrikeUntil(userStrikeService.calculateManualStrikeUntil(isPermanent, request.getDays()));
+                User updated = userRepository.save(user);
+                return AdminUserSummaryResponse.fromEntity(updated);
+        }
+
+        @Transactional
+        public AdminUserSummaryResponse liftUserStrikeForAdmin(UUID userId) {
+                User user = userRepository.findById(userId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
+
+                if (user.getStrikeUntil() == null || !user.getStrikeUntil().isAfter(LocalDateTime.now())) {
+                        throw new BadRequestException("Người dùng hiện không có hạn chế đang hiệu lực");
+                }
+
+                user.setStrikeUntil(null);
+                User updated = userRepository.save(user);
+                return AdminUserSummaryResponse.fromEntity(updated);
         }
 
         private UserResponse mapToResponse(User user) {

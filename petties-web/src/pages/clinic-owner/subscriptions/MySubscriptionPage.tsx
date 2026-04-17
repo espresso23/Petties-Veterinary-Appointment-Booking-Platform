@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useClinicStore } from '../../../store/clinicStore'
 import { subscriptionService, type SubscriptionPlan, type UserSubscription } from '../../../services/api/subscriptionService'
 import { useToast } from '../../../components/Toast'
@@ -35,6 +35,7 @@ export const MySubscriptionPage = () => {
     const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null)
     const [showPaymentModal, setShowPaymentModal] = useState(false)
     const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+    const [pendingCancelSubscriptionId, setPendingCancelSubscriptionId] = useState<string | undefined>(undefined)
     const [showAllPlans, setShowAllPlans] = useState(false)
     const [showPayQr, setShowPayQr] = useState(false)
 
@@ -50,13 +51,7 @@ export const MySubscriptionPage = () => {
         }
     }, [clinics, selectedClinicId, clinicsLoading])
 
-    useEffect(() => {
-        if (selectedClinicId) {
-            fetchData()
-        }
-    }, [selectedClinicId])
-
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         if (!selectedClinicId) return
 
         setIsLoading(true)
@@ -71,13 +66,21 @@ export const MySubscriptionPage = () => {
             setMembership(status.active)
             setPendingSubscription(status.pending)
             setSubscriptionHistory(history)
+            setPendingCancelSubscriptionId(undefined)
         } catch (error) {
             console.error('Failed to fetch subscription data:', error)
             showToast('error', 'Không thể tải thông tin gói dịch vụ')
         } finally {
             setIsLoading(false)
         }
-    }
+    }, [selectedClinicId, showToast, setMembership])
+
+    useEffect(() => {
+        if (selectedClinicId) {
+            fetchData()
+        }
+    }, [fetchData])
+
 
     const handleSubscribe = (plan: SubscriptionPlan) => {
         setSelectedPlan(plan)
@@ -96,9 +99,10 @@ export const MySubscriptionPage = () => {
             showToast('success', 'Đã cập nhật trạng thái gói dịch vụ thành công.')
             setShowCancelConfirm(false)
             await fetchData()
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Failed to cancel subscription:', error)
-            showToast('error', error.response?.data?.message || 'Có lỗi xảy ra khi xử lý')
+            const msg = error instanceof Error ? error.message : (error as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Có lỗi xảy ra khi xử lý'
+            showToast('error', msg)
         } finally {
             setIsLoading(false)
         }
@@ -303,13 +307,16 @@ export const MySubscriptionPage = () => {
                                                                     try {
                                                                         setIsLoading(true);
                                                                         const res = await subscriptionService.checkPaymentStatus(pendingSubscription.subscriptionId);
-                                                                        if (res.status === 'PAID') {
+                                                                        if (res.status === 'COMPLETED') {
                                                                             showToast('success', 'Thanh toán thành công!');
                                                                             fetchData();
                                                                         } else {
                                                                             showToast('info', 'Chưa nhận được thanh toán.');
                                                                         }
-                                                                    } catch (e: any) { showToast('error', e.response?.data?.message || 'Lỗi kiểm tra'); } finally { setIsLoading(false); }
+                                                                    } catch (e: unknown) { 
+                                                                        const msg = e instanceof Error ? e.message : (e as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Lỗi kiểm tra'
+                                                                        showToast('error', msg)
+                                                                    } finally { setIsLoading(false); }
                                                                 }}
                                                                 className="w-full h-10 bg-amber-500 text-white text-xs font-black uppercase rounded-lg hover:bg-amber-600 transition-all shadow-lg shadow-amber-200"
                                                             >
@@ -331,7 +338,10 @@ export const MySubscriptionPage = () => {
                                                         <button onClick={() => setShowPayQr(false)} className="flex-1 h-10 text-[10px] font-black uppercase text-gray-400 hover:text-gray-600 bg-gray-50 rounded-lg">Thu gọn</button>
                                                     )}
                                                     <button
-                                                        onClick={() => { if (window.confirm('Bạn có muốn hủy đăng ký chờ này để chọn gói khác?')) handleCancel(pendingSubscription.subscriptionId); }}
+                                                        onClick={() => {
+                                                            setPendingCancelSubscriptionId(pendingSubscription.subscriptionId)
+                                                            setShowCancelConfirm(true)
+                                                        }}
                                                         className="flex-1 h-10 text-[10px] font-black uppercase text-red-500 hover:text-red-600 bg-red-50 rounded-lg"
                                                     >
                                                         Hủy đăng ký này
@@ -522,8 +532,11 @@ export const MySubscriptionPage = () => {
 
             <CancelSubscriptionModal
                 isOpen={showCancelConfirm}
-                onClose={() => setShowCancelConfirm(false)}
-                onConfirm={() => handleCancel(activeSubscription?.subscriptionId)}
+                onClose={() => {
+                    setShowCancelConfirm(false)
+                    setPendingCancelSubscriptionId(undefined)
+                }}
+                onConfirm={() => handleCancel(pendingCancelSubscriptionId ?? activeSubscription?.subscriptionId)}
                 isLoading={isLoading}
             />
         </div >

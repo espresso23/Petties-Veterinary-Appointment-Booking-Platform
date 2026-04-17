@@ -160,6 +160,11 @@ export const ReportsPage = () => {
         if (isPermanentStrike(d)) return 'Vĩnh viễn';
         return new Date(d).toLocaleDateString('vi-VN');
     };
+    const trimmedAdminNote = adminNote.trim();
+    const adminNoteMinLength = 5;
+    const adminNoteLength = trimmedAdminNote.length;
+    const adminNoteRemaining = Math.max(0, adminNoteMinLength - adminNoteLength);
+    const isAdminNoteValid = adminNoteLength >= adminNoteMinLength;
 
     const STRIKE_DESCRIPTIONS: Record<string, string> = {
         strike_threshold: 'Số report được approve để kích hoạt strike (mặc định: 3)',
@@ -598,6 +603,21 @@ export const ReportsPage = () => {
                                         placeholder="Nhập lý do duyệt hoặc từ chối báo cáo này..."
                                         className="w-full h-32 p-4 border-4 border-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-400 font-medium text-stone-700 resize-none"
                                     />
+                                    <p
+                                        className={`mt-2 text-xs font-bold ${
+                                            adminNoteLength === 0
+                                                ? 'text-stone-500'
+                                                : isAdminNoteValid
+                                                    ? 'text-emerald-700'
+                                                    : 'text-red-600'
+                                            }`}
+                                    >
+                                        {adminNoteLength === 0
+                                            ? 'Vui lòng nhập tối thiểu 5 ký tự.'
+                                            : isAdminNoteValid
+                                                ? 'Ghi chú đã hợp lệ, bạn có thể xử lý báo cáo.'
+                                                : `Ghi chú chưa đủ 5 ký tự (còn thiếu ${adminNoteRemaining} ký tự).`}
+                                    </p>
                                 </div>
                             )}
                         </div>
@@ -613,14 +633,14 @@ export const ReportsPage = () => {
                                 <>
                                     <button
                                         onClick={() => handleResolve('REJECTED')}
-                                        disabled={isSubmitting || adminNote.trim().length < 5}
+                                        disabled={isSubmitting || !isAdminNoteValid}
                                         className="px-6 py-2 font-bold uppercase bg-red-500 text-white border-2 border-stone-900 shadow-[4px_4px_0_#1c1917] disabled:opacity-50"
                                     >
                                         Từ chối
                                     </button>
                                     <button
                                         onClick={() => handleResolve('APPROVED')}
-                                        disabled={isSubmitting || adminNote.trim().length < 5}
+                                        disabled={isSubmitting || !isAdminNoteValid}
                                         className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 shadow-[4px_4px_0_#1c1917] disabled:opacity-50"
                                     >
                                         Duyệt

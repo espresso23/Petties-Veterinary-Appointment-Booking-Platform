@@ -24,13 +24,13 @@ public class AiCaseMemorySyncService {
     @Value("${app.ai-service-url:http://localhost:8000}")
     private String aiServiceUrl;
 
-    public void syncConfirmedEmr(InternalConfirmedEmrItemDto payload) {
+    public boolean syncConfirmedEmr(InternalConfirmedEmrItemDto payload) {
         if (payload == null || !StringUtils.hasText(payload.getFinalDiagnosisText())) {
-            return;
+            return false;
         }
         if (!StringUtils.hasText(aiServiceUrl)) {
             log.warn("Skip AI case memory sync because app.ai-service-url is empty");
-            return;
+            return false;
         }
 
         String url = normalizeBaseUrl(aiServiceUrl) + INTERNAL_SYNC_PATH;
@@ -41,12 +41,14 @@ public class AiCaseMemorySyncService {
         try {
             restTemplate.postForEntity(url, new HttpEntity<>(payload, headers), Void.class);
             log.info("Synced confirmed EMR {} to AI case memory", payload.getEmrId());
+            return true;
         } catch (Exception ex) {
             log.warn(
                     "Failed to sync confirmed EMR {} to AI case memory: {}",
                     payload.getEmrId(),
                     ex.getMessage()
             );
+            return false;
         }
     }
 

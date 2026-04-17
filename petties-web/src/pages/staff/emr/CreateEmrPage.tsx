@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useToast } from '../../../components/Toast'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
@@ -6,20 +6,23 @@ import {
     TrashIcon,
     PhotoIcon,
     CalendarDaysIcon,
-    CalendarIcon,
-    XMarkIcon
+    XMarkIcon,
+    SparklesIcon,
 } from '@heroicons/react/24/outline'
 import { ConfirmModal } from '../../../components/ConfirmModal'
+import { Modal } from '../../../components/Modal'
 import { AIDiagnosisPanel } from '../../../components/emr/AIDiagnosisPanel'
 import { AISuggestionInlineCard } from '../../../components/emr/AISuggestionInlineCard'
 import { emrService } from '../../../services/emrService'
 import { petService, type PetHealthSummary } from '../../../services/api/petService'
 import { useAIChatStore } from '../../../store/aiChatStore'
+import { useMembershipStore } from '../../../store/membershipStore'
 import DatePicker, { registerLocale } from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { vi } from 'date-fns/locale';
 import Select from 'react-select';
 import type { StaffDiagnosisResponse } from '../../../services/agentService'
+import { buildEmrAiDiagnosisContext } from '../../../utils/emrAiDiagnosisContext'
 
 registerLocale('vi', vi);
 import type { Prescription, EmrImage, CreateEmrRequest, EmrRecord } from '../../../services/emrService'
@@ -68,12 +71,6 @@ const formatSummaryDate = (date?: string) => {
     return new Date(date).toLocaleDateString('vi-VN')
 }
 
-const getWarningClasses = (severity?: string) => {
-    if (severity === 'HIGH') return 'border-red-200 bg-red-50 text-red-700'
-    if (severity === 'MEDIUM') return 'border-amber-200 bg-amber-50 text-amber-700'
-    return 'border-blue-200 bg-blue-50 text-blue-700'
-}
-
 // ============= COMPONENT =============
 export const CreateEmrPage = () => {
     const navigate = useNavigate()
@@ -82,8 +79,8 @@ export const CreateEmrPage = () => {
     const bookingId = searchParams.get('bookingId')
     const bookingCode = searchParams.get('bookingCode')
     const { showToast } = useToast()
-    const setAiSidebarOpen = useAIChatStore((state) => state.setIsOpen)
     const setAiChatDraft = useAIChatStore((state) => state.setEmrDraft)
+    const isVipClinic = useMembershipStore((state) => state.isVIP())
 
     // State for pet info (loaded from API)
     const [petInfo, setPetInfo] = useState<PetInfo | null>(null)
@@ -91,6 +88,7 @@ export const CreateEmrPage = () => {
     const [medicalHistory, setMedicalHistory] = useState<EmrRecord[]>([])
     const [healthSummary, setHealthSummary] = useState<PetHealthSummary | null>(null)
     const [isSummarizingHistory, setIsSummarizingHistory] = useState(false)
+    const [showHistorySummaryPopover, setShowHistorySummaryPopover] = useState(false)
 
     // Load pet info from API
     useEffect(() => {
@@ -142,6 +140,7 @@ export const CreateEmrPage = () => {
     }, [petId])
 
     const handleGenerateHealthSummary = async () => {
+        if (!isVipClinic) return
         if (!petId) return
 
         setIsSummarizingHistory(true)
@@ -155,6 +154,20 @@ export const CreateEmrPage = () => {
         } finally {
             setIsSummarizingHistory(false)
         }
+    }
+
+    const handleToggleHistorySummary = async () => {
+        if (!isVipClinic) return
+        if (showHistorySummaryPopover) {
+            setShowHistorySummaryPopover(false)
+            return
+        }
+
+        if (!healthSummary && !isSummarizingHistory) {
+            await handleGenerateHealthSummary()
+        }
+
+        setShowHistorySummaryPopover(true)
     }
 
     // ============= FORM STATE =============
@@ -171,6 +184,9 @@ export const CreateEmrPage = () => {
 
     const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
     const [aiDiagnosisResult, setAiDiagnosisResult] = useState<StaffDiagnosisResponse | null>(null)
+    const [selectedAiDiagnosis, setSelectedAiDiagnosis] = useState<{ displayName: string; canonicalCode?: string | null } | null>(null)
+    const [isAiModalOpen, setIsAiModalOpen] = useState(false)
+    const [aiAnalyzeSignal, setAiAnalyzeSignal] = useState(0)
     const [reExaminationDate, setReExaminationDate] = useState('')
     const [reExamAmount, setReExamAmount] = useState(1)
     const [reExamUnit, setReExamUnit] = useState('Tuần')
@@ -197,6 +213,10 @@ export const CreateEmrPage = () => {
     const [isLoading, setIsLoading] = useState(false)
     const [errors, setErrors] = useState<FieldErrors>({})
     const [previewImage, setPreviewImage] = useState<EmrImage | null>(null)
+    const [currentStep, setCurrentStep] = useState<1 | 2>(1)
+    const mealLabel = (value?: string) => (value === 'BEFORE_MEAL' ? 'Trước ăn' : 'Sau ăn')
+    const timeLabel = (value: string) => ({ sang: 'Sáng', trua: 'Trưa', chieu: 'Chiều' }[value] || value)
+    const [isAiAnalyzing, setIsAiAnalyzing] = useState(false)
 
     // Prescription modal
     const [showPrescriptionModal, setShowPrescriptionModal] = useState(false)
@@ -207,6 +227,19 @@ export const CreateEmrPage = () => {
     const uploadedImagesCount = uploadingImages.filter((item) => item.status === 'done').length
     const shouldShowImageUploadStatus = isUploadingImages || hasImageUploadErrors
 
+    useEffect(() => {
+        const bodyClass = 'emr-prescription-modal-open'
+        if (showPrescriptionModal) {
+            document.body.classList.add(bodyClass)
+        } else {
+            document.body.classList.remove(bodyClass)
+        }
+
+        return () => {
+            document.body.classList.remove(bodyClass)
+        }
+    }, [showPrescriptionModal])
+
     // Initialize fields when petInfo loads
     useEffect(() => {
         if (petInfo) {
@@ -216,15 +249,36 @@ export const CreateEmrPage = () => {
 
     // Prescription Modal Handlers (Internal to Modal)
     const handleOpenPrescriptionModal = () => {
-        setTempPrescriptions(prescriptions.length > 0 ? [...prescriptions] : [{ medicineName: '', frequency: '', durationDays: 0, dosage: '', instructions: '' }])
+        setTempPrescriptions(
+            prescriptions.length > 0
+                ? [...prescriptions]
+                : [
+                    {
+                        medicineName: '',
+                        timesOfDay: [],
+                        beforeAfterMeal: 'AFTER_MEAL',
+                        durationDays: 0,
+                        instructions: '',
+                    },
+                ]
+        )
         setShowPrescriptionModal(true)
     }
 
     const handleAddPrescriptionRow = () => {
-        setTempPrescriptions([...tempPrescriptions, { medicineName: '', frequency: '', durationDays: 0, dosage: '', instructions: '' }])
+        setTempPrescriptions([
+            ...tempPrescriptions,
+            {
+                medicineName: '',
+                timesOfDay: [],
+                beforeAfterMeal: 'AFTER_MEAL',
+                durationDays: 0,
+                instructions: '',
+            },
+        ])
     }
 
-    const handleUpdatePrescription = (index: number, field: keyof Prescription, value: string | number) => {
+    const handleUpdatePrescription = (index: number, field: keyof Prescription, value: unknown) => {
         const updated = [...tempPrescriptions]
         updated[index] = { ...updated[index], [field]: value }
         setTempPrescriptions(updated)
@@ -350,7 +404,10 @@ export const CreateEmrPage = () => {
 
 
                 reExaminationDate: hasReExam ? (reExaminationDate ? `${reExaminationDate}T00:00:00` : undefined) : undefined,
-                examinationDate
+                examinationDate,
+                aiDiagnosisContext: isVipClinic
+                    ? buildEmrAiDiagnosisContext(aiDiagnosisResult, selectedAiDiagnosis)
+                    : undefined,
             }
 
             await emrService.createEmr(request)
@@ -425,15 +482,50 @@ export const CreateEmrPage = () => {
 
         const nextPrescriptions: Prescription[] = aiDiagnosisResult.prescription_suggestions.map((item) => ({
             medicineName: item.medicine_name,
-            dosage: item.dosage || '',
-            frequency: item.frequency || '',
-            durationDays: item.duration_days || 0,
+            timesOfDay: (item.times_of_day || item.timesOfDay || []) as Prescription['timesOfDay'],
+            beforeAfterMeal: (item.before_after_meal || item.beforeAfterMeal || 'AFTER_MEAL') as Prescription['beforeAfterMeal'],
+            durationDays: item.duration_days || item.durationDays || 0,
             instructions: item.instructions || item.caution || '',
         }))
 
         setPrescriptions(nextPrescriptions)
         showToast('success', 'Đã áp dụng đơn thuốc nháp từ AI.')
     }
+
+    const handleSelectAiDiagnosis = (diagnosis: { displayName: string; canonicalCode?: string | null }) => {
+        if (!diagnosis.displayName.trim()) return
+        setSelectedAiDiagnosis(diagnosis)
+        setAssessment(diagnosis.displayName)
+        if (errors.assessment) setErrors(prev => ({ ...prev, assessment: undefined }))
+        setIsAiModalOpen(false)
+        showToast('success', 'Đã chọn chẩn đoán từ AI.')
+    }
+
+    const handleOpenAiModal = () => {
+        if (!isVipClinic) return
+        if (aiDiagnosisResult) {
+            setIsAiModalOpen(true)
+        } else {
+            setIsAiModalOpen(true)
+            setAiAnalyzeSignal((prev) => prev + 1)
+        }
+    }
+
+    const handleCloseAiModal = () => {
+        if (isAiAnalyzing) {
+            showToast('info', 'AI đang xử lý dữ liệu. Vui lòng chờ hoàn tất trước khi đóng.')
+            return
+        }
+        setIsAiModalOpen(false)
+    }
+
+    const stepItems = [
+        { id: 1 as const, title: 'Bước 1', label: 'Khám lâm sàng' },
+        { id: 2 as const, title: 'Bước 2', label: 'Kết luận & Điều trị' },
+    ]
+
+    const goToNextStep = () => setCurrentStep((prev) => (prev < 2 ? ((prev + 1) as 1 | 2) : prev))
+    const goToPreviousStep = () => setCurrentStep((prev) => (prev > 1 ? ((prev - 1) as 1 | 2) : prev))
 
     const handleAddSingleAiPrescription = (index: number) => {
         const suggestion = aiDiagnosisResult?.prescription_suggestions?.[index]
@@ -443,14 +535,197 @@ export const CreateEmrPage = () => {
             ...prev,
             {
                 medicineName: suggestion.medicine_name,
-                dosage: suggestion.dosage || '',
-                frequency: suggestion.frequency || '',
-                durationDays: suggestion.duration_days || 0,
+                timesOfDay: (suggestion.times_of_day || suggestion.timesOfDay || []) as Prescription['timesOfDay'],
+                beforeAfterMeal: (suggestion.before_after_meal || suggestion.beforeAfterMeal || 'AFTER_MEAL') as Prescription['beforeAfterMeal'],
+                durationDays: suggestion.duration_days || suggestion.durationDays || 0,
                 instructions: suggestion.instructions || suggestion.caution || '',
             },
         ])
         showToast('success', `Đã thêm ${suggestion.medicine_name} vào đơn thuốc.`)
     }
+
+    const renderPrescriptionCard = () => (
+        <div className="relative min-w-0 overflow-hidden rounded-2xl bg-white p-4 shadow-sm sm:p-5">
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0 flex items-center gap-2">
+                    <span className="h-6 w-1 rounded-full bg-orange-600"></span>
+                    <div className="min-w-0">
+                        <h2 className="break-words text-base font-bold uppercase tracking-tight text-orange-800">ĐƠN THUỐC ĐIỀU TRỊ</h2>
+                        <p className="mt-0.5 text-[10px] font-medium uppercase tracking-widest text-stone-400">Danh mục thuốc được chỉ định</p>
+                    </div>
+                </div>
+                <button
+                    onClick={handleOpenPrescriptionModal}
+                    className="w-full rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-[11px] font-bold text-orange-700 transition-all hover:bg-orange-100 active:scale-95 sm:w-auto"
+                >
+                    {prescriptions.length > 0 ? 'CHỈNH SỬA ĐƠN' : 'KÊ ĐƠN NGAY'}
+                </button>
+            </div>
+
+            {isVipClinic && selectedAiDiagnosis && aiDiagnosisResult?.prescription_suggestions?.length ? (
+                <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50/80 p-3 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <p className="text-xs font-bold uppercase tracking-wide text-amber-800">Đơn thuốc nháp từ AI</p>
+                            <p className="mt-1 text-[11px] text-stone-600">Bác sĩ có thể nhận nhanh toàn bộ hoặc thêm từng thuốc vào EMR.</p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleApplyAiPrescriptions}
+                            className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-orange-700 transition-all hover:bg-orange-100 active:scale-95"
+                        >
+                            Nhận toàn bộ đơn
+                        </button>
+                    </div>
+
+                    <div className="mt-2 space-y-2">
+                        {aiDiagnosisResult.prescription_suggestions.map((item, index) => {
+                            const suggestionTimes = item.times_of_day || item.timesOfDay || []
+                            return (
+                            <div key={`${item.medicine_name}-${index}`} className="rounded-xl border border-stone-300 bg-white p-2.5">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <p className="break-words text-sm font-bold text-stone-900">{item.medicine_name}</p>
+                                        <p className="mt-1 break-words text-[11px] text-stone-600">
+                                            {suggestionTimes.length ? suggestionTimes.map(timeLabel).join(', ') : 'Theo chỉ định'}
+                                            {' | '}
+                                            {mealLabel(item.before_after_meal || item.beforeAfterMeal)}
+                                            {' | '}
+                                            {item.duration_days ?? item.durationDays ?? '-'} ngày
+                                        </p>
+                                        {item.instructions && <p className="mt-1 break-words text-[11px] text-stone-600 line-clamp-3">{item.instructions}</p>}
+                                        {item.caution && <p className="mt-1 break-words text-[11px] font-semibold text-red-600 line-clamp-3">{item.caution}</p>}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleAddSingleAiPrescription(index)}
+                                        className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-stone-700 transition-all hover:bg-stone-100 active:scale-95"
+                                    >
+                                        Thêm thuốc này
+                                    </button>
+                                </div>
+                            </div>
+                        )})}
+                    </div>
+                </div>
+            ) : null}
+
+            {prescriptions.length > 0 ? (
+                <div className="space-y-2.5">
+                    {prescriptions.map((p, i) => (
+                        <div key={i} className="relative overflow-hidden rounded-2xl border border-stone-100 bg-white p-3">
+                            <div className="absolute bottom-0 left-0 top-0 w-1 bg-orange-500/30"></div>
+                            <div className="min-w-0 pl-2.5">
+                                <div className="break-words text-sm font-bold text-stone-800">{p.medicineName}</div>
+                                <div className="mt-1 text-[10px] font-medium uppercase tracking-wide text-stone-500 break-words">
+                                    {(p.timesOfDay && p.timesOfDay.length > 0) ? p.timesOfDay.map(timeLabel).join(', ') : 'Theo chỉ định'}
+                                    {' | '}
+                                    {mealLabel(p.beforeAfterMeal)}
+                                    {' | '}
+                                    {p.durationDays ?? '-'} ngày
+                                </div>
+                                {p.instructions && <p className="mt-1 break-words text-[11px] text-stone-600 line-clamp-3">{p.instructions}</p>}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div
+                    onClick={handleOpenPrescriptionModal}
+                    className="group cursor-pointer rounded-2xl border-2 border-dashed border-stone-200 bg-stone-50 py-10 text-center transition-all hover:border-amber-200 hover:bg-amber-50/40"
+                >
+                    <p className="text-xs font-semibold uppercase tracking-widest text-stone-500">Bấm để bắt đầu kê đơn</p>
+                </div>
+            )}
+        </div>
+    )
+
+    const renderObjectiveSection = () => (
+        <div className="rounded-2xl bg-white p-6 shadow-sm">
+            <div className="flex items-center gap-3 mb-2">
+                <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
+                <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">Khách quan / Chỉ số sức khỏe</h2>
+            </div>
+            <p className="text-xs text-stone-400 mb-4">Kết quả khám lâm sàng, chỉ số sức khỏe</p>
+
+            <div className="grid grid-cols-2 gap-3 mb-4">
+                <div>
+                    <label className="text-sm text-stone-500">Nhiệt độ (°C):</label>
+                    <input
+                        type="number"
+                        step="0.1"
+                        value={temperature}
+                        onChange={(e) => {
+                            setTemperature(e.target.value)
+                            if (errors.temperature) setErrors(prev => ({ ...prev, temperature: undefined }))
+                        }}
+                        placeholder="VD: 38.5"
+                        className={`w-full border rounded-lg p-2 text-sm mt-1 ${errors.temperature ? 'border-red-400' : 'border-stone-300'}`}
+                    />
+                    {errors.temperature && <p className="text-red-500 text-xs mt-1">{errors.temperature}</p>}
+                </div>
+                <div>
+                    <label className="text-sm text-stone-500">Nhịp tim (lần/phút):</label>
+                    <input
+                        type="number"
+                        value={heartRate}
+                        onChange={(e) => setHeartRate(e.target.value)}
+                        placeholder="120"
+                        className="w-full border border-stone-300 rounded-lg p-2 text-sm mt-1"
+                    />
+                </div>
+            </div>
+
+            <div className="mb-4">
+                <label className="text-sm text-stone-500 mb-2 block">BCS (Điểm thể trạng 1-9):</label>
+                <div className="flex gap-1">
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(score => (
+                        <button
+                            key={score}
+                            type="button"
+                            onClick={() => setBcs(score)}
+                            className={`w-8 h-8 rounded-full text-xs font-bold transition-all ${bcs === score
+                                ? 'bg-stone-900 text-white shadow-xl shadow-stone-200 scale-110'
+                                : 'bg-stone-50 text-stone-500 hover:bg-stone-100'
+                                }`}
+                        >
+                            {score}
+                        </button>
+                    ))}
+                </div>
+                <p className="text-xs text-stone-400 mt-1">1-3: Gầy | 4-5: Bình thường | 6-9: Thừa cân</p>
+            </div>
+
+            <textarea
+                value={objective}
+                onChange={(e) => setObjective(e.target.value)}
+                placeholder="Kết quả khám lâm sàng..."
+                rows={3}
+                className="w-full border border-stone-300 rounded-lg p-3 text-sm"
+            />
+            {isVipClinic ? (
+                aiDiagnosisResult?.soap_suggestions.objective_draft?.trim() ? (
+                    <AISuggestionInlineCard
+                        title="Gợi ý AI cho Khách quan"
+                        value={aiDiagnosisResult?.soap_suggestions.objective_draft}
+                        onAccept={() => handleApplyAiDraft('objective', aiDiagnosisResult?.soap_suggestions.objective_draft || '')}
+                    />
+                ) : aiDiagnosisResult ? (
+                    <p className="mt-3 text-xs font-semibold text-blue-700">
+                        AI chưa đủ dữ liệu để gợi ý Objective rõ ràng. Hãy bổ sung ảnh lâm sàng hoặc mô tả khám chi tiết hơn.
+                    </p>
+                ) : (
+                    <p className="mt-3 text-xs font-semibold text-stone-500">
+                        Bấm AI chẩn đoán để nhận gợi ý cho phần khách quan.
+                    </p>
+                )
+            ) : (
+                <p className="mt-3 text-xs font-semibold text-stone-500">
+                    Nhập kết quả khám lâm sàng và chỉ số sức khỏe của ca bệnh.
+                </p>
+            )}
+        </div>
+    )
 
     const estimateAgeMonths = (): number | undefined => {
         const years = Number.parseInt(petInfo?.age ?? '', 10)
@@ -462,7 +737,7 @@ export const CreateEmrPage = () => {
         return typeof parsed === 'number' && Number.isFinite(parsed) ? parsed : undefined
     }
 
-    const handlePendingImageDescriptionsChange = (descriptions: Record<string, string>) => {
+    const handlePendingImageDescriptionsChange = useCallback((descriptions: Record<string, string>) => {
         setPendingImages((prev) => prev.map((item) => {
             const aiDescription = descriptions[item.previewUrl]?.trim()
             if (!aiDescription || item.description.trim()) {
@@ -473,7 +748,7 @@ export const CreateEmrPage = () => {
                 description: aiDescription,
             }
         }))
-    }
+    }, [])
 
     const currentAgeMonths = estimateAgeMonths()
     const currentWeightKg = getNormalizedWeightKg()
@@ -515,11 +790,6 @@ export const CreateEmrPage = () => {
         subjective,
     ])
 
-    const openAiChatSidepanel = () => {
-        if (!petInfo?.id) return
-        setAiSidebarOpen(true)
-    }
-
     useEffect(() => {
         pendingImagesRef.current = pendingImages
     }, [pendingImages])
@@ -554,15 +824,15 @@ export const CreateEmrPage = () => {
     }
 
     return (
-        <div className="min-h-screen bg-stone-100 p-6">
-            <div className="max-w-7xl mx-auto">
+        <div className="min-h-screen overflow-x-hidden bg-stone-100 px-4 py-6 pr-14 sm:px-6 sm:pr-16 lg:pr-20">
+            <div className="mx-auto w-full max-w-[1600px] overflow-visible">
                 {/* Main Grid */}
-                <div className="grid grid-cols-12 gap-6">
+                <div className="grid items-start gap-6 overflow-visible xl:grid-cols-[280px_minmax(0,1.2fr)_minmax(360px,0.95fr)] 2xl:grid-cols-[300px_minmax(0,1.25fr)_minmax(400px,0.95fr)]">
 
                     {/* ========== LEFT SIDEBAR ========== */}
-                    <div className="col-span-3 space-y-4">
+                    <div className="self-start space-y-4 xl:sticky xl:top-6">
                         {/* Pet Info Card */}
-                        <div className="bg-white rounded-2xl p-6 shadow-sm">
+                        <div className="rounded-2xl bg-white p-6 shadow-sm">
                             <div className="flex flex-col items-center mb-4">
                                 <div className="w-24 h-24 bg-stone-200 rounded-full flex items-center justify-center text-5xl mb-3 border-4 border-stone-300 overflow-hidden">
                                     {petInfo.imageUrl ? (
@@ -629,136 +899,84 @@ export const CreateEmrPage = () => {
                             </div>
                         </div>
 
-                        <div className="bg-white rounded-2xl p-4 shadow-sm border border-amber-200">
-                            <div className="flex items-center justify-between gap-3">
-                                <div>
-                                    <h3 className="font-bold text-stone-800">Tổng hợp bệnh án gần đây</h3>
-                                    <p className="text-xs text-stone-500">
-                                        Staff chủ động bấm để AI tổng hợp toàn bộ bệnh án gần đây trước khi ghi EMR mới.
-                                    </p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => void handleGenerateHealthSummary()}
-                                    disabled={isSummarizingHistory}
-                                    className="rounded-xl border border-amber-300 bg-amber-100 px-3 py-2 text-xs font-bold uppercase tracking-wide text-amber-800 shadow-[2px_2px_0_#1c1917] transition-all hover:bg-amber-200 active:translate-y-[1px] disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                    {isSummarizingHistory ? 'Đang tổng hợp...' : 'Tổng hợp tất cả bệnh án gần đây'}
-                                </button>
-                            </div>
-
-                            {healthSummary ? (
-                                <div className="mt-4 space-y-3">
-                                    {healthSummary.aiInsights?.summary ? (
-                                        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-stone-700">
-                                            <p className="text-xs font-bold uppercase tracking-wide text-amber-800">Tóm tắt hồ sơ</p>
-                                            <p className="mt-2 whitespace-pre-wrap">{healthSummary.aiInsights.summary}</p>
-                                            {healthSummary.aiInsights.trends && (
-                                                <p className="mt-2 text-xs text-stone-600">
-                                                    <span className="font-semibold">Xu hướng:</span> {healthSummary.aiInsights.trends}
-                                                </p>
-                                            )}
-                                            {healthSummary.aiInsights.advice && (
-                                                <p className="mt-2 text-xs text-stone-600">
-                                                    <span className="font-semibold">Lưu ý cho staff:</span> {healthSummary.aiInsights.advice}
-                                                </p>
-                                            )}
-                                            {(healthSummary.aiInsights.intakeNotes?.length || 0) > 0 && (
-                                                <ul className="mt-2 space-y-1">
-                                                    {healthSummary.aiInsights?.intakeNotes?.map((note, index) => (
-                                                        <li key={`intake-note-${index}`} className="text-xs text-stone-600">
-                                                            - {note}
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            )}
-                                        </div>
-                                    ) : null}
-
-                                    {healthSummary.latestEmr ? (
-                                        <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 text-sm text-stone-700 space-y-2">
-                                            <p className="text-xs font-bold uppercase tracking-wide text-stone-600">Lần khám gần nhất</p>
-                                            <p><span className="font-semibold">Ngày khám:</span> {formatSummaryDate(healthSummary.latestEmr.examDate)}</p>
-                                            {healthSummary.latestEmr.clinicName && <p><span className="font-semibold">Phòng khám:</span> {healthSummary.latestEmr.clinicName}</p>}
-                                            {healthSummary.latestEmr.diagnosis && <p><span className="font-semibold">Chẩn đoán:</span> {healthSummary.latestEmr.diagnosis}</p>}
-                                            {healthSummary.latestEmr.treatment && <p><span className="font-semibold">Điều trị:</span> {healthSummary.latestEmr.treatment}</p>}
-                                        </div>
-                                    ) : (
-                                        <p className="text-sm text-stone-500">Chưa có dữ liệu tổng hợp từ bệnh án trước.</p>
-                                    )}
-                                    {healthSummary.healthWarnings.length > 0 && (
-                                        <div className="space-y-2">
-                                            {healthSummary.healthWarnings.map((warning, index) => (
-                                                <div key={`${warning.type}-${index}`} className={`rounded-xl border p-3 text-sm font-medium ${getWarningClasses(warning.severity)}`}>
-                                                    {warning.message}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                    {healthSummary.medicationReminders.length > 0 && (
-                                        <div className="space-y-2">
-                                            {healthSummary.medicationReminders.map((item, index) => (
-                                                <div key={`${item.medication}-${index}`} className="rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-800">
-                                                    <p className="font-semibold">{item.medication}</p>
-                                                    <p className="text-xs">{[item.dosage, item.frequency].filter(Boolean).join(' • ')}</p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                    {healthSummary.suggestedActions.length > 0 && (
-                                        <div className="space-y-2">
-                                            {healthSummary.suggestedActions.map((action, index) => (
-                                                <div key={`${action.type}-${index}`} className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-                                                    <p className="font-semibold">{action.label}</p>
-                                                    <p className="text-xs">{action.reason}</p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                    {healthSummary.disclaimer && (
-                                        <p className="text-xs italic text-stone-500">{healthSummary.disclaimer}</p>
-                                    )}
-                                </div>
-                            ) : (
-                                <p className="mt-3 text-sm text-stone-500">
-                                    Chưa chạy tổng hợp. Bấm nút ở trên để AI đọc các bệnh án gần đây và tóm tắt cho staff.
-                                </p>
-                            )}
-                        </div>
-
-                        {/* Medical History Summary */}
-                        <div className="bg-white rounded-2xl p-4 shadow-sm">
-                            <h3 className="font-bold text-stone-700 mb-3">Tóm tắt bệnh sử</h3>
-                            <div className="space-y-3 text-sm">
-                                {medicalHistory.map((emr) => (
-                                    <div key={emr.id} className="rounded-xl border border-stone-200 bg-stone-50 p-3">
-                                        <p className="font-semibold text-stone-700">{formatSummaryDate(emr.examinationDate)}</p>
-                                        <p className="mt-1 text-stone-600">{emr.assessment || 'Chưa có chẩn đoán'}</p>
-                                        {emr.plan && <p className="mt-1 text-xs text-stone-500 line-clamp-2">Kế hoạch: {emr.plan}</p>}
-                                        <div className="mt-2 flex items-center justify-between text-xs text-stone-500">
-                                            <span>{emr.staffName || 'Không rõ nhân viên'}</span>
-                                            <button
-                                                type="button"
-                                                onClick={() => navigate(`/staff/emr/detail/${emr.id}`)}
-                                                className="font-bold uppercase text-blue-600"
-                                            >
-                                                Xem chi tiết
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                                {medicalHistory.length === 0 && (
-                                    <p className="text-stone-400 text-sm">Chưa có lịch sử khám</p>
-                                )}
-                            </div>
-                        </div>
                     </div>
 
                     {/* ========== CENTER - SOAP FORM ========== */}
-                    <div className="col-span-5 space-y-4">
-                        <div className="bg-white rounded-2xl p-6 shadow-sm">
+                    <div className="min-w-0 space-y-4 self-start">
+                        <div className={`sticky top-6 z-20 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm ${showPrescriptionModal ? 'invisible pointer-events-none' : ''}`}>
+                            <div className="mb-4 flex items-center justify-between gap-4">
+                                <div>
+                                    <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-stone-400">Create EMR</p>
+                                    <h2 className="mt-0.5 text-lg font-black text-stone-800">Biểu mẫu bệnh án</h2>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={goToPreviousStep}
+                                        disabled={currentStep === 1}
+                                        className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] font-bold text-stone-600 transition-all hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        Quay lại
+                                    </button>
+                                    {currentStep < 2 && (
+                                        <button
+                                            type="button"
+                                            onClick={goToNextStep}
+                                            className="rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1 text-[11px] font-bold text-orange-700 transition-all hover:bg-orange-100"
+                                        >
+                                            Tiếp theo
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={handleSubmit}
+                                        disabled={isLoading || isUploadingImages}
+                                        className="whitespace-nowrap rounded-lg bg-orange-500 px-3.5 py-1.5 text-xs font-extrabold text-white shadow-md transition-all hover:bg-orange-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-stone-300"
+                                    >
+                                        {isLoading ? 'Đang lưu...' : 'Lưu và tiếp tục'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                {stepItems.map((step) => {
+                                    const isActive = currentStep === step.id
+                                    const isDone = currentStep > step.id
+                                    return (
+                                        <button
+                                            key={step.id}
+                                            type="button"
+                                            onClick={() => setCurrentStep(step.id)}
+                                            className={`relative flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition-all ${isActive
+                                                ? 'border-amber-300 bg-amber-50 shadow-sm'
+                                                : isDone
+                                                    ? 'border-green-200 bg-green-50'
+                                                    : 'border-stone-200 bg-stone-50 hover:border-stone-300'
+                                                }`}
+                                        >
+                                            {step.id < 2 && (
+                                                <span className={`absolute -right-2 top-1/2 hidden h-[1px] w-4 -translate-y-1/2 xl:block ${currentStep > step.id ? 'bg-green-500' : 'bg-stone-200'}`}></span>
+                                            )}
+                                            <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-black ${isActive
+                                                ? 'bg-amber-500 text-white'
+                                                : isDone
+                                                    ? 'bg-green-600 text-white'
+                                                    : 'bg-white text-stone-500 border border-stone-200'
+                                                }`}>
+                                                {isDone ? '✓' : step.id}
+                                            </span>
+                                            <div>
+                                                <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400">{step.title}</p>
+                                                <p className="text-xs font-semibold text-stone-700">{step.label}</p>
+                                            </div>
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+
+                        <div className="rounded-2xl bg-white p-6 shadow-sm">
                             <div className="flex justify-between items-center mb-6">
-                                <h2 className="text-xl font-black text-stone-800">Biểu mẫu SOAP</h2>
+                                <h2 className="text-xl font-black text-stone-800">{stepItems.find((item) => item.id === currentStep)?.label}</h2>
                                 {bookingCode && (
                                     <div className="px-3 py-1 bg-blue-50 text-blue-700 text-sm font-bold rounded-lg border border-blue-200">
                                         Booking #{bookingCode}
@@ -766,11 +984,11 @@ export const CreateEmrPage = () => {
                                 )}
                             </div>
 
-                            {/* S - Subjective */}
-                            <div className="mb-6">
+                            {currentStep === 1 && (
+                            <div className="mb-0">
                                 <div className="flex items-center gap-3 mb-2">
                                     <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
-                                    <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">S - CHỦ QUAN (Subjective)</h2>
+                                    <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">Triệu chứng (Chủ quan)</h2>
                                 </div>
                                 <p className="text-xs text-stone-400 mb-2">Ghi triệu chứng theo lời kể của chủ nuôi</p>
                                 <textarea
@@ -784,18 +1002,34 @@ export const CreateEmrPage = () => {
                                     className={`w-full border rounded-lg p-3 text-sm focus:outline-none ${errors.subjective ? 'border-red-400' : 'border-stone-300 focus:border-amber-500'}`}
                                 />
                                 {errors.subjective && <p className="text-red-500 text-xs mt-1">{errors.subjective}</p>}
-                                <AISuggestionInlineCard
-                                    title="Gợi ý AI cho Subjective"
-                                    value={aiDiagnosisResult?.soap_suggestions.subjective_draft}
-                                    onAccept={() => handleApplyAiDraft('subjective', aiDiagnosisResult?.soap_suggestions.subjective_draft || '')}
-                                />
+                                <div className="mt-4 flex items-center gap-3">
+                                    {isVipClinic && (
+                                        <button
+                                            type="button"
+                                            onClick={handleOpenAiModal}
+                                            disabled={isAiAnalyzing}
+                                            className="flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-xs font-extrabold text-white shadow-md shadow-orange-100 transition-all hover:bg-orange-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            <SparklesIcon className="h-4 w-4" />
+                                            {isAiAnalyzing ? 'Đang phân tích...' : 'Mở AI chẩn đoán'}
+                                        </button>
+                                    )}
+                                </div>
+                                {isVipClinic && selectedAiDiagnosis ? (
+                                    <AISuggestionInlineCard
+                                        title="Gợi ý AI cho Triệu chứng"
+                                        value={aiDiagnosisResult?.soap_suggestions.subjective_draft}
+                                        onAccept={() => handleApplyAiDraft('subjective', aiDiagnosisResult?.soap_suggestions.subjective_draft || '')}
+                                    />
+                                ) : null}
                             </div>
+                            )}
 
-                            {/* A - Assessment */}
-                            <div className="mb-6">
+                            {currentStep === 2 && (
+                            <div className="mb-0">
                                 <div className="flex items-center gap-3 mb-2">
                                     <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
-                                    <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">A - ĐÁNH GIÁ (Assessment) <span className="text-red-500">*</span></h2>
+                                    <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">Chẩn đoán <span className="text-red-500">*</span></h2>
                                 </div>
                                 <textarea
                                     value={assessment}
@@ -810,289 +1044,55 @@ export const CreateEmrPage = () => {
                                 {errors.assessment && (
                                     <p className="text-red-500 text-sm mt-1">{errors.assessment}</p>
                                 )}
-                                <AISuggestionInlineCard
-                                    title="Gợi ý AI cho Assessment"
-                                    value={aiDiagnosisResult?.soap_suggestions.assessment_draft}
-                                    onAccept={() => handleApplyAiDraft('assessment', aiDiagnosisResult?.soap_suggestions.assessment_draft || '')}
-                                />
+                                {isVipClinic ? (
+                                    selectedAiDiagnosis ? (
+                                        <p className="mt-3 text-xs font-semibold text-green-700">
+                                            Đã chốt chẩn đoán theo lựa chọn của bác sĩ. AI sẽ chỉ gợi ý cho phần kế hoạch điều trị bên dưới.
+                                        </p>
+                                    ) : (
+                                        <p className="mt-3 text-xs font-semibold text-blue-700">Chọn một chẩn đoán từ Top 3 ở bước trước để tiếp tục các gợi ý AI.</p>
+                                    )
+                                ) : (
+                                    <p className="mt-3 text-xs font-semibold text-stone-500">
+                                        Bác sĩ nhập chẩn đoán dựa trên thăm khám lâm sàng và dữ liệu bệnh án hiện có.
+                                    </p>
+                                )}
                             </div>
-                        </div>
-
-                        {/* Prescription Section */}
-                        <div className="bg-white rounded-2xl p-6 shadow-sm relative overflow-hidden">
-                            <div className="flex items-center justify-between mb-8">
-                                <div className="flex items-center gap-3">
-                                    <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
-                                    <div>
-                                        <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">ĐƠN THUỐC ĐIỀU TRỊ</h2>
-                                        <p className="text-stone-400 text-[10px] mt-0.5 font-medium uppercase tracking-widest">Danh mục thuốc được chỉ định chi tiết</p>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={handleOpenPrescriptionModal}
-                                    className="px-6 py-2 bg-orange-50 text-orange-700 font-bold border border-orange-200 rounded-xl hover:bg-orange-100 transition-all flex items-center gap-2 text-sm active:scale-95"
-                                >
-                                    <PlusIcon className="w-4 h-4" />
-                                    {prescriptions.length > 0 ? 'CHỈNH SỬA ĐƠN' : 'KÊ ĐƠN NGAY'}
-                                </button>
-                            </div>
-
-                            {aiDiagnosisResult?.prescription_suggestions?.length ? (
-                                <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50/80 p-4 shadow-sm">
-                                    <div className="flex flex-wrap items-center justify-between gap-3">
-                                        <div>
-                                            <p className="text-xs font-bold uppercase tracking-wide text-amber-800">Đơn thuốc nháp từ AI</p>
-                                            <p className="mt-1 text-xs text-stone-600">
-                                                Bác sĩ có thể nhận nhanh toàn bộ hoặc thêm từng thuốc vào EMR.
-                                            </p>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={handleApplyAiPrescriptions}
-                                            className="rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-orange-700 transition-all hover:bg-orange-100 active:scale-95"
-                                        >
-                                            Nhận toàn bộ đơn
-                                        </button>
-                                    </div>
-
-                                    <div className="mt-3 space-y-2">
-                                        {aiDiagnosisResult.prescription_suggestions.map((item, index) => (
-                                            <div key={`${item.medicine_name}-${index}`} className="rounded-xl border border-stone-300 bg-white p-3">
-                                                <div className="flex flex-wrap items-start justify-between gap-3">
-                                                    <div className="min-w-0">
-                                                        <p className="text-sm font-bold text-stone-900">{item.medicine_name}</p>
-                                                        <p className="mt-1 text-xs text-stone-600">
-                                                            {item.dosage || 'Theo toa'} | {item.frequency || 'Theo chỉ định'} | {item.duration_days ?? '-'} ngày
-                                                        </p>
-                                                        {item.instructions && (
-                                                            <p className="mt-2 text-xs text-stone-600">{item.instructions}</p>
-                                                        )}
-                                                        {item.caution && (
-                                                            <p className="mt-1 text-xs font-semibold text-red-600">{item.caution}</p>
-                                                        )}
-                                                    </div>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleAddSingleAiPrescription(index)}
-                                                        className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-stone-700 transition-all hover:bg-stone-100 active:scale-95"
-                                                    >
-                                                        Thêm thuốc này
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ) : null}
-
-                            {prescriptions.length > 0 ? (
-                                <div className="space-y-4">
-                                    {prescriptions.map((p, i) => (
-                                        <div key={i} className="group p-4 bg-white rounded-2xl border border-stone-100 flex flex-col md:flex-row gap-4 items-start md:items-center relative overflow-hidden">
-                                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-orange-500/30"></div>
-                                            <div className="pl-3 flex-1 min-w-0">
-                                                <div className="font-bold text-stone-800 text-sm tracking-tight">{p.medicineName}</div>
-                                                <div className="mt-1 flex flex-wrap items-center gap-3 text-[10px] text-stone-400 font-medium uppercase tracking-widest">
-                                                    <span className="flex items-center gap-1.5 whitespace-nowrap">
-                                                        <span className="w-1 h-1 rounded-full bg-stone-200"></span>
-                                                        {(p.dosage || '').toLowerCase().includes('viên') ? p.dosage : `${p.dosage || ''} viên/lần`}
-                                                    </span>
-                                                    <span className="flex items-center gap-1.5 whitespace-nowrap">
-                                                        <span className="w-1 h-1 rounded-full bg-stone-200"></span>
-                                                        {(p.frequency || '').toLowerCase().includes('lần') ? p.frequency : `${p.frequency || ''} lần/ngày`}
-                                                    </span>
-                                                    <span className="flex items-center gap-1.5 text-orange-600 font-bold whitespace-nowrap">
-                                                        <span className="w-1 h-1 rounded-full bg-orange-500"></span>
-                                                        {p.durationDays} NGÀY
-                                                    </span>
-                                                </div>
-                                            </div>
-
-                                            {p.instructions && (
-                                                <div className="md:w-1/3 p-3 bg-stone-50/50 rounded-xl border border-stone-100 text-[11px] text-stone-500 italic">
-                                                    <span className="block not-italic font-bold text-stone-400 text-[9px] uppercase mb-1 tracking-tighter opacity-50">Hướng dẫn sử dụng</span>
-                                                    {p.instructions}
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div
-                                    onClick={handleOpenPrescriptionModal}
-                                    className="group cursor-pointer py-12 bg-stone-50 rounded-3xl border-2 border-dashed border-stone-200 flex flex-col items-center justify-center transition-all hover:bg-amber-50/30 hover:border-amber-200"
-                                >
-                                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm mb-4 group-hover:scale-105 group-hover:shadow-md transition-all border border-stone-100">
-                                        <PlusIcon className="w-6 h-6 text-stone-400 group-hover:text-amber-600" />
-                                    </div>
-                                    <p className="text-stone-400 text-xs font-semibold group-hover:text-stone-600 tracking-widest uppercase">Bấm để bắt đầu kê đơn</p>
-                                </div>
                             )}
                         </div>
 
-                        {/* Prescription Modal */}
-                        {
-                            showPrescriptionModal && (
-                                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-md animate-in fade-in duration-300">
-                                    <div className="bg-white w-full max-w-5xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300 border border-stone-200">
-                                        {/* Modal Header */}
-                                        <div className="px-8 py-4 border-b border-stone-100 flex items-center justify-between bg-stone-50/50">
-                                            <div>
-                                                <h2 className="text-xl font-bold text-stone-800 tracking-tight">Lập đơn thuốc</h2>
-                                                <p className="text-stone-400 text-[10px] mt-0.5 font-medium">Chi tiết liều lượng và phác đồ điều trị tiêu chuẩn</p>
-                                            </div>
-                                            <button
-                                                onClick={() => setShowPrescriptionModal(false)}
-                                                className="group p-2 hover:bg-white hover:shadow-md rounded-xl transition-all text-stone-300 hover:text-stone-500 border border-transparent hover:border-stone-100"
-                                            >
-                                                <XMarkIcon className="w-6 h-6" />
-                                            </button>
-                                        </div>
+                        {currentStep === 2 && renderPrescriptionCard()}
 
-                                        <div className="flex-1 overflow-y-auto p-6 bg-white">
-                                            <div className="space-y-4">
-                                                {/* Table Header */}
-                                                <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-orange-50/50 border border-orange-100 rounded-xl text-[11px] font-bold text-orange-800 uppercase tracking-widest text-center">
-                                                    <div className="col-span-3">Tên thuốc</div>
-                                                    <div className="col-span-1">Liều</div>
-                                                    <div className="col-span-1">T.Suất</div>
-                                                    <div className="col-span-1">Ngày</div>
-                                                    <div className="col-span-5">Hướng dẫn sử dụng</div>
-                                                    <div className="col-span-1"></div>
-                                                </div>
+                    </div>
 
-                                                {/* Rows */}
-                                                <div className="space-y-2">
-                                                    {tempPrescriptions.map((p, i) => (
-                                                        <div key={i} className="grid grid-cols-12 gap-2 items-center p-2 rounded-2xl hover:bg-stone-50 transition-all border border-transparent hover:border-stone-100 group">
-                                                            <div className="col-span-3">
-                                                                <input
-                                                                    type="text"
-                                                                    list="medicine-list-modal"
-                                                                    value={p.medicineName}
-                                                                    onChange={(e) => handleUpdatePrescription(i, 'medicineName', e.target.value)}
-                                                                    placeholder="Tên thuốc..."
-                                                                    className="w-full bg-white border border-stone-200 rounded-xl px-3 py-1.5 text-sm font-semibold text-stone-700 focus:ring-4 focus:ring-amber-500/10 focus:border-amber-600 outline-none transition-all placeholder:font-normal placeholder:text-stone-300"
-                                                                />
-                                                            </div>
-                                                            <div className="col-span-1">
-                                                                <input
-                                                                    type="text"
-                                                                    value={p.dosage || ''}
-                                                                    onChange={(e) => handleUpdatePrescription(i, 'dosage', e.target.value)}
-                                                                    placeholder="1"
-                                                                    className="w-full bg-white border border-stone-200 rounded-xl px-1 py-1.5 text-sm text-center font-medium focus:ring-4 focus:ring-amber-500/10 focus:border-amber-600 outline-none transition-all placeholder:text-stone-300"
-                                                                />
-                                                            </div>
-                                                            <div className="col-span-1">
-                                                                <input
-                                                                    type="text"
-                                                                    value={p.frequency}
-                                                                    onChange={(e) => handleUpdatePrescription(i, 'frequency', e.target.value)}
-                                                                    placeholder="2"
-                                                                    className="w-full bg-white border border-stone-200 rounded-xl px-1 py-1.5 text-sm text-center font-medium focus:ring-4 focus:ring-amber-500/10 focus:border-amber-600 outline-none transition-all placeholder:text-stone-300"
-                                                                />
-                                                            </div>
-                                                            <div className="col-span-1">
-                                                                <input
-                                                                    type="number"
-                                                                    value={p.durationDays || ''}
-                                                                    onChange={(e) => handleUpdatePrescription(i, 'durationDays', parseInt(e.target.value) || 0)}
-                                                                    placeholder="7"
-                                                                    className="w-full bg-white border border-stone-200 rounded-xl px-1 py-1.5 text-sm text-center font-bold text-orange-600 focus:ring-4 focus:ring-orange-500/10 focus:border-orange-600 outline-none transition-all shadow-sm shadow-orange-50"
-                                                                />
-                                                            </div>
-                                                            <div className="col-span-5">
-                                                                <input
-                                                                    type="text"
-                                                                    value={p.instructions || ''}
-                                                                    onChange={(e) => handleUpdatePrescription(i, 'instructions', e.target.value)}
-                                                                    placeholder="Hướng dẫn sử dụng chi tiết..."
-                                                                    className="w-full bg-white border border-stone-200 rounded-xl px-4 py-1.5 text-sm font-medium focus:ring-4 focus:ring-amber-500/10 focus:border-amber-600 outline-none transition-all placeholder:font-normal placeholder:text-stone-300 italic"
-                                                                />
-                                                            </div>
-                                                            <div className="col-span-1 flex justify-center">
-                                                                <button
-                                                                    onClick={() => handleRemovePrescription(i)}
-                                                                    className="p-2 text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100 active:scale-90"
-                                                                >
-                                                                    <TrashIcon className="w-4 h-4" />
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-
-                                                <datalist id="medicine-list-modal">
-                                                    <option value="Amoxicillin 500mg" />
-                                                    <option value="Metronidazole 250mg" />
-                                                    <option value="Doxycycline 100mg" />
-                                                    <option value="NexGard Spectra" />
-                                                    <option value="Bravecto" />
-                                                </datalist>
-
-                                                <button
-                                                    onClick={handleAddPrescriptionRow}
-                                                    className="w-full py-3 border-2 border-dashed border-stone-100 rounded-2xl text-stone-400 font-semibold hover:border-orange-500 hover:text-orange-700 hover:bg-orange-50/20 transition-all flex items-center justify-center gap-3 mt-4 group"
-                                                >
-                                                    <div className="w-5 h-5 rounded-md bg-stone-50 flex items-center justify-center group-hover:bg-orange-100 group-hover:text-orange-700 transition-all">
-                                                        <PlusIcon className="w-3.5 h-3.5" />
-                                                    </div>
-                                                    <span className="uppercase tracking-widest text-[8px]">Thêm loại thuốc mới</span>
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        {/* Modal Footer */}
-                                        <div className="px-8 py-4 border-t border-stone-100 flex items-center justify-between bg-stone-50/30">
-                                            <button
-                                                onClick={() => setShowResetConfirm(true)}
-                                                className="text-stone-400 hover:text-red-500 font-bold text-[10px] uppercase tracking-widest transition-colors"
-                                            >
-                                                Xóa toàn bộ
-                                            </button>
-                                            <div className="flex items-center gap-4">
-                                                <button
-                                                    onClick={() => setShowPrescriptionModal(false)}
-                                                    className="px-6 py-2.5 text-stone-500 font-semibold hover:bg-white hover:shadow-sm rounded-xl transition-all text-sm"
-                                                >
-                                                    QUAY LẠI
-                                                </button>
-                                                <button
-                                                    onClick={handleSavePrescriptions}
-                                                    className="px-8 py-2.5 bg-orange-600 text-white font-bold rounded-xl hover:bg-orange-700 shadow-xl shadow-orange-100 transition-all active:scale-95 text-sm uppercase tracking-wider"
-                                                >
-                                                    Xác nhận đơn
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
+                    {/* ========== RIGHT SIDEBAR ========== */}
+                    <div className={`min-w-0 space-y-4 self-start ${currentStep === 1 ? 'xl:sticky xl:top-6' : ''}`}>
+                        {currentStep === 1 && (
+                        <div className="max-h-[calc(100vh-3rem)] overflow-y-auto rounded-2xl bg-white p-6 shadow-sm">
+                            <div className="mb-4 flex items-start justify-between gap-3">
+                                <div>
+                                    <h3 className="font-bold text-stone-700">Hình ảnh lâm sàng</h3>
+                                    <p className="mt-1 text-xs text-stone-500">
+                                        {isVipClinic
+                                            ? 'Hệ thống sẽ đọc trực tiếp các ảnh đã tải lên trong mục này và ảnh preview mới chọn.'
+                                            : 'Quản lý ảnh lâm sàng đã tải lên và ảnh preview mới chọn.'}
+                                    </p>
                                 </div>
-                            )
-                        }
+                                {isVipClinic && (
+                                    <div className={`rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${isAiAnalyzing ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-stone-200 bg-stone-50 text-stone-500'}`}>
+                                        {isAiAnalyzing ? 'AI đang đọc ảnh' : 'Ảnh sẵn sàng cho AI'}
+                                    </div>
+                                )}
+                            </div>
 
-                        <ConfirmModal
-                            isOpen={showResetConfirm}
-                            title="Xác nhận xóa"
-                            message="Bạn có chắc chắn muốn xóa toàn bộ đơn thuốc này? Hành động này không thể hoàn tác."
-                            confirmLabel="XÓA TẤT CẢ"
-                            cancelLabel="QUAY LẠI"
-                            isDanger={true}
-                            onConfirm={() => {
-                                setTempPrescriptions([])
-                                setShowResetConfirm(false)
-                            }}
-                            onCancel={() => setShowResetConfirm(false)}
-                        />
-                        {/* Images for clinical review */}
-                        <div className="bg-white rounded-2xl p-6 shadow-sm">
-                            <p className="mb-3 text-xs text-stone-500">
-                                AI chẩn đoán sẽ đọc trực tiếp các ảnh đã tải lên trong mục này. Không dùng ảnh tài liệu hoặc PDF.
-                            </p>
-                            <p className="mb-4 text-xs text-stone-500">
-                                Sau khi bấm phân tích, AI sẽ tự điền mô tả cho các ảnh còn để trống.
-                            </p>
-                            <h3 className="font-bold text-stone-700 mb-4">Hình ảnh lâm sàng</h3>
+                            {isVipClinic && (
+                                <div className="mb-4 rounded-xl border border-stone-200 bg-stone-50 p-3 text-xs text-stone-600">
+                                    <p>Tổng {images.length + pendingImages.length} ảnh sẵn sàng cho AI.</p>
+                                    {pendingImages.length > 0 && (
+                                        <p className="mt-1 font-semibold text-amber-700">Có {pendingImages.length} ảnh preview mới chờ tải lên.</p>
+                                    )}
+                                </div>
+                            )}
 
                             {shouldShowImageUploadStatus && (
                                 <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm">
@@ -1121,10 +1121,10 @@ export const CreateEmrPage = () => {
                                                 <span className="truncate text-stone-700">{item.name}</span>
                                                 <span
                                                     className={`shrink-0 font-bold uppercase ${item.status === 'done'
-                                                            ? 'text-green-700'
-                                                            : item.status === 'error'
-                                                                ? 'text-red-600'
-                                                                : 'text-amber-700'
+                                                        ? 'text-green-700'
+                                                        : item.status === 'error'
+                                                            ? 'text-red-600'
+                                                            : 'text-amber-700'
                                                         }`}
                                                 >
                                                     {item.status === 'waiting' && 'Chờ tải'}
@@ -1138,8 +1138,8 @@ export const CreateEmrPage = () => {
                                 </div>
                             )}
 
-                            <label className={`block border-2 border-dashed rounded-lg p-6 text-center transition-colors mb-4 ${isUploadingImages ? 'cursor-not-allowed border-stone-200 bg-stone-50 opacity-70' : 'cursor-pointer border-stone-300 hover:border-amber-400'}`}>
-                                <PhotoIcon className="w-8 h-8 mx-auto text-stone-400 mb-2" />
+                            <label className={`mb-4 block rounded-lg border-2 border-dashed p-6 text-center transition-colors ${isUploadingImages ? 'cursor-not-allowed border-stone-200 bg-stone-50 opacity-70' : 'cursor-pointer border-stone-300 hover:border-amber-400'}`}>
+                                <PhotoIcon className="mx-auto mb-2 h-8 w-8 text-stone-400" />
                                 <p className="text-sm text-stone-500">
                                     {isUploadingImages
                                         ? 'Đang tải ảnh lên, vui lòng chờ hoàn tất đợt hiện tại...'
@@ -1156,14 +1156,14 @@ export const CreateEmrPage = () => {
                             </label>
 
                             {images.length > 0 && (
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-2 gap-4">
                                     {images.map((img, i) => (
                                         <div key={i} className="rounded-2xl border border-stone-200 bg-stone-50/70 p-3 shadow-sm transition-all hover:shadow-md">
                                             <div className="relative mb-3">
                                                 <img
                                                     src={img.url}
                                                     alt=""
-                                                    className="h-36 w-full rounded-xl object-cover cursor-pointer transition-opacity hover:opacity-80"
+                                                    className="h-36 w-full cursor-pointer rounded-xl object-cover transition-opacity hover:opacity-80"
                                                     onClick={() => setPreviewImage(img)}
                                                 />
                                                 <button
@@ -1174,7 +1174,7 @@ export const CreateEmrPage = () => {
                                                     ×
                                                 </button>
                                             </div>
-                                            <div className="relative group">
+                                            <div className="group relative">
                                                 <input
                                                     type="text"
                                                     value={img.description || ''}
@@ -1197,26 +1197,22 @@ export const CreateEmrPage = () => {
                                 </div>
                             )}
 
-                            {/* Pending images preview (not yet uploaded) */}
                             {pendingImages.length > 0 && (
                                 <div className="mt-4">
-                                    <p className="text-xs font-bold text-amber-600 mb-2">
-                                        Ảnh mới chọn (chờ tải lên):
-                                    </p>
-                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                    <p className="mb-2 text-xs font-bold text-amber-600">Ảnh mới chọn (chờ tải lên):</p>
+                                    <div className="grid grid-cols-2 gap-4">
                                         {pendingImages.map((pendingImage, i) => (
-                                            <div key={`pending-${i}`} className="rounded-2xl border border-amber-300 bg-amber-50/70 p-3 shadow-sm transition-all hover:shadow-md relative">
+                                            <div key={`pending-${i}`} className="relative rounded-2xl border border-amber-300 bg-amber-50/70 p-3 shadow-sm transition-all hover:shadow-md">
                                                 <div className="relative mb-3">
                                                     <img
                                                         src={pendingImage.previewUrl}
                                                         alt={`Preview ${i + 1}`}
-                                                        className="h-36 w-full rounded-xl object-cover cursor-pointer transition-opacity hover:opacity-80"
+                                                        className="h-36 w-full cursor-pointer rounded-xl object-cover transition-opacity hover:opacity-80"
                                                         onClick={() => setPreviewImage({ url: pendingImage.previewUrl, description: pendingImage.description })}
                                                     />
                                                     <button
                                                         type="button"
                                                         onClick={() => {
-                                                            // Cleanup preview URL
                                                             URL.revokeObjectURL(pendingImage.previewUrl)
                                                             setPendingImages(prev => prev.filter((_, idx) => idx !== i))
                                                         }}
@@ -1225,7 +1221,7 @@ export const CreateEmrPage = () => {
                                                         ×
                                                     </button>
                                                 </div>
-                                                <div className="relative group mb-2">
+                                                <div className="group relative mb-2">
                                                     <input
                                                         type="text"
                                                         value={pendingImage.description}
@@ -1246,270 +1242,395 @@ export const CreateEmrPage = () => {
                                                         </div>
                                                     )}
                                                 </div>
-                                                <p className="text-xs text-amber-700 text-center">Chờ tải lên</p>
+                                                <p className="text-center text-xs text-amber-700">Chờ tải lên</p>
                                             </div>
                                         ))}
                                     </div>
                                 </div>
                             )}
                         </div>
+                        )}
 
-                    </div>
-
-                    {/* ========== RIGHT SIDEBAR ========== */}
-                    <div className="col-span-4 space-y-4">
-                        <div className="bg-white rounded-2xl p-4 shadow-sm border border-stone-200 space-y-2">
-                            <p className="text-xs font-bold text-stone-700 uppercase">{'Chat AI bệnh án'}</p>
-                            <button
-                                type="button"
-                                onClick={openAiChatSidepanel}
-                                className="w-full rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-bold uppercase tracking-wide text-orange-700 transition-all hover:bg-orange-100 active:scale-95"
-                            >
-                                {'Mở chat AI trong sidebar'}
-                            </button>
-                        </div>
-                        <AIDiagnosisPanel
-                            petId={petInfo.id}
-                            bookingId={bookingId || undefined}
-                            species={petInfo.species}
-                            breed={petInfo.breed}
-                            ageMonths={estimateAgeMonths()}
-                            weightKg={getNormalizedWeightKg()}
-                            allergies={allergies.split(',').map((item) => item.trim()).filter(Boolean)}
-                            subjective={subjective}
-                            objective={objective}
-                            assessment={assessment}
-                            plan={plan}
-                            imageUrls={images.map((img) => img.url).filter(Boolean)}
-                            pendingImageUrls={pendingImages.map((item) => item.previewUrl)}
-                            onPendingImageDescriptionsChange={handlePendingImageDescriptionsChange}
-                            onDiagnosisResult={setAiDiagnosisResult}
-                        />
-
-                        {/* O - Objective */}
-                        <div className="bg-white rounded-2xl p-6 shadow-sm">
-                            <div className="flex items-center gap-3 mb-2">
-                                <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
-                                <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">O - KHÁCH QUAN (Objective)</h2>
-                            </div>
-                            <p className="text-xs text-stone-400 mb-4">Kết quả khám lâm sàng, chỉ số sinh tồn</p>
-
-                            <div className="grid grid-cols-2 gap-3 mb-4">
-                                <div>
-                                    <label className="text-sm text-stone-500">Nhiệt độ (°C):</label>
-                                    <input
-                                        type="number"
-                                        step="0.1"
-                                        value={temperature}
-                                        onChange={(e) => {
-                                            setTemperature(e.target.value)
-                                            if (errors.temperature) setErrors(prev => ({ ...prev, temperature: undefined }))
-                                        }}
-                                        placeholder="VD: 38.5"
-                                        className={`w-full border rounded-lg p-2 text-sm mt-1 ${errors.temperature ? 'border-red-400' : 'border-stone-300'}`}
-                                    />
-                                    {errors.temperature && <p className="text-red-500 text-xs mt-1">{errors.temperature}</p>}
-                                </div>
-                                <div>
-                                    <label className="text-sm text-stone-500">Nhịp tim (lần/phút):</label>
-                                    <input
-                                        type="number"
-                                        value={heartRate}
-                                        onChange={(e) => setHeartRate(e.target.value)}
-                                        placeholder="120"
-                                        className="w-full border border-stone-300 rounded-lg p-2 text-sm mt-1"
-                                    />
-                                </div>
-                            </div>
-
-                            {/* BCS Score */}
-                            <div className="mb-4">
-                                <label className="text-sm text-stone-500 mb-2 block">BCS (Điểm thể trạng 1-9):</label>
-                                <div className="flex gap-1">
-                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(score => (
-                                        <button
-                                            key={score}
-                                            type="button"
-                                            onClick={() => setBcs(score)}
-                                            className={`w-8 h-8 rounded-full text-xs font-bold transition-all ${bcs === score
-                                                ? 'bg-stone-900 text-white shadow-xl shadow-stone-200 scale-110'
-                                                : 'bg-stone-50 text-stone-500 hover:bg-stone-100'
-                                                }`}
-                                        >
-                                            {score}
-                                        </button>
-                                    ))}
-                                </div>
-                                <p className="text-xs text-stone-400 mt-1">1-3: Gầy | 4-5: Bình thường | 6-9: Thừa cân</p>
-                            </div>
-
-                            <textarea
-                                value={objective}
-                                onChange={(e) => setObjective(e.target.value)}
-                                placeholder="Kết quả khám lâm sàng..."
-                                rows={3}
-                                className="w-full border border-stone-300 rounded-lg p-3 text-sm"
-                            />
-                            <AISuggestionInlineCard
-                                title="Gợi ý AI cho Objective"
-                                value={aiDiagnosisResult?.soap_suggestions.objective_draft}
-                                onAccept={() => handleApplyAiDraft('objective', aiDiagnosisResult?.soap_suggestions.objective_draft || '')}
-                            />
-                        </div>
-
-                        {/* P - Plan */}
-                        <div className="bg-white rounded-2xl p-6 shadow-sm">
-                            <div className="flex items-center gap-3 mb-4">
-                                <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
-                                <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">P - KẾ HOẠCH (Plan) <span className="text-red-500">*</span></h2>
-                            </div>
-                            <textarea
-                                value={plan}
-                                onChange={(e) => {
-                                    setPlan(e.target.value)
-                                    if (errors.plan) setErrors(prev => ({ ...prev, plan: undefined }))
-                                }}
-                                placeholder="Kế hoạch điều trị, xét nghiệm đề xuất, hướng dẫn chăm sóc..."
-                                rows={4}
-                                className={`w-full border rounded-lg p-3 text-sm ${errors.plan ? 'border-red-400 focus:border-red-500' : 'border-stone-300 focus:border-amber-500'
-                                    } focus:outline-none`}
-                            />
-                            {
-                                errors.plan && (
-                                    <p className="text-red-500 text-sm mt-1">{errors.plan}</p>
-                                )
-                            }
-                            <AISuggestionInlineCard
-                                title="Gợi ý AI cho Plan"
-                                value={aiDiagnosisResult?.soap_suggestions.plan_draft}
-                                onAccept={() => handleApplyAiDraft('plan', aiDiagnosisResult?.soap_suggestions.plan_draft || '')}
-                            />
-                        </div>
-
-                        {/* Notes */}
-                        <div className="bg-white rounded-2xl p-6 shadow-sm" >
-                            <h3 className="font-bold text-stone-700 mb-2">Ghi chú (Tùy chọn)</h3>
-                            <textarea
-                                value={notes}
-                                onChange={(e) => setNotes(e.target.value)}
-                                placeholder="Ghi chú thêm về ca khám..."
-                                rows={3}
-                                className="w-full border border-stone-300 rounded-lg p-3 text-sm focus:border-amber-500 focus:outline-none"
-                            />
-                        </div>
-
-                        {/* Re-examination Date */}
-                        <div className="bg-white rounded-2xl p-6 shadow-sm" >
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="font-bold text-stone-700 flex items-center gap-2">
-                                    <CalendarDaysIcon className="w-5 h-5 text-amber-500" />
-                                    Hẹn tái khám
-                                </h3>
-                                <button
-                                    onClick={() => setHasReExam(!hasReExam)}
-                                    className={`relative w-11 h-6 rounded-full transition-colors ${hasReExam ? 'bg-amber-500' : 'bg-stone-200'
-                                        }`}
-                                >
-                                    <span
-                                        className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${hasReExam ? 'translate-x-[22px]' : 'translate-x-0'
-                                            }`}
-                                    />
-                                </button>
-                            </div>
-
-                            {
-                                hasReExam && (
-                                    <div className="space-y-4">
-                                        {/* Date Picker - FIRST */}
-                                        <div className="bg-stone-50 rounded-xl p-4 border border-stone-100">
-                                            <label className="text-xs font-bold text-stone-500 uppercase mb-3 block">Ngày cụ thể</label>
-                                            <div className="relative group">
-                                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-20">
-                                                    <CalendarIcon className="h-5 w-5 text-amber-400 group-focus-within:text-amber-600 transition-colors" />
-                                                </div>
-                                                <DatePicker
-                                                    selected={reExaminationDate ? new Date(reExaminationDate) : null}
-                                                    onChange={(date: Date | null) => setReExaminationDate(date ? date.toLocaleDateString('en-CA') : '')}
-                                                    dateFormat="dd/MM/yyyy"
-                                                    minDate={new Date()}
-                                                    locale="vi"
-                                                    placeholderText="Chọn ngày tái khám"
-                                                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-amber-700 font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all shadow-sm hover:border-amber-200 cursor-pointer"
-                                                    wrapperClassName="w-full block"
-                                                    popperClassName="z-[9999]"
-                                                />
-                                            </div>
+                        {currentStep === 2 && (
+                            <>
+                                <div className="grid grid-cols-1 gap-4">
+                                    <div className="min-w-0 rounded-2xl bg-white p-6 shadow-sm">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
+                                            <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">Kế hoạch điều trị <span className="text-red-500">*</span></h2>
                                         </div>
-
-                                        {/* Duration Input - with react-select for proper z-index */}
-                                        <div className="bg-stone-50 rounded-xl p-4 border border-stone-100">
-                                            <label className="text-xs font-bold text-stone-500 uppercase mb-3 block">Hoặc sau khoảng</label>
-                                            <div className="flex gap-2 items-center">
-                                                <input
-                                                    type="number"
-                                                    min="1"
-                                                    value={reExamAmount}
-                                                    onChange={(e) => setReExamAmount(parseInt(e.target.value) || 0)}
-                                                    className="w-20 py-2.5 px-3 text-center font-bold text-sm text-amber-700 focus:outline-none border border-stone-200 bg-white rounded-xl focus:ring-2 focus:ring-amber-500"
+                                        <textarea
+                                            value={plan}
+                                            onChange={(e) => {
+                                                setPlan(e.target.value)
+                                                if (errors.plan) setErrors(prev => ({ ...prev, plan: undefined }))
+                                            }}
+                                            placeholder="Kế hoạch điều trị, hướng dẫn chăm sóc và lưu ý theo dõi..."
+                                            rows={6}
+                                            className={`w-full border rounded-lg p-3 text-sm ${errors.plan ? 'border-red-400 focus:border-red-500' : 'border-stone-300 focus:border-amber-500'} focus:outline-none`}
+                                        />
+                                        {errors.plan && (
+                                            <p className="text-red-500 text-sm mt-1">{errors.plan}</p>
+                                        )}
+                                        {isVipClinic ? (
+                                            selectedAiDiagnosis ? (
+                                                <AISuggestionInlineCard
+                                                    title="Gợi ý AI cho Plan"
+                                                    value={aiDiagnosisResult?.soap_suggestions.plan_draft}
+                                                    onAccept={() => handleApplyAiDraft('plan', aiDiagnosisResult?.soap_suggestions.plan_draft || '')}
                                                 />
-                                                <div className="flex-1">
-                                                    <Select
-                                                        value={{ value: reExamUnit, label: reExamUnit }}
-                                                        onChange={(option) => setReExamUnit(option?.value || 'Tuần')}
-                                                        options={[
-                                                            { value: 'Ngày', label: 'Ngày' },
-                                                            { value: 'Tuần', label: 'Tuần' },
-                                                            { value: 'Tháng', label: 'Tháng' },
-                                                            { value: 'Năm', label: 'Năm' },
-                                                        ]}
-                                                        menuPortalTarget={document.body}
-                                                        menuPosition="fixed"
-                                                        styles={{
-                                                            control: (base) => ({
-                                                                ...base,
-                                                                borderRadius: '0.75rem',
-                                                                borderColor: '#e7e5e4',
-                                                                minHeight: '42px',
-                                                                boxShadow: 'none',
-                                                                '&:hover': { borderColor: '#f59e0b' },
-                                                            }),
-                                                            option: (base, state) => ({
-                                                                ...base,
-                                                                backgroundColor: state.isSelected ? '#f59e0b' : state.isFocused ? '#fef3c7' : 'white',
-                                                                color: state.isSelected ? 'white' : '#78716c',
-                                                                fontWeight: 500,
-                                                            }),
-                                                            singleValue: (base) => ({
-                                                                ...base,
-                                                                color: '#b45309',
-                                                                fontWeight: 500,
-                                                            }),
-                                                            menuPortal: (base) => ({ ...base, zIndex: 9999 }),
-                                                        }}
-                                                        isSearchable={false}
-                                                    />
+                                            ) : (
+                                                <p className="mt-3 text-xs font-semibold text-blue-700">Chọn một chẩn đoán từ Top 3 ở bước trước để mở gợi ý AI cho kế hoạch điều trị.</p>
+                                            )
+                                        ) : (
+                                            <p className="mt-3 text-xs font-semibold text-stone-500">
+                                                Bác sĩ xây dựng kế hoạch điều trị theo chẩn đoán đã xác nhận.
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    <div className="flex flex-col rounded-2xl bg-white p-6 shadow-sm">
+                                        <div className="mb-2 flex items-center gap-3">
+                                            <span className="h-6 w-1 rounded-full bg-stone-300"></span>
+                                            <h2 className="text-lg font-bold uppercase tracking-tight text-stone-800">Ghi chú</h2>
+                                        </div>
+                                        <p className="mb-4 text-xs text-stone-400">Lưu ý nội bộ hoặc nhắc nhở thêm</p>
+                                        <textarea
+                                            value={notes}
+                                            onChange={(e) => setNotes(e.target.value)}
+                                            placeholder="Ghi chú thêm cho ca bệnh này..."
+                                            rows={4}
+                                            className="w-full flex-1 rounded-xl border border-stone-200 bg-stone-50/30 p-3 text-sm focus:border-amber-500 focus:outline-none"
+                                        />
+                                    </div>
+
+                                </div>
+
+                                {showPrescriptionModal && (
+                                    <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-stone-900/75 p-4 backdrop-blur-md animate-in fade-in duration-300 sm:items-center sm:p-6">
+                                        <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-[2rem] border border-stone-200 bg-white shadow-2xl animate-in zoom-in-95 duration-300 xl:max-w-[1240px]">
+                                            <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/50 px-5 py-4 sm:px-6 lg:px-8">
+                                                <div>
+                                                    <h2 className="text-xl font-bold tracking-tight text-stone-800">Lập đơn thuốc</h2>
+                                                    <p className="mt-0.5 text-[10px] font-medium text-stone-400">Chi tiết liều lượng và phác đồ điều trị tiêu chuẩn</p>
+                                                </div>
+                                                <button
+                                                    onClick={() => setShowPrescriptionModal(false)}
+                                                    className="group rounded-xl border border-transparent p-2 text-stone-300 transition-all hover:border-stone-100 hover:bg-white hover:text-stone-500 hover:shadow-md"
+                                                >
+                                                    <XMarkIcon className="h-6 w-6" />
+                                                </button>
+                                            </div>
+
+                                            <div className="flex-1 overflow-y-auto bg-white px-4 py-5 sm:px-6 lg:px-8">
+                                                <div className="space-y-4">
+                                                    <div className="hidden gap-3 rounded-xl border border-orange-100 bg-orange-50/50 px-4 py-2 text-center text-[11px] font-bold uppercase tracking-widest text-orange-800 lg:grid lg:grid-cols-[minmax(220px,2fr)_minmax(180px,1.2fr)_130px_90px_minmax(280px,3fr)_48px]">
+                                                        <div>Tên thuốc</div>
+                                                        <div>Thời điểm uống</div>
+                                                        <div>Trước/Sau ăn</div>
+                                                        <div>Ngày</div>
+                                                        <div>Hướng dẫn sử dụng</div>
+                                                        <div></div>
+                                                    </div>
+
+                                                    <div className="space-y-2">
+                                                        {tempPrescriptions.map((p, i) => (
+                                                            <div key={i} className="group grid gap-3 rounded-2xl border border-transparent p-3 transition-all hover:border-stone-100 hover:bg-stone-50 lg:grid-cols-[minmax(220px,2fr)_minmax(180px,1.2fr)_130px_90px_minmax(280px,3fr)_48px] lg:items-center">
+                                                                <div>
+                                                                    <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-stone-400 lg:hidden">Tên thuốc</p>
+                                                                    <input
+                                                                        type="text"
+                                                                        list="medicine-list-modal"
+                                                                        value={p.medicineName}
+                                                                        onChange={(e) => handleUpdatePrescription(i, 'medicineName', e.target.value)}
+                                                                        placeholder="Tên thuốc..."
+                                                                        className="w-full rounded-xl border border-stone-200 bg-white px-3 py-1.5 text-sm font-semibold text-stone-700 outline-none transition-all placeholder:text-stone-300 focus:border-amber-600 focus:ring-4 focus:ring-amber-500/10"
+                                                                    />
+                                                                </div>
+                                                                <div>
+                                                                    <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-stone-400 lg:hidden">Thời điểm uống</p>
+                                                                    <div className="grid grid-cols-3 gap-2">
+                                                                        {(['sang', 'trua', 'chieu'] as const).map((slot) => {
+                                                                            const active = (p.timesOfDay || []).includes(slot)
+                                                                            return (
+                                                                                <button
+                                                                                    key={slot}
+                                                                                    type="button"
+                                                                                    onClick={() => {
+                                                                                        const next = active
+                                                                                            ? (p.timesOfDay || []).filter((x) => x !== slot)
+                                                                                            : [...(p.timesOfDay || []), slot]
+                                                                                        handleUpdatePrescription(i, 'timesOfDay', next)
+                                                                                    }}
+                                                                                    className={`w-full rounded-full border px-3 py-1 text-center text-[11px] font-bold uppercase tracking-wide transition-all active:scale-95 ${active
+                                                                                        ? 'border-orange-400 bg-orange-50 text-orange-700'
+                                                                                        : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
+                                                                                        }`}
+                                                                                >
+                                                                                    {timeLabel(slot)}
+                                                                                </button>
+                                                                            )
+                                                                        })}
+                                                                    </div>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-stone-400 lg:hidden">Trước/Sau ăn</p>
+                                                                    <select
+                                                                        value={p.beforeAfterMeal || 'AFTER_MEAL'}
+                                                                        onChange={(e) => handleUpdatePrescription(i, 'beforeAfterMeal', e.target.value)}
+                                                                        className="w-full rounded-xl border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium outline-none transition-all focus:border-amber-600 focus:ring-4 focus:ring-amber-500/10"
+                                                                    >
+                                                                        <option value="BEFORE_MEAL">Trước ăn</option>
+                                                                        <option value="AFTER_MEAL">Sau ăn</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-stone-400 lg:hidden">Số ngày</p>
+                                                                    <input
+                                                                        type="number"
+                                                                        value={p.durationDays || ''}
+                                                                        onChange={(e) => handleUpdatePrescription(i, 'durationDays', parseInt(e.target.value) || 0)}
+                                                                        placeholder="7"
+                                                                        className="w-full rounded-xl border border-stone-200 bg-white px-1 py-1.5 text-center text-sm font-bold text-orange-600 outline-none transition-all focus:border-orange-600 focus:ring-4 focus:ring-orange-500/10"
+                                                                    />
+                                                                </div>
+                                                                <div>
+                                                                    <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-stone-400 lg:hidden">Hướng dẫn sử dụng</p>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={p.instructions || ''}
+                                                                        onChange={(e) => handleUpdatePrescription(i, 'instructions', e.target.value)}
+                                                                        placeholder="VD: Cho uống sau ăn, với nước; theo dõi nôn/tiêu chảy..."
+                                                                        className="w-full rounded-xl border border-stone-200 bg-white px-4 py-1.5 text-sm font-medium italic outline-none transition-all placeholder:text-stone-300 focus:border-amber-600 focus:ring-4 focus:ring-amber-500/10"
+                                                                    />
+                                                                </div>
+                                                                <div className="flex justify-end lg:justify-center">
+                                                                    <button
+                                                                        onClick={() => handleRemovePrescription(i)}
+                                                                        className="rounded-lg p-2 text-stone-300 transition-all hover:bg-red-50 hover:text-red-500 active:scale-90"
+                                                                    >
+                                                                        <TrashIcon className="h-4 w-4" />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+
+                                                    <datalist id="medicine-list-modal">
+                                                        <option value="Amoxicillin 500mg" />
+                                                        <option value="Metronidazole 250mg" />
+                                                        <option value="Doxycycline 100mg" />
+                                                        <option value="NexGard Spectra" />
+                                                        <option value="Bravecto" />
+                                                    </datalist>
+
+                                                    <button
+                                                        onClick={handleAddPrescriptionRow}
+                                                        className="group mt-4 flex w-full items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-stone-100 py-3 font-semibold text-stone-400 transition-all hover:border-orange-500 hover:bg-orange-50/20 hover:text-orange-700"
+                                                    >
+                                                        <PlusIcon className="h-3.5 w-3.5" />
+                                                        <span className="text-[8px] uppercase tracking-widest">Thêm loại thuốc mới</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-col gap-3 border-t border-stone-100 bg-stone-50/30 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+                                                <button
+                                                    onClick={() => setShowResetConfirm(true)}
+                                                    className="text-left text-[10px] font-bold uppercase tracking-widest text-stone-400 transition-colors hover:text-red-500"
+                                                >
+                                                    Xóa toàn bộ
+                                                </button>
+                                                <div className="flex w-full flex-col-reverse gap-3 sm:w-auto sm:flex-row sm:items-center sm:gap-4">
+                                                    <button
+                                                        onClick={() => setShowPrescriptionModal(false)}
+                                                        className="rounded-xl px-6 py-2.5 text-sm font-semibold text-stone-500 transition-all hover:bg-white hover:shadow-sm"
+                                                    >
+                                                        QUAY LẠI
+                                                    </button>
+                                                    <button
+                                                        onClick={handleSavePrescriptions}
+                                                        className="rounded-xl bg-orange-600 px-8 py-2.5 text-sm font-bold text-white shadow-xl shadow-orange-100 transition-all hover:bg-orange-700 active:scale-95"
+                                                    >
+                                                        Xác nhận đơn
+                                                    </button>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
-                                )
-                            }
-                        </div>
+                                )}
+
+                                <ConfirmModal
+                                    isOpen={showResetConfirm}
+                                    title="Xác nhận xóa"
+                                    message="Bạn có chắc chắn muốn xóa toàn bộ đơn thuốc này? Hành động này không thể hoàn tác."
+                                    confirmLabel="XÓA TẤT CẢ"
+                                    cancelLabel="QUAY LẠI"
+                                    isDanger={true}
+                                    onConfirm={() => {
+                                        setTempPrescriptions([])
+                                        setShowResetConfirm(false)
+                                    }}
+                                    onCancel={() => setShowResetConfirm(false)}
+                                />
+
+                                <div className="grid grid-cols-1 gap-4">
+                                    <div className="relative rounded-2xl bg-white p-6 shadow-sm">
+                                        <div className="mb-4 flex items-center justify-between">
+                                            <h3 className="flex items-center gap-2 font-bold text-stone-700">
+                                                <CalendarDaysIcon className="h-5 w-5 text-amber-500" />
+                                                Hẹn tái khám
+                                            </h3>
+                                            <button
+                                                type="button"
+                                                onClick={() => setHasReExam(!hasReExam)}
+                                                className={`relative h-6 w-11 rounded-full transition-colors ${hasReExam ? 'bg-amber-500' : 'bg-stone-200'}`}
+                                            >
+                                                <span className={`absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform ${hasReExam ? 'translate-x-[22px]' : 'translate-x-0'}`} />
+                                            </button>
+                                        </div>
+
+                                        <p className={`text-xs font-semibold ${hasReExam ? 'text-amber-700' : 'text-stone-500'}`}>
+                                            {hasReExam
+                                                ? `Đã bật hẹn tái khám: ${reExaminationDate ? new Date(reExaminationDate).toLocaleDateString('vi-VN') : 'chưa chọn ngày cụ thể'}`
+                                                : 'Bật để đặt lịch tái khám cho ca bệnh này'}
+                                        </p>
+
+                                        {hasReExam && (
+                                            <div className="absolute left-0 right-0 bottom-full z-40 mb-3 rounded-2xl border border-amber-200 bg-white p-4 shadow-[6px_6px_0_#1c1917]">
+                                                <div className="absolute -bottom-2 right-6 h-4 w-4 rotate-45 border-r border-b border-amber-200 bg-white"></div>
+                                                <div className="space-y-4">
+                                                    <div className="rounded-xl border border-stone-100 bg-stone-50 p-4">
+                                                        <label className="mb-3 block text-xs font-bold uppercase text-stone-500">Ngày cụ thể</label>
+                                                        <DatePicker
+                                                            selected={reExaminationDate ? new Date(reExaminationDate) : null}
+                                                            onChange={(date: Date | null) => setReExaminationDate(date ? date.toLocaleDateString('en-CA') : '')}
+                                                            dateFormat="dd/MM/yyyy"
+                                                            minDate={new Date()}
+                                                            locale="vi"
+                                                            placeholderText="Chọn ngày tái khám"
+                                                            className="w-full rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-amber-700 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                                            wrapperClassName="w-full block"
+                                                            popperClassName="z-[9999]"
+                                                        />
+                                                    </div>
+
+                                                    <div className="rounded-xl border border-stone-100 bg-stone-50 p-4">
+                                                        <label className="mb-3 block text-xs font-bold uppercase text-stone-500">Hoặc sau khoảng</label>
+                                                        <div className="flex items-center gap-2">
+                                                            <input
+                                                                type="number"
+                                                                min="1"
+                                                                value={reExamAmount}
+                                                                onChange={(e) => setReExamAmount(parseInt(e.target.value) || 0)}
+                                                                className="w-20 rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-center text-sm font-bold text-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                                            />
+                                                            <div className="flex-1">
+                                                                <Select
+                                                                    value={{ value: reExamUnit, label: reExamUnit }}
+                                                                    onChange={(option) => setReExamUnit(option?.value || 'Tuần')}
+                                                                    options={[
+                                                                        { value: 'Ngày', label: 'Ngày' },
+                                                                        { value: 'Tuần', label: 'Tuần' },
+                                                                        { value: 'Tháng', label: 'Tháng' },
+                                                                        { value: 'Năm', label: 'Năm' },
+                                                                    ]}
+                                                                    menuPortalTarget={document.body}
+                                                                    menuPosition="fixed"
+                                                                    styles={{
+                                                                        control: (base) => ({
+                                                                            ...base,
+                                                                            borderRadius: '0.75rem',
+                                                                            borderColor: '#e7e5e4',
+                                                                            minHeight: '42px',
+                                                                            boxShadow: 'none',
+                                                                            '&:hover': { borderColor: '#f59e0b' },
+                                                                        }),
+                                                                        menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+                                                                    }}
+                                                                    isSearchable={false}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </>
+                        )}
 
 
                     </div>
+
+                    {currentStep === 1 && (
+                        <div className="min-w-0 mt-2 xl:col-start-2 xl:col-span-2 xl:-mt-16">
+                            {renderObjectiveSection()}
+                        </div>
+                    )}
                 </div>
 
-                {/* Submit Button */}
-                <div className="flex justify-end mt-6" >
-                    <button
-                        onClick={handleSubmit}
-                        disabled={isLoading}
-                        className="px-8 py-3 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 transition-colors disabled:opacity-50 text-lg shadow-lg"
-                    >
-                        {isLoading ? 'ĐANG LƯU...' : 'LƯU VÀ TIẾP TỤC'}
-                    </button>
+                <div className="mt-6 rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
+                    <div className="mb-4 flex items-start justify-between gap-4">
+                        <div>
+                            <h3 className="font-bold text-stone-800">Tóm tắt bệnh sử</h3>
+                            <p className="mt-1 text-sm text-stone-500">Timeline ngang các mốc bệnh án gần đây. Bấm vào từng mốc để xem chi tiết.</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="rounded-full border border-stone-200 bg-stone-50 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-stone-500">
+                                {medicalHistory.length} mốc
+                            </span>
+                            {isVipClinic && (
+                                <button
+                                    type="button"
+                                    onClick={() => void handleToggleHistorySummary()}
+                                    disabled={isSummarizingHistory}
+                                    className="group flex h-10 w-10 items-center justify-center rounded-full border border-amber-300 bg-amber-50 text-amber-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                    title="AI tóm tắt bệnh sử gần đây"
+                                >
+                                    <SparklesIcon className={`h-4 w-4 ${isSummarizingHistory ? 'animate-pulse' : ''}`} />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="overflow-x-auto pb-2">
+                        <div className="relative flex min-w-max items-start gap-4 px-1 pt-8">
+                            <div className="absolute left-0 right-0 top-[44px] h-[2px] bg-stone-200"></div>
+                            {medicalHistory.length === 0 ? (
+                                <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50 px-6 py-10 text-sm text-stone-400">
+                                    Chưa có lịch sử khám
+                                </div>
+                            ) : (
+                                medicalHistory.map((emr) => (
+                                    <button
+                                        key={emr.id}
+                                        type="button"
+                                        onClick={() => navigate(`/staff/emr/detail/${emr.id}`)}
+                                        className="group relative z-10 w-[280px] shrink-0 rounded-2xl border border-stone-200 bg-stone-50 p-4 text-left shadow-sm transition-all hover:-translate-y-1 hover:border-amber-300 hover:bg-amber-50/60 hover:shadow-md"
+                                    >
+                                        <span className="absolute -top-8 left-6 h-4 w-4 rounded-full border-4 border-white bg-amber-500 shadow-sm"></span>
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Mốc bệnh sử</p>
+                                                <p className="mt-1 font-semibold text-stone-700">{formatSummaryDate(emr.examinationDate)}</p>
+                                            </div>
+                                            <span className="text-[10px] font-bold uppercase tracking-wide text-blue-600">Xem chi tiết</span>
+                                        </div>
+                                        <p className="mt-3 text-sm font-semibold text-stone-700 line-clamp-2">{emr.assessment || 'Chưa có chẩn đoán'}</p>
+                                        {emr.plan && <p className="mt-2 text-xs text-stone-500 line-clamp-3">Kế hoạch: {emr.plan}</p>}
+                                        <div className="mt-3 flex items-center justify-between text-xs text-stone-500">
+                                            <span>{emr.staffName || 'Không rõ nhân viên'}</span>
+                                            <span className="rounded-full border border-stone-200 bg-white px-2 py-1 font-semibold text-stone-500">EMR</span>
+                                        </div>
+                                    </button>
+                                ))
+                            )}
+                        </div>
+                    </div>
                 </div>
+
             </div>
 
             {/* Image Preview Modal */}
@@ -1540,6 +1661,132 @@ export const CreateEmrPage = () => {
                     </div>
                 )
             }
+
+            {isVipClinic && (
+                <Modal
+                    isOpen={showHistorySummaryPopover}
+                    onClose={() => setShowHistorySummaryPopover(false)}
+                    title="Tóm tắt bệnh sử chi tiết"
+                    size="lg"
+                >
+                    {isSummarizingHistory ? (
+                        <p className="text-sm text-stone-600">AI đang tổng hợp bệnh sử gần đây...</p>
+                    ) : healthSummary ? (
+                        <div className="space-y-3 text-sm text-stone-700">
+                            <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500">Diễn tiến chính</p>
+                                <p className="mt-1 break-words leading-6">{healthSummary.aiInsights?.summary || 'Chưa có diễn tiến chính từ AI.'}</p>
+                            </div>
+                            <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500">Chẩn đoán gần đây</p>
+                                <p className="mt-1 break-words leading-6">{healthSummary.latestEmr?.diagnosis || 'Chưa có chẩn đoán gần đây.'}</p>
+                            </div>
+                            <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500">Điều trị gần nhất</p>
+                                <p className="mt-1 break-words leading-6">{healthSummary.latestEmr?.treatment || 'Chưa có dữ liệu điều trị gần nhất.'}</p>
+                            </div>
+                            {healthSummary.healthWarnings.length > 0 && (
+                                <div className="rounded-xl border border-red-200 bg-red-50 p-3">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-red-700">Cảnh báo sức khỏe</p>
+                                    <div className="mt-2 space-y-2">
+                                        {healthSummary.healthWarnings.slice(0, 4).map((warning, index) => (
+                                            <p key={`${warning.type}-${index}`} className="text-sm leading-6 text-red-800">
+                                                {index + 1}. {warning.message}
+                                            </p>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {healthSummary.medicationReminders.length > 0 && (
+                                <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500">Thuốc đang theo dõi</p>
+                                    <div className="mt-2 space-y-2">
+                                        {healthSummary.medicationReminders.slice(0, 4).map((reminder, index) => (
+                                            <p key={`${reminder.medication}-${index}`} className="text-sm leading-6 text-stone-700">
+                                                {index + 1}. {reminder.medication}
+                                                {reminder.dosage ? ` - ${reminder.dosage}` : ''}
+                                                {reminder.frequency ? ` (${reminder.frequency})` : ''}
+                                            </p>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {healthSummary.suggestedActions.length > 0 && (
+                                <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-blue-700">Đề xuất ưu tiên</p>
+                                    <div className="mt-2 space-y-2">
+                                        {healthSummary.suggestedActions.slice(0, 4).map((action, index) => (
+                                            <p key={`${action.label}-${index}`} className="text-sm leading-6 text-blue-900">
+                                                {index + 1}. {action.label}: {action.reason}
+                                            </p>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {healthSummary.aiInsights?.intakeNotes?.length ? (
+                                <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500">Ghi chú tiếp nhận</p>
+                                    <div className="mt-2 space-y-2">
+                                        {healthSummary.aiInsights.intakeNotes.slice(0, 5).map((note, index) => (
+                                            <p key={`${note}-${index}`} className="text-sm leading-6 text-stone-700">
+                                                {index + 1}. {note}
+                                            </p>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : null}
+                            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700">Lưu ý cho ca hiện tại</p>
+                                <p className="mt-1 break-words leading-6">{healthSummary.aiInsights?.advice || healthSummary.aiInsights?.trends || 'Chưa có lưu ý nổi bật từ AI.'}</p>
+                            </div>
+                            {healthSummary.disclaimer && (
+                                <p className="text-xs italic text-stone-500">{healthSummary.disclaimer}</p>
+                            )}
+                        </div>
+                    ) : (
+                        <p className="text-sm text-stone-600">Bấm biểu tượng để hệ thống tóm tắt nhanh bệnh sử gần đây theo mẫu lâm sàng.</p>
+                    )}
+                </Modal>
+            )}
+
+            {/* AI Diagnosis Modal */}
+            {isVipClinic && (
+                <Modal
+                    isOpen={isAiModalOpen}
+                    onClose={handleCloseAiModal}
+                    title="Hỗ trợ AI chẩn đoán"
+                    size="xl"
+                >
+                    <AIDiagnosisPanel
+                        isModal
+                        autoAnalyzeSignal={aiAnalyzeSignal}
+                        initialResult={aiDiagnosisResult}
+                        initialSelectedDiagnosis={selectedAiDiagnosis}
+                        hideNarrativeInput
+                        externalNarrative={subjective}
+                        petId={petInfo.id}
+                        bookingId={bookingId || undefined}
+                        species={petInfo.species}
+                        breed={petInfo.breed}
+                        ageMonths={estimateAgeMonths()}
+                        weightKg={getNormalizedWeightKg()}
+                        allergies={allergies.split(',').map((item) => item.trim()).filter(Boolean)}
+                        subjective={subjective}
+                        objective={objective}
+                        assessment={assessment}
+                        plan={plan}
+                        imageUrls={images.map((img) => img.url).filter(Boolean)}
+                        pendingImageUrls={pendingImages.map((item) => item.previewUrl)}
+                        onPendingImageDescriptionsChange={handlePendingImageDescriptionsChange}
+                        onDiagnosisResult={(result) => {
+                            setAiDiagnosisResult(result)
+                            if (!result) setSelectedAiDiagnosis(null)
+                        }}
+                        onSelectDiagnosis={handleSelectAiDiagnosis}
+                        onLoadingChange={setIsAiAnalyzing}
+                    />
+                </Modal>
+            )}
         </div>
     )
 }

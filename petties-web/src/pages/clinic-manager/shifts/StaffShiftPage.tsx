@@ -129,37 +129,6 @@ export const StaffShiftPage = () => {
         if (def) setFormData(prev => ({ ...prev, breakStart: def.breakStart, breakEnd: def.breakEnd }))
     }, [clinicDetail, formData.workDates.join(','), formData.breakStart, formData.breakEnd])
 
-    // --- Effects: Fetch shifts (by viewMode) ---
-    useEffect(() => {
-        if (!clinicId || (viewMode !== 'table' && viewMode !== 'day') || !selectedDay) return
-        fetchShifts()
-    }, [clinicId, viewMode, selectedDay.getTime()])
-
-    useEffect(() => {
-        if (!clinicId || viewMode === 'table' || viewMode === 'day') return
-        if (weekDates.length === 0) return
-        fetchShifts()
-    }, [clinicId, viewMode, weekDates])
-
-    const fetchStaff = async () => {
-        if (!clinicId) return
-        try {
-            const staffList = await clinicStaffService.getClinicStaff(clinicId)
-
-            // Đảm bảo luôn nhận được mảng (tránh case backend trả dạng { content: [...] } hoặc object khác)
-            const normalizedStaffList = Array.isArray(staffList)
-                ? staffList
-                : (staffList && typeof staffList === 'object' && 'content' in staffList && Array.isArray((staffList as { content?: unknown }).content))
-                    ? (staffList as { content: StaffMember[] }).content
-                    : []
-
-            const filteredStaff = normalizedStaffList.filter((s: StaffMember) => s.role === 'STAFF')
-            setStaffMembers(filteredStaff)
-        } catch (err: unknown) {
-            console.error('fetchStaff error:', err)
-        }
-    }
-
     const fetchShifts = async () => {
         if (!clinicId) return
         if (viewMode === 'table' || viewMode === 'day') {
@@ -220,6 +189,38 @@ export const StaffShiftPage = () => {
             setLoading(false)
         }
     }
+
+    // --- Effects: Fetch shifts (by viewMode) ---
+    useEffect(() => {
+        if (!clinicId || (viewMode !== 'table' && viewMode !== 'day') || !selectedDay) return
+        fetchShifts()
+    }, [clinicId, viewMode, selectedDay.getTime()])
+
+    useEffect(() => {
+        if (!clinicId || viewMode === 'table' || viewMode === 'day') return
+        if (weekDates.length === 0) return
+        fetchShifts()
+    }, [clinicId, viewMode, weekDates])
+
+    const fetchStaff = async () => {
+        if (!clinicId) return
+        try {
+            const staffList = await clinicStaffService.getClinicStaff(clinicId)
+
+            // Đảm bảo luôn nhận được mảng (tránh case backend trả dạng { content: [...] } hoặc object khác)
+            const normalizedStaffList = Array.isArray(staffList)
+                ? staffList
+                : (staffList && typeof staffList === 'object' && 'content' in staffList && Array.isArray((staffList as { content?: unknown }).content))
+                    ? (staffList as { content: StaffMember[] }).content
+                    : []
+
+            const filteredStaff = normalizedStaffList.filter((s: StaffMember) => s.role === 'STAFF')
+            setStaffMembers(filteredStaff)
+        } catch (err: unknown) {
+            console.error('fetchStaff error:', err)
+        }
+    }
+
 
     const handlePrevWeek = () => {
         const prev = new Date(currentWeek)

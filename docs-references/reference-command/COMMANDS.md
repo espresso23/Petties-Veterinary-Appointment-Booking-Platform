@@ -317,7 +317,7 @@ flutter build ipa --release    # iOS
 ### Docker Images
 ```bash
 # Build production images
-docker-compose -f docker-compose.prod.yml build
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod build
 
 # Build specific service
 docker build -f backend-spring/petties/Dockerfile.prod -t petties-backend ./backend-spring/petties
@@ -358,11 +358,11 @@ git push origin main
 ssh -i petties-key.pem ubuntu@<EC2_IP>
 cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
 git pull origin main
-docker-compose -f docker-compose.prod.yml down
-docker-compose -f docker-compose.prod.yml --env-file .env up -d --build
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod down
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod up -d --build
 
 # Check logs
-docker-compose -f docker-compose.prod.yml logs -f
+docker compose -p petties-prod -f docker-compose.prod.yml --env-file .env.prod logs -f
 ```
 
 ### Vercel (Frontend)

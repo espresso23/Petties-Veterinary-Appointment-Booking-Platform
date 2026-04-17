@@ -13,6 +13,39 @@ from typing import TypedDict, Annotated, List, Dict, Any, Optional, Literal
 from operator import add
 
 
+STAGE_IDLE = "IDLE"
+STAGE_COLLECTING = "COLLECTING"
+STAGE_PRESENTING = "PRESENTING"
+STAGE_CONFIRMING = "CONFIRMING"
+STAGE_BOOKED = "BOOKED"
+
+CANONICAL_STAGES = (
+    STAGE_IDLE,
+    STAGE_COLLECTING,
+    STAGE_PRESENTING,
+    STAGE_CONFIRMING,
+    STAGE_BOOKED,
+)
+
+
+def map_booking_status_to_stage(status: Optional[str], active: bool = False) -> str:
+    normalized = str(status or "").strip().upper()
+
+    if normalized in {"COMPLETED", "BOOKED"}:
+        return STAGE_BOOKED
+    if normalized == "CONFIRMING":
+        return STAGE_CONFIRMING
+    if normalized in {"REVIEWING", "PRESENTING"}:
+        return STAGE_PRESENTING
+    if normalized in {"COLLECTING", "SUSPENDED"}:
+        return STAGE_COLLECTING
+    if normalized in {"CANCELLED", "IDLE"}:
+        return STAGE_IDLE
+    if active:
+        return STAGE_COLLECTING
+    return STAGE_IDLE
+
+
 class Message(TypedDict):
     """Single message in conversation"""
 
@@ -109,6 +142,9 @@ class ReActState(TypedDict):
     #     "location": {"lat": 10.762622, "lng": 106.660172}
     # }
 
+    # Conversation State Machine
+    stage: Literal["IDLE", "COLLECTING", "PRESENTING", "CONFIRMING", "BOOKED"]
+
     # Error handling
     error: Optional[str]
 
@@ -181,5 +217,6 @@ def create_initial_react_state(
         should_end=False,
         iteration=0,
         context=final_context,
+        stage=STAGE_IDLE,
         error=None,
     )

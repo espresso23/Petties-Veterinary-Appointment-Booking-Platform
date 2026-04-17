@@ -1,6 +1,7 @@
 package com.petties.petties.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.petties.petties.dto.subscription.MySubscriptionStatusDto;
 import com.petties.petties.dto.subscription.SubscribeRequestDto;
 import com.petties.petties.dto.subscription.UserSubscriptionResponseDto;
 import com.petties.petties.exception.BadRequestException;
@@ -176,12 +177,13 @@ class UserSubscriptionControllerUnitTest {
                 mockClinic.setClinicId(clinicId);
                 mockUser.setWorkingClinic(mockClinic);
 
-                UserSubscriptionResponseDto response = UserSubscriptionResponseDto.builder()
-                                .status(UserSubscriptionStatus.ACTIVE)
+                MySubscriptionStatusDto response = MySubscriptionStatusDto.builder()
+                                .status("ACTIVE")
+                                .clinicId(clinicId)
                                 .build();
 
                 when(authService.getCurrentUser()).thenReturn(mockUser);
-                when(userSubscriptionService.getClinicSubscription(clinicId)).thenReturn(response);
+                when(userSubscriptionService.getMySubscriptionStatus(mockUser)).thenReturn(response);
 
                 mockMvc.perform(get("/subscriptions/my-status"))
                                 .andExpect(status().isOk())

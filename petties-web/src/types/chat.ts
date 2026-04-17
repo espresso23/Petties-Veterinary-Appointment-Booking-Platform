@@ -35,7 +35,7 @@ export interface ChatMessage {
   senderName: string
   senderAvatar: string | null
   content: string
-  messageType: 'TEXT' | 'IMAGE' | 'IMAGE_TEXT'
+  messageType: 'TEXT' | 'IMAGE' | 'IMAGE_TEXT' | 'AI_RESPONSE'
   imageUrl: string | null
   status: 'SENT' | 'DELIVERED' | 'SEEN'
   isRead: boolean
@@ -43,6 +43,7 @@ export interface ChatMessage {
   createdAt: string
   isMe: boolean
   isUploading?: boolean // Used for optimistic UI during upload
+  
   actionButtons?: {
     id: string
     label: string

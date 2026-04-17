@@ -88,6 +88,8 @@ class ToolResponse(BaseModel):
     input_schema: Optional[Dict[str, Any]] = None
     output_schema: Optional[Dict[str, Any]] = None
     enabled: bool
+    is_system_managed: bool = False  # True if tool is in SYSTEM_MANAGED_TOOLS
+    is_admin_configurable: bool = False  # True if tool is in ADMIN_CONFIGURABLE_TOOLS
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -130,9 +132,13 @@ class ScanToolsResponse(BaseModel):
     success: bool
     message: str
     total_tools: int
+    total_resources: int = 0
     new_tools: int
     updated_tools: int
+    unchanged_tools: int = 0
     tool_list: List[str]
+    resource_list: List[str] = Field(default_factory=list)
+    resource_metadata: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 # ===== ERROR RESPONSE =====

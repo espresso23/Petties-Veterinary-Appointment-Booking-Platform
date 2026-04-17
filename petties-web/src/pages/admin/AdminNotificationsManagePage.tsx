@@ -131,7 +131,7 @@ const AdminNotificationsManagePage = () => {
         const body = res.data?.data ?? res.data;
         const content = Array.isArray(body?.content) ? body.content : [];
 
-        content.forEach((item: any) => {
+        content.forEach((item: AdminUserSummary) => {
           if (!item?.userId) return;
           collected.push({
             userId: item.userId,

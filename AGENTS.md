@@ -13,6 +13,26 @@ This file provides guidance to Petties agents when working with code in this rep
 
 Petties is a veterinary appointment booking platform connecting pet owners with veterinary clinics. The platform uses a clinic-centric model where pet owners book with clinics, and clinic managers assign appropriate vets.
 
+## Project Rules
+
+- Hạn chế dùng PowerShell để replace text trong file; ưu tiên `apply_patch` để chỉnh sửa nội dung một cách rõ ràng, an toàn và dễ review.
+- Nếu bắt buộc phải dùng PowerShell cho thay đổi nội dung, chỉ dùng cho thao tác nhỏ và phải kiểm tra lại diff ngay sau đó.
+
+## Learned User Preferences
+
+- AI chat mobile (đặt lịch): không tự seed nhiều ngày hay fallback `DateTime.now()` khi chưa có `booking_date` hợp lệ từ server/tracker; không gửi `select_date` với ngày giả — hiển thị SnackBar lỗi tiếng Việt và chờ dữ liệu máy chủ.
+- AI chat: muốn thao tác trên bubble tin nhắn (ví dụ khi hover trên web hoặc gesture tương đương trên mobile) để sao chép nội dung hoặc chỉnh sửa rồi gửi lại.
+- AI diagnosis: không hiển thị các cảnh báo ngữ cảnh bệnh nhân dạng “payload warnings” trên UI; giữ thông tin này trong prompt/payload xử lý nội bộ khi cần.
+- AI diagnosis (tên bệnh): hiển thị một tên bệnh chuẩn duy nhất; không gộp nhiều phương án trong một nhãn bằng “hoặc”/“và” trên UI.
+- Booking qua chatbot cho Pet Owner: ưu tiên luồng đơn giản form-first (chat hỗ trợ điền form, tải dữ liệu backend để chọn, tạo booking khi người dùng xác nhận), tránh over-engineering; phạm vi chỉ cho chủ thú cưng, không kéo luồng nhân sự/phân công nội bộ phòng khám vào trải nghiệm này.
+- Booking/AI: ưu tiên trải nghiệm AI linh hoạt, thông minh ở phía FE; khi cần đánh đổi, giữ backend ở mức đơn giản hợp lý thay vì làm UI cứng nhắc.
+- Mobile AI chat (UI): ưu tiên phân cấp thị giác rõ (brand Petties AI ở header), tách khung chat khỏi nền (overlay/semi-transparent hoặc tương đương), input/placeholder và vùng soạn thảo dễ đọc — không giống màn soạn văn bản thuần.
+
+## Learned Workspace Facts
+
+- Luồng structured booking và `requestSlotRefresh` nằm trong `petties_mobile/lib/ui/chat/ai_chat/ai_chat_screen.dart`; widget/util hỗ trợ trong `petties_mobile/lib/ui/chat/ai_chat/utils/`.
+- AI service (read-only resource redirect): cần khớp tên tool giữa router hậu xử lý và registry — ví dụ `tool_routing.py` có thể tham chiếu `get_clinic_services` / `check_available_slots` trong khi `resource_registry.py` map backing tool là `list_clinic_services` / `get_slot_availability`; lệch tên khiến redirect read-only không ổn định cho một số tool booking.
+
 ## Architecture
 
 **Monorepo with 4 main services:**
@@ -110,7 +130,7 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 - Single Agent: LangGraph với ReAct pattern (Thought -> Action -> Observation)
 - Config: DB-based dynamic configuration (prompt, parameters, tools)
 - Tools: FastMCP với @mcp.tool decorator
-  - `pet_knowledge_search` - Tra cứu cẩm nang/kiến thức thú y (Hybrid: RAG + Knowledge Graph + Case Memory)
+  - `pet_knowledge_search` - Tra cứu cẩm nang/kiến thức thú y (Hybrid: RAG + Case Memory)
   - `web_search` - Tìm thêm nguồn web khi knowledge base chưa đủ
   - `get_user_pets` - Lấy danh sách thú cưng của user để tư vấn/đặt lịch đúng
   - `search_clinics_nearby` - Tìm phòng khám gần vị trí
@@ -281,6 +301,7 @@ Sai: V2__add_phone.sql (Dễ trùng nếu 2 người cùng làm).
 Đúng: V202412301030__add_phone_to_users.sql (Định dạng: V + NămThángNgàyGiờPhút).
 Lưu ý: Giữa Version và Mô tả phải có 2 dấu gạch dưới (__).
 Áp dụng: Flyway sẽ tự động chạy script này khi ứng dụng khởi động.
+16.1. Nếu thực hiện thay đổi lớn/quan trọng (major feature, refactor lớn, bugfix production, thay đổi kiến trúc), PHẢI cập nhật `PROJECT_STATUS.md` thường xuyên, rõ ràng, và theo code-based evidence (liệt kê module/files/test-status thực tế), không cập nhật theo ước lượng cảm tính.
 
 ## Documentation-First Development Rule
 
@@ -288,55 +309,25 @@ Lưu ý: Giữa Version và Mô tả phải có 2 dấu gạch dưới (__).
 
     **A. PETTIES_SRS.md - Phần 3.2 Functional Requirements:**
     Theo format mẫu đã có (xem 3.2.1 - 3.2.6):
-    ```
-    #### 3.2.X [Feature Name]
-    **Function trigger:**
-    - **Navigation path:** [Screen Path]
-    - **Timing Frequency:** [When triggered]
 
-    **Function description:**
-    - **Actors/Roles:** [Who uses]
-    - **Purpose:** [What it does]
-    - **Interface:** [UI elements]
-    - **Data processing:** [Step-by-step flow]
-
-    **Screen layout:** *(Add screen UI here)*
-
-    **Function details:**
-    - **Data:** [Request/Response objects]
-    - **Validation:** [Error handling rules]
-    - **Business rules:** [Business logic]
-    - **Normal case:** [Happy path]
-    - **Abnormal case:** [Error scenarios]
-    ```
-
-    **B. REPORT_4_SDD_SYSTEM_DESIGN.md - Phần 3. DETAILED DESIGN:**
+    **B. PETTIES_SDD.md - Phần 3. DETAILED DESIGN:**
     Theo format mẫu đã có (xem 3.1, 3.2, 3.3):
-    ```
-    ### 3.X [Feature Name]
-    [Feature description paragraph]
 
-    #### 3.X.1 Class Diagram
-    ```mermaid
-    classDiagram
-        [Controller, Service, Entity, DTO classes]
-    ```
+18. **Deadcode Detection Rule**: Trước khi commit hoặc khi user yêu cầu, PHẢI kiểm tra deadcode:
+    - **Backend (Spring Boot)**: Method không được gọi bởi Controller/Service khác, API endpoint không được route trong SecurityConfig, Entity không được sử dụng trong codebase
+    - **Frontend (React)**: Page/Component không được import trong App.tsx hoặc Router, unused imports, CSS không sử dụng
+    - **AI Service (FastAPI)**: Tool/MCP endpoint không được đăng ký trong main.py
+    - **Detection tools**: Sử dụng IDE inspection, `mvn dependency:tree`, `npm run lint -- --max-warnings=0`, hoặc chạy script phân tích
+    - **Khi phát hiện deadcode**: Báo cáo chi tiết (file, dòng, lý do nghi ngờ) và đề xuất plan xóa bao gồm:
+      1. Liệt kê tất cả deadcode tìm thấy theo module
+      2. Xác định impact (có phụ thuộc không, có test references không)
+      3. Đề xuất action: Xóa hoàn toàn, đánh dấu @Deprecated, hay giữ lại với lý do
+      4. Timeline: Immediate (ngay), next sprint, hoặc backlog
 
-    #### 3.X.2 Class Specifications
-    **1. [ControllerName]**
-    - **Responsibility:** [What it does]
-    - **Key Methods:** [Method list with descriptions]
-
-    **2. [ServiceName]**
-    - **Responsibility:** [Business logic]
-    - **Key Methods:** [Method list]
-
-    #### 3.X.3 Sequence Diagram: [Main Flow]
-    ```mermaid
-    sequenceDiagram
-        [Actor -> UI -> Controller -> Service -> Repository -> DB flow]
-    ```
-    ```
+19. **Periodic System Health Check**: Định kỳ (mỗi sprint cuối hoặc khi có major release), agent PHẢI chạy full deadcode check và báo cáo tổng thể:
+    - Tổng số deadcode theo từng service (Backend/Web/AI)
+    - Xu hướng so với lần trước (tăng/giảm)
+    - Khuyến nghị cleanup priority
 
     **Workflow:**
     1. Khi nhận yêu cầu implement feature mới -> Dùng `petties-report-writer` agent để tạo documentation draft
@@ -344,18 +335,68 @@ Lưu ý: Giữa Version và Mô tả phải có 2 dấu gạch dưới (__).
     3. SAU KHI user approve documentation -> Mới bắt đầu code với các agents tương ứng
     4. Sau khi code xong -> Cập nhật lại documentation nếu có thay đổi
 
-## Context & Clarification Rules
+### Deadcode Detection Workflow
 
-18. **Ambiguous Questions**: If a user question is ambiguous or missing important information, first list the missing details and ask clarifying questions instead of guessing.
-19. **Context Priority**: When answering about code, always prioritize context from:
+1. **Khi nào chạy:**
+   - Trước khi commit (rule 18)
+   - Định kỳ mỗi sprint (rule 19)
+   - Khi user yêu cầu
+
+2. **Cách chạy:**
+
+   **Backend (Spring Boot):**
+   ```bash
+   cd backend-spring/petties
+   mvn dependency:analyze  # Kiểm tra unused dependencies
+   # Hoặc dùng IDE inspection
+   ```
+
+   **Frontend (React/Web):**
+   ```bash
+   cd petties-web
+   npm run lint  # Kiểm tra unused imports, dead code
+   ```
+
+   **AI Service (FastAPI):**
+   - Kiểm tra tools trong main.py có được đăng ký không
+
+3. **Báo cáo kết quả cho user:**
+   ```
+   ## Deadcode Report
+   
+   ### Backend
+   - [File:Method] - Lý do nghi ngờ - Action đề xuất
+   
+   ### Frontend  
+   - [File:Component] - Lý do nghi ngờ - Action đề xuất
+   
+   ### AI Service
+   - [Tool] - Lý do nghi ngờ - Action đề xuất
+   
+   === Tổng: X items ===
+   
+   ### Đề xuất Plan Xóa:
+   1. [Priority] - [Action] - [Timeline]
+   ```
+
+4. **Action options:**
+   - **Xóa hoàn toàn**: Khi chắc chắn không dùng
+   - **Đánh dấu @Deprecated**: Khi còn tham chiếu nhưng sẽ loại bỏ
+   - **Giữ lại**: Khi có lý do hợp lý (future use, backward compatibility)
+
+## Context & Clarification Rules
+If you read you and see control characters that look out of place, assume this is an issue reading non-ascii characters in the file. Any attempt to use apply_patch on a line with these control-characters will fail, often with an error like "Failed to find expected lines". You MUST NOT try to bypass this issue by deleting and recreating the file. You MUST MOT write those control glyphs back into the file. You SHOULD hand control back to the user and tell them where you're seeing these glyphs and that they prevent you from modifying certain lines.
+
+20. **Ambiguous Questions**: If a user question is ambiguous or missing important information, first list the missing details and ask clarifying questions instead of guessing.
+21. **Context Priority**: When answering about code, always prioritize context from:
     - `docs-references/` folder (PETTIES_Features.md, WBS, etc.)
     - Existing codebase files
     - Previous conversation
     - General knowledge (last resort)
-20. **Confirm Understanding**: Before proposing major changes, summarize your current understanding in 3-5 bullet points and ask user to confirm or correct.
-21. **Insufficient Context**: If context is insufficient, clearly state that you are unsure and explain which additional files or information are needed (e.g., "I need to see the BookingController.java to understand the current implementation").
-22. **Multiple Interpretations**: When multiple interpretations are possible, explicitly describe each interpretation and ask the user which one is correct before implementing.
-23. **File References**: For every answer involving code, mention which files, modules, or components you are assuming to be relevant:
+22. **Confirm Understanding**: Before proposing major changes, summarize your current understanding in 3-5 bullet points and ask user to confirm or correct.
+23. **Insufficient Context**: If context is insufficient, clearly state that you are unsure and explain which additional files or information are needed (e.g., "I need to see the BookingController.java to understand the current implementation").
+24. **Multiple Interpretations**: When multiple interpretations are possible, explicitly describe each interpretation and ask the user which one is correct before implementing.
+25. **File References**: For every answer involving code, mention which files, modules, or components you are assuming to be relevant:
     - Backend: `backend-spring/petties/src/main/java/com/petties/...`
     - Web: `petties-web/src/...`
     - Mobile: `petties_mobile/lib/...`
@@ -465,3 +506,105 @@ A skill is a set of local instructions to follow that is stored in a `SKILL.md` 
   - Avoid deep reference-chasing: prefer opening only files directly linked from `SKILL.md` unless you're blocked.
   - When variants exist (frameworks, providers, domains), pick only the relevant reference file(s) and note that choice.
 - Safety and fallback: If a skill can't be applied cleanly (missing files, unclear instructions), state the issue, pick the next-best approach, and continue.
+
+<!-- gitnexus:start -->
+# GitNexus — Code Intelligence
+
+This project is indexed by GitNexus as **petties** (13441 symbols, 36189 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+
+> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
+
+## Always Do
+
+- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
+- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
+- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
+- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
+- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
+
+## When Debugging
+
+1. `gitnexus_query({query: "<error or symptom>"})` — find execution flows related to the issue
+2. `gitnexus_context({name: "<suspect function>"})` — see all callers, callees, and process participation
+3. `READ gitnexus://repo/petties/process/{processName}` — trace the full execution flow step by step
+4. For regressions: `gitnexus_detect_changes({scope: "compare", base_ref: "main"})` — see what your branch changed
+
+## When Refactoring
+
+- **Renaming**: MUST use `gitnexus_rename({symbol_name: "old", new_name: "new", dry_run: true})` first. Review the preview — graph edits are safe, text_search edits need manual review. Then run with `dry_run: false`.
+- **Extracting/Splitting**: MUST run `gitnexus_context({name: "target"})` to see all incoming/outgoing refs, then `gitnexus_impact({target: "target", direction: "upstream"})` to find all external callers before moving code.
+- After any refactor: run `gitnexus_detect_changes({scope: "all"})` to verify only expected files changed.
+
+## Never Do
+
+- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
+- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
+- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
+- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
+
+## Tools Quick Reference
+
+| Tool | When to use | Command |
+|------|-------------|---------|
+| `query` | Find code by concept | `gitnexus_query({query: "auth validation"})` |
+| `context` | 360-degree view of one symbol | `gitnexus_context({name: "validateUser"})` |
+| `impact` | Blast radius before editing | `gitnexus_impact({target: "X", direction: "upstream"})` |
+| `detect_changes` | Pre-commit scope check | `gitnexus_detect_changes({scope: "staged"})` |
+| `rename` | Safe multi-file rename | `gitnexus_rename({symbol_name: "old", new_name: "new", dry_run: true})` |
+| `cypher` | Custom graph queries | `gitnexus_cypher({query: "MATCH ..."})` |
+
+## Impact Risk Levels
+
+| Depth | Meaning | Action |
+|-------|---------|--------|
+| d=1 | WILL BREAK — direct callers/importers | MUST update these |
+| d=2 | LIKELY AFFECTED — indirect deps | Should test |
+| d=3 | MAY NEED TESTING — transitive | Test if critical path |
+
+## Resources
+
+| Resource | Use for |
+|----------|---------|
+| `gitnexus://repo/petties/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/petties/clusters` | All functional areas |
+| `gitnexus://repo/petties/processes` | All execution flows |
+| `gitnexus://repo/petties/process/{name}` | Step-by-step execution trace |
+
+## Self-Check Before Finishing
+
+Before completing any code modification task, verify:
+1. `gitnexus_impact` was run for all modified symbols
+2. No HIGH/CRITICAL risk warnings were ignored
+3. `gitnexus_detect_changes()` confirms changes match expected scope
+4. All d=1 (WILL BREAK) dependents were updated
+
+## Keeping the Index Fresh
+
+After committing code changes, the GitNexus index becomes stale. Re-run analyze to update it:
+
+```bash
+npx gitnexus analyze
+```
+
+If the index previously included embeddings, preserve them by adding `--embeddings`:
+
+```bash
+npx gitnexus analyze --embeddings
+```
+
+To check whether embeddings exist, inspect `.gitnexus/meta.json` — the `stats.embeddings` field shows the count (0 means no embeddings). **Running analyze without `--embeddings` will delete any previously generated embeddings.**
+
+> Claude Code users: A PostToolUse hook handles this automatically after `git commit` and `git merge`.
+
+## CLI
+
+| Task | Read this skill file |
+|------|---------------------|
+| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
+| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
+| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
+| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
+| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
+
+<!-- gitnexus:end -->

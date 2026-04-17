@@ -142,9 +142,12 @@ export const ClinicOwnerRevenuePage = () => {
             const res = await clinicService.getMyClinics(0, 100);
 
             // Handle pagination from Spring or direct array
-            const clinicItems = Array.isArray(res) ? res : (res as any).content || (res as any).data || [];
+            const clinicItems = Array.isArray(res) ? res : (res as { content?: unknown[]; data?: unknown[] }).content || (res as { content?: unknown[]; data?: unknown[] }).data || [];
 
-            const loadedClinics = clinicItems.map((c: any) => ({ id: c.clinicId, name: c.name }));
+            const loadedClinics = clinicItems.map((c: unknown) => {
+                const clinic = c as { clinicId?: string; id?: string; name?: string };
+                return { id: clinic.clinicId || clinic.id || '', name: clinic.name || '' }
+            });
             setClinics(loadedClinics);
             if (loadedClinics.length > 0 && !selectedClinicId) {
                 setSelectedClinicId(loadedClinics[0].id);
@@ -275,8 +278,8 @@ export const ClinicOwnerRevenuePage = () => {
             showToast('success', 'Đã nộp đơn rút tiền thành công. Đơn đang chờ admin duyệt.');
             closeRefundModal();
             fetchRefunds(); // Refresh history
-        } catch (e: any) {
-            const msg = e?.response?.data?.message || 'Không thể nộp đơn. Vui lòng thử lại.';
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : (e as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Không thể nộp đơn. Vui lòng thử lại.'
             showToast('error', msg);
         } finally {
             setRefundSubmitting(false);

@@ -1,9 +1,9 @@
 ﻿# Ngrok Local Development Setup Guide
 
-Hướng dẫn cấu hình ngrok để kết nối Mobile App với Backend (8080) và AI Service (8000) qua internet mà không cần USB debugging.
+Hướng dẫn cấu hình ngrok để kết nối Web Frontend, Mobile App với Backend (8080) và AI Service (8000) qua internet trong local development.
 
-**Cập nhật:** 2026-02-06  
-**Áp dụng cho:** Petties Mobile App + Backend Local Development
+**Cập nhật:** 2026-04-02  
+**Áp dụng cho:** Petties Web Frontend + Mobile App + Backend Local Development
 
 ---
 
@@ -18,10 +18,13 @@ Hướng dẫn cấu hình ngrok để kết nối Mobile App với Backend (808
          │                                    │
          │         Nginx (Port 8080)          │
          │  ┌─────────────────────────────┐   │
+         │  ┌─────────────────────────────┐   │
          │  │  /api/* → Backend:8080      │   │
+         │  │  /api/v1/* → AI:8000        │   │  (AI REST API)
          │  │  /ws/chat/* → AI:8000       │   │  (AI WebSocket)
          │  │  /ws/* → Backend:8080       │   │  (Backend WebSocket)
-         │  │  /* → AI:8000               │   │  (AI REST API)
+         │  │  /ai/* → AI:8000            │   │  (AI REST API - legacy)
+         │  │  /* → Frontend:5173         │   │  (Web Frontend)
          │  └─────────────────────────────┘   │
          │                                    │
          └────────────────────────────────────┘
@@ -30,20 +33,23 @@ Hướng dẫn cấu hình ngrok để kết nối Mobile App với Backend (808
 **Routing chi tiết:**
 | Path | Destination | Service |
 |------|-------------|---------|
+| `/api/v1/*` | `ai-service:8000/api/v1/*` | AI REST API |
 | `/api/*` | `backend:8080/api/*` | Backend REST API |
 | `/ws/chat/*` | `ai-service:8000/ws/chat/*` | AI WebSocket Chat |
 | `/ws/*` | `backend:8080/ws/*` | Backend WebSocket |
 | `/ws-native/*` | `backend:8080/ws-native/*` | Backend Native WebSocket |
-| `/*` | `ai-service:8000/*` | AI REST API |
+| `/ai/*` | `ai-service:8000/*` | AI REST API (legacy prefix) |
+| `/*` | `host.docker.internal:5173/*` | Web Frontend (Vite dev server) |
 
-> **Lưu ý:** `/ws/chat/*` phải đặt TRƯỚC `/ws/*` trong nginx.conf để tránh bị route nhầm vào Backend.
+> **Lưu ý:** `/api/v1/*` phải đặt TRUOC `/api/*`, va `/ws/chat/*` phai dat TRUOC `/ws/*` trong nginx.conf de tranh route nham.
 
 ---
 
 ## Yêu cầu
 
 - [Ngrok account](https://ngrok.com/) (Free tier hoạt động tốt)
-- Backend Spring Boot chạy ở port 8080
+- Web Frontend Vite chạy ở port 5173
+- Backend Spring Boot chạy sau Nginx entrypoint (Nginx expose 8080, backend container map 8081 -> 8080)
 - AI Service FastAPI chạy ở port 8000 (nếu test chat/AI)
 - Flutter SDK đã cài đặt
 
@@ -76,12 +82,18 @@ cors:
 
 **File:** `nginx.conf` (ở thư mục gốc project)
 
-File này đã được cấu hình sẵn với đầy đủ WebSocket support cho cả Backend và AI Service:
+File này đã được cấu hình sẵn với đầy đủ WebSocket support cho Frontend, Backend và AI Service:
 
 ```nginx
 server {
     listen 80;
     
+    # AI REST API
+    location /api/v1/ {
+        proxy_pass http://host.docker.internal:8000;
+        ...
+    }
+
     # Backend REST API
     location /api/ {
         proxy_pass http://backend:8080/api/;
@@ -104,9 +116,9 @@ server {
         ...
     }
     
-    # AI REST API (catch-all)
+    # Web Frontend (Vite dev server)
     location / {
-        proxy_pass http://ai-service:8000/;
+        proxy_pass http://host.docker.internal:5173;
         ...
     }
 }
@@ -125,8 +137,9 @@ server {
 docker-compose -f docker-compose.dev.yml up -d
 
 # Services sẽ chạy ở:
-# - Nginx Reverse Proxy: http://localhost:8080 (gộp Backend + AI)
-# - Backend trực tiếp: http://localhost:8080/api/...
+# - Nginx Reverse Proxy: http://localhost:8080
+# - Frontend trực tiếp: http://localhost:5173
+# - Backend trực tiếp: http://localhost:8081/api/...
 # - AI Service trực tiếp: http://localhost:8000
 # - PostgreSQL: localhost:5432
 # - MongoDB: localhost:27017
@@ -185,7 +198,40 @@ Forwarding    https://abc123.ngrok-free.app -> http://localhost:8080
 
 > **Lưu ý:** Chỉ cần 1 tunnel duy nhất vì Nginx đã gộp Backend và AI Service vào cùng 1 port.
 
-### Step 3: Update Mobile Configuration
+### Step 3A: Update Web Frontend Configuration
+
+**File:** `petties-web/.env`
+
+Khi test Web Frontend qua nginx + ngrok, them host cua tunnel de Vite client tao dung websocket URL:
+
+```bash
+VITE_NGROK_HOST=abc123.ngrok-free.dev
+```
+
+> **Stability mode:** Khi `VITE_NGROK_HOST` duoc set, frontend uu tien do on dinh qua ngrok free tier. Fast Refresh/HMR se bi tat, vi vay ban can tai lai trang thu cong sau moi lan sua code.
+
+Neu frontend dang goi backend/AI qua cung domain ngrok, cap nhat cac bien lien quan theo URL moi:
+
+```bash
+VITE_API_BASE_URL=https://abc123.ngrok-free.dev/api
+VITE_WS_URL=wss://abc123.ngrok-free.dev/ws
+```
+
+**Run Web Frontend:**
+
+```bash
+cd petties-web
+npm install
+npm run dev
+```
+
+Sau do mo frontend bang:
+
+```bash
+https://abc123.ngrok-free.dev/
+```
+
+### Step 3B: Update Mobile Configuration
 
 **File:** `petties_mobile/.env`
 
@@ -380,6 +426,16 @@ curl http://localhost:8000/health
 curl https://yyy.ngrok.io/health
 ```
 
+### Issue 5: Web Frontend qua ngrok vao duoc trang goc nhung rot nhieu file `.tsx` / `.js`
+
+**Nguyen nhan thuong gap:** Vite dev server dang di qua nginx + ngrok, app tai qua nhieu module ngay first load, hoac websocket HMR dang dung sai host.
+
+**Fix:**
+- Dam bao `petties-web/.env` co `VITE_NGROK_HOST=<your-ngrok-domain>`
+- Restart `npm run dev`, restart nginx container, restart ngrok
+- Neu app da lon, uu tien lazy-load route-level pages de giam burst request ban dau
+- Neu chi can preview on dinh, dung production build thay vi dev server
+
 ---
 
 ## Alternative: Dùng IP LAN (Không cần ngrok) - Khuyến nghị cho OAuth
@@ -450,14 +506,16 @@ Write-Host "Updated .env with ngrok URLs"
 ## Checklist hàng ngày
 
 ### Trường hợp 1: Không cần test Google Sign-In (Khuyến nghị dùng ngrok)
+- [ ] Start Web Frontend Vite: `cd petties-web && npm run dev`
 - [ ] Start Backend Spring Boot (port 8080)
 - [ ] Start AI Service (port 8000) - nếu cần
 - [ ] Start ngrok tunnel cho 8080: `ngrok http 8080`
 - [ ] Start ngrok tunnel cho 8000: `ngrok http 8000` (nếu cần AI)
 - [ ] Copy ngrok URLs
+- [ ] Update `petties-web/.env`: `VITE_NGROK_HOST=<ngrok-domain>`
 - [ ] Update `petties_mobile/.env` với URLs mới
 - [ ] Run `flutter clean && flutter pub get && flutter run`
-- [ ] Test kết nối: Login (username/password), API calls
+- [ ] Test kết nối: Web frontend, login (username/password), API calls
 
 ### Trường hợp 2: Cần test Google Sign-In (Khuyến nghị dùng IP LAN)
 - [ ] Lấy IP LAN: `ipconfig` → ví dụ: `192.168.1.100`
@@ -486,4 +544,4 @@ Write-Host "Updated .env with ngrok URLs"
 ---
 
 *File location: `docs-references/development/NGROK_LOCAL_SETUP.md`*  
-*Last updated: 2026-02-06*
+*Last updated: 2026-04-02*

@@ -3,13 +3,13 @@ import { useEffect } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useNotificationStore } from '../store/notificationStore'
 import { Sidebar } from '../components/Sidebar/Sidebar'
+import MascotProvider from '../components/mascot/MascotProvider'
 import type { NavGroup } from '../components/Sidebar/Sidebar'
 import { useSidebar } from '../hooks/useSidebar'
 import { useSseNotification } from '../hooks/useSseNotification'
 import { useSyncProfile } from '../hooks/useSyncProfile'
 import { useMembershipStore } from '../store/membershipStore'
 import { useClinicStore } from '../store/clinicStore'
-import { subscriptionService } from '../services/api/subscriptionService'
 import { useSandboxStore } from '../store/sandboxStore'
 import { SandboxHeader } from '../components/sandbox/SandboxHeader'
 import { SandboxGuideSteps } from '../components/sandbox/SandboxGuideSteps'
@@ -23,7 +23,7 @@ import {
     BeakerIcon,
     BellIcon,
     PresentationChartLineIcon,
-    UserCircleIcon
+    UserCircleIcon,
 } from '@heroicons/react/24/outline'
 import '../styles/brutalist.css'
 
@@ -36,8 +36,8 @@ export const ClinicOwnerLayout = () => {
     const refreshUnreadCount = useNotificationStore((state) => state.refreshUnreadCount)
     const { state, toggleSidebar, isMobile } = useSidebar()
 
-    const setMembership = useMembershipStore(state => state.setMembership)
-    const { clinics, getMyClinics } = useClinicStore()
+    const fetchMembershipStatus = useMembershipStore(state => state.fetchMembershipStatus)
+    const { getMyClinics, selectedClinicId } = useClinicStore()
 
     const isVIP = useMembershipStore(state => state.isVIP())
     const planName = useMembershipStore(state => state.getPlanName())
@@ -56,12 +56,10 @@ export const ClinicOwnerLayout = () => {
     }, [refreshUnreadCount, getMyClinics])
 
     useEffect(() => {
-        if (clinics && clinics.length > 0) {
-            subscriptionService.getClinicSubscription(clinics[0].clinicId)
-                .then(sub => setMembership(sub))
-                .catch(() => setMembership(null))
+        if (selectedClinicId) {
+            fetchMembershipStatus(selectedClinicId)
         }
-    }, [clinics, setMembership])
+    }, [selectedClinicId, fetchMembershipStatus])
 
     const navGroups: NavGroup[] = [
         {
@@ -161,6 +159,8 @@ export const ClinicOwnerLayout = () => {
                     <Outlet />
                 </div>
             </main>
+
+            <MascotProvider />
         </div>
     )
 }

@@ -1,6 +1,6 @@
 /**
  * Sentry Error Tracking Configuration
- * Auto-reports errors to Slack via Sentry integration
+ * Auto-reports errors to Discord via Sentry integration
  */
 import * as Sentry from '@sentry/react'
 
@@ -29,8 +29,8 @@ export const initSentry = () => {
             Sentry.browserTracingIntegration(),
             Sentry.replayIntegration({
                 // Capture 10% of sessions, 100% of sessions with errors
-                maskAllText: false,
-                blockAllMedia: false,
+                maskAllText: true,
+                blockAllMedia: true,
             }),
         ],
 

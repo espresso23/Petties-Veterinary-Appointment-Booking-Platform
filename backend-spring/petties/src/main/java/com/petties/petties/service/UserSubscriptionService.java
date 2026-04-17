@@ -4,15 +4,18 @@ import com.petties.petties.dto.subscription.ClinicSubscriptionStatusDto;
 import com.petties.petties.dto.subscription.SubscribeRequestDto;
 import com.petties.petties.dto.subscription.SubscriptionPlanResponseDto;
 import com.petties.petties.dto.subscription.UserSubscriptionResponseDto;
+import com.petties.petties.dto.subscription.MySubscriptionStatusDto;
 import com.petties.petties.exception.BadRequestException;
 import com.petties.petties.exception.ResourceNotFoundException;
 import com.petties.petties.model.*;
 import com.petties.petties.model.enums.PaymentStatus;
 import com.petties.petties.model.enums.UserSubscriptionStatus;
+import com.petties.petties.model.enums.Role;
 import com.petties.petties.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -242,5 +245,78 @@ public class UserSubscriptionService {
                 }
 
                 return dto;
+        }
+
+        @Transactional(readOnly = true)
+        public MySubscriptionStatusDto getMySubscriptionStatus(User currentUser) {
+                String role = currentUser.getRole().name();
+                boolean isPetOwner = role.equals("PET_OWNER");
+                
+                // DEV mode check - can be from env variable
+                boolean isDevMode = isPetOwner; // PET_OWNER always get dev mode response for now
+                
+                // PET_OWNER: Return mock active subscription
+                if (isPetOwner) {
+                        log.info("PET_OWNER subscription status: returning mock active");
+                        return MySubscriptionStatusDto.builder()
+                                .status("ACTIVE")
+                                .planName("Pet Owner Free")
+                                .userRole(role)
+                                .clinicId(null)
+                                .clinicName(null)
+                                .startDate(null)
+                                .endDate(null)
+                                .isPetOwner(true)
+                                .isDevMode(true)
+                                .build();
+                }
+                
+                // CLINIC_OWNER, STAFF: Get subscription from clinic
+                // For now, return NOT_SUBSCRIBED if no clinic or no subscription
+                // This will be expanded when workingClinicId is properly set
+                if (currentUser.getWorkingClinic() == null) {
+                        log.info("User {} has no working clinic, returning not subscribed", currentUser.getUserId());
+                        return MySubscriptionStatusDto.builder()
+                                .status("NOT_SUBSCRIBED")
+                                .planName(null)
+                                .userRole(role)
+                                .clinicId(null)
+                                .clinicName(null)
+                                .startDate(null)
+                                .endDate(null)
+                                .isPetOwner(false)
+                                .isDevMode(false)
+                                .build();
+                }
+                
+                // Get subscription for working clinic
+                var clinic = currentUser.getWorkingClinic();
+                try {
+                        var subscription = getClinicSubscription(clinic.getClinicId());
+                        return MySubscriptionStatusDto.builder()
+                                .status(subscription.getStatus().name())
+                                .planName(subscription.getPlan().getName())
+                                .userRole(role)
+                                .clinicId(clinic.getClinicId())
+                                .clinicName(clinic.getName())
+                                .startDate(subscription.getStartDate())
+                                .endDate(subscription.getEndDate())
+                                .isPetOwner(false)
+                                .isDevMode(false)
+                                .build();
+                } catch (ResourceNotFoundException e) {
+                        log.info("Clinic {} has no subscription", clinic.getClinicId());
+                        return MySubscriptionStatusDto.builder()
+                                .status("NOT_SUBSCRIBED")
+                                .planName(null)
+                                .userRole(role)
+                                .clinicId(clinic.getClinicId())
+                                .clinicName(clinic.getName())
+                                .startDate(null)
+                                .endDate(null)
+                                .isPetOwner(false)
+                                .isDevMode(false)
+                                .build();
+                }
         }
 }

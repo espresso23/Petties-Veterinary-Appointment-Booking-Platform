@@ -11,43 +11,23 @@ interface ToolCardProps {
   onToggle: (enabled: boolean) => Promise<void>
 }
 
-/**
- * Tool Card Component
- * Displays tool information with enable/disable toggle
- * Simplified UI - just name, description, toggle
- */
 const PLAYGROUND_TESTABLE_TOOLS = new Set([
   'pet_knowledge_search',
   'web_search'
 ])
 
-const SYSTEM_MANAGED_TOOLS = new Set([
-  'get_user_pets',
-  'search_clinics_nearby',
-  'get_clinic_services',
-  'check_vaccination_status',
-  'check_available_slots',
-  'create_booking_for_user'
-])
-
-const getToolScope = (toolName: string) => {
-  if (PLAYGROUND_TESTABLE_TOOLS.has(toolName)) {
-    return {
-      label: 'Playground testable',
-      className: 'bg-emerald-100 text-emerald-700'
-    }
-  }
-
-  return {
-    label: 'Business chat only',
-    className: 'bg-amber-100 text-amber-700'
-  }
-}
-
 export const ToolCard = ({ tool, onToggle }: ToolCardProps) => {
   const [expanded, setExpanded] = useState(false)
-  const toolScope = getToolScope(tool.name)
-  const isSystemManaged = SYSTEM_MANAGED_TOOLS.has(tool.name)
+  
+  const isPlaygroundTestable = PLAYGROUND_TESTABLE_TOOLS.has(tool.name)
+  const isSystemManaged = tool.is_system_managed ?? false
+  const isAdminConfigurable = tool.is_admin_configurable ?? isPlaygroundTestable
+
+  const toolScope = isPlaygroundTestable
+    ? { label: 'Playground testable', className: 'bg-emerald-100 text-emerald-700' }
+    : { label: 'Business chat only', className: 'bg-amber-100 text-amber-700' }
+
+  const showToggle = isAdminConfigurable && !isSystemManaged
 
   return (
     <div className={`
@@ -87,7 +67,7 @@ export const ToolCard = ({ tool, onToggle }: ToolCardProps) => {
         </div>
 
         <div className="flex items-center gap-3 flex-shrink-0">
-          {!isSystemManaged && (
+          {showToggle && (
             <label
               className="relative inline-flex items-center cursor-pointer"
               onClick={(e) => e.stopPropagation()}
@@ -137,14 +117,16 @@ export const ToolCard = ({ tool, onToggle }: ToolCardProps) => {
 
             <div className="pt-2">
               <p className="text-xs text-stone-500 leading-relaxed">
-                {PLAYGROUND_TESTABLE_TOOLS.has(tool.name)
+                {isPlaygroundTestable
                   ? 'Tool này có thể bật/tắt để kiểm tra trong Playground admin vì không phụ thuộc business context hoặc side effect nghiệp vụ.'
                   : 'Tool này được hệ thống bật sẵn cho business chat. Nó cần user context thật như user, pet, clinic, JWT hoặc xác nhận booking nên không dùng để test trực tiếp trong Playground admin.'}
               </p>
               <p className="text-xs font-semibold text-stone-700 mt-2">
                 {isSystemManaged
-                  ? 'Trạng thái: Luôn bật theo cấu hình hệ thống của petties_agent'
-                  : 'Trạng thái: Admin có thể bật/tắt để test Playground'}
+                  ? 'Trạng thái: Luôn bật theo cấu hình hệ thống (SYSTEM_MANAGED_TOOLS)'
+                  : isAdminConfigurable
+                    ? 'Trạng thái: Admin có thể bật/tắt để test Playground'
+                    : 'Trạng thái: Tool không thể bật/tắt'}
               </p>
             </div>
           </div>

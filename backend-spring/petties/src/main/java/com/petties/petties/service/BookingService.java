@@ -248,6 +248,26 @@ public class BookingService {
         }
 
         /**
+         * Build QR image URL for payment
+         */
+        private String buildQrImageUrl(Booking booking, Payment payment) {
+                if (payment == null) return null;
+                if (payment.getMethod() != PaymentMethod.QR) return null;
+                if (payment.getStatus() == PaymentStatus.PAID) return null;
+                String desc = payment.getPaymentDescription();
+                if (desc == null || desc.isBlank()) return null;
+                if (sepayQrAcc == null || sepayQrAcc.isBlank() ||
+                        sepayQrBank == null || sepayQrBank.isBlank()) return null;
+                BigDecimal amount = booking.getFinalPrice() != null ? booking.getFinalPrice() : booking.getTotalPrice();
+                return String.format(
+                        "https://qr.sepay.vn/img?acc=%s&bank=%s&amount=%s&des=%s",
+                        sepayQrAcc,
+                        sepayQrBank,
+                        amount != null ? amount.toBigInteger().toString() : "0",
+                        desc);
+        }
+
+        /**
          * Prepare QR payment immediately after booking creation.
          * Creates/reuses Payment as QR/PENDING, generates paymentDescription and QR image URL.
          */
@@ -487,6 +507,19 @@ public class BookingService {
                                 booking.getBookingServices().add(item);
                         }
                         log.debug("Services added to booking object");
+
+                        // ========== DUPLICATE BOOKING CHECK ==========
+                        // Check before insert to give clear Vietnamese error message
+                        boolean hasDuplicate = bookingRepository.existsActiveBookingAtTime(
+                                        request.getPetId(),
+                                        request.getClinicId(),
+                                        request.getBookingDate(),
+                                        request.getBookingTime());
+                        if (hasDuplicate) {
+                                throw new BadRequestException(
+                                                "Thú cưng này đã có lịch hẹn đang hoạt động vào thời gian này tại phòng khám. " +
+                                                                "Vui lòng hủy lịch cũ trước hoặc chọn thời gian khác.");
+                        }
 
                         // Generate unique booking code using UUID (no race condition)
                         String bookingCode = Booking.generateUniqueBookingCode(request.getBookingDate());
@@ -1452,10 +1485,63 @@ public class BookingService {
                         return bookingMapper.mapToResponse(savedBooking);
                 }
 
-                // Với QR, bắt buộc phải xác nhận PAID trước khi complete.
-                if (method == PaymentMethod.QR) {
-                        throw new BadRequestException(
-                                        "Booking QR chưa thanh toán thành công. Vui lòng chờ xác nhận thanh toán trước khi hoàn tất.");
+                // Với QR, cho phép hoàn tất booking mà chưa thanh toán.
+                // Pet owner có thể thanh toán sau qua app mobile.
+                if (method == PaymentMethod.QR && (payment == null || payment.getStatus() != PaymentStatus.PAID)) {
+                        log.info("Booking {} using QR payment - will be paid after completion", booking.getBookingCode());
+
+                        // Ensure payment exists with PENDING status
+                        if (payment == null) {
+                                payment = Payment.builder()
+                                                .booking(booking)
+                                                .amount(finalTotal)
+                                                .method(PaymentMethod.QR)
+                                                .status(PaymentStatus.PENDING)
+                                                .build();
+                                payment = paymentRepository.save(payment);
+                        } else {
+                                payment.setMethod(PaymentMethod.QR);
+                                payment.setAmount(finalTotal);
+                                payment.setStatus(PaymentStatus.PENDING);
+                                payment.setPaidAt(null);
+                                payment.setPaymentDescription(null);
+                                payment = paymentRepository.save(payment);
+                        }
+
+                        booking.setPayment(payment);
+                        booking.syncPaymentStatus(payment);
+                        booking.setStatus(BookingStatus.COMPLETED);
+                        Booking savedBooking = bookingRepository.save(booking);
+                        if (savedBooking != null) {
+                                booking = savedBooking;
+                        }
+
+                        try {
+                                trackingService.clearTracking(bookingId);
+                        } catch (Exception e) {
+                                log.warn("Failed to clear tracking data: {}", e.getMessage());
+                        }
+
+                        bookingNotificationService.pushBookingUpdateToUsers(booking, "COMPLETED");
+                        try {
+                                notificationService.sendCompletedNotification(booking);
+                        } catch (Exception e) {
+                                log.warn("Failed to send completed notification after checkout: {}", e.getMessage());
+                        }
+
+                        log.info("Booking {} completed with pending QR payment. Pet owner can pay via mobile app.",
+                                        booking.getBookingCode());
+
+                        // Generate QR image URL for pending payment
+                        BookingResponse response = bookingMapper.mapToResponse(booking);
+                        if (payment.getPaymentDescription() == null || payment.getPaymentDescription().isBlank()) {
+                                String paymentDesc = transactionService.generatePaymentDescription(booking.getBookingId());
+                                payment.setPaymentDescription(paymentDesc);
+                                paymentRepository.save(payment);
+                        }
+                        String qrImageUrl = buildQrImageUrl(booking, payment);
+                        response.setQrImageUrl(qrImageUrl);
+                        return response;
                 }
 
                 // Dùng lại hoặc tạo mới payment CASH
@@ -2188,12 +2274,27 @@ public class BookingService {
          */
         @Transactional(readOnly = true)
         public List<ClinicTodayBookingResponse> getClinicTodayBookings(
-                        UUID clinicId, User currentStaff) {
-                log.info("Getting today's bookings for clinic {} by staff {}", clinicId, currentStaff.getUserId());
+                        UUID clinicId, User currentUser) {
+                log.info("Getting today's bookings for clinic {} by user {} with role {}",
+                                clinicId,
+                                currentUser.getUserId(),
+                                currentUser.getRole());
 
-                // Validate: Staff must belong to the clinic
-                if (currentStaff.getWorkingClinic() == null ||
-                                !currentStaff.getWorkingClinic().getClinicId().equals(clinicId)) {
+                boolean hasPermission = false;
+                Role role = currentUser.getRole();
+
+                if (role == Role.ADMIN) {
+                        hasPermission = true;
+                } else if (role == Role.STAFF || role == Role.CLINIC_MANAGER) {
+                        hasPermission = currentUser.getWorkingClinic() != null
+                                        && clinicId.equals(currentUser.getWorkingClinic().getClinicId());
+                } else if (role == Role.CLINIC_OWNER) {
+                        hasPermission = clinicRepository.existsByClinicIdAndOwnerUserId(
+                                        clinicId,
+                                        currentUser.getUserId());
+                }
+
+                if (!hasPermission) {
                         throw new ForbiddenException(
                                         "Bạn không có quyền xem lịch hẹn của phòng khám này");
                 }
@@ -2203,7 +2304,7 @@ public class BookingService {
 
                 return bookings.stream()
                                 .map(booking -> bookingMapper.mapToClinicTodayResponse(booking,
-                                                currentStaff.getUserId()))
+                                                currentUser.getUserId()))
                                 .collect(Collectors.toList());
         }
 

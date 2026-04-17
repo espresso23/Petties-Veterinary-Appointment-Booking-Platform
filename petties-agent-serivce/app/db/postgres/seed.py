@@ -1,4 +1,4 @@
-﻿"""
+"""
 PETTIES AGENT SERVICE - Database Seeding
 Logic to initialize default agents, tools, and settings.
 """
@@ -8,6 +8,7 @@ from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.postgres.models import (
     Agent,
+    normalize_setting_category,
     Tool,
     ToolType,
     SystemSetting,
@@ -40,7 +41,7 @@ async def seed_data(db: AsyncSession, force: bool = False):
                 setting = SystemSetting(
                     key=setting_data["key"],
                     value=setting_data["value"],
-                    category=setting_data["category"],
+                    category=normalize_setting_category(setting_data["category"]),
                     is_sensitive=setting_data["is_sensitive"],
                     description=setting_data["description"],
                 )
@@ -313,8 +314,3 @@ async def seed_data(db: AsyncSession, force: bool = False):
         logger.error(f"Seed error: {e}")
         await db.rollback()
         raise e
-
-
-
-
-

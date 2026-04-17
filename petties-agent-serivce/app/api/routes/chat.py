@@ -23,6 +23,7 @@ from app.core.chat_context import (
     normalize_context_type,
 )
 from app.core.database.mongodb import (
+    expire_chat_session_state_if_needed,
     save_chat_session,
     save_chat_message,
     get_chat_history,
@@ -31,6 +32,7 @@ from app.core.database.mongodb import (
     touch_chat_session,
     delete_chat_session as delete_chat_session_document,
 )
+from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +105,7 @@ class ChatSessionResponse(BaseModel):
     context_type: str = BUSINESS_CHAT
     user_role: Optional[str] = None
     clinic_id: Optional[str] = None
+    booking_state: Optional[dict] = None
     messages: List[ChatMessage] = []
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -170,6 +173,7 @@ def _map_session(
         context_type=session.get("context_type", BUSINESS_CHAT),
         user_role=session.get("user_role"),
         clinic_id=session.get("clinic_id"),
+        booking_state=session.get("booking_state"),
         messages=[_map_message(message) for message in (messages or [])],
         created_at=session.get("created_at"),
         updated_at=session.get("updated_at"),
@@ -183,9 +187,9 @@ def _map_session(
     "/sessions", response_model=CreateSessionResponse, summary="Create new chat session"
 )
 async def create_session(
-    request: CreateSessionRequest, 
+    request: CreateSessionRequest,
     user: CurrentUser = Depends(get_current_user),
-    _Subscription: bool = Depends(check_active_subscription)
+    _Subscription: bool = Depends(check_active_subscription),
 ):
     """
     Create a new chat session
@@ -248,6 +252,10 @@ async def list_sessions(
         context_type=normalized_context,
         limit=limit,
     )
+    sessions = [
+        await expire_chat_session_state_if_needed(s.get("session_id"), s)
+        for s in sessions
+    ]
 
     return SessionListResponse(
         total=len(sessions), sessions=[_map_session(s) for s in sessions]
@@ -264,7 +272,11 @@ async def get_session(session_id: str, user: CurrentUser = Depends(get_current_u
     Get chat session with all messages
     """
     session = _validate_session_access(await get_chat_session(session_id), user)
-    messages = await get_chat_history(session_id)
+    session = await expire_chat_session_state_if_needed(session_id, session)
+    restore_history_limit = max(
+        1, min(int(getattr(settings, "CHAT_HISTORY_RESTORE_LIMIT", 100)), 200)
+    )
+    messages = await get_chat_history(session_id, limit=restore_history_limit)
     return _map_session(session, messages)
 
 
@@ -277,7 +289,7 @@ async def send_message(
     session_id: str,
     request: SendMessageRequest,
     user: CurrentUser = Depends(get_current_user),
-    _Subscription: bool = Depends(check_active_subscription)
+    _Subscription: bool = Depends(check_active_subscription),
 ):
     """
     Save user message to chat session.
@@ -286,6 +298,7 @@ async def send_message(
     AI responses are delivered via WebSocket at /ws/chat/{session_id}?token={jwt}.
     """
     session = _validate_session_access(await get_chat_session(session_id), user)
+    session = await expire_chat_session_state_if_needed(session_id, session)
     context_type = session.get("context_type", BUSINESS_CHAT)
     now = datetime.now(timezone.utc)
     message_id = str(uuid.uuid4())
@@ -506,6 +519,34 @@ async def update_feedback(
 
 
 @router.delete(
+    "/sessions/{session_id}",
+    summary="Xóa phiên chat",
+)
+async def delete_chat_session(
+    session_id: str,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """
+    Xóa phiên chat (soft delete).
+
+    Đánh dấu session là deleted thay vì xóa hẳn để giữ audit trail.
+    """
+    session = await get_chat_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Không tìm thấy session")
+
+    if session.get("user_id") != user.user_id:
+        raise HTTPException(
+            status_code=403, detail="Bạn không có quyền xóa session này"
+        )
+
+    await delete_chat_session_document(session_id)
+    logger.info(f"Deleted chat session: {session_id}")
+
+    return {"success": True, "message": "Đã xóa phiên chat"}
+
+
+@router.delete(
     "/feedback/{feedback_id}",
     summary="Feedback là append-only, không hỗ trợ xóa",
 )
@@ -522,4 +563,3 @@ async def delete_feedback(
         status_code=403,
         detail="Feedback chi phuc vu phan tich va giam sat, khong ho tro xoa",
     )
-

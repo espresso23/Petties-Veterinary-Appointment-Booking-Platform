@@ -11,10 +11,10 @@ void main() {
       );
 
       final suggestions = buildAiChatAutocompleteSuggestions(
-        query: 'dat lich',
+        query: 'đặt lịch',
         quickPrompts: const <String>[
-          'Dat lich cho thu cung cua toi',
-          'Tim phong kham gan toi',
+          'Đặt lịch cho thú cưng của tôi',
+          'Tìm phòng khám gần tôi',
         ],
         tracker: tracker,
       );
@@ -27,27 +27,95 @@ void main() {
         suggestions.any((item) => item.contains('Pet Care Da Nang')),
         isTrue,
       );
+      expect(suggestions.length, lessThanOrEqualTo(5));
     });
 
     test('uu tien loc quick prompts khi query khop truc tiep', () {
       final suggestions = buildAiChatAutocompleteSuggestions(
         query: 'gan toi',
         quickPrompts: const <String>[
-          'Tim phong kham gan toi',
-          'Dat lich tiem phong sang mai',
+          'Tìm phòng khám gần tôi',
+          'Đặt lịch tiêm phòng sáng mai',
         ],
         tracker: AiBookingTrackerSnapshot.empty,
       );
 
-      expect(suggestions.first, 'Tim phong kham gan toi');
+      expect(suggestions.first, 'Tìm phòng khám gần tôi');
+    });
+
+    test('goi y da dang category thay vi lap lai mot mau', () {
+      const tracker = AiBookingTrackerSnapshot(
+        petName: 'Mimi',
+        clinicName: 'Pet Care Da Nang',
+        serviceNames: <String>['khám tổng quát'],
+        status: 'COLLECTING',
+      );
+
+      final suggestions = buildAiChatAutocompleteSuggestions(
+        query: 'pet',
+        quickPrompts: const <String>[
+          'Pet Care Da Nang mở cửa mấy giờ?',
+          'Tìm phòng khám gần tôi',
+        ],
+        tracker: tracker,
+      );
+
+      expect(suggestions.length, greaterThanOrEqualTo(3));
+      expect(
+        suggestions.toSet().length,
+        suggestions.length,
+      );
+      expect(
+        suggestions
+            .any((item) => item.contains('Pet Care Da Nang mở cửa mấy giờ')),
+        isTrue,
+      );
+      expect(
+        suggestions.any((item) => item.contains('Mimi')),
+        isTrue,
+      );
+    });
+
+    test('uu tien goi y tiep tuc khi booking dang tam dung', () {
+      const tracker = AiBookingTrackerSnapshot(
+        petName: 'Milo',
+        status: 'SUSPENDED',
+      );
+
+      final suggestions = buildAiChatAutocompleteSuggestions(
+        query: 'tiep',
+        quickPrompts: const <String>[],
+        tracker: tracker,
+      );
+
+      expect(
+        suggestions.any(
+            (item) => item.contains('Tiếp tục giúp tôi phần đặt lịch đang dở')),
+        isTrue,
+      );
+    });
+
+    test('giu goi y hien thi tieng viet co dau', () {
+      final suggestions = buildAiChatAutocompleteSuggestions(
+        query: 'tiem',
+        quickPrompts: const <String>[],
+        tracker: const AiBookingTrackerSnapshot(petName: 'Milo'),
+      );
+
+      expect(
+        suggestions.any(
+          (item) => item.contains('tiêm') || item.contains('Tiêm'),
+        ),
+        isTrue,
+      );
     });
 
     test('khong goi y khi composer dang rong', () {
       final suggestions = buildAiChatAutocompleteSuggestions(
         query: '',
         quickPrompts: const <String>[
-          'Dat lich cho thu cung cua toi',
-          'Tim phong kham gan toi',
+          'Đặt lịch cho thú cưng của tôi',
+          'Tìm phòng khám gần tôi',
         ],
         tracker: const AiBookingTrackerSnapshot(
           petName: 'Hadine',

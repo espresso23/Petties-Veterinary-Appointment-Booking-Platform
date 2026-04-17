@@ -1108,8 +1108,10 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
   }
 
   Widget _buildVetInfoRow({bool compact = false}) {
+    // Chỉ cho phép gọi khi có số điện thoại của staff
     final hasPhone =
-        _booking?.assignedStaffPhone != null || _booking?.clinicPhone != null;
+        _booking?.assignedStaffPhone != null &&
+        _booking!.assignedStaffPhone!.isNotEmpty;
 
     return Row(
       children: [
@@ -1169,8 +1171,8 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
         ),
         if (hasPhone)
           ElevatedButton.icon(
-            onPressed: () => _makePhoneCall(
-                _booking?.assignedStaffPhone ?? _booking!.clinicPhone!),
+            onPressed: () =>
+                _makePhoneCall(_booking!.assignedStaffPhone!),
             icon: const Icon(Icons.phone, size: 18),
             label: const Text('GỌI'),
             style: ElevatedButton.styleFrom(
@@ -1214,53 +1216,56 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
         builder: (context, scrollController) {
           final bool isCollapsed = _sheetExtent <= _kSheetMinSize + 0.02;
 
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-            child: SingleChildScrollView(
-              controller: scrollController,
-              physics: const ClampingScrollPhysics(),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(height: 8),
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.stone300,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  AnimatedCrossFade(
-                    duration: const Duration(milliseconds: 200),
-                    crossFadeState: isCollapsed
-                        ? CrossFadeState.showFirst
-                        : CrossFadeState.showSecond,
-                    firstChild: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
-                      ),
+          return SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+              child: SingleChildScrollView(
+                controller: scrollController,
+                physics: const ClampingScrollPhysics(),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 8),
+                    Container(
+                      width: 40,
+                      height: 4,
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.12),
-                            blurRadius: 12,
-                            offset: const Offset(0, -2),
-                          ),
-                        ],
-                        border: Border.all(
-                          color: AppColors.coral.withValues(alpha: 0.2),
-                        ),
+                        color: AppColors.stone300,
+                        borderRadius: BorderRadius.circular(2),
                       ),
-                      child: _buildVetInfoRow(compact: true),
                     ),
-                    secondChild: _buildVetInfoCard(),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    AnimatedCrossFade(
+                      duration: const Duration(milliseconds: 200),
+                      crossFadeState: isCollapsed
+                          ? CrossFadeState.showFirst
+                          : CrossFadeState.showSecond,
+                      firstChild: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.12),
+                              blurRadius: 12,
+                              offset: const Offset(0, -2),
+                            ),
+                          ],
+                          border: Border.all(
+                            color: AppColors.coral.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        child: _buildVetInfoRow(compact: true),
+                      ),
+                      secondChild: _buildVetInfoCard(),
+                    ),
+                  ],
+                ),
               ),
             ),
           );

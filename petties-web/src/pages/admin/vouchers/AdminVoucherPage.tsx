@@ -219,8 +219,8 @@ function CreateVoucherModal({ open, onClose, onCreated, initialData }: CreateMod
             }
             onCreated()
             onClose()
-        } catch (err: any) {
-            const msg = err?.response?.data?.message || (initialData ? 'Cập nhật thất bại' : 'Tạo voucher thất bại')
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : (err as { response?: { data?: { message?: string } } })?.response?.data?.message || (initialData ? 'Cập nhật thất bại' : 'Tạo voucher thất bại')
             showToast('error', msg)
         } finally {
             setIsSubmitting(false)
@@ -275,7 +275,7 @@ function CreateVoucherModal({ open, onClose, onCreated, initialData }: CreateMod
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
                             <label className="block text-xs font-bold uppercase text-stone-500 mb-1.5">Loại Giảm *</label>
-                            <select value={form.discountType} onChange={e => set('discountType', e.target.value as any)}
+                            <select value={form.discountType} onChange={e => set('discountType', e.target.value as 'PERCENTAGE' | 'FIXED_AMOUNT')}
                                 className="w-full px-3 py-2.5 border-2 border-stone-900 rounded-lg bg-white shadow-[2px_2px_0_#1c1917] focus:outline-none focus:border-amber-600 font-medium text-sm">
                                 <option value="PERCENTAGE">Giảm %</option>
                                 <option value="FIXED_AMOUNT">Giảm cố định (VND)</option>
@@ -508,8 +508,8 @@ export const AdminVoucherPage = () => {
             showToast('success', 'Đã xóa voucher')
             setConfirmDelete(null)
             loadVouchers()
-        } catch (err: any) {
-            const msg = err?.response?.data?.message || 'Xóa voucher thất bại'
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Xóa voucher thất bại'
             showToast('error', msg)
         } finally {
             setIsSubmitting(false)
