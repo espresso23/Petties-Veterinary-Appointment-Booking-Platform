@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -34,7 +35,7 @@ public class LoggingInterceptor implements HandlerInterceptor {
     private static final String USER_ID_HEADER = "X-User-ID";
     private static final String USER_ROLE_HEADER = "X-User-Roles";
 
-    private final BackendAuditLogService backendAuditLogService;
+    private final ObjectProvider<BackendAuditLogService> backendAuditLogServiceProvider;
 
     private static final List<Pattern> SENSITIVE_PARAMS = Arrays.asList(
             Pattern.compile("password", Pattern.CASE_INSENSITIVE),
@@ -176,20 +177,23 @@ public class LoggingInterceptor implements HandlerInterceptor {
         }
 
         if (!skipLogging) {
-            backendAuditLogService.writeHttpAuditEvent(
-                    requestId,
-                    traceId,
-                    method,
-                    path,
-                    query,
-                    userId != null ? userId : "anonymous",
-                    role != null ? role : "ANONYMOUS",
-                    authType,
-                    clientIp != null ? clientIp : "unknown",
-                    status,
-                    duration,
-                    errorReason
-            );
+            BackendAuditLogService backendAuditLogService = backendAuditLogServiceProvider.getIfAvailable();
+            if (backendAuditLogService != null) {
+                backendAuditLogService.writeHttpAuditEvent(
+                        requestId,
+                        traceId,
+                        method,
+                        path,
+                        query,
+                        userId != null ? userId : "anonymous",
+                        role != null ? role : "ANONYMOUS",
+                        authType,
+                        clientIp != null ? clientIp : "unknown",
+                        status,
+                        duration,
+                        errorReason
+                );
+            }
         }
 
         MDC.clear();
