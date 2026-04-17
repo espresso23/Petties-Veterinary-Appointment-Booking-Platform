@@ -87,6 +87,11 @@ export const NotificationsPage = () => {
       case 'APPROVED':
       case 'REJECTED':
         return '/admin/clinics'
+      case 'CLINIC_SUSPEND_REQUEST':
+      case 'CLINIC_SUSPEND_APPROVED':
+      case 'CLINIC_SUSPEND_REJECTED':
+      case 'CLINIC_ACTIVATED':
+        return '/admin/clinic-suspensions'
       default:
         return null
     }
@@ -124,6 +129,14 @@ export const NotificationsPage = () => {
         return 'bg-amber-100 border-amber-600'
       case 'CLINIC_VERIFIED':
         return 'bg-green-100 border-green-600'
+      case 'CLINIC_SUSPEND_REQUEST':
+        return 'bg-amber-100 border-amber-600'
+      case 'CLINIC_SUSPEND_APPROVED':
+        return 'bg-green-100 border-green-600'
+      case 'CLINIC_SUSPEND_REJECTED':
+        return 'bg-red-100 border-red-600'
+      case 'CLINIC_ACTIVATED':
+        return 'bg-teal-100 border-teal-600'
       default:
         return 'bg-stone-100 border-stone-600'
     }
@@ -141,6 +154,14 @@ export const NotificationsPage = () => {
         return 'PHÒNG KHÁM MỚI ĐĂNG KÝ'
       case 'CLINIC_VERIFIED':
         return 'PHÒNG KHÁM ĐÃ XÁC MINH'
+      case 'CLINIC_SUSPEND_REQUEST':
+        return 'YÊU CẦU TẠM NGƯNG PHÒNG KHÁM'
+      case 'CLINIC_SUSPEND_APPROVED':
+        return 'YÊU CẦU TẠM NGƯNG ĐÃ DUYỆT'
+      case 'CLINIC_SUSPEND_REJECTED':
+        return 'YÊU CẦU TẠM NGƯNG BỊ TỪ CHỐI'
+      case 'CLINIC_ACTIVATED':
+        return 'PHÒNG KHÁM ĐÃ KÍCH HOẠT LẠI'
       default:
         return 'THÔNG BÁO HỆ THỐNG'
     }
@@ -185,6 +206,38 @@ export const NotificationsPage = () => {
           <div className="w-10 h-10 bg-green-500 border-2 border-stone-900 flex items-center justify-center">
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+        )
+      case 'CLINIC_SUSPEND_REQUEST':
+        return (
+          <div className="w-10 h-10 bg-amber-500 border-2 border-stone-900 flex items-center justify-center">
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M10.29 3.86l-8.6 14.89A2 2 0 003.43 21h17.14a2 2 0 001.74-3.25l-8.6-14.89a2 2 0 00-3.48 0z" />
+            </svg>
+          </div>
+        )
+      case 'CLINIC_SUSPEND_APPROVED':
+        return (
+          <div className="w-10 h-10 bg-green-500 border-2 border-stone-900 flex items-center justify-center">
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+        )
+      case 'CLINIC_SUSPEND_REJECTED':
+        return (
+          <div className="w-10 h-10 bg-red-500 border-2 border-stone-900 flex items-center justify-center">
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </div>
+        )
+      case 'CLINIC_ACTIVATED':
+        return (
+          <div className="w-10 h-10 bg-teal-500 border-2 border-stone-900 flex items-center justify-center">
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
         )

@@ -127,6 +127,12 @@ export const ReportsPage = () => {
         }
     };
 
+    const handleOpenReportDetail = (report: ReportResponse) => {
+        setResolvingReport(report);
+        // Khi mở lại report đã xử lý, hiển thị sẵn ghi chú admin cũ nếu có.
+        setAdminNote(report.adminNote ?? '');
+    };
+
     const openStrikeConfig = useCallback(async () => {
         try {
             const data = await getStrikeConfig();
@@ -351,14 +357,16 @@ export const ReportsPage = () => {
                                     <td className="p-4 text-center">
                                         {report.status === 'PENDING' ? (
                                             <button
-                                                onClick={() => setResolvingReport(report)}
+                                                type="button"
+                                                onClick={() => handleOpenReportDetail(report)}
                                                 className="px-3 py-1 text-xs font-bold uppercase bg-amber-400 border-2 border-stone-900 hover:shadow-[2px_2px_0_#1c1917]"
                                             >
                                                 Xử lý
                                             </button>
                                         ) : (
                                             <button
-                                                onClick={() => setResolvingReport(report)}
+                                                type="button"
+                                                onClick={() => handleOpenReportDetail(report)}
                                                 className="px-3 py-1 text-xs font-bold uppercase bg-white border-2 border-stone-900 hover:shadow-[2px_2px_0_#1c1917]"
                                             >
                                                 Chi tiết
@@ -493,7 +501,7 @@ export const ReportsPage = () => {
 
             {/* Resolve Modal */}
             {resolvingReport && (
-                <div className="fixed inset-0 bg-stone-900/80 flex items-center justify-center z-100 p-4 backdrop-blur-sm">
+                <div className="fixed inset-0 bg-stone-900/80 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
                     <div className="bg-white border-4 border-stone-900 shadow-[8px_8px_0_#1c1917] max-w-2xl w-full flex flex-col animate-in fade-in zoom-in duration-200">
                         <div className="bg-amber-400 border-b-4 border-stone-900 p-4 flex justify-between items-center">
                             <h2 className="text-xl font-bold uppercase">Chi tiết xử lý báo cáo</h2>
@@ -626,7 +634,7 @@ export const ReportsPage = () => {
 
             {/* Strike Config Modal */}
             {showStrikeConfig && strikeConfig && (
-                <div className="fixed inset-0 bg-stone-900/80 flex items-center justify-center z-100 p-4 backdrop-blur-sm">
+                <div className="fixed inset-0 bg-stone-900/80 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
                     <div className="bg-white border-4 border-stone-900 shadow-[8px_8px_0_#1c1917] max-w-md w-full">
                         <div className="bg-amber-400 border-b-4 border-stone-900 p-4 flex justify-between items-center">
                             <h2 className="text-xl font-bold uppercase">Cấu hình ngưỡng Strike</h2>

@@ -12,22 +12,31 @@ import {
   DocumentTextIcon,
 } from '@heroicons/react/24/outline'
 import { useClinicStore } from '../../../store/clinicStore'
+import { clinicService } from '../../../services/api/clinicService'
 import { ClinicMapOSM } from '../../../components/clinic/ClinicMapOSM'
 import { DistanceCalculator } from '../../../components/clinic/DistanceCalculator'
 import { ClinicLogoDisplay } from '../../../components/clinic/ClinicLogoDisplay'
 import { ConfirmDialog } from '../../../components/common/ConfirmDialog'
 import { useSandboxStepTracker } from '../../../hooks/useSandboxStepTracker'
+import { useToast } from '../../../components/Toast'
 import { ROUTES } from '../../../config/routes'
+import type { ClinicSuspendRequestResponse } from '../../../types/clinic'
 
 export function ClinicDetailPage() {
   const { clinicId } = useParams<{ clinicId: string }>()
   const navigate = useNavigate()
   const { currentClinic, fetchClinicById, deleteClinic, isLoading, error } = useClinicStore()
+  const { showToast } = useToast()
   const trackSandboxStepAction = useSandboxStepTracker('clinic_info')
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [suspendReason, setSuspendReason] = useState('')
+  const [showSuspendConfirm, setShowSuspendConfirm] = useState(false)
+  const [isSuspendSubmitting, setIsSuspendSubmitting] = useState(false)
+  const [isSuspendHistoryLoading, setIsSuspendHistoryLoading] = useState(false)
+  const [suspendHistory, setSuspendHistory] = useState<ClinicSuspendRequestResponse[]>([])
 
   const loadClinic = useCallback(() => {
     if (clinicId) {
@@ -38,6 +47,24 @@ export function ClinicDetailPage() {
   useEffect(() => {
     loadClinic()
   }, [loadClinic])
+
+  const loadSuspendHistory = useCallback(async () => {
+    if (!clinicId) return
+    setIsSuspendHistoryLoading(true)
+    try {
+      const requests = await clinicService.getMySuspendRequests()
+      const byClinic = requests.filter((request) => request.clinicId === clinicId)
+      setSuspendHistory(byClinic)
+    } catch {
+      showToast('error', 'Không thể tải lịch sử yêu cầu tạm ngưng')
+    } finally {
+      setIsSuspendHistoryLoading(false)
+    }
+  }, [clinicId, showToast])
+
+  useEffect(() => {
+    void loadSuspendHistory()
+  }, [loadSuspendHistory])
 
   const updateScrollState = () => {
     const el = scrollRef.current
@@ -87,6 +114,60 @@ export function ClinicDetailPage() {
     } catch {
       // Error handled by store
     }
+  }
+
+  const latestPendingSuspendRequest = suspendHistory.find((request) => request.status === 'PENDING')
+  const requestActionLabel = currentClinic?.status === 'SUSPENDED' ? 'bỏ tạm ngưng' : 'tạm ngưng'
+
+  const handleOpenSuspendConfirm = () => {
+    if (!clinicId) return
+    if (currentClinic?.status !== 'APPROVED' && currentClinic?.status !== 'SUSPENDED') {
+      showToast('error', 'Chỉ có thể gửi đơn khi phòng khám đang hoạt động hoặc tạm ngưng')
+      return
+    }
+    if (latestPendingSuspendRequest) {
+      showToast('warning', 'Phòng khám đã có yêu cầu tạm ngưng đang chờ duyệt')
+      return
+    }
+    if (suspendReason.trim().length < 10) {
+      showToast('error', 'Lý do phải có ít nhất 10 ký tự')
+      return
+    }
+    setShowSuspendConfirm(true)
+  }
+
+  const handleConfirmSuspendRequest = async () => {
+    if (!clinicId || isSuspendSubmitting) return
+    setIsSuspendSubmitting(true)
+    try {
+      await clinicService.createSuspendRequest({
+        clinicId,
+        reason: suspendReason.trim(),
+      })
+      showToast('success', `Đã gửi yêu cầu ${requestActionLabel} phòng khám`)
+      setSuspendReason('')
+      await Promise.all([loadClinic(), loadSuspendHistory()])
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === 'object' && 'response' in e
+          ? (e as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined
+      showToast('error', msg ? String(msg) : 'Không thể gửi yêu cầu tạm ngưng')
+    } finally {
+      setIsSuspendSubmitting(false)
+    }
+  }
+
+  const suspendStatusLabel: Record<string, string> = {
+    PENDING: 'CHỜ DUYỆT',
+    APPROVED: 'ĐÃ DUYỆT',
+    REJECTED: 'TỪ CHỐI',
+  }
+
+  const suspendStatusColors: Record<string, string> = {
+    PENDING: 'bg-amber-100 text-amber-800 border-amber-600',
+    APPROVED: 'bg-green-100 text-green-800 border-green-600',
+    REJECTED: 'bg-red-100 text-red-800 border-red-600',
   }
 
   if (isLoading) {
@@ -554,6 +635,101 @@ export function ClinicDetailPage() {
             </div>
           )}
 
+          {/* Suspend Request */}
+          <div className="card-brutal p-6 mb-6">
+            <h2 className="text-lg font-bold uppercase text-stone-900 mb-4">YÊU CẦU TẠM NGƯNG / BỎ TẠM NGƯNG</h2>
+
+            <div className="border-2 border-stone-900 bg-stone-50 p-4 mb-4">
+              <p className="text-sm font-bold text-stone-900 mb-2">Trạng thái hiện tại: {statusLabels[currentClinic.status] || currentClinic.status}</p>
+              {latestPendingSuspendRequest ? (
+                <p className="text-sm text-amber-700 font-bold">Đang có một yêu cầu chờ duyệt. Bạn chưa thể gửi thêm yêu cầu mới.</p>
+              ) : currentClinic.status !== 'APPROVED' && currentClinic.status !== 'SUSPENDED' ? (
+                <p className="text-sm text-stone-700">Chức năng này chỉ khả dụng khi phòng khám đang ở trạng thái hoạt động.</p>
+              ) : (
+                <p className="text-sm text-stone-700">
+                  {currentClinic.status === 'SUSPENDED'
+                    ? 'Nhập lý do để gửi đơn bỏ tạm ngưng đến quản trị viên.'
+                    : 'Nhập lý do để gửi yêu cầu tạm ngưng đến quản trị viên.'}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-3 mb-5">
+              <label className="block text-xs font-bold uppercase text-stone-600">
+                {currentClinic.status === 'SUSPENDED' ? 'Lý do bỏ tạm ngưng' : 'Lý do tạm ngưng'}
+              </label>
+              <textarea
+                value={suspendReason}
+                onChange={(e) => setSuspendReason(e.target.value)}
+                rows={4}
+                disabled={Boolean(latestPendingSuspendRequest) || (currentClinic.status !== 'APPROVED' && currentClinic.status !== 'SUSPENDED') || isSuspendSubmitting}
+                className="w-full border-2 border-stone-900 p-3 font-medium text-sm disabled:bg-stone-100"
+                placeholder={currentClinic.status === 'SUSPENDED'
+                  ? 'Ví dụ: đã hoàn tất bảo trì, đủ điều kiện hoạt động lại...'
+                  : 'Ví dụ: tạm đóng cửa để bảo trì cơ sở vật chất...'}
+              />
+              <p className="text-xs text-stone-500">Tối thiểu 10 ký tự.</p>
+              <button
+                type="button"
+                onClick={handleOpenSuspendConfirm}
+                disabled={Boolean(latestPendingSuspendRequest) || (currentClinic.status !== 'APPROVED' && currentClinic.status !== 'SUSPENDED') || isSuspendSubmitting}
+                className="btn-brutal disabled:opacity-50"
+              >
+                {isSuspendSubmitting
+                  ? 'Đang gửi...'
+                  : currentClinic.status === 'SUSPENDED'
+                    ? 'GỬI ĐƠN BỎ TẠM NGƯNG'
+                    : 'GỬI YÊU CẦU TẠM NGƯNG'}
+              </button>
+            </div>
+
+            <div className="border-t-2 border-stone-200 pt-4">
+              <div className="flex items-center justify-between mb-3 gap-2">
+                <h3 className="text-sm font-bold uppercase text-stone-900">Lịch sử yêu cầu của phòng khám này</h3>
+                <button
+                  type="button"
+                  onClick={() => void loadSuspendHistory()}
+                  className="btn-brutal-outline px-3 py-1 text-xs"
+                >
+                  Làm mới
+                </button>
+              </div>
+
+              {isSuspendHistoryLoading ? (
+                <div className="text-sm text-stone-600">Đang tải lịch sử...</div>
+              ) : suspendHistory.length === 0 ? (
+                <div className="text-sm text-stone-600">Chưa có yêu cầu tạm ngưng nào.</div>
+              ) : (
+                <div className="space-y-3">
+                  {suspendHistory.map((request) => (
+                    <div key={request.clinicSuspendRequestId} className="border-2 border-stone-900 bg-white p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`inline-block px-2 py-1 border-2 border-black font-black text-[10px] uppercase ${suspendStatusColors[request.status] || 'bg-stone-100 text-stone-700 border-stone-400'}`}
+                          >
+                            {suspendStatusLabel[request.status] || request.status}
+                          </span>
+                          <span className="inline-block px-2 py-1 border-2 border-black font-black text-[10px] uppercase bg-stone-100 text-stone-800 border-stone-400">
+                            {request.requestType === 'UNSUSPEND' ? 'Bỏ tạm ngưng' : 'Tạm ngưng'}
+                          </span>
+                        </div>
+                        <span className="text-xs text-stone-500">{new Date(request.createdAt).toLocaleString('vi-VN')}</span>
+                      </div>
+                      <p className="text-sm text-stone-800 whitespace-pre-wrap">{request.reason}</p>
+                      {request.adminNote && (
+                        <div className="mt-2 p-2 border-2 border-stone-900 bg-stone-50">
+                          <div className="text-[10px] font-bold uppercase text-stone-600 mb-1">Ghi chú quản trị</div>
+                          <p className="text-sm text-stone-800 whitespace-pre-wrap">{request.adminNote}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Timestamps */}
           <div className="card-brutal p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -594,6 +770,19 @@ export function ClinicDetailPage() {
         confirmText="Xóa phòng khám"
         cancelText="Hủy bỏ"
         variant="danger"
+      />
+
+      <ConfirmDialog
+        isOpen={showSuspendConfirm}
+        onClose={() => setShowSuspendConfirm(false)}
+        onConfirm={() => {
+          void handleConfirmSuspendRequest()
+        }}
+        title="Gửi yêu cầu tạm ngưng"
+        message={`Bạn có chắc muốn gửi yêu cầu ${requestActionLabel} phòng khám này không?`}
+        confirmText="Gửi yêu cầu"
+        cancelText="Hủy"
+        variant="warning"
       />
     </>
   )

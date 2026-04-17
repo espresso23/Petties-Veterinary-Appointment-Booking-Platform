@@ -7,6 +7,10 @@ import type {
   DistanceResponse,
   ClinicFilters,
   NearbyClinicsParams,
+  ClinicSuspendRequestCreateRequest,
+  ClinicSuspendRequestReviewRequest,
+  ClinicSuspendRequestResponse,
+  ClinicSuspendRequestStatus,
 } from '../../types/clinic'
 
 export const clinicService = {
@@ -191,6 +195,63 @@ export const clinicService = {
   /** Admin gỡ hạn chế strike */
   adminLiftClinicStrike: async (clinicId: string): Promise<ClinicResponse> => {
     const response = await apiClient.post<ClinicResponse>(`/clinics/admin/${clinicId}/lift-strike`, {})
+    return response.data
+  },
+
+  /**
+   * Admin kích hoạt lại phòng khám đã tạm ngưng (status = SUSPENDED)
+   */
+  adminActivateClinic: async (clinicId: string): Promise<ClinicResponse> => {
+    const response = await apiClient.post<ClinicResponse>(`/clinics/suspend-requests/admin/${clinicId}/activate`, {})
+    return response.data
+  },
+
+  /**
+   * Clinic Owner gửi yêu cầu tự tạm ngưng phòng khám
+   */
+  createSuspendRequest: async (data: ClinicSuspendRequestCreateRequest): Promise<ClinicSuspendRequestResponse> => {
+    const response = await apiClient.post<ClinicSuspendRequestResponse>('/clinics/suspend-requests', data)
+    return response.data
+  },
+
+  /**
+   * Clinic Owner xem lịch sử yêu cầu tạm ngưng của mình
+   */
+  getMySuspendRequests: async (): Promise<ClinicSuspendRequestResponse[]> => {
+    const response = await apiClient.get<ClinicSuspendRequestResponse[]>('/clinics/suspend-requests/my')
+    return response.data
+  },
+
+  /**
+   * Admin xem danh sách yêu cầu tạm ngưng đang chờ duyệt
+   */
+  getPendingSuspendRequests: async (page = 0, size = 20): Promise<{ content: ClinicSuspendRequestResponse[]; totalElements: number; totalPages: number; number: number; size: number }> => {
+    const params = new URLSearchParams({
+      page: String(page),
+      size: String(size),
+    })
+    const response = await apiClient.get(`/clinics/suspend-requests/admin/pending?${params.toString()}`)
+    return response.data
+  },
+
+  /**
+   * Admin xem toàn bộ yêu cầu tạm ngưng
+   */
+  getAllSuspendRequests: async (filters?: { status?: ClinicSuspendRequestStatus; page?: number; size?: number }): Promise<{ content: ClinicSuspendRequestResponse[]; totalElements: number; totalPages: number; number: number; size: number }> => {
+    const params = new URLSearchParams({
+      page: String(filters?.page ?? 0),
+      size: String(filters?.size ?? 20),
+    })
+    if (filters?.status) params.append('status', filters.status)
+    const response = await apiClient.get(`/clinics/suspend-requests/admin/all?${params.toString()}`)
+    return response.data
+  },
+
+  /**
+   * Admin duyệt/từ chối yêu cầu tạm ngưng
+   */
+  reviewSuspendRequest: async (requestId: string, data: ClinicSuspendRequestReviewRequest): Promise<ClinicSuspendRequestResponse> => {
+    const response = await apiClient.put<ClinicSuspendRequestResponse>(`/clinics/suspend-requests/${requestId}/review`, data)
     return response.data
   },
 
