@@ -11,7 +11,7 @@ import type { ClinicResponse } from '../../../types/clinic'
 import { useToast } from '../../../components/Toast'
 import { ConfirmModal } from '../../../components/ConfirmModal'
 import { CalendarPicker } from '../../../components/CalendarPicker'
-import { TrashIcon, DocumentDuplicateIcon, HandRaisedIcon, UserIcon, ClockIcon, MoonIcon, ArrowRightIcon, LockClosedIcon, LockOpenIcon, CalendarIcon } from '@heroicons/react/24/outline'
+import { TrashIcon, DocumentDuplicateIcon, HandRaisedIcon, UserIcon, ClockIcon, MoonIcon, ArrowRightIcon, LockClosedIcon, LockOpenIcon, CalendarIcon, QuestionMarkCircleIcon } from '@heroicons/react/24/outline'
 import { ShiftTableGridView } from './ShiftTableGridView'
 import { mergeSlots } from './shiftTableUtils'
 import type { MergedSlot } from './shiftTableUtils'
@@ -26,6 +26,9 @@ import {
     timesOverlap,
     type ConflictItem,
 } from './staffShiftPageUtils'
+import { useSandboxStore } from '../../../store/sandboxStore'
+import { SandboxGuideModal } from '../../../components/sandbox/SandboxGuideModal'
+import { useSandboxStepTracker } from '../../../hooks/useSandboxStepTracker'
 import '../../../styles/brutalist.css'
 
 export const StaffShiftPage = () => {
@@ -33,6 +36,12 @@ export const StaffShiftPage = () => {
     const navigate = useNavigate()
     const clinicId = user?.workingClinicId
     const { showToast } = useToast()
+
+    // --- State: Sandbox ---
+    const { enterSandbox } = useSandboxStore()
+    const trackSandboxStepAction = useSandboxStepTracker('scheduling')
+    const [showSandboxModal, setShowSandboxModal] = useState(false)
+    const [isLoadingSandbox, setIsLoadingSandbox] = useState(false)
 
     // --- State: Calendar & view ---
     const [currentWeek, setCurrentWeek] = useState(new Date())
@@ -683,13 +692,25 @@ export const StaffShiftPage = () => {
     const isEditMode = formData.staffId && formData.workDates.length > 0 && formData.workDates.every(date =>
         shifts.some(s => s.staffId === formData.staffId && s.workDate === date)
     )
-
+        // Sandbox handlers
+        const handleEnterSandbox = async () => {
+            setIsLoadingSandbox(true)
+            try {
+                await enterSandbox('scheduling')
+                setShowSandboxModal(false)
+            } catch (error) {
+                console.error('Lỗi vào chế độ dùng thử:', error)
+            } finally {
+                setIsLoadingSandbox(false)
+            }
+        }
+    
     return (
         <div className="flex h-screen bg-stone-50 text-stone-900 font-sans select-none overflow-hidden">
             {/* Main Content */}
             <div className="flex-1 flex flex-col h-full overflow-hidden p-6 gap-6">
                 {/* Header */}
-                <header className="flex justify-between items-center bg-white p-5 rounded-2xl border-2 border-stone-900 shadow-[4px_4px_0px_0px_rgba(28,25,23,0.8)]">
+                <header className="flex justify-between items-center bg-white p-5 rounded-2xl border-2 border-stone-900 shadow-[4px_4px_0px_0px_rgba(28,25,23,0.8)]" data-sandbox-target="schedule-actions">
                     <div>
                         <h1 className="text-xl font-bold bg-amber-500 text-white px-4 py-1.5 rounded-xl border-2 border-stone-900 shadow-[2px_2px_0px_0px_rgba(28,25,23,1)] inline-block mb-1">
                             LỊCH LÀM VIỆC
@@ -703,14 +724,21 @@ export const StaffShiftPage = () => {
                         {selectionMode ? (
                             <>
                                 <button
-                                    onClick={() => { setSelectionMode(false); setSelectedShiftIds([]); }}
+                                    onClick={() => {
+                                        setSelectionMode(false)
+                                        setSelectedShiftIds([])
+                                        trackSandboxStepAction('scheduling.quick_actions', document.activeElement)
+                                    }}
                                     className="px-5 py-2.5 bg-white border-2 border-stone-900 rounded-xl font-bold text-sm shadow-[3px_3px_0px_0px_rgba(28,25,23,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_0px_rgba(28,25,23,1)] transition-all"
                                 >
                                     Hủy chọn
                                 </button>
                                 <button
                                     disabled={selectedShiftIds.length === 0}
-                                    onClick={() => setIsBulkDeleteModalOpen(true)}
+                                    onClick={() => {
+                                        setIsBulkDeleteModalOpen(true)
+                                        trackSandboxStepAction('scheduling.quick_actions', document.activeElement)
+                                    }}
                                     className="px-5 py-2.5 bg-red-500 text-white border-2 border-stone-900 rounded-xl font-bold text-sm shadow-[3px_3px_0px_0px_rgba(28,25,23,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_0px_rgba(28,25,23,1)] transition-all disabled:opacity-50"
                                 >
                                     Xóa {selectedShiftIds.length} ca
@@ -718,20 +746,43 @@ export const StaffShiftPage = () => {
                             </>
                         ) : (
                             <button
-                                onClick={() => setSelectionMode(true)}
+                                onClick={() => {
+                                    setSelectionMode(true)
+                                    trackSandboxStepAction('scheduling.quick_actions', document.activeElement)
+                                }}
                                 className="flex items-center gap-2 px-5 py-2.5 bg-stone-900 text-white border-2 border-stone-900 rounded-xl font-bold text-sm shadow-[3px_3px_0px_0px_rgba(28,25,23,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_0px_rgba(28,25,23,1)] transition-all"
                             >
                                 <TrashIcon className="w-5 h-5" /> Xóa nhiều
                             </button>
                         )}
+
+                        <button
+                            onClick={() => setShowSandboxModal(true)}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-white border-2 border-stone-900 rounded-xl font-bold text-sm shadow-[3px_3px_0px_0px_rgba(28,25,23,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_0px_rgba(28,25,23,1)] transition-all"
+                        >
+                            <QuestionMarkCircleIcon className="w-5 h-5" /> Hướng dẫn
+                        </button>
                     </div>
                 </header>
+
+                {/* Sandbox Components */}
+                <SandboxGuideModal
+                    isOpen={showSandboxModal}
+                    featureName="Quản lý lịch làm việc"
+                    onConfirm={handleEnterSandbox}
+                    onCancel={() => setShowSandboxModal(false)}
+                    isLoading={isLoadingSandbox}
+                />
+
                 {/* Calendar Nav - Outside overflow container for dropdown to work */}
-                <div className="flex items-center justify-between mb-3 bg-white rounded-xl border-2 border-stone-200 p-3">
+                <div className="flex items-center justify-between mb-3 bg-white rounded-xl border-2 border-stone-200 p-3" data-sandbox-target="schedule-navigation">
                     {/* View Mode Toggle */}
                     <div className="flex bg-stone-100 rounded-xl p-1 border-2 border-stone-200">
                         <button
-                            onClick={() => setViewMode('table')}
+                            onClick={() => {
+                                setViewMode('table')
+                                trackSandboxStepAction('scheduling.navigate', document.activeElement)
+                            }}
                             className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${viewMode === 'table'
                                 ? 'bg-amber-500 text-white shadow-[2px_2px_0px_0px_rgba(28,25,23,0.5)]'
                                 : 'text-stone-500 hover:text-stone-700'
@@ -740,7 +791,10 @@ export const StaffShiftPage = () => {
                             Bảng khung giờ
                         </button>
                         <button
-                            onClick={() => setViewMode('week')}
+                            onClick={() => {
+                                setViewMode('week')
+                                trackSandboxStepAction('scheduling.navigate', document.activeElement)
+                            }}
                             className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${viewMode === 'week'
                                 ? 'bg-amber-500 text-white shadow-[2px_2px_0px_0px_rgba(28,25,23,0.5)]'
                                 : 'text-stone-500 hover:text-stone-700'
@@ -749,7 +803,10 @@ export const StaffShiftPage = () => {
                             Tuần
                         </button>
                         <button
-                            onClick={() => setViewMode('day')}
+                            onClick={() => {
+                                setViewMode('day')
+                                trackSandboxStepAction('scheduling.navigate', document.activeElement)
+                            }}
                             className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${viewMode === 'day'
                                 ? 'bg-amber-500 text-white shadow-[2px_2px_0px_0px_rgba(28,25,23,0.5)]'
                                 : 'text-stone-500 hover:text-stone-700'
@@ -758,7 +815,10 @@ export const StaffShiftPage = () => {
                             Ngày
                         </button>
                         <button
-                            onClick={() => setViewMode('month')}
+                            onClick={() => {
+                                setViewMode('month')
+                                trackSandboxStepAction('scheduling.navigate', document.activeElement)
+                            }}
                             className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${viewMode === 'month'
                                 ? 'bg-amber-500 text-white shadow-[2px_2px_0px_0px_rgba(28,25,23,0.5)]'
                                 : 'text-stone-500 hover:text-stone-700'
@@ -780,6 +840,7 @@ export const StaffShiftPage = () => {
                                 } else {
                                     handlePrevWeek()
                                 }
+                                trackSandboxStepAction('scheduling.navigate', document.activeElement)
                             }}
                             className="w-10 h-10 flex items-center justify-center border-2 border-stone-900 rounded-xl hover:bg-amber-100 transition-colors bg-white shadow-[2px_2px_0px_0px_rgba(28,25,23,1)] active:shadow-none active:translate-x-[2px] active:translate-y-[2px]"
                         >←</button>
@@ -789,6 +850,7 @@ export const StaffShiftPage = () => {
                                 setCurrentWeek(date)
                                 setSelectedDay(date)
                                 if (viewMode === 'week') setViewMode('day')
+                                trackSandboxStepAction('scheduling.navigate', document.activeElement)
                             }}
                             mode="date"
                             displayFormat={() => viewMode === 'table'
@@ -806,6 +868,7 @@ export const StaffShiftPage = () => {
                                 } else {
                                     handleNextWeek()
                                 }
+                                trackSandboxStepAction('scheduling.navigate', document.activeElement)
                             }}
                             className="w-10 h-10 flex items-center justify-center border-2 border-stone-900 rounded-xl hover:bg-amber-100 transition-colors bg-white shadow-[2px_2px_0px_0px_rgba(28,25,23,1)] active:shadow-none active:translate-x-[2px] active:translate-y-[2px]"
                         >→</button>
@@ -813,7 +876,7 @@ export const StaffShiftPage = () => {
                 </div>
 
                 {/* Calendar Content - With overflow for scrolling */}
-                <div className="flex-1 bg-white rounded-2xl border-2 border-stone-900 p-5 shadow-[4px_4px_0px_0px_rgba(28,25,23,0.8)] flex flex-col overflow-hidden">
+                <div className="flex-1 bg-white rounded-2xl border-2 border-stone-900 p-5 shadow-[4px_4px_0px_0px_rgba(28,25,23,0.8)] flex flex-col overflow-hidden" data-sandbox-target="schedule-content">
 
                     {/* Table View - Bảng khung giờ */}
                     {viewMode === 'table' && (
@@ -839,6 +902,7 @@ export const StaffShiftPage = () => {
                             selectedShift={selectedShift}
                             formStaffId={formData.staffId || null}
                             onRowClick={(staffId, staffShift, dateStr) => {
+                                trackSandboxStepAction('scheduling.inspect_shift', document.activeElement)
                                 if (staffShift) {
                                     setSelectedShift(staffShift)
                                     setSidebarMode('detail')
@@ -849,6 +913,7 @@ export const StaffShiftPage = () => {
                                 }
                             }}
                             onTimeRangeSelect={(staffId, dateStr, startTime, endTime) => {
+                                trackSandboxStepAction('scheduling.inspect_shift', document.activeElement)
                                 setSelectedShift(null)
                                 setFormData(prev => ({
                                     ...prev,

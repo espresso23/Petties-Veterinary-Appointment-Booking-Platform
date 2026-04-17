@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { ToastProvider } from './components/Toast'
 import { ProtectedRoute } from './components/common/ProtectedRoute'
 import { useAuthStore } from './store/authStore'
+import { useSandboxStore } from './store/sandboxStore'
 import { MainLayout } from './layouts/MainLayout'
 import { AuthLayout } from './layouts/AuthLayout'
 import OnboardingPage from './pages/onboarding/OnboardingPage'
@@ -31,6 +32,7 @@ const PlaygroundPage = lazy(() => import('./pages/admin/playground/PlaygroundPag
 const AIInsightsPage = lazy(() => import('./pages/admin/insights/AIInsightsPage'))
 const ClinicApprovalPage = lazy(() => import('./pages/admin/clinics/ClinicApprovalPage'))
 const ClinicRegistryPage = lazy(() => import('./pages/admin/clinics/ClinicRegistryPage'))
+const ClinicSuspendRequestsPage = lazy(() => import('./pages/admin/clinics/ClinicSuspendRequestsPage'))
 const AdminUsersPage = lazy(() => import('./pages/admin/AdminUsersPage'))
 const AdminReportsPage = lazyNamed(() => import('./pages/admin/ReportsPage'), 'ReportsPage')
 const AdminRefundApplicationsPage = lazyNamed(
@@ -139,11 +141,28 @@ function AppRouteFallback() {
 }
 
 function App() {
-  const { initializeAuth } = useAuthStore()
+  const initializeAuth = useAuthStore((state) => state.initializeAuth)
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+  const isLoading = useAuthStore((state) => state.isLoading)
+  const loadCurrentSandbox = useSandboxStore((state) => state.loadCurrentSandbox)
+  const resetSandbox = useSandboxStore((state) => state.reset)
 
   useEffect(() => {
     initializeAuth()
   }, [initializeAuth])
+
+  useEffect(() => {
+    if (isLoading) {
+      return
+    }
+
+    if (isAuthenticated) {
+      void loadCurrentSandbox()
+      return
+    }
+
+    resetSandbox()
+  }, [isAuthenticated, isLoading, loadCurrentSandbox, resetSandbox])
 
   return (
     <ToastProvider>
@@ -198,6 +217,7 @@ function App() {
               <Route path="profile" element={<ProfilePage />} />
             </Route>
 
+              <Route path="clinic-suspensions" element={<ClinicSuspendRequestsPage />} />
             <Route
               path="/staff"
               element={

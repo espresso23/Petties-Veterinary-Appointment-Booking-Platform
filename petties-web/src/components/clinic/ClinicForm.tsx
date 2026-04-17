@@ -228,11 +228,11 @@ export function ClinicForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Basic Information */}
-      <div className="card-brutal p-6">
+      <div className="card-brutal p-6" data-sandbox-target="clinic-form-basic">
         <h3 className="text-lg font-bold uppercase text-stone-900 mb-4">THÔNG TIN CƠ BẢN</h3>
 
         <div className="space-y-4">
-          <div>
+          <div data-sandbox-target="clinic-edit-description">
             <label className="block text-sm font-bold uppercase text-stone-900 mb-2">
               Tên Phòng Khám *
             </label>
@@ -250,7 +250,7 @@ export function ClinicForm({
             )}
           </div>
 
-          <div>
+          <div data-sandbox-target="clinic-form-location">
             <label className="block text-sm font-bold uppercase text-stone-900 mb-2">
               Mô Tả
             </label>
@@ -435,7 +435,7 @@ export function ClinicForm({
       </div>
 
       {/* Payment & SOS Information */}
-      <div className="card-brutal p-6">
+      <div className="card-brutal p-6" data-sandbox-target="clinic-form-contact">
         <h3 className="text-lg font-bold uppercase text-stone-900 mb-4">THANH TOÁN & DỊCH VỤ SOS</h3>
         <div className="space-y-4">
           <div>
@@ -516,7 +516,7 @@ export function ClinicForm({
 
       {/* Logo Upload - Only show if clinicId exists (edit mode or after creation) */}
       {clinicId && (
-        <div className="card-brutal p-6">
+        <div className="card-brutal p-6" data-sandbox-target="clinic-form-license">
           <h3 className="text-lg font-bold uppercase text-stone-900 mb-4">LOGO PHÒNG KHÁM</h3>
           <ClinicLogoUpload
             clinicId={clinicId}
@@ -547,7 +547,7 @@ export function ClinicForm({
       )}
 
       {/* Operating Hours */}
-      <div className="card-brutal p-6">
+      <div className="card-brutal p-6" data-sandbox-target="clinic-form-hours">
         <h3 className="text-lg font-bold uppercase text-stone-900 mb-4">GIỜ LÀM VIỆC</h3>
 
         {/* 24/7 Option */}
@@ -714,6 +714,7 @@ export function ClinicForm({
         <button
           type="submit"
           disabled={isLoading || isUploadingLicense}
+          data-sandbox-target="clinic-edit-save"
           className="btn-brutal flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isUploadingLicense ? 'ĐANG TẢI GIẤY PHÉP...' : isLoading ? 'ĐANG LƯU...' : 'LƯU'}

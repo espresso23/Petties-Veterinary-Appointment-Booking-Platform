@@ -1,7 +1,9 @@
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useClinicStore } from '../../../store/clinicStore'
 import { ClinicForm } from '../../../components/clinic/ClinicForm'
+import { ConfirmDialog } from '../../../components/common/ConfirmDialog'
+import { useSandboxStore } from '../../../store/sandboxStore'
 import { ROUTES } from '../../../config/routes'
 import type { ClinicRequest } from '../../../types/clinic'
 
@@ -9,6 +11,8 @@ export function ClinicEditPage() {
   const { clinicId } = useParams<{ clinicId: string }>()
   const navigate = useNavigate()
   const { currentClinic, fetchClinicById, updateClinic, isLoading, error } = useClinicStore()
+  const { isSandboxMode, currentFeature, currentGuideStep, setGuideStep, exitSandbox } = useSandboxStore()
+  const [showBranchDialog, setShowBranchDialog] = useState(false)
 
   const handleImageUploaded = () => {
     // Refetch clinic to get updated images
@@ -31,6 +35,11 @@ export function ClinicEditPage() {
     if (!clinicId) return
     try {
       await updateClinic(clinicId, data)
+      if (isSandboxMode && currentFeature === 'clinic_info' && currentGuideStep === 4) {
+        setShowBranchDialog(true)
+        return
+      }
+
       navigate(`${ROUTES.clinicOwner.clinics}/${clinicId}`)
     } catch {
       // Error handled by store
@@ -41,6 +50,21 @@ export function ClinicEditPage() {
     if (clinicId) {
       navigate(`${ROUTES.clinicOwner.clinics}/${clinicId}`)
     } else {
+      navigate(ROUTES.clinicOwner.clinics)
+    }
+  }
+
+  const handleBranchYes = () => {
+    setGuideStep(5)
+    setShowBranchDialog(false)
+    navigate(ROUTES.clinicOwner.clinics)
+  }
+
+  const handleBranchNo = async () => {
+    setShowBranchDialog(false)
+    try {
+      await exitSandbox()
+    } finally {
       navigate(ROUTES.clinicOwner.clinics)
     }
   }
@@ -112,6 +136,18 @@ export function ClinicEditPage() {
           />
         )}
       </div>
+
+      <ConfirmDialog
+        isOpen={showBranchDialog}
+        onClose={() => setShowBranchDialog(false)}
+        onConfirm={handleBranchYes}
+        onCancelAction={handleBranchNo}
+        title="Chuyển sang tạo clinic mới?"
+        message="Bạn đã sửa xong mô tả của clinic demo. Bạn có muốn chuyển sang phần tạo clinic mới không?"
+        confirmText="Có"
+        cancelText="Không"
+        variant="info"
+      />
     </div>
   )
 }

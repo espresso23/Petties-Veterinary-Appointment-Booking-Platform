@@ -37,6 +37,7 @@ export const ClinicRegistryPage = () => {
   const [banTarget, setBanTarget] = useState<ClinicResponse | null>(null)
   const [banReason, setBanReason] = useState('')
   const [liftTarget, setLiftTarget] = useState<ClinicResponse | null>(null)
+  const [activateTarget, setActivateTarget] = useState<ClinicResponse | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   const load = useCallback(async () => {
@@ -107,6 +108,25 @@ export const ClinicRegistryPage = () => {
           ? (e as { response?: { data?: { message?: string } } }).response?.data?.message
           : undefined
       showToast('error', msg ? String(msg) : 'Không thể gỡ hạn chế')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleActivateConfirm = async () => {
+    if (!activateTarget || submitting) return
+    setSubmitting(true)
+    try {
+      await clinicService.adminActivateClinic(activateTarget.clinicId)
+      showToast('success', 'Đã kích hoạt lại phòng khám')
+      setActivateTarget(null)
+      await load()
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === 'object' && 'response' in e
+          ? (e as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined
+      showToast('error', msg ? String(msg) : 'Không thể kích hoạt lại phòng khám')
     } finally {
       setSubmitting(false)
     }
@@ -197,6 +217,7 @@ export const ClinicRegistryPage = () => {
               clinics.map((c) => {
                 const hasStrike = Boolean(c.strikeUntil)
                 const canBan = c.status === 'APPROVED' && !isPermanentStrike(c.strikeUntil ?? null)
+                const canActivate = c.status === 'SUSPENDED'
                 return (
                   <tr key={c.clinicId} className="border-b-2 border-stone-200 hover:bg-amber-50">
                     <td className="p-3">
@@ -235,6 +256,15 @@ export const ClinicRegistryPage = () => {
                             className="px-2 py-1 text-[10px] font-bold uppercase bg-mint-400 border-2 border-stone-900"
                           >
                             Gỡ hạn chế
+                          </button>
+                        )}
+                        {canActivate && (
+                          <button
+                            type="button"
+                            onClick={() => setActivateTarget(c)}
+                            className="px-2 py-1 text-[10px] font-bold uppercase bg-teal-400 border-2 border-stone-900"
+                          >
+                            Kích hoạt lại
                           </button>
                         )}
                       </div>
@@ -333,6 +363,21 @@ export const ClinicRegistryPage = () => {
         cancelLabel="Hủy"
         onConfirm={() => void handleLiftConfirm()}
         onCancel={() => !submitting && setLiftTarget(null)}
+        isDanger={false}
+      />
+
+      <ConfirmModal
+        isOpen={activateTarget !== null}
+        title="Kích hoạt lại phòng khám"
+        message={
+          activateTarget
+            ? `Kích hoạt lại phòng khám "${activateTarget.name}" để quay về trạng thái hoạt động?`
+            : ''
+        }
+        confirmLabel="Kích hoạt"
+        cancelLabel="Hủy"
+        onConfirm={() => void handleActivateConfirm()}
+        onCancel={() => !submitting && setActivateTarget(null)}
         isDanger={false}
       />
     </div>

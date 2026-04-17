@@ -3,10 +3,12 @@ package com.petties.petties.service;
 import com.petties.petties.dto.notification.NotificationResponse;
 import com.petties.petties.dto.sse.SseEventDto;
 import com.petties.petties.model.Clinic;
+import com.petties.petties.model.ClinicSuspendRequest;
 import com.petties.petties.model.Notification;
 import com.petties.petties.model.User;
 import com.petties.petties.model.StaffShift;
 import com.petties.petties.model.enums.NotificationType;
+import com.petties.petties.model.enums.ClinicSuspendRequestType;
 import com.petties.petties.repository.NotificationRepository;
 import com.petties.petties.repository.UserRepository;
 import com.petties.petties.exception.ResourceNotFoundException;
@@ -83,6 +85,7 @@ public class NotificationService {
                                         clinic.getName());
                         case PENDING -> String.format("Phòng khám \"%s\" đang chờ duyệt.", clinic.getName());
                         case CLINIC_STRIKE -> reason != null ? reason : "Phòng khám bị hạn chế do vi phạm.";
+                        case CLINIC_ACTIVATED -> String.format("Phòng khám \"%s\" đã được kích hoạt trở lại.", clinic.getName());
                         default -> "Thông báo từ phòng khám " + clinic.getName();
                 };
 
@@ -167,6 +170,127 @@ public class NotificationService {
                 for (User admin : admins) {
                         sseEmitterService.pushToUser(admin.getUserId(), event);
                 }
+        }
+
+        /**
+         * Notify all admins when a clinic owner submits a self-suspend request.
+         */
+        @Transactional
+        public void notifyAdminsClinicSuspendRequested(ClinicSuspendRequest request) {
+                List<User> admins = userRepository.findByRoleAndDeletedAtIsNull(Role.ADMIN);
+                if (admins.isEmpty()) {
+                        log.warn("No active admin users found to notify about clinic suspend request");
+                        return;
+                }
+
+                String actionLabel = request.getRequestType() == ClinicSuspendRequestType.UNSUSPEND
+                                ? "bỏ tạm ngưng"
+                                : "tạm ngưng";
+
+                String message = String.format(
+                                "Phòng khám \"%s\" vừa gửi yêu cầu %s. Lý do: %s",
+                                request.getClinic().getName(),
+                                actionLabel,
+                                request.getReason());
+
+                for (User admin : admins) {
+                        boolean exists = notificationRepository.existsByUserUserIdAndTypeAndActionData(
+                                        admin.getUserId(),
+                                        NotificationType.CLINIC_SUSPEND_REQUEST,
+                                        request.getClinicSuspendRequestId().toString());
+                        if (exists) {
+                                continue;
+                        }
+
+                        Notification notification = Notification.builder()
+                                        .user(admin)
+                                        .clinic(request.getClinic())
+                                        .type(NotificationType.CLINIC_SUSPEND_REQUEST)
+                                        .message(message)
+                                        .reason(request.getReason())
+                                        .actionData(request.getClinicSuspendRequestId().toString())
+                                        .read(false)
+                                        .build();
+
+                        notification = notificationRepository.save(notification);
+                        pushNotificationToUser(admin.getUserId(), notification);
+                }
+        }
+
+        /**
+         * Notify clinic owner when suspend request is approved.
+         */
+        @Transactional
+        public void notifyClinicOwnerSuspendRequestApproved(ClinicSuspendRequest request) {
+                User owner = request.getClinic().getOwner();
+                if (owner == null)
+                        return;
+
+                Notification notification = Notification.builder()
+                                .user(owner)
+                                .clinic(request.getClinic())
+                                .type(NotificationType.CLINIC_SUSPEND_APPROVED)
+                                .message(String.format(
+                                                "Yêu cầu tạm ngưng cho phòng khám \"%s\" đã được duyệt.",
+                                                request.getClinic().getName()))
+                                .reason(request.getAdminNote())
+                                .actionData(request.getClinicSuspendRequestId().toString())
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                pushNotificationToUser(owner.getUserId(), notification);
+        }
+
+        /**
+         * Notify clinic owner when suspend request is rejected.
+         */
+        @Transactional
+        public void notifyClinicOwnerSuspendRequestRejected(ClinicSuspendRequest request) {
+                User owner = request.getClinic().getOwner();
+                if (owner == null)
+                        return;
+
+                String actionLabel = request.getRequestType() == ClinicSuspendRequestType.UNSUSPEND
+                                ? "bỏ tạm ngưng"
+                                : "tạm ngưng";
+
+                Notification notification = Notification.builder()
+                                .user(owner)
+                                .clinic(request.getClinic())
+                                .type(NotificationType.CLINIC_SUSPEND_REJECTED)
+                                .message(String.format(
+                                                "Yêu cầu %s cho phòng khám \"%s\" đã bị từ chối.",
+                                                actionLabel,
+                                                request.getClinic().getName()))
+                                .reason(request.getAdminNote())
+                                .actionData(request.getClinicSuspendRequestId().toString())
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                pushNotificationToUser(owner.getUserId(), notification);
+        }
+
+        /**
+         * Notify clinic owner when the clinic is activated again.
+         */
+        @Transactional
+        public void notifyClinicOwnerClinicActivated(Clinic clinic) {
+                User owner = clinic.getOwner();
+                if (owner == null)
+                        return;
+
+                Notification notification = Notification.builder()
+                                .user(owner)
+                                .clinic(clinic)
+                                .type(NotificationType.CLINIC_ACTIVATED)
+                                .message(String.format("Phòng khám \"%s\" đã được kích hoạt trở lại.", clinic.getName()))
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                pushNotificationToUser(owner.getUserId(), notification);
         }
 
         // ======================== REFUND/WITHDRAWAL NOTIFICATIONS
