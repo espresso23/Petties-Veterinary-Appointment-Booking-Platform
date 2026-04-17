@@ -53,8 +53,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(loggingInterceptor)
-                .addPathPatterns("/api/**")
+            .addPathPatterns("/**")
                 .excludePathPatterns(
+                "/actuator/**",
                         "/api/actuator/**",
                         "/health",
                         "/favicon.ico"

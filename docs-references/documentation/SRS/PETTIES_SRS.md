@@ -8,8 +8,8 @@
 
 **Project:** Petties - Veterinary Appointment Booking Platform
 
-**Version:** 2.4.4 (Voucher functional requirement completion)
-**Last Updated:** 2026-04-11
+**Version:** 2.4.5 (NFR alignment with current codebase)
+**Last Updated:** 2026-04-16
 **Document Status:** In Progress
 
 
@@ -7779,195 +7779,100 @@ Figure 47. SOS Fee Override Dialog (Mobile - Staff App)
 
 ## 4. NON-FUNCTIONAL REQUIREMENTS
 
-
-
 ### 4.1 External Interfaces
-
-
 
 #### 4.1.1 User Interfaces
 
+| Platform | Technology | Primary Roles | Description |
+|----------|------------|---------------|-------------|
+| Web application | React 19 + Vite + TypeScript | ADMIN, CLINIC_OWNER, CLINIC_MANAGER, STAFF | Dashboard-centric management UI, role-based routes, and operational modules for clinic and system administration. |
+| Mobile application | Flutter 3.5 | PET_OWNER, STAFF | Mobile-first booking, pet care, appointment tracking, and staff workflows for field/clinic operations. |
 
+#### 4.1.2 Hardware Interfaces
 
-| Platform | Technology | Description |
+| Interface | Scope | Description |
+|-----------|-------|-------------|
+| GPS/Location | Mobile | Supports clinic discovery and location-aware booking scenarios. |
+| Camera / Photo Library | Mobile + Web | Used for pet profile images, clinical evidence uploads, and document attachments. |
+| Device Notification Channel | Mobile + Web | Push notification delivery via Firebase Cloud Messaging device/browser token binding. |
 
-|----------|------------|-------------|
+#### 4.1.3 Software Interfaces
 
-| Web Frontend | React 19 + Vite + TypeScript | Admin, Clinic Owner, Clinic Manager dashboards |
+| Interface | Provider/Stack | Direction | Purpose |
+|-----------|----------------|-----------|---------|
+| Core REST APIs | Spring Boot backend | Web/Mobile -> Backend | Main business domain APIs (auth, booking, clinic, EMR, payment orchestration). |
+| AI APIs + WS streaming | FastAPI AI service | Web/Mobile/Backend <-> AI | AI assistant, diagnosis support, tool orchestration, and token streaming. |
+| SePay API | SePay | Backend <-> SePay | QR payment transaction lookup/reconciliation and webhook-driven payment confirmation. |
+| OpenRouter API | OpenRouter | AI service -> OpenRouter | Cloud LLM inference (Gemini, Llama, Claude families). |
+| Cohere Embeddings API | Cohere | AI service -> Cohere | Multilingual embedding generation for retrieval and case memory. |
+| Qdrant Cloud | Qdrant | AI service <-> Qdrant | Vector index storage and similarity retrieval for RAG/case memory. |
+| Firebase Cloud Messaging | Google Firebase | Backend -> Firebase -> Client | Push notifications for booking and operational events. |
+| Google Sign-In / OAuth | Google | Web/Mobile <-> Google | Federated authentication support. |
+| Cloudinary API | Cloudinary | Backend <-> Cloudinary | Media upload, storage, and CDN delivery for images/documents. |
+| SMTP | Mail provider (environment-configured) | Backend -> SMTP | OTP and transactional email delivery. |
 
-| Mobile App | Flutter 3.5 | Pet Owner, Staff mobile apps (iOS + Android) |
+#### 4.1.4 Communication Interfaces
 
-
-
- #### *4.1.2 Hardware Interfaces*
-
-
-
-| Interface | Description |
-
-|-----------|-------------|
-
-| GPS/Location | Mobile app dùng GPS để tìm clinic gần nhất |
-
-| Camera | Upload ảnh pet, chứng chỉ |
-
-| Push Notification | Firebase Cloud Messaging |
-
-
-
- #### *4.1.3 Software Interfaces*
-
-
-
-| Interface | Provider | Purpose |
-
-|-----------|----------|---------|
-
-| Stripe API | Stripe | Payment processing |
-
-| Google Sign-In | Google | OAuth authentication |
-
-| Firebase | Google | Push notifications, analytics |
-
-| OpenRouter API | OpenRouter | LLM inference (Cloud) - Gemini, Llama, Claude |
-
-| LlamaIndex | LlamaIndex | 100% RAG Framework (VectorStoreIndex, SentenceSplitter, CohereEmbedding, QdrantVectorStore) |
-
-| Cohere Embeddings | Cohere | Multilingual embeddings (embed-multilingual-v3, 1024 dims) |
-
-| Qdrant Cloud | Qdrant | Vector database with Binary Quantization |
-
-| DuckDuckGo Search | DuckDuckGo | Web search for AI (free, no API key) |
-
-| Gmail SMTP | Google | Email notifications |
-
-| Cloudinary | Cloudinary | Image storage & CDN |
-
-
-
- #### *4.1.4 Communication Interfaces*
-
-
-
-| Protocol | Usage |
-
-|----------|-------|
-
-| HTTPS | All API calls |
-
-| WSS | WebSocket for real-time chat |
-
-| SMTP | Email sending |
-
-| FCM | Push notifications |
-
-
+| Protocol | Scope | Requirement |
+|----------|-------|-------------|
+| HTTPS (TLS) | All HTTP APIs | All cross-service and client-server API traffic must use HTTPS in test/prod environments. |
+| WSS | AI/Chat real-time channels | Streaming channels must use secure WebSocket transport in public environments. |
+| SMTP over TLS | Email delivery | Outbound email must use authenticated SMTP with TLS. |
+| Webhook over HTTPS | Payment callbacks | Inbound payment notifications must be accepted via HTTPS endpoints with validation checks. |
 
 ### 4.2 Quality Attributes
 
-
-
 #### 4.2.1 Usability
 
+| Attribute | Requirement | Acceptance Metric |
+|-----------|-------------|-------------------|
+| Role-oriented navigation | Screens and actions must remain consistent with role matrix and route guards. | No unauthorized screen access in functional tests for all roles. |
+| Language consistency | User-facing text must be Vietnamese for all UI states and user messages. | UI review checklist passes for release candidate builds. |
+| Learnability | Core flows (register/login, create booking, view booking status) should be completed by first-time users without external training. | First-time task completion >= 80% in UAT scenarios. |
+| Mobile ergonomics | Interactive controls must support touch usability and readable input/error states. | Main action touch targets >= 44px and no critical UX blocker in mobile UAT. |
+| Feedback clarity | All async actions must show progress/success/error feedback with actionable next step. | 100% of critical async actions have loading and error handling states in QA checklist. |
 
+#### 4.2.2 Reliability
 
-| Requirement | Target | Metric |
+| Attribute | Requirement | Acceptance Metric |
+|-----------|-------------|-------------------|
+| Service availability | Backend and AI services must be continuously available in production with monitored health endpoints. | Monthly uptime >= 99.5% for public APIs. |
+| Failure recovery | Containers/services must auto-restart after crash and support fast recovery playbooks. | MTTR target < 60 minutes for P1 incidents. |
+| Data durability | Operational data must be persisted in PostgreSQL/MongoDB with periodic backup strategy by environment. | Daily backup jobs complete successfully; periodic restore drill documented. |
+| Payment consistency | Payment confirmation processing must avoid duplicated state transitions. | Webhook/payment reconciliation scenarios are idempotent in integration test suite. |
+| Graceful degradation | Core booking and clinic operations must remain available if AI service is degraded. | Booking API path remains functional during AI dependency outage simulation. |
 
-|-------------|--------|--------|
+#### 4.2.3 Performance
 
-| Learnability | Users can complete basic tasks within 5 minutes | First-time task completion rate > 80% |
+| Attribute | Requirement | Acceptance Metric |
+|-----------|-------------|-------------------|
+| API latency (core backend) | Typical read/write business APIs should respond within interactive latency range under normal load. | p95 <= 500 ms for core endpoints in performance test baseline. |
+| AI response interactivity | AI chat should provide quick initial response for conversational UX. | Time-to-first-token p95 <= 4 seconds in test baseline. |
+| Frontend loading | Web pages should become usable quickly on standard broadband and mid-tier devices. | FCP <= 3 seconds on key pages in test environment baseline. |
+| Database efficiency | Indexed operational queries should avoid slow full-scan behavior in common flows. | p95 query time <= 150 ms for critical booking/clinic queries. |
+| Concurrent operations | System should support clinic operations and booking bursts without critical degradation. | No critical error increase at baseline concurrent load agreed for sprint release test. |
 
-| Accessibility | WCAG 2.1 Level AA compliance | Pass automated accessibility tests |
+#### 4.2.4 Maintainability and Continuous Integration
 
-| Mobile UX | Intuitive touch navigation | Touch target size ≥ 44px |
+| Attribute | Requirement | Acceptance Metric |
+|-----------|-------------|-------------------|
+| Modular architecture | Monorepo must keep clear service boundaries across web, mobile, backend, and AI service. | Changes can be scoped by module with no unintended cross-service break in CI. |
+| Branching and release discipline | Development flow must follow feature -> develop -> main promotion model with environment mapping. | All production changes are traceable to reviewed pull requests. |
+| CI pipeline coverage | `.github/workflows/ci.yml` must validate build/test/lint gates for primary services before merge. | Required CI checks pass on PR before merge. |
+| Deployment automation | `deploy-test.yml`, `deploy-ec2.yml`, and `mobile-ci-cd.yml` must support repeatable environment-specific releases. | Successful automated deployment logs for target environment. |
+| Schema evolution governance | Backend schema changes must be versioned through Flyway migration scripts with timestamp naming convention. | No entity field change merged without corresponding migration file. |
+| Documentation synchronization | SRS/SDD and operational docs must be updated for major features or architecture-impacting changes. | Documentation review checklist completed in release PR. |
 
-| Error Messages | Clear, actionable error messages | Vietnamese language support |
+#### 4.2.5 Code Quality and Testability
 
-| Loading States | Visual feedback during operations | All async operations show loading indicators |
-
-
-
- #### *4.2.2 Reliability*
-
-
-
-| Requirement | Target | Metric |
-
-|-------------|--------|--------|
-
-| Availability | 99.5% uptime | Monthly uptime percentage |
-
-| MTBF (Mean Time Between Failures) | > 720 hours | Failure tracking |
-
-| MTTR (Mean Time To Recovery) | < 1 hour | Incident response time |
-
-| Data Backup | Daily automated backups | Backup success rate 100% |
-
-| Failover | Auto-restart on crash | Docker restart policy: unless-stopped |
-
-
-
- #### *4.2.3 Performance*
-
-
-
-| Requirement | Target | Metric |
-
-|-------------|--------|--------|
-
-| API Response Time | < 200ms (95th percentile) | Server-side latency |
-
-| Page Load Time | < 3 seconds (FCP) | Lighthouse performance score |
-
-| Database Query | < 100ms | Query execution time |
-
-| Concurrent Users | 1000+ simultaneous | Load testing with k6 |
-
-| Mobile App Size | < 50MB (APK) | Bundle size |
-
-
-
- #### *4.2.4 Maintainability and Continuous Integration*
-
-
-
-| Requirement | Description |
-
-|-------------|-------------|
-
-| Version Control | Git with GitHub, branching strategy (main/develop/feature) |
-
-| CI/CD Pipeline | GitHub Actions for automated testing and deployment |
-
-| Documentation | README, API docs (Swagger), Code comments |
-
-| Modularity | Microservices architecture (Backend + AI Service) |
-
-| Logging | Structured logging với Loguru (Python), SLF4J (Java) |
-
-| Monitoring | Docker healthchecks, Actuator endpoints |
-
-
-
- #### *4.2.5 Code Quality and Testability*
-
-
-
-| Requirement | Target | Tools |
-
-|-------------|--------|-------|
-
-| Test Coverage | > 70% | JaCoCo (Java), pytest-cov (Python) |
-
-| Unit Tests | All business logic | JUnit 5 (Java), pytest (Python) |
-
-| Integration Tests | API endpoints | MockMvc (Spring), TestClient (FastAPI) |
-
-| E2E Tests | Critical user flows | Playwright, Flutter integration tests |
-
-| Code Quality | No critical issues | SonarQube (optional) |
-
-| Linting | Consistent code style | ESLint (TS), Black (Python), Checkstyle (Java) |
+| Attribute | Requirement | Acceptance Metric |
+|-----------|-------------|-------------------|
+| Backend unit/integration testing | Service and controller logic in Spring Boot must be testable with JUnit 5 + Mockito + Spring test stack. | New/changed backend business paths include automated tests and `mvn test` pass. |
+| AI service testing | AI service modules (tools, services, APIs) must be testable with pytest. | Relevant AI tests added/updated and `pytest` pass for changed scope. |
+| Frontend testability | Web components/services should be structured for Vitest-based unit/integration tests. | Changed web modules include/maintain tests and `npm run test` pass for scope. |
+| Mobile testability | Flutter features must remain testable with widget/unit tests in the mobile project. | Changed mobile modules keep `flutter test` green for affected scope. |
+| Static analysis and style consistency | TypeScript code must pass ESLint and type checks; backend and AI code must pass project compile/test gates. | `npm run lint`, `npm run type-check`, `mvn test`, and changed-scope pytest pass in CI/local verification. |
+| API contract clarity | Public APIs must expose clear contract documentation via Swagger/OpenAPI in backend service. | New API endpoints include request/response documentation annotations and are visible in API docs. |
 
 
 

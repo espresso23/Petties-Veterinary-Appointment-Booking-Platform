@@ -30,6 +30,15 @@ const fetchWithAuth = async (url: string, options: RequestInit = {}): Promise<Re
     return fetch(url, { ...options, headers })
 }
 
+const fetchBackendWithAuth = async (path: string, options: RequestInit = {}): Promise<Response> => {
+    const backendUrl = `${env.API_BASE_URL}${path}`
+    const headers = {
+        ...getAuthHeaders(),
+        ...(options.headers || {}),
+    }
+    return fetch(backendUrl, { ...options, headers })
+}
+
 // ===== TYPES =====
 
 export interface AgentListResponse {
@@ -369,22 +378,59 @@ export interface StaffDiagnosisSuggestion {
     score_basis: string
     confidence_note: string
     supporting_reasons: string[]
+    taxonomy_system?: string
+    taxonomy_subsystem?: string
+    reasoning?: string
+    differential_diagnoses?: Array<Record<string, unknown>>
 }
 
 export interface StaffDiagnosisPrescriptionSuggestion {
     medicine_name: string
-    dosage: string
-    frequency: string
+    dosage?: string
+    frequency?: string
     times_of_day?: string[]
     timesOfDay?: string[]
     before_after_meal?: string
     beforeAfterMeal?: string
+    frequency_note?: string
+    frequencyNote?: string
     duration_days?: number | null
     durationDays?: number | null
     instructions: string
     caution?: string | null
     source?: string
     source_detail?: string
+}
+
+export interface AuditLogItem {
+    event_id: string
+    occurred_at: string
+    service: string
+    environment: string
+    actor: Record<string, unknown>
+    action: string
+    resource: Record<string, unknown>
+    result: Record<string, unknown>
+    correlation: Record<string, unknown>
+    metadata: Record<string, unknown>
+    changes: Record<string, unknown>
+}
+
+export interface AuditLogListResponse {
+    items: AuditLogItem[]
+    total: number
+    page: number
+    page_size: number
+}
+
+export interface BackendSystemAuditLogListResponse {
+    source: string
+    service: string
+    total: number
+    page: number
+    page_size: number
+    items: AuditLogItem[]
+    fetchedAt: string
 }
 
 export interface StaffDiagnosisResponse {
@@ -800,5 +846,125 @@ export const createChatWebSocket = (sessionId: string, contextType?: string): We
     return new WebSocket(fullWsUrl)
 }
 
-export default { agentApi, toolApi, knowledgeApi, chatApi, diagnosisApi, feedbackApi, caseMemoryApi, createChatWebSocket }
+// ===== DISEASE CATALOG APIs (NEW) =====
 
+export const diseaseCatalogApi = {
+    async getStats(): Promise<{
+        success: boolean
+        catalog: { total_diseases: number; total_aliases: number }
+    }> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/disease-catalog/stats`)
+        if (!response.ok) throw new Error('Không thể lấy thống kê Disease Catalog')
+        return response.json()
+    },
+
+    async list(params: {
+        species?: string
+        system?: string
+        page?: number
+        page_size?: number
+    } = {}): Promise<{
+        success: boolean
+        items: Array<{
+            canonical_code: string
+            display_name_vi: string
+            system: string
+            subsystem: string
+            aliases: string[]
+            species: string[]
+        }>
+        total: number
+        page: number
+        page_size: number
+    }> {
+        const queryParams = new URLSearchParams()
+        if (params.species) queryParams.set('species', params.species)
+        if (params.system) queryParams.set('system', params.system)
+        if (params.page) queryParams.set('page', params.page.toString())
+        if (params.page_size) queryParams.set('page_size', params.page_size.toString())
+
+        const queryString = queryParams.toString()
+        const response = await fetchWithAuth(
+            `${AGENT_API_BASE_URL}/api/v1/knowledge/disease-catalog${queryString ? `?${queryString}` : ''}`
+        )
+        if (!response.ok) {
+            const err = await response.json().catch(() => null)
+            throw new Error(err?.detail || 'Không thể lấy danh sách Disease Catalog')
+        }
+        return response.json()
+    },
+}
+
+export const auditLogApi = {
+    async list(params: {
+        page?: number
+        page_size?: number
+        user_id?: string
+        action?: string
+        resource_type?: string
+        status?: string
+        request_id?: string
+        from_time?: string
+        to_time?: string
+    } = {}): Promise<AuditLogListResponse> {
+        const queryParams = new URLSearchParams()
+        if (params.page) queryParams.set('page', String(params.page))
+        if (params.page_size) queryParams.set('page_size', String(params.page_size))
+        if (params.user_id) queryParams.set('user_id', params.user_id)
+        if (params.action) queryParams.set('action', params.action)
+        if (params.resource_type) queryParams.set('resource_type', params.resource_type)
+        if (params.status) queryParams.set('status', params.status)
+        if (params.request_id) queryParams.set('request_id', params.request_id)
+        if (params.from_time) queryParams.set('from_time', params.from_time)
+        if (params.to_time) queryParams.set('to_time', params.to_time)
+
+        const queryString = queryParams.toString()
+        const response = await fetchWithAuth(
+            `${AGENT_API_BASE_URL}/api/v1/audit-logs${queryString ? `?${queryString}` : ''}`,
+        )
+        if (!response.ok) {
+            const err = await response.json().catch(() => null)
+            throw new Error(err?.detail || 'Khong the lay audit logs')
+        }
+        return response.json()
+    },
+}
+
+export const backendSystemLogApi = {
+    async listAuditLogs(params: {
+        page?: number
+        page_size?: number
+        status?: string
+        action?: string
+        userId?: string
+        requestId?: string
+    } = {}): Promise<BackendSystemAuditLogListResponse> {
+        const queryParams = new URLSearchParams()
+        queryParams.set('page', String(params.page || 1))
+        queryParams.set('pageSize', String(params.page_size || 30))
+        if (params.status) queryParams.set('status', params.status)
+        if (params.action) queryParams.set('action', params.action)
+        if (params.userId) queryParams.set('userId', params.userId)
+        if (params.requestId) queryParams.set('requestId', params.requestId)
+        const response = await fetchBackendWithAuth(`/admin/system-logs/backend?${queryParams.toString()}`)
+        if (!response.ok) {
+            const err = await response.json().catch(() => null)
+            throw new Error(err?.message || err?.detail || 'Khong the lay backend logs')
+        }
+        return response.json()
+    },
+}
+
+export default {
+    agentApi,
+    toolApi,
+    knowledgeApi,
+    chatApi,
+    diagnosisApi,
+    feedbackApi,
+    caseMemoryApi,
+    diseaseCatalogApi,
+    auditLogApi,
+    backendSystemLogApi,
+    createChatWebSocket,
+}

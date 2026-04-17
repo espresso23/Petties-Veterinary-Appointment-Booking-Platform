@@ -45,6 +45,45 @@ const mapSpecies = (species?: string): 'dog' | 'cat' | 'other' => {
     return 'other'
 }
 
+const timeLabel = (value: string): string => {
+    if (value === 'sang') return 'Sáng'
+    if (value === 'trua') return 'Trưa'
+    if (value === 'chieu') return 'Chiều'
+    return value
+}
+
+const mealLabel = (value?: string): string => {
+    if (!value) return ''
+    if (value === 'BEFORE_MEAL') return 'Trước ăn'
+    if (value === 'AFTER_MEAL') return 'Sau ăn'
+    if (value === 'WITH_MEAL') return 'Cùng bữa'
+    if (value === 'NONE') return 'Không phụ thuộc bữa ăn'
+    return value
+}
+
+const buildPrescriptionSchedule = (item: StaffDiagnosisResponse['prescription_suggestions'][number]): string => {
+    const times = (item.times_of_day || item.timesOfDay || []).map(timeLabel)
+    const meal = mealLabel(item.before_after_meal || item.beforeAfterMeal)
+    const frequencyNote = item.frequency_note || item.frequencyNote || ''
+
+    if (times.length > 0) {
+        const parts = [times.join(', ')]
+        if (meal) parts.push(meal)
+        if (frequencyNote) parts.push(frequencyNote)
+        return parts.join(' | ')
+    }
+
+    const legacyFrequency = (item.frequency || '').trim()
+    if (legacyFrequency) {
+        return legacyFrequency
+    }
+
+    const parts: string[] = []
+    if (meal) parts.push(meal)
+    if (frequencyNote) parts.push(frequencyNote)
+    return parts.join(' | ') || 'Theo chỉ định'
+}
+
 export const AIDiagnosisPanel = ({
     petId,
     bookingId,
@@ -571,7 +610,7 @@ export const AIDiagnosisPanel = ({
                                     <div key={`${item.medicine_name}-${idx}`} className="rounded-2xl border border-stone-200 bg-stone-50/70 p-3">
                                         <p className="text-sm font-bold text-stone-900">{item.medicine_name}</p>
                                         <p className="text-xs text-stone-600">
-                                            {item.dosage || 'Theo toa'} | {item.frequency || 'Theo chỉ định'} | {item.duration_days ?? '-'} ngày
+                                            {buildPrescriptionSchedule(item)} | {item.duration_days ?? '-'} ngày
                                         </p>
                                         {item.instructions && (
                                             <p className="mt-1 text-[11px] text-stone-500">{item.instructions}</p>

@@ -4,6 +4,57 @@ Last updated: 2026-04-15
 Owner: DevOps / Backend Team
 Scope: Runtime operations for `docker-compose.prod.yml` on EC2
 
+## 0. Quick Start with Deploy Script
+
+Use `scripts/deploy-prod.sh` for standardized production operations.
+
+First-time setup on EC2:
+
+```bash
+cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
+chmod +x scripts/deploy-prod.sh
+```
+
+Common commands:
+
+```bash
+# Validate compose and env
+scripts/deploy-prod.sh validate
+
+# Deploy latest main
+scripts/deploy-prod.sh deploy
+
+# Deploy a specific tag/commit
+scripts/deploy-prod.sh deploy --ref <tag-or-commit>
+
+# Check runtime status
+scripts/deploy-prod.sh status
+
+# Health checks
+scripts/deploy-prod.sh health
+
+# Logs (all services)
+scripts/deploy-prod.sh logs
+
+# Logs (single service)
+scripts/deploy-prod.sh logs --service backend --follow
+
+# Restart one service
+scripts/deploy-prod.sh restart --service ai-service
+
+# Rollback to a specific commit
+scripts/deploy-prod.sh rollback --ref <commit>
+
+# Rollback to last successful commit recorded by script
+scripts/deploy-prod.sh rollback
+```
+
+Notes:
+- Default env file: `.env.prod`
+- Default compose file: `docker-compose.prod.yml`
+- Default branch for deploy: `main`
+- Script records successful commits at `.deploy/last_successful_commit.txt`
+
 ## 1. Purpose
 
 This runbook defines standard operating procedures for Petties EC2 environments:

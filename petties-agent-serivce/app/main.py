@@ -21,6 +21,7 @@ setup_logging(
     sentry_dsn=settings.SENTRY_DSN,
     environment=settings.APP_ENV,
     enable_json_logging=(settings.APP_ENV == "production"),
+    service_name=settings.APP_NAME,
 )
 logger = get_logger(__name__)
 
@@ -178,7 +179,7 @@ async def root():
 
 
 from app.ai_diagnose.routes import router as staff_diagnosis_router
-from app.api.routes import agents, chat, internal_case_memory, knowledge, tools
+from app.api.routes import agents, audit_logs, chat, internal_case_memory, knowledge, tools
 from app.api.routes import pet_health_summary
 from app.api.routes import settings as settings_routes
 from app.api.websocket import websocket_chat_endpoint
@@ -187,6 +188,7 @@ app.include_router(tools.router, prefix="/api/v1")
 app.include_router(agents.router, prefix="/api/v1")
 app.include_router(knowledge.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
+app.include_router(audit_logs.router, prefix="/api/v1")
 app.include_router(settings_routes.router, prefix="/api/v1")
 app.include_router(staff_diagnosis_router, prefix="/api/v1")
 app.include_router(pet_health_summary.router, prefix="/api/v1")

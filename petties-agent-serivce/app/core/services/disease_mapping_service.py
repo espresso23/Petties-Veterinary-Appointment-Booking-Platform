@@ -156,7 +156,7 @@ class DiseaseMappingService:
     """Canonical disease mapping with DB-backed snapshot and autonomous updates."""
 
     MAP_EXISTING_CONFIDENCE = 0.90
-    CREATE_NEW_CONFIDENCE = 0.94
+    CREATE_NEW_CONFIDENCE = 0.85  # Reduced from 0.94 to enable autonomous learning
     MAX_CANDIDATES = 5
 
     def __init__(self, *, snapshot_ttl_seconds: int = 300) -> None:
@@ -298,6 +298,7 @@ class DiseaseMappingService:
         raw_label: str,
         source_type: str,
         species: Optional[str] = None,
+        taxonomy_hint: Optional[str] = None,  # NEW: Taxonomy hint to boost confidence
     ) -> DiseaseMappingResult:
         normalized_label = _normalize_text(raw_label)
         normalized_species = (species or "all").strip().lower() or "all"
@@ -313,13 +314,17 @@ class DiseaseMappingService:
             species=normalized_species,
         )
         catalog_entry = self._catalog.get(canonical_code) if canonical_code else None
-        return DiseaseMappingResult(
+
+        # Build result
+        result = DiseaseMappingResult(
             raw_label=raw_label,
             canonical_code=canonical_code,
             display_name_vi=catalog_entry.display_name_vi if catalog_entry else None,
             mapped=canonical_code is not None,
             source_type=source_type,
         )
+
+        return result
 
     async def resolve_label(
         self,
@@ -328,11 +333,13 @@ class DiseaseMappingService:
         source_type: str,
         species: Optional[str] = None,
         context_text: Optional[str] = None,
+        taxonomy_hint: Optional[str] = None,  # NEW: Taxonomy hint to boost confidence
     ) -> DiseaseMappingResult:
         direct_match = self.map_label(
             raw_label=raw_label,
             source_type=source_type,
             species=species,
+            taxonomy_hint=taxonomy_hint,
         )
         if direct_match.mapped:
             return direct_match
@@ -348,6 +355,7 @@ class DiseaseMappingService:
             species=normalized_species,
             context_text=context_text,
             candidates=candidates,
+            taxonomy_hint=taxonomy_hint,  # Pass hint to LLM
         )
         if decision is None:
             return self._provisional_result(
@@ -582,6 +590,7 @@ class DiseaseMappingService:
         species: str,
         context_text: Optional[str],
         candidates: List[CanonicalCandidate],
+        taxonomy_hint: Optional[str] = None,  # NEW
     ) -> Optional[CanonicalizationDecision]:
         llm_client = await self._get_llm_client()
         if llm_client is None:
@@ -593,6 +602,7 @@ class DiseaseMappingService:
             species=species,
             context_text=context_text,
             candidates=candidates,
+            taxonomy_hint=taxonomy_hint,
         )
 
         try:
@@ -616,6 +626,7 @@ class DiseaseMappingService:
         species: str,
         context_text: Optional[str],
         candidates: List[CanonicalCandidate],
+        taxonomy_hint: Optional[str] = None,  # NEW
     ) -> str:
         candidate_payload = [
             {
@@ -627,12 +638,22 @@ class DiseaseMappingService:
             }
             for item in candidates
         ]
+
+        taxonomy_hint_text = ""
+        if taxonomy_hint:
+            taxonomy_hint_text = f"""
+
+GỢI Ý QUAN TRỌNG:
+Có gợi ý từ hệ thống phân loại: '{taxonomy_hint}'
+Hãy ưu tiên xem xét bệnh này nếu phù hợp với ngữ cảnh."""
+
         payload = {
             "raw_label": raw_label,
             "source_type": source_type,
             "species": species,
             "context_text": context_text or "",
             "candidate_canonicals": candidate_payload,
+            "taxonomy_hint": taxonomy_hint,
         }
         return f"""You are an internal disease normalization resolver for Petties veterinary AI.
 Your job is to normalize a raw disease label into one canonical disease code.
@@ -645,6 +666,7 @@ Rules:
 - `canonical_code` must be snake_case ASCII.
 - `display_name_vi` should be short Vietnamese clinical wording.
 - Confidence is a number from 0 to 1.
+{taxonomy_hint_text}
 
 Return JSON with this schema:
 {{

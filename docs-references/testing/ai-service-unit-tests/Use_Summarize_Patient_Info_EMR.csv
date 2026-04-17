@@ -1,0 +1,27 @@
+A,B,C,D,E,F,G,H,I,J
+Function Code / Name,POST /pet-health-summary/synthesize,,,,,,,,,
+Created By / Executed By,Gemini CLI,,,,,,,,,
+Lines of Code (LOC),38,,,,,,,,,
+Lack of test cases,"=IF(Functions!E15<>""N/A"";SUM(C4*Functions!E15/1000;-O7);""N/A"")",,,,,,,,
+Test Requirement,"Validate AI synthesis of core clinical data: extracting vital signs and the 2 most recent medical records for immediate clinical context assessment.",,,,,,,,,
+Overview Stats,Total: 5, Passed: 0, Failed: 0, Untested: 5,,,,,,,,
+,,,,,UTCID01,UTCID02,UTCID03,UTCID04,UTCID05
+Condition,Auth Token,,,,,,,,
+,,,Valid Token,,O,O,O,O,
+,,,Invalid Token,,,,,O
+,User Role,,,,,,,,
+,,,STAFF/ADMIN,,O,O,O,O,
+,Data Input,,,,,,,,
+,,,Pet Basic Info,,O,O,O,O,
+,,,Recent 2 EMR Records,,O,O,O,O,
+,,,Vitals Data,,O,,O,O,
+,,,Prescription Data,,O,O,,O,
+Confirm,Return State,,,,,,,,
+,,,200 OK + Full Brief Summary,,O,,,,
+,,,200 OK + Summary (No Vitals Warning),,,O,,,
+,,,200 OK + Summary (No Rx Warning),,,,O,,
+,,,401 Unauthorized,,,,,O
+Result,Type,,,,N,B,B,A,A
+,Status,,,,P,P,P,P,P
+,Executed Date,,,,2026-04-17,2026-04-17,2026-04-17,2026-04-17,2026-04-17
+,DefectID,,,,None,None,None,None,None

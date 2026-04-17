@@ -25,6 +25,10 @@ from loguru import logger
 from app.core.rag.case_memory import CaseResult, get_case_memory_service
 from app.core.rag.hybrid_engine import HybridChunk, HybridResult, get_hybrid_rag_engine
 from app.core.services.disease_mapping_service import get_disease_mapping_service
+from app.core.services.disease_taxonomy_service import (
+    TaxonomyClassification,
+    get_disease_taxonomy_service,
+)
 from app.core.vision.gemini_vision_adapter import get_gemini_vision_adapter
 from app.db.postgres.session import AsyncSessionLocal
 from app.services.llm_client import BaseLLMClient, get_llm_client_from_db
@@ -52,6 +56,10 @@ class DifferentialCandidate:
     display_name_vi: str
     score: float = 0.0
     supporting_reasons: List[str] = field(default_factory=list)
+    taxonomy_system: str = ""
+    taxonomy_subsystem: str = ""
+    reasoning: str = ""
+    differential_diagnoses: List[Dict[str, Any]] = field(default_factory=list)
 
     def add_reason(self, reason: str) -> None:
         reason = (reason or "").strip()
@@ -90,6 +98,7 @@ class SoapGroundingBundle:
 
 class StaffDiagnosisService:
     """Build staff diagnosis response from multimodal input and internal evidence."""
+
     _MAX_MEDICATION_RETRY = 2
 
     def __init__(self) -> None:
@@ -148,7 +157,7 @@ class StaffDiagnosisService:
         )
         evidence_banner, score_label = self._resolve_evidence_labels(evidence_mode)
 
-        top_differentials = self._build_top_differentials(
+        top_differentials = await self._build_top_differentials(
             request=request,
             vision_response=vision_response,
             hybrid_result=hybrid_result,
@@ -891,8 +900,11 @@ class StaffDiagnosisService:
             evidence.append(
                 {
                     "medicine_name": medicine,
-                    "times_of_day": item.get("times_of_day") or item.get("timesOfDay") or [],
-                    "before_after_meal": item.get("before_after_meal") or item.get("beforeAfterMeal"),
+                    "times_of_day": item.get("times_of_day")
+                    or item.get("timesOfDay")
+                    or [],
+                    "before_after_meal": item.get("before_after_meal")
+                    or item.get("beforeAfterMeal"),
                     "frequency_note": str(
                         item.get("frequency_note") or item.get("frequencyNote") or ""
                     ).strip(),
@@ -1398,6 +1410,23 @@ RÀNG BUỘC CỰC KỲ QUAN TRỌNG về đơn thuốc:
                             if str(reason).strip()
                         ]
                         or (fallback.supporting_reasons if fallback else []),
+                        taxonomy_system=str(item.get("taxonomy_system") or "").strip()
+                        or (fallback.taxonomy_system if fallback else ""),
+                        taxonomy_subsystem=str(
+                            item.get("taxonomy_subsystem") or ""
+                        ).strip()
+                        or (fallback.taxonomy_subsystem if fallback else ""),
+                        reasoning=str(item.get("reasoning") or "").strip()
+                        or (fallback.reasoning if fallback else ""),
+                        differential_diagnoses=(
+                            [
+                                entry
+                                for entry in item.get("differential_diagnoses", [])
+                                if isinstance(entry, dict)
+                            ]
+                            if isinstance(item.get("differential_diagnoses", []), list)
+                            else (fallback.differential_diagnoses if fallback else [])
+                        ),
                     )
                 )
             if normalized:
@@ -1470,8 +1499,7 @@ RÀNG BUỘC CỰC KỲ QUAN TRỌNG về đơn thuốc:
                         frequency_note=str(
                             rx.get("frequency_note") or rx.get("frequencyNote") or ""
                         ),
-                        duration_days=rx.get("duration_days")
-                        or rx.get("durationDays"),
+                        duration_days=rx.get("duration_days") or rx.get("durationDays"),
                         instructions=str(rx.get("instructions") or ""),
                         caution=rx.get("caution"),
                         source="llm_fallback",
@@ -1602,11 +1630,7 @@ RÀNG BUỘC CỰC KỲ QUAN TRỌNG về đơn thuốc:
         if differential is None:
             return False
         label = (differential.display_name_vi or "").strip().lower()
-        return (
-            differential.canonical_code is None
-            and "cần phân biệt" in label
-        )
-
+        return differential.canonical_code is None and "cần phân biệt" in label
 
     def _merge_safety_suggestions(
         self,
@@ -1756,7 +1780,7 @@ RÀNG BUỘC CỰC KỲ QUAN TRỌNG về đơn thuốc:
             cleaned.append(line)
         return "\n".join(cleaned).strip()
 
-    def _build_top_differentials(
+    async def _build_top_differentials(
         self,
         *,
         request: StaffDiagnosisRequest,
@@ -1767,9 +1791,30 @@ RÀNG BUỘC CỰC KỲ QUAN TRỌNG về đơn thuốc:
     ) -> List[DiagnosisSuggestion]:
         candidates: Dict[str, DifferentialCandidate] = {}
 
-        self._merge_vision_candidates(candidates, vision_response, request)
+        taxonomy_classification = await self._classify_taxonomy(request=request)
+        taxonomy_hint = (
+            taxonomy_classification.canonical_code
+            if taxonomy_classification is not None
+            else None
+        )
+
+        self._merge_vision_candidates(
+            candidates,
+            vision_response,
+            request,
+            taxonomy_hint=taxonomy_hint,
+        )
         self._merge_hybrid_candidates(candidates, hybrid_result, request)
-        self._merge_case_memory_candidates(candidates, similar_cases)
+        self._merge_case_memory_candidates(
+            candidates,
+            similar_cases,
+            taxonomy_hint=taxonomy_hint,
+        )
+
+        self._apply_taxonomy_boost(
+            candidates,
+            taxonomy_classification=taxonomy_classification,
+        )
 
         if not candidates:
             for fallback in self._fallback_differentials(request):
@@ -1818,6 +1863,10 @@ RÀNG BUỘC CỰC KỲ QUAN TRỌNG về đơn thuốc:
                     or [
                         "Chưa có đủ tín hiệu nội bộ để củng cố mạnh cho chẩn đoán này."
                     ],
+                    taxonomy_system=item.taxonomy_system,
+                    taxonomy_subsystem=item.taxonomy_subsystem,
+                    reasoning=item.reasoning,
+                    differential_diagnoses=item.differential_diagnoses,
                 )
             )
         return result
@@ -1923,6 +1972,10 @@ RÀNG BUỘC CỰC KỲ QUAN TRỌNG về đơn thuốc:
                     score_basis=item.score_basis,
                     confidence_note=item.confidence_note,
                     supporting_reasons=reasons,
+                    taxonomy_system=item.taxonomy_system,
+                    taxonomy_subsystem=item.taxonomy_subsystem,
+                    reasoning=item.reasoning,
+                    differential_diagnoses=item.differential_diagnoses,
                 )
             )
 
@@ -1992,6 +2045,10 @@ RÀNG BUỘC CỰC KỲ QUAN TRỌNG về đơn thuốc:
                         evidence_mode=evidence_mode,
                     ),
                     supporting_reasons=reasons,
+                    taxonomy_system=item.taxonomy_system,
+                    taxonomy_subsystem=item.taxonomy_subsystem,
+                    reasoning=item.reasoning,
+                    differential_diagnoses=item.differential_diagnoses,
                 )
             )
 
@@ -2002,6 +2059,7 @@ RÀNG BUỘC CỰC KỲ QUAN TRỌNG về đơn thuốc:
         candidates: Dict[str, DifferentialCandidate],
         vision_response: GeminiVisionDiagnosisResponse,
         request: StaffDiagnosisRequest,
+        taxonomy_hint: Optional[str] = None,
     ) -> None:
         mapper = get_disease_mapping_service()
 
@@ -2012,6 +2070,7 @@ RÀNG BUỘC CỰC KỲ QUAN TRỌNG về đơn thuốc:
                     raw_label=condition.display_name_vi or condition.raw_label,
                     source_type="vision",
                     species=request.species.value,
+                    taxonomy_hint=taxonomy_hint,
                 )
 
             canonical_code = condition.canonical_code or (
@@ -2075,6 +2134,7 @@ RÀNG BUỘC CỰC KỲ QUAN TRỌNG về đơn thuốc:
         self,
         candidates: Dict[str, DifferentialCandidate],
         similar_cases: List[CaseResult],
+        taxonomy_hint: Optional[str] = None,
     ) -> None:
         mapper = get_disease_mapping_service()
 
@@ -2091,6 +2151,7 @@ RÀNG BUỘC CỰC KỲ QUAN TRỌNG về đơn thuốc:
                 raw_label=raw_label,
                 source_type="emr",
                 species=str(payload.get("species") or "all"),
+                taxonomy_hint=taxonomy_hint,
             )
 
             canonical_code = payload.get("canonical_code") or mapping.canonical_code
@@ -2135,6 +2196,95 @@ RÀNG BUỘC CỰC KỲ QUAN TRỌNG về đơn thuốc:
                     candidate.add_reason(
                         f"Ca tương tự đã chốt chẩn đoán: {final_diagnosis}."
                     )
+
+    async def _classify_taxonomy(
+        self,
+        *,
+        request: StaffDiagnosisRequest,
+    ) -> Optional[TaxonomyClassification]:
+        clinical_parts: List[str] = []
+        if request.doctor_description:
+            clinical_parts.append(request.doctor_description)
+        if request.symptoms:
+            clinical_parts.append(", ".join(request.symptoms))
+
+        clinical_text = " ".join(clinical_parts).strip()
+        if not clinical_text:
+            return None
+
+        try:
+            taxonomy_service = get_disease_taxonomy_service()
+            return await taxonomy_service.classify_disease(
+                clinical_text=clinical_text,
+                species=request.species.value,
+                symptoms=request.symptoms or [],
+            )
+        except Exception as exc:
+            logger.warning("Taxonomy classification failed: {}", exc)
+            return None
+
+    def _apply_taxonomy_boost(
+        self,
+        candidates: Dict[str, DifferentialCandidate],
+        taxonomy_classification: Optional[TaxonomyClassification],
+    ) -> None:
+        if not candidates or taxonomy_classification is None:
+            return
+
+        confidence = float(getattr(taxonomy_classification, "confidence", 0.0) or 0.0)
+        if confidence < 0.75:
+            return
+
+        taxonomy_code = str(
+            getattr(taxonomy_classification, "canonical_code", "") or ""
+        ).strip()
+        if not taxonomy_code:
+            return
+
+        taxonomy_key = taxonomy_code.lower()
+        for candidate in candidates.values():
+            candidate_code = str(candidate.canonical_code or "").strip().lower()
+            if not candidate_code or candidate_code != taxonomy_key:
+                continue
+
+            boost = min(confidence * 0.3, 0.3)
+            candidate.score += boost
+            display_name_vi = str(
+                getattr(taxonomy_classification, "display_name_vi", "") or ""
+            ).strip()
+            reasoning = str(
+                getattr(taxonomy_classification, "reasoning", "") or ""
+            ).strip()
+            reason = (
+                f"Hệ thống phân loại bệnh xác nhận: {display_name_vi} "
+                f"({confidence:.0%})"
+            ).strip()
+            if reasoning:
+                reason = f"{reason} - {reasoning}"
+            candidate.add_reason(reason)
+            candidate.taxonomy_system = str(
+                getattr(taxonomy_classification, "system", "") or ""
+            ).strip()
+            candidate.taxonomy_subsystem = str(
+                getattr(taxonomy_classification, "subsystem", "") or ""
+            ).strip()
+            candidate.reasoning = reasoning
+            raw_differentials = getattr(
+                taxonomy_classification,
+                "differential_diagnoses",
+                [],
+            )
+            candidate.differential_diagnoses = (
+                [item for item in raw_differentials if isinstance(item, dict)]
+                if isinstance(raw_differentials, list)
+                else []
+            )
+            logger.info(
+                "Taxonomy boost applied for {} (+{:.2f})",
+                candidate.display_name_vi,
+                boost,
+            )
+            break
 
     def _build_retrieval_reason_snippets(
         self,
@@ -2637,7 +2787,9 @@ RÀNG BUỘC CỰC KỲ QUAN TRỌNG về đơn thuốc:
             return candidate
 
         diagnosis_phrase = (
-            f"theo chẩn đoán {selected_label}" if selected_label else "theo chẩn đoán hiện tại"
+            f"theo chẩn đoán {selected_label}"
+            if selected_label
+            else "theo chẩn đoán hiện tại"
         )
         base_goal = f"Mục tiêu: Kiểm soát triệu chứng và ổn định tiến triển lâm sàng {diagnosis_phrase}."
         base_action = (
@@ -2645,12 +2797,8 @@ RÀNG BUỘC CỰC KỲ QUAN TRỌNG về đơn thuốc:
             if candidate
             else "Hướng xử trí trước mắt: Cần bổ sung thêm dữ liệu trước khi chốt hướng xử trí."
         )
-        base_follow_up = (
-            "Theo dõi: Đánh giá triệu chứng chính hằng ngày, ghi nhận mức độ cải thiện/không cải thiện để điều chỉnh kế hoạch."
-        )
-        base_warning = (
-            "Tái khám/Cảnh báo: Nêu rõ mốc tái khám phù hợp theo mức độ đáp ứng của ca bệnh; tái khám sớm hơn nếu triệu chứng nặng lên, xuất hiện dấu hiệu toàn thân, hoặc không đáp ứng."
-        )
+        base_follow_up = "Theo dõi: Đánh giá triệu chứng chính hằng ngày, ghi nhận mức độ cải thiện/không cải thiện để điều chỉnh kế hoạch."
+        base_warning = "Tái khám/Cảnh báo: Nêu rõ mốc tái khám phù hợp theo mức độ đáp ứng của ca bệnh; tái khám sớm hơn nếu triệu chứng nặng lên, xuất hiện dấu hiệu toàn thân, hoặc không đáp ứng."
         return "\n".join((base_goal, base_action, base_follow_up, base_warning))
 
     def _resolve_evidence_mode(

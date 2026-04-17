@@ -5,7 +5,7 @@ Endpoints for admin to configure API keys and settings via Dashboard.
 Settings are stored in PostgreSQL system_settings table.
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,7 +20,8 @@ from app.db.postgres.models import (
     ToolType,
     SettingCategory,
 )
-from app.api.middleware.auth import get_admin_user
+from app.api.middleware.auth import CurrentUser, get_admin_user
+from app.services.audit_log_service import get_audit_log_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -151,12 +152,16 @@ async def get_setting_by_key(
 async def update_setting(
     key: str,
     data: SettingUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    _: dict = Depends(get_admin_user),
+    admin_user: CurrentUser = Depends(get_admin_user),
 ):
     """Update setting value (admin only) - auto-create if not exists"""
     result = await db.execute(select(SystemSetting).where(SystemSetting.key == key))
     setting = result.scalar_one_or_none()
+
+    old_masked_value = None
+    is_sensitive = True
 
     if not setting:
         setting = SystemSetting(
@@ -169,11 +174,52 @@ async def update_setting(
         db.add(setting)
         logger.info(f"Setting '{key}' auto-created")
     else:
+        old_masked_value = mask_value(setting.value, setting.is_sensitive)
+        is_sensitive = setting.is_sensitive
         setting.value = data.value
         logger.info(f"Setting '{key}' updated")
 
     await db.commit()
     await db.refresh(setting)
+
+    new_masked_value = mask_value(setting.value, setting.is_sensitive)
+
+    try:
+        await get_audit_log_service().write_event(
+            service=settings.APP_NAME,
+            environment=settings.APP_ENV,
+            actor={
+                "user_id": admin_user.user_id,
+                "role": admin_user.role,
+                "auth_type": "jwt",
+                "ip": request.client.host if request.client else "unknown",
+                "user_agent": request.headers.get("user-agent", "unknown"),
+            },
+            action="UPDATE_SYSTEM_SETTING",
+            resource={
+                "type": "system_setting",
+                "id": key,
+            },
+            result={
+                "status": "SUCCESS",
+                "reason": None,
+            },
+            correlation={
+                "request_id": request.headers.get("x-request-id"),
+                "trace_id": request.headers.get("x-b3-traceid")
+                or request.headers.get("traceparent"),
+            },
+            metadata={
+                "category": str(setting.category or "general"),
+                "is_sensitive": bool(is_sensitive),
+            },
+            changes={
+                "old_value": {"value": old_masked_value},
+                "new_value": {"value": new_masked_value},
+            },
+        )
+    except Exception as audit_err:
+        logger.warning(f"Failed to write setting audit log for key={key}: {audit_err}")
 
     return SettingResponse(
         key=setting.key,

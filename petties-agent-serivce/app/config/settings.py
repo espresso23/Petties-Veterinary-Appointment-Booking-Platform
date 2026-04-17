@@ -151,6 +151,14 @@ class Settings(BaseSettings):
         default="chat_feedback",
         description="Collection name cho user feedback (thumbs up/down)",
     )
+    MONGODB_AUDIT_LOGS_COLLECTION: str = Field(
+        default="audit_logs",
+        description="Collection name cho audit logs",
+    )
+    AUDIT_LOG_RETENTION_DAYS: int = Field(
+        default=365,
+        description="So ngay giu audit logs truoc khi tu dong xoa bang TTL index",
+    )
 
     # ==================== AI/LLM Configuration ====================
     LLM_PROVIDER: str = Field(

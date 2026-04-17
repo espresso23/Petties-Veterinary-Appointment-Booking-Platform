@@ -1324,13 +1324,20 @@ class SingleAgent:
             latest_user_message=latest_user_message,
             user_role=user_role,
         ):
-            fast_final_answer = await self._finalize_if_missing(
-                {
-                    **state,
-                    "last_tool_result": tool_result,
-                    "current_observation": observation,
-                }
+            fast_final_answer = self._build_fast_pet_owner_answer_from_tool_result(
+                tool_name=observed_tool_name,
+                tool_result=tool_result,
+                latest_user_message=latest_user_message,
+                user_role=user_role,
             )
+            if not fast_final_answer:
+                fast_final_answer = await self._finalize_if_missing(
+                    {
+                        **state,
+                        "last_tool_result": tool_result,
+                        "current_observation": observation,
+                    }
+                )
             if fast_final_answer:
                 return {
                     "react_steps": [step],
@@ -1343,6 +1350,75 @@ class SingleAgent:
             "react_steps": [step],
             "current_observation": observation,
         }
+
+    def _build_fast_pet_owner_answer_from_tool_result(
+        self,
+        *,
+        tool_name: Optional[str],
+        tool_result: Any,
+        latest_user_message: str,
+        user_role: Optional[str],
+    ) -> Optional[str]:
+        normalized_role = str(user_role or "PET_OWNER").strip().upper()
+        if normalized_role not in {"PET_OWNER", "ADMIN"}:
+            return None
+
+        normalized_tool = str(tool_name or "").strip().lower()
+        if normalized_tool not in {"pet_knowledge_search", "web_search"}:
+            return None
+
+        if not isinstance(tool_result, dict) or tool_result.get("success") is False:
+            return None
+
+        data_payload = tool_result.get("data")
+        if not isinstance(data_payload, dict):
+            return None
+
+        results = data_payload.get("results")
+        if not isinstance(results, list) or not results:
+            return None
+
+        normalized_message = (latest_user_message or "").strip()
+        if not normalized_message:
+            return None
+
+        advice_lines: List[str] = []
+        seen: set[str] = set()
+        for item in results:
+            if not isinstance(item, dict):
+                continue
+            raw = item.get("content") or item.get("snippet") or item.get("title")
+            text = str(raw or "").strip()
+            if not text:
+                continue
+
+            text = re.sub(r"\s+", " ", text)
+            text = text[:220].strip()
+            if not text:
+                continue
+
+            key = text.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+
+            if text[-1] not in ".!?":
+                text = f"{text}."
+
+            advice_lines.append(f"- {text}")
+            if len(advice_lines) >= 2:
+                break
+
+        if not advice_lines:
+            return None
+
+        return (
+            "Mình đã tra cứu nhanh cho bạn. Bạn có thể làm trước như sau:\n"
+            + "\n".join(advice_lines)
+            + "\nNếu bé không cải thiện hoặc có dấu hiệu nặng "
+            + "(nôn/tiêu chảy lặp lại, mệt lả, bỏ ăn kéo dài, khó thở), "
+            + "bạn nên đưa bé đi khám thú y sớm."
+        )
 
     def _should_continue(self, state: ReActState) -> Literal["act", "end"]:
         """Router — decide whether to continue or end the ReAct loop."""

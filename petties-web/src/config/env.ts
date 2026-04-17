@@ -27,7 +27,9 @@ const isUnifiedProxyAiSetup = (agentServiceUrl: string): boolean => {
 
   try {
     const parsedUrl = new URL(agentServiceUrl, window.location.origin)
-    return parsedUrl.origin === window.location.origin && (parsedUrl.pathname === '' || parsedUrl.pathname === '/')
+    // Unified proxy: AI service path is on same domain (e.g., /ai or /)
+    return parsedUrl.origin === window.location.origin &&
+      (parsedUrl.pathname === '' || parsedUrl.pathname === '/' || parsedUrl.pathname === '/ai')
   } catch {
     return false
   }
@@ -58,7 +60,7 @@ const environmentUrls = {
   production: {
     API_BASE_URL: 'https://api.petties.world/api',
     WS_URL: 'wss://api.petties.world/ws',
-    AGENT_SERVICE_URL: 'https://ai.petties.world',
+    AGENT_SERVICE_URL: 'https://api.petties.world/ai',
   },
 }
 
