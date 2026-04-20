@@ -270,4 +270,65 @@ describe('AIDiagnosisPanel', () => {
             await screen.findByText(/gợi ý đơn thuốc sẽ mở sau khi bác sĩ chọn 1 chẩn đoán trong top 3/i)
         ).toBeInTheDocument()
     })
+
+    it('refines diagnosis with inline follow-up answers and keeps image URLs', async () => {
+        const refinedResponse: StaffDiagnosisResponse = {
+            ...mockResponse,
+            request_id: 'req-2',
+            suggested_questions: ['Bé có bỏ ăn không?'],
+        }
+
+        vi.mocked(diagnosisApi.analyzeCase)
+            .mockResolvedValueOnce(mockResponse)
+            .mockResolvedValueOnce(refinedResponse)
+
+        render(
+            <AIDiagnosisPanel
+                species="dog"
+                subjective="Bé bị đỏ mắt và chảy ghèn"
+                objective=""
+                assessment=""
+                plan=""
+                imageUrls={['https://example.com/img-1.jpg']}
+                pendingImageUrls={['data:image/png;base64,abc']}
+            />
+        )
+
+        const analyzeButton = screen.getByRole('button', { name: /ai chẩn đoán/i })
+        fireEvent.click(analyzeButton)
+
+        await waitFor(() => {
+            expect(diagnosisApi.analyzeCase).toHaveBeenCalledTimes(2)
+        })
+
+        fireEvent.click(screen.getByRole('button', { name: /xem chi tiết ai/i }))
+
+        const followUpInput = screen.getByPlaceholderText(/nhập trả lời của bác sĩ/i)
+        fireEvent.change(followUpInput, { target: { value: 'Bé vẫn ăn uống bình thường, chỉ ngứa nhẹ' } })
+
+        const refineButton = screen.getByRole('button', { name: /cập nhật kết quả theo thông tin bổ sung/i })
+        fireEvent.click(refineButton)
+
+        await waitFor(() => {
+            expect(diagnosisApi.analyzeCase).toHaveBeenCalledTimes(3)
+        })
+
+        const firstAnalyzePayload = vi.mocked(diagnosisApi.analyzeCase).mock.calls[1][0]
+        expect(firstAnalyzePayload).toMatchObject({
+            synthesis_mode: 'full',
+            image_urls: ['https://example.com/img-1.jpg', 'data:image/png;base64,abc'],
+        })
+
+        const refinePayload = vi.mocked(diagnosisApi.analyzeCase).mock.calls[2][0]
+        expect(refinePayload).toMatchObject({
+            synthesis_mode: 'full',
+            image_urls: ['https://example.com/img-1.jpg', 'data:image/png;base64,abc'],
+        })
+        expect(refinePayload.follow_up_answers).toEqual([
+            {
+                question: 'Bé có bỏ ăn không?',
+                answer: 'Bé vẫn ăn uống bình thường, chỉ ngứa nhẹ',
+            },
+        ])
+    })
 })

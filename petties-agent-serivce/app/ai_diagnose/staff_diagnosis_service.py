@@ -365,12 +365,52 @@ class StaffDiagnosisService:
             )
             return None
 
-        cached_top_differentials = self._merge_top_differentials_with_fallback(
-            preferred=cached.top_differentials,
-            fallback=[],
-            request=request,
-            evidence_mode=cached.evidence_mode,
-        )
+        follow_up_answers = self._sanitize_follow_up_answers(request)
+        has_follow_up_answers = len(follow_up_answers) > 0
+
+        if has_follow_up_answers:
+            refreshed_query = self._build_retrieval_query(
+                request, cached.vision_response
+            )
+            (
+                refreshed_hybrid_result,
+                refreshed_similar_cases,
+            ) = await self._retrieve_internal_context(
+                query=refreshed_query,
+                request=request,
+            )
+            working_hybrid_result = refreshed_hybrid_result
+            working_similar_cases = refreshed_similar_cases
+            working_evidence_mode = self._resolve_evidence_mode(
+                hybrid_result=working_hybrid_result,
+                similar_cases=working_similar_cases,
+                vision_response=cached.vision_response,
+            )
+            working_evidence_banner, working_score_label = (
+                self._resolve_evidence_labels(working_evidence_mode)
+            )
+        else:
+            working_hybrid_result = cached.hybrid_result
+            working_similar_cases = cached.similar_cases
+            working_evidence_mode = cached.evidence_mode
+            working_evidence_banner = cached.evidence_banner
+            working_score_label = cached.score_label
+
+        if has_follow_up_answers:
+            cached_top_differentials = await self._build_top_differentials(
+                request=request,
+                vision_response=cached.vision_response,
+                hybrid_result=working_hybrid_result,
+                similar_cases=working_similar_cases,
+                evidence_mode=working_evidence_mode,
+            )
+        else:
+            cached_top_differentials = self._merge_top_differentials_with_fallback(
+                preferred=cached.top_differentials,
+                fallback=[],
+                request=request,
+                evidence_mode=working_evidence_mode,
+            )
         selected_primary = self._resolve_selected_diagnosis(
             request=request,
             top_differentials=cached_top_differentials,
@@ -382,7 +422,7 @@ class StaffDiagnosisService:
             primary_diagnosis=selected_primary,
         )
         emr_protocol_patterns = self._extract_protocol_patterns_from_cases(
-            cached.similar_cases
+            working_similar_cases
         )
         if emr_protocol_patterns:
             protocol_decision = get_diagnosis_protocol_service().apply_emr_patterns(
@@ -394,8 +434,8 @@ class StaffDiagnosisService:
         llm_synthesis: Optional[Dict[str, Any]] = await self._synthesize_with_llm(
             request=request,
             top_differentials=cached_top_differentials,
-            hybrid_result=cached.hybrid_result,
-            similar_cases=cached.similar_cases,
+            hybrid_result=working_hybrid_result,
+            similar_cases=working_similar_cases,
             protocol_decision=protocol_decision,
             vision_response=cached.vision_response,
             force_medication=False,
@@ -407,7 +447,7 @@ class StaffDiagnosisService:
                 preferred=llm_synthesis["top_differentials"],
                 fallback=cached_top_differentials,
                 request=request,
-                evidence_mode=cached.evidence_mode,
+                evidence_mode=working_evidence_mode,
             )
 
         effective_protocol_decision = self._merge_safety_suggestions(
@@ -422,8 +462,8 @@ class StaffDiagnosisService:
             llm_synthesis = await self._retry_llm_until_medication_complete(
                 request=request,
                 top_differentials=response_top_differentials,
-                hybrid_result=cached.hybrid_result,
-                similar_cases=cached.similar_cases,
+                hybrid_result=working_hybrid_result,
+                similar_cases=working_similar_cases,
                 protocol_decision=effective_protocol_decision,
                 vision_response=cached.vision_response,
                 initial_synthesis=llm_synthesis,
@@ -438,8 +478,8 @@ class StaffDiagnosisService:
             top_differentials=response_top_differentials,
             primary_diagnosis=selected_primary,
             vision_response=cached.vision_response,
-            hybrid_result=cached.hybrid_result,
-            similar_cases=cached.similar_cases,
+            hybrid_result=working_hybrid_result,
+            similar_cases=working_similar_cases,
             protocol_decision=effective_protocol_decision,
         )
         soap_suggestions = self._merge_soap_suggestions_with_llm(
@@ -482,14 +522,14 @@ class StaffDiagnosisService:
 
         return DoctorDiagnosisSynthesisResponse(
             request_id=request_id,
-            evidence_mode=cached.evidence_mode,
-            evidence_banner=cached.evidence_banner,
-            score_label=cached.score_label,
+            evidence_mode=working_evidence_mode,
+            evidence_banner=working_evidence_banner,
+            score_label=working_score_label,
             top_differentials=response_top_differentials,
             supporting_evidence_from_kb=self._format_hybrid_evidence(
-                cached.hybrid_result
+                working_hybrid_result
             ),
-            similar_confirmed_cases=self._format_similar_cases(cached.similar_cases),
+            similar_confirmed_cases=self._format_similar_cases(working_similar_cases),
             vision_findings=cached.vision_response.visual_findings,
             image_descriptions=cached.vision_response.image_descriptions,
             image_analysis=cached.image_analysis,
@@ -729,6 +769,9 @@ class StaffDiagnosisService:
             parts.append(request.doctor_description)
         if request.symptoms:
             parts.append("Triệu chứng: " + ", ".join(request.symptoms))
+        follow_up_summary = self._build_follow_up_answers_summary(request)
+        if follow_up_summary:
+            parts.append(follow_up_summary)
         return (
             " | ".join(part for part in parts if part).strip() or request.species.value
         )
@@ -777,6 +820,9 @@ class StaffDiagnosisService:
             parts.append(request.doctor_description)
         if request.symptoms:
             parts.append("Triệu chứng: " + ", ".join(request.symptoms))
+        follow_up_summary = self._build_follow_up_answers_summary(request)
+        if follow_up_summary:
+            parts.append(follow_up_summary)
         if request.allergies:
             parts.append("Dị ứng đã biết: " + ", ".join(request.allergies))
         if vision_response.visual_findings:
@@ -795,6 +841,30 @@ class StaffDiagnosisService:
         return (
             " | ".join(part for part in parts if part).strip() or request.species.value
         )
+
+    def _sanitize_follow_up_answers(
+        self,
+        request: StaffDiagnosisRequest,
+    ) -> List[Dict[str, str]]:
+        answers: List[Dict[str, str]] = []
+        for item in request.follow_up_answers:
+            question = str(getattr(item, "question", "") or "").strip()
+            answer = str(getattr(item, "answer", "") or "").strip()
+            if not question or not answer:
+                continue
+            answers.append({"question": question, "answer": answer})
+        return answers
+
+    def _build_follow_up_answers_summary(self, request: StaffDiagnosisRequest) -> str:
+        answers = self._sanitize_follow_up_answers(request)
+        if not answers:
+            return ""
+
+        snippets = [
+            f"{index}. {item['question']} => {item['answer']}"
+            for index, item in enumerate(answers, start=1)
+        ]
+        return "Khai thác thêm từ bác sĩ: " + " | ".join(snippets)
 
     def _serialize_prescriptions_for_prompt(
         self,
@@ -1000,6 +1070,7 @@ class StaffDiagnosisService:
             subjective={
                 "current_draft": request.soap_draft.subjective.strip(),
                 "doctor_description": request.doctor_description.strip(),
+                "follow_up_answers": self._sanitize_follow_up_answers(request),
                 "symptoms": self._sanitize_text_list(request.symptoms, max_items=6),
             },
             objective={
@@ -1144,6 +1215,7 @@ class StaffDiagnosisService:
                 or bool((request.booking_id or "").strip()),
                 "selected_diagnosis_code": request.selected_diagnosis_code,
                 "selected_diagnosis_label": request.selected_diagnosis_label,
+                "follow_up_answers": self._sanitize_follow_up_answers(request),
             },
             "vision_findings": vision_response.visual_findings,
             "image_descriptions": vision_response.image_descriptions,
@@ -2615,6 +2687,8 @@ RÀNG BUỘC CỰC KỲ QUAN TRỌNG về đơn thuốc:
         parts: List[str] = []
         if request.doctor_description.strip():
             parts.append(request.doctor_description.strip())
+        for item in self._sanitize_follow_up_answers(request):
+            parts.append(f"{item['question']}: {item['answer']}")
         if request.symptoms:
             parts.append("Triệu chứng ghi nhận: " + ", ".join(request.symptoms[:6]))
 

@@ -74,20 +74,14 @@ class DiagnosisSuggestion(BaseModel):
     supporting_reasons: List[str] = Field(default_factory=list)
     # NEW: Taxonomy and reasoning fields
     taxonomy_system: str = Field(
-        default="",
-        description="Hệ cơ quan (e.g., 'HÔ HẤP', 'TIÊU HÓA')"
+        default="", description="Hệ cơ quan (e.g., 'HÔ HẤP', 'TIÊU HÓA')"
     )
     taxonomy_subsystem: str = Field(
-        default="",
-        description="Phân hệ (e.g., 'Hô hấp dưới', 'Dạ dày - Ruột')"
+        default="", description="Phân hệ (e.g., 'Hô hấp dưới', 'Dạ dày - Ruột')"
     )
-    reasoning: str = Field(
-        default="",
-        description="Lý do AI đưa ra chẩn đoán này"
-    )
+    reasoning: str = Field(default="", description="Lý do AI đưa ra chẩn đoán này")
     differential_diagnoses: List[Dict[str, Any]] = Field(
-        default_factory=list,
-        description="Các chẩn đoán phân biệt với probability"
+        default_factory=list, description="Các chẩn đoán phân biệt với probability"
     )
 
 
@@ -123,6 +117,11 @@ class SoapDraft(BaseModel):
     plan: str = ""
 
 
+class FollowUpAnswer(BaseModel):
+    question: str = ""
+    answer: str = ""
+
+
 class StaffDiagnosisRequest(BaseModel):
     request_id: Optional[str] = None
     previous_request_id: Optional[str] = None
@@ -148,6 +147,7 @@ class StaffDiagnosisRequest(BaseModel):
     )
     selected_diagnosis_code: Optional[str] = None
     selected_diagnosis_label: Optional[str] = None
+    follow_up_answers: List[FollowUpAnswer] = Field(default_factory=list)
     soap_draft: SoapDraft = Field(default_factory=SoapDraft)
 
 

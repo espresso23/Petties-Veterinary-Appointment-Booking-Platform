@@ -362,6 +362,10 @@ export interface StaffDiagnosisRequest {
     synthesis_mode?: 'full' | 'selected_only'
     selected_diagnosis_code?: string
     selected_diagnosis_label?: string
+    follow_up_answers?: Array<{
+        question: string
+        answer: string
+    }>
     soap_draft?: {
         subjective?: string
         objective?: string

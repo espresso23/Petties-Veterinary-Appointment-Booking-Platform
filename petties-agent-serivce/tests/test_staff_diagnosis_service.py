@@ -9,6 +9,7 @@ if str(ROOT) not in sys.path:
 
 from app.ai_diagnose.schemas import (
     DiagnosisSuggestion,
+    FollowUpAnswer,
     GeminiVisionDiagnosisResponse,
     SoapDraft,
     Species,
@@ -868,6 +869,144 @@ class StaffDiagnosisServiceTests(unittest.IsolatedAsyncioTestCase):
         q = service._build_retrieval_query(req, vision)
         self.assertIn("Tuổi: 8 tháng", q)
         self.assertIn("Giới: female", q)
+
+    def test_build_retrieval_query_includes_follow_up_answers(self):
+        service = StaffDiagnosisService()
+
+        req = StaffDiagnosisRequest(
+            species=Species.DOG,
+            doctor_description="Da đỏ, có mủ",
+            follow_up_answers=[
+                FollowUpAnswer(
+                    question="Bé có bỏ ăn không?",
+                    answer="Bé vẫn ăn bình thường",
+                )
+            ],
+        )
+        vision = GeminiVisionDiagnosisResponse(request_id="r2")
+
+        q = service._build_retrieval_query(req, vision)
+        self.assertIn("Khai thác thêm từ bác sĩ", q)
+        self.assertIn("Bé có bỏ ăn không? => Bé vẫn ăn bình thường", q)
+
+    async def test_selected_only_with_follow_up_answers_refreshes_internal_retrieval(
+        self,
+    ):
+        service = StaffDiagnosisService()
+        previous_request_id = "req-selected-only-refresh"
+
+        cached_top = [
+            DiagnosisSuggestion(
+                canonical_code="pyoderma",
+                display_name_vi="Viêm da do vi khuẩn (Pyoderma)",
+                rank=1,
+                score_percent=52,
+                score_basis="matching_internal",
+                confidence_note="Độ tự tin: 52%",
+                supporting_reasons=["Khớp mô tả tổn thương da mủ."],
+            )
+        ]
+        cached_hybrid = HybridResult(
+            chunks=[
+                HybridChunk(
+                    content="Pyoderma thường có tổn thương da mủ và viêm đỏ.",
+                    score=0.7,
+                    source="rag",
+                    metadata={"document_name": "Cẩm nang da liễu"},
+                )
+            ],
+            expanded_query="dog pyoderma",
+            original_query="dog pyoderma",
+            sources_used={"rag": 1, "kg": 0},
+        )
+
+        service._analysis_cache[previous_request_id] = CachedAnalysisContext(
+            created_at=datetime.utcnow(),
+            evidence_mode="internal_grounded",
+            evidence_banner="Đã đối chiếu dữ liệu nội bộ",
+            score_label="Độ tự tin (%)",
+            top_differentials=cached_top,
+            hybrid_result=cached_hybrid,
+            similar_cases=[],
+            vision_response=GeminiVisionDiagnosisResponse(
+                request_id=previous_request_id
+            ),
+            image_analysis=[],
+        )
+
+        request = StaffDiagnosisRequest(
+            species=Species.DOG,
+            doctor_description="Da đỏ, có mủ",
+            synthesis_mode="selected_only",
+            previous_request_id=previous_request_id,
+            selected_diagnosis_code="pyoderma",
+            follow_up_answers=[
+                FollowUpAnswer(
+                    question="Bé có ngứa nhiều không?",
+                    answer="Ngứa nhiều hơn buổi tối",
+                )
+            ],
+        )
+
+        refreshed_hybrid = HybridResult(
+            chunks=[
+                HybridChunk(
+                    content="Ngứa tăng về đêm có thể gợi ý viêm da do vi khuẩn kèm kích ứng.",
+                    score=0.91,
+                    source="rag",
+                    metadata={"document_name": "Phác đồ da liễu cập nhật"},
+                )
+            ],
+            expanded_query="dog pyoderma ngứa",
+            original_query="dog pyoderma",
+            sources_used={"rag": 1, "kg": 0},
+        )
+        refreshed_case = CaseResult(
+            case_id="case-1",
+            content="Ca tương tự viêm da do vi khuẩn có ngứa về đêm",
+            score=0.88,
+            final_score=0.88,
+            payload={
+                "mapping_status": "confirmed",
+                "display_name_vi": "Viêm da do vi khuẩn (Pyoderma)",
+                "chief_complaint": "Da đỏ, mủ, ngứa tăng buổi tối",
+            },
+        )
+
+        protocol_service = Mock()
+        protocol_service.build_decision.return_value = ProtocolDecision(
+            diagnosis_code="pyoderma",
+            diagnosis_display_name="Viêm da do vi khuẩn (Pyoderma)",
+            summary="Protocol co san",
+            prescriptions=[],
+        )
+        protocol_service.apply_emr_patterns.side_effect = (
+            lambda protocol_decision, emr_patterns, request: protocol_decision
+        )
+
+        with (
+            patch(
+                "app.ai_diagnose.staff_diagnosis_service.get_diagnosis_protocol_service",
+                return_value=protocol_service,
+            ),
+            patch.object(
+                service,
+                "_retrieve_internal_context",
+                new=AsyncMock(return_value=(refreshed_hybrid, [refreshed_case])),
+            ) as mock_retrieve,
+            patch.object(
+                service,
+                "_synthesize_with_llm",
+                new=AsyncMock(return_value=None),
+            ),
+        ):
+            response = await service.analyze_case(request)
+
+        mock_retrieve.assert_awaited_once()
+        self.assertEqual(
+            response.supporting_evidence_from_kb[0],
+            "Phác đồ da liễu cập nhật (độ liên quan 0.91): Ngứa tăng về đêm có thể gợi ý viêm da do vi khuẩn kèm kích ứng.",
+        )
 
     def test_coerce_plan_for_selected_diagnosis_formats_professional_structure(self):
         service = StaffDiagnosisService()
