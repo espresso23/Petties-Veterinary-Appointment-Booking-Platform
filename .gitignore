@@ -19,6 +19,8 @@ devpetties.pem
 
 # Logs directory (keep structure, ignore files)
 logs/
+!petties-web/src/pages/admin/logs/
+!petties-web/src/pages/admin/logs/**
 !logs/backend/.gitkeep
 !logs/ai-service/.gitkeep
 
