@@ -33,8 +33,6 @@ logger = logging.getLogger(__name__)
 _BOOKING_ALLOWED_ROLES = {"PET_OWNER", "ADMIN"}
 _READONLY_TOOL_RESOURCE_CANDIDATES = {
     "get_user_pets",
-    "get_clinic_services",
-    "check_available_slots",
 }
 
 

@@ -46,6 +46,7 @@ export const DiseaseCatalogSection = ({ className = '' }: DiseaseCatalogSectionP
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
+  const [expandedAliasCode, setExpandedAliasCode] = useState<string | null>(null)
   const [speciesFilter, setSpeciesFilter] = useState<string>('all')
   const [systemFilter, setSystemFilter] = useState<string>('all')
   const pageSize = 20
@@ -285,9 +286,46 @@ export const DiseaseCatalogSection = ({ className = '' }: DiseaseCatalogSectionP
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-xs text-stone-600 max-w-xs truncate">
-                        {disease.aliases.slice(0, 3).join(', ')}
-                        {disease.aliases.length > 3 && '...'}
+                      <td className="px-4 py-3 text-xs text-stone-600 max-w-md">
+                        {disease.aliases.length === 0 ? (
+                          <span className="text-stone-400">--</span>
+                        ) : (
+                          <div className="space-y-2">
+                            {expandedAliasCode === disease.canonical_code ? (
+                              <div className="flex flex-wrap gap-1.5">
+                                {disease.aliases.map((alias) => (
+                                  <span
+                                    key={`${disease.canonical_code}-${alias}`}
+                                    className="px-2 py-0.5 text-[10px] font-bold text-stone-700 bg-stone-100 border border-stone-300 rounded"
+                                  >
+                                    {alias}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="break-words">
+                                {disease.aliases.slice(0, 3).join(', ')}
+                                {disease.aliases.length > 3 && '...'}
+                              </p>
+                            )}
+
+                            {disease.aliases.length > 3 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setExpandedAliasCode((prev) =>
+                                    prev === disease.canonical_code ? null : disease.canonical_code,
+                                  )
+                                }}
+                                className="px-2 py-1 text-[10px] font-black uppercase text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100"
+                              >
+                                {expandedAliasCode === disease.canonical_code
+                                  ? 'Thu gọn aliases'
+                                  : `Xem đủ ${disease.aliases.length} aliases`}
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}

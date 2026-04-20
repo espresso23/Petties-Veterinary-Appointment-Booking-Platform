@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { isAxiosError } from 'axios'
 import { useAuthStore } from '../../../store/authStore'
 import { useClinicStore } from '../../../store/clinicStore'
 import { clinicService } from '../../../services/api/clinicService'
@@ -18,6 +19,7 @@ export const ClinicSuspendRequestPage = () => {
   const [submitting, setSubmitting] = useState(false)
   const [loadingRequests, setLoadingRequests] = useState(false)
   const [requests, setRequests] = useState<ClinicSuspendRequestResponse[]>([])
+  const [isHistoryEndpointUnavailable, setIsHistoryEndpointUnavailable] = useState(false)
 
   const selectedClinic = useMemo(
     () => clinics.find((clinic) => clinic.clinicId === selectedClinicId) ?? null,
@@ -29,7 +31,15 @@ export const ClinicSuspendRequestPage = () => {
     try {
       const data = await clinicService.getMySuspendRequests()
       setRequests(data)
-    } catch {
+      setIsHistoryEndpointUnavailable(false)
+    } catch (error: unknown) {
+      if (isAxiosError(error) && error.response?.status === 404) {
+        setRequests([])
+        setIsHistoryEndpointUnavailable(true)
+        return
+      }
+
+      setIsHistoryEndpointUnavailable(false)
       showToast('error', 'Không thể tải danh sách yêu cầu tạm ngưng')
     } finally {
       setLoadingRequests(false)
@@ -185,6 +195,10 @@ export const ClinicSuspendRequestPage = () => {
 
           {loadingRequests ? (
             <p className="text-stone-600">Đang tải...</p>
+          ) : isHistoryEndpointUnavailable ? (
+            <div className="border-2 border-stone-900 bg-amber-50 p-4 text-sm font-medium text-stone-800">
+              Môi trường hiện tại chưa hỗ trợ xem lịch sử yêu cầu tạm ngưng. Bạn vẫn có thể gửi yêu cầu mới.
+            </div>
           ) : requests.length === 0 ? (
             <p className="text-stone-600">Chưa có yêu cầu nào.</p>
           ) : (

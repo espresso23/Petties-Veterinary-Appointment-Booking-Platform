@@ -113,6 +113,52 @@ def _has_meaningful_service_signal(
     return any(keyword in combined_text for keyword in service_keywords)
 
 
+def _infer_clinic_suggestion_mode(
+    latest_message: Optional[str],
+    transcript: Optional[str],
+) -> str:
+    combined_text = normalize_vietnamese_text(
+        " ".join(
+            part.strip()
+            for part in [str(latest_message or ""), str(transcript or "")]
+            if str(part or "").strip()
+        )
+    )
+    if not combined_text:
+        return "booking"
+
+    discovery_keywords = {
+        "tim hieu",
+        "tham khao",
+        "so sanh",
+        "gia",
+        "chi phi",
+        "bao gia",
+        "danh gia",
+        "review",
+        "thong tin phong kham",
+    }
+    booking_keywords = {
+        "dat lich",
+        "booking",
+        "tao yeu cau",
+        "xac nhan",
+        "chon khung gio",
+        "slot",
+        "tao lich",
+    }
+
+    has_discovery_signal = any(
+        keyword in combined_text for keyword in discovery_keywords
+    )
+    has_booking_signal = any(keyword in combined_text for keyword in booking_keywords)
+
+    if has_discovery_signal and not has_booking_signal:
+        return "discovery"
+
+    return "booking"
+
+
 def _is_create_booking_denied_by_user(
     latest_message: Optional[str], transcript: Optional[str]
 ) -> bool:
@@ -1754,6 +1800,11 @@ async def search_clinics_nearby(
         f"clinic_hint={clinic_hint}, address={address}, timezone=Asia/Ho_Chi_Minh"
     )
 
+    clinic_suggestion_mode = _infer_clinic_suggestion_mode(
+        latest_message=latest_message,
+        transcript=transcript,
+    )
+
     try:
         token = _require_auth_token()
     except AuthenticationRequiredError as e:
@@ -1770,6 +1821,7 @@ async def search_clinics_nearby(
                 "clinics": [],
                 "matched_clinic": None,
                 "total_found": 0,
+                "clinic_suggestion_mode": clinic_suggestion_mode,
                 "needs_clarification": True,
                 "requires_auth": True,
                 "message": str(e),
@@ -1843,6 +1895,7 @@ async def search_clinics_nearby(
                     "clinics": [],
                     "matched_clinic": None,
                     "total_found": 0,
+                    "clinic_suggestion_mode": clinic_suggestion_mode,
                     "needs_clarification": True,
                     "message": "Mình chưa thể tìm phòng khám lúc này. Bạn thử lại sau nhé.",
                 },
@@ -1889,6 +1942,7 @@ async def search_clinics_nearby(
                             "matched_clinic": None,
                             "resolved_clinic": None,
                             "total_found": 0,
+                            "clinic_suggestion_mode": clinic_suggestion_mode,
                             "match_mode": "explicit_name",
                             "auto_select_clinic": False,
                             "needs_clarification": True,
@@ -1912,6 +1966,7 @@ async def search_clinics_nearby(
                     or (clinics[0] if clinics else None),
                     "resolved_clinic": resolved_clinic,
                     "total_found": int(response.get("totalFound") or len(clinics)),
+                    "clinic_suggestion_mode": clinic_suggestion_mode,
                     "match_mode": clinics[0].get("match_mode") if clinics else None,
                     "auto_select_clinic": auto_select_clinic,
                     "needs_clarification": bool(
@@ -1940,6 +1995,7 @@ async def search_clinics_nearby(
                 "clinics": [],
                 "matched_clinic": None,
                 "total_found": 0,
+                "clinic_suggestion_mode": clinic_suggestion_mode,
                 "needs_clarification": True,
                 "message": "Mình cần vị trí hiện tại hoặc địa chỉ cụ thể để tìm phòng khám gần bạn.",
             },
@@ -1967,6 +2023,7 @@ async def search_clinics_nearby(
                 "clinics": [],
                 "matched_clinic": None,
                 "total_found": 0,
+                "clinic_suggestion_mode": clinic_suggestion_mode,
                 "message": f"Khong the tim phong kham gan day: {exc}",
             },
             error_code="INTERNAL_ERROR",
@@ -1998,6 +2055,7 @@ async def search_clinics_nearby(
             "clinics": [],
             "matched_clinic": None,
             "total_found": 0,
+            "clinic_suggestion_mode": clinic_suggestion_mode,
             "match_mode": "explicit_name",
             "needs_clarification": True,
             "message": "Minh chua tim thay phong kham khop voi ten ban vua neu trong khu vuc nay.",
@@ -2013,6 +2071,7 @@ async def search_clinics_nearby(
         "clinics": clinics,
         "matched_clinic": clinics[0] if clinics else None,
         "total_found": len(clinics),
+        "clinic_suggestion_mode": clinic_suggestion_mode,
         "match_mode": "explicit_name" if effective_clinic_hint else "nearby",
         "resolved_clinic": None,
         "auto_select_clinic": False,

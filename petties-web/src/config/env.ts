@@ -35,14 +35,42 @@ const isUnifiedProxyAiSetup = (agentServiceUrl: string): boolean => {
   }
 }
 
+const resolveUnifiedProxyAiApiBaseUrl = (agentServiceUrl: string): string => {
+  if (typeof window === 'undefined') {
+    return '/ai'
+  }
+
+  try {
+    const parsedUrl = new URL(agentServiceUrl, window.location.origin)
+    return `${parsedUrl.origin}/ai`
+  } catch {
+    return `${window.location.origin}/ai`
+  }
+}
+
+const isTunnelHostname = (hostname: string): boolean => {
+  const value = hostname.trim().toLowerCase()
+  if (!value) return false
+
+  return (
+    value.includes('ngrok') ||
+    value.endsWith('.loca.lt') ||
+    value.endsWith('.trycloudflare.com')
+  )
+}
+
 // Detect environment based on hostname
-const getEnvironment = (): 'local' | 'production' => {
+const getEnvironment = (): 'local' | 'tunnel' | 'production' => {
   if (typeof window === 'undefined') return 'local' // SSR fallback
   
   const hostname = window.location.hostname
   
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return 'local'
+  }
+
+  if (isTunnelHostname(hostname)) {
+    return 'tunnel'
   } else {
     return 'production'
   }
@@ -51,11 +79,19 @@ const getEnvironment = (): 'local' | 'production' => {
 const environment = getEnvironment()
 
 // Environment-specific URLs
-const environmentUrls = {
+const environmentUrls = (() => {
+  const tunnelOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8080'
+
+  return {
   local: {
     API_BASE_URL: 'http://localhost:8080/api',
     WS_URL: 'ws://localhost:8080/ws',
     AGENT_SERVICE_URL: 'http://localhost:8000',
+  },
+  tunnel: {
+    API_BASE_URL: `${stripTrailingSlash(tunnelOrigin)}/api`,
+    WS_URL: `${toWebSocketUrl(tunnelOrigin)}/ws`,
+    AGENT_SERVICE_URL: `${stripTrailingSlash(tunnelOrigin)}/ai`,
   },
   production: {
     API_BASE_URL: 'https://api.petties.world/api',
@@ -63,6 +99,7 @@ const environmentUrls = {
     AGENT_SERVICE_URL: 'https://api.petties.world/ai',
   },
 }
+})()
 
 const rawApiBaseUrl = import.meta.env.VITE_API_BASE_URL ??
   environmentUrls[environment].API_BASE_URL ??
@@ -80,7 +117,7 @@ const agentUsesUnifiedProxy = isUnifiedProxyAiSetup(rawAgentServiceUrl)
 
 const rawAgentApiBaseUrl = import.meta.env.VITE_AGENT_API_BASE_URL ??
   (agentUsesUnifiedProxy
-    ? `${stripTrailingSlash(rawAgentServiceUrl)}/ai`
+    ? resolveUnifiedProxyAiApiBaseUrl(rawAgentServiceUrl)
     : stripTrailingSlash(rawAgentServiceUrl))
 
 const rawAgentWsBaseUrl = import.meta.env.VITE_AGENT_WS_BASE_URL ??
