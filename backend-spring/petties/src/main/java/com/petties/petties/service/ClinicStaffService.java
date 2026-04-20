@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -29,6 +30,7 @@ public class ClinicStaffService {
     private final UserRepository userRepository;
     private final AuthService authService;
     private final PasswordEncoder passwordEncoder;
+    private final BackendAuditLogService backendAuditLogService;
 
     @Transactional(readOnly = true)
     public List<StaffResponse> getClinicStaff(UUID clinicId) {
@@ -106,6 +108,7 @@ public class ClinicStaffService {
         User existingUser = userRepository.findByEmail(request.getEmail()).orElse(null);
 
         if (existingUser != null) {
+            Role oldRole = existingUser.getRole();
             // User exists - check if already assigned to another clinic
             if (existingUser.getWorkingClinic() != null) {
                 throw new ResourceAlreadyExistsException("Email này đã được gán cho phòng khám khác");
@@ -117,6 +120,22 @@ public class ClinicStaffService {
                 existingUser.setSpecialty(request.getSpecialty());
             }
             userRepository.save(existingUser);
+
+            if (oldRole != request.getRole()) {
+                backendAuditLogService.writeBusinessAuditEvent(
+                        currentUser.getUserId().toString(),
+                        currentUser.getRole().name(),
+                        "CHANGE_USER_ROLE",
+                        "user",
+                        existingUser.getUserId().toString(),
+                        Map.of("role", oldRole.name()),
+                        Map.of("role", request.getRole().name()),
+                        Map.of(
+                                "clinic_id", clinicId.toString(),
+                                "target_email", existingUser.getEmail()
+                        )
+                );
+            }
         } else {
             // Create new user - waiting for Google OAuth login
             // FullName will be auto-filled when user logs in with Google
@@ -132,6 +151,20 @@ public class ClinicStaffService {
             // This password cannot be used for login
             newUser.setPassword(passwordEncoder.encode(java.util.UUID.randomUUID().toString()));
             userRepository.save(newUser);
+
+                backendAuditLogService.writeBusinessAuditEvent(
+                    currentUser.getUserId().toString(),
+                    currentUser.getRole().name(),
+                    "CREATE_USER_WITH_ROLE",
+                    "user",
+                    newUser.getUserId().toString(),
+                    null,
+                    Map.of("role", request.getRole().name()),
+                    Map.of(
+                        "clinic_id", clinicId.toString(),
+                        "target_email", newUser.getEmail()
+                    )
+                );
         }
     }
 

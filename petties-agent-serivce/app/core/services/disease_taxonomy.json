@@ -1,0 +1,463 @@
+{
+  "DA_LIEU": {
+    "display_name_vi": "Bệnh Da Liễu",
+    "subcategories": {
+      "NHIEM_TRUNG_DA": {
+        "display_name_vi": "Nhiễm Trùng Da",
+        "diseases": {
+          "bacterial_dermatosis": {
+            "display_name_vi": "Viêm da do vi khuẩn",
+            "aliases": ["viêm da vi khuẩn", "nhiễm trùng da", "pyoderma", "bacterial dermatitis"],
+            "species": ["dog", "cat"]
+          },
+          "fungal_dermatitis": {
+            "display_name_vi": "Viêm da do nấm",
+            "aliases": ["nấm da", "ringworm", "dermatophytosis", "viêm da nấm"],
+            "species": ["dog", "cat"]
+          },
+          "yeast_dermatitis": {
+            "display_name_vi": "Viêm da do nấm men",
+            "aliases": ["nấm men", "malassezia", "viêm da malassezia"],
+            "species": ["dog", "cat"]
+          }
+        }
+      },
+      "KY_SINH_DA": {
+        "display_name_vi": "Ký Sinh Trùng Da",
+        "diseases": {
+          "demodicosis": {
+            "display_name_vi": "Bệnh ve bọ mò",
+            "aliases": ["demodex", "mò đỏ", "viêm da demodex", "demodectic mange"],
+            "species": ["dog"]
+          },
+          "sarcoptic_mange": {
+            "display_name_vi": "Ghẻ sarcoptes",
+            "aliases": ["ghẻ", "sarcoptes", "scabies", "ghẻ sarcoptes"],
+            "species": ["dog", "cat"]
+          },
+          "flea_allergy_dermatitis": {
+            "display_name_vi": "Viêm da dị ứng bọ chét",
+            "aliases": ["dị ứng bọ chét", "FAD", "flea allergy"],
+            "species": ["dog", "cat"]
+          }
+        }
+      },
+      "MIEN_DICH_DA": {
+        "display_name_vi": "Miễn Dịch Da",
+        "diseases": {
+          "atopic_dermatitis": {
+            "display_name_vi": "Viêm da dị ứng",
+            "aliases": ["dị ứng da", "atopy", "viêm da cơ địa"],
+            "species": ["dog", "cat"]
+          },
+          "contact_dermatitis": {
+            "display_name_vi": "Viêm da tiếp xúc",
+            "aliases": ["dị ứng tiếp xúc", "viêm da tiếp xúc"],
+            "species": ["dog", "cat"]
+          }
+        }
+      }
+    }
+  },
+
+  "HO_HAP": {
+    "display_name_vi": "Bệnh Hô Hấp",
+    "subcategories": {
+      "HO_HAP_TREN": {
+        "display_name_vi": "Hô Hấp Trên",
+        "diseases": {
+          "kennel_cough": {
+            "display_name_vi": "Ho cũi chó",
+            "aliases": ["viêm khí phế quản", "canine infectious respiratory disease", "ho truyền nhiễm"],
+            "species": ["dog"]
+          },
+          "feline_upper_respiratory_infection": {
+            "display_name_vi": "Viêm hô hấp trên ở mèo",
+            "aliases": ["cúm mèo", "feline URI", "nhiễm trùng hô hấp trên"],
+            "species": ["cat"]
+          },
+          "rhinitis": {
+            "display_name_vi": "Viêm mũi",
+            "aliases": ["sổ mũi", "viêm mũi dị ứng", "rhinitis"],
+            "species": ["dog", "cat"]
+          }
+        }
+      },
+      "HO_HAP_DUOI": {
+        "display_name_vi": "Hô Hấp Dưới",
+        "diseases": {
+          "pneumonia": {
+            "display_name_vi": "Viêm phổi",
+            "aliases": ["viêm phổi vi khuẩn", "pneumonitis", "viêm phổi"],
+            "species": ["dog", "cat"]
+          },
+          "bronchitis": {
+            "display_name_vi": "Viêm phế quản",
+            "aliases": ["viêm phế quản mãn tính", "chronic bronchitis", "ho mãn tính"],
+            "species": ["dog", "cat"]
+          },
+          "feline_asthma": {
+            "display_name_vi": "Hen suyễn ở mèo",
+            "aliases": ["hen mèo", "feline bronchial disease", "khó thở ở mèo"],
+            "species": ["cat"]
+          },
+          "tracheal_collapse": {
+            "display_name_vi": "Xẹp khí quản",
+            "aliases": ["khí quản xẹp", "ho do xẹp khí quản"],
+            "species": ["dog"]
+          }
+        }
+      }
+    }
+  },
+
+  "TIEU_HOA": {
+    "display_name_vi": "Bệnh Tiêu Hóa",
+    "subcategories": {
+      "DA_DAY_RUOT": {
+        "display_name_vi": "Dạ Dày - Ruột",
+        "diseases": {
+          "gastritis": {
+            "display_name_vi": "Viêm dạ dày",
+            "aliases": ["viêm loét dạ dày", "đau dạ dày", "ói mửa"],
+            "species": ["dog", "cat"]
+          },
+          "enteritis": {
+            "display_name_vi": "Viêm ruột",
+            "aliases": ["tiêu chảy", "viêm ruột cấp", "viêm ruột mãn tính", "rối loạn tiêu hóa"],
+            "species": ["dog", "cat"]
+          },
+          "gastroenteritis": {
+            "display_name_vi": "Viêm dạ dày ruột",
+            "aliases": ["nôn mửa tiêu chảy", "cấp tiêu hóa"],
+            "species": ["dog", "cat"]
+          },
+          "parvovirus": {
+            "display_name_vi": "Bệnh Parvo",
+            "aliases": ["parvo", "canine parvovirus", "tiêu chảy parvo"],
+            "species": ["dog"]
+          },
+          "panleukopenia": {
+            "display_name_vi": "Bệnh giảm bạch cầu ở mèo",
+            "aliases": ["distemper mèo", "feline panleukopenia", "bệnh carré mèo"],
+            "species": ["cat"]
+          },
+          "inflammatory_bowel_disease": {
+            "display_name_vi": "Bệnh viêm ruột mãn tính",
+            "aliases": ["IBD", "viêm ruột mãn tính", "rối loạn tiêu hóa mãn tính"],
+            "species": ["dog", "cat"]
+          }
+        }
+      },
+      "GAN_TUY": {
+        "display_name_vi": "Gan - Tụy",
+        "diseases": {
+          "hepatitis": {
+            "display_name_vi": "Viêm gan",
+            "aliases": ["viêm gan cấp", "viêm gan mãn tính", "suy gan"],
+            "species": ["dog", "cat"]
+          },
+          "pancreatitis": {
+            "display_name_vi": "Viêm tụy",
+            "aliases": ["viêm tụy cấp", "viêm tụy mãn tính", "đau bụng do tụy"],
+            "species": ["dog", "cat"]
+          },
+          "hepatic_lipidosis": {
+            "display_name_vi": "Mỡ hóa gan ở mèo",
+            "aliases": ["gan nhiễm mỡ mèo", "fatty liver syndrome"],
+            "species": ["cat"]
+          }
+        }
+      }
+    }
+  },
+
+  "TIEU_NIEU": {
+    "display_name_vi": "Bệnh Tiết Niệu",
+    "subcategories": {
+      "THAN": {
+        "display_name_vi": "Thận",
+        "diseases": {
+          "chronic_kidney_disease": {
+            "display_name_vi": "Suy thận mãn tính",
+            "aliases": ["suy thận", "thận mãn tính", "CKD", "suy thận mãn"],
+            "species": ["dog", "cat"]
+          },
+          "acute_kidney_injury": {
+            "display_name_vi": "Suy thận cấp",
+            "aliases": ["tổn thương thận cấp", "AKI", "suy thận cấp tính"],
+            "species": ["dog", "cat"]
+          }
+        }
+      },
+      "DUONG_TIEU_NIEU": {
+        "display_name_vi": "Đường Tiết Niệu",
+        "diseases": {
+          "urinary_tract_infection": {
+            "display_name_vi": "Nhiễm trùng đường tiểu",
+            "aliases": ["nhiễm trùng niệu đạo", "UTI", "viêm bàng quang", "tiểu khó"],
+            "species": ["dog", "cat"]
+          },
+          "urolithiasis": {
+            "display_name_vi": "Sỏi tiết niệu",
+            "aliases": ["sỏi thận", "sỏi bàng quang", "urinary stones", "sỏi niệu đạo"],
+            "species": ["dog", "cat"]
+          },
+          "feline_lower_urinary_tract_disease": {
+            "display_name_vi": "Bệnh đường tiết niệu dưới ở mèo",
+            "aliases": ["FLUTD", "tiểu không tự chủ mèo", "viêm niệu đạo mèo"],
+            "species": ["cat"]
+          }
+        }
+      }
+    }
+  },
+
+  "TRUYEN_NHIEM": {
+    "display_name_vi": "Bệnh Truyền Nhiễm",
+    "subcategories": {
+      "VI_RUS": {
+        "display_name_vi": "Do Virus",
+        "diseases": {
+          "distemper": {
+            "display_name_vi": "Bệnh Carre",
+            "aliases": ["canine distemper", "bệnh sốt phát ban chó", "carré"],
+            "species": ["dog"]
+          },
+          "rabies": {
+            "display_name_vi": "Bệnh dại",
+            "aliases": ["dại", "rabies", "bệnh dại chó"],
+            "species": ["dog", "cat"]
+          },
+          "canine_parvovirus": {
+            "display_name_vi": "Parvovirus chó",
+            "aliases": ["parvo", "CPV", "tiêu chảy truyền nhiễm"],
+            "species": ["dog"]
+          }
+        }
+      },
+      "VI_KHUAN": {
+        "display_name_vi": "Do Vi Khuẩn",
+        "diseases": {
+          "leptospirosis": {
+            "display_name_vi": "Bệnh Leptospirosis",
+            "aliases": ["lepto", "xoắn khuẩn", "vàng da xuất huyết", "bệnh Weil"],
+            "species": ["dog", "cat"]
+          },
+          "lyme_disease": {
+            "display_name_vi": "Bệnh Lyme",
+            "aliases": ["borreliosis", "bệnh ve truyền"],
+            "species": ["dog"]
+          }
+        }
+      }
+    }
+  },
+
+  "NOI_TIET": {
+    "display_name_vi": "Bệnh Nội Tiết",
+    "subcategories": {
+      "TUYEN_GIAP": {
+        "display_name_vi": "Tuyến Giáp",
+        "diseases": {
+          "hypothyroidism": {
+            "display_name_vi": "Suy giáp",
+            "aliases": ["thiểu năng tuyến giáp", "suy giáp trạng", "rối loạn chuyển hóa"],
+            "species": ["dog"]
+          },
+          "hyperthyroidism": {
+            "display_name_vi": "Cường giáp",
+            "aliases": ["cường năng tuyến giáp", "tuyến giáp hoạt động quá mức"],
+            "species": ["cat"]
+          }
+        }
+      },
+      "TUYEN_TUY": {
+        "display_name_vi": "Tuyến Tụy Nội Tiết",
+        "diseases": {
+          "diabetes_mellitus": {
+            "display_name_vi": "Tiểu đường",
+            "aliases": ["đái tháo đường", "diabetes", "tiểu đường type 1", "tiểu đường type 2"],
+            "species": ["dog", "cat"]
+          }
+        }
+      },
+      "TUYEN_THUONG_THAN": {
+        "display_name_vi": "Tuyến Thượng Thận",
+        "diseases": {
+          "cushings_disease": {
+            "display_name_vi": "Hội chứng Cushing",
+            "aliases": ["cường thượng thận", "hyperadrenocorticism", "hội chứng cushing"],
+            "species": ["dog"]
+          },
+          "addisons_disease": {
+            "display_name_vi": "Bệnh Addison",
+            "aliases": ["suy thượng thận", "hypoadrenocorticism", "khủng hoảng Addison"],
+            "species": ["dog"]
+          }
+        }
+      }
+    }
+  },
+
+  "CO_XUONG_KHOP": {
+    "display_name_vi": "Bệnh Cơ Xương Khớp",
+    "subcategories": {
+      "KHOP": {
+        "display_name_vi": "Khớp",
+        "diseases": {
+          "arthritis": {
+            "display_name_vi": "Viêm khớp",
+            "aliases": ["viêm khớp mãn tính", "osteoarthritis", "đau khớp", "thoái hóa khớp"],
+            "species": ["dog", "cat"]
+          },
+          "hip_dysplasia": {
+            "display_name_vi": "Loạn sản xương hông",
+            "aliases": ["loạn sản hông", "hip dysplasia", "khớp háng lỗi"],
+            "species": ["dog"]
+          },
+          "elbow_dysplasia": {
+            "display_name_vi": "Loạn sản xương khuỷu",
+            "aliases": ["elbow dysplasia", "khớp khuỷu lỗi"],
+            "species": ["dog"]
+          },
+          "cranial_cruciate_ligament_disease": {
+            "display_name_vi": "Bệnh dây chằng chéo gối",
+            "aliases": ["đứt dây chằng gối", "CCL", "chấn thương gối"],
+            "species": ["dog"]
+          }
+        }
+      },
+      "COT_SONG": {
+        "display_name_vi": "Cột Sống",
+        "diseases": {
+          "intervertebral_disc_disease": {
+            "display_name_vi": "Bệnh đĩa đệm cột sống",
+            "aliases": ["IVDD", "thoát vị đĩa đệm", "đau cột sống"],
+            "species": ["dog"]
+          }
+        }
+      }
+    }
+  },
+
+  "TIM_MACH": {
+    "display_name_vi": "Bệnh Tim Mạch",
+    "subcategories": {
+      "CO_TIM": {
+        "display_name_vi": "Cơ Tim",
+        "diseases": {
+          "dilated_cardiomyopathy": {
+            "display_name_vi": "Bệnh cơ tim giãn nở",
+            "aliases": ["DCM", "giãn cơ tim", "suy tim giãn nở"],
+            "species": ["dog"]
+          },
+          "hypertrophic_cardiomyopathy": {
+            "display_name_vi": "Bệnh cơ tim phì đại",
+            "aliases": ["HCM", "phì đại cơ tim", "cơ tim dày"],
+            "species": ["cat"]
+          }
+        }
+      },
+      "VAN_TIM": {
+        "display_name_vi": "Van Tim",
+        "diseases": {
+          "mitral_valve_disease": {
+            "display_name_vi": "Bệnh van hai lá",
+            "aliases": ["MVD", "hở van hai lá", "suy van tim"],
+            "species": ["dog"]
+          }
+        }
+      }
+    }
+  },
+
+  "THAN_KINH": {
+    "display_name_vi": "Bệnh Thần Kinh",
+    "subcategories": {
+      "CO_GIAT": {
+        "display_name_vi": "Co Giật",
+        "diseases": {
+          "epilepsy": {
+            "display_name_vi": "Động kinh",
+            "aliases": ["co giật", "seizure", "động kinh vô căn"],
+            "species": ["dog", "cat"]
+          }
+        }
+      }
+    }
+  },
+
+  "MAT": {
+    "display_name_vi": "Bệnh Mắt",
+    "subcategories": {
+      "NHIEM_TRUNG_MAT": {
+        "display_name_vi": "Nhiễm Trùng Mắt",
+        "diseases": {
+          "ocular_infection": {
+            "display_name_vi": "Viêm kết mạc hoặc nhiễm trùng mắt",
+            "aliases": ["viêm kết mạc", "nhiễm trùng mắt", "đau mắt đỏ", "conjunctivitis"],
+            "species": ["dog", "cat"]
+          },
+          "corneal_ulcer": {
+            "display_name_vi": "Loét giác mạc",
+            "aliases": ["loét mắt", "trầy giác mạc", "viêm giác mạc"],
+            "species": ["dog", "cat"]
+          }
+        }
+      }
+    }
+  },
+
+  "TAI": {
+    "display_name_vi": "Bệnh Tai",
+    "subcategories": {
+      "VIEM_TAI": {
+        "display_name_vi": "Viêm Tai",
+        "diseases": {
+          "otitis_externa": {
+            "display_name_vi": "Viêm tai ngoài",
+            "aliases": ["viêm tai", "otitis", "đau tai", "ráy tai"],
+            "species": ["dog", "cat"]
+          },
+          "otitis_media": {
+            "display_name_vi": "Viêm tai giữa",
+            "aliases": ["viêm tai giữa", "nhiễm trùng tai giữa"],
+            "species": ["dog", "cat"]
+          }
+        }
+      }
+    }
+  },
+
+  "SINH_DUC": {
+    "display_name_vi": "Bệnh Sinh Dục",
+    "subcategories": {
+      "TU_CUNG": {
+        "display_name_vi": "Tử Cung",
+        "diseases": {
+          "pyometra": {
+            "display_name_vi": "Mủ tử cung",
+            "aliases": ["nhiễm trùng tử cung", "viêm tử cung", "pyometra"],
+            "species": ["dog", "cat"]
+          }
+        }
+      },
+      "TUYEN_TIET": {
+        "display_name_vi": "Tuyến Tiết",
+        "diseases": {
+          "mammary_tumor": {
+            "display_name_vi": "Khối u vú",
+            "aliases": ["ung thư vú", "khối u tuyến vú", "u nhũ hoa"],
+            "species": ["dog", "cat"]
+          },
+          "prostatic_disease": {
+            "display_name_vi": "Bệnh tuyến tiền liệt",
+            "aliases": ["viêm tuyến tiền liệt", "phì đại tuyến tiền liệt"],
+            "species": ["dog"]
+          }
+        }
+      }
+    }
+  }
+}

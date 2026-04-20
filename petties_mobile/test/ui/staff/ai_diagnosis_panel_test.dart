@@ -18,10 +18,12 @@ class FakeDiagnosisService extends DiagnosisService {
     SoapDraft? soapDraft,
     String? synthesisMode,
     String? selectedDiagnosisLabel,
+    List<FollowUpAnswer>? followUpAnswers,
   }) handler;
 
   final List<DiagnosisImageAnalysisMode> modes = [];
   final List<String?> synthesisModes = [];
+  final List<List<FollowUpAnswer>?> followUpAnswersPayloads = [];
 
   @override
   Future<StaffDiagnosisResponse> analyzeCase({
@@ -43,10 +45,12 @@ class FakeDiagnosisService extends DiagnosisService {
     String? synthesisMode,
     String? selectedDiagnosisCode,
     String? selectedDiagnosisLabel,
+    List<FollowUpAnswer>? followUpAnswers,
     SoapDraft? soapDraft,
   }) async {
     modes.add(imageAnalysisMode);
     synthesisModes.add(synthesisMode);
+    followUpAnswersPayloads.add(followUpAnswers);
     return handler(
       imageAnalysisMode: imageAnalysisMode,
       doctorDescription: doctorDescription,
@@ -54,6 +58,7 @@ class FakeDiagnosisService extends DiagnosisService {
       soapDraft: soapDraft,
       synthesisMode: synthesisMode,
       selectedDiagnosisLabel: selectedDiagnosisLabel,
+      followUpAnswers: followUpAnswers,
     );
   }
 }
@@ -131,6 +136,7 @@ void main() {
           SoapDraft? soapDraft,
           String? synthesisMode,
           String? selectedDiagnosisLabel,
+          List<FollowUpAnswer>? followUpAnswers,
         }) async {
           return _buildResponse(
             imageDescriptions: const ['Mô tả ảnh preview'],
@@ -170,6 +176,7 @@ void main() {
           SoapDraft? soapDraft,
           String? synthesisMode,
           String? selectedDiagnosisLabel,
+          List<FollowUpAnswer>? followUpAnswers,
         }) async {
           return _buildResponse();
         },
@@ -212,6 +219,7 @@ void main() {
           SoapDraft? soapDraft,
           String? synthesisMode,
           String? selectedDiagnosisLabel,
+          List<FollowUpAnswer>? followUpAnswers,
         }) async {
           throw DiagnosisException(message: 'Không thể phân tích ca bệnh');
         },
@@ -232,6 +240,54 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining('Không thể phân tích ca bệnh'), findsOneWidget);
+    });
+
+    testWidgets('refine sends follow-up answers and keeps selected_only mode',
+        (tester) async {
+      final fakeService = FakeDiagnosisService(
+        handler: ({
+          required imageAnalysisMode,
+          required doctorDescription,
+          List<String>? imageUrls,
+          SoapDraft? soapDraft,
+          String? synthesisMode,
+          String? selectedDiagnosisLabel,
+          List<FollowUpAnswer>? followUpAnswers,
+        }) async {
+          return _buildResponse();
+        },
+      );
+
+      await tester.pumpWidget(
+        _buildTestApp(
+          AiDiagnosisPanel(
+            species: 'dog',
+            diagnosisService: fakeService,
+            initialResult: _buildResponse(),
+            initialSelectedDiagnosisLabel: 'Viêm kết mạc',
+            initialSelectedDiagnosisCode: 'DX-001',
+          ),
+        ),
+      );
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Nhập trả lời của bác sĩ...'),
+        'Bé vẫn ăn uống bình thường',
+      );
+      await tester.pump();
+
+      final refineButton =
+          find.text('CẬP NHẬT KẾT QUẢ THEO THÔNG TIN BỔ SUNG');
+      await tester.ensureVisible(refineButton);
+      await tester.tap(refineButton);
+      await tester.pumpAndSettle();
+
+      expect(fakeService.synthesisModes.last, 'selected_only');
+      final payload = fakeService.followUpAnswersPayloads.last;
+      expect(payload, isNotNull);
+      expect(payload!.length, 1);
+      expect(payload.first.question, 'Bé bị bao lâu rồi?');
+      expect(payload.first.answer, 'Bé vẫn ăn uống bình thường');
     });
   });
 }

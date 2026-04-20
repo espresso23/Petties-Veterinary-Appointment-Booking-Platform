@@ -12,6 +12,9 @@ import { ServiceModal } from './ServiceModal'
 import { PricingModal, type PricingData } from './PricingModal'
 import { ConfirmDialog } from '../common/ConfirmDialog'
 import { InheritServiceModal } from './InheritServiceModal'
+import { SandboxGuideModal } from '../sandbox/SandboxGuideModal'
+import { useSandboxStore } from '../../store/sandboxStore'
+import { useSandboxStepTracker } from '../../hooks/useSandboxStepTracker'
 import {
   getServiceById,
   createService,
@@ -81,7 +84,11 @@ export function ServiceGrid() {
   })
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [serviceToDelete, setServiceToDelete] = useState<{ id: string; name: string } | null>(null)
+  const [showSandboxModal, setShowSandboxModal] = useState(false)
+  const [isLoadingSandbox, setIsLoadingSandbox] = useState(false)
   const { showToast } = useToast()
+  const { enterSandbox } = useSandboxStore()
+  const trackSandboxStepAction = useSandboxStepTracker('clinic_services')
 
   // Fetch clinics on mount
   useEffect(() => {
@@ -145,9 +152,20 @@ export function ServiceGrid() {
     }
   }
 
-  const handleAddService = () => {
+  const handleAddService = (e?: React.MouseEvent) => {
+    trackSandboxStepAction('clinic_services.open_create_form', e?.currentTarget ?? document.activeElement)
     setSelectedService(null)
     setIsModalOpen(true)
+  }
+
+  const handleOpenPricingModal = (e?: React.MouseEvent) => {
+    trackSandboxStepAction('clinic_services.open_pricing_modal', e?.currentTarget ?? document.activeElement)
+    setIsPricingModalOpen(true)
+  }
+
+  const handleOpenInheritModal = (e?: React.MouseEvent) => {
+    trackSandboxStepAction('clinic_services.open_inherit_modal', e?.currentTarget ?? document.activeElement)
+    setIsInheritModalOpen(true)
   }
 
   const handleEditService = async (e: React.MouseEvent, id: string) => {
@@ -297,6 +315,18 @@ export function ServiceGrid() {
     }
   }
 
+  const handleEnterSandbox = async () => {
+    setIsLoadingSandbox(true)
+    try {
+      await enterSandbox('clinic_services')
+      setShowSandboxModal(false)
+    } catch (error) {
+      console.error('Lỗi vào chế độ dùng thử:', error)
+    } finally {
+      setIsLoadingSandbox(false)
+    }
+  }
+
   // Loading state
   if (isLoading) {
     return (
@@ -342,7 +372,7 @@ export function ServiceGrid() {
     <div className="w-full min-h-screen bg-gray-50 p-6">
       <div className="w-full">
         {/* Header Section */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-4" data-sandbox-target="clinic-services-overview">
           <div>
             <h1 className="text-4xl md:text-5xl font-black text-black uppercase tracking-tighter mb-2">
               Quản lý dịch vụ phòng khám
@@ -352,11 +382,18 @@ export function ServiceGrid() {
             </p>
           </div>
 
-          <div className="flex flex-col items-stretch gap-4 w-full md:w-80">
+          <div className="flex flex-col items-stretch gap-4 w-full md:w-80" data-sandbox-target="clinic-services-actions">
+            <button
+              onClick={() => setShowSandboxModal(true)}
+              className="group flex items-center justify-center gap-3 bg-white text-black px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all min-h-[72px]"
+            >
+              <span className="font-black text-lg uppercase tracking-wide">Hướng dẫn</span>
+            </button>
             <button
               onClick={handleAddService}
               disabled={!selectedClinic || isSubmitting}
               style={{ backgroundColor: '#FF6B35' }}
+              data-sandbox-target="clinic-services-create-button"
               className="group flex items-center justify-center gap-3 text-black px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[72px]"
             >
               <PlusIcon className="w-6 h-6" />
@@ -366,8 +403,9 @@ export function ServiceGrid() {
             </button>
 
             <button
-              onClick={() => setIsPricingModalOpen(true)}
+              onClick={handleOpenPricingModal}
               disabled={isSubmitting}
+              data-sandbox-target="clinic-services-pricing-button"
               className="flex items-center justify-center gap-3 bg-white text-black px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[72px]"
             >
               <div className="w-9 h-9 flex items-center justify-center bg-black text-white border-2 border-black font-black text-xl flex-shrink-0">
@@ -376,6 +414,20 @@ export function ServiceGrid() {
               <div className="flex flex-col items-start leading-[1.1]">
                 <span className="font-black text-[10px] uppercase text-gray-500">Thiết lập chung</span>
                 <span className="font-black text-sm uppercase whitespace-nowrap">Giá di chuyển & SOS</span>
+              </div>
+            </button>
+            <button
+              onClick={handleOpenInheritModal}
+              disabled={isSubmitting || !selectedClinic}
+              data-sandbox-target="clinic-services-inherit-button"
+              className="flex items-center justify-center gap-3 bg-white text-black px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[72px]"
+            >
+              <div className="w-9 h-9 flex items-center justify-center bg-black text-white border-2 border-black font-black text-xl flex-shrink-0">
+                <ArrowPathIcon className="w-6 h-6" />
+              </div>
+              <div className="flex flex-col items-start leading-[1.1]">
+                <span className="font-black text-[10px] uppercase text-gray-500">Từ dịch vụ mẫu</span>
+                <span className="font-black text-sm uppercase whitespace-nowrap">Thừa hưởng template</span>
               </div>
             </button>
           </div>
@@ -387,7 +439,7 @@ export function ServiceGrid() {
             <label className="block text-base font-black uppercase text-black mb-3">
               Chọn phòng khám
             </label>
-            <div className="relative">
+            <div className="relative" data-sandbox-target="clinic-services-selector">
               <button
                 type="button"
                 onClick={() => setIsClinicDropdownOpen(!isClinicDropdownOpen)}
@@ -407,9 +459,10 @@ export function ServiceGrid() {
                     <button
                       key={clinic.clinicId}
                       type="button"
-                      onClick={() => {
+                      onClick={(e) => {
                         setSelectedClinic(clinic)
                         setIsClinicDropdownOpen(false)
+                        trackSandboxStepAction('clinic_services.select_clinic', e.currentTarget)
                       }}
                       className={`w-full p-4 text-left hover:bg-gray-100 transition-colors border-b-2 border-black last:border-b-0 ${selectedClinic?.clinicId === clinic.clinicId ? 'bg-orange-50' : ''}`}
                     >
@@ -439,6 +492,7 @@ export function ServiceGrid() {
                 onClick={handleAddService}
                 disabled={!selectedClinic || isSubmitting}
                 style={{ backgroundColor: '#FF6B35' }}
+                data-sandbox-target="clinic-services-empty-create-button"
                 className="px-8 py-4 border-4 border-black font-black uppercase hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Thêm dịch vụ ngay
@@ -449,12 +503,13 @@ export function ServiceGrid() {
 
         {/* Grid Section */}
         {services.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-12">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-12" data-sandbox-target="clinic-services-list">
             {services.map((service) => (
               <ServiceCard
                 key={service.id}
                 service={service}
-                onClick={async () => {
+                onClick={async (e) => {
+                  trackSandboxStepAction('clinic_services.open_service_card', e.currentTarget)
                   const fullService = await getServiceById(service.id)
                   setSelectedService(fullService)
                   setIsModalOpen(true)
@@ -537,6 +592,14 @@ export function ServiceGrid() {
         confirmText="Xóa dịch vụ"
         cancelText="Hủy bỏ"
         variant="danger"
+      />
+
+      <SandboxGuideModal
+        isOpen={showSandboxModal}
+        featureName="Dịch vụ phòng khám"
+        onConfirm={handleEnterSandbox}
+        onCancel={() => setShowSandboxModal(false)}
+        isLoading={isLoadingSandbox}
       />
     </div>
   )

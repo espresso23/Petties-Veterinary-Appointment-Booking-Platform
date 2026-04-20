@@ -332,7 +332,7 @@ class _AiStructuredBookingSummaryCardState
       }
     }
     _selectedBookingDate = _clean(summary.bookingDate);
-    _selectedStartTime = _clean(summary.startTime);
+    _selectedStartTime = _normalizeTimeCandidate(summary.startTime);
     _selectedBookingType =
         _normalizeBookingType(summary.bookingType) ?? bookingTypeInClinic;
     _homeAddress = _clean(summary.homeAddress);
@@ -371,7 +371,8 @@ class _AiStructuredBookingSummaryCardState
 
     if ((_selectedStartTime ?? '').trim().isEmpty &&
         widget.startTimeOptions.length == 1) {
-      _selectedStartTime = widget.startTimeOptions.first.trim();
+      _selectedStartTime =
+          _normalizeTimeCandidate(widget.startTimeOptions.first);
     }
   }
 
@@ -503,7 +504,7 @@ class _AiStructuredBookingSummaryCardState
                 _canRequestSlotRefresh() ? _requestSlotRefresh : null,
             onChanged: (nextValue) {
               setState(() {
-                _selectedStartTime = nextValue;
+                _selectedStartTime = _normalizeTimeCandidate(nextValue);
               });
               _notifyFormChanged('time');
             },
@@ -1070,9 +1071,11 @@ class _AiStructuredBookingSummaryCardState
     final shouldUseSlotOptionsOnly = _selectedBookingDate != null;
     final values = <String>{
       ...widget.startTimeOptions
-          .map((item) => item.trim())
+          .map(_normalizeTimeCandidate)
+          .whereType<String>()
           .where((item) => item.isNotEmpty),
-      if ((_selectedStartTime ?? '').trim().isNotEmpty) _selectedStartTime!,
+      if ((_selectedStartTime ?? '').trim().isNotEmpty)
+        _normalizeTimeCandidate(_selectedStartTime) ?? _selectedStartTime!,
     }.toList();
 
     if (shouldUseSlotOptionsOnly) {
@@ -1120,9 +1123,13 @@ class _AiStructuredBookingSummaryCardState
   }
 
   String? _resolveTimeValue(List<_SummarySelectItem> timeItems) {
-    final selected = _clean(_selectedStartTime);
+    final selected = _normalizeTimeCandidate(_selectedStartTime);
     if (selected == null) return null;
-    return timeItems.any((item) => item.value == selected) ? selected : null;
+    if (timeItems.any((item) => item.value == selected)) {
+      return selected;
+    }
+    // Allow valid selected time while slot options are still syncing from backend.
+    return _isValidTimeValue(selected) ? selected : null;
   }
 
   String? _resolveBookingTypeValue(List<_SummarySelectItem> items) {
@@ -1181,8 +1188,39 @@ class _AiStructuredBookingSummaryCardState
     return null;
   }
 
+  String? _normalizeTimeCandidate(String? value) {
+    final raw = (value ?? '').trim();
+    if (raw.isEmpty) {
+      return null;
+    }
+
+    final direct = RegExp(r'^(\d{1,2}):(\d{2})(?::\d{2})?$').firstMatch(raw);
+    if (direct != null) {
+      final hour = int.tryParse(direct.group(1) ?? '');
+      final minute = int.tryParse(direct.group(2) ?? '');
+      if (hour == null || minute == null) {
+        return null;
+      }
+      if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+        return null;
+      }
+      return '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+    }
+
+    final embedded = RegExp(r'T(\d{2}):(\d{2})(?::\d{2})?').firstMatch(raw);
+    if (embedded != null) {
+      return _normalizeTimeCandidate('${embedded.group(1)}:${embedded.group(2)}');
+    }
+
+    return null;
+  }
+
   bool _isValidTimeValue(String value) {
-    final match = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(value.trim());
+    final normalized = _normalizeTimeCandidate(value);
+    if (normalized == null) {
+      return false;
+    }
+    final match = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(normalized);
     if (match == null) {
       return false;
     }

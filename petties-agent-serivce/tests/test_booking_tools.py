@@ -189,6 +189,52 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["clinics"][0]["name"], "Benh Vien Thu Y PetCare")
         self.assertEqual(result["match_mode"], "explicit_name")
         self.assertTrue(result["auto_select_clinic"])
+        self.assertEqual(result["clinic_suggestion_mode"], "booking")
+
+    async def test_search_clinics_nearby_marks_discovery_mode_for_compare_price_request(
+        self,
+    ):
+        runtime_token = set_tool_runtime_context(
+            ToolRuntimeContext(
+                user_id="user-1", role="PET_OWNER", auth_token="jwt-token"
+            )
+        )
+
+        client = AsyncMock()
+        client.resolve_booking_context.return_value = {
+            "resolvedLocation": {"latitude": 15.9575, "longitude": 108.2575},
+            "resolvedClinicHint": "PetCare",
+        }
+        client.get_booking_clinic_options.return_value = {
+            "totalFound": 1,
+            "clinics": [
+                {
+                    "clinicId": "clinic-1",
+                    "name": "Benh Vien Thu Y PetCare",
+                    "address": "FPT Complex Da Nang",
+                    "distanceKm": 0.2,
+                    "ratingAvg": 5.0,
+                    "ratingCount": 4,
+                    "matchMode": "explicit_name",
+                }
+            ],
+        }
+
+        try:
+            with patch(
+                "app.core.tools.mcp_tools.booking_tools.get_backend_client",
+                return_value=client,
+            ):
+                result = await search_clinics_nearby(
+                    latitude=15.9575,
+                    longitude=108.2575,
+                    clinic_hint="PetCare",
+                    latest_message="Toi muon so sanh gia phong kham PetCare",
+                )
+        finally:
+            reset_tool_runtime_context(runtime_token)
+
+        self.assertEqual(result["clinic_suggestion_mode"], "discovery")
 
     async def test_get_clinic_services_resolves_clinic_hint_to_canonical_id(self):
         runtime_token = set_tool_runtime_context(

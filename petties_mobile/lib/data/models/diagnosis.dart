@@ -34,6 +34,7 @@ class StaffDiagnosisRequest {
   final String? synthesisMode;
   final String? selectedDiagnosisCode;
   final String? selectedDiagnosisLabel;
+  final List<FollowUpAnswer>? followUpAnswers;
   final SoapDraft? soapDraft;
 
   StaffDiagnosisRequest({
@@ -55,6 +56,7 @@ class StaffDiagnosisRequest {
     this.synthesisMode,
     this.selectedDiagnosisCode,
     this.selectedDiagnosisLabel,
+    this.followUpAnswers,
     this.soapDraft,
   });
 
@@ -84,7 +86,26 @@ class StaffDiagnosisRequest {
         'selected_diagnosis_code': selectedDiagnosisCode,
       if (selectedDiagnosisLabel != null)
         'selected_diagnosis_label': selectedDiagnosisLabel,
+      if (followUpAnswers != null)
+        'follow_up_answers': followUpAnswers!.map((item) => item.toJson()).toList(),
       if (soapDraft != null) 'soap_draft': soapDraft!.toJson(),
+    };
+  }
+}
+
+class FollowUpAnswer {
+  final String question;
+  final String answer;
+
+  FollowUpAnswer({
+    required this.question,
+    required this.answer,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'question': question,
+      'answer': answer,
     };
   }
 }

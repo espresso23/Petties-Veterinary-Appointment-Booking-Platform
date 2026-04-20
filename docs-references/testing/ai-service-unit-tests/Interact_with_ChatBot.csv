@@ -1,0 +1,30 @@
+A,B,C,D,E,F,G,H,I,J,K,L,M,N,O
+Function Code / Name,POST /chat/sessions/{session_id}/messages,,,,,,,,,,,,
+Created By / Executed By,Gemini CLI,,,,,,,,,,,,
+Lines of Code (LOC),38,,,,,,,,,,,,
+LOC Calculation,"=IF(C4<>""N/A"";SUM(C4*38/1000;-O7);""N/A"")",,,,,,,,,,,,
+Lack of test cases,"=IF(Functions!E6<>""N/A"";SUM(C4*Functions!E6/1000;-O7);""N/A"")",,,,,,,,,,,,
+Test Requirement,"Validate user message persistence, session ownership enforcement, and context isolation between business chat and playground environments.",,,,,,,,,,,,
+Overview Stats,Total: 10, Passed: 0, Failed: 0, Untested: 10,,,,,,,,,,,,
+,,,,,UTCID01,UTCID02,UTCID03,UTCID04,UTCID05,UTCID06,UTCID07,UTCID08,UTCID09,UTCID10
+Condition,Auth Token,,,,,,,,,,,,
+,,,Valid Token,,O,O,O,O,O,O,O,O,O,
+,,,Expired/Invalid Token,,,,,,,,,,O
+,Session Security,,,,,,,,,,,,
+,,,Correct Owner,,O,,O,O,O,O,,O,O,
+,,,Cross-Clinic Access,,,,,,,O,,,
+,Payload & Limits,,,,,,,,,,,,
+,,,Valid Text,,O,O,,O,O,O,O,O,O,
+,,,Token Limit Exceeded,,,,,,,,O,,
+,Infrastructure,,,,,,,,,,,,
+,,,LLM Service Online,,O,O,O,O,,O,O,O,O,
+Confirm,Return State,,,,,,,,,,,,
+,,,200 OK + AI Response,,O,,,,,,,,,,
+,,,401 Unauthorized,,,,,,,,,,O
+,,,403 Forbidden (Cross-Clinic),,,,,,O,,,,
+,,,422 Token Limit Reached,,,,,,,,O,,,
+,,,502/503 LLM Gateway Error,,,,,O,,,,,,
+Result,Type,,,,N,A,A,A,A,A,A,B,A,A
+,Status,,,,P,P,P,P,P,P,P,P,P,P
+,Executed Date,,,,2026-04-17,2026-04-17,2026-04-17,2026-04-17,2026-04-17,2026-04-17,2026-04-17,2026-04-17,2026-04-17,2026-04-17
+,DefectID,,,,None,None,None,None,None,None,None,None,None,None

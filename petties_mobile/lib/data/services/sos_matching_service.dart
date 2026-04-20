@@ -50,25 +50,39 @@ class SosMatchingStatus {
   });
 
   factory SosMatchingStatus.fromJson(Map<String, dynamic> json) {
+    int? parseInt(dynamic value) {
+      if (value == null) return null;
+      if (value is int) return value;
+      if (value is num) return value.toInt();
+      return int.tryParse(value.toString());
+    }
+
+    double? parseDouble(dynamic value) {
+      if (value == null) return null;
+      if (value is num) return value.toDouble();
+      return double.tryParse(value.toString());
+    }
+
     return SosMatchingStatus(
-      bookingId: json['bookingId'] ?? '',
-      status: json['status'] ?? 'SEARCHING',
+      bookingId: json['bookingId']?.toString() ?? '',
+      status: json['status']?.toString() ?? 'SEARCHING',
       event: json['event']?.toString(),
       clinicId: json['clinicId'],
       clinicName: json['clinicName'],
       clinicPhone: json['clinicPhone'],
       clinicAddress: json['clinicAddress'],
-      clinicLat: (json['clinicLat'] as num?)?.toDouble(),
-      clinicLng: (json['clinicLng'] as num?)?.toDouble(),
-      distance: (json['distance'] as num?)?.toDouble(),
+      clinicLat: parseDouble(json['clinicLat']),
+      clinicLng: parseDouble(json['clinicLng']),
+      distance: parseDouble(json['distance'] ?? json['distanceKm']),
       message: json['message'],
-      currentClinicIndex: json['currentClinicIndex'] as int?,
-      totalClinics: json['totalClinics'] as int?,
+      currentClinicIndex: parseInt(json['currentClinicIndex']),
+      totalClinics:
+          parseInt(json['totalClinics'] ?? json['totalClinicsInRange']),
       staffId: json['staffId'],
       staffName: json['staffName'],
       staffPhone: json['staffPhone'],
       staffAvatarUrl: json['staffAvatarUrl'],
-      remainingSeconds: (json['remainingSeconds'] as num?)?.toInt(),
+      remainingSeconds: parseInt(json['remainingSeconds']),
     );
   }
 
@@ -507,8 +521,15 @@ class SosMatchingService extends ChangeNotifier {
       try {
         final status = await getMatchingStatus(bookingId);
         if (status != null) {
-          // Only notify if status changed
-          if (_currentStatus?.status != status.status) {
+          final hasChanged = _currentStatus?.status != status.status ||
+              _currentStatus?.event != status.event ||
+              _currentStatus?.clinicId != status.clinicId ||
+              _currentStatus?.message != status.message ||
+              _currentStatus?.currentClinicIndex != status.currentClinicIndex ||
+              _currentStatus?.totalClinics != status.totalClinics ||
+              _currentStatus?.remainingSeconds != status.remainingSeconds;
+
+          if (hasChanged) {
             _logger.i('Polling detected status change: ${status.status}');
             _currentStatus = status;
             for (final h in _handlers[bookingId] ?? {}) {

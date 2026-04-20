@@ -87,6 +87,7 @@ class _PatientListScreenState extends State<PatientListScreen> {
       });
     }
   }
+
   Future<String?> _resolveActiveBookingId(Pet patient) async {
     final bookingId = patient.bookingId;
     if (bookingId != null && bookingId.isNotEmpty) return bookingId;
@@ -1537,20 +1538,22 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // S - Subjective
+                  // S - Triệu chứng
                   if (emr.subjective != null && emr.subjective!.isNotEmpty)
                     _buildSoapSection(
-                        'S - CHỦ QUAN', emr.subjective ?? '', Colors.orange),
+                        'S - TRIỆU CHỨNG', emr.subjective ?? '', Colors.orange),
 
                   // A - Assessment
                   if (emr.assessment != null)
                     _buildSoapSection(
                         'A - CHẨN ĐOÁN', emr.assessment ?? '', Colors.orange),
 
-                  // O - Objective
+                  // O - Kết quả khám lâm sàng, chỉ số sức khỏe
                   if (emr.objective != null && emr.objective!.isNotEmpty)
                     _buildSoapSection(
-                        'O - KHÁCH QUAN', emr.objective ?? '', Colors.orange),
+                        'O - KẾT QUẢ KHÁM LÂM SÀNG, CHỈ SỐ SỨC KHỎE',
+                        emr.objective ?? '',
+                        Colors.orange),
 
                   // P - Plan
                   if (emr.plan != null)

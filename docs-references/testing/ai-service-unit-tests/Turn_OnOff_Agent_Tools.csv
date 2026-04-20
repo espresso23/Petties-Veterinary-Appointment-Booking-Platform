@@ -1,0 +1,23 @@
+A,B,C,D,E,F,G,H,I
+Function Code / Name,PUT /tools/{tool_id}/enable,,,,,,,,
+Created By / Executed By,Gemini CLI,,,,,,,,
+Lines of Code (LOC),40,,,,,,,,
+Lack of test cases,"=IF(Functions!E9<>""N/A"";SUM(C4*Functions!E9/1000;-O7);""N/A"")",,,,,,,
+Test Requirement,"Verify dynamic state management of Model Context Protocol (MCP) tools and ensure tool availability is updated for the ReAct agent runtime.",,,,,,,,
+Overview Stats,Total: 4, Passed: 0, Failed: 0, Untested: 4,,,,,,,,
+,,,,,UTCID01,UTCID02,UTCID03,UTCID04
+Condition,Auth Token,,,,,,,,
+,,,Admin Auth Token,,O,O,O,
+,Tool Status,,,,,,,,
+,,,Tool Exists,,O,,O,O
+,Payload,,,,,,,,
+,,,Valid Boolean,,O,O,,O
+Confirm,Return State,,,,,,,,
+,,,200 OK + Updated Tool,,O,,,
+,,,401/403 Forbidden,,,,O
+,,,404 Tool Not Found,,,O,,
+,,,422 Invalid Boolean,,,,O,
+Result,Type,,,,N,A,A,A
+,Status,,,,P,P,P,P
+,Executed Date,,,,2026-04-17,2026-04-17,2026-04-17,2026-04-17
+,DefectID,,,,None,None,None,None

@@ -10,8 +10,7 @@
     <!-- Console Appender với màu sắc -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %highlight(%-5level) [%thread] %cyan(%logger{36}) -
-                %msg%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %highlight(%-5level) [%thread] [%X{requestId:-na}] [%X{traceId:-na}] %cyan(${appName}) %cyan(%logger{36}) - %msg%n</pattern>
             <charset>UTF-8</charset>
         </encoder>
     </appender>
@@ -20,7 +19,7 @@
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>logs/petties-backend.log</file>
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] service=${appName} reqId=%X{requestId:-na} traceId=%X{traceId:-na} method=%X{method:-na} path=%X{path:-na} userId=%X{userId:-anonymous} clientIp=%X{clientIp:-na} status=%X{status:-na} latencyMs=%X{latencyMs:-na} %logger{36} - %msg%n</pattern>
             <charset>UTF-8</charset>
         </encoder>
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
@@ -42,7 +41,7 @@
             <level>WARN</level>
         </filter>
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n%ex{full}</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] service=${appName} reqId=%X{requestId:-na} traceId=%X{traceId:-na} method=%X{method:-na} path=%X{path:-na} userId=%X{userId:-anonymous} clientIp=%X{clientIp:-na} status=%X{status:-na} latencyMs=%X{latencyMs:-na} %logger{36} - %msg%n%ex{full}</pattern>
             <charset>UTF-8</charset>
         </encoder>
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
@@ -58,7 +57,7 @@
         <file>logs/petties-json.log</file>
         <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
             <pattern>
-                {"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}","level":"%level","logger":"%logger","thread":"%thread","message":"%msg","exception":"%ex{short}"}%n</pattern>
+                {"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}","service":"${appName}","level":"%level","logger":"%logger","thread":"%thread","request_id":"%X{requestId:-}","trace_id":"%X{traceId:-}","method":"%X{method:-}","path":"%X{path:-}","user_id":"%X{userId:-}","client_ip":"%X{clientIp:-}","status":"%X{status:-}","latency_ms":"%X{latencyMs:-}","message":"%msg","exception":"%ex{short}"}%n</pattern>
             <charset>UTF-8</charset>
         </encoder>
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">

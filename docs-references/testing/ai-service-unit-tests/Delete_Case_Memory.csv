@@ -1,0 +1,20 @@
+A,B,C,D,E,F,G,H
+Function Code / Name,DELETE /knowledge/case-memory/{case_id},,,,,,,
+Created By / Executed By,Gemini CLI,,,,,,,
+Lines of Code (LOC),23,,,,,,,
+Lack of test cases,"=IF(Functions!E13<>""N/A"";SUM(C4*Functions!E13/1000;-O7);""N/A"")",,,,,,
+Test Requirement,"Verify precise eviction of individual case points from the vector store to maintain grounding accuracy and prevent data drift.",,,,,,,
+Overview Stats,Total: 3, Passed: 0, Failed: 0, Untested: 3,,,,,,,
+,,,,,UTCID01,UTCID02,UTCID03
+Condition,Auth Token,,,,,,,,
+,,,Admin Auth Token,,O,O,
+,Case Status,,,,,,,,
+,,,Case Exists,,O,,O
+Confirm,Return State,,,,,,,,
+,,,200 OK + Deleted,,O,,
+,,,401/403 Forbidden,,,O
+,,,404 Not Found,,,O,
+Result,Type,,,,N,A,A
+,Status,,,,P,P,P
+,Executed Date,,,,2026-04-17,2026-04-17,2026-04-17
+,DefectID,,,,None,None,None

@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { ToastProvider } from './components/Toast'
 import { ProtectedRoute } from './components/common/ProtectedRoute'
 import { useAuthStore } from './store/authStore'
+import { useSandboxStore } from './store/sandboxStore'
 import { MainLayout } from './layouts/MainLayout'
 import { AuthLayout } from './layouts/AuthLayout'
 import OnboardingPage from './pages/onboarding/OnboardingPage'
@@ -29,8 +30,10 @@ const ToolsPage = lazy(() => import('./pages/admin/tools/ToolsPage'))
 const KnowledgePage = lazy(() => import('./pages/admin/knowledge/KnowledgePage'))
 const PlaygroundPage = lazy(() => import('./pages/admin/playground/PlaygroundPage'))
 const AIInsightsPage = lazy(() => import('./pages/admin/insights/AIInsightsPage'))
+const SystemLogsPage = lazy(() => import('./pages/admin/logs/SystemLogsPage'))
 const ClinicApprovalPage = lazy(() => import('./pages/admin/clinics/ClinicApprovalPage'))
 const ClinicRegistryPage = lazy(() => import('./pages/admin/clinics/ClinicRegistryPage'))
+const ClinicSuspendRequestsPage = lazy(() => import('./pages/admin/clinics/ClinicSuspendRequestsPage'))
 const AdminUsersPage = lazy(() => import('./pages/admin/AdminUsersPage'))
 const AdminReportsPage = lazyNamed(() => import('./pages/admin/ReportsPage'), 'ReportsPage')
 const AdminRefundApplicationsPage = lazyNamed(
@@ -139,11 +142,28 @@ function AppRouteFallback() {
 }
 
 function App() {
-  const { initializeAuth } = useAuthStore()
+  const initializeAuth = useAuthStore((state) => state.initializeAuth)
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+  const isLoading = useAuthStore((state) => state.isLoading)
+  const loadCurrentSandbox = useSandboxStore((state) => state.loadCurrentSandbox)
+  const resetSandbox = useSandboxStore((state) => state.reset)
 
   useEffect(() => {
     initializeAuth()
   }, [initializeAuth])
+
+  useEffect(() => {
+    if (isLoading) {
+      return
+    }
+
+    if (isAuthenticated) {
+      void loadCurrentSandbox()
+      return
+    }
+
+    resetSandbox()
+  }, [isAuthenticated, isLoading, loadCurrentSandbox, resetSandbox])
 
   return (
     <ToastProvider>
@@ -184,6 +204,7 @@ function App() {
               <Route path="tools" element={<ToolsPage />} />
               <Route path="playground" element={<PlaygroundPage />} />
               <Route path="ai-insights" element={<AIInsightsPage />} />
+              <Route path="system-logs" element={<SystemLogsPage />} />
               <Route path="clinics" element={<ClinicApprovalPage />} />
               <Route path="clinics/registry" element={<ClinicRegistryPage />} />
               <Route path="users" element={<AdminUsersPage />} />
@@ -198,6 +219,7 @@ function App() {
               <Route path="profile" element={<ProfilePage />} />
             </Route>
 
+              <Route path="clinic-suspensions" element={<ClinicSuspendRequestsPage />} />
             <Route
               path="/staff"
               element={

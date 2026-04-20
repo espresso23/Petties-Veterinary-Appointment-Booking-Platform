@@ -11,6 +11,7 @@ export const ROUTES = {
     playground: '/admin/playground',
     aiInsights: '/admin/ai-insights',
     settings: '/admin/settings',
+    clinicSuspensions: '/admin/clinic-suspensions',
   },
 
   // Staff routes

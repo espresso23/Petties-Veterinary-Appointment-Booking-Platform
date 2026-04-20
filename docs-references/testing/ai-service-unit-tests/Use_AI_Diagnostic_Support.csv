@@ -1,0 +1,30 @@
+A,B,C,D,E,F,G,H,I,J,K,L,M,N,O
+Function Code / Name,POST /staff-diagnosis/analyze,,,,,,,,,,,,
+Created By / Executed By,Gemini CLI,,,,,,,,,,,,
+Lines of Code (LOC),166,,,,,,,,,,,,
+Lack of test cases,"=IF(Functions!E19<>""N/A"";SUM(C4*Functions!E19/1000;-O7);""N/A"")",,,,,,,,,,,,
+Test Requirement,"Validate the multi-modal diagnostic pipeline: supporting vision analysis (DESCRIBE_ONLY), differential diagnosis (FULL), and treatment protocol (SELECTED_ONLY) modes.",,,,,,,,,,,,
+Overview Stats,Total: 10, Passed: 0, Failed: 0, Untested: 10,,,,,,,,,,,,
+,,,,,UTCID01,UTCID02,UTCID03,UTCID04,UTCID05,UTCID06,UTCID07,UTCID08,UTCID09,UTCID10
+Condition,Auth Token,,,,,,,,,,,,
+,,,Valid Token,,O,O,O,O,O,O,O,O,O,
+,,,Invalid Token,,,,,,,,,,O
+,Input Quality,,,,,,,,,,,,
+,,,Clear Clinical Image,,O,,O,,,,O,O,
+,,,Corrupted/Blurry Image,,,,O,,,,,,
+,,,Conflicting Symptoms,,,,,,O,,,,,
+,,,Missing Vitals Data,,,,,,,O,,,,
+,Analysis Mode,,,,,,,,,,,,
+,,,FULL Mode,,,O,O,,,,O,O,
+,,,DESCRIBE_ONLY,,O,,,,,,,,,
+,,,SELECTED_ONLY,,,,,O,O,,,,,
+Confirm,Return State,,,,,,,,,,,,
+,,,200 OK + Top 3 Differential,,,O,O,,,,O,O,
+,,,200 OK + Vision Description,,O,,,,,,,,,
+,,,200 OK + Low Confidence Warn,,,,,,O,O,,,,
+,,,422 Corrupted Media File,,,,O,,,,,,,
+,,,401 Unauthorized,,,,,,,,,,O
+Result,Type,,,,N,N,N,A,N,B,B,B,N,A
+,Status,,,,P,P,P,P,P,P,P,P,P,P
+,Executed Date,,,,2026-04-17,2026-04-17,2026-04-17,2026-04-17,2026-04-17,2026-04-17,2026-04-17,2026-04-17,2026-04-17,2026-04-17
+,DefectID,,,,None,None,None,None,None,None,None,None,None,None

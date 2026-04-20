@@ -351,13 +351,15 @@ public class ClinicController {
     @GetMapping("/owner/my-clinics")
     @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER')")
     public ResponseEntity<Page<ClinicResponse>> getMyClinics(
+            @RequestHeader(value = "X-Sandbox-Mode", required = false) String sandboxMode,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
         User currentUser = authService.getCurrentUser();
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        boolean includeSandbox = "true".equalsIgnoreCase(sandboxMode);
         Page<ClinicResponse> clinics = clinicService.getClinicsByOwner(
-                currentUser.getUserId(), pageable);
+            currentUser.getUserId(), pageable, includeSandbox);
         return ResponseEntity.ok(clinics);
     }
 

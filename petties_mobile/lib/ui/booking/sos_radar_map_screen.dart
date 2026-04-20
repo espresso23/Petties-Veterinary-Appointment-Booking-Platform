@@ -18,6 +18,7 @@ import '../../utils/storage_service.dart';
 import '../../config/constants/app_colors.dart';
 import '../../config/constants/app_constants.dart';
 import '../../utils/map_utils.dart';
+import '../../routing/app_routes.dart';
 
 /// SOS Radar Map Screen - Grab-like emergency matching experience
 /// Shows full-screen map with nearby clinics and real-time staff tracking
@@ -94,6 +95,7 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
   String? _errorMessage;
   int _countdownSeconds = 60;
   Timer? _countdownTimer;
+  Timer? _noClinicAutoCloseTimer;
   BitmapDescriptor? _homeIcon;
   BitmapDescriptor? _clinicIcon;
   BitmapDescriptor? _vetIcon;
@@ -254,6 +256,9 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
 
   Future<void> _startMatching() async {
     if (_userPosition == null) return;
+
+    _countdownTimer?.cancel();
+    _noClinicAutoCloseTimer?.cancel();
 
     setState(() {
       _isSearching = true;
@@ -456,6 +461,21 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
         _countdownTimer?.cancel();
         // Khi SOS đã bị hủy hoặc không tìm thấy, KHÔNG tự điều hướng sang màn hình theo dõi
         _isConfirmed = false;
+
+        if (status.event?.toUpperCase() == 'NO_CLINIC') {
+          _noClinicAutoCloseTimer?.cancel();
+          _noClinicAutoCloseTimer = Timer(const Duration(seconds: 2), () {
+            if (!mounted) return;
+            if (_status?.event?.toUpperCase() != 'NO_CLINIC') return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                    'Không tìm thấy phòng khám phù hợp. Đã quay lại màn hình yêu cầu SOS.'),
+              ),
+            );
+            context.go(AppRoutes.sosRequest);
+          });
+        }
       }
     });
   }
@@ -718,6 +738,15 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
   }
 
   Future<void> _handleCancel() async {
+    _noClinicAutoCloseTimer?.cancel();
+
+    if (_status?.isCancelled == true) {
+      if (mounted) {
+        context.go(AppRoutes.sosRequest);
+      }
+      return;
+    }
+
     // If booking is already confirmed, navigate to tracking instead of cancelling
     if (_isConfirmed) {
       _navigateToTracking();
@@ -812,6 +841,7 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
     _radarController.dispose();
     _pulseController.dispose();
     _countdownTimer?.cancel();
+    _noClinicAutoCloseTimer?.cancel();
     _sosService.removeListener(_onStatusChanged);
     if (_trackingHandler != null && _status?.bookingId != null) {
       _websocketService.unsubscribeFromTracking(

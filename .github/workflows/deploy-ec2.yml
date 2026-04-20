@@ -89,5 +89,6 @@ jobs:
             echo "🚀 ============================================"
             echo "✅ Production Deployment complete!"
             echo "🌐 FE: https://www.petties.world"
-            echo "🔌 BE: https://api.petties.world/api"
+            echo "🔌 BE: https://api.petties.world/api (unified domain)"
+            echo "🤖 AI:  https://api.petties.world/ai (unified domain)"
             echo "🚀 ============================================"

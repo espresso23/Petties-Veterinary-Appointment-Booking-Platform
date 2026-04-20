@@ -30,7 +30,7 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "clinics")
-@SQLDelete(sql = "UPDATE clinics SET deleted_at = CURRENT_TIMESTAMP WHERE clinic_id = ?")
+@SQLDelete(sql = "UPDATE clinics SET deleted_at = CURRENT_TIMESTAMP WHERE clinic_id = ? AND version = ?")
 @SQLRestriction("deleted_at IS NULL")
 @EntityListeners(AuditingEntityListener.class)
 @Getter
@@ -124,6 +124,21 @@ public class Clinic {
     /** Thời điểm hết hạn strike. NULL = không bị strike. Khi có giá trị: clinic không nhận booking mới, không xuất hiện trong tìm kiếm. */
     @Column(name = "strike_until")
     private LocalDateTime strikeUntil;
+
+    /* ========== SANDBOX WORKSPACE FIELDS ========== */
+    /** Whether this clinic is a sandbox for testing/learning (true) or production (false) */
+    @Column(name = "is_sandbox")
+    @Builder.Default
+    private Boolean isSandbox = false;
+
+    /** User who created this sandbox clinic (for learning purposes) */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sandbox_owner_id")
+    private User sandboxOwner;
+
+    /** Auto-delete timestamp for sandbox clinics (24 hours after creation by default) */
+    @Column(name = "sandbox_expires_at")
+    private LocalDateTime sandboxExpiresAt;
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
