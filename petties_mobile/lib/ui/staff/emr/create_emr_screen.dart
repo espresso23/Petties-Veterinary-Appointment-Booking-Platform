@@ -225,8 +225,9 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
       bookingId: widget.bookingId,
       species: speciesStr,
       breed: _petInfo?.breed,
-      ageMonths:
-          dateOfBirth != null ? DateTime.now().difference(dateOfBirth).inDays ~/ 30 : null,
+      ageMonths: dateOfBirth != null
+          ? DateTime.now().difference(dateOfBirth).inDays ~/ 30
+          : null,
       weightKg: _petInfo?.weight,
       allergies: _petInfo?.allergies?.split(',').map((e) => e.trim()).toList(),
       initialSubjective: _subjectiveController.text.isNotEmpty
@@ -277,8 +278,7 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
 
   void _applyDiagnosisResult(
     StaffDiagnosisResponse result,
-    List<String> diagnosisImageUrls,
-    {
+    List<String> diagnosisImageUrls, {
     bool applySubjectiveAssessment = true,
     String? selectedDiagnosisLabel,
   }) {
@@ -1192,9 +1192,9 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
           ),
           const SizedBox(height: 20),
 
-          // Khách quan
+          // Kết quả khám lâm sàng, chỉ số sức khỏe
           _buildSectionHeader(
-              'Khách quan / Chỉ số sức khỏe', Colors.teal, false),
+              'Kết quả khám lâm sàng, chỉ số sức khỏe', Colors.teal, false),
           const SizedBox(height: 12),
 
           Row(
@@ -1741,18 +1741,16 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                               spacing: 8,
                               runSpacing: 4,
                               children: [
-                                _buildDetailLabel(
-                                    (p.timesOfDay != null &&
-                                            p.timesOfDay!.isNotEmpty)
-                                        ? p.timesOfDay!.join(', ')
-                                        : 'Theo chỉ định'),
-                                _buildDetailLabel(
-                                    (p.beforeAfterMeal == null ||
-                                            p.beforeAfterMeal!.isEmpty)
-                                        ? 'Sau ăn'
-                                        : (p.beforeAfterMeal == 'BEFORE_MEAL'
-                                            ? 'Trước ăn'
-                                            : 'Sau ăn')),
+                                _buildDetailLabel((p.timesOfDay != null &&
+                                        p.timesOfDay!.isNotEmpty)
+                                    ? p.timesOfDay!.join(', ')
+                                    : 'Theo chỉ định'),
+                                _buildDetailLabel((p.beforeAfterMeal == null ||
+                                        p.beforeAfterMeal!.isEmpty)
+                                    ? 'Sau ăn'
+                                    : (p.beforeAfterMeal == 'BEFORE_MEAL'
+                                        ? 'Trước ăn'
+                                        : 'Sau ăn')),
                                 _buildDetailLabel(
                                     '${p.durationDays ?? "0"} ngày',
                                     isHighlight: true),
@@ -2269,9 +2267,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                     color: active ? const Color(0xFFFFF7ED) : Colors.white,
                     borderRadius: BorderRadius.circular(999),
                     border: Border.all(
-                      color: active
-                          ? const Color(0xFFFB923C)
-                          : AppColors.stone200,
+                      color:
+                          active ? const Color(0xFFFB923C) : AppColors.stone200,
                     ),
                   ),
                   child: Text(
@@ -2279,7 +2276,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w900,
-                      color: active ? const Color(0xFF9A3412) : AppColors.stone700,
+                      color:
+                          active ? const Color(0xFF9A3412) : AppColors.stone700,
                       letterSpacing: 0.5,
                     ),
                   ),
@@ -2309,7 +2307,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
               DropdownMenuItem(value: 'BEFORE_MEAL', child: Text('Trước ăn')),
               DropdownMenuItem(value: 'AFTER_MEAL', child: Text('Sau ăn')),
             ],
-            onChanged: (v) => _updatePrescriptionField(index, 'beforeAfterMeal', v),
+            onChanged: (v) =>
+                _updatePrescriptionField(index, 'beforeAfterMeal', v),
           ),
           const SizedBox(height: 10),
 

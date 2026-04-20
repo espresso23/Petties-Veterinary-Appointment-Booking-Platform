@@ -800,7 +800,7 @@ export const StaffPatientsPage = () => {
                                                         {emr.subjective && (
                                                             <div>
                                                                 <h5 className="text-sm font-bold text-amber-600 uppercase mb-2">
-                                                                    S-Chủ quan
+                                                                    S-Triệu chứng
                                                                 </h5>
                                                                 <p className="text-stone-700 text-sm">{emr.subjective}</p>
                                                             </div>
@@ -818,7 +818,7 @@ export const StaffPatientsPage = () => {
                                                         {emr.objective && (
                                                             <div>
                                                                 <h5 className="text-sm font-bold text-amber-600 uppercase mb-2">
-                                                                    O-Khách quan
+                                                                    O-Kết quả khám lâm sàng, chỉ số sức khỏe
                                                                 </h5>
                                                                 <p className="text-stone-700 text-sm whitespace-pre-line">{emr.objective}</p>
                                                             </div>
