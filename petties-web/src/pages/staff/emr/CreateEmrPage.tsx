@@ -644,7 +644,7 @@ export const CreateEmrPage = () => {
         <div className="rounded-2xl bg-white p-6 shadow-sm">
             <div className="flex items-center gap-3 mb-2">
                 <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
-                <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">Khách quan / Chỉ số sức khỏe</h2>
+                <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">Kết quả khám lâm sàng, chỉ số sức khỏe</h2>
             </div>
             <p className="text-xs text-stone-400 mb-4">Kết quả khám lâm sàng, chỉ số sức khỏe</p>
 
@@ -706,17 +706,17 @@ export const CreateEmrPage = () => {
             {isVipClinic ? (
                 aiDiagnosisResult?.soap_suggestions.objective_draft?.trim() ? (
                     <AISuggestionInlineCard
-                        title="Gợi ý AI cho Khách quan"
+                        title="Gợi ý AI cho kết quả khám lâm sàng, chỉ số sức khỏe"
                         value={aiDiagnosisResult?.soap_suggestions.objective_draft}
                         onAccept={() => handleApplyAiDraft('objective', aiDiagnosisResult?.soap_suggestions.objective_draft || '')}
                     />
                 ) : aiDiagnosisResult ? (
                     <p className="mt-3 text-xs font-semibold text-blue-700">
-                        AI chưa đủ dữ liệu để gợi ý Objective rõ ràng. Hãy bổ sung ảnh lâm sàng hoặc mô tả khám chi tiết hơn.
+                        AI chưa đủ dữ liệu để gợi ý kết quả khám lâm sàng, chỉ số sức khỏe rõ ràng. Hãy bổ sung ảnh lâm sàng hoặc mô tả khám chi tiết hơn.
                     </p>
                 ) : (
                     <p className="mt-3 text-xs font-semibold text-stone-500">
-                        Bấm AI chẩn đoán để nhận gợi ý cho phần khách quan.
+                        Bấm AI chẩn đoán để nhận gợi ý cho phần kết quả khám lâm sàng, chỉ số sức khỏe.
                     </p>
                 )
             ) : (
@@ -988,7 +988,7 @@ export const CreateEmrPage = () => {
                             <div className="mb-0">
                                 <div className="flex items-center gap-3 mb-2">
                                     <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
-                                    <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">Triệu chứng (Chủ quan)</h2>
+                                    <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">Triệu chứng</h2>
                                 </div>
                                 <p className="text-xs text-stone-400 mb-2">Ghi triệu chứng theo lời kể của chủ nuôi</p>
                                 <textarea

@@ -34,7 +34,7 @@ interface ServiceCardProps {
   onDelete: (e: React.MouseEvent) => void
   onToggleStatus: (e: React.MouseEvent) => void
   onToggleHomeVisit?: (e: React.MouseEvent) => void
-  onClick: () => void
+  onClick: (e: React.MouseEvent) => void
 }
 
 export function ServiceCard({
@@ -117,13 +117,17 @@ export function ServiceCard({
     <>
       <div
         onClick={onClick}
+        data-sandbox-target="clinic-service-card"
         className="group relative bg-white border-4 border-black p-6 cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between h-full min-h-[200px]"
       >
         {/* Action Buttons - Absolute positioned top-right */}
         <div className="absolute top-4 right-4 flex gap-2 z-10">
           {onToggleHomeVisit && (
             <button
-              onClick={onToggleHomeVisit}
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggleHomeVisit?.(e)
+              }}
               style={{ backgroundColor: service.isHomeVisit ? '#10b981' : '#fcd34d' }}
               className="p-2 border-2 border-black transition-colors hover:opacity-80 flex items-center gap-1"
               title={service.isHomeVisit ? 'Chuyển thành dịch vụ tại phòng khám' : 'Chuyển thành dịch vụ tại nhà'}
@@ -135,7 +139,10 @@ export function ServiceCard({
             </button>
           )}
           <button
-            onClick={onToggleStatus}
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleStatus(e)
+            }}
             style={{ backgroundColor: service.isActive ? '#86efac' : '#d1d5db' }}
             className="p-2 border-2 border-black transition-colors hover:opacity-80"
             title={service.isActive ? 'Disable Service' : 'Enable Service'}
@@ -143,7 +150,10 @@ export function ServiceCard({
             <PowerIcon className="w-4 h-4 text-black" />
           </button>
           <button
-            onClick={onEdit}
+            onClick={(e) => {
+              e.stopPropagation()
+              onEdit(e)
+            }}
             style={{ backgroundColor: '#fb923c' }}
             className="p-2 border-2 border-black transition-colors hover:opacity-80"
             title="Edit Service"
@@ -151,7 +161,10 @@ export function ServiceCard({
             <PencilIcon className="w-4 h-4 text-black" />
           </button>
           <button
-            onClick={onDelete}
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete(e)
+            }}
             style={{ backgroundColor: '#f87171' }}
             className="p-2 border-2 border-black transition-colors hover:opacity-80"
             title="Delete Service"

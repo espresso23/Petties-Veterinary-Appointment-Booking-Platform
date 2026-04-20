@@ -8,6 +8,7 @@ import { PlusIcon, ArrowPathIcon, ExclamationCircleIcon } from '@heroicons/react
 import { MasterServiceCard, type MasterService } from './MasterServiceCard'
 import { MasterServiceModal } from './MasterServiceModal'
 import { ConfirmDialog } from '../common/ConfirmDialog'
+import { SandboxGuideModal } from '../sandbox/SandboxGuideModal'
 import {
   getAllMasterServices,
   getMasterServiceById,
@@ -21,6 +22,8 @@ import { ClinicSelectModal } from './ClinicSelectModal'
 import type { ClinicApplyItem } from './ClinicSelectModal'
 import { getClinicPricing } from '../../services/endpoints/clinic'
 import type { MasterServiceResponse, MasterServiceRequest } from '../../types/service'
+import { useSandboxStore } from '../../store/sandboxStore'
+import { useSandboxStepTracker } from '../../hooks/useSandboxStepTracker'
 
 // Convert MasterServiceResponse to local MasterService type
 function mapResponseToMasterService(response: MasterServiceResponse): MasterService {
@@ -53,6 +56,10 @@ export function MasterServiceGrid() {
   const [isApplyMode, setIsApplyMode] = useState(false)
   const { showToast } = useToast()
   const [isClinicModalOpen, setIsClinicModalOpen] = useState(false)
+  const [showSandboxModal, setShowSandboxModal] = useState(false)
+  const [isLoadingSandbox, setIsLoadingSandbox] = useState(false)
+  const { enterSandbox } = useSandboxStore()
+  const trackSandboxStepAction = useSandboxStepTracker('master_services')
 
   // Fetch master services on mount
   useEffect(() => {
@@ -76,7 +83,8 @@ export function MasterServiceGrid() {
     }
   }
 
-  const handleAddService = () => {
+  const handleAddService = (e?: React.MouseEvent) => {
+    trackSandboxStepAction('master_services.open_create_form', e?.currentTarget ?? document.activeElement)
     setSelectedService(null)
     setIsModalOpen(true)
   }
@@ -177,6 +185,18 @@ export function MasterServiceGrid() {
       setIsSubmitting(false)
     }
   }
+
+  const handleEnterSandbox = async () => {
+    setIsLoadingSandbox(true)
+    try {
+      await enterSandbox('master_services')
+      setShowSandboxModal(false)
+    } catch (error) {
+      console.error('Lỗi vào chế độ dùng thử:', error)
+    } finally {
+      setIsLoadingSandbox(false)
+    }
+  }
   // Giả lập kiểm tra có phòng khám hay chưa (thực tế lấy từ store hoặc API)
   const [hasClinic, setHasClinic] = useState(true)
   useEffect(() => {
@@ -247,7 +267,7 @@ export function MasterServiceGrid() {
     <div className="w-full min-h-screen bg-gray-50 p-6">
       <div className="w-full">
         {/* Header Section */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-4" data-sandbox-target="master-services-overview">
           <div>
             <h1 className="text-4xl md:text-5xl font-black text-black uppercase tracking-tighter mb-2">
               Quản lý dịch vụ mẫu
@@ -257,12 +277,22 @@ export function MasterServiceGrid() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3" data-sandbox-target="master-services-actions">
+            <button
+              onClick={() => setShowSandboxModal(true)}
+              className="group flex items-center gap-2 text-black px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all bg-white"
+            >
+              <span className="font-black text-lg uppercase tracking-wide">Hướng dẫn</span>
+            </button>
             {!isApplyMode ? (
               <>
                 <button
-                  onClick={() => setIsApplyMode(true)}
+                  onClick={(e) => {
+                    setIsApplyMode(true)
+                    trackSandboxStepAction('master_services.enter_apply_mode', e.currentTarget)
+                  }}
                   style={{ backgroundColor: '#16a34a' }}
+                  data-sandbox-target="master-services-apply-mode"
                   className="group flex items-center gap-2 text-white px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all"
                 >
                   <span className="font-black text-lg uppercase tracking-wide" style={{ color: '#ffffff' }}>Chọn & Áp dụng</span>
@@ -271,6 +301,7 @@ export function MasterServiceGrid() {
                   onClick={handleAddService}
                   disabled={isSubmitting}
                   style={{ backgroundColor: '#FF6B35' }}
+                  data-sandbox-target="master-services-create-button"
                   className="group flex items-center gap-2 text-white px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <PlusIcon className="w-6 h-6" />
@@ -291,8 +322,12 @@ export function MasterServiceGrid() {
                 </button>
                 {selectedServiceIds.size > 0 && (
                   <button
-                    onClick={() => setIsClinicModalOpen(true)}
+                    onClick={(e) => {
+                      setIsClinicModalOpen(true)
+                      trackSandboxStepAction('master_services.open_apply_clinics', e.currentTarget)
+                    }}
                     style={{ backgroundColor: '#16a34a' }}
+                    data-sandbox-target="master-services-apply-selected"
                     className="group flex items-center gap-2 text-white px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all"
                   >
                     <span className="font-black text-lg uppercase tracking-wide" style={{ color: '#ffffff' }}>
@@ -377,7 +412,7 @@ export function MasterServiceGrid() {
 
         {/* Grid Section */}
         {services.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-12">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-12" data-sandbox-target="master-services-list">
             {services.map((service) => (
               <MasterServiceCard
                 key={service.id}
@@ -389,6 +424,7 @@ export function MasterServiceGrid() {
                 isSelectable={isApplyMode}
                 isSelected={selectedServiceIds.has(service.id)}
                 onSelect={(selected) => {
+                  trackSandboxStepAction('master_services.open_template_card', document.activeElement)
                   const newSet = new Set(selectedServiceIds)
                   if (selected) {
                     newSet.add(service.id)
@@ -458,6 +494,14 @@ export function MasterServiceGrid() {
           setServiceToDelete(null)
         }}
         variant="danger"
+      />
+
+      <SandboxGuideModal
+        isOpen={showSandboxModal}
+        featureName="Dịch vụ mẫu"
+        onConfirm={handleEnterSandbox}
+        onCancel={() => setShowSandboxModal(false)}
+        isLoading={isLoadingSandbox}
       />
     </div>
   )

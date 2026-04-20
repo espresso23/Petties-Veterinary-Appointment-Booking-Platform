@@ -16,6 +16,15 @@ class SosSearchingContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final int? currentClinicIndex = status?.currentClinicIndex;
+    final int? totalClinics = status?.totalClinics;
+    final bool hasProgress =
+        currentClinicIndex != null && totalClinics != null && totalClinics > 0;
+    final int progressClinicIndex =
+        hasProgress ? currentClinicIndex.clamp(0, totalClinics) : 0;
+    final double progressValue =
+        hasProgress ? (progressClinicIndex / totalClinics) : 0;
+
     return Column(
       children: [
         // Status text with animation
@@ -48,18 +57,17 @@ class SosSearchingContent extends StatelessWidget {
         const SizedBox(height: 12),
 
         // Progress indicator
-        if (status?.currentClinicIndex != null && status?.totalClinics != null)
+        if (hasProgress)
           Column(
             children: [
               LinearProgressIndicator(
-                value:
-                    (status!.currentClinicIndex! + 1) / status!.totalClinics!,
+                value: progressValue,
                 backgroundColor: Colors.grey.shade200,
                 color: AppColors.coral,
               ),
               const SizedBox(height: 8),
               Text(
-                'Đang liên hệ ${status!.currentClinicIndex! + 1}/${status!.totalClinics} phòng khám',
+                'Đang liên hệ $progressClinicIndex/$totalClinics phòng khám',
                 style: TextStyle(
                   color: Colors.grey.shade600,
                   fontSize: 13,

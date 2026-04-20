@@ -610,7 +610,7 @@ const timeLabel = (value: string) => ({ sang: 'Sáng', trua: 'Trưa', chieu: 'Ch
                             <div className="mb-6">
                                 <div className="flex items-center gap-3 mb-2">
                                     <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
-                                    <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">S - CHỦ QUAN (Subjective)</h2>
+                                    <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">S - TRIỆU CHỨNG</h2>
                                 </div>
                                 <p className="text-xs text-stone-400 mb-2">Ghi triệu chứng theo lời kể của chủ nuôi</p>
                                 <textarea
@@ -645,7 +645,7 @@ const timeLabel = (value: string) => ({ sang: 'Sáng', trua: 'Trưa', chieu: 'Ch
                                     </button>
                                     {!selectedAiDiagnosis ? (
                                         <p className="mt-2 text-xs font-semibold text-blue-700">
-                                            Chọn một chẩn đoán trong Top 3 để mở gợi ý AI cho phần khách quan và kế hoạch điều trị.
+                                            Chọn một chẩn đoán trong Top 3 để mở gợi ý AI cho phần kết quả khám lâm sàng, chỉ số sức khỏe và kế hoạch điều trị.
                                         </p>
                                     ) : (
                                         <p className="mt-2 text-xs font-semibold text-green-700">
@@ -909,7 +909,7 @@ const timeLabel = (value: string) => ({ sang: 'Sáng', trua: 'Trưa', chieu: 'Ch
                         <div className="bg-white rounded-2xl p-6 shadow-sm">
                             <div className="flex items-center gap-3 mb-2">
                                 <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
-                                <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">O - KHÁCH QUAN (Objective)</h2>
+                                <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">O - KẾT QUẢ KHÁM LÂM SÀNG, CHỈ SỐ SỨC KHỎE</h2>
                             </div>
                             <p className="text-xs text-stone-400 mb-4">Kết quả khám lâm sàng, chỉ số sức khỏe</p>
                             {isVipClinic && (
@@ -917,8 +917,8 @@ const timeLabel = (value: string) => ({ sang: 'Sáng', trua: 'Trưa', chieu: 'Ch
                                     {isAiAnalyzing
                                         ? 'AI đang cập nhật gợi ý theo dữ liệu mới...'
                                         : aiDiagnosisResult?.soap_suggestions.objective_draft
-                                            ? 'Đã có gợi ý AI cho phần khách quan. Bác sĩ có thể điều chỉnh thủ công trước khi lưu.'
-                                            : 'Gợi ý AI cho khách quan sẽ xuất hiện sau khi chọn chẩn đoán ở Top 3.'}
+                                            ? 'Đã có gợi ý AI cho phần kết quả khám lâm sàng, chỉ số sức khỏe. Bác sĩ có thể điều chỉnh thủ công trước khi lưu.'
+                                            : 'Gợi ý AI cho phần kết quả khám lâm sàng, chỉ số sức khỏe sẽ xuất hiện sau khi chọn chẩn đoán ở Top 3.'}
                                 </p>
                             )}
 

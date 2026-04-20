@@ -263,7 +263,7 @@ export const EmrDetailPage = () => {
                             <div className={`grid gap-4 ${emr.images && emr.images.length > 0 ? 'md:grid-cols-2' : ''}`}>
                                 {/* S - Subjective */}
                                 <div>
-                                    <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Triệu chứng (Chủ quan)</p>
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Triệu chứng</p>
                                     <div className="bg-stone-50 p-4 rounded-xl border border-stone-100 text-stone-800 whitespace-pre-wrap text-sm">
                                         {emr.subjective || 'Không có thông tin'}
                                     </div>
@@ -298,7 +298,7 @@ export const EmrDetailPage = () => {
 
                             {/* O - Objective / Vitals */}
                             <div className="mt-4 pt-4 border-t border-stone-100">
-                                <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-3">Khách quan / Chỉ số sức khỏe</p>
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-3">Kết quả khám lâm sàng, chỉ số sức khỏe</p>
                                 <div className="grid grid-cols-3 gap-3 mb-3">
                                     <div className="bg-stone-50 p-3 rounded-xl border border-stone-100">
                                         <p className="text-xs text-stone-500 uppercase font-bold">Nhiệt độ</p>

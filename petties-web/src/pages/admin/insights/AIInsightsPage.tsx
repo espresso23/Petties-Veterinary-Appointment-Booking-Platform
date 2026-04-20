@@ -10,6 +10,7 @@ import type {
   CaseMemoryDetailItem,
   CaseMemoryListParams,
 } from '../../../services/agentService'
+import { DiseaseCatalogSection } from './DiseaseCatalogSection'
 import {
   ArrowPathIcon,
   HandThumbUpIcon,
@@ -269,7 +270,7 @@ export const AIInsightsPage = () => {
             <div>
               <h1 className="text-4xl font-black text-black uppercase italic tracking-tighter">AI INSIGHTS</h1>
               <p className="text-sm font-bold text-black mt-1 uppercase">
-                Feedback & Kho ca bệnh AI
+                Phản hồi & Kho ca bệnh AI & Danh mục bệnh
               </p>
             </div>
             <button
@@ -287,12 +288,24 @@ export const AIInsightsPage = () => {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-6 py-6 space-y-8">
+      <div className="max-w-7xl mx-auto px-6 py-6 flex flex-col gap-8">
+
+        {/* ============================================
+           SECTION 0: DISEASE CATALOG MONITORING
+           ============================================ */}
+        <section className="order-1">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-black text-stone-900 uppercase tracking-tight">
+              Danh mục bệnh - Giám sát học tự động
+            </h2>
+          </div>
+          <DiseaseCatalogSection />
+        </section>
 
         {/* ============================================
            SECTION 1: FEEDBACK DASHBOARD
            ============================================ */}
-        <section>
+        <section className="order-3">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-black text-stone-900 uppercase tracking-tight">Chất lượng phản hồi AI</h2>
             {/* Period selector */}
@@ -469,15 +482,13 @@ export const AIInsightsPage = () => {
                   </div>
                 ) : feedbackList && feedbackList.items.length > 0 ? (
                   <>
-                    <div className="overflow-x-auto pr-14 sm:pr-16">
+                    <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="bg-stone-100 border-b-2 border-stone-900">
                             <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Thời gian</th>
                             <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Loại</th>
                             <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Nội dung</th>
-                            <th className="text-right px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Trọng số</th>
-                            <th className="text-center px-3 py-2.5 text-[10px] font-black uppercase text-stone-600">Trạng thái</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -525,7 +536,7 @@ export const AIInsightsPage = () => {
         {/* ============================================
            SECTION 2: CASE MEMORY
            ============================================ */}
-        <section>
+        <section className="order-2">
           <h2 className="text-2xl font-black text-stone-900 uppercase tracking-tight mb-4">Kho ca bệnh AI</h2>
 
           {caseLoading ? (
@@ -548,7 +559,7 @@ export const AIInsightsPage = () => {
         {/* ============================================
            SECTION 3b: CASE MEMORY LIST
            ============================================ */}
-        <section>
+        <section className="order-2">
           <div className="bg-white border-2 border-stone-900 rounded-xl shadow-[4px_4px_0_#1c1917] overflow-hidden">
             {/* Header + Filters */}
             <div className="p-4 border-b-2 border-stone-900 bg-stone-50">
@@ -796,23 +807,13 @@ function FeedbackRow({ item }: { item: FeedbackItem }) {
         <td className="px-3 py-2.5">
           <FeedbackTypeBadge type={item.feedback_type} />
         </td>
-        <td className="px-3 py-2.5 text-xs text-stone-700 max-w-[200px] truncate">
+        <td className="px-3 py-2.5 text-xs text-stone-700 max-w-[400px] truncate">
           {item.feedback_text || item.message_content || item.feedback_reason || '--'}
-        </td>
-        <td className="px-3 py-2.5 text-right">
-          <span className={`text-xs font-black ${item.weight >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-            {item.weight > 0 ? '+' : ''}{item.weight.toFixed(1)}
-          </span>
-        </td>
-        <td className="px-3 py-2.5 text-center">
-          <span className="inline-block px-2 py-0.5 text-[10px] font-black uppercase border-2 border-stone-900 rounded-lg bg-stone-100 text-stone-700">
-            Lưu audit
-          </span>
         </td>
       </tr>
       {expanded && hasDetail && (
         <tr className="bg-amber-50 border-b border-stone-200">
-          <td colSpan={5} className="px-4 py-3">
+          <td colSpan={3} className="px-4 py-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               {item.feedback_reason && (
                 <div>

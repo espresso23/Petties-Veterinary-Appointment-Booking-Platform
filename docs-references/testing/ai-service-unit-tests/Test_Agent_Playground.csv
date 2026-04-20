@@ -1,0 +1,23 @@
+A,B,C,D,E,F,G,H,I
+Function Code / Name,POST /agents/{agent_id}/test,,,,,,,,
+Created By / Executed By,Gemini CLI,,,,,,,,
+Lines of Code (LOC),81,,,,,,,,
+Lack of test cases,"=IF(Functions!E8<>""N/A"";SUM(C4*Functions!E8/1000;-O7);""N/A"")",,,,,,,
+Test Requirement,"Verify the transient execution of AI agents in streaming mode, ensuring no permanent message state is persisted to the database during testing.",,,,,,,,
+Overview Stats,Total: 4, Passed: 0, Failed: 0, Untested: 4,,,,,,,,
+,,,,,UTCID01,UTCID02,UTCID03,UTCID04
+Condition,Auth Token,,,,,,,,
+,,,Valid Token,,O,O,O,
+,Agent Status,,,,,,,,
+,,,Agent Exists,,O,,O,O
+,Payload,,,,,,,,
+,,,Valid Prompt Input,,O,O,,O
+Confirm,Return State,,,,,,,,
+,,,200 OK + AI Response,,O,,,
+,,,401 Unauthorized,,,,O
+,,,404 Agent Not Found,,,O,,
+,,,422 Empty Prompt,,,,O,
+Result,Type,,,,N,A,A,A
+,Status,,,,P,P,P,P
+,Executed Date,,,,2026-04-17,2026-04-17,2026-04-17,2026-04-17
+,DefectID,,,,None,None,None,None

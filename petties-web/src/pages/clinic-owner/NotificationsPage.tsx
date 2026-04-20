@@ -86,6 +86,13 @@ export const NotificationsPage = () => {
         return 'bg-green-100 border-green-600'
       case 'REJECTED':
         return 'bg-red-100 border-red-600'
+      case 'CLINIC_SUSPEND_APPROVED':
+      case 'CLINIC_ACTIVATED':
+        return 'bg-green-100 border-green-600'
+      case 'CLINIC_SUSPEND_REJECTED':
+        return 'bg-red-100 border-red-600'
+      case 'CLINIC_SUSPEND_REQUEST':
+        return 'bg-amber-100 border-amber-600'
       default:
         return 'bg-amber-100 border-amber-600'
     }
@@ -97,6 +104,14 @@ export const NotificationsPage = () => {
         return 'PHÒNG KHÁM ĐÃ ĐƯỢC DUYỆT'
       case 'REJECTED':
         return 'PHÒNG KHÁM KHÔNG ĐƯỢC DUYỆT'
+      case 'CLINIC_SUSPEND_REQUEST':
+        return 'YÊU CẦU TẠM NGƯNG ĐÃ GỬI'
+      case 'CLINIC_SUSPEND_APPROVED':
+        return 'YÊU CẦU TẠM NGƯNG ĐÃ DUYỆT'
+      case 'CLINIC_SUSPEND_REJECTED':
+        return 'YÊU CẦU TẠM NGƯNG BỊ TỪ CHỐI'
+      case 'CLINIC_ACTIVATED':
+        return 'PHÒNG KHÁM ĐÃ KÍCH HOẠT LẠI'
       default:
         return 'THÔNG BÁO'
     }

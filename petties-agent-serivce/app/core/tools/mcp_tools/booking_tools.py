@@ -113,6 +113,52 @@ def _has_meaningful_service_signal(
     return any(keyword in combined_text for keyword in service_keywords)
 
 
+def _infer_clinic_suggestion_mode(
+    latest_message: Optional[str],
+    transcript: Optional[str],
+) -> str:
+    combined_text = normalize_vietnamese_text(
+        " ".join(
+            part.strip()
+            for part in [str(latest_message or ""), str(transcript or "")]
+            if str(part or "").strip()
+        )
+    )
+    if not combined_text:
+        return "booking"
+
+    discovery_keywords = {
+        "tim hieu",
+        "tham khao",
+        "so sanh",
+        "gia",
+        "chi phi",
+        "bao gia",
+        "danh gia",
+        "review",
+        "thong tin phong kham",
+    }
+    booking_keywords = {
+        "dat lich",
+        "booking",
+        "tao yeu cau",
+        "xac nhan",
+        "chon khung gio",
+        "slot",
+        "tao lich",
+    }
+
+    has_discovery_signal = any(
+        keyword in combined_text for keyword in discovery_keywords
+    )
+    has_booking_signal = any(keyword in combined_text for keyword in booking_keywords)
+
+    if has_discovery_signal and not has_booking_signal:
+        return "discovery"
+
+    return "booking"
+
+
 def _is_create_booking_denied_by_user(
     latest_message: Optional[str], transcript: Optional[str]
 ) -> bool:
@@ -201,6 +247,20 @@ def _normalize_booking_tool_payload(payload: Any) -> Dict[str, Any]:
 
     normalized = dict(payload)
     message = str(normalized.get("message") or "").strip()
+    has_error_signal = bool(str(normalized.get("error_code") or "").strip()) or bool(
+        normalized.get("requires_auth")
+    )
+
+    if normalized.get("success") is None and has_error_signal:
+        needs_clarification = bool(normalized.get("needs_clarification"))
+        error_code = str(normalized.get("error_code") or "").strip().upper()
+        non_fatal_codes = {
+            "SERVICE_NOT_FOUND",
+            "NO_SLOTS_AVAILABLE",
+            "INVALID_DATE",
+            "CLINIC_NOT_FOUND",
+        }
+        normalized["success"] = needs_clarification or error_code in non_fatal_codes
 
     # CRITICAL: If there are actual data fields (pets, clinics, services, etc.)
     # → Never mark as error, regardless of message content
@@ -215,7 +275,11 @@ def _normalize_booking_tool_payload(payload: Any) -> Dict[str, Any]:
             normalized.get("total_slots", 0) > 0,
         ]
     )
-    if has_data_fields:
+    if (
+        has_data_fields
+        and not has_error_signal
+        and normalized.get("success") is not False
+    ):
         normalized["success"] = True
 
     if normalized.get("success") is True:
@@ -528,6 +592,11 @@ _SERVICE_HINT_SYNONYMS: Dict[str, List[str]] = {
     "xet": ["test", "lab", "xet nghiem"],
 }
 
+_PET_TYPE_LABELS: Dict[str, str] = {
+    "DOG": "Chó",
+    "CAT": "Mèo",
+}
+
 
 def _expand_service_hint_tokens(tokens: List[str]) -> List[str]:
     expanded: List[str] = []
@@ -556,6 +625,82 @@ def _tokenize_match_text(*texts: Optional[str]) -> List[str]:
     return [
         token for token in tokens if len(token) > 1 and token not in _MATCH_STOPWORDS
     ]
+
+
+def _pet_type_display_label(pet_type: Optional[str]) -> str:
+    normalized = normalize_vietnamese_text(str(pet_type or ""))
+    if not normalized:
+        return ""
+    if "dog" in normalized or "cho" in normalized:
+        return _PET_TYPE_LABELS["DOG"]
+    if "cat" in normalized or "meo" in normalized:
+        return _PET_TYPE_LABELS["CAT"]
+    return ""
+
+
+def _service_name_has_pet_context(service_name: str, pet_type: Optional[str]) -> bool:
+    normalized_name = normalize_vietnamese_text(service_name)
+    normalized_pet_type = normalize_vietnamese_text(str(pet_type or ""))
+    if not normalized_name or not normalized_pet_type:
+        return False
+    if "dog" in normalized_pet_type or "cho" in normalized_pet_type:
+        return "cho" in normalized_name or "dog" in normalized_name
+    if "cat" in normalized_pet_type or "meo" in normalized_pet_type:
+        return "meo" in normalized_name or "cat" in normalized_name
+    return False
+
+
+def _format_service_display_name(
+    service_name: Optional[str], pet_type: Optional[str]
+) -> str:
+    name = str(service_name or "").strip()
+    if not name:
+        return ""
+    if _service_name_has_pet_context(name, pet_type):
+        return name
+    pet_label = _pet_type_display_label(pet_type)
+    if not pet_label:
+        return name
+    return f"{name} ({pet_label})"
+
+
+def _service_matches_preferred_pet_species(
+    service: Dict[str, Any], preferred_pet_species: Optional[str]
+) -> bool:
+    expected = normalize_vietnamese_text(preferred_pet_species or "")
+    if not expected:
+        return True
+    raw_pet_type = str(service.get("pet_type") or "")
+    normalized_pet_type = normalize_vietnamese_text(raw_pet_type)
+    if not normalized_pet_type:
+        return True
+    if "dog" in expected:
+        return "dog" in normalized_pet_type or "cho" in normalized_pet_type
+    if "cat" in expected:
+        return "cat" in normalized_pet_type or "meo" in normalized_pet_type
+    return expected in normalized_pet_type
+
+
+def _extract_canonical_service_ids(services: List[Dict[str, Any]]) -> List[str]:
+    return [
+        str(service.get("id") or "").strip()
+        for service in services
+        if str(service.get("id") or "").strip()
+    ]
+
+
+def _extract_canonical_service_names(services: List[Dict[str, Any]]) -> List[str]:
+    names: List[str] = []
+    for service in services:
+        candidate = str(
+            service.get("display_name")
+            or service.get("canonical_name")
+            or service.get("name")
+            or ""
+        ).strip()
+        if candidate:
+            names.append(candidate)
+    return names
 
 
 def _filter_clinics_by_hint(
@@ -690,13 +835,19 @@ def _map_backend_clinic_option(
         if not isinstance(service, dict):
             continue
         category = service.get("category")
+        pet_type = service.get("petType") or service.get("pet_type")
+        canonical_name = service.get("name")
+        display_name = _format_service_display_name(canonical_name, pet_type)
         matched_services.append(
             {
                 "id": service.get("serviceId") or service.get("id"),
-                "name": service.get("name"),
+                "name": display_name or canonical_name,
+                "canonical_name": canonical_name,
+                "display_name": display_name or canonical_name,
                 "category": category,
                 "base_price": service.get("basePrice") or service.get("base_price"),
                 "description": service.get("description"),
+                "pet_type": pet_type,
                 "is_vaccination": str(category or "").strip().upper() == "VACCINATION",
             }
         )
@@ -1370,6 +1521,24 @@ async def get_clinic_services(
         if isinstance(service, dict) and service.get("isActive", True)
     ]
 
+    for service in formatted_services:
+        canonical_name = str(service.get("name") or "").strip()
+        display_name = _format_service_display_name(
+            canonical_name,
+            service.get("pet_type"),
+        )
+        service["canonical_name"] = canonical_name
+        service["display_name"] = display_name or canonical_name
+
+    if normalized_pet_species:
+        species_matched_services = [
+            service
+            for service in formatted_services
+            if _service_matches_preferred_pet_species(service, normalized_pet_species)
+        ]
+        if species_matched_services:
+            formatted_services = species_matched_services
+
     hint_tokens = _tokenize_match_text(service_hint)
     context_tokens = _tokenize_match_text(latest_message, transcript, booking_type)
     ranked_services = []
@@ -1386,15 +1555,31 @@ async def get_clinic_services(
         ranked_services.sort(key=lambda item: item[0], reverse=True)
 
     matched_services = [service for _, service in ranked_services[:3]]
+    if matched_services:
+        for service in matched_services:
+            canonical_name = _format_service_display_name(
+                service.get("name"), service.get("pet_type")
+            )
+            if canonical_name:
+                service["display_name"] = canonical_name
     resolved_service_ids = [
         str(service.get("id")) for service in matched_services if service.get("id")
+    ]
+    resolved_service_names = [
+        service.get("display_name") or str(service.get("name") or "").strip()
+        for service in matched_services
+        if str(service.get("display_name") or service.get("name") or "").strip()
     ]
     suggested_service_options = [
         {
             "id": service.get("id"),
-            "name": service.get("name"),
+            "name": _format_service_display_name(
+                service.get("name"), service.get("pet_type")
+            )
+            or service.get("name"),
             "base_price": service.get("base_price"),
             "category": service.get("category"),
+            "pet_type": service.get("pet_type"),
         }
         for service in formatted_services[:5]
     ]
@@ -1413,6 +1598,7 @@ async def get_clinic_services(
             "services": formatted_services,
             "matched_services": matched_services,
             "resolved_service_ids": resolved_service_ids,
+            "resolved_service_names": resolved_service_names,
             "suggested_service_options": suggested_service_options,
             "needs_clarification": needs_clarification,
             "match_hint": service_hint,
@@ -1614,6 +1800,11 @@ async def search_clinics_nearby(
         f"clinic_hint={clinic_hint}, address={address}, timezone=Asia/Ho_Chi_Minh"
     )
 
+    clinic_suggestion_mode = _infer_clinic_suggestion_mode(
+        latest_message=latest_message,
+        transcript=transcript,
+    )
+
     try:
         token = _require_auth_token()
     except AuthenticationRequiredError as e:
@@ -1630,6 +1821,7 @@ async def search_clinics_nearby(
                 "clinics": [],
                 "matched_clinic": None,
                 "total_found": 0,
+                "clinic_suggestion_mode": clinic_suggestion_mode,
                 "needs_clarification": True,
                 "requires_auth": True,
                 "message": str(e),
@@ -1703,6 +1895,7 @@ async def search_clinics_nearby(
                     "clinics": [],
                     "matched_clinic": None,
                     "total_found": 0,
+                    "clinic_suggestion_mode": clinic_suggestion_mode,
                     "needs_clarification": True,
                     "message": "Mình chưa thể tìm phòng khám lúc này. Bạn thử lại sau nhé.",
                 },
@@ -1749,6 +1942,7 @@ async def search_clinics_nearby(
                             "matched_clinic": None,
                             "resolved_clinic": None,
                             "total_found": 0,
+                            "clinic_suggestion_mode": clinic_suggestion_mode,
                             "match_mode": "explicit_name",
                             "auto_select_clinic": False,
                             "needs_clarification": True,
@@ -1772,6 +1966,7 @@ async def search_clinics_nearby(
                     or (clinics[0] if clinics else None),
                     "resolved_clinic": resolved_clinic,
                     "total_found": int(response.get("totalFound") or len(clinics)),
+                    "clinic_suggestion_mode": clinic_suggestion_mode,
                     "match_mode": clinics[0].get("match_mode") if clinics else None,
                     "auto_select_clinic": auto_select_clinic,
                     "needs_clarification": bool(
@@ -1800,6 +1995,7 @@ async def search_clinics_nearby(
                 "clinics": [],
                 "matched_clinic": None,
                 "total_found": 0,
+                "clinic_suggestion_mode": clinic_suggestion_mode,
                 "needs_clarification": True,
                 "message": "Mình cần vị trí hiện tại hoặc địa chỉ cụ thể để tìm phòng khám gần bạn.",
             },
@@ -1827,6 +2023,7 @@ async def search_clinics_nearby(
                 "clinics": [],
                 "matched_clinic": None,
                 "total_found": 0,
+                "clinic_suggestion_mode": clinic_suggestion_mode,
                 "message": f"Khong the tim phong kham gan day: {exc}",
             },
             error_code="INTERNAL_ERROR",
@@ -1858,6 +2055,7 @@ async def search_clinics_nearby(
             "clinics": [],
             "matched_clinic": None,
             "total_found": 0,
+            "clinic_suggestion_mode": clinic_suggestion_mode,
             "match_mode": "explicit_name",
             "needs_clarification": True,
             "message": "Minh chua tim thay phong kham khop voi ten ban vua neu trong khu vuc nay.",
@@ -1873,6 +2071,7 @@ async def search_clinics_nearby(
         "clinics": clinics,
         "matched_clinic": clinics[0] if clinics else None,
         "total_found": len(clinics),
+        "clinic_suggestion_mode": clinic_suggestion_mode,
         "match_mode": "explicit_name" if effective_clinic_hint else "nearby",
         "resolved_clinic": None,
         "auto_select_clinic": False,
@@ -2414,11 +2613,70 @@ async def check_available_slots(
             recoverable=True,
         )
 
+    # DB-first service resolution: service_hint is intent only, but slot query should
+    # use canonical service IDs/names from clinic services whenever possible.
+    resolved_service_ids_for_slot = list(normalized_service_ids)
+    resolved_service_names_for_slot: List[str] = []
+    service_resolution_payload: Dict[str, Any] = {}
+    if not resolved_service_ids_for_slot and str(service_hint or "").strip():
+        service_resolution = await get_clinic_services(
+            clinic_id=resolved_clinic_id or clinic_id,
+            pet_species=normalized_pet_species,
+            booking_type=booking_type,
+            service_hint=service_hint,
+            transcript=transcript,
+            latest_message=latest_message,
+        )
+        if isinstance(service_resolution, dict):
+            service_resolution_payload = (
+                service_resolution.get("data")
+                if isinstance(service_resolution.get("data"), dict)
+                else service_resolution
+            )
+        matched_services = service_resolution_payload.get("matched_services") or []
+        if isinstance(matched_services, list) and matched_services:
+            resolved_service_ids_for_slot = _extract_canonical_service_ids(
+                matched_services
+            )
+            resolved_service_names_for_slot = _extract_canonical_service_names(
+                matched_services
+            )
+            normalized_service_ids = list(resolved_service_ids_for_slot)
+
+    if not resolved_service_ids_for_slot and str(service_hint or "").strip():
+        return _attach_booking_error_metadata(
+            {
+                "clinic_id": clinic_id,
+                "resolved_clinic_id": resolved_clinic_id or clinic_id,
+                "resolved_clinic": clinic_resolution.get("clinic"),
+                "date": resolved_date,
+                "services": [],
+                "resolved_service_ids": [],
+                "resolved_service_names": [],
+                "matched_services": service_resolution_payload.get("matched_services")
+                or [],
+                "suggested_service_options": service_resolution_payload.get(
+                    "suggested_service_options"
+                )
+                or [],
+                "recommended_slots": [],
+                "alternative_slots": [],
+                "available_slots": [],
+                "total_slots": 0,
+                "needs_clarification": True,
+                "next_best_action": "choose_service",
+                "message": "Mình chưa xác định được dịch vụ chuẩn từ phòng khám. Bạn chọn dịch vụ trong danh sách để mình kiểm tra slot chính xác nhé.",
+            },
+            error_code="SERVICE_NOT_FOUND",
+            suggestion="Vui lòng chọn dịch vụ trước khi kiểm tra slot.",
+            recoverable=True,
+        )
+
     if token:
         payload = {
             "clinicId": resolved_clinic_id or clinic_id,
             "bookingDate": resolved_date,
-            "serviceIds": normalized_service_ids,
+            "serviceIds": resolved_service_ids_for_slot,
             "exactTime": resolved_exact_time,
             "timePreference": resolved_time_preference,
             "petId": pet_id,
@@ -2438,7 +2696,10 @@ async def check_available_slots(
                     "clinic_id": clinic_id,
                     "resolved_clinic_id": resolved_clinic_id or clinic_id,
                     "date": resolved_date,
-                    "services": normalized_service_ids,
+                    "services": resolved_service_names_for_slot
+                    or resolved_service_ids_for_slot,
+                    "resolved_service_ids": resolved_service_ids_for_slot,
+                    "resolved_service_names": resolved_service_names_for_slot,
                     "available_slots": [],
                     "total_slots": 0,
                     "exact_match": False,
@@ -2461,9 +2722,13 @@ async def check_available_slots(
                 )
                 available_slots = [*recommended_slots, *alternative_slots]
                 resolved_service_ids_from_backend = (
-                    slot_response.get("resolvedServiceIds") or normalized_service_ids
+                    slot_response.get("resolvedServiceIds")
+                    or resolved_service_ids_for_slot
                 )
-                resolved_service_names = slot_response.get("resolvedServiceNames") or []
+                resolved_service_names = (
+                    slot_response.get("resolvedServiceNames")
+                    or resolved_service_names_for_slot
+                )
                 no_slots = not available_slots
                 has_alternatives = bool(alternative_slots)
                 preferred_unavailable = bool(not recommended_slots and has_alternatives)
@@ -2517,7 +2782,7 @@ async def check_available_slots(
                 "total_slots": 0,
                 "needs_clarification": True,
                 "next_best_action": "choose_service",
-                "message": "Minh can xac dinh ro dich vu truoc khi kiem tra slot bang API cong khai.",
+                "message": "Mình đã hiểu nhu cầu dịch vụ nhưng chưa xác định được dịch vụ chuẩn của phòng khám. Bạn chọn dịch vụ trong danh sách để kiểm tra slot chính xác nhé.",
             },
             error_code="SERVICE_NOT_FOUND",
             suggestion="Vui lòng chọn dịch vụ trước khi kiểm tra slot.",
@@ -2562,7 +2827,8 @@ async def check_available_slots(
         and str(service.get("serviceId")) in normalized_service_ids
     ]
     service_names = [
-        service.get("name")
+        _format_service_display_name(service.get("name"), service.get("petType"))
+        or service.get("name")
         for service in clinic_services
         if isinstance(service, dict)
         and str(service.get("serviceId")) in normalized_service_ids

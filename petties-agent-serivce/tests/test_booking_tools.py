@@ -189,6 +189,52 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["clinics"][0]["name"], "Benh Vien Thu Y PetCare")
         self.assertEqual(result["match_mode"], "explicit_name")
         self.assertTrue(result["auto_select_clinic"])
+        self.assertEqual(result["clinic_suggestion_mode"], "booking")
+
+    async def test_search_clinics_nearby_marks_discovery_mode_for_compare_price_request(
+        self,
+    ):
+        runtime_token = set_tool_runtime_context(
+            ToolRuntimeContext(
+                user_id="user-1", role="PET_OWNER", auth_token="jwt-token"
+            )
+        )
+
+        client = AsyncMock()
+        client.resolve_booking_context.return_value = {
+            "resolvedLocation": {"latitude": 15.9575, "longitude": 108.2575},
+            "resolvedClinicHint": "PetCare",
+        }
+        client.get_booking_clinic_options.return_value = {
+            "totalFound": 1,
+            "clinics": [
+                {
+                    "clinicId": "clinic-1",
+                    "name": "Benh Vien Thu Y PetCare",
+                    "address": "FPT Complex Da Nang",
+                    "distanceKm": 0.2,
+                    "ratingAvg": 5.0,
+                    "ratingCount": 4,
+                    "matchMode": "explicit_name",
+                }
+            ],
+        }
+
+        try:
+            with patch(
+                "app.core.tools.mcp_tools.booking_tools.get_backend_client",
+                return_value=client,
+            ):
+                result = await search_clinics_nearby(
+                    latitude=15.9575,
+                    longitude=108.2575,
+                    clinic_hint="PetCare",
+                    latest_message="Toi muon so sanh gia phong kham PetCare",
+                )
+        finally:
+            reset_tool_runtime_context(runtime_token)
+
+        self.assertEqual(result["clinic_suggestion_mode"], "discovery")
 
     async def test_get_clinic_services_resolves_clinic_hint_to_canonical_id(self):
         runtime_token = set_tool_runtime_context(
@@ -439,6 +485,20 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
         )
 
         client = AsyncMock()
+        client.get_clinic_services_by_clinic.return_value = [
+            {
+                "serviceId": "svc-1",
+                "name": "Khám bệnh tổng quát",
+                "description": "Khám bệnh cho thú cưng",
+                "basePrice": 200000,
+                "durationTime": 30,
+                "slotsRequired": 1,
+                "serviceCategory": "KHAM",
+                "petType": "DOG",
+                "isHomeVisit": False,
+                "isActive": True,
+            }
+        ]
         client.get_booking_slot_options.return_value = {
             "resolvedServiceIds": ["svc-1"],
             "resolvedServiceNames": ["Kham benh"],
@@ -467,7 +527,7 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
             ):
                 result = await check_available_slots(
                     clinic_id="clinic-1",
-                    date_expression="thu bay nay",
+                    date="2026-04-18",
                     service_hint="kham benh",
                     pet_id="pet-1",
                     time_preference="sang",
@@ -480,8 +540,99 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
         sent_payload = client.get_booking_slot_options.await_args.args[1]
         self.assertIsNotNone(sent_payload["bookingDate"])
         self.assertEqual(sent_payload["serviceHint"], "kham benh")
+        self.assertEqual(sent_payload["serviceIds"], ["svc-1"])
         self.assertEqual(result["resolved_service_ids"], ["svc-1"])
         self.assertEqual(result["available_slots"][0]["start_time"], "09:00")
+
+    async def test_check_available_slots_resolves_service_ids_from_db_before_slot_query(
+        self,
+    ):
+        runtime_token = set_tool_runtime_context(
+            ToolRuntimeContext(
+                user_id="user-1", role="PET_OWNER", auth_token="jwt-token"
+            )
+        )
+
+        client = AsyncMock()
+        client.get_clinic_services_by_clinic.return_value = [
+            {
+                "serviceId": "svc-dog-bath",
+                "name": "Tắm chó",
+                "description": "Vệ sinh cơ bản",
+                "basePrice": 130000,
+                "durationTime": 30,
+                "slotsRequired": 1,
+                "serviceCategory": "GROOMING",
+                "petType": "DOG",
+                "isHomeVisit": False,
+                "isActive": True,
+            }
+        ]
+        client.get_booking_slot_options.return_value = {
+            "resolvedServiceIds": ["svc-dog-bath"],
+            "resolvedServiceNames": ["Tắm chó"],
+            "recommendedSlots": [
+                {
+                    "startTime": "09:00",
+                    "endTime": "09:30",
+                    "durationMinutes": 30,
+                    "exactRequested": False,
+                }
+            ],
+            "alternatives": [],
+        }
+
+        try:
+            with patch(
+                "app.core.tools.mcp_tools.booking_tools.get_backend_client",
+                return_value=client,
+            ):
+                result = await check_available_slots(
+                    clinic_id="clinic-1",
+                    date="2026-04-15",
+                    service_hint="tắm",
+                    pet_species="DOG",
+                    latest_message="Đặt lịch tắm cho Hadine 9h ngày mai",
+                )
+        finally:
+            reset_tool_runtime_context(runtime_token)
+
+        client.get_booking_slot_options.assert_awaited_once()
+        sent_payload = client.get_booking_slot_options.await_args.args[1]
+        self.assertEqual(sent_payload["serviceIds"], ["svc-dog-bath"])
+        self.assertEqual(result["resolved_service_ids"], ["svc-dog-bath"])
+        self.assertEqual(result["resolved_service_names"], ["Tắm chó"])
+
+    async def test_check_available_slots_returns_service_not_found_not_internal_error_when_hint_not_resolved(
+        self,
+    ):
+        runtime_token = set_tool_runtime_context(
+            ToolRuntimeContext(
+                user_id="user-1", role="PET_OWNER", auth_token="jwt-token"
+            )
+        )
+
+        client = AsyncMock()
+        client.get_clinic_services_by_clinic.return_value = []
+
+        try:
+            with patch(
+                "app.core.tools.mcp_tools.booking_tools.get_backend_client",
+                return_value=client,
+            ):
+                result = await check_available_slots(
+                    clinic_id="clinic-1",
+                    date="2026-04-15",
+                    service_hint="tắm cho Hadine",
+                    latest_message="Đặt lịch tắm cho Hadine 9h ngày mai",
+                )
+        finally:
+            reset_tool_runtime_context(runtime_token)
+
+        client.get_booking_slot_options.assert_not_called()
+        self.assertTrue(result["success"])
+        self.assertEqual(result["error_code"], "SERVICE_NOT_FOUND")
+        self.assertEqual(result["next_best_action"], "choose_service")
 
     async def test_check_available_slots_normalizes_vietnamese_pet_species_to_enum(
         self,
@@ -493,6 +644,20 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
         )
 
         client = AsyncMock()
+        client.get_clinic_services_by_clinic.return_value = [
+            {
+                "serviceId": "svc-1",
+                "name": "Khám bệnh tổng quát",
+                "description": "Khám bệnh cho thú cưng",
+                "basePrice": 200000,
+                "durationTime": 30,
+                "slotsRequired": 1,
+                "serviceCategory": "KHAM",
+                "petType": "DOG",
+                "isHomeVisit": False,
+                "isActive": True,
+            }
+        ]
         client.get_booking_slot_options.return_value = {
             "resolvedServiceIds": ["svc-1"],
             "resolvedServiceNames": ["Kham benh"],
@@ -507,7 +672,7 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
             ):
                 await check_available_slots(
                     clinic_id="clinic-1",
-                    date_expression="thu bay nay",
+                    date="2026-04-18",
                     service_hint="kham benh",
                     pet_species="Chó",
                     latest_message="Dat lich cho cho thu bay nay",
@@ -897,10 +1062,72 @@ class BookingToolsTests(unittest.IsolatedAsyncioTestCase):
         finally:
             reset_tool_runtime_context(runtime_token)
 
-        self.assertGreaterEqual(len(result["services"]), 2)
+        self.assertGreaterEqual(len(result["services"]), 1)
+        self.assertTrue(
+            all(service.get("pet_type") == "DOG" for service in result["services"])
+        )
         self.assertGreaterEqual(len(result["matched_services"]), 1)
         self.assertEqual(result["matched_services"][0]["id"], "svc-dog-bath")
         self.assertIn("svc-dog-bath", result["resolved_service_ids"])
+        self.assertEqual(result["matched_services"][0]["display_name"], "Grooming cho")
+
+    async def test_get_clinic_services_prefers_dog_service_name_from_db_for_tam_hint(
+        self,
+    ):
+        runtime_token = set_tool_runtime_context(
+            ToolRuntimeContext(
+                user_id="user-1", role="PET_OWNER", auth_token="jwt-token"
+            )
+        )
+
+        client = AsyncMock()
+        client.get_clinic_services_by_clinic.return_value = [
+            {
+                "serviceId": "svc-dog-bath",
+                "name": "Tắm chó",
+                "description": "Vệ sinh cơ bản cho chó",
+                "basePrice": 130000,
+                "durationTime": 30,
+                "slotsRequired": 1,
+                "serviceCategory": "GROOMING",
+                "petType": "DOG",
+                "isHomeVisit": False,
+                "isActive": True,
+            },
+            {
+                "serviceId": "svc-cat-bath",
+                "name": "Tắm mèo",
+                "description": "Vệ sinh cơ bản cho mèo",
+                "basePrice": 120000,
+                "durationTime": 30,
+                "slotsRequired": 1,
+                "serviceCategory": "GROOMING",
+                "petType": "CAT",
+                "isHomeVisit": False,
+                "isActive": True,
+            },
+        ]
+
+        try:
+            with patch(
+                "app.core.tools.mcp_tools.booking_tools.get_backend_client",
+                return_value=client,
+            ):
+                result = await get_clinic_services(
+                    "clinic-1",
+                    pet_species="DOG",
+                    service_hint="tắm",
+                    latest_message="Đặt lịch tắm cho Hadine",
+                )
+        finally:
+            reset_tool_runtime_context(runtime_token)
+
+        self.assertEqual(result["matched_services"][0]["id"], "svc-dog-bath")
+        self.assertEqual(result["matched_services"][0]["display_name"], "Tắm chó")
+        self.assertEqual(result["resolved_service_names"], ["Tắm chó"])
+        suggested = result["suggested_service_options"]
+        self.assertTrue(any(item["name"] == "Tắm chó" for item in suggested))
+        self.assertFalse(any(item["name"] == "Tắm mèo" for item in suggested))
 
     async def test_check_vaccination_status_returns_filtered_history(self):
         runtime_token = set_tool_runtime_context(

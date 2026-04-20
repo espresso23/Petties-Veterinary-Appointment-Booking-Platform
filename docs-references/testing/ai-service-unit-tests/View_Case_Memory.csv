@@ -1,0 +1,20 @@
+A,B,C,D,E,F,G,H
+Function Code / Name,GET /knowledge/case-memory/{case_id},,,,,,,
+Created By / Executed By,Gemini CLI,,,,,,,
+Lines of Code (LOC),22,,,,,,,
+Lack of test cases,"=IF(Functions!E12<>""N/A"";SUM(C4*Functions!E12/1000;-O7);""N/A"")",,,,,,
+Test Requirement,"Validate high-dimensional vector retrieval from Qdrant, ensuring accurate decoding of structured EMR metadata for AI grounding.",,,,,,,
+Overview Stats,Total: 3, Passed: 0, Failed: 0, Untested: 3,,,,,,,
+,,,,,UTCID01,UTCID02,UTCID03
+Condition,Auth Token,,,,,,,,
+,,,Valid Token,,O,O,
+,Case Status,,,,,,,,
+,,,Case Exists,,O,,O
+Confirm,Return State,,,,,,,,
+,,,200 OK + Case Detail,,O,,
+,,,401 Unauthorized,,,O
+,,,404 Not Found,,,O,
+Result,Type,,,,N,A,A
+,Status,,,,P,P,P
+,Executed Date,,,,2026-04-17,2026-04-17,2026-04-17
+,DefectID,,,,None,None,None

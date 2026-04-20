@@ -10,9 +10,11 @@ interface ClinicListProps {
   showActions?: boolean
   onEdit?: (clinicId: string) => void
   onDelete?: (clinicId: string) => void
+  onOpen?: (clinicId: string) => void
+  highlightedClinicId?: string | null
 }
 
-export function ClinicList({ filters, showActions = false, onEdit, onDelete }: ClinicListProps) {
+export function ClinicList({ filters, showActions = false, onEdit, onDelete, onOpen, highlightedClinicId }: ClinicListProps) {
   const {
     clinics,
     isLoading,
@@ -70,6 +72,8 @@ export function ClinicList({ filters, showActions = false, onEdit, onDelete }: C
             showActions={showActions}
             onEdit={onEdit}
             onDelete={onDelete}
+            onOpen={onOpen}
+            highlighted={highlightedClinicId === clinic.clinicId}
           />
         ))}
       </div>

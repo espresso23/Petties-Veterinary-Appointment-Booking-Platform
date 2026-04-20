@@ -97,6 +97,7 @@ export const BookingDashboardPage = () => {
     const [activeTab, setActiveTab] = useState<TabFilter>('PENDING');
     const [typeFilter, setTypeFilter] = useState<string>('ALL');
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+    const [openingBookingId, setOpeningBookingId] = useState<string | null>(null);
     const [confirming, setConfirming] = useState<string | null>(null);
     const [cancelling, setCancelling] = useState<string | null>(null);
     const [cancelModalOpen, setCancelModalOpen] = useState(false);
@@ -416,6 +417,20 @@ export const BookingDashboardPage = () => {
             bookingTime: booking.bookingTime,
         });
         setReportModalOpen(true);
+    };
+
+    const handleOpenBookingDetail = async (booking: Booking) => {
+        setOpeningBookingId(booking.bookingId);
+        try {
+            const freshBooking = await getBookingById(booking.bookingId);
+            setSelectedBooking(freshBooking);
+        } catch (error) {
+            console.error('Failed to fetch booking detail:', error);
+            setSelectedBooking(booking);
+            showToast('error', 'Không thể tải đầy đủ chi tiết lịch hẹn. Đang mở dữ liệu hiện có.');
+        } finally {
+            setOpeningBookingId(null);
+        }
     };
 
     const handleOpenEditReportModal = (report: ReportResponse) => {
@@ -779,10 +794,12 @@ export const BookingDashboardPage = () => {
                                                 </button>
                                             )}
                                             <button
-                                                onClick={() => setSelectedBooking(booking)}
+                                                type="button"
+                                                onClick={() => handleOpenBookingDetail(booking)}
+                                                disabled={openingBookingId === booking.bookingId}
                                                 className="px-3 py-1 text-xs font-bold uppercase bg-white border-2 border-stone-900 hover:shadow-[2px_2_0_#1c1917] transition-all"
                                             >
-                                                Chi tiết
+                                                {openingBookingId === booking.bookingId ? 'Đang mở...' : 'Chi tiết'}
                                             </button>
                                         </div>
                                     </td>
@@ -1303,33 +1320,6 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
                             >
                                 {PAYMENT_STATUS_LABELS[booking.paymentStatus]?.label || booking.paymentStatus}
                             </span>
-                        </div>
-                    )}
-
-                    {/* QR Code Display (when QR checkout is active) */}
-                    {booking.paymentStatus === 'PENDING' && booking.qrImageUrl && (
-                        <div className="border-2 border-blue-500 bg-blue-50 p-4 mb-4">
-                            <h3 className="font-bold uppercase text-sm mb-3 text-blue-700 text-center">
-                                Quét mã QR để thanh toán
-                            </h3>
-                            <div className="flex justify-center mb-3">
-                                <img
-                                    src={booking.qrImageUrl}
-                                    alt={booking.bookingCode}
-                                    className="w-56 h-56 border-2 border-stone-900"
-                                />
-                            </div>
-                            <div className="text-center">
-                                <div className="text-lg font-bold text-stone-900">
-                                    {Number(booking.finalPrice ?? booking.totalPrice).toLocaleString('vi-VN')} VNĐ
-                                </div>
-                                <div className="flex items-center justify-center gap-2 mt-2">
-                                    <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-                                    <span className="text-sm text-blue-600 font-medium">
-                                        Đang chờ thanh toán...
-                                    </span>
-                                </div>
-                            </div>
                         </div>
                     )}
 

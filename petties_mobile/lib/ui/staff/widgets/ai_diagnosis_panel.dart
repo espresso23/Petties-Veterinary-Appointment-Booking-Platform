@@ -76,9 +76,11 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
   final Map<String, String> _imageDescriptions = {};
   final Set<String> _imagesLoading = {};
   final Map<String, TextEditingController> _imageDescriptionControllers = {};
+  final Map<String, TextEditingController> _followUpAnswerControllers = {};
   late final ImagePicker _imagePicker;
 
   bool _isLoading = false;
+  bool _isRefiningWithAnswers = false;
   String? _error;
   StaffDiagnosisResponse? _result;
   String _selectedDiagnosisCode = '';
@@ -164,7 +166,37 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
     for (final controller in _imageDescriptionControllers.values) {
       controller.dispose();
     }
+    for (final controller in _followUpAnswerControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
+  }
+
+  TextEditingController _getFollowUpController(String question) {
+    final existing = _followUpAnswerControllers[question];
+    if (existing != null) {
+      return existing;
+    }
+
+    final controller = TextEditingController();
+    _followUpAnswerControllers[question] = controller;
+    return controller;
+  }
+
+  List<FollowUpAnswer> _collectFollowUpAnswers() {
+    final questions = _result?.suggestedQuestions ?? const <String>[];
+    final answers = <FollowUpAnswer>[];
+
+    for (final question in questions) {
+      final answer =
+          (_followUpAnswerControllers[question]?.text ?? '').trim();
+      if (answer.isEmpty) {
+        continue;
+      }
+      answers.add(FollowUpAnswer(question: question, answer: answer));
+    }
+
+    return answers;
   }
 
   Future<String?> _analyzeSingleImage(String imageUrl) async {
@@ -410,6 +442,101 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
       if (mounted) {
         setState(() {
           _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _refineWithFollowUpAnswers() async {
+    if (_result == null || _isLoading || _isRefiningWithAnswers) {
+      return;
+    }
+
+    final followUpAnswers = _collectFollowUpAnswers();
+    if (followUpAnswers.isEmpty) {
+      setState(() {
+        _error = 'Vui lòng nhập ít nhất một câu trả lời trước khi cập nhật kết quả AI.';
+      });
+      return;
+    }
+
+    final allImages = _allImagesForDiagnosis;
+    final narrative = _narrativeController.text.trim();
+    final hasSelectedDiagnosis =
+        _selectedDiagnosisCode.isNotEmpty || _selectedDiagnosisLabel.isNotEmpty;
+
+    setState(() {
+      _error = null;
+      _isRefiningWithAnswers = true;
+    });
+
+    try {
+      final response = await _diagnosisService.analyzeCase(
+        species: _mappedSpecies,
+        previousRequestId: hasSelectedDiagnosis
+            ? (_baseRequestId.isNotEmpty ? _baseRequestId : _result?.requestId)
+            : null,
+        petId: widget.petId,
+        bookingId: widget.bookingId,
+        breed: widget.breed,
+        ageMonths: widget.ageMonths,
+        weightKg: widget.weightKg,
+        sex: DiagnosisSex.unknown,
+        allergies: widget.allergies,
+        doctorDescription:
+            narrative.isNotEmpty ? narrative : 'Mô tả lâm sàng từ hình ảnh',
+        imageUrls: allImages.isNotEmpty ? allImages : null,
+        imageAnalysisMode: DiagnosisImageAnalysisMode.full,
+        synthesisMode: hasSelectedDiagnosis ? 'selected_only' : 'full',
+        selectedDiagnosisCode:
+            hasSelectedDiagnosis ? _selectedDiagnosisCode : null,
+        selectedDiagnosisLabel:
+            hasSelectedDiagnosis ? _selectedDiagnosisLabel : null,
+        followUpAnswers: followUpAnswers,
+        soapDraft:
+            widget.initialAssessment != null || widget.initialPlan != null
+                ? SoapDraft(
+                    subjective: widget.initialSubjective,
+                    objective: widget.initialObjective,
+                    assessment: widget.initialAssessment,
+                    plan: widget.initialPlan,
+                  )
+                : null,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _result = response;
+        if (!hasSelectedDiagnosis) {
+          _baseRequestId = response.requestId;
+        }
+      });
+
+      widget.onDiagnosisResult?.call(response);
+      if (hasSelectedDiagnosis) {
+        widget.onApplyDraft?.call(response.soapSuggestions);
+      }
+    } on DiagnosisException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _error = error.message;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _error = 'Không thể cập nhật kết quả từ thông tin bổ sung.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRefiningWithAnswers = false;
         });
       }
     }
@@ -924,6 +1051,149 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
     );
   }
 
+  Widget _buildFollowUpSection() {
+    if (_result == null || _result!.suggestedQuestions.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final hasAnyAnswer = _collectFollowUpAnswers().isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('Cần hỏi thêm'),
+        const SizedBox(height: 8),
+        ..._result!.suggestedQuestions.map((question) {
+          final controller = _getFollowUpController(question);
+          return Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.stone50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.stone200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '- $question',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.stone700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: controller,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    hintText: 'Nhập trả lời của bác sĩ...',
+                    hintStyle: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.stone400,
+                    ),
+                    filled: true,
+                    fillColor: AppColors.white,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: AppColors.stone200),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: AppColors.stone200),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(
+                        color: AppColors.primary,
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.stone700,
+                  ),
+                  onChanged: (_) {
+                    if (!mounted) return;
+                    setState(() {
+                      if (_error != null) {
+                        _error = null;
+                      }
+                    });
+                  },
+                ),
+              ],
+            ),
+          );
+        }),
+        const SizedBox(height: 4),
+        SizedBox(
+          width: double.infinity,
+          child: GestureDetector(
+            onTap: _isLoading || _isRefiningWithAnswers || !hasAnyAnswer
+                ? null
+                : _refineWithFollowUpAnswers,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+              decoration: BoxDecoration(
+                color: _isLoading || _isRefiningWithAnswers || !hasAnyAnswer
+                    ? AppColors.stone300
+                    : Colors.blue.shade600,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.stone900, width: 2),
+                boxShadow: _isLoading || _isRefiningWithAnswers || !hasAnyAnswer
+                    ? null
+                    : const [
+                        BoxShadow(
+                          color: AppColors.stone900,
+                          offset: Offset(2, 2),
+                        ),
+                      ],
+              ),
+              child: Center(
+                child: _isRefiningWithAnswers
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.white,
+                        ),
+                      )
+                    : const Text(
+                        'CẬP NHẬT KẾT QUẢ THEO THÔNG TIN BỔ SUNG',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.white,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Ảnh đã tải sẽ được giữ nguyên, AI sẽ truy vấn và suy luận lại để cập nhật SOAP và gợi ý điều trị theo thông tin mới.',
+          style: TextStyle(
+            fontSize: 11,
+            color: AppColors.stone600,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildResults() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1171,33 +1441,7 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
           const SizedBox(height: 12),
         ],
         if (_result!.suggestedQuestions.isNotEmpty) ...[
-          _buildSectionTitle('Cần hỏi thêm'),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.stone50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.stone200),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: _result!.suggestedQuestions
-                  .map(
-                    (question) => Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Text(
-                        '- $question',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.stone700,
-                        ),
-                      ),
-                    ),
-                  )
-                  .toList(),
-            ),
-          ),
+          _buildFollowUpSection(),
           const SizedBox(height: 12),
         ],
         _buildDisclaimer(),

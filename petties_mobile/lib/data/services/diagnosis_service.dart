@@ -53,6 +53,7 @@ class DiagnosisService {
     String? synthesisMode,
     String? selectedDiagnosisCode,
     String? selectedDiagnosisLabel,
+    List<FollowUpAnswer>? followUpAnswers,
     SoapDraft? soapDraft,
   }) async {
     final request = StaffDiagnosisRequest(
@@ -73,6 +74,7 @@ class DiagnosisService {
       synthesisMode: synthesisMode,
       selectedDiagnosisCode: selectedDiagnosisCode,
       selectedDiagnosisLabel: selectedDiagnosisLabel,
+      followUpAnswers: followUpAnswers,
       soapDraft: soapDraft,
     );
 
