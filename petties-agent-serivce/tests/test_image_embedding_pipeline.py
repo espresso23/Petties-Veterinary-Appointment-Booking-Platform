@@ -52,17 +52,20 @@ class TestJinaImageEmbeddings(unittest.IsolatedAsyncioTestCase):
                 input_count = len(kwargs.get("json", {}).get("input", [1]))
                 return _FakeResponse(input_count)
 
-        with patch(
-            "app.core.embeddings.jina_image_embeddings._get_jina_config",
-            AsyncMock(
-                return_value={
-                    "api_key": "k",
-                    "model": "jina-clip-v2",
-                }
+        with (
+            patch(
+                "app.core.embeddings.jina_image_embeddings._get_jina_config",
+                AsyncMock(
+                    return_value={
+                        "api_key": "k",
+                        "model": "jina-clip-v2",
+                    }
+                ),
             ),
-        ), patch(
-            "app.core.embeddings.jina_image_embeddings.httpx.AsyncClient",
-            return_value=_FakeClient(),
+            patch(
+                "app.core.embeddings.jina_image_embeddings.httpx.AsyncClient",
+                return_value=_FakeClient(),
+            ),
         ):
             vectors = await embed_image_urls(
                 [
@@ -77,6 +80,7 @@ class TestJinaImageEmbeddings(unittest.IsolatedAsyncioTestCase):
 
     async def test_embed_image_urls_rejects_wrong_dimension(self):
         """Khi Jina trả về dim khác 1024 (model config sai) -> skip embedding."""
+
         class _FakeResponse:
             def raise_for_status(self):
                 return None
@@ -95,17 +99,20 @@ class TestJinaImageEmbeddings(unittest.IsolatedAsyncioTestCase):
             async def post(self, *args, **kwargs):
                 return _FakeResponse()
 
-        with patch(
-            "app.core.embeddings.jina_image_embeddings._get_jina_config",
-            AsyncMock(
-                return_value={
-                    "api_key": "k",
-                    "model": "jina-clip-v2",
-                }
+        with (
+            patch(
+                "app.core.embeddings.jina_image_embeddings._get_jina_config",
+                AsyncMock(
+                    return_value={
+                        "api_key": "k",
+                        "model": "jina-clip-v2",
+                    }
+                ),
             ),
-        ), patch(
-            "app.core.embeddings.jina_image_embeddings.httpx.AsyncClient",
-            return_value=_FakeClient(),
+            patch(
+                "app.core.embeddings.jina_image_embeddings.httpx.AsyncClient",
+                return_value=_FakeClient(),
+            ),
         ):
             vectors = await embed_image_urls(["https://res.cloudinary.com/demo/x.png"])
 
@@ -155,10 +162,88 @@ class TestCaseMemoryHybridSearch(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(results[0].case_id, "c1")
         self.assertGreater(results[0].final_score, 0)
 
+    async def test_search_similar_accepts_data_url_for_image_branch(self):
+        service = CaseMemoryService.__new__(CaseMemoryService)
+        service._initialized = True
+        service._qdrant_client = MagicMock()
+        service._embed_model = object()
+        service._collection_name = "petties_case_memory_v2"
+        service._image_enabled = True
+
+        service.initialize = AsyncMock(return_value=None)
+        service._embed_text = AsyncMock(return_value=[0.1, 0.2, 0.3])
+
+        text_hit = types.SimpleNamespace(
+            id="p1",
+            score=0.7,
+            payload={"case_id": "c1", "text_content": "case text", "feedback_count": 1},
+        )
+        image_hit = types.SimpleNamespace(
+            id="p1",
+            score=0.95,
+            payload={"case_id": "c1", "text_content": "case text", "feedback_count": 1},
+        )
+        text_resp = types.SimpleNamespace(points=[text_hit])
+        image_resp = types.SimpleNamespace(points=[image_hit])
+        service._qdrant_client.query_points.side_effect = [text_resp, image_resp]
+
+        with patch(
+            "app.core.embeddings.jina_image_embeddings.embed_image_urls",
+            AsyncMock(return_value=[[0.9, 0.9, 0.9]]),
+        ) as embed_mock:
+            results = await service.search_similar(
+                "test query",
+                top_k=3,
+                min_score=0.1,
+                image_urls=["data:image/jpeg;base64,ZmFrZQ=="],
+            )
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].case_id, "c1")
+        self.assertEqual(service._qdrant_client.query_points.call_count, 2)
+        embed_mock.assert_awaited_once()
+
+    async def test_search_similar_skips_image_branch_for_http_url(self):
+        service = CaseMemoryService.__new__(CaseMemoryService)
+        service._initialized = True
+        service._qdrant_client = MagicMock()
+        service._embed_model = object()
+        service._collection_name = "petties_case_memory_v2"
+        service._image_enabled = True
+
+        service.initialize = AsyncMock(return_value=None)
+        service._embed_text = AsyncMock(return_value=[0.1, 0.2, 0.3])
+
+        text_hit = types.SimpleNamespace(
+            id="p2",
+            score=0.82,
+            payload={"case_id": "c2", "text_content": "case text", "feedback_count": 0},
+        )
+        text_resp = types.SimpleNamespace(points=[text_hit])
+        service._qdrant_client.query_points.return_value = text_resp
+
+        with patch(
+            "app.core.embeddings.jina_image_embeddings.embed_image_urls",
+            AsyncMock(return_value=[[0.9, 0.9, 0.9]]),
+        ) as embed_mock:
+            results = await service.search_similar(
+                "test query",
+                top_k=3,
+                min_score=0.1,
+                image_urls=["http://example.com/not-secure.jpg"],
+            )
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].case_id, "c2")
+        self.assertEqual(service._qdrant_client.query_points.call_count, 1)
+        embed_mock.assert_not_awaited()
+
 
 class TestWebSocketStoresImageMetadata(unittest.IsolatedAsyncioTestCase):
     async def test_handle_chat_message_saves_images_in_user_message_metadata(self):
-        user = CurrentUser(user_id="u1", username="test", role="PET_OWNER", is_admin=False)
+        user = CurrentUser(
+            user_id="u1", username="test", role="PET_OWNER", is_admin=False
+        )
 
         class _FakeAgent:
             name = "agent"
@@ -177,24 +262,34 @@ class TestWebSocketStoresImageMetadata(unittest.IsolatedAsyncioTestCase):
 
         save_chat_message_mock = AsyncMock()
 
-        with patch("app.api.websocket.chat.AsyncSessionLocal", return_value=_FakeDbCtx()), patch(
-            "app.api.websocket.chat.AgentFactory.get_agent",
-            AsyncMock(return_value=_FakeAgent()),
-        ), patch(
-            "app.api.websocket.chat.save_chat_message",
-            save_chat_message_mock,
-        ), patch(
-            "app.api.websocket.chat.touch_chat_session",
-            AsyncMock(return_value=True),
-        ), patch(
-            "app.api.websocket.chat.set_tool_runtime_context",
-            return_value="token",
-        ), patch(
-            "app.api.websocket.chat.reset_tool_runtime_context",
-            return_value=None,
-        ), patch(
-            "app.api.websocket.chat.manager.send_message",
-            AsyncMock(return_value=None),
+        with (
+            patch(
+                "app.api.websocket.chat.AsyncSessionLocal", return_value=_FakeDbCtx()
+            ),
+            patch(
+                "app.api.websocket.chat.AgentFactory.get_agent",
+                AsyncMock(return_value=_FakeAgent()),
+            ),
+            patch(
+                "app.api.websocket.chat.save_chat_message",
+                save_chat_message_mock,
+            ),
+            patch(
+                "app.api.websocket.chat.touch_chat_session",
+                AsyncMock(return_value=True),
+            ),
+            patch(
+                "app.api.websocket.chat.set_tool_runtime_context",
+                return_value="token",
+            ),
+            patch(
+                "app.api.websocket.chat.reset_tool_runtime_context",
+                return_value=None,
+            ),
+            patch(
+                "app.api.websocket.chat.manager.send_message",
+                AsyncMock(return_value=None),
+            ),
         ):
             await handle_chat_message(
                 websocket=MagicMock(),
@@ -216,4 +311,3 @@ class TestWebSocketStoresImageMetadata(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

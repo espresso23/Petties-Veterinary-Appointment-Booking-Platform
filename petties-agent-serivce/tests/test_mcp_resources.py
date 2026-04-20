@@ -58,9 +58,9 @@ class MCPResourceRegistryTests(unittest.TestCase):
         self.assertIsNotNone(slot_res)
         self.assertEqual(slot_res.name, "slot_availability")
         via_slots = get_resource_by_backing_tool("check_available_slots")
-        self.assertIs(via_slots, slot_res)
+        self.assertIsNone(via_slots)
 
-    def test_resolve_clinic_services_and_slots_allowed_for_pet_owner(self):
+    def test_resolve_clinic_services_allowed_but_slots_forbidden_for_pet_owner(self):
         ctx = ToolRuntimeContext(
             user_id="user-1",
             role="PET_OWNER",
@@ -78,13 +78,10 @@ class MCPResourceRegistryTests(unittest.TestCase):
             self.assertEqual(svc["tool_name"], "list_clinic_services")
             self.assertEqual(svc["tool_params"]["target_clinic_id"], "clinic-9")
 
-            slots = resolve_resource_request(
-                "petties://clinics/clinic-9/slots?date=2026-04-10"
-            )
-            self.assertEqual(slots["resource_name"], "slot_availability")
-            self.assertEqual(slots["tool_name"], "get_slot_availability")
-            self.assertEqual(slots["tool_params"]["clinic_id"], "clinic-9")
-            self.assertEqual(slots["tool_params"]["date"], "2026-04-10")
+            with self.assertRaises(PermissionError):
+                resolve_resource_request(
+                    "petties://clinics/clinic-9/slots?date=2026-04-10"
+                )
 
     def test_resolve_forbidden_when_role_missing(self):
         ctx = ToolRuntimeContext(

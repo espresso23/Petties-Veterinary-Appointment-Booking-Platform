@@ -18,7 +18,25 @@ from typing import Optional
 
 class JSONFormatter(logging.Formatter):
     """Custom JSON formatter cho structured logging"""
-    
+
+    OPTIONAL_FIELDS = (
+        "service",
+        "environment",
+        "event",
+        "request_id",
+        "trace_id",
+        "method",
+        "path",
+        "status_code",
+        "latency_ms",
+        "client_ip",
+        "user_id",
+        "query",
+        "content_type",
+        "user_agent",
+        "error_code",
+    )
+
     def format(self, record: logging.LogRecord) -> str:
         log_obj = {
             "timestamp": datetime.utcnow().isoformat() + "Z",
@@ -33,10 +51,11 @@ class JSONFormatter(logging.Formatter):
         # Add exception info if present
         if record.exc_info:
             log_obj["exception"] = self.formatException(record.exc_info)
-        
-        # Add extra fields
-        if hasattr(record, "extra"):
-            log_obj["extra"] = record.extra
+
+        for field_name in self.OPTIONAL_FIELDS:
+            field_value = getattr(record, field_name, None)
+            if field_value is not None:
+                log_obj[field_name] = field_value
             
         return json.dumps(log_obj, ensure_ascii=False)
 
@@ -90,6 +109,7 @@ def setup_logging(
     sentry_dsn: Optional[str] = None,
     environment: str = "development",
     enable_json_logging: bool = False,
+    service_name: str = "petties-ai-service",
 ):
     """
     Setup logging configuration cho application
@@ -182,6 +202,15 @@ def setup_logging(
     logging.info(f"✅ Logging configured: level={log_level}, file={log_file}")
     if sentry_dsn:
         logging.info(f"✅ Error tracking: Sentry → Discord #monitoring")
+
+    logging.info(
+        "Structured logging context initialized",
+        extra={
+            "service": service_name,
+            "environment": environment,
+            "event": "logging_configured",
+        },
+    )
 
 
 def get_logger(name: str) -> logging.Logger:

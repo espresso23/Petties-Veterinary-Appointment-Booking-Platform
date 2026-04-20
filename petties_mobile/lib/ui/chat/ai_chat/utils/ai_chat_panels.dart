@@ -489,8 +489,8 @@ class AiChatComposer extends StatelessWidget {
     final screenWidth = MediaQuery.of(context).size.width;
     final isCompact = screenWidth <= 360;
     final isBusy = isSending || isReconnecting;
-    final hasDraftToSend =
-        controller.text.trim().isNotEmpty || (selectedImages?.isNotEmpty ?? false);
+    final hasDraftToSend = controller.text.trim().isNotEmpty ||
+        (selectedImages?.isNotEmpty ?? false);
     final canSend = !isBusy && hasDraftToSend;
     final hasImages = selectedImages != null && selectedImages!.isNotEmpty;
     final isKeyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
@@ -514,7 +514,8 @@ class AiChatComposer extends StatelessWidget {
         verticalPadding + 4,
       ),
       decoration: BoxDecoration(
-        color: AppColors.white.withValues(alpha: isKeyboardVisible ? 0.9 : 0.94),
+        color:
+            AppColors.white.withValues(alpha: isKeyboardVisible ? 0.9 : 0.94),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -649,14 +650,16 @@ class AiChatComposer extends StatelessWidget {
                     child: TextField(
                       controller: controller,
                       focusNode: focusNode,
+                      onTapOutside: (_) =>
+                          FocusManager.instance.primaryFocus?.unfocus(),
                       keyboardType: TextInputType.multiline,
                       textCapitalization: TextCapitalization.sentences,
                       minLines: 1,
                       maxLines: composerMaxLines,
                       scrollPadding: const EdgeInsets.symmetric(vertical: 8),
                       textInputAction: TextInputAction.newline,
-                        style: TextStyle(
-                          fontSize: isCompact ? 13 : 14,
+                      style: TextStyle(
+                        fontSize: isCompact ? 13 : 14,
                         fontWeight: FontWeight.w500,
                         color: AppColors.stone900,
                       ),
@@ -699,7 +702,8 @@ class AiChatComposer extends StatelessWidget {
                                 ? accentColor
                                 : AppColors.stone500.withValues(alpha: 0.7)),
                         borderRadius: BorderRadius.circular(13),
-                        border: Border.all(color: AppColors.stone900, width: 1.8),
+                        border:
+                            Border.all(color: AppColors.stone900, width: 1.8),
                         boxShadow: isSending
                             ? null
                             : const [
@@ -773,12 +777,10 @@ class _ComposerActionButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(isCompact ? 10 : 11),
             onTap: onTap,
             child: Container(
-              width: isCompact
-                  ? _composerActionSizeCompact
-                  : _composerActionSize,
-              height: isCompact
-                  ? _composerActionSizeCompact
-                  : _composerActionSize,
+              width:
+                  isCompact ? _composerActionSizeCompact : _composerActionSize,
+              height:
+                  isCompact ? _composerActionSizeCompact : _composerActionSize,
               decoration: BoxDecoration(
                 color: AppColors.stone100,
                 borderRadius: BorderRadius.circular(isCompact ? 10 : 11),

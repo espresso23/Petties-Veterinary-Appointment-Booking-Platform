@@ -23,25 +23,38 @@ services:
       DB_USERNAME: ${DB_USERNAME:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-}
       MONGO_URI: ${MONGO_URI:-}
-      APP_AI_SERVICE_URL: http://ai-service:8000
       JWT_SECRET: ${JWT_SECRET:-}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-YOUR_WEB_CLIENT_ID.apps.googleusercontent.com}
+      # Google OAuth (Mobile - Android & iOS)
+      GOOGLE_ANDROID_CLIENT_IDS: ${GOOGLE_ANDROID_CLIENT_IDS:-}
+      GOOGLE_IOS_CLIENT_ID: ${GOOGLE_IOS_CLIENT_ID:-}
+      # Firebase
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-petties-app}
+      FIREBASE_CREDENTIALS_PATH: ${FIREBASE_CREDENTIALS_PATH:-}
       MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
       MAIL_PORT: ${MAIL_PORT:-587}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
-      REDIS_URL: ${REDIS_URL:-}
       REDIS_HOST: ${REDIS_HOST:-}
       REDIS_PORT: ${REDIS_PORT:-}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
-      REDIS_SSL: ${REDIS_SSL:-false}
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
       SEPAY_API_TOKEN: ${SEPAY_API_TOKEN:-}
+      SEPAY_BASE_URL: ${SEPAY_BASE_URL:-https://my.sepay.vn/userapi}
+      # Sepay QR Payment
+      SEPAY_ACCOUNT_NUMBER: ${SEPAY_ACCOUNT_NUMBER:-}
+      SEPAY_QR_ACC: ${SEPAY_QR_ACC:-}
+      SEPAY_QR_BANK: ${SEPAY_QR_BANK:-}
       SENTRY_DSN: ${SENTRY_BACKEND_DSN:-}
-      SENTRY_ENABLED: ${SENTRY_ENABLED:-false}
       GOONG_API_KEY: ${GOONG_API_KEY:-}
+      APP_VERSION: ${APP_VERSION:-1.0.0}
+      # JWT Expiration
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-604800000}
+      # CORS
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://www.petties.world}
       JAVA_OPTS: ${BACKEND_JAVA_OPTS:--Xmx320m -Xms256m -XX:+UseSerialGC -XX:MaxMetaspaceSize=128m}
     ports:
       - 127.0.0.1:${BACKEND_HOST_PORT:-8080}:8080
@@ -68,8 +81,14 @@ services:
         BUILD_ENV: ${BUILD_ENV:-prod}
     restart: unless-stopped
     environment:
+      APP_NAME: ${AI_APP_NAME:-Petties Agent Service}
+      APP_ENV: ${AI_APP_ENV:-production}
+      APP_VERSION: ${APP_VERSION:-1.0.0}
       ENVIRONMENT: ${ENVIRONMENT:-production}
       APP_DEBUG: ${APP_DEBUG:-false}
+      HOST: 0.0.0.0
+      PORT: 8000
+      WORKERS: ${AI_WORKERS:-2}
       DATABASE_URL: ${DATABASE_URL:-}
       MONGODB_URL: ${MONGODB_URL:-}
       MONGODB_DATABASE: ${MONGODB_DATABASE:-petties_nosql}
@@ -77,14 +96,32 @@ services:
       SECRET_KEY: ${JWT_SECRET:-}
       SPRING_BACKEND_URL: http://backend:8080
       QDRANT_COLLECTION_NAME: ${QDRANT_COLLECTION_NAME:-petties_knowledge_base}
+      # Qdrant Cloud (Vector Database for RAG) - CRITICAL
+      QDRANT_URL: ${QDRANT_URL:-}
+      QDRANT_API_KEY: ${QDRANT_API_KEY:-}
       LLM_PROVIDER: ${LLM_PROVIDER:-openrouter}
       CORS_ORIGINS: ${CORS_ORIGINS:-https://www.petties.world}
-      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
-      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
-      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
-      SEPAY_API_TOKEN: ${SEPAY_API_TOKEN:-}
+      # OpenRouter (LLM) - CRITICAL
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-google/gemini-2.0-flash-exp:free}
+      OPENROUTER_FALLBACK_MODEL: ${OPENROUTER_FALLBACK_MODEL:-meta-llama/llama-3.3-70b-instruct}
+      # Cohere (Embeddings) - CRITICAL
+      COHERE_API_KEY: ${COHERE_API_KEY:-}
+      COHERE_EMBEDDING_MODEL: ${COHERE_EMBEDDING_MODEL:-embed-multilingual-v3.0}
+      # Tavily Web Search (Optional)
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+      TAVILY_MAX_RESULTS: ${TAVILY_MAX_RESULTS:-5}
+      # Jina Image Embeddings (Optional)
+      JINA_API_KEY: ${JINA_API_KEY:-}
+      JINA_IMAGE_EMBED_MODEL: ${JINA_IMAGE_EMBED_MODEL:-jina-clip-v2}
+      MCP_TIMEOUT: ${MCP_TIMEOUT:-30}
+      # JWT / Upload / Logging
+      ALGORITHM: ${ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      UPLOAD_DIR: ${UPLOAD_DIR:-./uploads}
+      LOG_LEVEL: ${AI_LOG_LEVEL:-INFO}
+      LOG_FILE: ${AI_LOG_FILE:-./logs/agent_service.log}
       SENTRY_DSN: ${SENTRY_AI_SERVICE_DSN:-}
-      SENTRY_ENABLED: ${SENTRY_ENABLED:-false}
     ports:
       - 127.0.0.1:${AI_HOST_PORT:-8000}:8000
     networks:

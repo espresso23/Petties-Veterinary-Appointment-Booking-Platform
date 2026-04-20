@@ -82,12 +82,37 @@ def _resolve_clinic_id(clinic: Dict[str, Any]) -> str:
     return ""
 
 
+def _resolve_clinic_name(clinic: Dict[str, Any]) -> str:
+    if not isinstance(clinic, dict):
+        return ""
+    for key in ("name", "clinic_name", "clinicName"):
+        value = clinic.get(key)
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return ""
+
+
 def _with_normalized_clinic_id(clinic: Dict[str, Any]) -> Dict[str, Any]:
     normalized = dict(clinic or {})
     clinic_id = _resolve_clinic_id(normalized)
     if clinic_id:
         normalized["id"] = clinic_id
+    clinic_name = _resolve_clinic_name(normalized)
+    if clinic_name:
+        normalized["name"] = clinic_name
     return normalized
+
+
+def _resolve_clinic_suggestion_mode(data: Dict[str, Any]) -> str:
+    if not isinstance(data, dict):
+        return ""
+    mode = str(data.get("clinic_suggestion_mode") or "").strip().lower()
+    if mode in {"discovery", "booking"}:
+        return mode
+    return ""
 
 
 def _is_empty_result(data: Dict[str, Any]) -> bool:
@@ -357,20 +382,13 @@ def _build_empty_state(intent: str, data: Dict[str, Any]) -> UIComponent:
 
 
 def _build_service_selection_components(data: Dict[str, Any]) -> List[UIComponent]:
-    clinic_id = str(
-        data.get("resolved_clinic_id") or data.get("clinic_id") or ""
-    ).strip()
+    clinic_id = str(data.get("resolved_clinic_id") or "").strip()
     resolved_clinic = (
         data.get("resolved_clinic")
         if isinstance(data.get("resolved_clinic"), dict)
         else {}
     )
-    clinic_name = str(
-        resolved_clinic.get("name")
-        or data.get("clinic_name")
-        or data.get("clinicName")
-        or ""
-    ).strip()
+    clinic_name = _resolve_clinic_name(resolved_clinic)
     pet_id = str(data.get("resolved_pet_id") or data.get("pet_id") or "").strip()
     services = data.get("services") or data.get("matched_services") or []
     ordered_services = _dedupe_services(
@@ -1197,11 +1215,27 @@ def _build_components_for_intent(
             )
 
     elif intent == "show_clinic_list":
+        clinic_suggestion_mode = _resolve_clinic_suggestion_mode(data)
+        if (
+            tool_name == "search_clinics_nearby"
+            and clinic_suggestion_mode != "discovery"
+        ):
+            return components
+
         matched_clinic = (
             data.get("matched_clinic")
             if isinstance(data.get("matched_clinic"), dict)
             else None
         )
+        # Clinic already auto-resolved for booking flow -> skip manual clinic cards.
+        if (
+            tool_name == "search_clinics_nearby"
+            and matched_clinic
+            and str(data.get("target_clinic_id") or "").strip()
+            and not bool(data.get("needs_clarification"))
+        ):
+            return components
+
         clinics_source = data.get("clinics", [])
         if matched_clinic and str(data.get("target_clinic_id") or "").strip():
             clinics_source = [matched_clinic]
@@ -1222,7 +1256,7 @@ def _build_components_for_intent(
                             "item_id": clinic_id,
                             "item_type": "clinic",
                             "clinic_id": clinic_id,
-                            "clinic_name": clinic.get("name"),
+                            "clinic_name": _resolve_clinic_name(clinic),
                         },
                     )
                 ]
@@ -1230,7 +1264,14 @@ def _build_components_for_intent(
                 UIComponent(
                     type=ComponentType.CLINIC_CARD,
                     id=f"clinic_{clinic.get('id', idx)}",
-                    data=clinic,
+                    data={
+                        **clinic,
+                        **(
+                            {"clinic_suggestion_mode": clinic_suggestion_mode}
+                            if clinic_suggestion_mode
+                            else {}
+                        ),
+                    },
                     actions=actions,
                 )
             )
@@ -1339,17 +1380,13 @@ def _should_skip_redundant_clinic_list(
 
     if isinstance(matched_clinic, dict):
         clinic_id = _resolve_clinic_id(matched_clinic)
-        clinic_name = str(
-            matched_clinic.get("name") or matched_clinic.get("clinic_name") or ""
-        ).strip()
+        clinic_name = _resolve_clinic_name(matched_clinic)
         if clinic_id and clinic_name:
             return True
 
     if isinstance(resolved_clinic, dict):
         clinic_id = _resolve_clinic_id(resolved_clinic)
-        clinic_name = str(
-            resolved_clinic.get("name") or resolved_clinic.get("clinic_name") or ""
-        ).strip()
+        clinic_name = _resolve_clinic_name(resolved_clinic)
         if clinic_id and clinic_name:
             return True
 
@@ -1363,7 +1400,7 @@ def _should_skip_redundant_clinic_list(
         clinic_id = _resolve_clinic_id(clinic)
         if clinic_id != target_clinic_id:
             continue
-        clinic_name = str(clinic.get("name") or clinic.get("clinic_name") or "").strip()
+        clinic_name = _resolve_clinic_name(clinic)
         if clinic_name:
             return True
 
@@ -1408,9 +1445,7 @@ def _has_complete_booking_context(tool_results: List[Dict[str, Any]]) -> bool:
         # Check for service resolution - handle multiple field patterns
         if tool_name == "get_clinic_services":
             services = data.get("services", [])
-            resolved_ids = (
-                data.get("resolved_service_ids") or data.get("service_ids") or []
-            )
+            resolved_ids = data.get("resolved_service_ids") or []
             if (isinstance(services, list) and len(services) > 0) or (
                 isinstance(resolved_ids, list) and len(resolved_ids) > 0
             ):
@@ -1455,34 +1490,35 @@ def _build_booking_context_from_tools(
                     or matched.get("clinic_id")
                     or matched.get("clinicId")
                 )
-                context["clinic_name"] = (
-                    matched.get("name")
-                    or matched.get("clinic_name")
-                    or matched.get("clinicName")
-                )
+                context["clinic_name"] = _resolve_clinic_name(matched)
 
-            # Fallback: check clinics list
+            resolved = data.get("resolved_clinic")
+            if not context.get("clinic_id") and isinstance(resolved, dict):
+                context["clinic_id"] = (
+                    resolved.get("id")
+                    or resolved.get("clinic_id")
+                    or resolved.get("clinicId")
+                )
+                context["clinic_name"] = _resolve_clinic_name(resolved)
+
             if not context.get("clinic_id"):
+                target_clinic_id = str(data.get("target_clinic_id") or "").strip()
                 clinics = data.get("clinics", [])
-                if isinstance(clinics, list) and len(clinics) > 0:
-                    first_clinic = clinics[0]
-                    if isinstance(first_clinic, dict):
-                        context["clinic_id"] = first_clinic.get(
-                            "id"
-                        ) or first_clinic.get("clinic_id")
-                        context["clinic_name"] = first_clinic.get(
-                            "name"
-                        ) or first_clinic.get("clinic_name")
+                if target_clinic_id and isinstance(clinics, list):
+                    for clinic in clinics:
+                        if not isinstance(clinic, dict):
+                            continue
+                        clinic_id = _resolve_clinic_id(clinic)
+                        if clinic_id != target_clinic_id:
+                            continue
+                        context["clinic_id"] = clinic_id
+                        context["clinic_name"] = _resolve_clinic_name(clinic)
+                        break
 
         if tool_name == "get_clinic_services":
-            # Try multiple field patterns for service IDs
-            resolved_ids = (
-                data.get("resolved_service_ids") or data.get("service_ids") or []
-            )
-            # Try multiple field patterns for service names
-            resolved_names = (
-                data.get("resolved_service_names") or data.get("service_names") or []
-            )
+            # Canonical service fields resolved from backend only.
+            resolved_ids = data.get("resolved_service_ids") or []
+            resolved_names = data.get("resolved_service_names") or []
             if resolved_ids:
                 context["service_ids"] = list(resolved_ids)
             if resolved_names:

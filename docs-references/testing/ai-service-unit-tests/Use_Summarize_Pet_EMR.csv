@@ -1,0 +1,23 @@
+A,B,C,D,E,F,G,H,I
+Function Code / Name,POST /pet-health-summary/synthesize (History),,,,,,,,
+Created By / Executed By,Gemini CLI,,,,,,,,
+Lines of Code (LOC),38,,,,,,,,
+Lack of test cases,"=IF(Functions!E16<>""N/A"";SUM(C4*Functions!E16/1000;-O7);""N/A"")",,,,,,,
+Test Requirement,"Validate longitudinal medical history synthesis, ensuring accurate trend detection and chronological summarization of multi-record clinical data sets.",,,,,,,,
+Overview Stats,Total: 4, Passed: 0, Failed: 0, Untested: 4,,,,,,,,
+,,,,,UTCID01,UTCID02,UTCID03,UTCID04
+Condition,Auth Token,,,,,,,,
+,,,Valid Token,,O,O,O,
+,EMR List,,,,,,,,
+,,,Multiple Records,,O,,O
+,,,Single Record,,,O,
+,,,Empty Array,,,,O,
+Confirm,Return State,,,,,,,,
+,,,200 OK + Chrono Summary,,O,,,
+,,,200 OK + Single Summary,,,O,,
+,,,422 Empty Array Error,,,,O,
+,,,401 Unauthorized,,,,,O
+Result,Type,,,,N,N,A,A
+,Status,,,,P,P,P,P
+,Executed Date,,,,2026-04-17,2026-04-17,2026-04-17,2026-04-17
+,DefectID,,,,None,None,None,None

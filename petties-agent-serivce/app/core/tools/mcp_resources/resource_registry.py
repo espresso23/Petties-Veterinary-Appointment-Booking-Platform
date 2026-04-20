@@ -117,7 +117,7 @@ RESOURCE_DEFINITIONS: List[MCPResourceDefinition] = [
         description="Tình trạng slot trống của phòng khám theo ngày (read-only).",
         backing_tool="get_slot_availability",
         cache_ttl_seconds=60,
-        allowed_roles=["PET_OWNER", "CLINIC_MANAGER", "CLINIC_OWNER", "ADMIN"],
+        allowed_roles=["CLINIC_MANAGER", "CLINIC_OWNER", "ADMIN"],
         phase="phase1",
         deprecated_tool="get_slot_availability",
     ),
@@ -126,7 +126,6 @@ RESOURCE_DEFINITIONS: List[MCPResourceDefinition] = [
 # Booking MCP tools dùng tên khác backing_tool trong registry; redirect read_resource tra cứu theo tên tool gọi ra.
 _BOOKING_TOOL_ALIASES: Final[Dict[str, str]] = {
     "get_clinic_services": "list_clinic_services",
-    "check_available_slots": "get_slot_availability",
 }
 
 _RESOURCE_BY_NAME = {item.name: item for item in RESOURCE_DEFINITIONS}

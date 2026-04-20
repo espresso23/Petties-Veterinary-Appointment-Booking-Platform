@@ -521,6 +521,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
         });
         break;
       case AiChatSocketEventType.clinicSuggestion:
+        if (_bookingAssistantEnabled) {
+          break;
+        }
         if (event.clinicSuggestion != null &&
             event.clinicSuggestion!.clinics.isNotEmpty) {
           _addClinicSuggestions(event.clinicSuggestion!.clinics);
@@ -893,6 +896,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
           }
           break;
         case 'clinic_card':
+          if (_bookingAssistantEnabled) {
+            break;
+          }
           if (suppressBookingUi) {
             break;
           }
@@ -1217,6 +1223,12 @@ class _AiChatScreenState extends State<AiChatScreen> {
         (message.webSearchResults?.isNotEmpty ?? false) ||
         (message.webSearchImages?.isNotEmpty ?? false) ||
         (message.webSearchAnswer ?? '').trim().isNotEmpty;
+  }
+
+  bool _hasBookingSummaryInConversation() {
+    return _messages.any(
+      (message) => message.role != 'user' && message.bookingSummary != null,
+    );
   }
 
   void _upsertAssistantMessage({
@@ -2401,7 +2413,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Không tìm thấy thông tin phòng khám để mở trang xác nhận.'),
+          content:
+              Text('Không tìm thấy thông tin phòng khám để mở trang xác nhận.'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -2432,7 +2445,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Vui lòng chọn thú cưng trước khi chuyển sang trang xác nhận.'),
+          content: Text(
+              'Vui lòng chọn thú cưng trước khi chuyển sang trang xác nhận.'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -2584,7 +2598,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
     String? petName,
   }) {
     final resolvedPetId = _pickFirstNonEmpty(petId, _bookingTracker.petId);
-    final resolvedPetName = _pickFirstNonEmpty(petName, _bookingTracker.petName);
+    final resolvedPetName =
+        _pickFirstNonEmpty(petName, _bookingTracker.petName);
     if (resolvedPetId == null || resolvedPetName == null) {
       return null;
     }
@@ -2697,16 +2712,13 @@ class _AiChatScreenState extends State<AiChatScreen> {
     sanitized = sanitized.replaceAll(RegExp(r'\[[\s\S]*?\]'), '');
 
     // Remove lines that look like JSON (start/end with braces/brackets)
-    sanitized = sanitized
-        .split('\n')
-        .where((line) {
-          final trimmed = line.trim();
-          if (trimmed.isEmpty) return false;
-          if (trimmed.startsWith('{') && trimmed.endsWith('}')) return false;
-          if (trimmed.startsWith('[') && trimmed.endsWith(']')) return false;
-          return true;
-        })
-        .join('\n');
+    sanitized = sanitized.split('\n').where((line) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty) return false;
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) return false;
+      if (trimmed.startsWith('[') && trimmed.endsWith(']')) return false;
+      return true;
+    }).join('\n');
 
     // Clean up extra whitespace
     sanitized = sanitized.replaceAll(RegExp(r'\n{3,}'), '\n\n').trim();
@@ -2850,6 +2862,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
       return;
     }
 
+    _dismissKeyboard(forceHide: true);
+
     setState(() {
       if (appendUserBubble) {
         _messages.add(
@@ -2894,6 +2908,16 @@ class _AiChatScreenState extends State<AiChatScreen> {
         _agentStatus = null;
         _isSending = false;
       });
+    }
+  }
+
+  void _dismissKeyboard({bool forceHide = false}) {
+    final currentFocus = FocusManager.instance.primaryFocus;
+    if (currentFocus != null && currentFocus.hasFocus) {
+      currentFocus.unfocus();
+    }
+    if (forceHide) {
+      SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
     }
   }
 
@@ -3492,6 +3516,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
     return ListView.builder(
       controller: _scrollController,
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       itemCount: _messages.length + (_shouldShowThinkingBubble() ? 1 : 0),
       itemBuilder: (context, index) {
@@ -3728,6 +3753,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
     final isBookingReady = !isUser && message.bookingCreated != null;
     final showBookingCreatedVisual = !isUser && message.bookingCreated != null;
     final renderFormOnly = !isUser && effectiveBookingSummary != null;
+    final hideClinicSuggestionsInHistory =
+        !isUser && _hasBookingSummaryInConversation();
     final trace =
         !isUser ? (message.reactTrace ?? const <dynamic>[]) : const <dynamic>[];
 
@@ -3951,6 +3978,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
                             ),
                           ],
                           if (!renderFormOnly &&
+                              !hideClinicSuggestionsInHistory &&
                               message.clinicSuggestions != null &&
                               message.clinicSuggestions!.isNotEmpty) ...[
                             const SizedBox(height: 12),
@@ -3986,9 +4014,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
                               slotGrid: message.slotGrid!,
                               isBusy: _isSending || _isReconnecting,
                               formatBookingDate: _formatBookingDate,
-                              selectedSlotId: _selectedSlotByMessage[message.id],
-                              onSelectSlot: (slot) =>
-                                  _handleSlotSelection(message.slotGrid!, slot, message.id),
+                              selectedSlotId:
+                                  _selectedSlotByMessage[message.id],
+                              onSelectSlot: (slot) => _handleSlotSelection(
+                                  message.slotGrid!, slot, message.id),
                             ),
                           ],
                           if (message.isStreaming) ...[
@@ -4017,7 +4046,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
                               summary: effectiveBookingSummary,
                               isConfirmed:
                                   _confirmedMessageIds.contains(message.id),
-                              isBusy: _isSending || _isReconnecting,
+                              isBusy: _isReconnecting,
                               clinicOptions: _resolveClinicOptionsForMessage(
                                 message,
                                 summary: effectiveBookingSummary,

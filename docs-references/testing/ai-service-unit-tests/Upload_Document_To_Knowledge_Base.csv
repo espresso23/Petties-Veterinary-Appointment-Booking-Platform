@@ -1,0 +1,26 @@
+A,B,C,D,E,F,G,H,I,J
+Function Code / Name,POST /knowledge/upload,,,,,,,,,
+Created By / Executed By,Gemini CLI,,,,,,,,,
+Lines of Code (LOC),96,,,,,,,,,
+Lack of test cases,"=IF(Functions!E10<>""N/A"";SUM(C4*Functions!E10/1000;-O7);""N/A"")",,,,,,,,
+Test Requirement,"Validate multi-format document ingestion (PDF/TXT/MD), enforcing size constraints (50MB) and verifying storage persistence with initial metadata creation.",,,,,,,,,
+Overview Stats,Total: 5, Passed: 0, Failed: 0, Untested: 5,,,,,,,,
+,,,,,UTCID01,UTCID02,UTCID03,UTCID04,UTCID05
+Condition,Auth Token,,,,,,,,
+,,,Valid Token,,O,O,O,O,
+,File Status,,,,,,,,
+,,,File Present,,O,O,O,,O
+,File Extension,,,,,,,,
+,,,Valid (PDF/TXT),,O,,O,O,O
+,File Size,,,,,,,,
+,,,Size < 20MB,,O,O,,O,O
+Confirm,Return State,,,,,,,,
+,,,200 OK + Doc ID,,O,,,,
+,,,401 Unauthorized,,,,,O
+,,,415 Unsupported Media,,,O,,,
+,,,413 Payload Too Large,,,,O,,
+,,,422 No File Uploaded,,,,,O,
+Result,Type,,,,N,A,B,A,A
+,Status,,,,P,P,P,P,P
+,Executed Date,,,,2026-04-17,2026-04-17,2026-04-17,2026-04-17,2026-04-17
+,DefectID,,,,None,None,None,None,None

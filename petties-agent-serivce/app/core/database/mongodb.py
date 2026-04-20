@@ -288,6 +288,22 @@ async def create_mongodb_indexes():
         await feedback_collection.create_index("timestamp")
         logger.success(f"✅ Created indexes for {settings.MONGODB_FEEDBACK_COLLECTION}")
 
+        # ===== audit_logs indexes =====
+        audit_collection = db[settings.MONGODB_AUDIT_LOGS_COLLECTION]
+        await audit_collection.create_index("event_id", unique=True)
+        await audit_collection.create_index([("occurred_at", -1)])
+        await audit_collection.create_index([("actor.user_id", 1), ("occurred_at", -1)])
+        await audit_collection.create_index([("action", 1), ("occurred_at", -1)])
+        await audit_collection.create_index(
+            [("resource.type", 1), ("resource.id", 1), ("occurred_at", -1)]
+        )
+        await audit_collection.create_index([("result.status", 1), ("occurred_at", -1)])
+        await audit_collection.create_index(
+            "expire_at",
+            expireAfterSeconds=0,
+        )
+        logger.success(f"✅ Created indexes for {settings.MONGODB_AUDIT_LOGS_COLLECTION}")
+
         logger.success("✅ All MongoDB indexes created successfully!")
 
     except Exception as e:

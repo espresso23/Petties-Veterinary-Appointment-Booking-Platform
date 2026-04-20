@@ -19,6 +19,7 @@ import {
   WrenchIcon,
   PlayIcon,
   ChartBarSquareIcon,
+  DocumentTextIcon,
   BellIcon,
   UserCircleIcon,
   BanknotesIcon,
@@ -82,6 +83,7 @@ export const AdminLayout = () => {
         { path: '/admin/tools', label: 'TOOLS', icon: WrenchIcon },
         { path: '/admin/playground', label: 'PLAYGROUND', icon: PlayIcon },
         { path: '/admin/ai-insights', label: 'AI INSIGHTS', icon: ChartBarSquareIcon },
+        { path: '/admin/system-logs', label: 'SYSTEM LOGS', icon: DocumentTextIcon },
       ]
     },
     {

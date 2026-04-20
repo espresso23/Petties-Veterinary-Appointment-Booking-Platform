@@ -26,6 +26,7 @@ import re
 import time
 
 from app.config.settings import settings
+from app.core.tool_runtime_context import get_tool_runtime_context
 from app.core.tools.contracts import (
     build_tool_error_response,
     build_tool_success_response,
@@ -160,17 +161,35 @@ async def pet_knowledge_search(
         hybrid = get_hybrid_rag_engine()
         started = time.perf_counter()
 
+        runtime_context = get_tool_runtime_context()
+        runtime_role = str(getattr(runtime_context, "role", "") or "").strip().upper()
+
+        effective_top_k = max(int(top_k or 1), 1)
+        effective_enable_case_memory = bool(enable_case_memory)
+        effective_enable_query_expansion = bool(enable_query_expansion)
+
+        if runtime_role == "PET_OWNER":
+            effective_enable_case_memory = False
+            effective_enable_query_expansion = False
+            effective_top_k = min(effective_top_k, 3)
+            logger.info(
+                "pet_knowledge_search optimized for PET_OWNER: top_k={}, case_memory={}, query_expansion={}",
+                effective_top_k,
+                effective_enable_case_memory,
+                effective_enable_query_expansion,
+            )
+
         # Hybrid query (RAG + KG + Case Memory)
         # NOTE: hybrid.query() đã gọi QueryExpander bên trong,
         #       KHÔNG expand ở đây để tránh duplicate expansion.
         hybrid_result = await hybrid.query(
             query=query,
-            top_k=top_k,
+            top_k=effective_top_k,
             min_score=min_score,
             pet_type=pet_type,
             enable_rag=True,
-            enable_case_memory=enable_case_memory,
-            enable_query_expansion=enable_query_expansion,
+            enable_case_memory=effective_enable_case_memory,
+            enable_query_expansion=effective_enable_query_expansion,
         )
         query_expanded = hybrid_result.expanded_query != hybrid_result.original_query
 
@@ -199,7 +218,7 @@ async def pet_knowledge_search(
 
         logger.info(
             f"pet_knowledge_search: Found {len(formatted_results)} results "
-            f"(expanded={query_expanded}, case_memory={enable_case_memory}) "
+            f"(expanded={query_expanded}, case_memory={effective_enable_case_memory}) "
             f"for query: {query[:50]}... in {int((time.perf_counter() - started) * 1000)}ms"
         )
 
@@ -224,9 +243,9 @@ async def pet_knowledge_search(
                 },
                 "retrieval_profile": {
                     "enable_rag": True,
-                    "enable_case_memory": enable_case_memory,
-                    "enable_query_expansion": enable_query_expansion,
-                    "top_k": top_k,
+                    "enable_case_memory": effective_enable_case_memory,
+                    "enable_query_expansion": effective_enable_query_expansion,
+                    "top_k": effective_top_k,
                     "min_score": min_score,
                 },
                 "sources_used": hybrid_result.sources_used,

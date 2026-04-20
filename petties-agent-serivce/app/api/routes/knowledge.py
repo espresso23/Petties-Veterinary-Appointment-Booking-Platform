@@ -1082,3 +1082,187 @@ async def sync_emr_confirmed_into_case_memory(
         status_code=410,
         detail="Endpoint này đã ngưng sử dụng. Spring Boot sẽ push trực tiếp EMR sang AI service.",
     )
+
+
+# ===== DISEASE CATALOG MONITORING APIs (NEW) =====
+
+
+@router.get(
+    "/disease-catalog/stats",
+    summary="[DC-01] Disease Catalog Statistics",
+    description="Thống kê disease catalog: tổng số bệnh, aliases, learning progress.",
+)
+async def get_disease_catalog_stats(
+    _: dict = Depends(get_admin_user),
+):
+    """Get disease catalog statistics for admin monitoring."""
+    try:
+        from app.core.services.disease_mapping_service import (
+            get_disease_mapping_service,
+        )
+        from app.core.services.disease_taxonomy_service import (
+            get_disease_taxonomy_service,
+        )
+
+        mapper = get_disease_mapping_service()
+        taxonomy = get_disease_taxonomy_service()
+
+        # Get DB-backed catalog stats
+        await mapper.refresh_from_db(force=True)
+
+        catalog_count = len(mapper._catalog)
+        alias_count = len(mapper._aliases)
+        taxonomy_stats_data = taxonomy.get_taxonomy_stats()
+
+        return {
+            "success": True,
+            "catalog": {
+                "total_diseases": catalog_count,
+                "total_aliases": alias_count,
+            },
+            "taxonomy": taxonomy_stats_data,
+        }
+    except Exception as e:
+        logger.error(f"Error getting disease catalog stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/disease-catalog",
+    summary="[DC-02] Disease Catalog List",
+    description="Danh sách diseases với filters (species, system).",
+)
+async def list_disease_catalog(
+    species: Optional[str] = Query(
+        default=None, description="Lọc theo loài (dog, cat)"
+    ),
+    system: Optional[str] = Query(default=None, description="Lọc theo hệ cơ quan"),
+    page: int = Query(default=1, ge=1, description="Số trang"),
+    page_size: int = Query(default=50, ge=1, le=200, description="Số items mỗi trang"),
+    _: dict = Depends(get_admin_user),
+):
+    """List diseases with pagination and filters."""
+    try:
+        from app.core.services.disease_mapping_service import (
+            get_disease_mapping_service,
+        )
+        from app.core.services.disease_taxonomy_service import (
+            get_disease_taxonomy_service,
+        )
+
+        mapper = get_disease_mapping_service()
+        taxonomy = get_disease_taxonomy_service()
+
+        await mapper.refresh_from_db(force=True)
+
+        # Build runtime (self-learning) disease list from DB catalog + aliases.
+        species_filter = (species or "").strip().lower()
+        system_filter = (system or "").strip()
+
+        alias_map: Dict[str, List[str]] = {}
+        for alias_entry in mapper._alias_entries:
+            alias_map.setdefault(alias_entry.canonical_code, []).append(
+                alias_entry.alias_text
+            )
+
+        taxonomy_index: Dict[str, Dict[str, str]] = {}
+        for item in taxonomy.list_diseases():
+            taxonomy_index[item.canonical_code] = {
+                "system": item.system,
+                "subsystem": item.subsystem,
+            }
+
+        all_diseases: List[Dict[str, Any]] = []
+        for code, catalog_entry in mapper._catalog.items():
+            entry_species = (catalog_entry.species or "all").strip().lower()
+            species_list = ["dog", "cat"] if entry_species == "all" else [entry_species]
+
+            if species_filter and species_filter not in species_list:
+                continue
+
+            taxonomy_info = taxonomy_index.get(code, {})
+            system_name = taxonomy_info.get("system", "Khác")
+            subsystem_name = taxonomy_info.get("subsystem", "Không phân loại")
+
+            if system_filter and system_name != system_filter:
+                continue
+
+            aliases = alias_map.get(code, [])
+            dedup_aliases = sorted({a.strip() for a in aliases if str(a or "").strip()})
+
+            all_diseases.append(
+                {
+                    "canonical_code": code,
+                    "display_name_vi": catalog_entry.display_name_vi,
+                    "system": system_name,
+                    "subsystem": subsystem_name,
+                    "aliases": dedup_aliases,
+                    "species": species_list,
+                }
+            )
+
+        all_diseases.sort(key=lambda item: item["display_name_vi"].lower())
+
+        # Pagination
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        paginated_diseases = all_diseases[start_idx:end_idx]
+
+        return {
+            "success": True,
+            "items": paginated_diseases,
+            "total": len(all_diseases),
+            "page": page,
+            "page_size": page_size,
+        }
+    except Exception as e:
+        logger.error(f"Error listing disease catalog: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/learning-metrics",
+    summary="[DC-03] Learning Metrics",
+    description="Metrics về self-learning: mapped rate, catalog growth.",
+)
+async def get_learning_metrics(
+    _: dict = Depends(get_admin_user),
+):
+    """Get learning metrics for admin monitoring."""
+    try:
+        from app.core.services.disease_mapping_service import (
+            get_disease_mapping_service,
+        )
+        from app.core.services.disease_taxonomy_service import (
+            get_disease_taxonomy_service,
+        )
+        from app.core.rag.case_memory import get_case_memory_service
+
+        mapper = get_disease_mapping_service()
+        taxonomy = get_disease_taxonomy_service()
+        case_memory = get_case_memory_service()
+
+        await mapper.refresh_from_db(force=True)
+
+        # Get case memory stats
+        cm_stats = await case_memory.get_stats()
+
+        # Get taxonomy stats
+        taxonomy_stats = taxonomy.get_taxonomy_stats()
+
+        return {
+            "success": True,
+            "catalog": {
+                "total_diseases": len(mapper._catalog),
+                "total_aliases": len(mapper._aliases),
+            },
+            "taxonomy": taxonomy_stats,
+            "case_memory": {
+                "total_cases": cm_stats.get("points_count", 0),
+                "collection_name": cm_stats.get("collection", ""),
+            },
+            "learning_status": "active" if len(mapper._catalog) > 4 else "initializing",
+        }
+    except Exception as e:
+        logger.error(f"Error getting learning metrics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

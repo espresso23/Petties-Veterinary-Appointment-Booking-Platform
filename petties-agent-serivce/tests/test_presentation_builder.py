@@ -95,6 +95,7 @@ def test_build_ui_schema_single_clinic():
             "tool_name": "search_clinics_nearby",
             "success": True,
             "data": {
+                "clinic_suggestion_mode": "discovery",
                 "clinics": [
                     {
                         "id": "c1",
@@ -120,6 +121,29 @@ def test_build_ui_schema_single_clinic():
     assert comp.actions[0].type == ActionType.SELECT_ITEM
     assert comp.actions[0].payload["item_id"] == "c1"
     assert comp.actions[0].payload["item_type"] == "clinic"
+
+
+def test_build_ui_schema_search_clinic_booking_mode_hides_clinic_cards():
+    tool_results = [
+        {
+            "tool_name": "search_clinics_nearby",
+            "success": True,
+            "data": {
+                "clinic_suggestion_mode": "booking",
+                "clinics": [
+                    {
+                        "id": "c1",
+                        "name": "Petties Clinic A",
+                        "address": "123 District 1",
+                    }
+                ],
+            },
+        }
+    ]
+
+    schema = build_ui_schema(tool_results)
+
+    assert schema is None
 
 
 def test_build_ui_schema_clinic_card_uses_clinic_id_fallback_for_actions():
@@ -196,7 +220,7 @@ def test_build_ui_schema_service_group_supports_multi_select():
             "tool_name": "get_clinic_services",
             "success": True,
             "data": {
-                "clinic_id": "clinic-1",
+                "resolved_clinic_id": "clinic-1",
                 "services": [
                     {"id": "svc-1", "name": "Khám tổng quát cho chó"},
                     {"id": "svc-2", "name": "Tiêm phòng"},
@@ -362,6 +386,33 @@ def test_build_ui_schema_service_group_includes_resolved_clinic_name_from_db():
     assert service_chip.data["clinic_id"] == "clinic-petcare-1"
     assert service_chip.data["clinic_name"] == "Phòng khám thú y Petcare"
     assert service_chip.actions[0].payload["clinic_name"] == "Phòng khám thú y Petcare"
+
+
+def test_build_ui_schema_service_group_does_not_use_hint_clinic_id_as_truth():
+    tool_results = [
+        {
+            "tool_name": "get_clinic_services",
+            "success": True,
+            "data": {
+                "clinic_id": "petcare",
+                "services": [
+                    {"id": "svc-1", "name": "Tắm chó"},
+                ],
+            },
+        }
+    ]
+
+    schema = build_ui_schema(tool_results)
+
+    assert schema is not None
+    service_chip = next(
+        component
+        for component in schema.components
+        if component.type == ComponentType.SERVICE_CHIP
+    )
+    assert service_chip.data["clinic_id"] != "petcare"
+    assert service_chip.actions is not None
+    assert service_chip.actions[0].payload["clinic_id"] != "petcare"
 
 
 def test_build_ui_schema_unwraps_read_resource_to_booking_service_intent():
@@ -588,6 +639,127 @@ def test_build_ui_schema_skips_redundant_clinic_list_when_service_already_resolv
     component_types = [component.type for component in schema.components]
     assert ComponentType.CLINIC_CARD not in component_types
     assert ComponentType.SERVICE_CHIP in component_types
+
+
+def test_build_ui_schema_search_clinic_auto_matched_does_not_render_manual_clinic_card():
+    tool_results = [
+        {
+            "tool_name": "search_clinics_nearby",
+            "success": True,
+            "data": {
+                "clinics": [
+                    {
+                        "clinicId": "clinic-1",
+                        "clinicName": "Petties Clinic",
+                        "address": "Q1",
+                    }
+                ],
+                "matched_clinic": {
+                    "clinicId": "clinic-1",
+                    "clinicName": "Petties Clinic",
+                    "address": "Q1",
+                },
+                "target_clinic_id": "clinic-1",
+                "needs_clarification": False,
+            },
+        },
+        {
+            "tool_name": "get_clinic_services",
+            "success": True,
+            "data": {
+                "resolved_clinic_id": "clinic-1",
+                "services": [{"id": "svc-1", "name": "Khám tổng quát"}],
+                "total_services": 1,
+            },
+        },
+    ]
+
+    schema = build_ui_schema(tool_results)
+
+    assert schema is not None
+    component_types = [component.type for component in schema.components]
+    assert ComponentType.CLINIC_CARD not in component_types
+    assert ComponentType.SERVICE_CHIP in component_types
+
+
+def test_build_ui_schema_does_not_pick_first_clinic_when_backend_not_resolved():
+    tool_results = [
+        {
+            "tool_name": "search_clinics_nearby",
+            "success": True,
+            "data": {
+                "clinics": [
+                    {
+                        "clinicId": "clinic-1",
+                        "clinicName": "Petties Clinic A",
+                        "address": "Q1",
+                    },
+                    {
+                        "clinicId": "clinic-2",
+                        "clinicName": "Petties Clinic B",
+                        "address": "Q2",
+                    },
+                ],
+                "needs_clarification": True,
+            },
+        },
+        {
+            "tool_name": "get_clinic_services",
+            "success": True,
+            "data": {
+                "resolved_service_ids": ["svc-1"],
+                "resolved_service_names": ["Khám tổng quát"],
+                "services": [{"id": "svc-1", "name": "Khám tổng quát"}],
+            },
+        },
+        {
+            "tool_name": "check_available_slots",
+            "success": True,
+            "data": {
+                "resolved_service_ids": ["svc-1"],
+                "resolved_service_names": ["Khám tổng quát"],
+                "date": "2026-04-19",
+                "start_time": "09:00",
+                "available_slots": [{"start_time": "09:00"}],
+            },
+        },
+    ]
+
+    schema = build_ui_schema(tool_results)
+
+    assert schema is not None
+    component_types = [component.type for component in schema.components]
+    assert ComponentType.BOOKING_SUMMARY not in component_types
+
+
+def test_build_ui_schema_clinic_card_normalizes_clinic_name_field():
+    tool_results = [
+        {
+            "tool_name": "search_clinics_nearby",
+            "success": True,
+            "data": {
+                "clinic_suggestion_mode": "discovery",
+                "clinics": [
+                    {
+                        "clinicId": "clinic-legacy-1",
+                        "clinicName": "Petties Clinic Legacy",
+                        "address": "123 District 1",
+                    }
+                ],
+                "needs_clarification": True,
+            },
+        }
+    ]
+
+    schema = build_ui_schema(tool_results)
+
+    assert schema is not None
+    assert len(schema.components) == 1
+    comp = schema.components[0]
+    assert comp.type == ComponentType.CLINIC_CARD
+    assert comp.data["name"] == "Petties Clinic Legacy"
+    assert comp.actions is not None
+    assert comp.actions[0].payload["clinic_name"] == "Petties Clinic Legacy"
 
 
 def test_booking_preview_maps_to_native_confirm_not_chat_confirm():

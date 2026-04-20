@@ -66,8 +66,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
             );
 
         registry.addInterceptor(loggingInterceptor)
-                .addPathPatterns("/api/**")
+            .addPathPatterns("/**")
                 .excludePathPatterns(
+                "/actuator/**",
                         "/api/actuator/**",
                         "/health",
                         "/favicon.ico"

@@ -1,0 +1,26 @@
+A,B,C,D,E,F,G,H,I,J
+Function Code / Name,PUT /agents/{agent_id},,,,,,,,,
+Created By / Executed By,Gemini CLI,,,,,,,,,
+Lines of Code (LOC),64,,,,,,,,,
+Lack of test cases,"=IF(Functions!E7<>""N/A"";SUM(C4*Functions!E7/1000;-O7);""N/A"")",,,,,,,,
+Test Requirement,"Verify atomic updates of LLM parameters (model, temperature, max_tokens) and ensure global agent cache invalidation after configuration changes.",,,,,,,,,
+Overview Stats,Total: 5, Passed: 0, Failed: 0, Untested: 5,,,,,,,,
+,,,,,UTCID01,UTCID02,UTCID03,UTCID04,UTCID05
+Condition,Auth Token,,,,,,,,
+,,,Admin Auth Token,,O,O,O,O,
+,Agent Status,,,,,,,,
+,,,Agent Exists,,O,,O,O,O
+,Payload,,,,,,,,
+,,,Valid Config,,O,O,,O,O
+,Prompt Length,,,,,,,,
+,,,Length OK,,O,O,O,,O
+Confirm,Return State,,,,,,,,
+,,,200 OK + Updated Agent,,O,,,,
+,,,401/403 Forbidden,,,,,O
+,,,404 Agent Not Found,,,O,,,
+,,,422 Invalid Payload,,,,O,,
+,,,400 Prompt Too Long,,,,,O,
+Result,Type,,,,N,A,A,B,A
+,Status,,,,P,P,P,P,P
+,Executed Date,,,,2026-04-17,2026-04-17,2026-04-17,2026-04-17,2026-04-17
+,DefectID,,,,None,None,None,None,None
