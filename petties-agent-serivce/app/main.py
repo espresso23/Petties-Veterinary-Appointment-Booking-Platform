@@ -8,11 +8,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from app.config.logging_config import get_logger, setup_logging
 from app.config.settings import settings
 from app.middleware.logging_middleware import LoggingMiddleware
+from app.monitoring.metrics import CONTENT_TYPE_LATEST, render_prometheus_metrics
 
 
 setup_logging(
@@ -163,6 +164,13 @@ async def health_check():
         health_status["status"] = "degraded"
 
     return JSONResponse(status_code=200, content=health_status)
+
+
+@app.get("/metrics", tags=["Monitoring"], include_in_schema=False)
+async def metrics_endpoint():
+    if not settings.ENABLE_PROMETHEUS:
+        return Response(status_code=404)
+    return Response(content=render_prometheus_metrics(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/", tags=["Root"])

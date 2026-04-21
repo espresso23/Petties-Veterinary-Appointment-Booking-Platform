@@ -430,11 +430,23 @@ export interface AuditLogListResponse {
 export interface BackendSystemAuditLogListResponse {
     source: string
     service: string
+    backend_service?: string
+    scope?: string
     total: number
     page: number
     page_size: number
     items: AuditLogItem[]
     fetchedAt: string
+}
+
+export interface BackendSystemAuditLogDeleteResponse {
+    scope: string
+    requested_count?: number
+    deleted_count: number
+    from_time?: string
+    to_time?: string
+    message: string
+    deletedAt?: string
 }
 
 export interface StaffDiagnosisResponse {
@@ -942,6 +954,7 @@ export const backendSystemLogApi = {
         action?: string
         userId?: string
         requestId?: string
+        source?: 'ALL' | 'BACKEND' | 'AI'
     } = {}): Promise<BackendSystemAuditLogListResponse> {
         const queryParams = new URLSearchParams()
         queryParams.set('page', String(params.page || 1))
@@ -950,10 +963,44 @@ export const backendSystemLogApi = {
         if (params.action) queryParams.set('action', params.action)
         if (params.userId) queryParams.set('userId', params.userId)
         if (params.requestId) queryParams.set('requestId', params.requestId)
+        if (params.source) queryParams.set('source', params.source)
         const response = await fetchBackendWithAuth(`/admin/system-logs/backend?${queryParams.toString()}`)
         if (!response.ok) {
             const err = await response.json().catch(() => null)
             throw new Error(err?.message || err?.detail || 'Khong the lay backend logs')
+        }
+        return response.json()
+    },
+
+    async bulkDeleteAuditLogs(
+        eventIds: string[],
+        source: 'ALL' | 'BACKEND' | 'AI' = 'ALL',
+    ): Promise<BackendSystemAuditLogDeleteResponse> {
+        const response = await fetchBackendWithAuth('/admin/system-logs/backend/bulk', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ eventIds, source }),
+        })
+        if (!response.ok) {
+            const err = await response.json().catch(() => null)
+            throw new Error(err?.message || err?.detail || 'Khong the xoa audit logs')
+        }
+        return response.json()
+    },
+
+    async deleteAuditLogsByTimeRange(
+        fromTime: string,
+        toTime: string,
+        source: 'ALL' | 'BACKEND' | 'AI' = 'ALL',
+    ): Promise<BackendSystemAuditLogDeleteResponse> {
+        const response = await fetchBackendWithAuth('/admin/system-logs/backend/time-range', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fromTime, toTime, source }),
+        })
+        if (!response.ok) {
+            const err = await response.json().catch(() => null)
+            throw new Error(err?.message || err?.detail || 'Khong the xoa audit logs theo khoang thoi gian')
         }
         return response.json()
     },

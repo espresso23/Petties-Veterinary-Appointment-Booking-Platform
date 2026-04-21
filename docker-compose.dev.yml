@@ -201,6 +201,46 @@ services:
       - "host.docker.internal:host-gateway"
 
   # ============================================
+  # OBSERVABILITY STACK (Prometheus + Grafana)
+  # ============================================
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: petties-dev-prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./monitoring/prometheus/prometheus.dev.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_dev_data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - backend
+      - ai-service
+    networks:
+      - petties-dev-network
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: petties-dev-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin123}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_dev_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - petties-dev-network
+
+  # ============================================
   # NGINX REVERSE PROXY (for ngrok)
   # ============================================
   # Dùng để gộp Backend (8080) và AI Service (8000) 
@@ -260,4 +300,8 @@ volumes:
   ai_uploads_dev_data:
     driver: local
   label_studio_data:
+    driver: local
+  prometheus_dev_data:
+    driver: local
+  grafana_dev_data:
     driver: local

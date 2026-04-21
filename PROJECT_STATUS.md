@@ -1,8 +1,39 @@
 # 🐾 PETTIES Project Status
 
-> **Last Updated:** 2026-04-16
+> **Last Updated:** 2026-04-20
 > **Current Sprint:** Post Sprint 13 - Production Hardening & AI Enhancement
 > **Overall Progress:** ~95% (code-based scan)
+
+---
+
+### Metrics-based Monitoring Stack (Code-based Evidence - 2026-04-20)
+
+**Scope:** Upgrade observability from log-derived monitoring to metrics-based monitoring using Prometheus + Grafana.
+
+**Implemented changes:**
+- Backend Spring Boot metrics:
+  - Added Prometheus registry dependency in `backend-spring/petties/pom.xml`.
+  - Enabled `/api/actuator/prometheus` in `application.properties` and `application-prod.properties`.
+  - Added HTTP histogram/SLO metric settings for latency analysis.
+- AI Service metrics:
+  - Added Prometheus instrumentation module:
+    - `petties-agent-serivce/app/monitoring/metrics.py`
+  - Added in-flight, request count, error count, duration metrics via middleware:
+    - `petties-agent-serivce/app/middleware/logging_middleware.py`
+  - Exposed `/metrics` endpoint in:
+    - `petties-agent-serivce/app/main.py`
+- Monitoring infrastructure:
+  - Added Prometheus + Grafana services in `docker-compose.dev.yml`.
+  - Added optional `monitoring` profile for `docker-compose.prod.yml`.
+  - Added monitoring configs and Grafana provisioning:
+    - `monitoring/prometheus/prometheus.dev.yml`
+    - `monitoring/prometheus/prometheus.prod.yml`
+    - `monitoring/grafana/provisioning/datasources/prometheus.yml`
+    - `monitoring/grafana/provisioning/dashboards/dashboards.yml`
+    - `monitoring/grafana/provisioning/dashboards/json/petties-observability.json`
+- Operations documentation:
+  - Added setup/runbook:
+    - `docs-references/operations/PROMETHEUS_GRAFANA_MONITORING_SETUP.md`
 
 ---
 
