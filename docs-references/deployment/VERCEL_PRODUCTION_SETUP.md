@@ -1,5 +1,7 @@
 ﻿# Vercel Production Environment Variables Setup
 
+Last Updated: 2026-04-21
+
 ## Tổng quan
 
 Hướng dẫn cấu hình Environment Variables trên Vercel cho Production environment của frontend `petties-web`.
@@ -18,9 +20,9 @@ Thêm các biến sau và **chọn Production environment**:
 
 | Key | Value | Environment | Mô tả |
 |-----|-------|-------------|-------|
-| `VITE_API_BASE_URL` | `https://api.petties.world/api` | **Production** | Backend API base URL |
-| `VITE_WS_URL` | `wss://api.petties.world/ws` | **Production** | Backend WebSocket URL |
-| `VITE_AGENT_SERVICE_URL` | `https://api.petties.world/ai` | **Production** | AI Service HTTP URL (unified proxy path, WebSocket tự động convert sang `wss://api.petties.world/ws/chat/{sessionId}`) |
+| `VITE_API_BASE_URL` | `https://petties.world/api` | **Production** | Backend API base URL |
+| `VITE_WS_URL` | `wss://petties.world/ws` | **Production** | Backend WebSocket URL |
+| `VITE_AGENT_SERVICE_URL` | `https://petties.world/ai` | **Production** | AI Service HTTP URL (unified proxy path, WebSocket tự động convert sang `wss://petties.world/ws/chat/{sessionId}`) |
 
 ### Các biến tùy chọn (nếu cần):
 
@@ -34,7 +36,7 @@ Thêm các biến sau và **chọn Production environment**:
 
 1. Click **Add New** button
 2. Nhập **Key**: `VITE_API_BASE_URL`
-3. Nhập **Value**: `https://api.petties.world/api`
+3. Nhập **Value**: `https://petties.world/api`
 4. **Quan trọng**: Chọn **Production** trong dropdown "Environment"
 5. Click **Save**
 6. Lặp lại cho các biến còn lại
@@ -70,9 +72,9 @@ Sau khi deploy xong:
 🔧 Environment Config: {
   environment: "production",
   hostname: "www.petties.world",
-  API_BASE_URL: "https://api.petties.world/api",
-  WS_URL: "wss://api.petties.world/ws",
-  AGENT_SERVICE_URL: "https://api.petties.world/ai"
+   API_BASE_URL: "https://petties.world/api",
+   WS_URL: "wss://petties.world/ws",
+   AGENT_SERVICE_URL: "https://petties.world/ai"
 }
 ```
 
@@ -82,7 +84,7 @@ Sau khi deploy xong:
 
 5. Test AI Service WebSocket:
    - Mở chat với AI agent
-   - Trong Console, bạn sẽ thấy: `🔌 WebSocket URL: wss://ai.petties.world/ws/chat/{sessionId}`
+   - Trong Console, bạn sẽ thấy: `🔌 WebSocket URL: wss://petties.world/ws/chat/{sessionId}`
    - Kiểm tra WebSocket connection trong Network tab → WS
 
 ## Troubleshooting
@@ -101,8 +103,8 @@ Sau khi deploy xong:
 **Nguyên nhân**: Backend chưa chạy hoặc URL sai
 
 **Giải pháp**:
-1. Kiểm tra backend có đang chạy: `curl https://api.petties.world/api/actuator/health`
-2. Kiểm tra AI service: `curl https://api.petties.world/ai/health`
+1. Kiểm tra backend có đang chạy: `curl https://petties.world/api/actuator/health`
+2. Kiểm tra AI service: `curl https://petties.world/ai/health`
 3. Kiểm tra Environment Variables trên Vercel
 
 ### Lỗi: WebSocket không kết nối được
@@ -110,48 +112,48 @@ Sau khi deploy xong:
 **Có 2 loại WebSocket:**
 
 #### 1. Backend WebSocket (`WS_URL`)
-- **URL**: `wss://api.petties.world/ws`
+- **URL**: `wss://petties.world/ws`
 - **Config**: `VITE_WS_URL` trên Vercel
 - **Dùng cho**: Backend real-time features (nếu có)
 
 #### 2. AI Service WebSocket (tự động từ `AGENT_SERVICE_URL`)
-- **URL**: `wss://api.petties.world/ws/chat/{sessionId}`
+- **URL**: `wss://petties.world/ws/chat/{sessionId}`
 - **Config**: Tự động convert từ `VITE_AGENT_SERVICE_URL`
 - **Dùng cho**: Chat với AI agents
 - **Code**: `agentService.ts` → `createChatWebSocket()` tự động convert `https://` → `wss://`
 
 **Giải pháp:**
 1. **Backend WebSocket**:
-   - Kiểm tra `VITE_WS_URL` = `wss://api.petties.world/ws` (phải là `wss://` không phải `ws://`)
-   - Kiểm tra Nginx config có WebSocket support cho `/ws` trên `api.petties.world`
-   - Test: `wscat -c wss://api.petties.world/ws`
+   - Kiểm tra `VITE_WS_URL` = `wss://petties.world/ws` (phải là `wss://` không phải `ws://`)
+   - Kiểm tra Nginx config có WebSocket support cho `/ws` trên `petties.world`
+   - Test: `wscat -c wss://petties.world/ws`
 
 2. **AI Service WebSocket**:
-   - Kiểm tra `VITE_AGENT_SERVICE_URL` = `https://api.petties.world/ai` (unified proxy path)
-   - Kiểm tra Nginx config có WebSocket support cho `/ws/chat/*` trên `api.petties.world`
-   - Code tự động convert: `https://api.petties.world/ai` → `wss://api.petties.world/ws/chat/{sessionId}`
-   - Test: `wscat -c wss://api.petties.world/ws/chat/test`
-   - Hoặc check browser console khi chat: `🔌 WebSocket URL: wss://api.petties.world/ws/chat/{sessionId}`
+   - Kiểm tra `VITE_AGENT_SERVICE_URL` = `https://petties.world/ai` (unified proxy path)
+   - Kiểm tra Nginx config có WebSocket support cho `/ws/chat/*` trên `petties.world`
+   - Code tự động convert: `https://petties.world/ai` → `wss://petties.world/ws/chat/{sessionId}`
+   - Test: `wscat -c wss://petties.world/ws/chat/test`
+   - Hoặc check browser console khi chat: `🔌 WebSocket URL: wss://petties.world/ws/chat/{sessionId}`
 
 ## Tóm tắt cấu hình
 
 ### Production Environment Variables:
 
 ```bash
-VITE_API_BASE_URL=https://api.petties.world/api
-VITE_WS_URL=wss://api.petties.world/ws
-VITE_AGENT_SERVICE_URL=https://api.petties.world/ai
+VITE_API_BASE_URL=https://petties.world/api
+VITE_WS_URL=wss://petties.world/ws
+VITE_AGENT_SERVICE_URL=https://petties.world/ai
 VITE_APP_NAME=Petties
 VITE_APP_ENV=production
 VITE_DEBUG=false
 ```
 
 **Lưu ý về WebSocket:**
-- **Backend WebSocket**: Dùng `VITE_WS_URL` → `wss://api.petties.world/ws`
-- **AI Service WebSocket**: Tự động convert từ `VITE_AGENT_SERVICE_URL` → `wss://api.petties.world/ws/chat/{sessionId}`
+- **Backend WebSocket**: Dùng `VITE_WS_URL` → `wss://petties.world/ws`
+- **AI Service WebSocket**: Tự động convert từ `VITE_AGENT_SERVICE_URL` → `wss://petties.world/ws/chat/{sessionId}`
   - Không cần biến riêng cho AI Service WS
   - Code tự động convert `https://` → `wss://` trong `createChatWebSocket()`
-  - URL unified: Tất cả AI routes qua `/ai/*` và `/ws/chat/*` trên cùng domain `api.petties.world`
+   - URL unified: Tất cả AI routes qua `/ai/*` và `/ws/chat/*` trên cùng domain `petties.world`
 
 ### Local Development (`.env.local`):
 

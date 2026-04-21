@@ -2,7 +2,6 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 import { StaffBookingsPage } from './StaffBookingsPage'
 import * as bookingService from '../../services/bookingService'
-import * as serviceEndpoints from '../../services/endpoints/service'
 import { useAuthStore } from '../../store/authStore'
 import type { Booking } from '../../types/booking'
 
@@ -42,12 +41,8 @@ vi.mock('../../services/bookingService', () => ({
     getBookingById: vi.fn(),
     checkInBooking: vi.fn(),
     addServiceToBooking: vi.fn(),
-    removeServiceFromBooking: vi.fn()
-}))
-
-// Mock service endpoints (used by AddServiceModal)
-vi.mock('../../services/endpoints/service', () => ({
-    getCompatibleServices: vi.fn()
+    removeServiceFromBooking: vi.fn(),
+    getAvailableServicesForAddOn: vi.fn()
 }))
 
 describe('StaffBookingsPage - Add Service Feature', () => {
@@ -92,7 +87,7 @@ describe('StaffBookingsPage - Add Service Feature', () => {
         ...overrides
     })
 
-    const mockCompatibleServices = [
+    const mockAvailableAddOnServices = [
         {
             serviceId: 'svc-001',
             name: 'Cắt móng',
@@ -361,7 +356,7 @@ describe('StaffBookingsPage - Add Service Feature', () => {
             })
 
             vi.mocked(bookingService.getBookingById).mockResolvedValue(inProgressBooking)
-            vi.mocked(serviceEndpoints.getCompatibleServices).mockResolvedValue(mockCompatibleServices)
+            vi.mocked(bookingService.getAvailableServicesForAddOn).mockResolvedValue(mockAvailableAddOnServices)
 
             render(<StaffBookingsPage />)
 
@@ -400,7 +395,7 @@ describe('StaffBookingsPage - Add Service Feature', () => {
             })
 
             vi.mocked(bookingService.getBookingById).mockResolvedValue(inProgressBooking)
-            vi.mocked(serviceEndpoints.getCompatibleServices).mockResolvedValue([])
+            vi.mocked(bookingService.getAvailableServicesForAddOn).mockResolvedValue([])
 
             render(<StaffBookingsPage />)
 
@@ -419,7 +414,7 @@ describe('StaffBookingsPage - Add Service Feature', () => {
             fireEvent.click(screen.getAllByRole('button', { name: /thêm dịch vụ phát sinh/i })[0])
 
             await waitFor(() => {
-                expect(screen.getByText(/Không có dịch vụ phù hợp/i)).toBeInTheDocument()
+                expect(screen.getByText(/Không còn dịch vụ phát sinh khả dụng/i)).toBeInTheDocument()
             })
         })
 
@@ -435,7 +430,7 @@ describe('StaffBookingsPage - Add Service Feature', () => {
             })
 
             vi.mocked(bookingService.getBookingById).mockResolvedValue(inProgressBooking)
-            vi.mocked(serviceEndpoints.getCompatibleServices).mockResolvedValue(mockCompatibleServices)
+            vi.mocked(bookingService.getAvailableServicesForAddOn).mockResolvedValue(mockAvailableAddOnServices)
 
             render(<StaffBookingsPage />)
 
@@ -487,7 +482,7 @@ describe('StaffBookingsPage - Add Service Feature', () => {
             })
 
             vi.mocked(bookingService.getBookingById).mockResolvedValue(inProgressBooking)
-            vi.mocked(serviceEndpoints.getCompatibleServices).mockResolvedValue(mockCompatibleServices)
+            vi.mocked(bookingService.getAvailableServicesForAddOn).mockResolvedValue(mockAvailableAddOnServices)
             vi.mocked(bookingService.addServiceToBooking).mockResolvedValue(updatedBooking as Booking)
 
             render(<StaffBookingsPage />)
