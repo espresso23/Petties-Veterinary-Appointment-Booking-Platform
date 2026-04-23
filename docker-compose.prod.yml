@@ -95,8 +95,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:-}
       SECRET_KEY: ${JWT_SECRET:-}
       SPRING_BACKEND_URL: http://backend:8080
-      QDRANT_COLLECTION_NAME: ${QDRANT_COLLECTION_NAME:-petties_knowledge_base}
-      # Qdrant Cloud (Vector Database for RAG) - CRITICAL
+      QDRANT_COLLECTION_NAME: ${QDRANT_COLLECTION_NAME:-petties_knowledge_base_prod}
+      CASE_MEMORY_COLLECTION: ${CASE_MEMORY_COLLECTION:-petties_case_memory_v2_prod}
       QDRANT_URL: ${QDRANT_URL:-}
       QDRANT_API_KEY: ${QDRANT_API_KEY:-}
       LLM_PROVIDER: ${LLM_PROVIDER:-openrouter}

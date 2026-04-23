@@ -75,6 +75,7 @@ export interface UploadDocumentResult {
 export interface ProcessDocumentResult {
     success: boolean
     chunks_created: number
+    status: string
 }
 
 export interface KnowledgeStatusResult {
@@ -100,6 +101,7 @@ export interface Document {
     file_type?: string
     file_size?: number
     processed: boolean
+    status: string
     vector_count: number
     image_count?: number
     uploaded_at?: string

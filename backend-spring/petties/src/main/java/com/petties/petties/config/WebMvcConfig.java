@@ -24,13 +24,16 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     private final LoggingInterceptor loggingInterceptor;
     private final SandboxWriteGuardInterceptor sandboxWriteGuardInterceptor;
+    private final ApiRateLimitInterceptor apiRateLimitInterceptor;
 
     public WebMvcConfig(
             LoggingInterceptor loggingInterceptor,
-            SandboxWriteGuardInterceptor sandboxWriteGuardInterceptor
+            SandboxWriteGuardInterceptor sandboxWriteGuardInterceptor,
+            ApiRateLimitInterceptor apiRateLimitInterceptor
     ) {
         this.loggingInterceptor = loggingInterceptor;
         this.sandboxWriteGuardInterceptor = sandboxWriteGuardInterceptor;
+        this.apiRateLimitInterceptor = apiRateLimitInterceptor;
     }
 
     @Override
@@ -57,6 +60,21 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(apiRateLimitInterceptor)
+            .addPathPatterns("/**")
+            .excludePathPatterns(
+                "/actuator/**",
+                "/api/actuator/**",
+                "/health",
+                "/favicon.ico",
+                "/ws/**",
+                "/ws-native/**",
+                "/sse/**",
+                "/v3/api-docs/**",
+                "/swagger-ui/**",
+                "/swagger-ui.html"
+            );
+
         registry.addInterceptor(sandboxWriteGuardInterceptor)
             .addPathPatterns("/api/**")
             .excludePathPatterns(

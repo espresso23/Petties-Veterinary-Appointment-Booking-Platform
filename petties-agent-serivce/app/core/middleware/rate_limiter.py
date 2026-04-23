@@ -359,6 +359,15 @@ class RateLimitMiddleware:
 
     async def __call__(self, request, call_next):
         """Middleware handler."""
+        path = request.url.path if hasattr(request, "url") else ""
+        if request.method in ("OPTIONS", "HEAD"):
+            return await call_next(request)
+
+        if path in ("/", "/health", "/metrics") or path.startswith(
+            ("/docs", "/redoc", "/openapi")
+        ):
+            return await call_next(request)
+
         user_id = self.identifier_func(request)
         session_id = getattr(request, "session_id", user_id)
 
@@ -401,7 +410,15 @@ def get_rate_limiter() -> RateLimiter:
     """Get singleton rate limiter instance."""
     global _rate_limiter
     if _rate_limiter is None:
-        _rate_limiter = RateLimiter()
+        from app.config.settings import settings
+
+        _rate_limiter = RateLimiter(
+            requests_per_minute=settings.RATE_LIMIT_REQUESTS_PER_MINUTE,
+            burst_per_minute=settings.RATE_LIMIT_BURST_PER_MINUTE,
+            session_requests_per_hour=settings.RATE_LIMIT_SESSION_REQUESTS_PER_HOUR,
+        )
+        if not settings.RATE_LIMIT_ENABLED:
+            _rate_limiter.disable()
     return _rate_limiter
 
 

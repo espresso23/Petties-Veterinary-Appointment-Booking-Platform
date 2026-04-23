@@ -45,7 +45,7 @@ export const QrPaymentPanel = ({
             && normalizedPaymentStatus !== 'PAID';
 
         if (canShowQrPaymentButton === true) {
-            return completedQrUnpaidRule;
+            return true;
         }
 
         return completedQrUnpaidRule;

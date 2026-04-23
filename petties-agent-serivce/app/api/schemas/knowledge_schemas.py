@@ -38,6 +38,7 @@ class DocumentResponse(BaseModel):
     file_type: Optional[str] = None
     file_size: Optional[int] = None
     processed: bool = False
+    status: str = "pending"
     vector_count: int = 0
     uploaded_by: Optional[str] = None
     notes: Optional[str] = None
@@ -102,8 +103,9 @@ class ProcessDocumentResponse(BaseModel):
     success: bool
     message: str
     document_id: int
-    chunks_created: int
-    processing_time_ms: int
+    status: str = "queued"
+    chunks_created: int = 0
+    processing_time_ms: int = 0
 
 
 # ===== RAG Query Schemas =====
