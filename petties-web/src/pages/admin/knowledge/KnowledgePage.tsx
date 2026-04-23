@@ -120,6 +120,30 @@ export const KnowledgePage = () => {
     loadSettings()
   }, [loadData, loadSettings])
 
+  // Polling for document status if any are queued or processing
+  useEffect(() => {
+    const hasActiveTasks = documents.some(
+      doc => doc.status === 'queued' || doc.status === 'processing'
+    )
+
+    if (!hasActiveTasks) return
+
+    const interval = setInterval(async () => {
+      try {
+        const [docs, stat] = await Promise.all([
+          knowledgeApi.getDocuments(),
+          knowledgeApi.getStatus()
+        ])
+        setDocuments(docs.documents)
+        setStatus(stat)
+      } catch (err) {
+        console.error('Polling failed', err)
+      }
+    }, 3000) // Poll every 3 seconds
+
+    return () => clearInterval(interval)
+  }, [documents])
+
   const saveSetting = async (key: string, value: string) => {
     const response = await fetch(`${AI_API_BASE_URL}/api/v1/settings/${key}`, {
       method: 'PUT',

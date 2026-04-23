@@ -21,6 +21,7 @@ import { StaffAvailabilityWarningModal, type ConfirmOption } from '../../../comp
 import { AddServiceModal } from '../../../components/booking/AddServiceModal';
 import { ReportBookingModal } from '../../../components/booking/ReportBookingModal';
 import { ConfirmModal } from '../../../components/ConfirmModal';
+import { QrPaymentPanel } from '../../../components/booking/QrPaymentPanel';
 import { getMyReports, withdrawReport } from '../../../services/reportService';
 import type { ReportResponse } from '../../../types/report';
 import { useToast } from '../../../components/Toast';
@@ -1216,6 +1217,19 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
         }
     };
 
+    const refreshBookingDetail = async () => {
+        try {
+            const updatedBooking = await getBookingById(booking.bookingId);
+            setBooking(updatedBooking);
+            if (onBookingUpdated) {
+                await onBookingUpdated();
+            }
+        } catch (error) {
+            console.error('Failed to refresh booking after QR payment check:', error);
+            showToast('error', 'Không thể làm mới chi tiết booking sau khi kiểm tra thanh toán');
+        }
+    };
+
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             {/* Main Modal Container */}
@@ -1322,6 +1336,17 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
                             </span>
                         </div>
                     )}
+
+                    <QrPaymentPanel
+                        bookingId={booking.bookingId}
+                        bookingStatus={booking.status}
+                        paymentMethod={booking.paymentMethod}
+                        paymentStatus={booking.paymentStatus}
+                        qrImageUrl={booking.qrImageUrl}
+                        paymentDescription={booking.paymentDescription}
+                        canShowQrPaymentButton={booking.canShowQrPaymentButton}
+                        onBookingRefresh={refreshBookingDetail}
+                    />
 
                     {/* Assigned Staff (Top level - e.g. for SOS) */}
                     {booking.type === 'SOS' && booking.assignedStaffName && (

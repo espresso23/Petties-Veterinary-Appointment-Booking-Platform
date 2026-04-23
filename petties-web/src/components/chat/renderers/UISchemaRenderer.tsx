@@ -660,15 +660,25 @@ function ServiceCard({
 
 function renderRevenueChart(component: UIComponent) {
   const data = component.data
-  const totalRevenue = toNumber(data['total_revenue']) ?? 0
+  const totalRevenue = toNumber(data['total_revenue'] ?? data['totalRevenue']) ?? 0
   const period = renderSimpleValue(data['period'])
-  const clinicName = renderSimpleValue(data['clinic_name'])
-  const items = asRecordArray(data['items'])
+  const clinicName = renderSimpleValue(data['clinic_name'] ?? data['clinicName'])
+  
+  let rawItems = data['items'] ?? data['chart_data'] ?? data['revenue_data']
+  if (typeof rawItems === 'string') {
+    try {
+      rawItems = JSON.parse(rawItems)
+    } catch {
+      // ignore
+    }
+  }
+  
+  const items = asRecordArray(rawItems)
   const breakdown = asRecord(data['breakdown']) ?? {}
 
   const chartData = items.map((item: Record<string, unknown>) => ({
-    x: String(item['date'] ?? item['label'] ?? ''),
-    y: toNumber(item['totalRevenue'] ?? item['revenue'] ?? item['value'] ?? 0) ?? 0,
+    x: String(item['date'] ?? item['label'] ?? item['day'] ?? ''),
+    y: toNumber(item['totalRevenue'] ?? item['revenue'] ?? item['value'] ?? item['total_revenue'] ?? 0) ?? 0,
   }))
 
   const options: ApexOptions = {

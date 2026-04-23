@@ -42,7 +42,7 @@ from app.config.settings import settings
 # CONSTANTS
 # ============================================================
 
-CASE_MEMORY_COLLECTION = "petties_case_memory_v2"
+CASE_MEMORY_COLLECTION = settings.CASE_MEMORY_COLLECTION
 """Tên collection Qdrant cho case memory (v2, hỗ trợ text + image)."""
 
 CASE_MEMORY_TEXT_DIMENSION = 1024

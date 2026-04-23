@@ -141,7 +141,8 @@ public class ClinicStaffService {
             // FullName will be auto-filled when user logs in with Google
             User newUser = new User();
             newUser.setEmail(request.getEmail());
-            newUser.setUsername(request.getEmail()); // Use email as username
+            // Use unique username to avoid conflict when user updates profile later
+            newUser.setUsername("staff_" + java.util.UUID.randomUUID().toString().substring(0, 8));
             newUser.setRole(request.getRole());
             newUser.setWorkingClinic(clinic);
             if (request.getRole() == Role.STAFF && request.getSpecialty() != null) {

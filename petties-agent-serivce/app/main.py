@@ -4,15 +4,18 @@ PETTIES AGENT SERVICE - Main Application
 FastAPI entry point for the Petties AI service.
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from app.config.logging_config import get_logger, setup_logging
 from app.config.settings import settings
+from app.core.middleware.rate_limiter import RateLimitMiddleware, get_rate_limiter
 from app.middleware.logging_middleware import LoggingMiddleware
+from app.monitoring.metrics import CONTENT_TYPE_LATEST, render_prometheus_metrics
 
 
 setup_logging(
@@ -26,11 +29,57 @@ setup_logging(
 logger = get_logger(__name__)
 
 
+async def autonomous_learning_scheduler():
+    """Background loop for autonomous disease learning."""
+    try:
+        from app.core.services.disease_mapping_service import get_disease_mapping_service
+        mapping_service = get_disease_mapping_service()
+        
+        # Initial delay to let application warm up
+        await asyncio.sleep(60)
+        
+        while True:
+            logger.info("Starting periodic autonomous learning job...")
+            learned = await mapping_service.autonomous_learn_from_queue(limit=50)
+            if learned > 0:
+                logger.info(f"Autonomous learning complete: {learned} items learned.")
+            else:
+                logger.info("Autonomous learning complete: No new items learned.")
+                
+            # Run every 1 hour
+            await asyncio.sleep(3600)
+    except asyncio.CancelledError:
+        logger.info("Autonomous learning scheduler cancelled")
+    except Exception as exc:
+        logger.error(f"Autonomous learning scheduler crashed: {exc}")
+        # Restart after delay if crashed
+        await asyncio.sleep(300)
+        asyncio.create_task(autonomous_learning_scheduler())
+
+
+async def document_processing_worker():
+    """Background worker for sequential document indexing."""
+    try:
+        from app.core.services.document_processing_service import get_document_processing_service
+        service = get_document_processing_service()
+        await service.worker()
+    except asyncio.CancelledError:
+        logger.info("Document processing worker cancelled")
+    except Exception as exc:
+        logger.error(f"Document processing worker crashed: {exc}")
+        await asyncio.sleep(10)
+        asyncio.create_task(document_processing_worker())
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     logger.info(f"Environment: {settings.APP_ENV}")
     logger.info(f"Debug mode: {settings.APP_DEBUG}")
+
+    # Start background tasks
+    learning_task = asyncio.create_task(autonomous_learning_scheduler())
+    doc_worker_task = asyncio.create_task(document_processing_worker())
 
     try:
         from app.db.postgres.session import AsyncSessionLocal, init_db
@@ -93,6 +142,12 @@ async def lifespan(app: FastAPI):
     yield
 
     logger.info("Shutting down application")
+    learning_task.cancel()
+    doc_worker_task.cancel()
+    try:
+        await asyncio.gather(learning_task, doc_worker_task, return_exceptions=True)
+    except Exception:
+        pass
 
     try:
         from app.db.postgres.session import close_db
@@ -119,6 +174,7 @@ async def lifespan(app: FastAPI):
     logger.info("Application shutdown complete")
 
 
+
 app = FastAPI(
     title=settings.APP_NAME,
     description="AI Agent Service cho Petties - Veterinary Appointment Booking Platform",
@@ -130,6 +186,10 @@ app = FastAPI(
 )
 
 app.add_middleware(LoggingMiddleware)
+
+rate_limiter = get_rate_limiter()
+app.middleware("http")(RateLimitMiddleware(rate_limiter))
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
@@ -163,6 +223,13 @@ async def health_check():
         health_status["status"] = "degraded"
 
     return JSONResponse(status_code=200, content=health_status)
+
+
+@app.get("/metrics", tags=["Monitoring"], include_in_schema=False)
+async def metrics_endpoint():
+    if not settings.ENABLE_PROMETHEUS:
+        return Response(status_code=404)
+    return Response(content=render_prometheus_metrics(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/", tags=["Root"])

@@ -58,7 +58,7 @@ jobs:
             export BACKEND_HOST_PORT=${BACKEND_HOST_PORT:-8080}
             export AI_HOST_PORT=${AI_HOST_PORT:-8000}
             export NGINX_HOST_PORT=${NGINX_HOST_PORT:-80}
-            export NGINX_SERVER_NAME=${NGINX_SERVER_NAME:-api.petties.world}
+            export NGINX_SERVER_NAME=${NGINX_SERVER_NAME:-petties.world}
             export NGINX_FRONTEND_UPSTREAM=${NGINX_FRONTEND_UPSTREAM:-https://www.petties.world}
             export NGINX_FRONTEND_HOST=${NGINX_FRONTEND_HOST:-www.petties.world}
             export NGINX_RESOLVER=${NGINX_RESOLVER:-8.8.8.8}
@@ -89,6 +89,6 @@ jobs:
             echo "🚀 ============================================"
             echo "✅ Production Deployment complete!"
             echo "🌐 FE: https://www.petties.world"
-            echo "🔌 BE: https://api.petties.world/api (unified domain)"
-            echo "🤖 AI:  https://api.petties.world/ai (unified domain)"
+            echo "🔌 BE: https://petties.world/api (unified domain)"
+            echo "🤖 AI:  https://petties.world/ai (unified domain)"
             echo "🚀 ============================================"

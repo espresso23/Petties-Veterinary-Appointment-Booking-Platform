@@ -68,7 +68,8 @@ public class UserService {
                         user.setFullName(request.getFullName());
                 }
                 if (request.getPhone() != null) {
-                        user.setPhone(request.getPhone());
+                        String phone = request.getPhone().trim();
+                        user.setPhone(phone.isEmpty() ? null : phone);
                 }
 
                 user = userRepository.save(user);
