@@ -393,10 +393,10 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
 
           const SizedBox(height: 20),
 
-          // Khách quan - Vitals
+          // Kết quả khám lâm sàng - Chỉ số sức khỏe
           Row(
             children: [
-              Text('Khách quan / Chỉ số sức khỏe',
+              Text('Kết quả khám lâm sàng, chỉ số sức khỏe',
                   style: TextStyle(
                       color: Colors.teal,
                       fontWeight: FontWeight.w800,

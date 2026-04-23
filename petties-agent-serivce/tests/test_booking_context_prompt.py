@@ -281,7 +281,7 @@ class TestBookingContextPrompt:
         assert result["tool_params"]["clinic_id"] == "Pet Care"
         assert "clinic_hint" not in result["tool_params"]
 
-    def test_booking_routing_redirects_to_read_resource_when_enabled_and_mapped(
+    def test_booking_routing_redirects_only_get_user_pets_read_resource_path(
         self,
     ):
         ctx = ToolRuntimeContext(
@@ -309,12 +309,8 @@ class TestBookingContextPrompt:
                 enabled_tools_lower={"get_clinic_services", "read_resource"},
                 build_context_fn=lambda _: "",
             )
-        assert result["tool_name"] == "read_resource"
-        assert (
-            result["tool_params"]["resource_uri"]
-            == "petties://clinics/clinic-1/services"
-        )
-        assert result["tool_params"]["fallback_params"]["clinic_id"] == "clinic-1"
+        assert result["tool_name"] == "get_clinic_services"
+        assert result["tool_params"]["clinic_id"] == "clinic-1"
 
         parsed_slots = {
             "thought": "Kiem tra slot",
@@ -333,8 +329,6 @@ class TestBookingContextPrompt:
                 enabled_tools_lower={"check_available_slots", "read_resource"},
                 build_context_fn=lambda _: "",
             )
-        assert out["tool_name"] == "read_resource"
-        assert (
-            out["tool_params"]["resource_uri"]
-            == "petties://clinics/clinic-2/slots?date=2026-04-15"
-        )
+        assert out["tool_name"] == "check_available_slots"
+        assert out["tool_params"]["clinic_id"] == "clinic-2"
+        assert out["tool_params"]["date"] == "2026-04-15"

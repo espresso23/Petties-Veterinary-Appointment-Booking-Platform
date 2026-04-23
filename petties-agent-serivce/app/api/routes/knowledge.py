@@ -54,6 +54,7 @@ from app.api.schemas.knowledge_schemas import (
 )
 from app.db.postgres.models import KnowledgeDocument
 from app.db.postgres.session import get_db, AsyncSessionLocal
+from app.core.services.document_processing_service import get_document_processing_service
 
 # Initialize router - no global auth, add individually per endpoint
 router = APIRouter(prefix="/knowledge", tags=["Knowledge Base"])
@@ -213,17 +214,19 @@ async def upload_document(
 @router.post(
     "/documents/{document_id}/process",
     response_model=ProcessDocumentResponse,
-    summary="[KB-01] Process document for RAG",
+    status_code=202,
+    summary="[KB-01] Process document for RAG (Async Queue)",
     description="""
-    Process uploaded document and create vector embeddings.
+    Add uploaded document to the background processing queue for vector indexing.
 
-    This endpoint:
-    1. Reads the document file
-    2. Chunks the content using LlamaIndex
-    3. Creates embeddings using Cohere embed-multilingual-v3.0
-    4. Stores vectors in Qdrant Cloud
+    This endpoint is now ASYNCHRONOUS:
+    1. Validates document existence
+    2. Enqueues the document for sequential processing
+    3. Returns immediately with 'queued' status
 
-    After processing, the document can be queried via RAG.
+    A background worker will then:
+    - Index document using LlamaIndex + Cohere
+    - Store vectors in Qdrant
     """,
 )
 async def process_document(
@@ -232,141 +235,54 @@ async def process_document(
     _Subscription: bool = Depends(check_active_subscription),
 ):
     """
-    Process document and index to Qdrant
+    Enqueue document for processing
 
     Path params:
         - document_id: ID of the uploaded document
 
     Returns:
-        - chunks_created: Number of chunks indexed
-        - processing_time_ms: Time taken to process
+        - status: 'queued'
     """
-    try:
-        import time
+    # Get document from database to verify existence
+    result = await db.execute(
+        select(KnowledgeDocument).where(KnowledgeDocument.id == document_id)
+    )
+    document = result.scalar_one_or_none()
 
-        start_time = time.time()
-
-        # Get document from database
-        result = await db.execute(
-            select(KnowledgeDocument).where(KnowledgeDocument.id == document_id)
-        )
-        document = result.scalar_one_or_none()
-
-        if not document:
-            raise HTTPException(
-                status_code=404, detail=f"Không tìm thấy tài liệu {document_id}"
-            )
-
-        # Allow reprocessing if document has 0 vectors (failed previous attempt)
-        if document.processed and document.vector_count > 0:
-            return ProcessDocumentResponse(
-                success=True,
-                message=f"Tài liệu '{document.filename}' đã được xử lý trước đó",
-                document_id=document_id,
-                chunks_created=document.vector_count,
-                processing_time_ms=0,
-            )
-
-        if document.processed and document.vector_count == 0:
-            logger.warning(
-                f"Document {document_id} was marked processed with {document.vector_count} vectors. Reprocessing..."
-            )
-            # Reset processed status for retry
-            document.processed = False
-            await db.commit()
-
-        # Read file content
-        file_path = document.file_path
-        if not file_path or not os.path.exists(file_path):
-            raise HTTPException(
-                status_code=404, detail=f"Không tìm thấy file tại {file_path}"
-            )
-
-        with open(file_path, "rb") as f:
-            file_content = f.read()
-
-        # Get RAG engine and index document
-        rag = get_rag_engine()
-        index_result = await rag.index_document(
-            file_path=Path(file_path),
-            filename=document.filename,
-            document_id=document.id,
-            metadata={
-                "file_type": document.file_type,
-                "uploaded_by": document.uploaded_by,
-                "notes": document.notes,
-            },
+    if not document:
+        raise HTTPException(
+            status_code=404, detail=f"Không tìm thấy tài liệu {document_id}"
         )
 
-        # Validate processing succeeded
-        if index_result.text_chunks == 0:
-            raise HTTPException(
-                status_code=500,
-                detail="Xử lý tài liệu thất bại: Không tạo được vectors. "
-                "Nguyên nhân có thể: "
-                "(1) Chưa cấu hình COHERE_API_KEY, "
-                "(2) Chưa cấu hình QDRANT_URL, "
-                "(3) API key không hợp lệ. "
-                "Vui lòng kiểm tra cấu hình trong trang Knowledge.",
-            )
-
-        # Update document status (only if vectors were created successfully)
-        document.processed = True
-        document.vector_count = index_result.text_chunks
-        from datetime import timezone
-
-        document.processed_at = datetime.now(timezone.utc)
-        await db.commit()
-
-        processing_time = int((time.time() - start_time) * 1000)
-
-        logger.info(
-            f"Processed document {document_id}: {index_result.text_chunks} text chunks in {processing_time}ms"
-        )
-
+    # If already processed, return success
+    if document.processed and document.vector_count > 0:
         return ProcessDocumentResponse(
             success=True,
-            message=f"Tài liệu '{document.filename}' xử lý thành công",
+            message=f"Tài liệu '{document.filename}' đã được xử lý trước đó",
             document_id=document_id,
-            chunks_created=index_result.text_chunks,
-            images_indexed=index_result.image_vectors,
-            processing_time_ms=processing_time,
+            status="completed",
+            chunks_created=document.vector_count,
+            processing_time_ms=0,
         )
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error processing document {document_id}: {e}")
+    # Enqueue for background processing
+    queue_service = get_document_processing_service()
+    enqueued = await queue_service.enqueue_document(document_id)
 
-        # Cleanup on failure: Delete file and database record
-        # Only cleanup if document was just uploaded (processed=False, vector_count=0)
-        try:
-            # Try to get document from database
-            result = await db.execute(
-                select(KnowledgeDocument).where(KnowledgeDocument.id == document_id)
-            )
-            doc = result.scalar_one_or_none()
+    if not enqueued:
+        return ProcessDocumentResponse(
+            success=True,
+            message=f"Tài liệu '{document.filename}' đã nằm trong hàng đợi hoặc đang xử lý",
+            document_id=document_id,
+            status=document.status or "queued",
+        )
 
-            if doc and not doc.processed and doc.vector_count == 0:
-                logger.warning(
-                    f"Processing failed for new document {document_id}. Cleaning up..."
-                )
-
-                # Delete file from disk
-                if doc.file_path and os.path.exists(doc.file_path):
-                    os.remove(doc.file_path)
-                    logger.info(f"Deleted file: {doc.file_path}")
-
-                # Delete database record
-                await db.delete(doc)
-                await db.commit()
-                logger.info(f"Deleted database record for document {document_id}")
-
-        except Exception as cleanup_error:
-            logger.error(f"Cleanup failed: {cleanup_error}")
-            # Don't raise cleanup error, raise original error instead
-
-        raise HTTPException(status_code=500, detail=str(e))
+    return ProcessDocumentResponse(
+        success=True,
+        message=f"Tài liệu '{document.filename}' đã được thêm vào hàng đợi xử lý",
+        document_id=document_id,
+        status="queued",
+    )
 
 
 # ===== LIST DOCUMENTS =====
@@ -765,6 +681,7 @@ async def recreate_collection(db: AsyncSession = Depends(get_db)):
 
         for doc in documents:
             doc.processed = False
+            doc.status = "pending"
             doc.vector_count = 0
             doc.processed_at = None
 
@@ -1082,3 +999,187 @@ async def sync_emr_confirmed_into_case_memory(
         status_code=410,
         detail="Endpoint này đã ngưng sử dụng. Spring Boot sẽ push trực tiếp EMR sang AI service.",
     )
+
+
+# ===== DISEASE CATALOG MONITORING APIs (NEW) =====
+
+
+@router.get(
+    "/disease-catalog/stats",
+    summary="[DC-01] Disease Catalog Statistics",
+    description="Thống kê disease catalog: tổng số bệnh, aliases, learning progress.",
+)
+async def get_disease_catalog_stats(
+    _: dict = Depends(get_admin_user),
+):
+    """Get disease catalog statistics for admin monitoring."""
+    try:
+        from app.core.services.disease_mapping_service import (
+            get_disease_mapping_service,
+        )
+        from app.core.services.disease_taxonomy_service import (
+            get_disease_taxonomy_service,
+        )
+
+        mapper = get_disease_mapping_service()
+        taxonomy = get_disease_taxonomy_service()
+
+        # Get DB-backed catalog stats
+        await mapper.refresh_from_db(force=True)
+
+        catalog_count = len(mapper._catalog)
+        alias_count = len(mapper._aliases)
+        taxonomy_stats_data = taxonomy.get_taxonomy_stats()
+
+        return {
+            "success": True,
+            "catalog": {
+                "total_diseases": catalog_count,
+                "total_aliases": alias_count,
+            },
+            "taxonomy": taxonomy_stats_data,
+        }
+    except Exception as e:
+        logger.error(f"Error getting disease catalog stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/disease-catalog",
+    summary="[DC-02] Disease Catalog List",
+    description="Danh sách diseases với filters (species, system).",
+)
+async def list_disease_catalog(
+    species: Optional[str] = Query(
+        default=None, description="Lọc theo loài (dog, cat)"
+    ),
+    system: Optional[str] = Query(default=None, description="Lọc theo hệ cơ quan"),
+    page: int = Query(default=1, ge=1, description="Số trang"),
+    page_size: int = Query(default=50, ge=1, le=200, description="Số items mỗi trang"),
+    _: dict = Depends(get_admin_user),
+):
+    """List diseases with pagination and filters."""
+    try:
+        from app.core.services.disease_mapping_service import (
+            get_disease_mapping_service,
+        )
+        from app.core.services.disease_taxonomy_service import (
+            get_disease_taxonomy_service,
+        )
+
+        mapper = get_disease_mapping_service()
+        taxonomy = get_disease_taxonomy_service()
+
+        await mapper.refresh_from_db(force=True)
+
+        # Build runtime (self-learning) disease list from DB catalog + aliases.
+        species_filter = (species or "").strip().lower()
+        system_filter = (system or "").strip()
+
+        alias_map: Dict[str, List[str]] = {}
+        for alias_entry in mapper._alias_entries:
+            alias_map.setdefault(alias_entry.canonical_code, []).append(
+                alias_entry.alias_text
+            )
+
+        taxonomy_index: Dict[str, Dict[str, str]] = {}
+        for item in taxonomy.list_diseases():
+            taxonomy_index[item.canonical_code] = {
+                "system": item.system,
+                "subsystem": item.subsystem,
+            }
+
+        all_diseases: List[Dict[str, Any]] = []
+        for code, catalog_entry in mapper._catalog.items():
+            entry_species = (catalog_entry.species or "all").strip().lower()
+            species_list = ["dog", "cat"] if entry_species == "all" else [entry_species]
+
+            if species_filter and species_filter not in species_list:
+                continue
+
+            taxonomy_info = taxonomy_index.get(code, {})
+            system_name = taxonomy_info.get("system", "Khác")
+            subsystem_name = taxonomy_info.get("subsystem", "Không phân loại")
+
+            if system_filter and system_name != system_filter:
+                continue
+
+            aliases = alias_map.get(code, [])
+            dedup_aliases = sorted({a.strip() for a in aliases if str(a or "").strip()})
+
+            all_diseases.append(
+                {
+                    "canonical_code": code,
+                    "display_name_vi": catalog_entry.display_name_vi,
+                    "system": system_name,
+                    "subsystem": subsystem_name,
+                    "aliases": dedup_aliases,
+                    "species": species_list,
+                }
+            )
+
+        all_diseases.sort(key=lambda item: item["display_name_vi"].lower())
+
+        # Pagination
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        paginated_diseases = all_diseases[start_idx:end_idx]
+
+        return {
+            "success": True,
+            "items": paginated_diseases,
+            "total": len(all_diseases),
+            "page": page,
+            "page_size": page_size,
+        }
+    except Exception as e:
+        logger.error(f"Error listing disease catalog: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/learning-metrics",
+    summary="[DC-03] Learning Metrics",
+    description="Metrics về self-learning: mapped rate, catalog growth.",
+)
+async def get_learning_metrics(
+    _: dict = Depends(get_admin_user),
+):
+    """Get learning metrics for admin monitoring."""
+    try:
+        from app.core.services.disease_mapping_service import (
+            get_disease_mapping_service,
+        )
+        from app.core.services.disease_taxonomy_service import (
+            get_disease_taxonomy_service,
+        )
+        from app.core.rag.case_memory import get_case_memory_service
+
+        mapper = get_disease_mapping_service()
+        taxonomy = get_disease_taxonomy_service()
+        case_memory = get_case_memory_service()
+
+        await mapper.refresh_from_db(force=True)
+
+        # Get case memory stats
+        cm_stats = await case_memory.get_stats()
+
+        # Get taxonomy stats
+        taxonomy_stats = taxonomy.get_taxonomy_stats()
+
+        return {
+            "success": True,
+            "catalog": {
+                "total_diseases": len(mapper._catalog),
+                "total_aliases": len(mapper._aliases),
+            },
+            "taxonomy": taxonomy_stats,
+            "case_memory": {
+                "total_cases": cm_stats.get("points_count", 0),
+                "collection_name": cm_stats.get("collection", ""),
+            },
+            "learning_status": "active" if len(mapper._catalog) > 4 else "initializing",
+        }
+    except Exception as e:
+        logger.error(f"Error getting learning metrics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

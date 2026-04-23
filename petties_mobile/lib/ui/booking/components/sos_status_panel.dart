@@ -31,6 +31,8 @@ class SosStatusPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isTerminalCancelled = status?.isCancelled == true;
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -75,7 +77,10 @@ class SosStatusPanel extends StatelessWidget {
                   status: status,
                 )
               else
-                _buildIdleContent(),
+                _buildIdleContent(
+                  statusText: statusText,
+                  isTerminalCancelled: isTerminalCancelled,
+                ),
 
               const SizedBox(height: 16),
 
@@ -96,18 +101,31 @@ class SosStatusPanel extends StatelessWidget {
                           ),
                         ),
                       )
-                    : OutlinedButton(
-                        onPressed: onCancel,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.red,
-                          side: const BorderSide(color: Colors.red),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                    : isTerminalCancelled
+                        ? ElevatedButton(
+                            onPressed: onCancel,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.coral,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text('QUAY LẠI'),
+                          )
+                        : OutlinedButton(
+                            onPressed: onCancel,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.red,
+                              side: const BorderSide(color: Colors.red),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text('HỦY YÊU CẦU'),
                           ),
-                        ),
-                        child: const Text('HỦY YÊU CẦU'),
-                      ),
               ),
             ],
           ),
@@ -116,25 +134,45 @@ class SosStatusPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildIdleContent() {
+  Widget _buildIdleContent({
+    required String statusText,
+    required bool isTerminalCancelled,
+  }) {
+    final String primaryText = isTerminalCancelled
+        ? (statusText.trim().isNotEmpty
+            ? statusText
+            : 'Không tìm thấy phòng khám phù hợp trong khu vực của bạn.')
+        : 'Đang chờ bắt đầu...';
+
+    final String secondaryText = isTerminalCancelled
+        ? 'Hệ thống sẽ quay lại màn hình tạo yêu cầu SOS.'
+        : 'Vui lòng cho phép quyền truy cập vị trí';
+
     return Column(
       children: [
-        Icon(Icons.location_on, color: Colors.grey.shade400, size: 48),
+        Icon(
+          isTerminalCancelled ? Icons.info_outline : Icons.location_on,
+          color: isTerminalCancelled ? AppColors.coral : Colors.grey.shade400,
+          size: 48,
+        ),
         const SizedBox(height: 16),
-        const Text(
-          'Đang chờ bắt đầu...',
+        Text(
+          primaryText,
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w500,
+            color: isTerminalCancelled ? AppColors.stone900 : null,
           ),
+          textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
         Text(
-          'Vui lòng cho phép quyền truy cập vị trí',
+          secondaryText,
           style: TextStyle(
             color: Colors.grey.shade600,
             fontSize: 13,
           ),
+          textAlign: TextAlign.center,
         ),
       ],
     );

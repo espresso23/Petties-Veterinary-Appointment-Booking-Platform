@@ -19,12 +19,14 @@ from difflib import SequenceMatcher
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from loguru import logger
-from sqlalchemy import select
+from sqlalchemy import select, desc, func, insert
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 
-from app.db.postgres.models import DiseaseAlias, DiseaseCatalog
+from app.db.postgres.models import DiseaseAlias, DiseaseCatalog, DiseaseMappingReviewItem
 from app.db.postgres.session import AsyncSessionLocal
 from app.services.llm_client import BaseLLMClient, get_llm_client_from_db
+from app.core.services.disease_taxonomy_service import get_disease_taxonomy_service
 
 
 def _normalize_text(value: str) -> str:
@@ -78,85 +80,16 @@ class CanonicalizationDecision:
     confidence: float = 0.0
 
 
-DEFAULT_DISEASE_CATALOG = [
-    {
-        "canonical_code": "bacterial_dermatosis",
-        "display_name_vi": "Viêm da do vi khuẩn",
-        "species": "all",
-    },
-    {
-        "canonical_code": "ocular_infection",
-        "display_name_vi": "Viêm kết mạc hoặc nhiễm trùng mắt",
-        "species": "all",
-    },
-    {
-        "canonical_code": "otitis_or_ear_parasites",
-        "display_name_vi": "Viêm tai ngoài hoặc bệnh tai ký sinh trùng",
-        "species": "all",
-    },
-    {
-        "canonical_code": "dermatosis_or_ectoparasites",
-        "display_name_vi": "Viêm da hoặc bệnh da ký sinh trùng",
-        "species": "all",
-    },
-]
+DEFAULT_DISEASE_CATALOG = []
 
-DEFAULT_DISEASE_ALIASES = [
-    ("emr", "viem da do vi khuan", "bacterial_dermatosis", "all"),
-    ("vision", "bacterial dermatitis", "bacterial_dermatosis", "all"),
-    ("kb", "viem da vi khuan", "bacterial_dermatosis", "all"),
-    ("kb", "viêm da do vi khuẩn", "bacterial_dermatosis", "all"),
-    ("emr", "viem ket mac", "ocular_infection", "all"),
-    ("emr", "nhiem trung mat", "ocular_infection", "all"),
-    ("vision", "conjunctivitis", "ocular_infection", "all"),
-    ("vision", "eye infection", "ocular_infection", "all"),
-    ("kb", "viem ket mac hoac nhiem trung mat", "ocular_infection", "all"),
-    ("kb", "viêm kết mạc hoặc nhiễm trùng mắt", "ocular_infection", "all"),
-    ("kb", "benh mat", "ocular_infection", "all"),
-    ("emr", "viem tai ngoai", "otitis_or_ear_parasites", "all"),
-    ("emr", "ghe tai", "otitis_or_ear_parasites", "all"),
-    ("vision", "otitis externa", "otitis_or_ear_parasites", "all"),
-    ("vision", "ear mites", "otitis_or_ear_parasites", "all"),
-    (
-        "kb",
-        "viem tai ngoai hoac benh tai ky sinh trung",
-        "otitis_or_ear_parasites",
-        "all",
-    ),
-    (
-        "kb",
-        "viêm tai ngoài hoặc bệnh tai ký sinh trùng",
-        "otitis_or_ear_parasites",
-        "all",
-    ),
-    ("emr", "viem da", "dermatosis_or_ectoparasites", "all"),
-    ("emr", "ghe", "dermatosis_or_ectoparasites", "all"),
-    ("emr", "demodex", "dermatosis_or_ectoparasites", "all"),
-    ("emr", "sarcoptes", "dermatosis_or_ectoparasites", "all"),
-    ("vision", "dermatitis", "dermatosis_or_ectoparasites", "all"),
-    ("vision", "demodicosis", "dermatosis_or_ectoparasites", "all"),
-    ("vision", "sarcoptic mange", "dermatosis_or_ectoparasites", "all"),
-    (
-        "kb",
-        "viem da hoac benh da ky sinh trung",
-        "dermatosis_or_ectoparasites",
-        "all",
-    ),
-    (
-        "kb",
-        "viêm da hoặc bệnh da ký sinh trùng",
-        "dermatosis_or_ectoparasites",
-        "all",
-    ),
-    ("kb", "benh da", "dermatosis_or_ectoparasites", "all"),
-]
+DEFAULT_DISEASE_ALIASES = []
 
 
 class DiseaseMappingService:
     """Canonical disease mapping with DB-backed snapshot and autonomous updates."""
 
     MAP_EXISTING_CONFIDENCE = 0.90
-    CREATE_NEW_CONFIDENCE = 0.94
+    CREATE_NEW_CONFIDENCE = 0.80  # Reduced to enable 100% autonomous learning
     MAX_CANDIDATES = 5
 
     def __init__(self, *, snapshot_ttl_seconds: int = 300) -> None:
@@ -298,6 +231,7 @@ class DiseaseMappingService:
         raw_label: str,
         source_type: str,
         species: Optional[str] = None,
+        taxonomy_hint: Optional[str] = None,  # NEW: Taxonomy hint to boost confidence
     ) -> DiseaseMappingResult:
         normalized_label = _normalize_text(raw_label)
         normalized_species = (species or "all").strip().lower() or "all"
@@ -313,13 +247,17 @@ class DiseaseMappingService:
             species=normalized_species,
         )
         catalog_entry = self._catalog.get(canonical_code) if canonical_code else None
-        return DiseaseMappingResult(
+
+        # Build result
+        result = DiseaseMappingResult(
             raw_label=raw_label,
             canonical_code=canonical_code,
             display_name_vi=catalog_entry.display_name_vi if catalog_entry else None,
             mapped=canonical_code is not None,
             source_type=source_type,
         )
+
+        return result
 
     async def resolve_label(
         self,
@@ -328,11 +266,13 @@ class DiseaseMappingService:
         source_type: str,
         species: Optional[str] = None,
         context_text: Optional[str] = None,
+        taxonomy_hint: Optional[str] = None,  # NEW: Taxonomy hint to boost confidence
     ) -> DiseaseMappingResult:
         direct_match = self.map_label(
             raw_label=raw_label,
             source_type=source_type,
             species=species,
+            taxonomy_hint=taxonomy_hint,
         )
         if direct_match.mapped:
             return direct_match
@@ -348,6 +288,7 @@ class DiseaseMappingService:
             species=normalized_species,
             context_text=context_text,
             candidates=candidates,
+            taxonomy_hint=taxonomy_hint,  # Pass hint to LLM
         )
         if decision is None:
             return self._provisional_result(
@@ -373,6 +314,14 @@ class DiseaseMappingService:
             )
             if mapped_result is not None:
                 return mapped_result
+
+        # If we reach here, mapping failed. Record to review queue for autonomous learning
+        # unless it was a definitive rejection (though we don't have that yet)
+        await self.record_unmapped_label(
+            raw_label=raw_label,
+            source_type=source_type,
+            species=normalized_species,
+        )
 
         return self._provisional_result(raw_label=raw_label, source_type=source_type)
 
@@ -582,6 +531,7 @@ class DiseaseMappingService:
         species: str,
         context_text: Optional[str],
         candidates: List[CanonicalCandidate],
+        taxonomy_hint: Optional[str] = None,  # NEW
     ) -> Optional[CanonicalizationDecision]:
         llm_client = await self._get_llm_client()
         if llm_client is None:
@@ -593,6 +543,7 @@ class DiseaseMappingService:
             species=species,
             context_text=context_text,
             candidates=candidates,
+            taxonomy_hint=taxonomy_hint,
         )
 
         try:
@@ -616,6 +567,7 @@ class DiseaseMappingService:
         species: str,
         context_text: Optional[str],
         candidates: List[CanonicalCandidate],
+        taxonomy_hint: Optional[str] = None,  # NEW
     ) -> str:
         candidate_payload = [
             {
@@ -627,12 +579,22 @@ class DiseaseMappingService:
             }
             for item in candidates
         ]
+
+        taxonomy_hint_text = ""
+        if taxonomy_hint:
+            taxonomy_hint_text = f"""
+
+GỢI Ý QUAN TRỌNG:
+Có gợi ý từ hệ thống phân loại: '{taxonomy_hint}'
+Hãy ưu tiên xem xét bệnh này nếu phù hợp với ngữ cảnh."""
+
         payload = {
             "raw_label": raw_label,
             "source_type": source_type,
             "species": species,
             "context_text": context_text or "",
             "candidate_canonicals": candidate_payload,
+            "taxonomy_hint": taxonomy_hint,
         }
         return f"""You are an internal disease normalization resolver for Petties veterinary AI.
 Your job is to normalize a raw disease label into one canonical disease code.
@@ -645,6 +607,7 @@ Rules:
 - `canonical_code` must be snake_case ASCII.
 - `display_name_vi` should be short Vietnamese clinical wording.
 - Confidence is a number from 0 to 1.
+{taxonomy_hint_text}
 
 Return JSON with this schema:
 {{
@@ -979,6 +942,108 @@ Input:
         if not normalized:
             return None
         return normalized
+
+    async def record_unmapped_label(
+        self,
+        *,
+        raw_label: str,
+        source_type: str,
+        species: str = "all",
+        sample_payload: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Record unmapped label to review queue for autonomous learning."""
+        normalized_label = _normalize_text(raw_label)
+        if not normalized_label:
+            return
+
+        try:
+            async with AsyncSessionLocal() as session:
+                # Use PostgreSQL upsert (ON CONFLICT) to increment hit_count
+                stmt = pg_insert(DiseaseMappingReviewItem).values(
+                    raw_label=raw_label.strip(),
+                    normalized_label=normalized_label,
+                    source_type=source_type.lower(),
+                    species=species.lower(),
+                    status="pending",
+                    hit_count=1,
+                    sample_payload=sample_payload,
+                )
+                stmt = stmt.on_conflict_do_update(
+                    constraint="uq_disease_mapping_review_source_normalized_species",
+                    set_={
+                        "hit_count": DiseaseMappingReviewItem.hit_count + 1,
+                        "last_seen_at": func.now(),
+                    },
+                )
+                await session.execute(stmt)
+                await session.commit()
+        except Exception as exc:
+            logger.warning("Failed to record unmapped label '{}': {}", raw_label, exc)
+
+    async def autonomous_learn_from_queue(self, limit: int = 20) -> int:
+        """
+        Process pending review items autonomously using LLM.
+        Returns the number of successfully learned items.
+        """
+        try:
+            async with AsyncSessionLocal() as session:
+                result = await session.execute(
+                    select(DiseaseMappingReviewItem)
+                    .where(DiseaseMappingReviewItem.status == "pending")
+                    .order_by(desc(DiseaseMappingReviewItem.hit_count))
+                    .limit(limit)
+                )
+                items = result.scalars().all()
+
+            if not items:
+                return 0
+
+            learned_count = 0
+            taxonomy_service = get_disease_taxonomy_service()
+
+            for item in items:
+                logger.info("Autonomous learning attempt for: '{}'", item.raw_label)
+                
+                # Step 1: Get taxonomy hint from expert system
+                classification = await taxonomy_service.classify_disease(
+                    clinical_text=item.raw_label,
+                    species=item.species,
+                )
+                
+                taxonomy_hint = classification.canonical_code if classification else None
+                
+                # Step 2: Use mapping service logic to decide and persist
+                # This re-uses the resolve_label logic but ensures it saves
+                res = await self.resolve_label(
+                    raw_label=item.raw_label,
+                    source_type=item.source_type,
+                    species=item.species,
+                    taxonomy_hint=taxonomy_hint
+                )
+
+                async with AsyncSessionLocal() as session:
+                    db_item = await session.get(DiseaseMappingReviewItem, item.id)
+                    if db_item:
+                        if res.mapped:
+                            db_item.status = "approved"
+                            learned_count += 1
+                        else:
+                            # If hit_count is high but still can't map, maybe reject or keep pending
+                            if db_item.hit_count > 10:
+                                db_item.status = "rejected"
+                            else:
+                                # Update timestamp to avoid re-processing immediately
+                                db_item.last_seen_at = func.now()
+                        await session.commit()
+            
+            if learned_count > 0:
+                await self.refresh_from_db(force=True)
+                
+            return learned_count
+
+        except Exception as exc:
+            logger.error("Autonomous learning job failed: {}", exc)
+            return 0
 
 
 _disease_mapping_service: Optional[DiseaseMappingService] = None

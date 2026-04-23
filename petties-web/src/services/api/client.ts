@@ -1,6 +1,7 @@
 import axios, { type InternalAxiosRequestConfig, type AxiosError } from 'axios'
 import { env } from '../../config/env'
 import { useAuthStore } from '../../store/authStore'
+import { useSandboxStore } from '../../store/sandboxStore'
 import { parseApiError } from '../../utils/errorHandler'
 
 export const apiClient = axios.create({
@@ -19,8 +20,26 @@ export { apiClient as default }
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const accessToken = useAuthStore.getState().accessToken
+    const { isSandboxMode, currentSandboxClinic } = useSandboxStore.getState()
+
     if (accessToken && config.headers) {
       config.headers.Authorization = `Bearer ${accessToken}`
+    }
+
+    if (isSandboxMode && config.headers) {
+      config.headers['X-Sandbox-Mode'] = 'true'
+      if (currentSandboxClinic?.clinicId) {
+        config.headers['X-Sandbox-Clinic-Id'] = currentSandboxClinic.clinicId
+      }
+    }
+
+    const method = (config.method || 'get').toLowerCase()
+    const isMutationMethod = ['post', 'put', 'patch', 'delete'].includes(method)
+    const isSandboxEndpoint = config.url?.includes('/sandbox/')
+
+    if (isSandboxMode && isMutationMethod && !isSandboxEndpoint) {
+      const blockMessage = 'Bạn đang ở chế độ dùng thử. Hệ thống đã chặn thao tác ghi dữ liệu thật.'
+      return Promise.reject(new Error(blockMessage))
     }
 
     // If data is FormData, remove Content-Type to let browser set it with boundary

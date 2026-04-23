@@ -129,5 +129,59 @@ void main() {
         expect(confirmedPayload!.serviceNames, const ['Tắm chó']);
       },
     );
+
+    testWidgets(
+      'van xac nhan duoc khi gio co dinh dang HH:mm:ss',
+      (tester) async {
+        AiBookingSummaryPayload? confirmedPayload;
+
+        final summary = AiBookingSummaryPayload(
+          petId: 'pet-1',
+          petName: 'Mimi',
+          clinicId: 'clinic-1',
+          clinicName: 'Pet Care',
+          bookingDate: '2026-04-12',
+          startTime: '10:00:00',
+          serviceIds: const ['svc-1'],
+          serviceNames: const ['Khám tổng quát'],
+          bookingType: bookingTypeInClinic,
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: AiStructuredBookingSummaryCard(
+                    summary: summary,
+                    isConfirmed: false,
+                    isBusy: false,
+                    clinicOptions: const [
+                      AiClinic(id: 'clinic-1', name: 'Pet Care', address: 'Da Nang'),
+                    ],
+                    serviceOptions: const [
+                      AiBookingServiceOption(id: 'svc-1', name: 'Khám tổng quát'),
+                    ],
+                    bookingDateOptions: const ['2026-04-12'],
+                    startTimeOptions: const <String>[],
+                    formatBookingDate: (value) => value ?? '',
+                    onConfirm: (payload) => confirmedPayload = payload,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('XÁC NHẬN ĐẶT LỊCH'));
+        await tester.tap(find.text('XÁC NHẬN ĐẶT LỊCH'));
+        await tester.pumpAndSettle();
+
+        expect(confirmedPayload, isNotNull);
+        expect(confirmedPayload!.startTime, '10:00');
+      },
+    );
   });
 }

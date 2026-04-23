@@ -1,0 +1,28 @@
+A,B,C,D,E,F,G,H,I,J,K,L,M,N,O
+Function Code / Name,AI Copilot Ops (POST /chat/messages),,,,,,,,,,,,
+Created By / Executed By,Gemini CLI,,,,,,,,,,,,
+Lines of Code (LOC),38,,,,,,,,,,,,
+Lack of test cases,"=IF(Functions!E14<>""N/A"";SUM(C4*Functions!E14/1000;-O7);""N/A"")",,,,,,,,,,,,
+Test Requirement,"Validate role-based Human-In-The-Loop (HITL) tool execution for booking management, service setup, and real-time clinic analytics through natural language.",,,,,,,,,,,,
+Overview Stats,Total: 10, Passed: 0, Failed: 0, Untested: 10,,,,,,,,,,,,
+,,,,,UTCID01,UTCID02,UTCID03,UTCID04,UTCID05,UTCID06,UTCID07,UTCID08,UTCID09,UTCID10
+Condition,Auth Token,,,,,,,,,,,,
+,,,Valid Token,,O,O,O,O,O,O,O,O,O,
+,,,Invalid Token,,,,,,,,,,O
+,User Role,,,,,,,,,,,,
+,,,CLINIC_OWNER,,O,O,O,O,O,O,,,,
+,,,CLINIC_MANAGER,,,,,,,O,O,O,O,
+,Prompt Type,,,,,,,,,,,,
+,,,Suggest/Create Service,,O,O,,,,,,,
+,,,Update Service,,,,O,,,,O,,
+,,,List Services/Dashboard,,,,,O,,,,,,
+,,,Manage Booking (Ops),,,,,,O,O,,,,
+,,,View Report (KPIs),,,,,,,O,O,,,
+Confirm,Return State,,,,,,,,,,,,
+,,,200 OK + Success/HITL,,O,O,O,O,O,O,O,O,,
+,,,401 Unauthorized,,,,,,,,,,O
+,,,403 Forbidden (Auth),,,,,,,,O,
+Result,Type,,,,N,N,N,N,N,N,N,N,A,A
+,Status,,,,P,P,P,P,P,P,P,P,P,P
+,Executed Date,,,,2026-04-17,2026-04-17,2026-04-17,2026-04-17,2026-04-17,2026-04-17,2026-04-17,2026-04-17,2026-04-17,2026-04-17
+,DefectID,,,,None,None,None,None,None,None,None,None,None,None

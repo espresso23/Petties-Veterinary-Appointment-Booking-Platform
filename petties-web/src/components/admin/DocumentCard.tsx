@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { TrashIcon, ClockIcon, CheckCircleIcon, EyeIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
+import { TrashIcon, ClockIcon, CheckCircleIcon, EyeIcon, ArrowPathIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 import type { Document } from '../../services/agentService'
 import { ConfirmDialog } from '../common/ConfirmDialog'
 import { DocumentPreviewModal } from './DocumentPreviewModal'
@@ -107,19 +107,34 @@ export const DocumentCard = ({ document, onDelete, onProcess }: DocumentCardProp
 
             {/* Status Badge */}
             <div className="flex items-center gap-2">
-              {document.processed ? (
+              {document.status === 'completed' || document.processed ? (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
                   <CheckCircleIcon className="w-3.5 h-3.5" />
-                  Processed
+                  Đã xử lý
+                </span>
+              ) : document.status === 'processing' ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                  <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
+                  Đang xử lý...
+                </span>
+              ) : document.status === 'queued' ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
+                  <ClockIcon className="w-3.5 h-3.5" />
+                  Đang chờ...
+                </span>
+              ) : document.status === 'failed' ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                  <ExclamationTriangleIcon className="w-3.5 h-3.5" />
+                  Lỗi xử lý
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
                   <ClockIcon className="w-3.5 h-3.5" />
-                  Processing...
+                  Chờ xử lý
                 </span>
               )}
 
-              {document.processed && (
+              {(document.status === 'completed' || document.processed) && (
                 <div className="flex items-center gap-2">
                   <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
                     {document.vector_count} text
@@ -136,15 +151,15 @@ export const DocumentCard = ({ document, onDelete, onProcess }: DocumentCardProp
 
           {/* Action Buttons */}
           <div className="flex items-center gap-1">
-            {/* Process Button - only show if not processed and onProcess is provided */}
-            {!document.processed && onProcess && (
+            {/* Process Button - show if not completed and not currently active in queue */}
+            {document.status !== 'completed' && !document.processed && (
               <button
                 onClick={handleProcess}
-                disabled={processing}
+                disabled={processing || document.status === 'queued' || document.status === 'processing'}
                 className="p-2 text-stone-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-                title="Xử lý tài liệu"
+                title={document.status === 'failed' ? "Thử lại xử lý" : "Xử lý tài liệu"}
               >
-                <ArrowPathIcon className={`w-5 h-5 ${processing ? 'animate-spin' : ''}`} />
+                <ArrowPathIcon className={`w-5 h-5 ${processing || document.status === 'processing' ? 'animate-spin' : ''}`} />
               </button>
             )}
 

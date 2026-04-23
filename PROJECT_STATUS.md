@@ -1,8 +1,39 @@
 # 🐾 PETTIES Project Status
 
-> **Last Updated:** 2026-04-11
+> **Last Updated:** 2026-04-20
 > **Current Sprint:** Post Sprint 13 - Production Hardening & AI Enhancement
 > **Overall Progress:** ~95% (code-based scan)
+
+---
+
+### Metrics-based Monitoring Stack (Code-based Evidence - 2026-04-20)
+
+**Scope:** Upgrade observability from log-derived monitoring to metrics-based monitoring using Prometheus + Grafana.
+
+**Implemented changes:**
+- Backend Spring Boot metrics:
+  - Added Prometheus registry dependency in `backend-spring/petties/pom.xml`.
+  - Enabled `/api/actuator/prometheus` in `application.properties` and `application-prod.properties`.
+  - Added HTTP histogram/SLO metric settings for latency analysis.
+- AI Service metrics:
+  - Added Prometheus instrumentation module:
+    - `petties-agent-serivce/app/monitoring/metrics.py`
+  - Added in-flight, request count, error count, duration metrics via middleware:
+    - `petties-agent-serivce/app/middleware/logging_middleware.py`
+  - Exposed `/metrics` endpoint in:
+    - `petties-agent-serivce/app/main.py`
+- Monitoring infrastructure:
+  - Added Prometheus + Grafana services in `docker-compose.dev.yml`.
+  - Added optional `monitoring` profile for `docker-compose.prod.yml`.
+  - Added monitoring configs and Grafana provisioning:
+    - `monitoring/prometheus/prometheus.dev.yml`
+    - `monitoring/prometheus/prometheus.prod.yml`
+    - `monitoring/grafana/provisioning/datasources/prometheus.yml`
+    - `monitoring/grafana/provisioning/dashboards/dashboards.yml`
+    - `monitoring/grafana/provisioning/dashboards/json/petties-observability.json`
+- Operations documentation:
+  - Added setup/runbook:
+    - `docs-references/operations/PROMETHEUS_GRAFANA_MONITORING_SETUP.md`
 
 ---
 
@@ -43,6 +74,94 @@
 ### WIREFRAME_CHECKLIST — AI Assistant đồng bộ code (2026-04-11)
 
 - `docs-references/documentation/SRS/WIREFRAME_CHECKLIST.md`: **§19.1** bổ sung **§19.1.4** (bảng màn hình AI + map prompt Stitch P1–P8); *Preserved* **Module 3.13** đã khớp `ai_chat_screen`, mascot dock, bỏ path `components/ai/*` và màn mobile tách không còn file; khối **Admin Features** (mục AI) và **Staff/Manager/Owner Web AI** chỉnh về `playground/`, `tools/`, `knowledge/`, `insights/AIInsightsPage`, Mascot.
+
+---
+
+### AI Diagnose Taxonomy & AI Insights Integration (Code-based Evidence - 2026-04-16)
+
+**Scope:** Stabilize autonomous disease learning rollout, fix runtime blockers in Staff Diagnosis, expose admin monitoring APIs, and integrate Disease Catalog monitoring directly inside `AIInsightsPage` (no separate admin page).
+
+**Implemented changes:**
+- AI service core:
+  - Added taxonomy dataset and taxonomy service for disease classification:
+    - `petties-agent-serivce/app/core/services/disease_taxonomy.json`
+    - `petties-agent-serivce/app/core/services/disease_taxonomy_service.py`
+  - Updated disease mapping thresholds and taxonomy-aware parameters:
+    - `CREATE_NEW_CONFIDENCE`: `0.94 -> 0.85`
+    - Added `taxonomy_hint` support in mapping/resolve + LLM prompt payload
+- Staff diagnosis stability/hardening:
+  - Converted `_build_top_differentials` to async and wired `await` call in `analyze_case`
+  - Removed nested event-loop misuse (`run_until_complete`) in diagnosis pipeline
+  - Restored and cleaned case-memory candidate merge flow after prior broken merge
+  - Added taxonomy pre-classification + score boost path in differential ranking
+- Admin monitoring APIs:
+  - Added endpoints:
+    - `GET /api/v1/knowledge/disease-catalog/stats`
+    - `GET /api/v1/knowledge/disease-catalog`
+    - `GET /api/v1/knowledge/learning-metrics`
+  - Enforced admin guard on catalog stats and learning metrics
+  - Fixed case-memory metrics key mapping (`points_count`, `collection`)
+- Web admin integration (gộp vào AI Insights):
+  - Added `DiseaseCatalogSection` under AI Insights page:
+    - `petties-web/src/pages/admin/insights/DiseaseCatalogSection.tsx`
+    - `petties-web/src/pages/admin/insights/AIInsightsPage.tsx`
+  - Removed separate page route approach (`DiseaseCatalogPage.tsx` deleted)
+  - Migrated API calls to centralized `agentService` + auth headers, removed direct token/localStorage usage
+  - Fixed `agentService` export ordering and added `diseaseCatalogApi`
+
+### AI Insights Self-learning Metrics Only (2026-04-16)
+
+**Scope:** Hide static taxonomy baseline in UI and surface only runtime self-learning disease growth sourced from DB (`disease_catalog`, `disease_aliases`) after EMR save/sync.
+
+**Implemented changes:**
+- Backend API (`/knowledge/disease-catalog`) now returns runtime self-learning catalog from `DiseaseMappingService` snapshot (`mapper._catalog`, `mapper._alias_entries`) instead of static taxonomy list.
+- Kept taxonomy only as optional metadata source to enrich `system/subsystem` labels when canonical code exists in taxonomy index.
+- Frontend Disease Catalog cards now show:
+  - `Tổng bệnh tự học` from `catalog.total_diseases`
+  - `Tổng aliases tự học` from `catalog.total_aliases`
+- Removed baseline taxonomy counts from `DiseaseCatalogSection` state typing and rendering.
+
+**Changed files (evidence):**
+- `petties-agent-serivce/app/api/routes/knowledge.py`
+- `petties-web/src/pages/admin/insights/DiseaseCatalogSection.tsx`
+- `petties-web/src/services/agentService.ts`
+
+**Validation evidence:**
+- `cd petties-agent-serivce && python -m py_compile app/api/routes/knowledge.py` -> pass
+- `cd petties-agent-serivce && python -m pytest tests/test_disease_taxonomy_service.py -q` -> **11 passed**
+- `cd petties-web && npx eslint src/pages/admin/insights/DiseaseCatalogSection.tsx src/services/agentService.ts` -> pass
+
+**Changed files (evidence):**
+- `petties-agent-serivce/app/core/services/disease_taxonomy.json`
+- `petties-agent-serivce/app/core/services/disease_taxonomy_service.py`
+- `petties-agent-serivce/app/core/services/disease_mapping_service.py`
+- `petties-agent-serivce/app/ai_diagnose/staff_diagnosis_service.py`
+- `petties-agent-serivce/app/ai_diagnose/schemas.py`
+- `petties-agent-serivce/app/api/routes/knowledge.py`
+- `petties-agent-serivce/tests/test_disease_taxonomy_service.py`
+- `petties-web/src/services/agentService.ts`
+- `petties-web/src/pages/admin/insights/DiseaseCatalogSection.tsx`
+- `petties-web/src/pages/admin/insights/AIInsightsPage.tsx`
+- `docs-references/ai_diagnose_service/09_DISEASE_TAXONOMY_SYSTEM.md`
+- `docs-references/ai_diagnose_service/07_COUNCIL_PRESENTATION_GUIDE.md`
+
+Note: `07_COUNCIL_PRESENTATION_GUIDE.md` has been fully rewritten in Vietnamese with diacritics and verified in UTF-8 encoding for council presentation use.
+
+**Validation evidence (current run):**
+- `cd petties-agent-serivce && python -m py_compile app/ai_diagnose/staff_diagnosis_service.py app/core/services/disease_taxonomy_service.py app/api/routes/knowledge.py app/core/services/disease_mapping_service.py app/ai_diagnose/schemas.py`
+  - Result: pass
+- `cd petties-agent-serivce && python -m pytest tests/test_disease_taxonomy_service.py -q`
+  - Result: **11 passed**
+- `cd petties-agent-serivce && python -m pytest tests/test_staff_diagnosis_service.py -q`
+  - Result: **32 passed**
+- `cd petties-agent-serivce && python -m pytest tests/test_staff_diagnosis_route.py -q`
+  - Result: **2 passed**
+- `cd petties-agent-serivce && python -c "import json; from app.core.services.disease_taxonomy_service import get_disease_taxonomy_service; s=get_disease_taxonomy_service(); print(json.dumps(s.get_taxonomy_stats(), ensure_ascii=True))"`
+  - Result: taxonomy loaded successfully (**55 diseases, 12 systems**) in current dataset.
+- `cd petties-web && npm run build`
+  - Result: pass
+- `cd petties-web && npm run lint`
+  - Result: failed due to **pre-existing unrelated lint errors** in other modules; no new blocking error introduced by AI Insights taxonomy integration files.
 
 ---
 

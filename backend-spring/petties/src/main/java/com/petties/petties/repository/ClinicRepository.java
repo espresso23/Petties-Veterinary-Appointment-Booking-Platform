@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -40,10 +41,16 @@ public interface ClinicRepository extends JpaRepository<Clinic, UUID> {
         Page<Clinic> findByOwnerUserIdAndStatus(UUID ownerId, ClinicStatus status, Pageable pageable);
 
         /**
-         * Find ALL clinics by owner (any status, excluding soft deleted)
+         * Find owner clinics for normal owner views (exclude soft deleted and sandbox)
+         */
+        @Query("SELECT c FROM Clinic c WHERE c.owner.userId = :ownerId AND c.deletedAt IS NULL AND (c.isSandbox = false OR c.isSandbox IS NULL)")
+        Page<Clinic> findByOwnerUserId(@Param("ownerId") UUID ownerId, Pageable pageable);
+
+        /**
+         * Find owner clinics including sandbox clinics for sandbox mode walkthroughs
          */
         @Query("SELECT c FROM Clinic c WHERE c.owner.userId = :ownerId AND c.deletedAt IS NULL")
-        Page<Clinic> findByOwnerUserId(@Param("ownerId") UUID ownerId, Pageable pageable);
+        Page<Clinic> findByOwnerUserIdIncludingSandbox(@Param("ownerId") UUID ownerId, Pageable pageable);
 
         /**
          * Find a single clinic by owner (for current user's clinic)
@@ -212,4 +219,64 @@ public interface ClinicRepository extends JpaRepository<Clinic, UUID> {
                         @Param("minPrice") BigDecimal minPrice,
                         @Param("maxPrice") BigDecimal maxPrice,
                         @Param("service") String service);
+
+        /* ========== SANDBOX WORKSPACE QUERIES ========== */
+
+        /**
+         * SECURITY CRITICAL: Find clinics by owner EXCLUDING sandboxes (B2B API)
+         * Sandboxes are mock clinics used for learning - should never appear in production views
+         * HARDCODED: is_sandbox = false cannot be changed from frontend
+         *
+         * @param ownerId User ID of clinic owner
+         * @return All owner's production clinics (excluding sandbox clinics)
+         */
+        @Query("SELECT c FROM Clinic c WHERE c.owner.userId = :ownerId AND c.isSandbox = false AND c.deletedAt IS NULL")
+        List<Clinic> findByOwnerIdAndNotSandbox(@Param("ownerId") UUID ownerId);
+
+        /**
+         * SECURITY CRITICAL: Find nearby clinics EXCLUDING sandboxes (B2C/Mobile API)
+         * This is the primary query used by pet owners to find clinics
+         * HARDCODED: is_sandbox = false cannot be changed from frontend
+         * Ensures sandbox clinics never appear in search results visible to pet owners
+         */
+        @Query(value = """
+                SELECT c.*,
+                       (6371 * acos(cos(radians(:lat)) * cos(radians(c.latitude)) *
+                       cos(radians(c.longitude) - radians(:lng)) +
+                       sin(radians(:lat)) * sin(radians(c.latitude)))) AS distance
+                FROM clinics c
+                WHERE c.deleted_at IS NULL
+                  AND c.is_sandbox = false
+                  AND c.status = 'APPROVED'
+                  AND (c.strike_until IS NULL OR c.strike_until < CURRENT_TIMESTAMP)
+                  AND c.latitude IS NOT NULL
+                  AND c.longitude IS NOT NULL
+                  AND (6371 * acos(cos(radians(:lat)) * cos(radians(c.latitude)) *
+                       cos(radians(c.longitude) - radians(:lng)) +
+                       sin(radians(:lat)) * sin(radians(c.latitude)))) <= :radius
+                ORDER BY distance
+                """, nativeQuery = true)
+        List<Clinic> findNearbyClinicsNotSandbox(
+                @Param("lat") BigDecimal latitude,
+                @Param("lng") BigDecimal longitude,
+                @Param("radius") double radius);
+
+        /**
+         * Find expired sandbox clinics for cleanup (CRON job)
+         * Returns sandboxes older than cutoff time (24 hours old)
+         *
+         * @param cutoffTime LocalDateTime threshold (e.g., now - 24 hours)
+         * @return List of expired sandbox clinics to be deleted
+         */
+        @Query("SELECT c FROM Clinic c WHERE c.isSandbox = true AND c.createdAt < :cutoffTime AND c.deletedAt IS NULL")
+        List<Clinic> findExpiredSandboxes(@Param("cutoffTime") LocalDateTime cutoffTime);
+
+        /**
+         * Get current active sandbox for a user (if any)
+         * Returns the most recently created sandbox for this user
+         *
+         * @param userId User ID of sandbox creator
+         * @return Optional containing the latest sandbox, or empty if none active
+         */
+        Optional<Clinic> findFirstByIsSandboxTrueAndSandboxOwnerUserIdOrderByCreatedAtDesc(UUID sandboxOwnerId);
 }

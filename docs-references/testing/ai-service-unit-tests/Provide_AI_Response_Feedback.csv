@@ -1,0 +1,23 @@
+A,B,C,D,E,F,G,H,I
+Function Code / Name,POST /chat/feedback,,,,,,,,
+Created By / Executed By,Gemini CLI,,,,,,,,
+Lines of Code (LOC),59,,,,,,,,
+Lack of test cases,"=IF(Functions!E18<>""N/A"";SUM(C4*Functions!E18/1000;-O7);""N/A"")",,,,,,,
+Test Requirement,"Validate end-user submission of AI quality ratings, ensuring categorical assignment and preventing duplicate feedback entries per message.",,,,,,,,
+Overview Stats,Total: 4, Passed: 0, Failed: 0, Untested: 4,,,,,,,,
+,,,,,UTCID01,UTCID02,UTCID03,UTCID04
+Condition,Auth Token,,,,,,,,
+,,,Valid Token,,O,O,O,
+,Message,,,,,,,,
+,,,Message Exists,,O,,O,O
+,Feedback,,,,,,,,
+,,,Valid LIKE/DISLIKE,,O,O,,O
+Confirm,Return State,,,,,,,,
+,,,200 OK + Saved,,O,,,
+,,,404 Msg Not Found,,,O,,
+,,,422 Invalid Enum,,,,O,
+,,,409 Conflict (Rated),,,,,O
+Result,Type,,,,N,A,A,A
+,Status,,,,P,P,P,P
+,Executed Date,,,,2026-04-17,2026-04-17,2026-04-17,2026-04-17
+,DefectID,,,,None,None,None,None

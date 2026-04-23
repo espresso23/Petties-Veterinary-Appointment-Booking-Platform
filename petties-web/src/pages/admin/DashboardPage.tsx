@@ -20,6 +20,27 @@ interface ServiceHealth {
     version?: string
 }
 
+const stripTrailingSlash = (value: string): string => value.replace(/\/+$/, '')
+
+const withTimeout = async (input: string, timeoutMs = 6000): Promise<Response> => {
+    const controller = new AbortController()
+    const timeoutId = globalThis.setTimeout(() => controller.abort(), timeoutMs)
+
+    try {
+        return await fetch(input, { method: 'GET', signal: controller.signal })
+    } finally {
+        globalThis.clearTimeout(timeoutId)
+    }
+}
+
+const parseHealthPayload = async (response: Response): Promise<Record<string, unknown> | null> => {
+    try {
+        return (await response.json()) as Record<string, unknown>
+    } catch {
+        return null
+    }
+}
+
 /**
  * Admin dashboard — platform stats, charts, service health
  */
@@ -45,29 +66,64 @@ export const AdminDashboardPage = () => {
     const [statsWarnings, setStatsWarnings] = useState<string[]>([])
 
     const checkServices = useCallback(async () => {
-        try {
-            const res = await fetch(`${env.AGENT_API_BASE_URL}/health`, { method: 'GET' })
-            if (res.ok) {
-                const data = (await res.json()) as { service?: string; version?: string }
+        const agentApiBase = typeof env.AGENT_API_BASE_URL === 'string' ? env.AGENT_API_BASE_URL : ''
+        const agentServiceBase = typeof env.AGENT_SERVICE_URL === 'string' && env.AGENT_SERVICE_URL.length > 0
+            ? env.AGENT_SERVICE_URL
+            : agentApiBase
+
+        const aiHealthCandidates = Array.from(
+            new Set(
+                [
+                    `${stripTrailingSlash(agentApiBase)}/health`,
+                    `${stripTrailingSlash(agentServiceBase)}/health`,
+                    `${stripTrailingSlash(agentApiBase).replace(/\/api$/, '')}/health`,
+                ]
+                    .map((url) => url.trim())
+                    .filter((url) => url.startsWith('http'))
+            )
+        )
+
+        let aiErrorMessage = 'Không kết nối được'
+        let aiHealthy = false
+
+        for (const healthUrl of aiHealthCandidates) {
+            try {
+                const res = await withTimeout(healthUrl)
+
+                if (!res.ok) {
+                    aiErrorMessage = `Lỗi HTTP ${res.status}`
+                    continue
+                }
+
+                const data = await parseHealthPayload(res)
+                const serviceName = typeof data?.service === 'string' ? data.service : 'Dịch vụ AI'
+                const version = typeof data?.version === 'string' ? data.version : undefined
+
                 setAiHealth({
                     status: 'healthy',
-                    message: data.service ? `Dịch vụ: ${data.service}` : 'Dịch vụ AI',
-                    version: data.version,
+                    message: serviceName ? `Dịch vụ: ${serviceName}` : 'Dịch vụ AI',
+                    version,
                 })
-            } else {
-                setAiHealth({ status: 'error', message: `Lỗi HTTP ${res.status}` })
+                aiHealthy = true
+                break
+            } catch (error) {
+                if (error instanceof DOMException && error.name === 'AbortError') {
+                    aiErrorMessage = 'Hết thời gian kết nối'
+                }
             }
-        } catch {
-            setAiHealth({ status: 'error', message: 'Không kết nối được' })
+        }
+
+        if (!aiHealthy) {
+            setAiHealth({ status: 'error', message: aiErrorMessage })
         }
 
         try {
-            const res = await fetch(`${env.API_BASE_URL}/actuator/health`, { method: 'GET' })
+            const res = await withTimeout(`${env.API_BASE_URL}/actuator/health`)
             if (res.ok) {
-                const data = (await res.json()) as { status?: string }
+                const data = (await parseHealthPayload(res)) as { status?: string } | null
                 setSpringHealth({
                     status: 'healthy',
-                    message: data.status === 'UP' ? 'Hoạt động' : data.status || 'OK',
+                    message: data?.status === 'UP' ? 'Hoạt động' : data?.status || 'OK',
                 })
             } else {
                 setSpringHealth({ status: 'error', message: `Lỗi HTTP ${res.status}` })

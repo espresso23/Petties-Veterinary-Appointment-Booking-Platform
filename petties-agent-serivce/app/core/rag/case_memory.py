@@ -42,7 +42,7 @@ from app.config.settings import settings
 # CONSTANTS
 # ============================================================
 
-CASE_MEMORY_COLLECTION = "petties_case_memory_v2"
+CASE_MEMORY_COLLECTION = settings.CASE_MEMORY_COLLECTION
 """Tên collection Qdrant cho case memory (v2, hỗ trợ text + image)."""
 
 CASE_MEMORY_TEXT_DIMENSION = 1024
@@ -418,6 +418,7 @@ class CaseMemoryService:
             query: Câu truy vấn tìm kiếm.
             top_k: Số lượng kết quả tối đa trả về.
             min_score: Ngưỡng cosine similarity tối thiểu.
+            image_urls: Danh sách ảnh truy vấn (hỗ trợ https:// hoặc data:).
 
         Returns:
             Danh sách CaseResult, sắp xếp theo final_score giảm dần.
@@ -447,7 +448,11 @@ class CaseMemoryService:
                 image_urls_clean = [
                     u.strip()
                     for u in image_urls
-                    if isinstance(u, str) and u.strip().startswith("http")
+                    if isinstance(u, str)
+                    and (
+                        u.strip().startswith("https://")
+                        or u.strip().startswith("data:")
+                    )
                 ]
                 if image_urls_clean:
                     from app.core.embeddings.jina_image_embeddings import (
@@ -901,7 +906,9 @@ class CaseMemoryService:
 
             point = points[0]
             payload = point.payload or {}
-            clinical_images = payload.get("clinical_image_urls") or payload.get("image_urls") or []
+            clinical_images = (
+                payload.get("clinical_image_urls") or payload.get("image_urls") or []
+            )
             if not isinstance(clinical_images, list):
                 clinical_images = []
             return {

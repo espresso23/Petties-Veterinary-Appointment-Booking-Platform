@@ -1,5 +1,8 @@
 export type ClinicStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED'
 
+export type ClinicSuspendRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+export type ClinicSuspendRequestType = 'SUSPEND' | 'UNSUSPEND'
+
 export interface OperatingHours {
   openTime?: string // HH:mm format
   closeTime?: string // HH:mm format
@@ -150,6 +153,34 @@ export interface ClinicFilters {
   name?: string
   page?: number
   size?: number
+}
+
+export interface ClinicSuspendRequestCreateRequest {
+  clinicId: string
+  reason: string
+}
+
+export interface ClinicSuspendRequestReviewRequest {
+  status: ClinicSuspendRequestStatus
+  note?: string
+}
+
+export interface ClinicSuspendRequestResponse {
+  clinicSuspendRequestId: string
+  clinicId: string
+  clinicName: string
+  clinicStatus: ClinicStatus
+  requestedById: string
+  requestedByName?: string
+  reason: string
+  requestType: ClinicSuspendRequestType
+  status: ClinicSuspendRequestStatus
+  adminNote?: string
+  reviewedById?: string
+  reviewedByName?: string
+  reviewedAt?: string
+  createdAt: string
+  updatedAt?: string
 }
 
 export interface NearbyClinicsParams {

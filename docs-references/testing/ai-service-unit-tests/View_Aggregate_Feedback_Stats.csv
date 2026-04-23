@@ -1,0 +1,23 @@
+A,B,C,D,E,F,G,H,I
+Function Code / Name,GET /chat/feedback/stats,,,,,,,,
+Created By / Executed By,Gemini CLI,,,,,,,,
+Lines of Code (LOC),25,,,,,,,,
+Lack of test cases,"=IF(Functions!E17<>""N/A"";SUM(C4*Functions!E17/1000;-O7);""N/A"")",,,,,,,
+Test Requirement,"Verify administrative aggregation of user satisfaction metrics (Like/Dislike) with temporal filtering and positive rating calculations.",,,,,,,,
+Overview Stats,Total: 4, Passed: 0, Failed: 0, Untested: 4,,,,,,,,
+,,,,,UTCID01,UTCID02,UTCID03,UTCID04
+Condition,Auth Token,,,,,,,,
+,,,Admin Auth Token,,O,O,O,
+,Date Range,,,,,,,,
+,,,Valid Range,,O,O,,O
+,Data Status,,,,,,,,
+,,,Data in DB,,O,,O,O
+Confirm,Return State,,,,,,,,
+,,,200 OK + Stats,,O,,,
+,,,200 OK + Zero Stats,,,O,,
+,,,422 Invalid Date Format,,,,O,
+,,,401/403 Forbidden,,,,,O
+Result,Type,,,,N,B,A,A
+,Status,,,,P,P,P,P
+,Executed Date,,,,2026-04-17,2026-04-17,2026-04-17,2026-04-17
+,DefectID,,,,None,None,None,None

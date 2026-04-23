@@ -77,6 +77,7 @@ export interface Booking {
     paymentMethod?: string; // CASH, QR, CARD
     paymentDescription?: string; // SePay payment description for QR matching
     qrImageUrl?: string; // QR code image URL (only for QR + PENDING)
+    canShowQrPaymentButton?: boolean; // Stable flag for showing QR payment panel
 
     // Booking info
     bookingDate: string;

@@ -15,16 +15,35 @@ interface MascotProviderProps {
 
 const looksLikeJsonPayload = (value: unknown): boolean => {
     if (typeof value !== 'string') return false
-    const text = value.trim()
+    let text = value.trim()
     if (!text) return false
+
+    // Remove markdown code blocks if present
+    if (text.startsWith('```json')) {
+        text = text.substring(7).trim()
+    } else if (text.startsWith('```')) {
+        text = text.substring(3).trim()
+    }
+    if (text.endsWith('```')) {
+        text = text.substring(0, text.length - 3).trim()
+    }
+
     if (!(text.startsWith('{') || text.startsWith('['))) return false
-    return (
-        text.includes('"success"') ||
-        text.includes('"data"') ||
-        text.includes('"suggestions"') ||
-        text.includes('"error_code"') ||
-        text.includes('"ui_card"')
-    )
+
+    try {
+        JSON.parse(text)
+        return true
+    } catch {
+        // If it can't be parsed, fallback to heuristic
+        return (
+            text.includes('"success"') ||
+            text.includes('"data"') ||
+            text.includes('"suggestion') ||
+            text.includes('"error_code"') ||
+            text.includes('"ui_card"') ||
+            text.includes('"type"')
+        )
+    }
 }
 
 export const MascotProvider = ({ children }: MascotProviderProps) => {
@@ -167,7 +186,7 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
                         timestamp: new Date(),
                         uiSchema: data.ui_schema as UISchemaV1,
                         stage: data.stage,
-                        isLoading: true,
+                        isLoading: false,
                     })
                     return
                 }
@@ -180,41 +199,38 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
                     const content = (data.full_response || streamBufferRef.current || '').toString()
                     setMessages((prev) => {
                         const messagesSnapshot = [...prev]
-                        const lastIndex = messagesSnapshot.length - 1
-                        if (lastIndex >= 0) {
-                            const last = messagesSnapshot[lastIndex]
-                            if (last.role === 'assistant' && last.uiSchema && !last.content.trim()) {
-                                messagesSnapshot[lastIndex] = {
-                                    ...last,
-                                    content: looksLikeJsonPayload(content) ? '' : content,
-                                    isLoading: false,
+                        
+                        // Clear isLoading for ALL assistant messages to avoid "hanging" states
+                        const updated = messagesSnapshot.map((msg, idx) => {
+                            if (msg.role === 'assistant' && msg.isLoading) {
+                                // If it's the last message and we have content, update it
+                                if (idx === messagesSnapshot.length - 1) {
+                                    return {
+                                        ...msg,
+                                        content: msg.content || (looksLikeJsonPayload(content) ? '' : content),
+                                        isLoading: false
+                                    }
                                 }
-                                return messagesSnapshot
+                                return { ...msg, isLoading: false }
                             }
+                            return msg
+                        })
+
+                        // If last message was user (though unlikely here), or no assistant message was found to update
+                        const last = updated[updated.length - 1]
+                        if (content && (!last || last.role !== 'assistant' || last.content !== content)) {
+                             if (!looksLikeJsonPayload(content)) {
+                                 updated.push({
+                                     id: `ai-${Date.now()}`,
+                                     role: 'assistant',
+                                     content,
+                                     timestamp: new Date(),
+                                     isLoading: false,
+                                 })
+                             }
                         }
 
-                        if (content) {
-                            if (lastIndex >= 0 && messagesSnapshot[lastIndex].role === 'assistant') {
-                                messagesSnapshot[lastIndex] = {
-                                    ...messagesSnapshot[lastIndex],
-                                    content: looksLikeJsonPayload(content) ? '' : content,
-                                    isLoading: false,
-                                }
-                                return messagesSnapshot
-                            }
-                        }
-
-                        if (content) {
-                            messagesSnapshot.push({
-                                id: `ai-${Date.now()}`,
-                                role: 'assistant',
-                                content: looksLikeJsonPayload(content) ? '' : content,
-                                timestamp: new Date(),
-                                isLoading: false,
-                            })
-                        }
-
-                        return messagesSnapshot
+                        return updated
                     })
                     streamBufferRef.current = ''
                     return
@@ -424,14 +440,14 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
                 return
             }
 
-            if (displayMessage?.trim()) {
-                addMessage({
-                    id: `user-${Date.now()}`,
-                    role: 'user',
-                    content: displayMessage.trim(),
-                    timestamp: new Date(),
-                })
-            }
+            // if (displayMessage?.trim()) {
+            //     addMessage({
+            //         id: `user-${Date.now()}`,
+            //         role: 'user',
+            //         content: displayMessage.trim(),
+            //         timestamp: new Date(),
+            //     })
+            // }
 
             addMessage({
                 id: `ai-${Date.now()}`,
@@ -549,7 +565,7 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
                     role: msg.role === 'user' ? 'user' : 'assistant',
                     content: msg.content || '',
                     timestamp: new Date(msg.created_at || Date.now()),
-                    uiSchema: msg.ui_schema || undefined,
+                    uiSchema: typeof msg.ui_schema === 'string' ? JSON.parse(msg.ui_schema) : msg.ui_schema || undefined,
                     stage: msg.stage || undefined,
                     isLoading: false,
                 }))

@@ -197,6 +197,107 @@ def test_pet_knowledge_search_symptom_query_returns_raw_data():
     assert "urgent" not in result["data"]
 
 
+def test_pet_knowledge_search_pet_owner_disables_case_memory_and_query_expansion():
+    fake_hybrid_result = FakeHybridResult(
+        chunks=[
+            FakeHybridChunk(
+                content="Cho bé uống nước từng ít một và theo dõi thêm.",
+                score=0.8,
+                source="rag",
+                metadata={"document_name": "petcare-guide.pdf", "chunk_index": 0},
+            )
+        ],
+        expanded_query="cho bi non mua",
+        original_query="cho bi non mua",
+    )
+
+    class CapturingHybridEngine:
+        def __init__(self, result):
+            self.result = result
+            self.last_kwargs = {}
+
+        async def query(self, **kwargs):
+            self.last_kwargs = kwargs
+            return self.result
+
+    engine = CapturingHybridEngine(fake_hybrid_result)
+    runtime_token = set_tool_runtime_context(
+        ToolRuntimeContext(user_id="user-1", role="PET_OWNER")
+    )
+
+    try:
+        with patch(
+            "app.core.rag.hybrid_engine.get_hybrid_rag_engine",
+            return_value=engine,
+        ):
+            result = asyncio.run(
+                pet_knowledge_search(
+                    "cho bi non mua",
+                    pet_type="dog",
+                    top_k=10,
+                    enable_case_memory=True,
+                    enable_query_expansion=True,
+                )
+            )
+    finally:
+        reset_tool_runtime_context(runtime_token)
+
+    assert result["success"] is True
+    assert engine.last_kwargs["enable_case_memory"] is False
+    assert engine.last_kwargs["enable_query_expansion"] is False
+    assert engine.last_kwargs["top_k"] == 3
+    assert result["metadata"]["retrieval_profile"]["enable_case_memory"] is False
+    assert result["metadata"]["retrieval_profile"]["enable_query_expansion"] is False
+    assert result["metadata"]["retrieval_profile"]["top_k"] == 3
+
+
+def test_pet_knowledge_search_staff_keeps_case_memory_profile():
+    fake_hybrid_result = FakeHybridResult(
+        chunks=[],
+        expanded_query="cho bi non mua",
+        original_query="cho bi non mua",
+    )
+
+    class CapturingHybridEngine:
+        def __init__(self, result):
+            self.result = result
+            self.last_kwargs = {}
+
+        async def query(self, **kwargs):
+            self.last_kwargs = kwargs
+            return self.result
+
+    engine = CapturingHybridEngine(fake_hybrid_result)
+    runtime_token = set_tool_runtime_context(
+        ToolRuntimeContext(user_id="staff-1", role="STAFF")
+    )
+
+    try:
+        with patch(
+            "app.core.rag.hybrid_engine.get_hybrid_rag_engine",
+            return_value=engine,
+        ):
+            result = asyncio.run(
+                pet_knowledge_search(
+                    "cho bi non mua",
+                    pet_type="dog",
+                    top_k=6,
+                    enable_case_memory=True,
+                    enable_query_expansion=True,
+                )
+            )
+    finally:
+        reset_tool_runtime_context(runtime_token)
+
+    assert result["success"] is True
+    assert engine.last_kwargs["enable_case_memory"] is True
+    assert engine.last_kwargs["enable_query_expansion"] is True
+    assert engine.last_kwargs["top_k"] == 6
+    assert result["metadata"]["retrieval_profile"]["enable_case_memory"] is True
+    assert result["metadata"]["retrieval_profile"]["enable_query_expansion"] is True
+    assert result["metadata"]["retrieval_profile"]["top_k"] == 6
+
+
 def test_no_auto_web_fallback_when_kb_empty():
     """Policy mới: không auto fallback sang web_search khi KB rỗng."""
     answer = build_final_answer_from_tool_result(

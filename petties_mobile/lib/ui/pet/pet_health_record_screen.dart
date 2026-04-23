@@ -49,8 +49,10 @@ class _PetHealthRecordScreenState extends State<PetHealthRecordScreen>
   void _loadData() {
     setState(() {
       _emrFuture = _emrService.getEmrsByPetId(widget.petId);
-      _vaccinationFuture = _vaccinationService.getVaccinationsByPet(widget.petId);
-      _upcomingFuture = _vaccinationService.getUpcomingVaccinations(widget.petId);
+      _vaccinationFuture =
+          _vaccinationService.getVaccinationsByPet(widget.petId);
+      _upcomingFuture =
+          _vaccinationService.getUpcomingVaccinations(widget.petId);
     });
   }
 
@@ -77,7 +79,8 @@ class _PetHealthRecordScreenState extends State<PetHealthRecordScreen>
           indicatorWeight: 4,
           labelColor: AppColors.white,
           unselectedLabelColor: AppColors.white.withOpacity(0.7),
-          labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+          labelStyle:
+              const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
           tabs: const [
             Tab(text: 'TIÊM CHỦNG'),
             Tab(text: 'BỆNH ÁN'),
@@ -214,7 +217,8 @@ class _VaccinationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isUpcoming = record.nextDueDate != null && record.nextDueDate!.isAfter(DateTime.now());
+    final bool isUpcoming = record.nextDueDate != null &&
+        record.nextDueDate!.isAfter(DateTime.now());
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -240,7 +244,8 @@ class _VaccinationCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   record.vaccineName.toUpperCase(),
-                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w900, fontSize: 18),
                 ),
               ),
               Container(
@@ -253,14 +258,16 @@ class _VaccinationCard extends StatelessWidget {
                   record.vaccinationDate != null
                       ? DateFormat('dd/MM/yyyy').format(record.vaccinationDate!)
                       : 'N/A',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
           _buildInfoRow(Icons.person, 'Bác sĩ: ${record.staffName ?? "N/A"}'),
-          _buildInfoRow(Icons.business, 'Phòng khám: ${record.clinicName ?? "N/A"}'),
+          _buildInfoRow(
+              Icons.business, 'Phòng khám: ${record.clinicName ?? "N/A"}'),
           if (record.nextDueDate != null) ...[
             const Divider(color: AppColors.stone200, height: 24),
             Row(
@@ -281,14 +288,18 @@ class _VaccinationCard extends StatelessWidget {
                 if (isUpcoming) ...[
                   const Spacer(),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: Colors.blue.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: const Text(
                       'SẮP TỚI',
-                      style: TextStyle(color: Colors.blue, fontSize: 10, fontWeight: FontWeight.w900),
+                      style: TextStyle(
+                          color: Colors.blue,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900),
                     ),
                   ),
                 ],
@@ -307,7 +318,10 @@ class _VaccinationCard extends StatelessWidget {
         children: [
           Icon(icon, size: 14, color: AppColors.stone400),
           const SizedBox(width: 8),
-          Expanded(child: Text(text, style: const TextStyle(color: AppColors.stone600, fontSize: 13))),
+          Expanded(
+              child: Text(text,
+                  style: const TextStyle(
+                      color: AppColors.stone600, fontSize: 13))),
         ],
       ),
     );
@@ -343,14 +357,16 @@ class _EmrCard extends StatelessWidget {
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: AppColors.secondary.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       DateFormat('dd/MM/yyyy').format(record.examinationDate),
-                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w900, fontSize: 11),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -358,14 +374,18 @@ class _EmrCard extends StatelessWidget {
                     record.bookingCode != null
                         ? '#${record.bookingCode}'
                         : '#${record.bookingId?.substring(0, 8) ?? "N/A"}',
-                    style: const TextStyle(color: AppColors.stone400, fontSize: 11, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                        color: AppColors.stone400,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
               Text(
                 (record.assessment ?? 'Khám tổng quát').toUpperCase(),
-                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                style:
+                    const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
               ),
             ],
           ),
@@ -379,7 +399,10 @@ class _EmrCard extends StatelessWidget {
               if (record.clinicName != null)
                 Text(
                   'Phòng khám: ${record.clinicName}',
-                  style: const TextStyle(color: AppColors.stone400, fontSize: 11, fontStyle: FontStyle.italic),
+                  style: const TextStyle(
+                      color: AppColors.stone400,
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic),
                 ),
             ],
           ),
@@ -393,22 +416,26 @@ class _EmrCard extends StatelessWidget {
                   // Vital Stats Row
                   Row(
                     children: [
-                      _buildMiniInfo('CÂN NẶNG', '${record.weightKg ?? "--"} kg'),
-                      _buildMiniInfo('THÂN NHIỆT', '${record.temperatureC ?? "--"} °C'),
-                      _buildMiniInfo('NHỊP TIM', '${record.heartRate ?? "--"} bpm'),
+                      _buildMiniInfo(
+                          'CÂN NẶNG', '${record.weightKg ?? "--"} kg'),
+                      _buildMiniInfo(
+                          'THÂN NHIỆT', '${record.temperatureC ?? "--"} °C'),
+                      _buildMiniInfo(
+                          'NHỊP TIM', '${record.heartRate ?? "--"} bpm'),
                     ],
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // BCS Segment
                   _buildBcsRow(record.bcs),
                   const SizedBox(height: 16),
-                  
+
                   // SOAP Sections
-                  _buildSoapField('S', 'CHỦ QUAN (SUBJECTIVE)', record.subjective),
-                  _buildSoapField('O', 'KHÁCH QUAN (OBJECTIVE)', record.objective),
-                  _buildSoapField('A', 'ĐÁNH GIÁ (ASSESSMENT)', record.assessment),
-                  _buildSoapField('P', 'KẾ HOẠCH (PLAN)', record.plan),
+                  _buildSoapField('S', 'TRIỆU CHỨNG', record.subjective),
+                  _buildSoapField('O', 'KẾT QUẢ KHÁM LÂM SÀNG, CHỈ SỐ SỨC KHỎE',
+                      record.objective),
+                  _buildSoapField('A', 'CHẨN ĐOÁN', record.assessment),
+                  _buildSoapField('P', 'KẾ HOẠCH', record.plan),
 
                   // Re-examination Info
                   if (record.reExaminationDate != null) ...[
@@ -422,14 +449,25 @@ class _EmrCard extends StatelessWidget {
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.event_repeat, color: Colors.amber, size: 20),
+                          const Icon(Icons.event_repeat,
+                              color: Colors.amber, size: 20),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('HẸN TÁI KHÁM', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.amber)),
-                                Text(DateFormat('dd/MM/yyyy').format(record.reExaminationDate!), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.stone800)),
+                                const Text('HẸN TÁI KHÁM',
+                                    style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w900,
+                                        color: Colors.amber)),
+                                Text(
+                                    DateFormat('dd/MM/yyyy')
+                                        .format(record.reExaminationDate!),
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 16,
+                                        color: AppColors.stone800)),
                               ],
                             ),
                           ),
@@ -441,41 +479,57 @@ class _EmrCard extends StatelessWidget {
                   // Prescriptions
                   if (record.prescriptions.isNotEmpty) ...[
                     const SizedBox(height: 16),
-                    const Text('ĐƠN THUỐC', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: AppColors.primary)),
+                    const Text('ĐƠN THUỐC',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 12,
+                            color: AppColors.primary)),
                     const SizedBox(height: 8),
                     ...record.prescriptions.map((p) => Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.white,
-                        border: Border.all(color: AppColors.stone900),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(p.medicineName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          Text(
-                            '${p.dosage} viên/lần • ${p.frequency} lần/ngày • ${p.durationDays ?? "--"} ngày',
-                            style: const TextStyle(fontSize: 12, color: AppColors.stone500, fontWeight: FontWeight.bold),
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.white,
+                            border: Border.all(color: AppColors.stone900),
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          if (p.instructions != null)
-                             Padding(
-                               padding: const EdgeInsets.only(top: 4),
-                               child: Text(
-                                 'Hướng dẫn sử dụng: ${p.instructions}',
-                                 style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: AppColors.stone400),
-                               ),
-                             ),
-                        ],
-                      ),
-                    )),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(p.medicineName,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold)),
+                              Text(
+                                '${p.dosage} viên/lần • ${p.frequency} lần/ngày • ${p.durationDays ?? "--"} ngày',
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.stone500,
+                                    fontWeight: FontWeight.bold),
+                              ),
+                              if (p.instructions != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Text(
+                                    'Hướng dẫn sử dụng: ${p.instructions}',
+                                    style: const TextStyle(
+                                        fontSize: 11,
+                                        fontStyle: FontStyle.italic,
+                                        color: AppColors.stone400),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        )),
                   ],
 
                   // Images
                   if (record.images.isNotEmpty) ...[
                     const SizedBox(height: 16),
-                    const Text('HÌNH ẢNH LÂM SÀNG', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: AppColors.stone400)),
+                    const Text('HÌNH ẢNH LÂM SÀNG',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 12,
+                            color: AppColors.stone400)),
                     const SizedBox(height: 8),
                     SizedBox(
                       height: 100,
@@ -490,10 +544,12 @@ class _EmrCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: GestureDetector(
-                            onTap: () => _showFullScreenImage(context, record.images[idx]),
+                            onTap: () => _showFullScreenImage(
+                                context, record.images[idx]),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(6),
-                              child: Image.network(record.images[idx].url, fit: BoxFit.cover),
+                              child: Image.network(record.images[idx].url,
+                                  fit: BoxFit.cover),
                             ),
                           ),
                         ),
@@ -560,7 +616,11 @@ class _EmrCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('ĐIỂM THỂ TRẠNG (BCS)', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.stone400)),
+        const Text('ĐIỂM THỂ TRẠNG (BCS)',
+            style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                color: AppColors.stone400)),
         const SizedBox(height: 8),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -573,13 +633,15 @@ class _EmrCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: isSelected ? AppColors.secondary : AppColors.white,
                 shape: BoxShape.circle,
-                border: Border.all(color: AppColors.stone900, width: isSelected ? 2 : 1),
+                border: Border.all(
+                    color: AppColors.stone900, width: isSelected ? 2 : 1),
               ),
               child: Center(
                 child: Text(
                   '$score',
                   style: TextStyle(
-                    fontWeight: isSelected ? FontWeight.w900 : FontWeight.normal,
+                    fontWeight:
+                        isSelected ? FontWeight.w900 : FontWeight.normal,
                     fontSize: 12,
                     color: isSelected ? AppColors.stone900 : AppColors.stone400,
                   ),
@@ -607,10 +669,18 @@ class _EmrCard extends StatelessWidget {
                   color: AppColors.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: Text(tag, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 10, color: AppColors.primary)),
+                child: Text(tag,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 10,
+                        color: AppColors.primary)),
               ),
               const SizedBox(width: 8),
-              Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.stone400)),
+              Text(label,
+                  style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.stone400)),
             ],
           ),
           const SizedBox(height: 6),
@@ -621,7 +691,9 @@ class _EmrCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: AppColors.stone200),
             ),
-            child: Text(content, style: const TextStyle(fontSize: 13, color: AppColors.stone800, height: 1.4)),
+            child: Text(content,
+                style: const TextStyle(
+                    fontSize: 13, color: AppColors.stone800, height: 1.4)),
           ),
         ],
       ),
@@ -633,8 +705,14 @@ class _EmrCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.stone400)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.stone400)),
+          Text(value,
+              style:
+                  const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
         ],
       ),
     );
@@ -647,9 +725,14 @@ class _EmrCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.stone400)),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.stone400)),
           const SizedBox(height: 4),
-          Text(content, style: const TextStyle(fontSize: 14, color: AppColors.stone800)),
+          Text(content,
+              style: const TextStyle(fontSize: 14, color: AppColors.stone800)),
         ],
       ),
     );

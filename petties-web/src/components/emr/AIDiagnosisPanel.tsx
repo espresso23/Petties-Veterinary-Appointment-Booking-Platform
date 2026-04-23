@@ -45,6 +45,45 @@ const mapSpecies = (species?: string): 'dog' | 'cat' | 'other' => {
     return 'other'
 }
 
+const timeLabel = (value: string): string => {
+    if (value === 'sang') return 'Sáng'
+    if (value === 'trua') return 'Trưa'
+    if (value === 'chieu') return 'Chiều'
+    return value
+}
+
+const mealLabel = (value?: string): string => {
+    if (!value) return ''
+    if (value === 'BEFORE_MEAL') return 'Trước ăn'
+    if (value === 'AFTER_MEAL') return 'Sau ăn'
+    if (value === 'WITH_MEAL') return 'Cùng bữa'
+    if (value === 'NONE') return 'Không phụ thuộc bữa ăn'
+    return value
+}
+
+const buildPrescriptionSchedule = (item: StaffDiagnosisResponse['prescription_suggestions'][number]): string => {
+    const times = (item.times_of_day || item.timesOfDay || []).map(timeLabel)
+    const meal = mealLabel(item.before_after_meal || item.beforeAfterMeal)
+    const frequencyNote = item.frequency_note || item.frequencyNote || ''
+
+    if (times.length > 0) {
+        const parts = [times.join(', ')]
+        if (meal) parts.push(meal)
+        if (frequencyNote) parts.push(frequencyNote)
+        return parts.join(' | ')
+    }
+
+    const legacyFrequency = (item.frequency || '').trim()
+    if (legacyFrequency) {
+        return legacyFrequency
+    }
+
+    const parts: string[] = []
+    if (meal) parts.push(meal)
+    if (frequencyNote) parts.push(frequencyNote)
+    return parts.join(' | ') || 'Theo chỉ định'
+}
+
 export const AIDiagnosisPanel = ({
     petId,
     bookingId,
@@ -81,6 +120,8 @@ export const AIDiagnosisPanel = ({
     const [selectedDiagnosisLabel, setSelectedDiagnosisLabel] = useState<string>('')
     const [baseRequestId, setBaseRequestId] = useState<string>('')
     const [imageDescriptions, setImageDescriptions] = useState<Record<string, string>>({})
+    const [followUpAnswers, setFollowUpAnswers] = useState<Record<string, string>>({})
+    const [isRefiningWithAnswers, setIsRefiningWithAnswers] = useState(false)
     const [lightboxOpen, setLightboxOpen] = useState(false)
     const [lightboxIndex, setLightboxIndex] = useState(0)
     const analyzedImagesRef = useRef<Set<string>>(new Set())
@@ -126,6 +167,34 @@ export const AIDiagnosisPanel = ({
             }
         }
     }, [initialResult, initialSelectedDiagnosis, isModal, result])
+
+    useEffect(() => {
+        const questions = result?.suggested_questions ?? []
+
+        setFollowUpAnswers((previousAnswers) => {
+            if (questions.length === 0) {
+                return Object.keys(previousAnswers).length === 0 ? previousAnswers : {}
+            }
+
+            const nextAnswers: Record<string, string> = {}
+            for (const question of questions) {
+                if (Object.prototype.hasOwnProperty.call(previousAnswers, question)) {
+                    nextAnswers[question] = previousAnswers[question]
+                }
+            }
+
+            const previousKeys = Object.keys(previousAnswers)
+            const nextKeys = Object.keys(nextAnswers)
+            if (
+                previousKeys.length === nextKeys.length
+                && previousKeys.every((key) => nextAnswers[key] === previousAnswers[key])
+            ) {
+                return previousAnswers
+            }
+
+            return nextAnswers
+        })
+    }, [result?.suggested_questions])
 
     useEffect(() => {
         const descriptionsString = JSON.stringify(imageDescriptions)
@@ -215,8 +284,12 @@ export const AIDiagnosisPanel = ({
         selectedDiagnosisLabel?: string
         previousRequestId?: string
         synthesisMode?: 'full' | 'selected_only'
+        doctorNarrative?: string
+        followUpAnswers?: Array<{ question: string; answer: string }>
     }): Promise<StaffDiagnosisResponse | null> => {
-        if (!canAnalyze) return null
+        const hasFollowUpOverrides = (overrides?.followUpAnswers || [])
+            .some((item) => (item.answer || '').trim().length > 0)
+        if (!canAnalyze && !hasFollowUpOverrides) return null
 
         setLoading(true)
         onLoadingChange?.(true)
@@ -224,6 +297,13 @@ export const AIDiagnosisPanel = ({
 
         try {
             const synthesisMode = overrides?.synthesisMode ?? 'full'
+            const doctorNarrative = (overrides?.doctorNarrative ?? effectiveNarrative).trim()
+            const followUpAnswerPayload = (overrides?.followUpAnswers || [])
+                .map((item) => ({
+                    question: (item.question || '').trim(),
+                    answer: (item.answer || '').trim(),
+                }))
+                .filter((item) => item.question.length > 0 && item.answer.length > 0)
             const displayImageUrls = [...imageUrls.filter(Boolean), ...pendingImageUrls.filter(Boolean)]
             const processedImageUrls = await Promise.all(displayImageUrls.map(url => convertBlobToBase64(url)))
 
@@ -237,12 +317,13 @@ export const AIDiagnosisPanel = ({
                 weight_kg: normalizedWeightKg,
                 sex: 'unknown',
                 allergies: allergies?.filter(Boolean) || [],
-                doctor_description: effectiveNarrative.trim(),
+                doctor_description: doctorNarrative,
                 image_urls: processedImageUrls,
                 image_analysis_mode: 'full',
                 synthesis_mode: synthesisMode,
                 selected_diagnosis_code: overrides?.selectedDiagnosisCode ?? (selectedDiagnosisCode || undefined),
                 selected_diagnosis_label: overrides?.selectedDiagnosisLabel ?? (selectedDiagnosisLabel || undefined),
+                follow_up_answers: followUpAnswerPayload.length > 0 ? followUpAnswerPayload : undefined,
                 soap_draft: {
                     subjective,
                     objective,
@@ -280,6 +361,52 @@ export const AIDiagnosisPanel = ({
         setSelectedDiagnosisLabel('')
         await runAnalyze()
     }, [runAnalyze])
+
+    const hasAnyFollowUpAnswer = Object.values(followUpAnswers).some((answer) => answer.trim().length > 0)
+
+    const handleRefineWithFollowUp = useCallback(async () => {
+        const questions = result?.suggested_questions ?? []
+        if (questions.length === 0) {
+            return
+        }
+
+        const hasAnsweredQuestion = questions.some((question) => (followUpAnswers[question] || '').trim().length > 0)
+        if (!hasAnsweredQuestion) {
+            setError('Vui lòng nhập ít nhất một câu trả lời trước khi cập nhật kết quả AI.')
+            return
+        }
+
+        const useSelectedOnly = Boolean(selectedDiagnosisCode || selectedDiagnosisLabel)
+        const answeredPairs = questions
+            .map((question) => ({
+                question,
+                answer: (followUpAnswers[question] || '').trim(),
+            }))
+            .filter((item) => item.answer.length > 0)
+
+        setError(null)
+        setIsRefiningWithAnswers(true)
+        try {
+            await runAnalyze({
+                synthesisMode: useSelectedOnly ? 'selected_only' : 'full',
+                previousRequestId: useSelectedOnly ? (baseRequestId || result?.request_id) : undefined,
+                selectedDiagnosisCode: useSelectedOnly ? (selectedDiagnosisCode || undefined) : undefined,
+                selectedDiagnosisLabel: useSelectedOnly ? (selectedDiagnosisLabel || undefined) : undefined,
+                followUpAnswers: answeredPairs,
+            })
+        } finally {
+            if (isMountedRef.current) {
+                setIsRefiningWithAnswers(false)
+            }
+        }
+    }, [
+        baseRequestId,
+        followUpAnswers,
+        result,
+        runAnalyze,
+        selectedDiagnosisCode,
+        selectedDiagnosisLabel,
+    ])
 
     useEffect(() => {
         if (!isModal || !autoAnalyzeSignal || handledAutoAnalyzeSignals.has(autoAnalyzeSignal)) {
@@ -571,7 +698,7 @@ export const AIDiagnosisPanel = ({
                                     <div key={`${item.medicine_name}-${idx}`} className="rounded-2xl border border-stone-200 bg-stone-50/70 p-3">
                                         <p className="text-sm font-bold text-stone-900">{item.medicine_name}</p>
                                         <p className="text-xs text-stone-600">
-                                            {item.dosage || 'Theo toa'} | {item.frequency || 'Theo chỉ định'} | {item.duration_days ?? '-'} ngày
+                                            {buildPrescriptionSchedule(item)} | {item.duration_days ?? '-'} ngày
                                         </p>
                                         {item.instructions && (
                                             <p className="mt-1 text-[11px] text-stone-500">{item.instructions}</p>
@@ -601,13 +728,43 @@ export const AIDiagnosisPanel = ({
                     {result.suggested_questions.length > 0 && (
                         <div>
                             <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-stone-700">Cần hỏi thêm</h4>
-                            <ul className="space-y-1">
+                            <div className="space-y-2">
                                 {result.suggested_questions.map((question, idx) => (
-                                    <li key={`${question}-${idx}`} className="text-xs text-stone-700">
-                                        - {question}
-                                    </li>
+                                    <div key={`${question}-${idx}`} className="rounded-2xl border border-stone-200 bg-stone-50/70 p-3">
+                                        <p className="text-xs font-semibold text-stone-700">- {question}</p>
+                                        <textarea
+                                            value={followUpAnswers[question] || ''}
+                                            onChange={(event) => {
+                                                setFollowUpAnswers((previousAnswers) => ({
+                                                    ...previousAnswers,
+                                                    [question]: event.target.value,
+                                                }))
+                                                if (error) {
+                                                    setError(null)
+                                                }
+                                            }}
+                                            rows={2}
+                                            placeholder="Nhập trả lời của bác sĩ..."
+                                            className="mt-2 w-full rounded-lg border border-stone-300 bg-white p-2 text-xs text-stone-800 focus:border-amber-500 focus:outline-none"
+                                        />
+                                    </div>
                                 ))}
-                            </ul>
+                            </div>
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => void handleRefineWithFollowUp()}
+                                    disabled={loading || isRefiningWithAnswers || !hasAnyFollowUpAnswer}
+                                    className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-blue-700 transition-all hover:bg-blue-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {isRefiningWithAnswers
+                                        ? 'Đang cập nhật kết quả...'
+                                        : 'Cập nhật kết quả theo thông tin bổ sung'}
+                                </button>
+                                <p className="text-[11px] text-stone-500">
+                                    Ảnh đã tải sẽ được giữ nguyên, AI sẽ truy vấn và suy luận lại để cập nhật SOAP và gợi ý điều trị theo thông tin mới.
+                                </p>
+                            </div>
                         </div>
                     )}
                 </>

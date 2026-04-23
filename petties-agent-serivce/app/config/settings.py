@@ -125,6 +125,10 @@ class Settings(BaseSettings):
         default="petties_knowledge_base",
         description="Collection name cho knowledge base vectors",
     )
+    CASE_MEMORY_COLLECTION: str = Field(
+        default="petties_case_memory_v2",
+        description="Collection name cho case memory vectors (Qdrant)",
+    )
 
     # ==================== MongoDB Configuration (Chat History & Audit Trail) ====================
     # MongoDB dùng để lưu chat history, ReAct traces, và proactive notifications
@@ -150,6 +154,14 @@ class Settings(BaseSettings):
     MONGODB_FEEDBACK_COLLECTION: str = Field(
         default="chat_feedback",
         description="Collection name cho user feedback (thumbs up/down)",
+    )
+    MONGODB_AUDIT_LOGS_COLLECTION: str = Field(
+        default="audit_logs",
+        description="Collection name cho audit logs",
+    )
+    AUDIT_LOG_RETENTION_DAYS: int = Field(
+        default=365,
+        description="So ngay giu audit logs truoc khi tu dong xoa bang TTL index",
     )
 
     # ==================== AI/LLM Configuration ====================
@@ -288,6 +300,24 @@ class Settings(BaseSettings):
     )
     ENABLE_PROMETHEUS: bool = Field(
         default=True, description="Enable Prometheus metrics"
+    )
+
+    # ==================== Rate Limiting (Anti-Spam) ====================
+    RATE_LIMIT_ENABLED: bool = Field(
+        default=True,
+        description="Enable HTTP/WebSocket rate limiting",
+    )
+    RATE_LIMIT_REQUESTS_PER_MINUTE: int = Field(
+        default=100,
+        description="Max requests per minute per identifier",
+    )
+    RATE_LIMIT_BURST_PER_MINUTE: int = Field(
+        default=30,
+        description="Burst requests allowed per minute",
+    )
+    RATE_LIMIT_SESSION_REQUESTS_PER_HOUR: int = Field(
+        default=5000,
+        description="Max requests per session per hour",
     )
 
     # ==================== Redis (Optional) ====================

@@ -21,6 +21,7 @@ import { StaffAvailabilityWarningModal, type ConfirmOption } from '../../../comp
 import { AddServiceModal } from '../../../components/booking/AddServiceModal';
 import { ReportBookingModal } from '../../../components/booking/ReportBookingModal';
 import { ConfirmModal } from '../../../components/ConfirmModal';
+import { QrPaymentPanel } from '../../../components/booking/QrPaymentPanel';
 import { getMyReports, withdrawReport } from '../../../services/reportService';
 import type { ReportResponse } from '../../../types/report';
 import { useToast } from '../../../components/Toast';
@@ -97,6 +98,7 @@ export const BookingDashboardPage = () => {
     const [activeTab, setActiveTab] = useState<TabFilter>('PENDING');
     const [typeFilter, setTypeFilter] = useState<string>('ALL');
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+    const [openingBookingId, setOpeningBookingId] = useState<string | null>(null);
     const [confirming, setConfirming] = useState<string | null>(null);
     const [cancelling, setCancelling] = useState<string | null>(null);
     const [cancelModalOpen, setCancelModalOpen] = useState(false);
@@ -416,6 +418,20 @@ export const BookingDashboardPage = () => {
             bookingTime: booking.bookingTime,
         });
         setReportModalOpen(true);
+    };
+
+    const handleOpenBookingDetail = async (booking: Booking) => {
+        setOpeningBookingId(booking.bookingId);
+        try {
+            const freshBooking = await getBookingById(booking.bookingId);
+            setSelectedBooking(freshBooking);
+        } catch (error) {
+            console.error('Failed to fetch booking detail:', error);
+            setSelectedBooking(booking);
+            showToast('error', 'Không thể tải đầy đủ chi tiết lịch hẹn. Đang mở dữ liệu hiện có.');
+        } finally {
+            setOpeningBookingId(null);
+        }
     };
 
     const handleOpenEditReportModal = (report: ReportResponse) => {
@@ -779,10 +795,12 @@ export const BookingDashboardPage = () => {
                                                 </button>
                                             )}
                                             <button
-                                                onClick={() => setSelectedBooking(booking)}
+                                                type="button"
+                                                onClick={() => handleOpenBookingDetail(booking)}
+                                                disabled={openingBookingId === booking.bookingId}
                                                 className="px-3 py-1 text-xs font-bold uppercase bg-white border-2 border-stone-900 hover:shadow-[2px_2_0_#1c1917] transition-all"
                                             >
-                                                Chi tiết
+                                                {openingBookingId === booking.bookingId ? 'Đang mở...' : 'Chi tiết'}
                                             </button>
                                         </div>
                                     </td>
@@ -1199,6 +1217,19 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
         }
     };
 
+    const refreshBookingDetail = async () => {
+        try {
+            const updatedBooking = await getBookingById(booking.bookingId);
+            setBooking(updatedBooking);
+            if (onBookingUpdated) {
+                await onBookingUpdated();
+            }
+        } catch (error) {
+            console.error('Failed to refresh booking after QR payment check:', error);
+            showToast('error', 'Không thể làm mới chi tiết booking sau khi kiểm tra thanh toán');
+        }
+    };
+
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             {/* Main Modal Container */}
@@ -1305,6 +1336,17 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
                             </span>
                         </div>
                     )}
+
+                    <QrPaymentPanel
+                        bookingId={booking.bookingId}
+                        bookingStatus={booking.status}
+                        paymentMethod={booking.paymentMethod}
+                        paymentStatus={booking.paymentStatus}
+                        qrImageUrl={booking.qrImageUrl}
+                        paymentDescription={booking.paymentDescription}
+                        canShowQrPaymentButton={booking.canShowQrPaymentButton}
+                        onBookingRefresh={refreshBookingDetail}
+                    />
 
                     {/* Assigned Staff (Top level - e.g. for SOS) */}
                     {booking.type === 'SOS' && booking.assignedStaffName && (
