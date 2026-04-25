@@ -21,8 +21,8 @@ def init_sentry():
     based on alert rules configured in Sentry dashboard.
     """
 
-    if not settings.SENTRY_DSN:
-        print("⚠️ Sentry DSN not configured, error tracking disabled")
+    if not settings.SENTRY_DSN or settings.ENVIRONMENT == "development":
+        print(f"⚠️ Sentry disabled in {settings.ENVIRONMENT} environment")
         return
 
     # Configure logging integration
