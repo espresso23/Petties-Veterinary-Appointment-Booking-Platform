@@ -68,8 +68,8 @@ def setup_sentry(sentry_dsn: str, environment: str = "development"):
         sentry_dsn: Sentry DSN URL
         environment: Environment name (development, staging, production)
     """
-    if not sentry_dsn:
-        logging.warning("Sentry DSN not configured. Error tracking disabled.")
+    if not sentry_dsn or environment == "development":
+        logging.warning(f"Sentry disabled in {environment} environment. Error tracking disabled.")
         return
     
     try:

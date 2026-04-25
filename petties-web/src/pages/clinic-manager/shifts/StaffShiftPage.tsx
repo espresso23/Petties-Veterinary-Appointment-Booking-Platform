@@ -544,23 +544,32 @@ export const StaffShiftPage = () => {
             const newStartNum = timeToNumber(newStart)
             const newEndNum = timeToNumber(newEnd)
             
+            const isSlotCovered = (sStart: number, sEnd: number, nStart: number, nEnd: number, isOvernight: boolean) => {
+                let sS = sStart
+                let sE = sEnd
+                const nS = nStart
+                let nE = nEnd
+                if (isOvernight) {
+                    if (sS < nS) sS += 2400
+                    if (sE <= sS) sE += 2400
+                    nE += 2400
+                }
+                return sS >= nS && sE <= nE
+            }
+
             const conflictingShifts = formData.workDates
                 .map(date => shifts.find(s => s.staffId === formData.staffId && s.workDate === date))
                 .filter(shift => {
                     if (!shift || !shift.slots || shift.bookedSlots === 0) return false
                     
-                    // Check if any booked slot is within new time range
+                    // Check if any booked slot is NOT within new time range
                     const hasConflict = shift.slots.some(slot => {
                         if (slot.status !== 'BOOKED') return false
                         
                         const slotStartNum = timeToNumber(slot.startTime)
                         const slotEndNum = timeToNumber(slot.endTime)
                         
-                        // Booked slot is OUTSIDE new range if:
-                        // - slot ends before/at new start, OR
-                        // - slot starts after/at new end
-                        const isOutside = slotEndNum <= newStartNum || slotStartNum >= newEndNum
-                        return !isOutside // Conflict if NOT outside
+                        return !isSlotCovered(slotStartNum, slotEndNum, newStartNum, newEndNum, finalIsOvernight)
                     })
                     
                     return hasConflict
@@ -573,7 +582,7 @@ export const StaffShiftPage = () => {
                             if (s.status !== 'BOOKED') return false
                             const slotStartNum = timeToNumber(s.startTime)
                             const slotEndNum = timeToNumber(s.endTime)
-                            return !(slotEndNum <= newStartNum || slotStartNum >= newEndNum)
+                            return !isSlotCovered(slotStartNum, slotEndNum, newStartNum, newEndNum, finalIsOvernight)
                         })
                         .map(s => s.startTime)
                         .join(', ')

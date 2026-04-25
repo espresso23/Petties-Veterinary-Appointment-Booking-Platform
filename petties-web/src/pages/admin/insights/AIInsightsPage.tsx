@@ -270,7 +270,7 @@ export const AIInsightsPage = () => {
             <div>
               <h1 className="text-4xl font-black text-black uppercase italic tracking-tighter">AI INSIGHTS</h1>
               <p className="text-sm font-bold text-black mt-1 uppercase">
-                Phản hồi & Kho ca bệnh AI & Danh mục bệnh
+                Phản hồi & Kho ca bệnh AI
               </p>
             </div>
             <button
@@ -292,15 +292,16 @@ export const AIInsightsPage = () => {
 
         {/* ============================================
            SECTION 0: DISEASE CATALOG MONITORING
+           (HIDDEN: confusing for users - hide on FE only)
            ============================================ */}
-        <section className="order-1">
+        {/* <section className="order-1">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-black text-stone-900 uppercase tracking-tight">
               Danh mục bệnh - Giám sát học tự động
             </h2>
           </div>
           <DiseaseCatalogSection />
-        </section>
+        </section> */}
 
         {/* ============================================
            SECTION 1: FEEDBACK DASHBOARD

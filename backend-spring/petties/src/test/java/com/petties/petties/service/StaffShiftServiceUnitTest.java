@@ -155,7 +155,7 @@ class StaffShiftServiceUnitTest {
         StaffShiftRequest request = new StaffShiftRequest();
         request.setStaffId(staffId);
         request.setWorkDates(List.of(workDate));
-        request.setStartTime(LocalTime.of(9, 0));
+        request.setStartTime(LocalTime.of(11, 0)); // Conflict: starts after booked slot (10:00)
         request.setEndTime(LocalTime.of(18, 0));
         request.setForceUpdate(true);
 

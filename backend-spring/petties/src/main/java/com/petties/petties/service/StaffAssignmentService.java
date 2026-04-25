@@ -203,6 +203,12 @@ public class StaffAssignmentService {
             return null;
         }
 
+        // SOS Mode: Skip shift filtering - any staff in clinic is available
+        if (specialty == null) {
+            log.info(">> SOS Mode: Bypassing shift availability check for all {} staff", matchingStaff.size());
+            return selectStaffWithLeastBookings(matchingStaff, date);
+        }
+
         List<User> availableStaff = filterByShiftAvailability(matchingStaff, clinicId, date, time);
         if (availableStaff.isEmpty()) {
             return null;
@@ -253,6 +259,12 @@ public class StaffAssignmentService {
                         .toList());
 
         log.info("Filtering staff for specialty {}. In clinic total: {}", specialty, allStaff.size());
+
+        // SOS Case: specialty is null, return all staff
+        if (specialty == null) {
+            log.info(">> SOS Case: Specialty is null, returning all {} staff in clinic", allStaff.size());
+            return allStaff;
+        }
 
         // Filter by matching specialty
         List<User> matching = allStaff.stream()
@@ -336,6 +348,12 @@ public class StaffAssignmentService {
      */
     public void reserveSlotsForBooking(Booking booking) {
         log.info("Reserving slots for booking {}", booking.getBookingCode());
+
+        // SOS Mode: Bypass slot reservation - SOS doesn't need to block slots
+        if (booking.getType() == com.petties.petties.model.enums.BookingType.SOS) {
+            log.info(">> SOS Booking: Bypassing slot reservation logic for {}", booking.getBookingCode());
+            return;
+        }
 
         LocalDate bookingDate = booking.getBookingDate();
 
@@ -511,6 +529,16 @@ public class StaffAssignmentService {
                     .avatarUrl(member.getAvatar())
                     .specialty(member.getSpecialty() != null ? member.getSpecialty().name() : null)
                     .build();
+
+            // SOS Mode: Skip shift check
+            if (specialty == null) {
+                response.setAvailable(true);
+                response.setUnavailableReason(null);
+                response.setBookedCount((int) bookingRepository.countActiveBookingsByStaffAndDate(member.getUserId(), date));
+                response.setAvailableSlots(new ArrayList<>());
+                result.add(response);
+                continue;
+            }
 
             // Check if staff has shift on this date
             List<StaffShift> shifts = staffShiftRepository.findByStaff_UserIdAndWorkDate(member.getUserId(), date);
