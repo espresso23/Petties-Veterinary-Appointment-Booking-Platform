@@ -178,7 +178,7 @@ public class StaffShiftService {
                         LocalTime newStart = request.getStartTime();
                         LocalTime newEnd = request.getEndTime();
 
-                        log.info("🔍 Checking conflict: New shift {}~{} vs {} booked slots on {}",
+                        log.info("Checking conflict: New shift {}~{} vs {} booked slots on {}",
                                 newStart, newEnd, bookedSlots.size(), workDate);
 
                         List<String> conflictTimes = new ArrayList<>();
@@ -186,41 +186,28 @@ public class StaffShiftService {
                             LocalTime slotStart = bookedSlot.getStartTime();
                             LocalTime slotEnd = bookedSlot.getEndTime();
 
-                            // Check if booked slot is OUTSIDE new time range
-                            boolean isOutsideNewRange = slotEnd.isBefore(newStart) ||
-                                    slotEnd.equals(newStart) ||
-                                    slotStart.isAfter(newEnd) ||
-                                    slotStart.equals(newEnd);
-
-                            log.info("  → Booked slot {}~{}: isOutside={}", slotStart, slotEnd, isOutsideNewRange);
-
-                            if (!isOutsideNewRange) {
-                                // Conflict detected - booked slot overlaps with new time
+                            if (!isSlotCovered(slotStart, slotEnd, newStart, newEnd, isOvernight)) {
                                 conflictTimes.add(slotStart + "-" + slotEnd);
-                                log.warn("  ❌ CONFLICT: Booked slot {}~{} overlaps with new time", slotStart, slotEnd);
-                            } else {
-                                log.info("  ✅ OK: Booked slot {}~{} is outside new time range", slotStart, slotEnd);
                             }
-                        }
+                            }
 
-                        if (!conflictTimes.isEmpty()) {
+                            if (!conflictTimes.isEmpty()) {
                             // Cannot update - new time conflicts with bookings
                             String conflictStr = String.join(", ", conflictTimes);
                             log.warn("Skipping day {}: New time {}~{} conflicts with bookings at: {}",
                                     workDate, newStart, newEnd, conflictStr);
                             blockedDates.add(workDate + " (lịch hẹn: " + conflictStr + ")");
                             continue;
-                        }
+                            }
 
-                        // No conflict - safe to update
-                        log.info("Force update: New time {}~{} does not conflict with {} bookings on {}",
+                            // No conflict - safe to update
+                            log.info("Force update: New time {}~{} does not conflict with {} bookings on {}",
                                 newStart, newEnd, bookedSlots.size(), workDate);
-                    }
+                            }
 
-                    targetShift = existingShift;
-                    isUpdating = true;
-                } else {
-                    // No existing shift for this staff + date → create new one
+                            targetShift = existingShift;
+                            isUpdating = true;
+                            } else {                    // No existing shift for this staff + date → create new one
                     targetShift = StaffShift.builder()
                             .clinic(clinic)
                             .staff(staff)
@@ -697,5 +684,19 @@ public class StaffShiftService {
         }
 
         return builder.build();
+    }
+
+    /**
+     * Check if a booked slot is fully covered by the new shift time range
+     * Handles both normal and overnight shifts
+     */
+    private boolean isSlotCovered(LocalTime sS, LocalTime sE, LocalTime nS, LocalTime nE, boolean isOvernight) {
+        if (!isOvernight) {
+            return (sS.isAfter(nS) || sS.equals(nS)) && (sE.isBefore(nE) || sE.equals(nE));
+        } else {
+            // Overnight shift: nS=22:00, nE=06:00
+            // Slot is covered if it's in the late night part (>= nS) OR early morning part (<= nE)
+            return (sS.isAfter(nS) || sS.equals(nS)) || (sE.isBefore(nE) || sE.equals(nE));
+        }
     }
 }

@@ -38,7 +38,7 @@ export const useMembershipStore = create<MembershipState>((set, get) => ({
                     paymentMethod: 'CASH',
                     plan: {
                         planId: 'dev-plan',
-                        name: 'GÓI DEV',
+                        name: 'GÓI VIP',
                         price: 0,
                         description: 'Gói dành cho development',
                         durationDays: 365,
@@ -110,7 +110,7 @@ export const useMembershipStore = create<MembershipState>((set, get) => ({
 
     getPlanName: () => {
         // DEV MODE / FORCE VIP: Return DEV plan
-        if (shouldForceVip) return 'GÓI DEV'
+        if (shouldForceVip) return 'GÓI VIP'
 
         const membership = get().membership
         if (!get().isVIP()) return 'GÓI MIỄN PHÍ'

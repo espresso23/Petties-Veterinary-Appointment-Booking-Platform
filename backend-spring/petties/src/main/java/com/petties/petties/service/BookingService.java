@@ -1156,9 +1156,10 @@ public class BookingService {
                                                 "Service item not found: " + serviceId));
 
                 // Get required specialty from service
-                StaffSpecialty requiredSpecialty = serviceItem.getService().getServiceCategory() != null
+                boolean isSOS = booking.getType() == com.petties.petties.model.enums.BookingType.SOS;
+                StaffSpecialty requiredSpecialty = isSOS ? null : (serviceItem.getService().getServiceCategory() != null
                                 ? serviceItem.getService().getServiceCategory().getRequiredSpecialty()
-                                : StaffSpecialty.VET;
+                                : StaffSpecialty.VET);
 
                 // Calculate slots needed
                 Integer duration = serviceItem.getService().getDurationTime();
