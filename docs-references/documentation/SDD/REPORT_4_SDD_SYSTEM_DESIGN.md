@@ -11481,7 +11481,7 @@ flowchart LR
 
 #### 4.21.8 Cross-Reference to SRS
 
-- SRS section: `3.11.11 Hỗ trợ AI chẩn đoán trong không gian làm việc EMR (UC-STAFF-11)`
+- SRS section: `3.11.11 AI HỖ TRỢ CHẨN ĐOÁN BỆNH trong không gian làm việc EMR (UC-STAFF-11)`
 - Related modules:
   - `petties-web/src/pages/staff/emr/CreateEmrPage.tsx`
   - `petties-web/src/pages/staff/StaffAIChatPage.tsx`
@@ -11713,7 +11713,7 @@ sequenceDiagram
 #### 4.23.6 Cross-Reference to SRS
 
 - SRS section: `3.11.13 Staff AI Chat Panel cho hỏi đáp nghiệp vụ và hồ sơ bệnh nhân (UC-STAFF-12)`
-- Related section: `3.11.11 Hỗ trợ AI chẩn đoán trong không gian làm việc EMR (UC-STAFF-11)`
+- Related section: `3.11.11 AI HỖ TRỢ CHẨN ĐOÁN BỆNH trong không gian làm việc EMR (UC-STAFF-11)`
 
 #### 4.22.3 API Contracts
 

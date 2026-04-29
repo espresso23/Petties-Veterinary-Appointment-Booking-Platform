@@ -1754,7 +1754,7 @@ export const CreateEmrPage = () => {
                 <Modal
                     isOpen={isAiModalOpen}
                     onClose={handleCloseAiModal}
-                    title="Hỗ trợ AI chẩn đoán"
+                    title="AI HỖ TRỢ CHẨN ĐOÁN BỆNH"
                     size="xl"
                 >
                     <AIDiagnosisPanel

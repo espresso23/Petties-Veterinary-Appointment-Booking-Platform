@@ -611,7 +611,7 @@ Canonical lock: only approved feature/function names are allowed in checklist it
 **P8 — Web `AIDiagnosisPanel`**
 
 ```
-[Paste prefix] Desktop. Left 65% EMR form silhouette. Right 35% panel "Hỗ trợ AI chẩn đoán": symptom textarea, image box, button "Phân tích", three ranked result rows with gray percent bars, SOAP blocks, button "Áp dụng vào EMR".
+[Paste prefix] Desktop. Left 65% EMR form silhouette. Right 35% panel "AI HỖ TRỢ CHẨN ĐOÁN BỆNH": symptom textarea, image box, button "Phân tích", three ranked result rows with gray percent bars, SOAP blocks, button "Áp dụng vào EMR".
 ```
 
 Sau khi generate, ghi **Stitch ID** vào checklist và cập nhật cột **Code** ở §19 / Preserved cho khớp bảng 19.1.1 nếu còn path legacy.
@@ -631,8 +631,8 @@ Sau khi generate, ghi **Stitch ID** vào checklist và cập nhật cột **Code
 | 9 | Admin Knowledge / RAG | Web | `/admin/knowledge` | `petties-web/src/pages/admin/knowledge/KnowledgePage.tsx` | `eeaf49734fc54e288a814c456d6d5378` | **P5** |
 | 10 | Admin AI Insights (feedback + case memory) | Web | `/admin/ai-insights` | `petties-web/src/pages/admin/insights/AIInsightsPage.tsx` | `225f0ececc574abcb91cd19034524c2f`, `2ff38c52a817437d9530cf44dff6f6d3` | **P6** |
 | 11 | Phản hồi tin nhắn AI | Mobile | — | `petties_mobile/lib/ui/chat/widgets/ai_feedback_bottom_sheet.dart` | `8346751ac7cb4a73ab329ad6b829e9a2` | **P7** |
-| 12 | Hỗ trợ AI chẩn đoán (EMR web) | Web | Luồng EMR | `petties-web/src/components/emr/AIDiagnosisPanel.tsx` | `243a2c9646f3407ab610c82b528234b6` | **P8** |
-| 13 | Hỗ trợ AI chẩn đoán (EMR mobile) | Mobile | Create/Edit EMR | `lib/ui/staff/widgets/ai_diagnosis_panel.dart`, `ai_diagnosis_sheet.dart` | `243a2c9646f3407ab610c82b528234b6` | *Tùy chọn:* bản **P8** dạng sheet 85% chiều cao, nhãn "Hỗ trợ AI chẩn đoán" |
+| 12 | AI HỖ TRỢ CHẨN ĐOÁN BỆNH (EMR web) | Web | Luồng EMR | `petties-web/src/components/emr/AIDiagnosisPanel.tsx` | `243a2c9646f3407ab610c82b528234b6` | **P8** |
+| 13 | AI HỖ TRỢ CHẨN ĐOÁN BỆNH (EMR mobile) | Mobile | Create/Edit EMR | `lib/ui/staff/widgets/ai_diagnosis_panel.dart`, `ai_diagnosis_sheet.dart` | `243a2c9646f3407ab610c82b528234b6` | *Tùy chọn:* bản **P8** dạng sheet 85% chiều cao, nhãn "AI HỖ TRỢ CHẨN ĐOÁN BỆNH" |
 
 **Các mục không còn file riêng trong repo (chỉ tham chiếu SRS / wireframe cũ):** bubble AI toàn app Pet Owner; màn Symptom / Image / Booking tách; `AiNotificationToast` / `ai_notification_toast.dart`; các trang web `AiChatPage`, `AiBookingAssistantPage`, `AiReassignPage`, `AiEmrSummaryPage`, `AiShiftSchedulerPage`, `AiSetupWizardPage`, `AiServiceGeneratorPage`, `AiDescriptionComposerPage` — không có trong `petties-web/src/pages/`; nếu cần wireframe tương đương, dùng **P2** (dock) hoặc **P1** (mobile chat).
 
@@ -862,7 +862,7 @@ This document tracks the generation of black & white wireframes for the Petties 
 - [x] **Staff AI Diagnosis (Mobile)** (UC-STAFF-11)
   - Code: `lib/ui/staff/widgets/ai_diagnosis_panel.dart` + `lib/ui/staff/widgets/ai_diagnosis_sheet.dart` + `lib/ui/staff/emr/create_emr_screen.dart` (integration)
   - Stitch ID: `243a2c9646f3407ab610c82b528234b6`
-  - *UI Description: Bottom sheet 85% height trong Create/Edit EMR mobile flow. Gồm: header "HỖ TRỢ AI CHẨN ĐOÁN", TextField mô tả triệu chứng (multiline), khu vực ảnh lâm sàng với nút "+ Thêm ảnh", nút "PHÂN TÍCH TÌNH TRẠNG". Kết quả hiển thị: Top 3 chẩn đoán phân biệt, dấu hiệu từ ảnh, gợi ý đơn thuốc, và nút "ÁP DỤNG VÀO EMR" để điền kết quả vào form SOAP.*
+  - *UI Description: Bottom sheet 85% height trong Create/Edit EMR mobile flow. Gồm: header "AI HỖ TRỢ CHẨN ĐOÁN BỆNH", TextField mô tả triệu chứng (multiline), khu vực ảnh lâm sàng với nút "+ Thêm ảnh", nút "PHÂN TÍCH TÌNH TRẠNG". Kết quả hiển thị: Top 3 chẩn đoán phân biệt, dấu hiệu từ ảnh, gợi ý đơn thuốc, và nút "ÁP DỤNG VÀO EMR" để điền kết quả vào form SOAP.*
   - *Integration: Icon 🤖 trên AppBar của CreateEmrScreen/EditEmrScreen → gọi AiDiagnosisSheet.show() → Bottom Sheet → user nhập/chọn ảnh → AI phân tích → Áp dụng kết quả vào EMR form*
 - [x] **Staff Vaccination Record** (UC-VT-08)
   - Code: `lib/ui/staff/vaccination_record_screen.dart`

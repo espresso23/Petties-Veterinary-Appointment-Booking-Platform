@@ -35,8 +35,7 @@ class AiDiagnosisPanel extends StatefulWidget {
     List<String>,
     String,
     String?,
-  )?
-      onDiagnosisLocked;
+  )? onDiagnosisLocked;
 
   const AiDiagnosisPanel({
     super.key,
@@ -188,8 +187,7 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
     final answers = <FollowUpAnswer>[];
 
     for (final question in questions) {
-      final answer =
-          (_followUpAnswerControllers[question]?.text ?? '').trim();
+      final answer = (_followUpAnswerControllers[question]?.text ?? '').trim();
       if (answer.isEmpty) {
         continue;
       }
@@ -455,7 +453,8 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
     final followUpAnswers = _collectFollowUpAnswers();
     if (followUpAnswers.isEmpty) {
       setState(() {
-        _error = 'Vui lòng nhập ít nhất một câu trả lời trước khi cập nhật kết quả AI.';
+        _error =
+            'Vui lòng nhập ít nhất một câu trả lời trước khi cập nhật kết quả AI.';
       });
       return;
     }
@@ -595,7 +594,7 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
         ),
         const SizedBox(width: 8),
         const Text(
-          'HỖ TRỢ AI CHẨN ĐOÁN',
+          'AI HỖ TRỢ CHẨN ĐOÁN BỆNH',
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w800,
@@ -895,7 +894,8 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
   Widget _buildExistingImageTile(String imageUrl, int order) {
     final imageAnalysis = _result?.imageAnalysis.firstWhere(
       (item) => item.url == imageUrl,
-      orElse: () => ImageAnalysisResult(url: imageUrl, description: '', order: order),
+      orElse: () =>
+          ImageAnalysisResult(url: imageUrl, description: '', order: order),
     );
 
     return Container(
@@ -927,7 +927,8 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  imageAnalysis != null && imageAnalysis.description.trim().isNotEmpty
+                  imageAnalysis != null &&
+                          imageAnalysis.description.trim().isNotEmpty
                       ? imageAnalysis.description
                       : 'Ảnh hiện có sẽ được AI sử dụng khi phân tích.',
                   maxLines: 2,
@@ -1306,7 +1307,9 @@ class _AiDiagnosisPanelState extends State<AiDiagnosisPanel> {
                                   item.displayNameVi == _selectedDiagnosisLabel;
 
                           return GestureDetector(
-                            onTap: _isLoading ? null : () => _selectDiagnosis(item),
+                            onTap: _isLoading
+                                ? null
+                                : () => _selectDiagnosis(item),
                             child: Container(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 10, vertical: 6),

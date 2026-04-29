@@ -802,7 +802,7 @@ export const AIDiagnosisPanel = ({
             {!inline && (
                 <div className="mb-4 flex items-center gap-2">
                     <SparklesIcon className="h-5 w-5 text-amber-600" />
-                    <h3 className="text-sm font-bold uppercase tracking-wide text-stone-800">Hỗ trợ AI chẩn đoán</h3>
+                    <h3 className="text-sm font-bold uppercase tracking-wide text-stone-800">AI HỖ TRỢ CHẨN ĐOÁN BỆNH</h3>
                 </div>
             )}
             {panelContent}
