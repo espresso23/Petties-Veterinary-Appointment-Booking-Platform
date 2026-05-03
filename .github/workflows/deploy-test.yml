@@ -64,10 +64,15 @@ jobs:
             echo "📋 Current commit:"
             git log --oneline -1
             
-            # Check if test environment file exists
+            # Ensure test environment file exists; if not, copy from .env.example when available
             if [ ! -f "$ENV_FILE" ]; then
-              echo "⚠️ $ENV_FILE not found! Please create it first."
-              exit 1
+              if [ -f ".env.example" ]; then
+                echo "ℹ️ $ENV_FILE not found — copying from .env.example"
+                cp .env.example "$ENV_FILE"
+              else
+                echo "⚠️ $ENV_FILE and .env.example not found! Please provide one."
+                exit 1
+              fi
             fi
 
             set -a
