@@ -28,7 +28,7 @@ jobs:
             set -euo pipefail
 
             REPO_DIR="$HOME/petties-backend/Petties-Veterinary-Appointment-Booking-Platform"
-            REPO_URL="git@github.com:espresso23/Petties-Veterinary-Appointment-Booking-Platform.git"
+            REPO_URL="https://github.com/espresso23/Petties-Veterinary-Appointment-Booking-Platform.git"
             BRANCH="main"
             ENV_FILE=.env.prod
             COMPOSE_FILE=docker-compose.prod.yml
