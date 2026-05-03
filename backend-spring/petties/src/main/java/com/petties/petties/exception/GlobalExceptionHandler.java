@@ -320,9 +320,9 @@ public class GlobalExceptionHandler {
                 String rootCause = ex.getMostSpecificCause().getMessage();
 
                 if (rootCause != null) {
-                        if (rootCause.contains("users_username_key") || rootCause.contains("users_email_key")) {
+                        if (rootCause.contains("users_username_key") || rootCause.contains("users_email_key") || rootCause.contains("uk_users_email") || rootCause.contains("uk_users_username")) {
                                 message = "Email này đã được đăng ký. Vui lòng đăng nhập hoặc sử dụng email khác.";
-                        } else if (rootCause.contains("users_phone_key")) {
+                        } else if (rootCause.contains("users_phone_key") || rootCause.contains("uk_users_phone")) {
                                 message = "Số điện thoại này đã được sử dụng.";
                         } else if (rootCause.contains("clinics_") && rootCause.contains("_key")) {
                                 message = "Thông tin phòng khám đã tồn tại trong hệ thống.";

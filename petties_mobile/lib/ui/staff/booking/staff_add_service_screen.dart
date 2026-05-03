@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../config/constants/app_colors.dart';
+import '../../../data/models/booking.dart';
 import '../../../data/services/booking_service.dart';
 import '../../../data/models/clinic_service.dart';
 import '../../common/staff_bottom_nav.dart';
@@ -47,10 +48,25 @@ class _StaffAddServiceScreenState extends State<StaffAddServiceScreen> {
       _error = null;
     });
     try {
-      final services =
-          await _bookingService.getAvailableServicesForAddOn(widget.bookingId);
+      final results = await Future.wait<dynamic>([
+        _bookingService.getAvailableServicesForAddOn(widget.bookingId),
+        _bookingService.getBookingById(widget.bookingId),
+      ]);
+
+      final services = results[0] as List<ClinicServiceModel>;
+      final booking = results[1] as BookingResponse;
+      final existingServiceIds = booking.services
+          .map((item) => item.serviceId)
+          .whereType<String>()
+          .where((id) => id.isNotEmpty)
+          .toSet();
+
+      final deduplicatedServices = services
+          .where((service) => !existingServiceIds.contains(service.serviceId))
+          .toList();
+
       setState(() {
-        _services = services;
+        _services = deduplicatedServices;
         _applyFilters();
         _isLoading = false;
       });
@@ -214,8 +230,10 @@ class _StaffAddServiceScreenState extends State<StaffAddServiceScreen> {
                         child: Text(_error!,
                             style: const TextStyle(color: Colors.red)))
                     : _filteredServices.isEmpty
-                        ? const Center(
-                            child: Text('Không tìm thấy dịch vụ nào'))
+                        ? Center(
+                            child: Text(_services.isEmpty
+                                ? 'Không còn dịch vụ phát sinh khả dụng'
+                                : 'Không tìm thấy dịch vụ nào'))
                         : ListView.builder(
                             padding: const EdgeInsets.all(16),
                             itemCount: _filteredServices.length,

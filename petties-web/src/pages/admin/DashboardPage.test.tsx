@@ -15,7 +15,8 @@ vi.mock('../../components/admin/AdminDashboardCharts', () => ({
 vi.mock('../../config/env', () => ({
     env: {
         API_BASE_URL: 'http://localhost:8080',
-        AGENT_API_BASE_URL: 'http://localhost:8000',
+        AGENT_API_BASE_URL: 'http://localhost:8000/api',
+        AGENT_SERVICE_URL: 'http://localhost:8000',
     },
 }))
 
@@ -183,6 +184,41 @@ describe('AdminDashboardPage', () => {
 
         await waitFor(() => {
             expect(screen.getByText(/Dữ liệu không đầy đủ/)).toBeInTheDocument()
+        })
+    })
+
+    it('falls back to AGENT_SERVICE_URL health endpoint when AGENT_API_BASE_URL health fails', async () => {
+        globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+            const url = String(input)
+            if (url === 'http://localhost:8000/api/health') {
+                return {
+                    ok: false,
+                    status: 404,
+                    json: async () => ({ error: 'not found' }),
+                } as Response
+            }
+
+            if (url === 'http://localhost:8000/health') {
+                return {
+                    ok: true,
+                    json: async () => ({ service: 'agent-service', version: '2.0.0' }),
+                } as Response
+            }
+
+            return {
+                ok: true,
+                json: async () => ({ status: 'UP' }),
+            } as Response
+        }) as typeof fetch
+
+        render(
+            <MemoryRouter>
+                <AdminDashboardPage />
+            </MemoryRouter>
+        )
+
+        await waitFor(() => {
+            expect(screen.getByText('Dịch vụ: agent-service')).toBeInTheDocument()
         })
     })
 })

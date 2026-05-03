@@ -83,7 +83,7 @@ Unit testing involves testing individual parts of a software system separately t
 | Purpose | Tool | Provider | Version | Information |
 | :--- | :--- | :--- | :--- | :--- |
 | **Development Environment** | Docker Compose | Developers' PC | Latest | localhost:8080 |
-| **Testing/Staging Environment**| AWS EC2 (Ubuntu) | Amazon Web Services| Latest | • Backend: https://api-test.petties.world/api<br>• AI: https://api-test.petties.world/ai |
+| **Testing/Staging Environment**| AWS EC2 (Ubuntu) | Amazon Web Services| Latest | • Backend: https://test.petties.world/api<br>• AI: https://test.petties.world/ai |
 | **Unit Testing Framework** | JUnit 5, Mockito, pytest | Open Source | Latest | N/A |
 | **Beta Testing (Mobile)** | Firebase App Distribution| Google | N/A | Firebase Console |
 | **API Testing Infrastructure** | Postman Collections | Postman Inc. | Latest | N/A |
@@ -274,9 +274,9 @@ System Testing validate ứng dụng hoàn chỉnh trên môi trường thật.
 
 | Environment | Backend | Frontend |
 |-------------|---------|----------|
-| **Development** | localhost:8080 | localhost:5173 |
-| **Test** | api-test.petties.world | test.petties.world |
-| **Production** | api.petties.world | www.petties.world |
+| **Development** | localhost:8080 (Nginx) | localhost:5173 |
+| **Test** | test.petties.world/api | test.petties.world |
+| **Production** | www.petties.world/api | www.petties.world |
 
 ### 4.3 Manual Testing Process
 

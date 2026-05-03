@@ -94,9 +94,9 @@ const environmentUrls = (() => {
     AGENT_SERVICE_URL: `${stripTrailingSlash(tunnelOrigin)}/ai`,
   },
   production: {
-    API_BASE_URL: 'https://api.petties.world/api',
-    WS_URL: 'wss://api.petties.world/ws',
-    AGENT_SERVICE_URL: 'https://api.petties.world/ai',
+    API_BASE_URL: 'https://petties.world/api',
+    WS_URL: 'wss://petties.world/ws',
+    AGENT_SERVICE_URL: 'https://petties.world/ai',
   },
 }
 })()

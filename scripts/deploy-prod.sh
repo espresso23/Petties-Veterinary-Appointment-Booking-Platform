@@ -101,12 +101,30 @@ validate_config() {
 health_check() {
   local backend_port="${BACKEND_HOST_PORT:-8080}"
   local ai_port="${AI_HOST_PORT:-8000}"
+  local max_retries=15
+  local wait_time=5
 
   log "Checking backend health on 127.0.0.1:${backend_port} ..."
-  curl -fsS "http://127.0.0.1:${backend_port}/api/actuator/health" >/dev/null
+  local retry=1
+  while ! curl -fsS "http://127.0.0.1:${backend_port}/api/actuator/health" >/dev/null 2>&1; do
+    if [ "$retry" -gt "$max_retries" ]; then
+      die "Backend health check failed after $((max_retries * wait_time)) seconds."
+    fi
+    log "Waiting for backend to be ready (attempt $retry/$max_retries)..."
+    sleep "$wait_time"
+    retry=$((retry+1))
+  done
 
   log "Checking AI service health on 127.0.0.1:${ai_port} ..."
-  curl -fsS "http://127.0.0.1:${ai_port}/health" >/dev/null
+  retry=1
+  while ! curl -fsS "http://127.0.0.1:${ai_port}/health" >/dev/null 2>&1; do
+    if [ "$retry" -gt "$max_retries" ]; then
+      die "AI service health check failed after $((max_retries * wait_time)) seconds."
+    fi
+    log "Waiting for AI service to be ready (attempt $retry/$max_retries)..."
+    sleep "$wait_time"
+    retry=$((retry+1))
+  done
 
   log "Health checks passed."
 }
@@ -145,8 +163,6 @@ deploy_action() {
   fi
 
   log "Waiting for services to initialize..."
-  sleep 15
-
   health_check
   record_last_successful_commit
 
@@ -194,7 +210,6 @@ rollback_action() {
   git checkout "$target_ref"
   validate_config
   compose_cmd up -d --build
-  sleep 15
   health_check
   record_last_successful_commit
   log "Rollback complete."

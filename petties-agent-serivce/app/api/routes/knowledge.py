@@ -54,6 +54,7 @@ from app.api.schemas.knowledge_schemas import (
 )
 from app.db.postgres.models import KnowledgeDocument
 from app.db.postgres.session import get_db, AsyncSessionLocal
+from app.core.services.document_processing_service import get_document_processing_service
 
 # Initialize router - no global auth, add individually per endpoint
 router = APIRouter(prefix="/knowledge", tags=["Knowledge Base"])
@@ -213,17 +214,19 @@ async def upload_document(
 @router.post(
     "/documents/{document_id}/process",
     response_model=ProcessDocumentResponse,
-    summary="[KB-01] Process document for RAG",
+    status_code=202,
+    summary="[KB-01] Process document for RAG (Async Queue)",
     description="""
-    Process uploaded document and create vector embeddings.
+    Add uploaded document to the background processing queue for vector indexing.
 
-    This endpoint:
-    1. Reads the document file
-    2. Chunks the content using LlamaIndex
-    3. Creates embeddings using Cohere embed-multilingual-v3.0
-    4. Stores vectors in Qdrant Cloud
+    This endpoint is now ASYNCHRONOUS:
+    1. Validates document existence
+    2. Enqueues the document for sequential processing
+    3. Returns immediately with 'queued' status
 
-    After processing, the document can be queried via RAG.
+    A background worker will then:
+    - Index document using LlamaIndex + Cohere
+    - Store vectors in Qdrant
     """,
 )
 async def process_document(
@@ -232,141 +235,54 @@ async def process_document(
     _Subscription: bool = Depends(check_active_subscription),
 ):
     """
-    Process document and index to Qdrant
+    Enqueue document for processing
 
     Path params:
         - document_id: ID of the uploaded document
 
     Returns:
-        - chunks_created: Number of chunks indexed
-        - processing_time_ms: Time taken to process
+        - status: 'queued'
     """
-    try:
-        import time
+    # Get document from database to verify existence
+    result = await db.execute(
+        select(KnowledgeDocument).where(KnowledgeDocument.id == document_id)
+    )
+    document = result.scalar_one_or_none()
 
-        start_time = time.time()
-
-        # Get document from database
-        result = await db.execute(
-            select(KnowledgeDocument).where(KnowledgeDocument.id == document_id)
-        )
-        document = result.scalar_one_or_none()
-
-        if not document:
-            raise HTTPException(
-                status_code=404, detail=f"Không tìm thấy tài liệu {document_id}"
-            )
-
-        # Allow reprocessing if document has 0 vectors (failed previous attempt)
-        if document.processed and document.vector_count > 0:
-            return ProcessDocumentResponse(
-                success=True,
-                message=f"Tài liệu '{document.filename}' đã được xử lý trước đó",
-                document_id=document_id,
-                chunks_created=document.vector_count,
-                processing_time_ms=0,
-            )
-
-        if document.processed and document.vector_count == 0:
-            logger.warning(
-                f"Document {document_id} was marked processed with {document.vector_count} vectors. Reprocessing..."
-            )
-            # Reset processed status for retry
-            document.processed = False
-            await db.commit()
-
-        # Read file content
-        file_path = document.file_path
-        if not file_path or not os.path.exists(file_path):
-            raise HTTPException(
-                status_code=404, detail=f"Không tìm thấy file tại {file_path}"
-            )
-
-        with open(file_path, "rb") as f:
-            file_content = f.read()
-
-        # Get RAG engine and index document
-        rag = get_rag_engine()
-        index_result = await rag.index_document(
-            file_path=Path(file_path),
-            filename=document.filename,
-            document_id=document.id,
-            metadata={
-                "file_type": document.file_type,
-                "uploaded_by": document.uploaded_by,
-                "notes": document.notes,
-            },
+    if not document:
+        raise HTTPException(
+            status_code=404, detail=f"Không tìm thấy tài liệu {document_id}"
         )
 
-        # Validate processing succeeded
-        if index_result.text_chunks == 0:
-            raise HTTPException(
-                status_code=500,
-                detail="Xử lý tài liệu thất bại: Không tạo được vectors. "
-                "Nguyên nhân có thể: "
-                "(1) Chưa cấu hình COHERE_API_KEY, "
-                "(2) Chưa cấu hình QDRANT_URL, "
-                "(3) API key không hợp lệ. "
-                "Vui lòng kiểm tra cấu hình trong trang Knowledge.",
-            )
-
-        # Update document status (only if vectors were created successfully)
-        document.processed = True
-        document.vector_count = index_result.text_chunks
-        from datetime import timezone
-
-        document.processed_at = datetime.now(timezone.utc)
-        await db.commit()
-
-        processing_time = int((time.time() - start_time) * 1000)
-
-        logger.info(
-            f"Processed document {document_id}: {index_result.text_chunks} text chunks in {processing_time}ms"
-        )
-
+    # If already processed, return success
+    if document.processed and document.vector_count > 0:
         return ProcessDocumentResponse(
             success=True,
-            message=f"Tài liệu '{document.filename}' xử lý thành công",
+            message=f"Tài liệu '{document.filename}' đã được xử lý trước đó",
             document_id=document_id,
-            chunks_created=index_result.text_chunks,
-            images_indexed=index_result.image_vectors,
-            processing_time_ms=processing_time,
+            status="completed",
+            chunks_created=document.vector_count,
+            processing_time_ms=0,
         )
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error processing document {document_id}: {e}")
+    # Enqueue for background processing
+    queue_service = get_document_processing_service()
+    enqueued = await queue_service.enqueue_document(document_id)
 
-        # Cleanup on failure: Delete file and database record
-        # Only cleanup if document was just uploaded (processed=False, vector_count=0)
-        try:
-            # Try to get document from database
-            result = await db.execute(
-                select(KnowledgeDocument).where(KnowledgeDocument.id == document_id)
-            )
-            doc = result.scalar_one_or_none()
+    if not enqueued:
+        return ProcessDocumentResponse(
+            success=True,
+            message=f"Tài liệu '{document.filename}' đã nằm trong hàng đợi hoặc đang xử lý",
+            document_id=document_id,
+            status=document.status or "queued",
+        )
 
-            if doc and not doc.processed and doc.vector_count == 0:
-                logger.warning(
-                    f"Processing failed for new document {document_id}. Cleaning up..."
-                )
-
-                # Delete file from disk
-                if doc.file_path and os.path.exists(doc.file_path):
-                    os.remove(doc.file_path)
-                    logger.info(f"Deleted file: {doc.file_path}")
-
-                # Delete database record
-                await db.delete(doc)
-                await db.commit()
-                logger.info(f"Deleted database record for document {document_id}")
-
-        except Exception as cleanup_error:
-            logger.error(f"Cleanup failed: {cleanup_error}")
-            # Don't raise cleanup error, raise original error instead
-
-        raise HTTPException(status_code=500, detail=str(e))
+    return ProcessDocumentResponse(
+        success=True,
+        message=f"Tài liệu '{document.filename}' đã được thêm vào hàng đợi xử lý",
+        document_id=document_id,
+        status="queued",
+    )
 
 
 # ===== LIST DOCUMENTS =====
@@ -765,6 +681,7 @@ async def recreate_collection(db: AsyncSession = Depends(get_db)):
 
         for doc in documents:
             doc.processed = False
+            doc.status = "pending"
             doc.vector_count = 0
             doc.processed_at = None
 

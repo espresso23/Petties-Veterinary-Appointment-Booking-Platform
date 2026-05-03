@@ -38,7 +38,8 @@ class ToolType(str, enum.Enum):
     """Tool types"""
 
     CODE_BASED = "CODE_BASED"  # FastMCP @mcp.tool decorators
-    API_BASED = "API_BASED"  # Spring Boot API calls
+    API_BASED = "EXTERNAL_API"  # Spring Boot API calls
+    MCP = "MCP"
 
 
 # ===== AGENTS TABLE =====
@@ -172,6 +173,7 @@ class KnowledgeDocument(Base):
 
     # Processing status
     processed = Column(Boolean, default=False)
+    status = Column(String(50), default="pending", nullable=False)
     vector_count = Column(Integer, default=0)  # Text vectors
 
     # Metadata
@@ -266,16 +268,65 @@ class DiseaseAlias(Base):
         )
 
 
+class DiseaseMappingReviewItem(Base):
+    """
+    Queue for autonomous disease mapping learning.
+    
+    Purpose:
+    - Record labels that couldn't be mapped automatically
+    - Serve as a buffer for periodic LLM classification
+    """
+
+    __tablename__ = "disease_mapping_review_items"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_type",
+            "normalized_label",
+            "species",
+            name="uq_disease_mapping_review_source_normalized_species",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    raw_label = Column(String(255), nullable=False)
+    normalized_label = Column(String(255), nullable=False, index=True)
+    source_type = Column(String(50), nullable=False, index=True)
+    species = Column(String(50), default="all", nullable=False)
+    status = Column(String(50), default="pending", nullable=False)
+    hit_count = Column(Integer, default=1, nullable=False)
+    sample_payload = Column(JSON, nullable=True)
+
+    first_seen_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_seen_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    def __repr__(self):
+        return (
+            f"<DiseaseMappingReviewItem(label={self.raw_label}, status={self.status}, "
+            f"hits={self.hit_count})>"
+        )
+
+
 # ===== SYSTEM SETTINGS TABLE =====
 class SettingCategory(str, enum.Enum):
     """Setting categories for admin dashboard"""
 
-    LLM = "llm"  # OpenRouter settings
-    RAG = "rag"  # Cohere + Qdrant settings
-    EMBEDDINGS = "embeddings"  # Cohere embeddings
-    VECTOR_DB = "vector_db"  # Qdrant settings
-    GENERAL = "general"  # General settings
-    WEB_SEARCH = "web_search"  # Web search (Tavily)
+    LLM = "LLM"  # OpenRouter settings
+    RAG = "RAG"  # Cohere + Qdrant settings
+    EMBEDDINGS = "EMBEDDINGS"  # Cohere embeddings
+    VECTOR_DB = "VECTOR_DB"  # Qdrant settings
+    GENERAL = "GENERAL"  # General settings
+    WEB_SEARCH = "WEB_SEARCH"  # Web search (Tavily)
+
+    @classmethod
+    def _missing_(cls, value):
+        if not value:
+            return cls.GENERAL
+        for member in cls:
+            if member.value.upper() == str(value).upper():
+                return member
+        return cls.GENERAL
 
 
 def normalize_setting_category(value) -> SettingCategory:
@@ -289,7 +340,7 @@ def normalize_setting_category(value) -> SettingCategory:
         return SettingCategory.GENERAL
 
     try:
-        return SettingCategory(text.lower())
+        return SettingCategory(text.upper())
     except ValueError:
         try:
             return SettingCategory[text.upper()]
@@ -340,21 +391,21 @@ DEFAULT_SETTINGS = [
     {
         "key": "OPENROUTER_API_KEY",
         "value": "",
-        "category": "llm",
+        "category": "LLM",
         "is_sensitive": True,
         "description": "OpenRouter Cloud API Key (https://openrouter.ai/keys)",
     },
     {
         "key": "OPENROUTER_DEFAULT_MODEL",
         "value": "google/gemini-2.5-flash-lite",
-        "category": "llm",
+        "category": "LLM",
         "is_sensitive": False,
         "description": "Default LLM model (default stable model: google/gemini-2.5-flash-lite)",
     },
     {
         "key": "OPENROUTER_FALLBACK_MODEL",
         "value": "meta-llama/llama-3.3-70b-instruct",
-        "category": "llm",
+        "category": "LLM",
         "is_sensitive": False,
         "description": "Fallback model when primary fails",
     },
@@ -362,14 +413,14 @@ DEFAULT_SETTINGS = [
     {
         "key": "COHERE_API_KEY",
         "value": "",
-        "category": "rag",
+        "category": "RAG",
         "is_sensitive": True,
         "description": "Cohere API Key for multilingual embeddings (https://dashboard.cohere.com/api-keys)",
     },
     {
         "key": "COHERE_EMBEDDING_MODEL",
         "value": "embed-multilingual-v3.0",
-        "category": "rag",
+        "category": "RAG",
         "is_sensitive": False,
         "description": "Cohere embedding model (multilingual for Vietnamese)",
     },
@@ -377,21 +428,21 @@ DEFAULT_SETTINGS = [
     {
         "key": "QDRANT_URL",
         "value": "http://localhost:6333",
-        "category": "vector_db",
+        "category": "VECTOR_DB",
         "is_sensitive": False,
         "description": "Qdrant server URL (local or Qdrant Cloud)",
     },
     {
         "key": "QDRANT_API_KEY",
         "value": "",
-        "category": "vector_db",
+        "category": "VECTOR_DB",
         "is_sensitive": True,
         "description": "Qdrant API key (required for Qdrant Cloud)",
     },
     {
         "key": "QDRANT_COLLECTION_NAME",
         "value": "petties_knowledge_base",
-        "category": "vector_db",
+        "category": "VECTOR_DB",
         "is_sensitive": False,
         "description": "Qdrant collection name for RAG",
     },
@@ -399,14 +450,14 @@ DEFAULT_SETTINGS = [
     {
         "key": "JINA_API_KEY",
         "value": "",
-        "category": "embeddings",
+        "category": "EMBEDDINGS",
         "is_sensitive": True,
         "description": "Jina AI API Key for image embeddings (https://jina.ai/)",
     },
     {
         "key": "JINA_IMAGE_EMBED_MODEL",
         "value": "jina-clip-v2",
-        "category": "embeddings",
+        "category": "EMBEDDINGS",
         "is_sensitive": False,
         "description": "Jina image embedding model (fixed: jina-clip-v2)",
     },
@@ -414,14 +465,14 @@ DEFAULT_SETTINGS = [
     {
         "key": "TAVILY_API_KEY",
         "value": "",
-        "category": "web_search",
+        "category": "WEB_SEARCH",
         "is_sensitive": True,
         "description": "Tavily API Key for web search (https://tavily.com)",
     },
     {
         "key": "TAVILY_MAX_RESULTS",
         "value": "5",
-        "category": "web_search",
+        "category": "WEB_SEARCH",
         "is_sensitive": False,
         "description": "Max Tavily search results per query",
     },

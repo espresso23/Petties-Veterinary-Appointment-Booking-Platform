@@ -152,9 +152,9 @@ services:
       ENVIRONMENT: development
       APP_DEBUG: "true"
       # PostgreSQL
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/petties_db
+      DATABASE_URL: postgresql://postgres:postgres@petties-dev-postgres:5432/petties_db
       # MongoDB
-      MONGODB_URL: mongodb://admin:admin@mongodb:27017/?authSource=admin
+      MONGODB_URL: mongodb://admin:admin@petties-dev-mongodb:27017/?authSource=admin
       MONGODB_DATABASE: petties_nosql
       # JWT Secret (Synced with Backend)
       JWT_SECRET: ${JWT_SECRET}
@@ -162,16 +162,14 @@ services:
       # Spring Boot Backend (container-to-container)
       SPRING_BACKEND_URL: http://backend:8080
       # Qdrant Cloud (now managed via DB system_settings)
-      QDRANT_COLLECTION_NAME: petties_knowledge_base_dev
+      QDRANT_COLLECTION_NAME: petties_knowledge_base
+      CASE_MEMORY_COLLECTION: petties_case_memory_v2
       # AI Architecture: Cloud-Only (OpenRouter + Cohere)
       LLM_PROVIDER: openrouter
       # Cloudinary (Image Upload)
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
-      # Label Studio (Vision AI)
-      LABEL_STUDIO_URL: ${LABEL_STUDIO_URL:-http://label-studio:8080}
-      LABEL_STUDIO_API_KEY: ${LABEL_STUDIO_API_KEY:-}
       # CORS (comma-separated string)
       CORS_ORIGINS: http://localhost:5173,http://localhost:3000,http://localhost:8080,https://hasty-unvociferously-madalyn.ngrok-free.dev
       # Sentry Error Monitoring (disabled for dev)
@@ -183,8 +181,6 @@ services:
       - ai_storage_dev_data:/app/storage
       # Persist uploaded knowledge documents
       - ai_uploads_dev_data:/app/uploads
-      # Disease dataset for Label Studio import
-      - D:/SEP490/Disease_Dataset:/label-studio/disease-dataset
     ports:
       - "8000:8000"
     depends_on:
@@ -199,6 +195,64 @@ services:
       - 8.8.4.4
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+  # ============================================
+  # OBSERVABILITY STACK (Prometheus + Grafana)
+  # ============================================
+  # ============================================
+  # STATSD EXPORTER (for k6 metrics)
+  # ============================================
+  statsd-exporter:
+    image: quay.io/prometheus/statsd-exporter:latest
+    container_name: petties-dev-statsd-exporter
+    restart: unless-stopped
+    command:
+      - "--statsd.mapping-config=/etc/statsd_exporter.yaml"
+    volumes:
+      - ./statsd_exporter.yaml:/etc/statsd_exporter.yaml:ro
+    ports:
+      - "9102:9102"
+      - "8125:8125/udp"
+    networks:
+      - petties-dev-network
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: petties-dev-prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./monitoring/prometheus/prometheus.dev.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_dev_data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - backend
+      - ai-service
+      - statsd-exporter
+    networks:
+      - petties-dev-network
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: petties-dev-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin123}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_dev_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - petties-dev-network
 
   # ============================================
   # NGINX REVERSE PROXY (for ngrok)
@@ -228,7 +282,7 @@ services:
     ports:
       - "8080:80" # Expose port 8080 để ngrok tunnel vào
     volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -260,4 +314,8 @@ volumes:
   ai_uploads_dev_data:
     driver: local
   label_studio_data:
+    driver: local
+  prometheus_dev_data:
+    driver: local
+  grafana_dev_data:
     driver: local

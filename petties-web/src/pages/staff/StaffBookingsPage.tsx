@@ -7,6 +7,7 @@ import { BOOKING_STATUS_CONFIG, BOOKING_TYPE_CONFIG } from '../../types/booking'
 import { useSseNotification } from '../../hooks/useSseNotification'
 import { AddServiceModal } from '../../components/booking/AddServiceModal'
 import { ConfirmModal } from '../../components/ConfirmModal'
+import { QrPaymentPanel } from '../../components/booking/QrPaymentPanel'
 import { useToast } from '../../components/Toast'
 import {
     CalendarIcon,
@@ -268,6 +269,17 @@ export const StaffBookingsPage = () => {
             checkoutInFlightRef.current = false;
         }
     };
+
+    const refreshSelectedBooking = async (bookingId: string) => {
+        try {
+            const updated = await getBookingById(bookingId)
+            setSelectedBooking(updated)
+            fetchBookings()
+        } catch (error) {
+            console.error('Failed to refresh booking detail:', error)
+            showToast('error', 'Không thể làm mới chi tiết lịch hẹn')
+        }
+    }
 
 
     return (
@@ -775,6 +787,17 @@ export const StaffBookingsPage = () => {
                                                                 </span>
                                                             </div>
                                                         </div>
+
+                                                        <QrPaymentPanel
+                                                            bookingId={selectedBooking.bookingId}
+                                                            bookingStatus={selectedBooking.status}
+                                                            paymentMethod={selectedBooking.paymentMethod}
+                                                            paymentStatus={selectedBooking.paymentStatus}
+                                                            qrImageUrl={selectedBooking.qrImageUrl}
+                                                            paymentDescription={selectedBooking.paymentDescription}
+                                                            canShowQrPaymentButton={selectedBooking.canShowQrPaymentButton}
+                                                            onBookingRefresh={() => refreshSelectedBooking(selectedBooking.bookingId)}
+                                                        />
                                                     </>
                                                 );
                                             })()}

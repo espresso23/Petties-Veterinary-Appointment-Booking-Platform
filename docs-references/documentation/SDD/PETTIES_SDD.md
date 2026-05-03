@@ -1,8 +1,8 @@
 ﻿# II. Software Design Document
 
 **Project:** Petties - Veterinary Appointment Booking Platform
-**Version:** 3.3.16 (SDD canonical rename and database design alignment)
-**Last Updated:** 2026-04-12
+**Version:** 3.3.18 (Mobile staff QR display after checkout for regular and SOS bookings)
+**Last Updated:** 2026-04-20
 **Document Status:** In Progress
 
 
@@ -7210,6 +7210,78 @@ sequenceDiagram
     deactivate BC
     UI-->>Manager: 10. Display new bookings table
     deactivate UI
+```
+
+#### 4.12.13 Display post-checkout QR for Staff and Clinic Manager
+
+```mermaid
+sequenceDiagram
+    actor Staff as STAFF
+    participant UI as Staff or Manager Booking Detail Screen
+    participant BC as BookingController
+    participant PC as PaymentController
+    participant BS as BookingService
+    participant PR as PaymentRepository
+    participant BR as BookingRepository
+    participant DB as Database
+
+    Staff->>UI: 1. Open completed booking detail
+    UI->>BC: 2. getBookingById(bookingId)
+    BC->>BS: 3. getBookingById(bookingId)
+    BS->>BR: 4. findById(bookingId)
+    BR->>DB: 5. Retrieve booking with payment data
+    DB-->>BR: 6. Booking entity
+    BR-->>BS: 7. Booking entity
+    BS-->>BC: 8. BookingResponse with qrImageUrl/paymentDescription
+    BC-->>UI: 9. 200 OK
+    UI-->>Staff: 10. Render QR panel when status=COMPLETED, method=QR, payment not paid
+
+    Staff->>UI: 11. Click "Kiểm tra thanh toán"
+    UI->>PC: 12. checkPaymentStatus(bookingId)
+    PC->>PR: 13. findByBookingBookingId(bookingId)
+    PR->>DB: 14. Retrieve payment and matching state
+    DB-->>PR: 15. Payment state
+    PR-->>PC: 16. Payment state
+    PC-->>UI: 17. Payment status response
+    UI->>BC: 18. Refresh booking detail when status changed
+    BC-->>UI: 19. Updated booking response
+    UI-->>Staff: 20. Show updated payment badge and keep/hide QR panel
+```
+
+#### 4.12.14 Display post-checkout QR on Staff mobile
+
+```mermaid
+sequenceDiagram
+    actor Staff as STAFF
+    participant UI as Staff Mobile Booking Detail Screen
+    participant BC as BookingController
+    participant PC as PaymentController
+    participant BS as BookingService
+    participant BR as BookingRepository
+    participant PR as PaymentRepository
+    participant DB as Database
+
+    Staff->>UI: 1. Complete checkout with paymentMethod=QR
+    UI->>BC: 2. checkout(bookingId, paymentMethod)
+    BC->>BS: 3. checkoutBooking(bookingId, paymentMethod)
+    BS->>BR: 4. save(booking status=COMPLETED)
+    BR->>DB: 5. Persist booking and payment metadata
+    DB-->>BR: 6. Booking saved
+    BR-->>BS: 7. Updated booking
+    BS-->>BC: 8. BookingResponse with qrImageUrl/paymentDescription
+    BC-->>UI: 9. 200 OK
+    UI-->>Staff: 10. Render mobile QR section for scan
+
+    Staff->>UI: 11. Tap "Kiểm tra thanh toán"
+    UI->>PC: 12. checkPaymentStatus(bookingId)
+    PC->>PR: 13. findByBookingBookingId(bookingId)
+    PR->>DB: 14. Read current payment state
+    DB-->>PR: 15. Payment state
+    PR-->>PC: 16. Payment entity
+    PC-->>UI: 17. Payment status response
+    UI->>BC: 18. Refresh booking detail
+    BC-->>UI: 19. Updated booking response
+    UI-->>Staff: 20. Update payment badge and hide QR if paid
 ```
 
 ### 4.13 Settlement Management

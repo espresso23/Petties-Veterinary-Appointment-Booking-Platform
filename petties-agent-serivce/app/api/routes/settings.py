@@ -14,6 +14,7 @@ import httpx
 import logging
 
 from app.db.postgres.session import get_db
+from app.config.settings import settings as app_settings
 from app.db.postgres.models import (
     SystemSetting,
     DEFAULT_SETTINGS,
@@ -120,32 +121,39 @@ async def list_settings(
         SettingResponse(
             key=s.key,
             value=mask_value(s.value, s.is_sensitive),
-            category=s.category or "general",
+            category=str(
+                s.category.value
+                if hasattr(s.category, "value")
+                else (s.category or "GENERAL")
+            ),
             is_sensitive=s.is_sensitive,
             description=s.description,
         )
         for s in settings
     ]
 
+    @router.get("/{key}", response_model=SettingResponse)
+    async def get_setting_by_key(
+        key: str, db: AsyncSession = Depends(get_db), _: dict = Depends(get_admin_user)
+    ):
+        """Get single setting by key"""
+        result = await db.execute(select(SystemSetting).where(SystemSetting.key == key))
+        setting = result.scalar_one_or_none()
 
-@router.get("/{key}", response_model=SettingResponse)
-async def get_setting_by_key(
-    key: str, db: AsyncSession = Depends(get_db), _: dict = Depends(get_admin_user)
-):
-    """Get single setting by key"""
-    result = await db.execute(select(SystemSetting).where(SystemSetting.key == key))
-    setting = result.scalar_one_or_none()
+        if not setting:
+            raise HTTPException(status_code=404, detail=f"Setting '{key}' not found")
 
-    if not setting:
-        raise HTTPException(status_code=404, detail=f"Setting '{key}' not found")
-
-    return SettingResponse(
-        key=setting.key,
-        value=mask_value(setting.value, setting.is_sensitive),
-        category=setting.category or "general",
-        is_sensitive=setting.is_sensitive,
-        description=setting.description,
-    )
+        return SettingResponse(
+            key=setting.key,
+            value=mask_value(setting.value, setting.is_sensitive),
+            category=str(
+                setting.category.value
+                if hasattr(setting.category, "value")
+                else (setting.category or "GENERAL")
+            ),
+            is_sensitive=setting.is_sensitive,
+            description=setting.description,
+        )
 
 
 @router.put("/{key}", response_model=SettingResponse)
@@ -157,77 +165,122 @@ async def update_setting(
     admin_user: CurrentUser = Depends(get_admin_user),
 ):
     """Update setting value (admin only) - auto-create if not exists"""
-    result = await db.execute(select(SystemSetting).where(SystemSetting.key == key))
-    setting = result.scalar_one_or_none()
-
-    old_masked_value = None
-    is_sensitive = True
-
-    if not setting:
-        setting = SystemSetting(
-            key=key,
-            value=data.value,
-            category=SettingCategory.GENERAL,
-            is_sensitive=True,
-            description=f"Auto-created setting: {key}",
-        )
-        db.add(setting)
-        logger.info(f"Setting '{key}' auto-created")
-    else:
-        old_masked_value = mask_value(setting.value, setting.is_sensitive)
-        is_sensitive = setting.is_sensitive
-        setting.value = data.value
-        logger.info(f"Setting '{key}' updated")
-
-    await db.commit()
-    await db.refresh(setting)
-
-    new_masked_value = mask_value(setting.value, setting.is_sensitive)
-
     try:
-        await get_audit_log_service().write_event(
-            service=settings.APP_NAME,
-            environment=settings.APP_ENV,
-            actor={
-                "user_id": admin_user.user_id,
-                "role": admin_user.role,
-                "auth_type": "jwt",
-                "ip": request.client.host if request.client else "unknown",
-                "user_agent": request.headers.get("user-agent", "unknown"),
-            },
-            action="UPDATE_SYSTEM_SETTING",
-            resource={
-                "type": "system_setting",
-                "id": key,
-            },
-            result={
-                "status": "SUCCESS",
-                "reason": None,
-            },
-            correlation={
-                "request_id": request.headers.get("x-request-id"),
-                "trace_id": request.headers.get("x-b3-traceid")
-                or request.headers.get("traceparent"),
-            },
-            metadata={
-                "category": str(setting.category or "general"),
-                "is_sensitive": bool(is_sensitive),
-            },
-            changes={
-                "old_value": {"value": old_masked_value},
-                "new_value": {"value": new_masked_value},
-            },
-        )
-    except Exception as audit_err:
-        logger.warning(f"Failed to write setting audit log for key={key}: {audit_err}")
+        result = await db.execute(select(SystemSetting).where(SystemSetting.key == key))
+        setting = result.scalar_one_or_none()
 
-    return SettingResponse(
-        key=setting.key,
-        value=mask_value(setting.value, setting.is_sensitive),
-        category=setting.category or "general",
-        is_sensitive=setting.is_sensitive,
-        description=setting.description,
-    )
+        old_masked_value = None
+        is_sensitive = True
+
+        if not setting:
+            # Determine category based on key if possible
+            category = SettingCategory.GENERAL
+            if "OPENROUTER" in key or "LLM" in key:
+                category = SettingCategory.LLM
+            elif "QDRANT" in key or "COHERE" in key or "RAG" in key:
+                category = SettingCategory.RAG
+
+            setting = SystemSetting(
+                key=key,
+                value=data.value,
+                category=category,
+                is_sensitive=True,
+                description=f"Auto-created setting: {key}",
+            )
+            db.add(setting)
+            logger.info(f"Setting '{key}' auto-created with category {category}")
+        else:
+            old_masked_value = mask_value(setting.value, setting.is_sensitive)
+            is_sensitive = setting.is_sensitive
+            setting.value = data.value
+            logger.info(f"Setting '{key}' updated")
+
+        await db.commit()
+        await db.refresh(setting)
+
+        # Reset services after API key updates (singleton pattern - cached keys)
+        try:
+            if "COHERE" in key:
+                from app.core.rag.rag_engine import reset_rag_engine
+
+                reset_rag_engine()
+                logger.info(f"Reset RAG engine after updating {key}")
+            elif "QDRANT" in key:
+                from app.core.rag.rag_engine import reset_rag_engine
+
+                reset_rag_engine()
+                logger.info(f"Reset RAG engine after updating {key}")
+            elif "OPENROUTER" in key:
+                from app.core.rag.rag_engine import reset_rag_engine
+
+                reset_rag_engine()
+                logger.info(f"Reset RAG engine after updating {key}")
+            elif "JINA" in key:
+                from app.core.rag.case_memory import reset_case_memory_service
+
+                reset_case_memory_service()
+                logger.info(f"Reset CaseMemory after updating {key}")
+        except Exception as reset_error:
+            logger.warning(
+                f"Failed to reset services after {key} update: {reset_error}"
+            )
+
+        new_masked_value = mask_value(setting.value, setting.is_sensitive)
+
+        # Audit log (wrapped in its own try-except)
+        try:
+            await get_audit_log_service().write_event(
+                service=app_settings.APP_NAME,
+                environment=app_settings.APP_ENV,
+                actor={
+                    "user_id": admin_user.user_id,
+                    "role": admin_user.role,
+                    "auth_type": "jwt",
+                    "ip": request.client.host if request.client else "unknown",
+                    "user_agent": request.headers.get("user-agent", "unknown"),
+                },
+                action="UPDATE_SYSTEM_SETTING",
+                resource={
+                    "type": "system_setting",
+                    "id": key,
+                },
+                result={
+                    "status": "SUCCESS",
+                    "reason": None,
+                },
+                correlation={
+                    "request_id": request.headers.get("x-request-id"),
+                    "trace_id": request.headers.get("x-b3-traceid")
+                    or request.headers.get("traceparent"),
+                },
+                metadata={
+                    "category": str(setting.category or "general"),
+                    "is_sensitive": bool(is_sensitive),
+                },
+                changes={
+                    "old_value": {"value": old_masked_value},
+                    "new_value": {"value": new_masked_value},
+                },
+            )
+        except Exception as audit_err:
+            logger.warning(
+                f"Failed to write setting audit log for key={key}: {audit_err}"
+            )
+
+        return SettingResponse(
+            key=setting.key,
+            value=mask_value(setting.value, setting.is_sensitive),
+            category=str(
+                setting.category.value
+                if hasattr(setting.category, "value")
+                else (setting.category or "general")
+            ),
+            is_sensitive=setting.is_sensitive,
+            description=setting.description,
+        )
+    except Exception as e:
+        logger.error(f"Error updating setting {key}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to save API Key: {str(e)}")
 
 
 @router.post("/init")
@@ -265,7 +318,7 @@ async def seed_database(
             Tool,
             SystemSetting,
             DEFAULT_SETTINGS,
-            PromptVersion,
+            normalize_setting_category,
         )
         from sqlalchemy import select, delete
         from pathlib import Path
@@ -298,7 +351,7 @@ async def seed_database(
                 setting = SystemSetting(
                     key=setting_data["key"],
                     value=setting_data["value"],
-                    category=setting_data["category"],  # Simple string
+                    category=normalize_setting_category(setting_data["category"]),
                     is_sensitive=setting_data["is_sensitive"],
                     description=setting_data["description"],
                 )
@@ -309,7 +362,6 @@ async def seed_database(
 
         # 2. Seed Single Agent (thay vi 4 Multi-Agents)
         if force:
-            await db.execute(delete(PromptVersion))
             await db.execute(delete(Agent))
 
         existing_agents = await db.execute(select(Agent))
@@ -931,4 +983,51 @@ async def test_jina_image_embeddings(
 
     except Exception as e:
         logger.error(f"Jina test error: {e}")
+        return TestResult(status="error", message=str(e))
+
+
+@router.post("/test-tavily", response_model=TestResult)
+async def test_tavily_connection(
+    db: AsyncSession = Depends(get_db), _: dict = Depends(get_admin_user)
+):
+    """
+    Test Tavily API connection.
+
+    Verifies:
+    - TAVILY_API_KEY is configured
+    - Can perform search via Tavily API
+    """
+    api_key = await get_setting("TAVILY_API_KEY", db)
+    if not api_key:
+        return TestResult(
+            status="error",
+            message="TAVILY_API_KEY chưa được cấu hình. Hãy thiết lập trong Admin Settings.",
+        )
+
+    max_results = await get_setting("TAVILY_MAX_RESULTS", db) or "5"
+
+    try:
+        from tavily import TavilyClient
+
+        client = TavilyClient(api_key=api_key)
+        results = client.search(query="test pet care", max_results=int(max_results))
+
+        results_count = len(results.get("results", []))
+        return TestResult(
+            status="success",
+            message="Kết nối Tavily thành công",
+            details={
+                "results_count": results_count,
+                "max_results": max_results,
+            },
+        )
+
+    except ImportError:
+        return TestResult(
+            status="error",
+            message="Tavily Python package chưa được cài đặt. Chạy: pip install tavily-python",
+        )
+
+    except Exception as e:
+        logger.error(f"Tavily test error: {e}")
         return TestResult(status="error", message=str(e))

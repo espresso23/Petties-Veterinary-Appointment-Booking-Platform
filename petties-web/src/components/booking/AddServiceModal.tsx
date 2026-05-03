@@ -2,13 +2,13 @@ import { useState, useMemo, useEffect } from 'react';
 import type { ClinicServiceResponse } from '../../types/service';
 import type { Booking } from '../../types/booking';
 import { SERVICE_CATEGORY_LABELS } from '../../types/booking';
-import { getCompatibleServices } from '../../services/endpoints/service';
+import { getAvailableServicesForAddOn } from '../../services/bookingService';
 import { MagnifyingGlassIcon, FunnelIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 interface AddServiceModalProps {
     isOpen: boolean;
     onClose: () => void;
-    booking: Booking; // Pass full booking object to extract species and type
+    booking: Booking;
     onAddService: (serviceId: string) => Promise<void>;
     isAdding: boolean;
 }
@@ -26,24 +26,17 @@ export const AddServiceModal = ({
     const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
     const [selectedServiceId, setSelectedServiceId] = useState<string>('');
 
-    // Fetch compatible services when modal opens
+    // Fetch available add-on services when modal opens
     useEffect(() => {
         if (!isOpen || !booking) return;
 
         const fetchServices = async () => {
             setLoading(true);
             try {
-                const isHomeVisit = booking.type === 'HOME_VISIT' || booking.type === 'SOS';
-                const petSpecies = booking.petSpecies; // Get species from booking's primary pet
-
-                const services = await getCompatibleServices(
-                    booking.clinicId,
-                    petSpecies,
-                    isHomeVisit
-                );
+                const services = await getAvailableServicesForAddOn(booking.bookingId);
                 setAvailableServices(services);
             } catch (error) {
-                console.error('Failed to fetch compatible services:', error);
+                console.error('Failed to fetch available add-on services:', error);
                 setAvailableServices([]);
             } finally {
                 setLoading(false);
@@ -139,12 +132,12 @@ export const AddServiceModal = ({
                                     <MagnifyingGlassIcon className="w-12 h-12 mb-2 opacity-20" />
                                     <p className="font-bold text-sm">
                                         {availableServices.length === 0
-                                            ? `Không có dịch vụ phù hợp cho ${booking.petSpecies === 'DOG' ? 'chó' : booking.petSpecies === 'CAT' ? 'mèo' : booking.petSpecies.toLowerCase()}`
+                                            ? 'Không còn dịch vụ phát sinh khả dụng'
                                             : 'Không tìm thấy dịch vụ'}
                                     </p>
                                     {availableServices.length === 0 && (
                                         <p className="text-xs text-stone-400 mt-1">
-                                            Các dịch vụ khả dụng đã được lọc theo loài thú cưng và loại khám
+                                            Các dịch vụ đã có trong lịch hẹn sẽ không hiển thị lại
                                         </p>
                                     )}
                                 </div>

@@ -20,6 +20,12 @@ from starlette.responses import Response
 from starlette.types import ASGIApp
 
 from app.config.settings import settings
+from app.monitoring.metrics import (
+    decrement_inflight,
+    increment_inflight,
+    normalize_path,
+    observe_http_request,
+)
 from app.services.audit_log_service import get_audit_log_service
 
 logger = logging.getLogger(__name__)
@@ -65,8 +71,11 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         client_ip = self._get_client_ip(request)
         method = request.method
         path = request.url.path
+        metric_path = normalize_path(path)
         query_params = dict(request.query_params)
         should_skip = path in EXCLUDE_PATHS
+
+        increment_inflight(metric_path)
 
         masked_query = self._mask_sensitive_params(query_params)
 
@@ -121,6 +130,8 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                     error_reason=None,
                 )
 
+            observe_http_request(method=method, path=metric_path, status_code=status_code, latency_ms=round(duration_ms, 2))
+
             return response
 
         except Exception as exc:
@@ -144,7 +155,11 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                     latency_ms=round(duration_ms, 2),
                     error_reason=f"{type(exc).__name__}: {exc}",
                 )
+
+            observe_http_request(method=method, path=metric_path, status_code=500, latency_ms=round(duration_ms, 2))
             raise
+        finally:
+            decrement_inflight(metric_path)
 
     async def _write_audit_event(
         self,

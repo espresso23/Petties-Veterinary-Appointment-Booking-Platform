@@ -215,11 +215,10 @@ function App() {
               <Route path="subscriptions/history" element={<AdminSubscriptionHistoryPage />} />
               <Route path="notifications" element={<AdminNotificationsPage />} />
               <Route path="notification-manage" element={<AdminNotificationsManagePage />} />
+              <Route path="clinic-suspensions" element={<ClinicSuspendRequestsPage />} />
               {/* <Route path="report-reason-manage" element={<ReportReasonManagePage />} /> */}
               <Route path="profile" element={<ProfilePage />} />
             </Route>
-
-              <Route path="clinic-suspensions" element={<ClinicSuspendRequestsPage />} />
             <Route
               path="/staff"
               element={

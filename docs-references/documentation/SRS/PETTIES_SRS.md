@@ -8,8 +8,8 @@
 
 **Project:** Petties - Veterinary Appointment Booking Platform
 
-**Version:** 2.4.5 (NFR alignment with current codebase)
-**Last Updated:** 2026-04-16
+**Version:** 2.4.7 (Mobile staff QR display after checkout for regular and SOS bookings)
+**Last Updated:** 2026-04-20
 **Document Status:** In Progress
 
 
@@ -4997,6 +4997,93 @@ Figure 50. Screen Admin Report Management (Web)
     - A1. Duplicate report — System báo người dùng đã gửi báo cáo cho lịch hẹn này.
     - A2. Missing reason — System chặn submit và yêu cầu nhập lý do báo cáo.
 
+#### *3.8.19 Display Post-Checkout QR for Clinic Staff and Manager (UC-BOOK-13)*
+**User Story:**
+> *As a Staff or Clinic Manager, I want to display the booking QR payment right after examination completion so that the Pet Owner can scan and pay immediately at handover time.*
+
+**Function trigger**
+- **Navigation path (Web/Staff):** Assigned Bookings -> Booking Detail -> `Hoàn thành khám` -> Payment section.
+- **Navigation path (Web/Clinic Manager):** Booking Dashboard -> Booking Detail Modal -> Payment section.
+- **Timing frequency:** On demand after checkout completion.
+
+**Function description**
+- **Actors/Roles:** Staff, Clinic Manager.
+- **Purpose:** Show QR payment payload for completed bookings with pending QR payment and support instant status verification.
+- **Interface:**
+    - QR panel with QR image and transfer content.
+    - Action button `Kiểm tra thanh toán`.
+    - Payment status badge and refresh behavior for booking detail.
+
+**Data processing**
+1. Staff completes checkout and system marks booking as `COMPLETED` while payment remains `PENDING` for QR method.
+2. Booking detail screen loads booking payment fields and QR payload.
+3. UI validates display conditions (completed booking, QR method, unpaid status, QR payload available).
+4. UI renders QR panel for Pet Owner scanning at clinic or handover point.
+5. User clicks `Kiểm tra thanh toán`, system verifies payment status against payment matching service.
+6. On paid result, system refreshes booking detail and booking list to reflect updated payment status.
+
+**Function details**
+- **Data:**
+    - `bookingId` (UUID, required): Booking identity for verification and reload.
+    - `status` (enum, required): Booking lifecycle status.
+    - `paymentMethod` (enum, required): Selected payment method.
+    - `paymentStatus` (enum, required): Current payment state.
+    - `qrImageUrl` (string, optional): Renderable QR image URL.
+    - `paymentDescription` (string, optional): Transfer content shown to user.
+    - `canShowQrPaymentButton` (boolean, optional): Stable flag indicating QR panel eligibility.
+- **Validation:**
+    - QR panel only appears when booking is `COMPLETED`, payment method is `QR`, and payment status is not `PAID`.
+    - If QR image is missing but transfer content exists, system still shows content block and verification action.
+    - Verification action is blocked while a previous verification request is in progress.
+- **Normal case:** Staff finishes examination, opens booking detail, shows QR to Pet Owner, taps `Kiểm tra thanh toán`, and sees payment status switch to paid.
+- **Abnormal/Exception cases:**
+    - A1. Booking is completed with cash payment - system hides QR panel.
+    - A2. Verification returns pending - system keeps QR panel and informs user to retry.
+    - E1. Verification service is temporarily unavailable - system shows an error toast and keeps current booking state.
+
+#### *3.8.20 Display Post-Checkout QR on Staff Mobile (UC-BOOK-14)*
+**User Story:**
+> *As a Staff user on mobile, I want to display and verify QR payment after checkout so that Pet Owners can scan and pay immediately for regular, home-visit, and SOS bookings.*
+
+**Function trigger**
+- **Navigation path:** Staff Booking Detail -> Checkout action -> Completed booking detail -> QR payment section.
+- **Timing frequency:** On demand after checkout completion.
+
+**Function description**
+- **Actors/Roles:** Staff.
+- **Purpose:** Allow staff to show QR payment directly on mobile handover flow and verify payment state without leaving booking detail.
+- **Interface:**
+    - QR payment card in Staff booking detail.
+    - Transfer content section.
+    - Action button `Kiểm tra thanh toán`.
+
+**Data processing**
+1. Staff completes checkout and chooses `QR` as payment method.
+2. System stores booking as `COMPLETED` with payment state still unpaid.
+3. Staff detail screen refreshes booking and evaluates QR display conditions.
+4. UI renders QR section for scan-on-spot payment.
+5. Staff taps `Kiểm tra thanh toán`; system verifies payment status.
+6. If payment succeeds, UI refreshes booking detail and updates payment badge.
+
+**Function details**
+- **Data:**
+    - `bookingId` (UUID, required): Booking used to verify payment status.
+    - `status` (enum, required): Booking lifecycle state.
+    - `paymentMethod` (enum, required): Payment method selected at checkout.
+    - `paymentStatus` (enum, required): Current payment state.
+    - `qrImageUrl` (string, optional): QR image source.
+    - `paymentDescription` (string, optional): Transfer content string.
+    - `canShowQrPaymentButton` (boolean, optional): Backend display hint for QR flow.
+- **Validation:**
+    - QR section only appears for `COMPLETED` bookings where payment method is `QR` and payment status is not `PAID`.
+    - Applies equally to regular, home-visit, and SOS bookings.
+    - Verification action must prevent duplicate concurrent requests.
+- **Normal case:** Staff completes a booking with QR method, shows QR to Pet Owner, verifies paid state, and sees payment status updated.
+- **Abnormal/Exception cases:**
+    - A1. Booking completed with `CASH` - QR section is hidden.
+    - A2. QR payload is missing - system hides QR image and only keeps non-blocking status handling.
+    - E1. Payment verification API fails - system displays an error message and keeps current state.
+
 ### 3.9 EMR & Vaccination Management
 
 
@@ -8702,8 +8789,6 @@ Security tests verify that the system is protected against unauthorized access a
 **Snapshot Updated:** 2026-03-25
 
 **Author:** Petties Development Team
-
-
 
 
 

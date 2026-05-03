@@ -174,39 +174,38 @@ class LlamaIndexRAGEngine:
             )
 
             # Initialize Qdrant client
-            if qdrant_url and qdrant_api_key:
-                logger.info(f"Connecting to Qdrant Cloud: {qdrant_url}")
-                self.qdrant_client = QdrantClient(
-                    url=qdrant_url, api_key=qdrant_api_key
-                )
-            else:
-                logger.info("Using local Qdrant")
-                self.qdrant_client = QdrantClient(host="localhost", port=6333)
+            try:
+                if qdrant_url and qdrant_api_key:
+                    logger.info(f"Connecting to Qdrant Cloud: {qdrant_url}")
+                    self.qdrant_client = QdrantClient(
+                        url=qdrant_url, api_key=qdrant_api_key
+                    )
+                else:
+                    logger.info("Using local Qdrant")
+                    self.qdrant_client = QdrantClient(host="localhost", port=6333)
+            except Exception as client_error:
+                logger.error(f"Failed to create QdrantClient: {client_error}")
+                raise
+
+            # Detect collection configuration (Safe Mode: Always prioritize dense)
+            use_hybrid = False
+            try:
+                collection_info = self.qdrant_client.get_collection(self._collection_name)
+                # We could detect hybrid here, but per safety request, we disable it.
+                logger.info(f"Initialized RAG in Safe Mode (Dense-only) for: {self._collection_name}")
+            except Exception:
+                logger.info(f"Collection {self._collection_name} not found. Will be created on demand.")
 
             # Create vector store
-            # Prefer hybrid search (BM25 + Vector) for better retrieval on
-            # medical terms/abbreviations. If FastEmbed is unavailable, gracefully
-            # fallback to dense-only vector search so query endpoints still work.
             try:
                 self.vector_store = QdrantVectorStore(
                     client=self.qdrant_client,
                     collection_name=self._collection_name,
-                    enable_hybrid=True,
+                    enable_hybrid=False, # Safe mode
                 )
-                logger.info("Qdrant hybrid search is enabled")
-            except Exception as hybrid_error:
-                error_text = str(hybrid_error).lower()
-                if "fastembed" in error_text:
-                    logger.warning(
-                        "FastEmbed is not available; fallback to dense-only retrieval. "
-                        "Install dependency `fastembed` to re-enable hybrid search."
-                    )
-                else:
-                    logger.warning(
-                        f"Hybrid search initialization failed ({hybrid_error}); "
-                        "fallback to dense-only retrieval."
-                    )
-
+                logger.info("QdrantVectorStore initialized (Dense-only)")
+            except Exception as vs_error:
+                logger.warning(f"Vector store initialization failed: {vs_error}. Retrying with hybrid=False.")
                 self.vector_store = QdrantVectorStore(
                     client=self.qdrant_client,
                     collection_name=self._collection_name,
@@ -218,7 +217,7 @@ class LlamaIndexRAGEngine:
                 vector_store=self.vector_store
             )
 
-            # Check if collection exists with data
+            # Check if collection exists and has points
             try:
                 collection_info = self.qdrant_client.get_collection(
                     self._collection_name
@@ -235,8 +234,20 @@ class LlamaIndexRAGEngine:
                     self.index = VectorStoreIndex.from_documents(
                         [], storage_context=storage_context
                     )
+
+                # Ensure payload index for document_id exists
+                try:
+                    from qdrant_client.models import PayloadSchemaType
+                    self.qdrant_client.create_payload_index(
+                        collection_name=self._collection_name,
+                        field_name="document_id",
+                        field_schema=PayloadSchemaType.INTEGER,
+                    )
+                except Exception:
+                    pass
+
             except Exception as e:
-                logger.warning(f"Collection not found, creating new: {e}")
+                logger.warning(f"Collection setup failed or not found, creating new empty index: {e}")
                 self.index = VectorStoreIndex.from_documents(
                     [], storage_context=storage_context
                 )
@@ -537,7 +548,7 @@ class LlamaIndexRAGEngine:
             }
 
     async def recreate_collection(self) -> bool:
-        """Delete and recreate the Qdrant collection"""
+        """Delete and recreate the Qdrant collection with named dense vectors only"""
         try:
             # Delete existing
             try:
@@ -546,21 +557,37 @@ class LlamaIndexRAGEngine:
             except Exception:
                 pass
 
-            # Recreate with new dimensions
+            # Recreate with named dense vector ONLY (Safe mode)
             from qdrant_client.models import Distance, VectorParams
 
             self.qdrant_client.create_collection(
                 collection_name=self._collection_name,
-                vectors_config=VectorParams(
-                    size=COHERE_EMBED_DIMENSION, distance=Distance.COSINE
-                ),
+                vectors_config={
+                    "text-dense": VectorParams(
+                        size=COHERE_EMBED_DIMENSION,
+                        distance=Distance.COSINE,
+                    ),
+                }
             )
+            logger.info(f"Created dense-only collection with named vector 'text-dense'")
 
-            # Reinitialize vector store and index
+            # Create payload index for document_id (required for filtering/deletion)
+            from qdrant_client.models import PayloadSchemaType
+            self.qdrant_client.create_payload_index(
+                collection_name=self._collection_name,
+                field_name="document_id",
+                field_schema=PayloadSchemaType.INTEGER,
+            )
+            logger.info(f"Created payload index for 'document_id' in {self._collection_name}")
+
+            # Reinitialize vector store - Force complete reload
             self._initialized = False
+            self.index = None
+            self.vector_store = None
+            self.qdrant_client = None
             await self.initialize()
 
-            logger.info(f"Recreated collection: {self._collection_name}")
+            logger.info(f"Collection ready (Safe Mode): {self._collection_name}")
             return True
 
         except Exception as e:

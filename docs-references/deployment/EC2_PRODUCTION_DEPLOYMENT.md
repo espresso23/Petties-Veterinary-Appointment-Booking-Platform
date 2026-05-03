@@ -1,12 +1,14 @@
 ﻿# 🚀 EC2 Production Deployment Guide
 
+Last Updated: 2026-04-21
+
 Hướng dẫn chi tiết deploy Backend và AI Service lên AWS EC2.
 
 ## 📋 Tổng quan
 
 Hệ thống sẽ được deploy trên EC2 với cấu trúc:
-- **Backend API**: `https://api.petties.world/api` (Port 8080, bind to 127.0.0.1)
-- **AI Service**: `https://ai.petties.world` (Port 8000, bind to 127.0.0.1)
+- **Backend API**: `https://petties.world/api` (Port 8080, bind to 127.0.0.1)
+- **AI Service**: `https://petties.world/ai` (Port 8000, bind to 127.0.0.1)
 - **Frontend**: Deploy trên Vercel tại `https://petties.world`
 - **Reverse Proxy**: Nginx với SSL (Let's Encrypt)
 - **CI/CD**: GitHub Actions tự động deploy khi push vào `main` branch
@@ -86,13 +88,13 @@ Thêm các records:
 
 | Type | Host | Value | TTL |
 |------|------|-------|-----|
-| A Record | `api` | `15.134.219.97` | Automatic |
-| A Record | `ai` | `15.134.219.97` | Automatic |
+| A Record | `@` | `15.134.219.97` | Automatic |
+| A/CNAME Record | `www` | Vercel target hoặc domain website hiện tại | Automatic |
 
 **Lưu ý**: Đợi 5-30 phút để DNS propagate. Kiểm tra bằng:
 ```bash
-nslookup api.petties.world
-nslookup ai.petties.world
+nslookup petties.world
+nslookup www.petties.world
 ```
 
 ## 🐳 Bước 4: Setup EC2 Instance
@@ -244,7 +246,7 @@ Deployment dùng nginx container trong `docker-compose.prod.yml`. File config đ
 Thiết lập các biến Nginx trong `.env.prod`:
 
 ```bash
-NGINX_SERVER_NAME=api.petties.world
+NGINX_SERVER_NAME=petties.world
 NGINX_FRONTEND_UPSTREAM=https://www.petties.world
 NGINX_FRONTEND_HOST=www.petties.world
 NGINX_HOST_PORT=80
@@ -296,8 +298,8 @@ curl http://127.0.0.1:8080/api/actuator/health
 curl http://127.0.0.1:8000/health
 
 # Test through Nginx (sau khi có SSL)
-curl https://api.petties.world/api/actuator/health
-curl https://ai.petties.world/health
+curl https://petties.world/api/actuator/health
+curl https://petties.world/ai/health
 ```
 
 ## 🔄 Bước 10: Setup CI/CD với GitHub Actions
@@ -380,33 +382,33 @@ git push origin main
 
 ```bash
 # Health check
-curl https://api.petties.world/api/actuator/health
+curl https://petties.world/api/actuator/health
 
 # Hoặc từ browser
-# https://api.petties.world/api/actuator/health
+# https://petties.world/api/actuator/health
 ```
 
 ### 11.2. Test AI Service
 
 ```bash
 # Health check
-curl https://ai.petties.world/health
+curl https://petties.world/ai/health
 
 # Hoặc từ browser
-# https://ai.petties.world/health
+# https://petties.world/ai/health
 ```
 
 ### 11.3. Test WebSocket
 
 **Backend WebSocket:**
 ```javascript
-const ws = new WebSocket('wss://api.petties.world/ws')
+const ws = new WebSocket('wss://petties.world/ws')
 ws.onopen = () => console.log('✅ Backend WS connected')
 ```
 
 **AI Service WebSocket:**
 ```javascript
-const ws = new WebSocket('wss://ai.petties.world/ws/chat/test-session-123')
+const ws = new WebSocket('wss://petties.world/ws/chat/test-session-123')
 ws.onopen = () => console.log('✅ AI Service WS connected')
 ```
 
@@ -468,7 +470,7 @@ deploy:
 **Giải pháp**:
 ```bash
 # Kiểm tra DNS
-nslookup api.petties.world
+nslookup petties.world
 nslookup www.petties.world
 
 # Kiểm tra HTTP từ EC2 đến container nginx
