@@ -34,6 +34,11 @@ jobs:
 
             echo "📁 Preparing test repository..."
             mkdir -p "$HOME/petties-backend"
+              # Ensure GitHub host fingerprint is trusted to avoid host key verification failures
+              mkdir -p "$HOME/.ssh"
+              chmod 700 "$HOME/.ssh"
+              ssh-keyscan github.com >> "$HOME/.ssh/known_hosts" 2>/dev/null || true
+              chmod 644 "$HOME/.ssh/known_hosts" || true
             if [ ! -d "$REPO_DIR/.git" ]; then
               echo "📥 Repository not found, cloning from GitHub..."
               git clone --branch "$BRANCH" "$REPO_URL" "$REPO_DIR"
