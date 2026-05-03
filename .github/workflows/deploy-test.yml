@@ -75,9 +75,18 @@ jobs:
               fi
             fi
 
-            set -a
-            . "$ENV_FILE"
-            set +a
+            # Load only valid KEY=VALUE lines from env file (ignore JVM args or other non-assignment lines)
+            if [ -f "$ENV_FILE" ]; then
+              while IFS= read -r _line || [ -n "$_line" ]; do
+                line="$_line"
+                case "$line" in
+                  ''|\#*) continue ;;
+                esac
+                if printf '%s' "$line" | grep -qE '^[A-Za-z_][A-Za-z0-9_]*='; then
+                  export "$line"
+                fi
+              done < "$ENV_FILE"
+            fi
 
             export COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-petties-test}
             export BACKEND_HOST_PORT=${BACKEND_HOST_PORT:-8081}
