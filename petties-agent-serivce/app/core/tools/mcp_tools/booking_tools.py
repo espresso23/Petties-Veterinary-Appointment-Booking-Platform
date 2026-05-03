@@ -707,9 +707,13 @@ def _filter_clinics_by_hint(
     clinics: List[Dict[str, Any]],
     clinic_hint: Optional[str],
 ) -> List[Dict[str, Any]]:
+    def _compact_text(value: str) -> str:
+        return re.sub(r"\s+", "", normalize_vietnamese_text(value))
+
     normalized_hint = normalize_vietnamese_text(clinic_hint or "")
     if not normalized_hint:
         return clinics
+    compact_hint = _compact_text(normalized_hint)
 
     hint_tokens = [
         token
@@ -727,7 +731,10 @@ def _filter_clinics_by_hint(
                 for key in ("name", "address", "reason_matched", "match_mode")
             )
         )
-        if all(token in haystack for token in hint_tokens):
+        compact_haystack = _compact_text(haystack)
+        if all(token in haystack for token in hint_tokens) or (
+            compact_hint and compact_hint in compact_haystack
+        ):
             matched.append(clinic)
 
     if not matched and len(hint_tokens) == 1:
@@ -739,7 +746,14 @@ def _filter_clinics_by_hint(
                     for key in ("name", "address", "reason_matched", "match_mode")
                 )
             )
-            if token in haystack or haystack in token:
+            compact_haystack = _compact_text(haystack)
+            if (
+                token in haystack
+                or haystack in token
+                or token in compact_haystack
+                or compact_haystack in token
+                or compact_hint in compact_haystack
+            ):
                 matched.append(clinic)
 
     if not matched and len(hint_tokens) >= 2:
@@ -750,8 +764,11 @@ def _filter_clinics_by_hint(
                     for key in ("name", "address", "reason_matched", "match_mode")
                 )
             )
+            compact_haystack = _compact_text(haystack)
             match_count = sum(1 for token in hint_tokens if token in haystack)
-            if match_count >= len(hint_tokens) - 1:
+            if match_count >= len(hint_tokens) - 1 or (
+                compact_hint and compact_hint in compact_haystack
+            ):
                 matched.append(clinic)
 
     return matched
