@@ -10,7 +10,6 @@ import type {
   CaseMemoryDetailItem,
   CaseMemoryListParams,
 } from '../../../services/agentService'
-import { DiseaseCatalogSection } from './DiseaseCatalogSection'
 import {
   ArrowPathIcon,
   HandThumbUpIcon,
