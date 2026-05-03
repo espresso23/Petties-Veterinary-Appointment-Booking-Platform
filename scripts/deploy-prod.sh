@@ -89,7 +89,7 @@ load_env() {
 }
 
 compose_cmd() {
-  docker compose -p "${COMPOSE_PROJECT_NAME:-petties-prod}" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"
+  docker-compose -p "${COMPOSE_PROJECT_NAME:-petties-prod}" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"
 }
 
 validate_config() {

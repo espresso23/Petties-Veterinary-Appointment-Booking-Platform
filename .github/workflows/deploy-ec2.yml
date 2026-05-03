@@ -101,10 +101,10 @@ jobs:
             git log --oneline -1
             
             echo "🛑 Stopping production containers..."
-            docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" down
+            docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" down
             
             echo "🔨 Building and starting production containers..."
-            docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build
+            docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build
             
             echo "⏳ Waiting for services to start..."
             sleep 15
@@ -116,7 +116,7 @@ jobs:
             curl -f "http://127.0.0.1:${AI_HOST_PORT:-8000}/health" || echo "⚠️ AI service health check failed"
             
             echo "📜 Showing recent logs..."
-            docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs --tail=30
+            docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs --tail=30
             
             echo "🚀 ============================================"
             echo "✅ Production Deployment complete!"

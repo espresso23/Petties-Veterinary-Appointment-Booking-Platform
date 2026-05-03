@@ -101,11 +101,11 @@ jobs:
             
             # Stop existing test containers
             echo "🛑 Stopping test containers..."
-            docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" down 2>/dev/null || true
+            docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" down 2>/dev/null || true
             
             # Build and start test containers
             echo "🔨 Building and starting test containers..."
-            docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build
+            docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build
             
             echo "⏳ Waiting for services to start..."
             sleep 20
@@ -118,7 +118,7 @@ jobs:
             curl -f "http://127.0.0.1:${AI_HOST_PORT:-8001}/health" || echo "⚠️ AI Test health check failed"
             
             echo "📜 Showing recent test logs..."
-            docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs --tail=20
+            docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs --tail=20
             
             echo "🧪 ============================================"
             echo "✅ Test Deployment complete!"
