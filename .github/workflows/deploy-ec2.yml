@@ -25,9 +25,22 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
+            set -euo pipefail
+
+            REPO_DIR="$HOME/petties-backend/Petties-Veterinary-Appointment-Booking-Platform"
+            REPO_URL="git@github.com:espresso23/Petties-Veterinary-Appointment-Booking-Platform.git"
+            BRANCH="main"
             ENV_FILE=.env.prod
             COMPOSE_FILE=docker-compose.prod.yml
+
+            echo "📁 Preparing production repository..."
+            mkdir -p "$HOME/petties-backend"
+            if [ ! -d "$REPO_DIR/.git" ]; then
+              echo "📥 Repository not found, cloning from GitHub..."
+              git clone --branch "$BRANCH" "$REPO_URL" "$REPO_DIR"
+            fi
+
+            cd "$REPO_DIR"
             
             echo "🚀 ============================================"
             echo "🚀 Deploying PRODUCTION environment..."
@@ -37,8 +50,8 @@ jobs:
             git fetch origin
             
             echo "🔄 Resetting to origin/main (ensures exact sync)..."
-            git checkout main
-            git reset --hard origin/main
+            git checkout "$BRANCH"
+            git reset --hard "origin/$BRANCH"
 
             mkdir -p backend-spring/petties/src/main/resources/
             cat <<EOF > backend-spring/petties/src/main/resources/firebase-service-account.json
