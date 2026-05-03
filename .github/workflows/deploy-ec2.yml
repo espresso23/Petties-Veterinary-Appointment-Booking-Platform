@@ -118,6 +118,9 @@ jobs:
             echo "📜 Showing recent logs..."
             docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs --tail=30
             
+            echo "🧹 Cleaning up Docker resources..."
+            docker system prune -a --volumes -f || true
+            
             echo "🚀 ============================================"
             echo "✅ Production Deployment complete!"
             echo "🌐 FE: https://www.petties.world"

@@ -120,6 +120,9 @@ jobs:
             echo "📜 Showing recent test logs..."
             docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs --tail=20
             
+            echo "🧹 Cleaning up Docker resources..."
+            docker system prune -a --volumes -f || true
+            
             echo "🧪 ============================================"
             echo "✅ Test Deployment complete!"
             echo "🌐 FE: https://test.petties.world"
