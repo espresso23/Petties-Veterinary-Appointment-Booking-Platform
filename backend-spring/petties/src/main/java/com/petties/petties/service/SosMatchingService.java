@@ -382,6 +382,7 @@ public class SosMatchingService {
                         .message("Đang chuyển tiếp yêu cầu sang phòng khám tiếp theo: " + nextClinic.getName())
                         .clinicId(nextClinic.getClinicId())
                         .clinicName(nextClinic.getName())
+                        .clinicPhone(nextClinic.getPhone())
                         .clinicLat(nextClinic.getLatitude() != null ? nextClinic.getLatitude().doubleValue() : null)
                         .clinicLng(nextClinic.getLongitude() != null ? nextClinic.getLongitude().doubleValue() : null)
                         .build();

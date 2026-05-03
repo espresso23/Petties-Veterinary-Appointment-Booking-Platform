@@ -627,7 +627,7 @@ const timeLabel = (value: string) => ({ sang: 'Sáng', trua: 'Trưa', chieu: 'Ch
                             {currentStep === 1 && isVipClinic && !isExpired && (
                                 <div className="mb-6 rounded-2xl border border-amber-100 bg-amber-50/50 p-4">
                                     <div className="mb-3 flex items-center justify-between gap-3">
-                                        <p className="text-xs font-bold uppercase tracking-wide text-amber-800">Hỗ trợ AI chẩn đoán</p>
+                                        <p className="text-xs font-bold uppercase tracking-wide text-amber-800">AI HỖ TRỢ CHẨN ĐOÁN BỆNH</p>
                                         {bookingId && (
                                             <span className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-bold text-blue-700">
                                                 Booking #{bookingId}
@@ -1220,7 +1220,7 @@ const timeLabel = (value: string) => ({ sang: 'Sáng', trua: 'Trưa', chieu: 'Ch
             <Modal
                 isOpen={isAiModalOpen}
                 onClose={handleCloseAiModal}
-                title="Hỗ trợ AI chẩn đoán"
+                title="AI HỖ TRỢ CHẨN ĐOÁN BỆNH"
                 size="xl"
             >
                 <AIDiagnosisPanel

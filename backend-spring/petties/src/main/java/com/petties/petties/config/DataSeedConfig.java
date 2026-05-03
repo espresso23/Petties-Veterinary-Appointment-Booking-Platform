@@ -26,28 +26,33 @@ public class DataSeedConfig {
         private final PasswordEncoder passwordEncoder;
 
         @Bean
-        public CommandLineRunner seedAdmin() {
+        public CommandLineRunner seedData() {
                 return args -> {
-                        String adminUsername = System.getenv("ADMIN_USERNAME") != null 
-                                        ? System.getenv("ADMIN_USERNAME") 
-                                        : "admin";
-                        
-                        boolean adminExists = userRepository.existsByUsername(adminUsername);
-                        
-                        if (!adminExists) {
-                                User admin = new User();
-                                admin.setUsername(adminUsername);
-                                admin.setPassword(passwordEncoder.encode("admin"));
-                                admin.setEmail("admin@petties.world");
-                                admin.setFullName("Administrator");
-                                admin.setRole(Role.ADMIN);
-                                admin.setCreatedAt(LocalDateTime.now());
-                                
-                                userRepository.save(admin);
-                                log.info("=== SEED: Admin user '{}' created successfully ===", adminUsername);
-                        } else {
-                                log.debug("=== SEED: Admin user '{}' already exists, skipping ===", adminUsername);
-                        }
+                        // 1. Seed ADMIN
+                        seedUser("admin", "admin", "admin@petties.world", Role.ADMIN, "System Administrator");
+
+                        // 2. Seed CLINIC_OWNER
+                        seedUser("owner1", "123456", "owner1@petties.com", Role.CLINIC_OWNER, "Demo Clinic Owner");
+
+                        // 3. Seed PET_OWNER
+                        seedUser("petowner1", "123456", "petowner1@petties.com", Role.PET_OWNER, "Demo Pet Owner");
                 };
         }
-}
+
+        private void seedUser(String username, String rawPassword, String email, Role role, String fullName) {
+                if (userRepository.findByUsername(username).isEmpty()) {
+                        User user = User.builder()
+                                        .username(username)
+                                        .password(passwordEncoder.encode(rawPassword))
+                                        .email(email)
+                                        .role(role)
+                                        .fullName(fullName)
+                                        .createdAt(LocalDateTime.now())
+                                        .build();
+
+                        userRepository.save(user);
+                        log.info("=== SEED: {} '{}' created successfully (Pass: {}) ===", role, username, rawPassword);
+                } else {
+                        log.debug("=== SEED: {} '{}' already exists, skipping ===", role, username);
+                }
+        }}
