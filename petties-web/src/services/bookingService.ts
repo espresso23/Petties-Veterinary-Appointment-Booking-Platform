@@ -148,6 +148,15 @@ export const cancelBooking = async (bookingId: string, reason: string): Promise<
 };
 
 /**
+ * Mark booking as NO_SHOW (Manager action)
+ */
+export const markBookingNoShow = async (bookingId: string, reason?: string): Promise<Booking> => {
+    const body = reason ? { reason } : {};
+    const response = await axios.post(`${BOOKING_API}/${bookingId}/mark-no-show`, body);
+    return response.data;
+};
+
+/**
  * Get available staff for reassigning a specific service
  */
 export const getAvailableStaffForReassign = async (

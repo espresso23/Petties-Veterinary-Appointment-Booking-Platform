@@ -15,6 +15,7 @@ import com.petties.petties.dto.booking.StaffAvailabilityCheckResponse;
 import com.petties.petties.dto.booking.StaffOptionDTO;
 import com.petties.petties.exception.ResourceNotFoundException;
 import com.petties.petties.model.enums.BookingStatus;
+import com.petties.petties.dto.booking.MarkNoShowRequest;
 import com.petties.petties.service.BookingService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -337,6 +338,22 @@ public class BookingController {
 
         com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
         BookingResponse response = bookingService.cancelBooking(bookingId, reason, userPrincipal.getUserId());
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Mark booking as NO_SHOW (Manager/Owner/Admin action)
+     */
+    @PreAuthorize("hasAnyRole('CLINIC_MANAGER', 'CLINIC_OWNER', 'ADMIN')")
+    @PostMapping("/{bookingId}/mark-no-show")
+    public ResponseEntity<BookingResponse> markNoShow(
+            @PathVariable UUID bookingId,
+            @RequestBody(required = false) MarkNoShowRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
+        String reason = request != null ? request.getReason() : null;
+        BookingResponse response = bookingService.markNoShow(bookingId, userPrincipal.getUserId(), reason);
         return ResponseEntity.ok(response);
     }
 

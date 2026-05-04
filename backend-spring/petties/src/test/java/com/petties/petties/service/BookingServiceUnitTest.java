@@ -12,6 +12,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -503,6 +504,127 @@ class BookingServiceUnitTest {
             assertEquals(com.petties.petties.model.enums.BookingStatus.CONFIRMED, booking.getStatus());
             verify(vaccinationService, times(1)).createDraftFromBooking(eq(booking), eq(item));
             verify(bookingRepository).save(booking);
+        }
+    
+        @Nested
+        @DisplayName("markNoShow Tests")
+        class MarkNoShowTests {
+
+            private BookingServiceItem buildServiceItem(int durationMinutes) {
+                com.petties.petties.model.ClinicService noShowService = new com.petties.petties.model.ClinicService();
+                noShowService.setServiceId(UUID.randomUUID());
+                noShowService.setClinic(clinic);
+                noShowService.setName("No Show Test Service");
+                noShowService.setBasePrice(BigDecimal.valueOf(100000));
+                noShowService.setIsActive(true);
+                noShowService.setServiceCategory(ServiceCategory.SURGERY);
+                noShowService.setDurationTime(durationMinutes);
+
+                BookingServiceItem item = new BookingServiceItem();
+                item.setBookingServiceId(UUID.randomUUID());
+                item.setBooking(booking);
+                item.setService(noShowService);
+                item.setPet(pet);
+                return item;
+            }
+
+            @Test
+            @DisplayName("TC-UNIT-BS-16: Mark NO_SHOW success at check-in time")
+            void markNoShow_Success() {
+                booking.setStatus(BookingStatus.CONFIRMED);
+                java.time.LocalDateTime scheduled = java.time.LocalDateTime.now().minusMinutes(1);
+                booking.setBookingDate(scheduled.toLocalDate());
+                booking.setBookingTime(scheduled.toLocalTime().withSecond(0).withNano(0));
+                booking.setBookingServices(new ArrayList<>(List.of(buildServiceItem(120))));
+
+                when(bookingRepository.findByIdWithDetails(bookingId)).thenReturn(Optional.of(booking));
+                when(bookingRepository.save(any(Booking.class))).thenAnswer(invocation -> invocation.getArgument(0));
+                when(bookingMapper.mapToResponse(any(Booking.class))).thenAnswer(invocation -> {
+                    Booking saved = invocation.getArgument(0);
+                    return BookingResponse.builder()
+                            .bookingId(saved.getBookingId())
+                            .status(saved.getStatus())
+                            .build();
+                });
+
+                BookingResponse response = bookingService.markNoShow(bookingId, UUID.randomUUID(), "Khách không nghe máy");
+
+                assertNotNull(response);
+                assertEquals(BookingStatus.NO_SHOW, response.getStatus());
+
+                ArgumentCaptor<Booking> bookingCaptor = ArgumentCaptor.forClass(Booking.class);
+                verify(staffAssignmentService).releaseSlotsForBooking(booking);
+                verify(bookingRepository).save(bookingCaptor.capture());
+
+                Booking saved = bookingCaptor.getValue();
+                assertEquals(BookingStatus.NO_SHOW, saved.getStatus());
+                assertEquals("Khách không nghe máy", saved.getCancellationReason());
+                assertNotNull(saved.getCancelledBy());
+            }
+
+            @Test
+            @DisplayName("TC-UNIT-BS-17: Mark NO_SHOW before check-in should fail")
+            void markNoShow_TooEarly_Fails() {
+                booking.setStatus(BookingStatus.CONFIRMED);
+                java.time.LocalDateTime scheduled = java.time.LocalDateTime.now().plusMinutes(5);
+                booking.setBookingDate(scheduled.toLocalDate());
+                booking.setBookingTime(scheduled.toLocalTime().withSecond(0).withNano(0));
+                booking.setBookingServices(new ArrayList<>(List.of(buildServiceItem(120))));
+
+                when(bookingRepository.findByIdWithDetails(bookingId)).thenReturn(Optional.of(booking));
+
+                IllegalStateException exception = assertThrows(IllegalStateException.class,
+                        () -> bookingService.markNoShow(bookingId, UUID.randomUUID(), null));
+
+                assertEquals("Chưa đến thời điểm có thể đánh dấu không đến", exception.getMessage());
+                verify(bookingRepository, never()).save(any());
+                verify(staffAssignmentService, never()).releaseSlotsForBooking(any());
+            }
+
+            @Test
+            @DisplayName("TC-UNIT-BS-18: Mark NO_SHOW right after check-in should pass")
+            void markNoShow_RightAfterCheckIn_Success() {
+                booking.setStatus(BookingStatus.CONFIRMED);
+                java.time.LocalDateTime scheduled = java.time.LocalDateTime.now().minusMinutes(1);
+                booking.setBookingDate(scheduled.toLocalDate());
+                booking.setBookingTime(scheduled.toLocalTime().withSecond(0).withNano(0));
+                booking.setBookingServices(new ArrayList<>(List.of(buildServiceItem(120))));
+
+                when(bookingRepository.findByIdWithDetails(bookingId)).thenReturn(Optional.of(booking));
+                when(bookingRepository.save(any(Booking.class))).thenAnswer(invocation -> invocation.getArgument(0));
+                when(bookingMapper.mapToResponse(any(Booking.class))).thenAnswer(invocation -> {
+                    Booking saved = invocation.getArgument(0);
+                    return BookingResponse.builder()
+                            .bookingId(saved.getBookingId())
+                            .status(saved.getStatus())
+                            .build();
+                });
+
+                BookingResponse response = bookingService.markNoShow(bookingId, UUID.randomUUID(), "Khách không đến");
+
+                assertNotNull(response);
+                assertEquals(BookingStatus.NO_SHOW, response.getStatus());
+                verify(bookingRepository).save(any(Booking.class));
+                verify(staffAssignmentService).releaseSlotsForBooking(booking);
+            }
+
+            @Test
+            @DisplayName("TC-UNIT-BS-19: Mark NO_SHOW for IN_PROGRESS booking should fail")
+            void markNoShow_InProgressStatus_Fails() {
+                booking.setStatus(BookingStatus.IN_PROGRESS);
+                java.time.LocalDateTime scheduled = java.time.LocalDateTime.now().minusHours(2);
+                booking.setBookingDate(scheduled.toLocalDate());
+                booking.setBookingTime(scheduled.toLocalTime().withSecond(0).withNano(0));
+
+                when(bookingRepository.findByIdWithDetails(bookingId)).thenReturn(Optional.of(booking));
+
+                IllegalStateException exception = assertThrows(IllegalStateException.class,
+                        () -> bookingService.markNoShow(bookingId, UUID.randomUUID(), "Khách không đến"));
+
+                assertEquals("Chỉ có thể đánh dấu 'Không đến' cho đơn đã xác nhận", exception.getMessage());
+                verify(bookingRepository, never()).save(any());
+                verify(staffAssignmentService, never()).releaseSlotsForBooking(any());
+            }
         }
     }
 

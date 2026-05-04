@@ -15,12 +15,15 @@ import com.petties.petties.service.BookingService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -90,12 +93,24 @@ class BookingControllerUnitTest {
         private BlacklistedTokenRepository blacklistedTokenRepository;
 
         @MockitoBean
+        private StringRedisTemplate stringRedisTemplate;
+
+        @MockitoBean
         private com.petties.petties.repository.UserRepository userRepository;
 
         @Autowired
         private ObjectMapper objectMapper;
 
         // ==================== HELPER METHODS ====================
+
+        @BeforeEach
+        void setUp() {
+                // Configure StringRedisTemplate mock for Redis operations
+                ValueOperations<String, String> valueOps = mock(ValueOperations.class);
+                when(stringRedisTemplate.opsForValue()).thenReturn(valueOps);
+                when(valueOps.increment(any())).thenReturn(1L);
+                when(valueOps.increment(any(), any(Long.class))).thenReturn(1L);
+        }
 
         private BookingResponse createMockBookingResponse() {
                 List<BookingResponse.BookingServiceItemResponse> oneService = List.of(
@@ -778,6 +793,32 @@ class BookingControllerUnitTest {
                                 .andExpect(status().isBadRequest())
                                 .andExpect(jsonPath("$.message")
                                                 .value("Booking cannot be cancelled in current status"));
+        }
+
+        @Test
+        @DisplayName("TC-BOOKING-NOSHOW-001: Mark no-show with valid request - Returns 200")
+        @WithMockUser(roles = "CLINIC_MANAGER")
+        void markNoShow_validRequest_returns200() throws Exception {
+                UUID userId = UUID.randomUUID();
+                setupUserPrincipalAuth(userId);
+
+                UUID bookingId = UUID.randomUUID();
+                com.petties.petties.dto.booking.MarkNoShowRequest request = new com.petties.petties.dto.booking.MarkNoShowRequest();
+                request.setReason("Khách không đến đúng giờ");
+
+                BookingResponse response = createMockBookingResponse();
+                response.setStatus(BookingStatus.NO_SHOW);
+
+                when(bookingService.markNoShow(eq(bookingId), eq(userId), eq("Khách không đến đúng giờ")))
+                                .thenReturn(response);
+
+                mockMvc.perform(post("/bookings/{bookingId}/mark-no-show", bookingId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.status").value("NO_SHOW"));
+
+                verify(bookingService).markNoShow(eq(bookingId), eq(userId), eq("Khách không đến đúng giờ"));
         }
 
         // ==================== GET MY BOOKINGS TESTS ====================

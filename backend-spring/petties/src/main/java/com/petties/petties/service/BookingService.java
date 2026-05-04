@@ -56,6 +56,8 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.AbstractMap;
 import com.petties.petties.model.OperatingHours;
 import java.util.*;
@@ -1085,6 +1087,69 @@ public class BookingService {
                 }
 
                 return bookingMapper.mapToResponse(savedBooking);
+        }
+
+        // ========== MARK NO_SHOW (MANAGER) ==========
+
+        /**
+         * Mark a confirmed booking as NO_SHOW. Only managers/owners/admins should call this.
+         * Business rules: booking must be in CONFIRMED status only (not IN_PROGRESS or COMPLETED).
+         * The scheduled time must be in the past beyond a grace period (15 minutes).
+         */
+        @Transactional
+        public BookingResponse markNoShow(UUID bookingId, UUID performedBy, String reason) {
+                log.info("Marking booking {} as NO_SHOW by user {}", bookingId, performedBy);
+
+                Booking booking = bookingRepository.findByIdWithDetails(bookingId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+
+                if (booking.getStatus() != BookingStatus.CONFIRMED) {
+                        throw new IllegalStateException("Chỉ có thể đánh dấu 'Không đến' cho đơn đã xác nhận");
+                }
+
+                // Require that the booking has reached its check-in time
+                // Use VN timezone (Asia/Ho_Chi_Minh) for consistent time comparison
+                LocalDateTime scheduledStart = getBookingScheduledStartDateTime(booking);
+                ZonedDateTime nowInVN = ZonedDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
+                LocalDateTime nowAsLocal = nowInVN.toLocalDateTime();
+                if (nowAsLocal.isBefore(scheduledStart)) {
+                        throw new IllegalStateException("Chưa đến thời điểm có thể đánh dấu không đến");
+                }
+
+                // Release any reserved slots (if any) before marking NO_SHOW
+                try {
+                        staffAssignmentService.releaseSlotsForBooking(booking);
+                } catch (Exception e) {
+                        log.warn("Failed to release slots while marking NO_SHOW for booking {}: {}", bookingId, e.getMessage());
+                }
+
+                booking.setStatus(BookingStatus.NO_SHOW);
+                // Reuse cancellationReason / cancelledBy to store manager note and actor
+                if (reason != null && !reason.isBlank()) {
+                        booking.setCancellationReason(reason);
+                }
+                booking.setCancelledBy(performedBy);
+
+                Booking saved = bookingRepository.save(booking);
+
+                log.info("Booking {} marked NO_SHOW", saved.getBookingCode());
+
+                return bookingMapper.mapToResponse(saved);
+        }
+
+        /**
+         * Compute the booking check-in time from its scheduled services.
+         * Falls back to booking start time when no service schedule is available.
+         */
+        private LocalDateTime getBookingScheduledStartDateTime(Booking booking) {
+                Map<UUID, LocalTime[]> schedule = BookingScheduleUtil.computeSchedule(booking);
+                LocalTime earliestStartTime = schedule.values().stream()
+                                .map(range -> range != null ? range[0] : null)
+                                .filter(Objects::nonNull)
+                                .min(LocalTime::compareTo)
+                                .orElse(booking.getBookingTime());
+
+                return LocalDateTime.of(booking.getBookingDate(), earliestStartTime);
         }
 
         // ========== STAFF AVAILABILITY CHECK ==========

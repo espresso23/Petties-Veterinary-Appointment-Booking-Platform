@@ -12,6 +12,7 @@ import {
     getAvailableStaffForConfirm,
     removeServiceFromBooking,
     cancelBooking,
+    markBookingNoShow,
     type StaffOption,
 } from '../../../services/bookingService';
 import type { Booking, BookingStatus, BookingServiceItem, StaffAvailabilityCheckResponse } from '../../../types/booking';
@@ -29,7 +30,7 @@ import { TrashIcon, TruckIcon, ScaleIcon, FlagIcon, XMarkIcon } from '@heroicons
 import { useSseNotification } from '../../../hooks/useSseNotification';
 import '../../../styles/brutalist.css';
 
-type TabFilter = 'PENDING' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'UNPAID' | 'HISTORY' | 'ALL';
+type TabFilter = 'PENDING' | 'CONFIRMED' | 'NO_SHOW' | 'IN_PROGRESS' | 'COMPLETED' | 'UNPAID' | 'HISTORY' | 'ALL';
 
 const TAB_OPTIONS: { key: TabFilter; label: string }[] = [
     { key: 'PENDING', label: 'Chờ xác nhận' },
@@ -37,6 +38,7 @@ const TAB_OPTIONS: { key: TabFilter; label: string }[] = [
     { key: 'IN_PROGRESS', label: 'Đang tiến hành' },
     { key: 'COMPLETED', label: 'Đã hoàn thành' },
     { key: 'UNPAID', label: 'Chưa thanh toán' },
+    { key: 'NO_SHOW', label: 'Không đến' },
     { key: 'HISTORY', label: 'Lịch sử' },
     { key: 'ALL', label: 'Tất cả' },
 ];
@@ -53,6 +55,17 @@ const getAllServices = (booking: Booking): BookingServiceItem[] => {
         return booking.pets.flatMap(pet => pet.services || []);
     }
     return booking.services || [];
+};
+
+const parseBookingDateTime = (bookingDate: string, bookingTime: string): Date => {
+    const [year, month, day] = bookingDate.split('-').map(Number);
+    const [hours, minutes, seconds = 0] = bookingTime.split(':').map(Number);
+    return new Date(year, month - 1, day, hours, minutes, seconds, 0);
+};
+
+const hasReachedCheckInTime = (booking: Booking): boolean => {
+    const checkInTime = parseBookingDateTime(booking.bookingDate, booking.bookingTime);
+    return new Date() >= checkInTime;
 };
 
 function getReportStatusLabel(status: ReportResponse['status']): string {
@@ -103,6 +116,9 @@ export const BookingDashboardPage = () => {
     const [cancelling, setCancelling] = useState<string | null>(null);
     const [cancelModalOpen, setCancelModalOpen] = useState(false);
     const [bookingIdToCancel, setBookingIdToCancel] = useState<string | null>(null);
+    const [bookingIdToMarkNoShow, setBookingIdToMarkNoShow] = useState<string | null>(null);
+    const [noShowModalOpen, setNoShowModalOpen] = useState(false);
+    const [markingNoShow, setMarkingNoShow] = useState<string | null>(null);
 
     // Staff availability warning modal state
     const [availabilityWarningOpen, setAvailabilityWarningOpen] = useState(false);
@@ -205,6 +221,9 @@ export const BookingDashboardPage = () => {
                 filtered = filtered.filter(b =>
                     b.status === 'IN_PROGRESS'
                 );
+            } else if (activeTab === 'NO_SHOW') {
+                // Show bookings marked as NO_SHOW
+                filtered = filtered.filter(b => b.status === 'NO_SHOW');
             } else if (activeTab === 'COMPLETED') {
                 // Show completed bookings only
                 filtered = filtered.filter(b => b.status === 'COMPLETED');
@@ -405,6 +424,36 @@ export const BookingDashboardPage = () => {
             showToast('error', errorMessage);
         } finally {
             setCancelling(null);
+        }
+    };
+
+    const handleMarkNoShow = (bookingId: string) => {
+        setBookingIdToMarkNoShow(bookingId);
+        setNoShowModalOpen(true);
+    };
+
+    const confirmMarkNoShow = async () => {
+        if (!bookingIdToMarkNoShow) return;
+
+            setMarkingNoShow(bookingIdToMarkNoShow);
+        try {
+            await markBookingNoShow(bookingIdToMarkNoShow);
+            showToast('success', 'Đã đánh dấu Không đến');
+            await fetchBookings();
+            setNoShowModalOpen(false);
+            setBookingIdToMarkNoShow(null);
+            setSelectedBooking(null);
+        } catch (error) {
+            console.error('Failed to mark no-show:', error);
+            // Try to extract server message from axios error payload
+            const apiMessage = isAxiosError(error) && error.response?.data && typeof error.response.data === 'object' && 'message' in error.response.data
+                ? String((error.response.data as { message?: unknown }).message)
+                : error instanceof Error
+                    ? error.message
+                    : 'Không thể đánh dấu không đến. Vui lòng thử lại.';
+            showToast('error', apiMessage);
+        } finally {
+            setMarkingNoShow(null);
         }
     };
 
@@ -986,6 +1035,7 @@ export const BookingDashboardPage = () => {
                     onBookingUpdated={fetchBookings}
                     onAddService={handleOpenAddServiceModal}
                     onReport={() => handleOpenReportModal(selectedBooking)}
+                    onMarkNoShow={handleMarkNoShow}
                 />
             )}
 
@@ -1028,6 +1078,21 @@ export const BookingDashboardPage = () => {
                 onCancel={() => {
                     if (withdrawingReportId) return;
                     setReportToWithdraw(null);
+                }}
+            />
+
+            <ConfirmModal
+                isOpen={noShowModalOpen}
+                title="Đánh dấu Không đến"
+                message="Bạn có chắc muốn đánh dấu khách hàng không đến cho lịch hẹn này? Hành động này sẽ chuyển lịch hẹn sang trạng thái Không đến."
+                confirmLabel="Đánh dấu Không đến"
+                cancelLabel="Quay lại"
+                isDanger
+                onConfirm={confirmMarkNoShow}
+                onCancel={() => {
+                    if (markingNoShow) return;
+                    setNoShowModalOpen(false);
+                    setBookingIdToMarkNoShow(null);
                 }}
             />
 
@@ -1081,18 +1146,30 @@ interface BookingDetailModalProps {
     onBookingUpdated?: () => void;
     onAddService?: () => void;
     onReport?: () => void;
+    onMarkNoShow?: (bookingId: string) => void;
 }
 
-const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCancel, onBookingUpdated, onAddService, onReport }: BookingDetailModalProps) => {
+const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCancel, onBookingUpdated, onAddService, onReport, onMarkNoShow }: BookingDetailModalProps) => {
     const { showToast } = useToast();
     const [booking, setBooking] = useState<Booking>(initialBooking);
     const [reassignModalOpen, setReassignModalOpen] = useState(false);
     const [selectedService, setSelectedService] = useState<BookingServiceItem | null>(null);
+    const [, forceTimeRefresh] = useState(0);
 
     // Sync state when prop changes (e.g. from parent update or SSE)
     useEffect(() => {
         setBooking(initialBooking);
     }, [initialBooking]);
+
+    useEffect(() => {
+        const timer = window.setInterval(() => {
+            forceTimeRefresh(value => value + 1);
+        }, 30000);
+
+        return () => window.clearInterval(timer);
+    }, []);
+
+    const canMarkNoShow = booking.status === 'CONFIRMED' && hasReachedCheckInTime(booking);
 
     // Staff selection dropdown state - per service
     const [availableStaffByService, setAvailableStaffByService] = useState<Record<string, StaffOption[]>>({});
@@ -1889,6 +1966,14 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
                                 className="px-6 py-2 font-bold uppercase bg-red-500 text-white border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all"
                             >
                                 Hủy lịch
+                            </button>
+                        )}
+                        {canMarkNoShow && (
+                            <button
+                                onClick={() => { if (onMarkNoShow) onMarkNoShow(booking.bookingId); }}
+                                className="px-6 py-2 font-bold uppercase bg-stone-900 text-white border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all"
+                            >
+                                Đánh dấu Không đến
                             </button>
                         )}
                         {booking.status === 'PENDING' && (

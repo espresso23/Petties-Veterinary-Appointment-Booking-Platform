@@ -92,7 +92,7 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
       SELECT date_trunc('day', p.paid_at) AS period_start, COALESCE(SUM(p.amount), 0) AS total
       FROM payments p
       INNER JOIN bookings b ON p.booking_id = b.booking_id
-      WHERE b.clinic_id = :clinicId AND p.status = 'PAID' AND p.paid_at IS NOT NULL
+    WHERE b.clinic_id = :clinicId AND b.status <> 'NO_SHOW' AND p.status = 'PAID' AND p.paid_at IS NOT NULL
         AND p.paid_at >= (CURRENT_DATE - INTERVAL '30 days')
       GROUP BY date_trunc('day', p.paid_at)
       ORDER BY period_start DESC
@@ -104,7 +104,7 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
       SELECT date_trunc('week', p.paid_at) AS period_start, COALESCE(SUM(p.amount), 0) AS total
       FROM payments p
       INNER JOIN bookings b ON p.booking_id = b.booking_id
-      WHERE b.clinic_id = :clinicId AND p.status = 'PAID' AND p.paid_at IS NOT NULL
+    WHERE b.clinic_id = :clinicId AND b.status <> 'NO_SHOW' AND p.status = 'PAID' AND p.paid_at IS NOT NULL
         AND p.paid_at >= (CURRENT_DATE - INTERVAL '84 days')
       GROUP BY date_trunc('week', p.paid_at)
       ORDER BY period_start DESC
@@ -116,7 +116,7 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
       SELECT date_trunc('month', p.paid_at) AS period_start, COALESCE(SUM(p.amount), 0) AS total
       FROM payments p
       INNER JOIN bookings b ON p.booking_id = b.booking_id
-      WHERE b.clinic_id = :clinicId AND p.status = 'PAID' AND p.paid_at IS NOT NULL
+    WHERE b.clinic_id = :clinicId AND b.status <> 'NO_SHOW' AND p.status = 'PAID' AND p.paid_at IS NOT NULL
         AND p.paid_at >= (CURRENT_DATE - INTERVAL '12 months')
       GROUP BY date_trunc('month', p.paid_at)
       ORDER BY period_start DESC
@@ -128,7 +128,7 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
       SELECT date_trunc('year', p.paid_at) AS period_start, COALESCE(SUM(p.amount), 0) AS total
       FROM payments p
       INNER JOIN bookings b ON p.booking_id = b.booking_id
-      WHERE b.clinic_id = :clinicId AND p.status = 'PAID' AND p.paid_at IS NOT NULL
+    WHERE b.clinic_id = :clinicId AND b.status <> 'NO_SHOW' AND p.status = 'PAID' AND p.paid_at IS NOT NULL
         AND p.paid_at >= (CURRENT_DATE - INTERVAL '5 years')
       GROUP BY date_trunc('year', p.paid_at)
       ORDER BY period_start DESC
@@ -136,7 +136,7 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
       """, nativeQuery = true)
   List<Object[]> getRevenueByYear(@Param("clinicId") UUID clinicId);
 
-  @Query("SELECT COALESCE(SUM(p.amount), 0) FROM Payment p WHERE p.booking.clinic.clinicId = :clinicId AND p.status = 'PAID' AND p.paidAt IS NOT NULL")
+    @Query("SELECT COALESCE(SUM(p.amount), 0) FROM Payment p WHERE p.booking.clinic.clinicId = :clinicId AND p.booking.status <> com.petties.petties.model.enums.BookingStatus.NO_SHOW AND p.status = 'PAID' AND p.paidAt IS NOT NULL")
   BigDecimal getTotalPaidByClinic(@Param("clinicId") UUID clinicId);
 
   @Query(value = """
@@ -145,12 +145,12 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
              COALESCE(SUM(CASE WHEN p.method = 'CASH' THEN p.amount ELSE 0 END), 0) as total_cash
       FROM payments p
       INNER JOIN bookings b ON p.booking_id = b.booking_id
-      WHERE p.status = 'PAID' AND p.paid_at IS NOT NULL
+    WHERE b.status <> 'NO_SHOW' AND p.status = 'PAID' AND p.paid_at IS NOT NULL
       GROUP BY b.clinic_id
       """, nativeQuery = true)
   List<Object[]> findClinicIdsWithPaidPayments();
 
-  @Query("SELECT SUM(p.amount) FROM Payment p WHERE p.booking.clinic.clinicId = :clinicId AND p.method = :method AND p.status = :status")
+    @Query("SELECT SUM(p.amount) FROM Payment p WHERE p.booking.clinic.clinicId = :clinicId AND p.booking.status <> com.petties.petties.model.enums.BookingStatus.NO_SHOW AND p.method = :method AND p.status = :status")
   BigDecimal sumAmountByClinicIdAndMethodAndStatus(
       @Param("clinicId") UUID clinicId,
       @Param("method") PaymentMethod method,
@@ -164,7 +164,8 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
 
   @Query(value = "SELECT COALESCE(SUM(p.amount), 0) FROM payments p " +
       "INNER JOIN bookings b ON p.booking_id = b.booking_id " +
-      "WHERE b.clinic_id = :clinicId " +
+    "WHERE b.clinic_id = :clinicId " +
+    "AND b.status <> 'NO_SHOW' " +
       "AND p.method = :method " +
       "AND p.status = 'PAID' " +
       "AND TO_CHAR(p.paid_at, 'YYYY-MM') = :period", nativeQuery = true)
@@ -177,7 +178,7 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
       SELECT date_trunc('day', p.paid_at) AS date, COALESCE(SUM(p.amount), 0) AS balance
       FROM payments p
       INNER JOIN bookings b ON p.booking_id = b.booking_id
-      WHERE b.clinic_id = :clinicId AND p.status = 'PAID' AND p.paid_at IS NOT NULL
+    WHERE b.clinic_id = :clinicId AND b.status <> 'NO_SHOW' AND p.status = 'PAID' AND p.paid_at IS NOT NULL
         AND p.paid_at >= (CURRENT_DATE - CAST(:days || ' days' AS INTERVAL))
       GROUP BY date_trunc('day', p.paid_at)
       ORDER BY date ASC
