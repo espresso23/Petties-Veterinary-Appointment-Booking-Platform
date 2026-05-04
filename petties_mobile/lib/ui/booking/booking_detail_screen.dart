@@ -154,10 +154,14 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen> {
         break;
       case 'CANCELLED':
       case 'REJECTED':
-      case 'NO_SHOW':
         color = Colors.red;
         label = 'Đà HỦY';
         icon = Icons.cancel;
+        break;
+      case 'NO_SHOW':
+        color = Colors.red;
+        label = 'KHÔNG ĐẾN';
+        icon = Icons.person_off;
         break;
       default:
         color = Colors.grey;
