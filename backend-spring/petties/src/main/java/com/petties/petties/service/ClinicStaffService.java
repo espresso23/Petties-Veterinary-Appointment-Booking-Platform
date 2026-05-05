@@ -99,6 +99,11 @@ public class ClinicStaffService {
             }
         }
 
+        // Prevent owner from inviting themselves
+        if (currentUser.getEmail().equalsIgnoreCase(request.getEmail())) {
+            throw new BadRequestException("Bạn không thể tự mời chính mình");
+        }
+
         // Check if clinic already has manager
         if (request.getRole() == Role.CLINIC_MANAGER && hasManager(clinicId)) {
             throw new ResourceAlreadyExistsException("Phòng khám đã có Quản lý. Mỗi phòng khám chỉ được có 1 Quản lý.");
@@ -175,6 +180,14 @@ public class ClinicStaffService {
 
     @Transactional
     public void assignManager(UUID clinicId, String usernameOrEmail) {
+        User currentUser = authService.getCurrentUser();
+
+        // Prevent owner from assigning themselves as manager
+        if (currentUser.getEmail().equalsIgnoreCase(usernameOrEmail)
+                || currentUser.getUsername().equalsIgnoreCase(usernameOrEmail)) {
+            throw new BadRequestException("Bạn không thể tự gán chính mình làm Quản lý");
+        }
+
         // Check if clinic already has a manager
         if (hasManager(clinicId)) {
             throw new ResourceAlreadyExistsException("Phòng khám đã có Quản lý. Mỗi phòng khám chỉ được có 1 Quản lý.");
@@ -202,6 +215,12 @@ public class ClinicStaffService {
     @Transactional
     public void assignStaff(UUID clinicId, String usernameOrEmail) {
         User currentUser = authService.getCurrentUser();
+
+        // Prevent owner/manager from assigning themselves
+        if (currentUser.getEmail().equalsIgnoreCase(usernameOrEmail)
+                || currentUser.getUsername().equalsIgnoreCase(usernameOrEmail)) {
+            throw new BadRequestException("Bạn không thể tự gán chính mình");
+        }
 
         // Security Check: If current user is a MANAGER, they must belong to this clinic
         if (currentUser.getRole() == Role.CLINIC_MANAGER) {
