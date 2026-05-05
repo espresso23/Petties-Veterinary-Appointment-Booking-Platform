@@ -48,11 +48,15 @@ public class LoggingInterceptor implements HandlerInterceptor {
     );
 
     private static final List<String> EXCLUDE_PATHS = Arrays.asList(
+            "/actuator",
             "/actuator/health",
             "/actuator/info",
             "/api/actuator",
+            "/api/actuator/health",
+            "/api/actuator/info",
             "/health",
-            "/favicon.ico"
+            "/favicon.ico",
+            "/api/system/logs"
     );
 
     @Override
