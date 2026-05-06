@@ -90,6 +90,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   final Map<String, String> _selectedSlotByMessage = <String, String>{};
   AiBookingTrackerSnapshot _bookingTracker = AiBookingTrackerSnapshot.empty;
   List<String> _composerSuggestions = const <String>[];
+  List<String> _selectedImages = const <String>[];
   final Set<String> _feedbackSentForMessages = <String>{};
   List<AiChatSession> _recentSessions = const [];
   List<AiClinic> _latestClinicOptions = const <AiClinic>[];
@@ -625,6 +626,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
           webSearchImages: schemaData?.webSearchImages,
           webSearchAnswer: schemaData?.webSearchAnswer,
           webSearchFollowUpQuestions: schemaData?.webSearchFollowUpQuestions,
+          images: message.images,
         );
       }).toList();
     });
@@ -2844,6 +2846,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   Future<void> _sendMessage({
     String? preset,
+    List<String>? images,
     String? userVisibleMessage,
     Map<String, dynamic>? uiAction,
     bool includeLocation = true,
@@ -2851,11 +2854,13 @@ class _AiChatScreenState extends State<AiChatScreen> {
     bool appendUserBubble = true,
   }) async {
     final message = (preset ?? _messageController.text).trim();
+    final effectiveImages = images ?? _selectedImages;
+
     final safeMessage = _sanitizeUserVisibleMessage(message);
     final bubbleMessage =
         _sanitizeUserVisibleMessage(userVisibleMessage ?? safeMessage);
-    if ((safeMessage.isEmpty && uiAction == null) ||
-        bubbleMessage.isEmpty ||
+    if ((safeMessage.isEmpty && uiAction == null && effectiveImages.isEmpty) ||
+        (bubbleMessage.isEmpty && effectiveImages.isEmpty) ||
         _sessionId == null ||
         _channel == null ||
         _isReconnecting) {
@@ -2872,6 +2877,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
             role: 'user',
             content: bubbleMessage,
             timestamp: DateTime.now(),
+            images: effectiveImages,
           ),
         );
         _silentFormTargetMessageId = null;
@@ -2881,6 +2887,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       _error = null;
       _agentStatus = _sendingStatusMessage;
       _isSending = true;
+      _selectedImages = const [];
     });
 
     _messageController.clear();
@@ -2899,6 +2906,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
           message: safeMessage,
           uiAction: uiAction,
           location: location,
+          images: effectiveImages,
         ),
       );
     } catch (_) {
@@ -3265,6 +3273,12 @@ class _AiChatScreenState extends State<AiChatScreen> {
                                   onSend: () {
                                     _sendMessage();
                                   },
+                                  onImagesSelected: (images) {
+                                    setState(() {
+                                      _selectedImages = images;
+                                    });
+                                  },
+                                  selectedImages: _selectedImages,
                                   isSending: _isSending,
                                   isReconnecting: _isReconnecting,
                                   hintText: _composerHintText,
@@ -3940,6 +3954,40 @@ class _AiChatScreenState extends State<AiChatScreen> {
                             const AiBookingReadyBanner(),
                             const SizedBox(height: 8),
                           ],
+                          if (message.images != null && message.images!.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: message.images!.map((base64Url) {
+                                return Container(
+                                  width: 100,
+                                  height: 100,
+                                  decoration: BoxDecoration(
+                                    border: Border.all(
+                                      color: isUser
+                                          ? AppColors.white
+                                          : AppColors.stone900,
+                                      width: 2,
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: isUser
+                                            ? AppColors.stone900
+                                                .withValues(alpha: 0.3)
+                                            : AppColors.stone900,
+                                        offset: const Offset(2, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  clipBehavior: Clip.antiAlias,
+                                  child: _buildImageFromBase64(base64Url),
+                                );
+                              }).toList(),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
                           if (!renderFormOnly &&
                               displayContent.trim().isNotEmpty)
                             Text(
@@ -3988,9 +4036,14 @@ class _AiChatScreenState extends State<AiChatScreen> {
                                 isBusy: _isSending || _isReconnecting,
                                 onBookingTap: () =>
                                     _handleClinicBookingTap(clinic),
+                                onViewDetails: () {
+                                  context.push(
+                                    AppRoutes.clinicDetail
+                                        .replaceFirst(':id', clinic.id),
+                                  );
+                                },
                               ),
-                            ),
-                          ],
+                            ),                          ],
                           if (!renderFormOnly &&
                               message.serviceOptions != null &&
                               message.serviceOptions!.isNotEmpty) ...[
@@ -4668,6 +4721,23 @@ class _AiChatScreenState extends State<AiChatScreen> {
     return message;
   }
 
+  Widget _buildImageFromBase64(String base64Url) {
+    try {
+      final base64String = base64Url.contains(',')
+          ? base64Url.split(',').last
+          : base64Url;
+      return Image.memory(
+        base64Decode(base64String),
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return const Center(child: Icon(Icons.broken_image, size: 20));
+        },
+      );
+    } catch (e) {
+      return const Center(child: Icon(Icons.broken_image, size: 20));
+    }
+  }
+
   String _friendlyErrorMessage(String message) {
     if (message.contains('Không thể kết nối tới AI service')) {
       return 'Ứng dụng không kết nối đúng tới AI service. Cần kiểm tra lại cấu hình địa chỉ AI service.';
@@ -4704,6 +4774,7 @@ class _UiChatMessage {
   final List<WebSearchImage>? webSearchImages;
   final String? webSearchAnswer;
   final List<String>? webSearchFollowUpQuestions;
+  final List<String>? images;
 
   const _UiChatMessage({
     required this.id,
@@ -4724,6 +4795,7 @@ class _UiChatMessage {
     this.webSearchImages,
     this.webSearchAnswer,
     this.webSearchFollowUpQuestions,
+    this.images,
   });
 
   _UiChatMessage copyWith({
@@ -4742,6 +4814,7 @@ class _UiChatMessage {
     List<WebSearchImage>? webSearchImages,
     String? webSearchAnswer,
     List<String>? webSearchFollowUpQuestions,
+    List<String>? images,
   }) {
     return _UiChatMessage(
       id: id,
@@ -4764,6 +4837,7 @@ class _UiChatMessage {
       webSearchAnswer: webSearchAnswer ?? this.webSearchAnswer,
       webSearchFollowUpQuestions:
           webSearchFollowUpQuestions ?? this.webSearchFollowUpQuestions,
+      images: images ?? this.images,
     );
   }
 }

@@ -1884,8 +1884,11 @@ async def search_clinics_nearby(
     service_hint = service_hint or resolved_service_hint
 
     if effective_clinic_hint:
-        # Exact clinic-name resolution must not be constrained by nearby radius/GPS filters.
+        # Exact clinic-name resolution must not be constrained by nearby radius/GPS filters,
+        # but we still send coordinates if available to allow backend to calculate distance.
         payload = {
+            "latitude": latitude,
+            "longitude": longitude,
             "limit": top_k,
             "clinicHint": effective_clinic_hint,
             "serviceHint": service_hint,

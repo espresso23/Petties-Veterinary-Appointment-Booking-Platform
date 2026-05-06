@@ -568,12 +568,14 @@ class AiChatThinkingBubble extends StatelessWidget {
 class AiClinicSuggestionCard extends StatelessWidget {
   final AiClinic clinic;
   final VoidCallback onBookingTap;
+  final VoidCallback? onViewDetails;
   final bool isBusy;
 
   const AiClinicSuggestionCard({
     super.key,
     required this.clinic,
     required this.onBookingTap,
+    this.onViewDetails,
     this.isBusy = false,
   });
 
@@ -845,36 +847,76 @@ class AiClinicSuggestionCard extends StatelessWidget {
               ],
             ),
           ),
-          SizedBox(
-            width: double.infinity,
-            child: TextButton(
-              onPressed: isBusy ? null : onBookingTap,
-              style: TextButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: AppColors.white,
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.circular(10),
-                    bottomRight: Radius.circular(10),
+          Row(
+            children: [
+              if (onViewDetails != null)
+                Expanded(
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      border: Border(
+                        top: BorderSide(color: AppColors.stone900, width: 2),
+                        right: BorderSide(color: AppColors.stone900, width: 1),
+                      ),
+                    ),
+                    child: TextButton(
+                      onPressed: isBusy ? null : onViewDetails,
+                      style: TextButton.styleFrom(
+                        backgroundColor: AppColors.white,
+                        foregroundColor: AppColors.stone900,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.only(
+                            bottomLeft: Radius.circular(10),
+                          ),
+                        ),
+                      ),
+                      child: const Text(
+                        'XEM CHI TIẾT',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border(
+                      top: const BorderSide(color: AppColors.stone900, width: 2),
+                      left: BorderSide(
+                        color: AppColors.stone900,
+                        width: onViewDetails != null ? 1 : 0,
+                      ),
+                    ),
+                  ),
+                  child: TextButton(
+                    onPressed: isBusy ? null : onBookingTap,
+                    style: TextButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.only(
+                          bottomLeft: Radius.circular(
+                            onViewDetails != null ? 0 : 10,
+                          ),
+                          bottomRight: const Radius.circular(10),
+                        ),
+                      ),
+                    ),
+                    child: const Text(
+                      'CHỌN PHÒNG KHÁM',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
               ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.calendar_today, size: 16),
-                  SizedBox(width: 8),
-                  Text(
-                    'CHỌN PHÒNG KHÁM',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            ],
           ),
         ],
       ),

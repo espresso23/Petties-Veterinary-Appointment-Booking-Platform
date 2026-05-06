@@ -652,16 +652,20 @@ class _BookingSelectPetScreenState extends State<BookingSelectPetScreen> {
       children: [
         Row(
           children: [
-            Text(
-              isForOthers ? 'Thú cưng của người được đặt hộ' : 'Chọn thú cưng',
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: AppColors.stone900,
+            Expanded(
+              child: Text(
+                isForOthers ? 'Thú cưng của người được đặt hộ' : 'Chọn thú cưng',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.stone900,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             if (isForOthers) ...[
-              const Spacer(),
+              const SizedBox(width: 8),
               GestureDetector(
                 onTap: () => _showAddPetForBeneficiary(provider),
                 child: Container(

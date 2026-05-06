@@ -11,6 +11,7 @@ class AiChatMessage {
   final List<dynamic>? reactTrace;
   final Map<String, dynamic>? metadata;
   final UiSchemaV1? uiSchema;
+  final List<String>? images;
 
   const AiChatMessage({
     this.messageId,
@@ -20,12 +21,17 @@ class AiChatMessage {
     this.reactTrace,
     this.metadata,
     this.uiSchema,
+    this.images,
   });
 
   factory AiChatMessage.fromJson(Map<String, dynamic> json) {
     final metadata = json['metadata'] is Map
         ? Map<String, dynamic>.from(json['metadata'] as Map)
         : null;
+
+    final images = (json['images'] as List<dynamic>?)?.map((e) => e.toString()).toList() ??
+        (metadata?['images'] as List<dynamic>?)?.map((e) => e.toString()).toList();
+
     final uiSchemaJson = json['ui_schema'] is Map<String, dynamic>
         ? json['ui_schema'] as Map<String, dynamic>
         : (json['ui_schema'] is Map
@@ -46,6 +52,7 @@ class AiChatMessage {
       reactTrace: json['react_trace'] as List<dynamic>?,
       metadata: metadata,
       uiSchema: uiSchemaJson != null ? UiSchemaV1.fromJson(uiSchemaJson) : null,
+      images: images,
     );
   }
 }
