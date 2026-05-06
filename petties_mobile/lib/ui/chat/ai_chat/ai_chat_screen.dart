@@ -2264,7 +2264,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
         int.parse(parts[2]),
       );
 
-      final slots = await _bookingWizardService.getAvailableSlots(
+      final slotResponse = await _bookingWizardService.getAvailableSlots(
         clinicId: clinicId,
         date: date,
         serviceIds: serviceIds,
@@ -2272,9 +2272,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
       if (!mounted) return;
       setState(() {
-        _slotTimesByDate[bookingDate] = slots
-            .where((s) => s.startTime.isNotEmpty)
-            .map((s) => s.startTime)
+        _slotTimesByDate[bookingDate] = slotResponse.availableSlots
+            .where((s) => s.isNotEmpty)
+            .map((s) => s)
             .toSet();
         _latestStartTimeOptions = _slotTimesByDate[bookingDate]?.toList() ?? [];
       });

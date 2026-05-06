@@ -118,10 +118,42 @@ export function ClinicMapOSM({ clinic, height = '400px', zoom = 15 }: ClinicMapO
       mapInstanceRef.current.setView([clinic.latitude, clinic.longitude], zoom)
       if (markerRef.current) {
         markerRef.current.setLatLng([clinic.latitude, clinic.longitude])
+        markerRef.current.setPopupContent(`
+          <div style="padding: 8px; font-family: system-ui, sans-serif;">
+            <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px; text-transform: uppercase;">
+              ${clinic.name}
+            </div>
+            <div style="font-size: 12px; color: #57534e;">
+              ${clinic.address}
+            </div>
+          </div>
+        `)
       }
     }
 
+    // Force invalidateSize on any changes
+    const forceRefresh = () => {
+        if (mapInstanceRef.current) {
+            mapInstanceRef.current.invalidateSize()
+        }
+    }
+
+    const resizeObserver = new ResizeObserver(() => forceRefresh())
+    if (mapRef.current) resizeObserver.observe(mapRef.current)
+
+    // Run multiple times to catch various layout shifts
+    forceRefresh()
+    const t1 = setTimeout(forceRefresh, 100)
+    const t2 = setTimeout(forceRefresh, 500)
+    const t3 = setTimeout(forceRefresh, 1000)
+
     return () => {
+      clearTimeout(t1)
+      clearTimeout(t2)
+      clearTimeout(t3)
+      resizeObserver.disconnect()
+      // Note: We don't remove the map instance here if we want to reuse it, 
+      // but the current structure removes it. Let's keep it simple.
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove()
         mapInstanceRef.current = null
@@ -140,11 +172,11 @@ export function ClinicMapOSM({ clinic, height = '400px', zoom = 15 }: ClinicMapO
   }
 
   return (
-    <div className="card-brutal overflow-hidden">
+    <div className="card-brutal overflow-hidden h-full w-full min-h-[300px]">
       <div
         ref={mapRef}
         style={{ height, width: '100%' }}
-        className="bg-stone-200"
+        className="bg-stone-200 h-full w-full"
       />
     </div>
   )

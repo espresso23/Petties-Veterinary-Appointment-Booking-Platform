@@ -30,6 +30,12 @@ public class AvailableSlotsResponse {
     private int totalSlots;
 
     /**
+     * Whether the clinic has any staff shifts on the requested date
+     * Used by client to decide if empty slots mean "no shift" or "fully booked"
+     */
+    private boolean hasShifts;
+
+    /**
      * Debug info (optional, for development)
      * Shows why slots are unavailable
      */

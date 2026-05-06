@@ -83,7 +83,7 @@ class BookingWizardService {
   }
 
   /// Get available time slots
-  Future<List<AvailableSlot>> getAvailableSlots({
+  Future<AvailableSlotsResponse> getAvailableSlots({
     required String clinicId,
     required DateTime date,
     required List<String> serviceIds,
@@ -101,30 +101,21 @@ class BookingWizardService {
         },
       );
 
-      if (response.data is Map && response.data['availableSlots'] != null) {
-        final rawSlots = response.data['availableSlots'];
-        if (rawSlots is List) {
-          return rawSlots
-              .map((entry) {
-                if (entry is Map<String, dynamic>) {
-                  final parsed = AvailableSlot.fromJson(entry);
-                  return AvailableSlot(
-                    startTime: _normalizeTimeString(parsed.startTime),
-                    available: parsed.available,
-                    isBreakTime: parsed.isBreakTime,
-                    reason: parsed.reason,
-                  );
-                }
+      if (response.data is Map) {
+        final slotResponse = AvailableSlotsResponse.fromJson(
+            Map<String, dynamic>.from(response.data));
 
-                final normalized = _normalizeTimeString(entry.toString());
-                return AvailableSlot.fromString(normalized);
-              })
-              .where((slot) => slot.startTime.isNotEmpty)
-              .toList();
-        }
+        return AvailableSlotsResponse(
+          availableSlots: slotResponse.availableSlots
+              .map(_normalizeTimeString)
+              .where((time) => time.isNotEmpty)
+              .toList(),
+          hasShifts: slotResponse.hasShifts,
+          message: slotResponse.message,
+        );
       }
 
-      return [];
+      return AvailableSlotsResponse();
     } catch (e) {
       rethrow;
     }

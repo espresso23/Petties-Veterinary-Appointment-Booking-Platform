@@ -110,6 +110,7 @@ const ClinicDetailPage = lazyNamed(
 )
 const StaffManagementPage = lazy(() => import('./pages/clinic-owner/staff/StaffManagementPage'))
 const ProfilePage = lazy(() => import('./pages/shared/ProfilePage'))
+const ExploreClinicsPage = lazy(() => import('./pages/explore/ExploreClinicsPage'))
 
 type LazyModule = Record<string, unknown>
 
@@ -171,6 +172,7 @@ function App() {
         <Suspense fallback={<AppRouteFallback />}>
           <Routes>
             <Route path="/" element={<OnboardingPage />} />
+            <Route path="/explore" element={<ExploreClinicsPage />} />
 
             <Route element={<AuthLayout />}>
               <Route path="/auth/login" element={<LoginPage />} />

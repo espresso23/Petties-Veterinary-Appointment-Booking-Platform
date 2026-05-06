@@ -1858,9 +1858,12 @@ public class BookingService {
                 List<LocalTime> availableStartTimes = staffAssignmentService.findAvailableSlots(clinicId, date,
                                 serviceIds);
 
+                boolean hasShifts = staffAssignmentService.hasShiftsOnDate(clinicId, date);
+
                 return AvailableSlotsResponse.builder()
                                 .availableSlots(availableStartTimes)
                                 .totalSlots(availableStartTimes.size())
+                                .hasShifts(hasShifts)
                                 .build();
         }
 

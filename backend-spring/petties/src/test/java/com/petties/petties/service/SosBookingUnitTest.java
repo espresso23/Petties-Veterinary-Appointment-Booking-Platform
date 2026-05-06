@@ -153,7 +153,7 @@ class SosBookingUnitTest {
                     .startTime(LocalTime.of(8, 0))
                     .endTime(LocalTime.of(17, 0))
                     .build();
-            when(staffShiftRepository.findByStaff_UserIdAndWorkDate(staffId, today))
+            lenient().when(staffShiftRepository.findByStaff_UserIdAndWorkDate(staffId, today))
                     .thenReturn(List.of(shift));
 
             User assignedStaff = staffAssignmentService.autoAssignStaff(sosBooking);

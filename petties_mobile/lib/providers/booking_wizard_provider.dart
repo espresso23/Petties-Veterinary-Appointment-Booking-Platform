@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import '../utils/api_error_handler.dart';
 import '../data/models/beneficiary_info.dart';
 import '../data/models/clinic.dart';
 import '../data/models/clinic_service.dart';
@@ -651,14 +652,18 @@ class BookingWizardProvider extends ChangeNotifier {
 
     try {
       // Get available slots from API (sending all service IDs)
-      final apiSlots = await _bookingService.getAvailableSlots(
+      final slotResponse = await _bookingService.getAvailableSlots(
         clinicId: _clinic!.clinicId,
         date: _selectedDate!,
         serviceIds: allServiceIds,
       );
 
-      // Generate all slots for the day and merge with API response
-      _availableSlots = _generateDaySlots(apiSlots);
+      final apiSlots = slotResponse.availableSlots
+          .map((time) => AvailableSlot.fromString(time))
+          .toList();
+
+      // Generate all slots for the day and merge with API response + hasShifts flag
+      _availableSlots = _generateDaySlots(apiSlots, slotResponse.hasShifts);
       debugPrint(
           'DEBUG: API returned ${apiSlots.length} slots, generated ${_availableSlots.length} total slots');
       debugPrint(
@@ -667,7 +672,7 @@ class BookingWizardProvider extends ChangeNotifier {
       _error = 'Không thể tải khung giờ khả dụng';
       debugPrint('Error loading slots: $e');
       // Still generate slots with default schedule on error
-      _availableSlots = _generateDaySlots([]);
+      _availableSlots = _generateDaySlots([], false);
     } finally {
       _isLoadingSlots = false;
       notifyListeners();
@@ -676,7 +681,8 @@ class BookingWizardProvider extends ChangeNotifier {
 
   /// Generate all time slots for a day based on clinic operating hours
   /// Marks break time and merges with available slots from API
-  List<AvailableSlot> _generateDaySlots(List<AvailableSlot> apiAvailableSlots) {
+  List<AvailableSlot> _generateDaySlots(
+      List<AvailableSlot> apiAvailableSlots, bool hasShifts) {
     // Default clinic operating hours (can be from clinic data later)
     const String openTime = '08:00';
     const String closeTime = '18:00';
@@ -687,8 +693,8 @@ class BookingWizardProvider extends ChangeNotifier {
     final List<AvailableSlot> allSlots = [];
     final availableTimeSet = apiAvailableSlots.map((s) => s.startTime).toSet();
 
-    // If API returns empty, assume all non-break slots are available
     // If API returns slots, only those are available (others are booked)
+    // If API returns empty, we need to check hasShifts to decide behavior
     final bool apiHasData = apiAvailableSlots.isNotEmpty;
 
     // Parse times
@@ -722,15 +728,15 @@ class BookingWizardProvider extends ChangeNotifier {
 
       if (isInBreakTime) {
         allSlots.add(AvailableSlot.breakTime(timeStr, reason: 'Giờ nghỉ trưa'));
-      } else if (!apiHasData) {
-        // API returned empty - assume all slots are available
-        allSlots.add(AvailableSlot(startTime: timeStr, available: true));
       } else if (availableTimeSet.contains(timeStr)) {
         // Available slot from API
         allSlots.add(AvailableSlot(startTime: timeStr, available: true));
+      } else if (!apiHasData && !hasShifts) {
+        // API empty + no shifts → allow booking (manager will add shift later)
+        allSlots.add(AvailableSlot(startTime: timeStr, available: true));
       } else {
-        // Not available (booked - slot not in API available list)
-        allSlots.add(AvailableSlot.booked(timeStr));
+        // Staff full or API returned data but this slot not available → disable
+        allSlots.add(AvailableSlot(startTime: timeStr, available: false));
       }
 
       // Move to next slot
@@ -873,14 +879,7 @@ class BookingWizardProvider extends ChangeNotifier {
 
   /// Parse API error to user-friendly Vietnamese message
   String _parseBookingError(Object e) {
-    if (e is DioException && e.response?.data is Map) {
-      final data = e.response!.data as Map<String, dynamic>;
-      final message = data['message'];
-      if (message is String && message.isNotEmpty) {
-        return message;
-      }
-    }
-    return 'Không thể đặt lịch. Vui lòng thử lại.';
+    return ApiErrorHandler.getErrorMessage(e);
   }
 
   /// Create booking

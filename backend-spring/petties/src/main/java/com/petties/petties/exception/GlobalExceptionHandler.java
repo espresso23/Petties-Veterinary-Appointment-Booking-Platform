@@ -334,6 +334,8 @@ public class GlobalExceptionHandler {
                                                 "Vui lòng đợi hoặc hủy yêu cầu cũ trước khi tạo mới.";
                         } else if (rootCause.contains("booking_code_key")) {
                                 message = "Lỗi trùng lặp mã booking. Vui lòng thử lại đặt lịch.";
+                        } else if (rootCause.contains("booking_slots") || rootCause.contains("slot_id")) {
+                                message = "Rất tiếc, khung giờ này vừa có người khác đặt. Vui lòng chọn thời gian khác.";
                         } else if (rootCause.contains("bookings_") && rootCause.contains("_key")) {
                                 message = "Lỗi trùng lặp dữ liệu booking. Vui lòng thử lại.";
                         } else if (rootCause.contains("unique_staff_date")) {
@@ -359,11 +361,13 @@ public class GlobalExceptionHandler {
                         HttpServletRequest request) {
                 log.warn("Optimistic locking failure at {}", request.getRequestURI());
 
+                String message = "Rất tiếc, khung giờ hoặc nhân viên bạn chọn vừa được người khác đặt. Vui lòng chọn thời gian khác.";
+                
                 ErrorResponse error = ErrorResponse.builder()
                                 .timestamp(LocalDateTime.now())
                                 .status(HttpStatus.CONFLICT.value())
                                 .error("Conflict")
-                                .message("Dữ liệu đã được thay đổi bởi một người dùng khác. Vui lòng tải lại trang và thử lại.")
+                                .message(message)
                                 .path(request.getRequestURI())
                                 .build();
                 return new ResponseEntity<>(error, HttpStatus.CONFLICT);

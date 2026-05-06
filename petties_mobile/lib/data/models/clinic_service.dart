@@ -278,10 +278,12 @@ class AvailableSlot {
 /// Response for available slots API
 class AvailableSlotsResponse {
   final List<String> availableSlots;
+  final bool hasShifts;
   final String? message;
 
   AvailableSlotsResponse({
     this.availableSlots = const [],
+    this.hasShifts = false,
     this.message,
   });
 
@@ -291,6 +293,7 @@ class AvailableSlotsResponse {
               ?.map((e) => e.toString())
               .toList() ??
           [],
+      hasShifts: json['hasShifts'] ?? false,
       message: json['message'],
     );
   }

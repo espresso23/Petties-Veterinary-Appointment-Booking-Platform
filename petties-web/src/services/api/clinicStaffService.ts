@@ -15,6 +15,14 @@ export const clinicStaffService = {
     },
 
     /**
+     * Get public staff members of a clinic (No auth required)
+     */
+    getPublicStaff: async (clinicId: string): Promise<StaffMember[]> => {
+        const response = await apiClient.get<StaffMember[]>(`/clinics/${clinicId}/public-staff`)
+        return response.data
+    },
+
+    /**
      * Check if clinic already has a manager
      */
     hasManager: async (clinicId: string): Promise<boolean> => {

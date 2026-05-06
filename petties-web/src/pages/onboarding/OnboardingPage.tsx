@@ -5,7 +5,8 @@ import {
   FeaturesSection,
   HowItWorksSection,
   TargetUsersSection,
-  CTAFooter
+  CTAFooter,
+  ExplorePreviewSection
 } from '../../components/onboarding'
 import '../../styles/brutalist.css'
 
@@ -15,6 +16,7 @@ export const OnboardingPage = () => {
       <NavigationBar />
       <main className="w-full">
         <HeroSection />
+        <ExplorePreviewSection />
         <ProblemStatement />
         <FeaturesSection />
         <HowItWorksSection />

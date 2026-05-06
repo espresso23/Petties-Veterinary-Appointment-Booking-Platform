@@ -47,6 +47,7 @@ public class ApiRateLimitInterceptor implements HandlerInterceptor {
         }
 
         String path = request.getRequestURI();
+
         String bucket = resolveBucket(path);
         int limit = "auth".equals(bucket) ? authRequestsPerMinute : defaultRequestsPerMinute;
 
