@@ -184,6 +184,8 @@ export const ClinicManagerLayout = () => {
     const handleExitSandbox = async () => {
         try {
             await exitSandbox()
+            // Reload current page so all sandbox artifacts are dropped from memory/UI.
+            window.location.reload()
         } catch (error) {
             console.error('Lỗi thoát chế độ dùng thử:', error)
         }

@@ -65,7 +65,7 @@ export function ClinicEditPage() {
     try {
       await exitSandbox()
     } finally {
-      navigate(ROUTES.clinicOwner.clinics)
+      window.location.replace(ROUTES.clinicOwner.clinics)
     }
   }
 
