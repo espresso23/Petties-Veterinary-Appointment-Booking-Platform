@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { MagnifyingGlassIcon, MapPinIcon, StarIcon, AdjustmentsHorizontalIcon } from '@heroicons/react/24/outline'
+import { MagnifyingGlassIcon, MapPinIcon, StarIcon } from '@heroicons/react/24/outline'
 import { clinicService } from '../../services/api/clinicService'
 import type { ClinicResponse } from '../../types/clinic'
 import { ClinicLogoDisplay } from '../../components/clinic/ClinicLogoDisplay'
@@ -82,7 +82,7 @@ export default function ExploreClinicsPage() {
         navigator.geolocation.getCurrentPosition((pos) => {
           setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude })
           setNearMe(true)
-        }, (err) => {
+        }, () => {
           alert('Không thể lấy vị trí của bạn. Vui lòng cho phép truy cập vị trí.')
         })
       }

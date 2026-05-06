@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
-import type { ClinicResponse } from '../../types/clinic'
+import type { ClinicResponse, ClinicImage } from '../../types/clinic'
 import { env } from '../../config/env'
 
 interface ClinicsMapOSMProps {
@@ -119,7 +119,7 @@ export function ClinicsMapOSM({
 
       // Get primary image or fallback to logo
       const primaryImg = clinic.imageDetails?.find(img => img.isPrimary)?.imageUrl || 
-                         (typeof clinic.images?.[0] === 'string' ? clinic.images[0] : (clinic.images?.[0] as any)?.imageUrl) ||
+                         (typeof clinic.images?.[0] === 'string' ? clinic.images[0] : (clinic.images?.[0] as ClinicImage)?.imageUrl) ||
                          clinic.logo;
 
       const icon = L.divIcon({
@@ -189,7 +189,6 @@ export function ClinicsMapOSM({
           </div>
         </div>
       `, {
-        padding: [0, 0],
         maxWidth: 250,
         className: 'brutal-popup'
       })
