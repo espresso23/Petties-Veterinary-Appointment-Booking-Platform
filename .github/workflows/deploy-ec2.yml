@@ -99,9 +99,12 @@ jobs:
             
             echo "📋 Current commit:"
             git log --oneline -1
-            
+
+            echo "🧽 Removing conflicting containers (if any)..."
+            docker rm -f ${COMPOSE_PROJECT}_backend-1 ${COMPOSE_PROJECT}_ai-service-1 || true
+
             echo "🛑 Stopping production containers..."
-            docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" down
+            docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" down --remove-orphans
             
             echo "🔨 Building and starting production containers..."
             docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build
