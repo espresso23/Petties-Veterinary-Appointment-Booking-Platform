@@ -76,6 +76,38 @@
 
 ---
 
+### AI Service Migration Hardening (Alembic Version Column + Settings Enum) (Code-based Evidence - 2026-05-07)
+
+**Scope:** Prevent production migration state corruption and runtime 500s on AI settings endpoints by:
+- avoiding Alembic revision id truncation (version_num too short)
+- aligning `system_settings.category` with PostgreSQL enum `settingcategory`
+
+**Implemented changes:**
+- Added Alembic migration to enlarge `alembic_version.version_num` to `varchar(64)` to safely store long revision ids.
+- Added / updated migrations to normalize & convert `system_settings.category` into enum `settingcategory` (asyncpg-safe DDL).
+
+**Changed files (evidence):**
+- `petties-agent-serivce/app/db/postgres/migrations/versions/013_fix_system_settings_category_enum.py`
+- `petties-agent-serivce/app/db/postgres/migrations/versions/014_fix_alembic_version_column_size.py`
+
+---
+
+### AI Service Migration Hardening - Missing `tooltype` Enum (Seed Fix) (Code-based Evidence - 2026-05-07)
+
+**Scope:** Fix ai-service database seeding failing for bot/tool config with:
+- `UndefinedObjectError: type "tooltype" does not exist`
+
+**Implemented changes:**
+- Added migration to create PostgreSQL enum `tooltype` if missing, with values matching `ToolType` in `app/db/postgres/models.py`:
+  - `CODE_BASED`
+  - `EXTERNAL_API`
+  - `MCP`
+
+**Changed files (evidence):**
+- `petties-agent-serivce/app/db/postgres/migrations/versions/015_fix_tooltype_enum.py`
+
+---
+
 ### HOME_VISIT Overlap Protection (Range-based DB Constraint) (Code-based Evidence - 2026-05-07)
 
 **Scope:** Implement timeline-aware conflict prevention for `HOME_VISIT` bookings instead of exact-slot uniqueness only.

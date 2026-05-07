@@ -53,36 +53,36 @@ def upgrade() -> None:
     # 3) Alter column type to enum — mỗi ALTER TABLE là 1 op.execute riêng biệt
     #    asyncpg không cho phép multiple statements trong 1 prepared statement
     op.execute(
-        "ALTER TABLE system_settings ALTER COLUMN category DROP DEFAULT"
+        "ALTER TABLE system_settings ALTER COLUMN category DROP DEFAULT;"
     )
 
     op.execute(
         """
         ALTER TABLE system_settings
         ALTER COLUMN category TYPE settingcategory
-        USING category::settingcategory
+        USING category::settingcategory;
         """
     )
 
     op.execute(
-        "ALTER TABLE system_settings ALTER COLUMN category SET DEFAULT 'GENERAL'"
+        "ALTER TABLE system_settings ALTER COLUMN category SET DEFAULT 'GENERAL';"
     )
 
 
 def downgrade() -> None:
     # Tách riêng từng statement — cùng lý do asyncpg
     op.execute(
-        "ALTER TABLE system_settings ALTER COLUMN category DROP DEFAULT"
+        "ALTER TABLE system_settings ALTER COLUMN category DROP DEFAULT;"
     )
 
     op.execute(
         """
         ALTER TABLE system_settings
         ALTER COLUMN category TYPE varchar(20)
-        USING category::text
+        USING category::text;
         """
     )
 
     op.execute(
-        "ALTER TABLE system_settings ALTER COLUMN category SET DEFAULT 'general'"
+        "ALTER TABLE system_settings ALTER COLUMN category SET DEFAULT 'general';"
     )
