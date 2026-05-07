@@ -67,10 +67,12 @@ class TrackingWebsocketService {
   Timer? _healthCheckTimer;
   DateTime? _lastMessageAt;
   DateTime? _lastReconnectAttemptAt;
+  int _reconnectCount = 0;
 
   static const Duration _healthCheckInterval = Duration(seconds: 15);
   static const Duration _staleThreshold = Duration(seconds: 45);
   static const Duration _reconnectCooldown = Duration(seconds: 20);
+  static const int _maxReconnectAttempts = 3;
 
   TrackingWebsocketService._internal();
 
@@ -159,8 +161,22 @@ class TrackingWebsocketService {
     }
   }
 
-  /// Get WebSocket URL from Environment (handles port 443 explicitly)
-  String get _wsUrl => Environment.wsUrl;
+  /// Get WebSocket URL from Environment with defensive normalization
+  /// Ensures scheme is wss:// or ws:// even if Environment returns https://
+  String get _wsUrl {
+    final url = Environment.wsUrl;
+    // Defensive: ensure correct WebSocket scheme
+    if (url.startsWith('https://')) {
+      return url.replaceFirst('https://', 'wss://');
+    }
+    if (url.startsWith('http://')) {
+      return url.replaceFirst('http://', 'ws://');
+    }
+    return url;
+  }
+
+  /// Check if using ngrok for local development
+  bool get _isNgrok => _wsUrl.contains('ngrok');
 
   void setAccessToken(String? token) {
     _accessToken = token;
@@ -186,13 +202,15 @@ class TrackingWebsocketService {
         url: _wsUrl,
         stompConnectHeaders: {
           'Authorization': 'Bearer $_accessToken',
-          'ngrok-skip-browser-warning': 'true',
+          if (_isNgrok) 'ngrok-skip-browser-warning': 'true',
         },
         webSocketConnectHeaders: {
           'Authorization': 'Bearer $_accessToken',
-          'ngrok-skip-browser-warning': 'true',
+          if (_isNgrok) 'ngrok-skip-browser-warning': 'true',
         },
         onConnect: (frame) {
+          _reconnectCount =
+              0; // Reset reconnect counter on successful connection
           _logger.i('Tracking WebSocket connected');
           _isConnected = true;
           _isConnecting = false;
@@ -212,12 +230,27 @@ class TrackingWebsocketService {
           _subscriptions.clear();
         },
         onWebSocketError: (error) {
-          _logger.e('WebSocket error: $error');
+          _reconnectCount++;
+          _logger.e(
+              'WebSocket error ($_reconnectCount/$_maxReconnectAttempts): $error');
           _isConnected = false;
           _isConnecting = false;
           _stopHealthCheck();
-          // Force re-subscribe after reconnect (STOMP subscriptions do not persist)
           _subscriptions.clear();
+
+          // Stop reconnecting after max attempts to save battery and reduce log spam
+          if (_reconnectCount >= _maxReconnectAttempts) {
+            _logger
+                .e('Max reconnect attempts reached, stopping auto-reconnect');
+            _client?.deactivate();
+            _isConnecting = false;
+            _reconnectCount = 0;
+            if (!(_connectionCompleter?.isCompleted ?? true)) {
+              _connectionCompleter?.completeError(error);
+            }
+            return;
+          }
+
           if (!(_connectionCompleter?.isCompleted ?? true)) {
             _connectionCompleter?.completeError(error);
           }
@@ -227,13 +260,18 @@ class TrackingWebsocketService {
     );
     _client!.activate();
 
-    // Đợi kết nối hoàn tất với timeout
+    // Wait for connection to complete with timeout
     try {
       await _connectionCompleter?.future.timeout(
         const Duration(seconds: 10),
         onTimeout: () {
           _logger.w('WebSocket connection timed out');
           _isConnecting = false;
+          if (!(_connectionCompleter?.isCompleted ?? true)) {
+            _connectionCompleter?.completeError(
+              TimeoutException('WebSocket connection timed out'),
+            );
+          }
         },
       );
     } catch (e) {
@@ -250,6 +288,7 @@ class TrackingWebsocketService {
     _handlers.clear();
     _client?.deactivate();
     _isConnected = false;
+    _reconnectCount = 0;
   }
 
   Future<void> subscribeToTracking(

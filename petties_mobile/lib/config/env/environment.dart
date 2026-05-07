@@ -7,32 +7,25 @@ class Environment {
   static const String _wsUrlOverride = String.fromEnvironment('WS_URL');
 
   static String _normalizeWebSocketUrl(String value) {
-    final trimmed = value.trim().replaceAll(RegExp(r'/+$'), '');
-    final uri = Uri.tryParse(trimmed);
+    // Trim and remove trailing slashes, then add exactly one back
+    final trimmed = value.trim().replaceAll(RegExp(r'/+$'), '') + '/';
 
-    if (uri == null || uri.scheme.isEmpty) {
+    // Already has correct WebSocket scheme - return as-is
+    if (trimmed.startsWith('wss://') || trimmed.startsWith('ws://')) {
       return trimmed;
     }
 
-    final host = uri.host.isNotEmpty
-        ? uri.host
-        : trimmed.replaceFirst(RegExp(r'^[a-zA-Z]+://'), '').split('/').first;
-    final path =
-        uri.path.isNotEmpty && uri.path != '/' ? uri.path : '/ws-native/';
-    final normalizedPath = path.startsWith('/') ? path : '/$path';
-    final normalizedTrailingSlash =
-        normalizedPath.endsWith('/') ? normalizedPath : '$normalizedPath/';
-
-    if (uri.scheme == 'https' || uri.scheme == 'wss') {
-      final port = uri.hasPort ? uri.port : 443;
-      return 'wss://$host:$port$normalizedTrailingSlash';
+    // Convert https:// to wss://
+    if (trimmed.startsWith('https://')) {
+      return trimmed.replaceFirst('https://', 'wss://');
     }
 
-    if (uri.scheme == 'http' || uri.scheme == 'ws') {
-      final port = uri.hasPort ? uri.port : 80;
-      return 'ws://$host:$port$normalizedTrailingSlash';
+    // Convert http:// to ws://
+    if (trimmed.startsWith('http://')) {
+      return trimmed.replaceFirst('http://', 'ws://');
     }
 
+    // Fallback: return as-is
     return trimmed;
   }
 

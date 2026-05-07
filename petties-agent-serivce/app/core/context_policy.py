@@ -9,6 +9,7 @@ Purpose:
 """
 
 from typing import Iterable, List, Optional, Sequence
+import re
 
 from app.core.chat_context import BUSINESS_CHAT, PLAYGROUND_TEST, normalize_context_type
 
@@ -237,6 +238,17 @@ class ContextPolicyService:
             normalized_role,
             ROLE_PRODUCT_MODES["PET_OWNER"],
         )
+
+        # If role is managerial/owner, relax any absolute "only pet care" restriction
+        # present in the base prompt so business queries (revenue, metrics) are allowed.
+        if normalized_role in ("CLINIC_MANAGER", "CLINIC_OWNER") and prompt:
+            # Remove or replace restrictive sentence about "Chỉ tư vấn trong phạm vi chăm sóc thú cưng"
+            prompt = re.sub(
+                r"Chỉ\s+tư vấn\s+trong\s+phạm\s+vi\s+chăm\s+sóc\s+thú\s+cưng[\s\S]*?(?:\.|\n)",
+                "Có thể trả lời các câu hỏi vận hành và kinh doanh phù hợp với vai trò này.",
+                prompt,
+                flags=re.IGNORECASE,
+            )
 
         if normalized_context == PLAYGROUND_TEST:
             guardrail = (
