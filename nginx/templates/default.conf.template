@@ -90,7 +90,9 @@ server {
     }
 
     location /ws/ {
-        proxy_pass http://backend:8080/ws/;
+        # Backend runs under /api context-path in production.
+        # Proxy WS handshake to the correct backend endpoint.
+        proxy_pass http://backend:8080/api/ws/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -104,7 +106,8 @@ server {
     }
 
     location /ws-native/ {
-        proxy_pass http://backend:8080/ws-native/;
+        # Backend runs under /api context-path in production.
+        proxy_pass http://backend:8080/api/ws-native/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -143,12 +146,17 @@ server {
         auth_basic "Petties Monitoring";
         auth_basic_user_file /etc/nginx/monitoring.htpasswd;
 
+        # Avoid nginx startup failure when grafana container isn't resolvable yet.
+        # Use Docker DNS resolver and runtime resolution via variable proxy_pass.
+        resolver 127.0.0.11 ipv6=off valid=10s;
+
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
 
-        proxy_pass http://grafana:3000/;
+        set $grafana_upstream grafana:3000;
+        proxy_pass http://$grafana_upstream/;
     }
 
     location = /grafana {
@@ -159,12 +167,16 @@ server {
         auth_basic "Petties Monitoring";
         auth_basic_user_file /etc/nginx/monitoring.htpasswd;
 
+        # Avoid nginx startup failure when prometheus container isn't resolvable yet.
+        resolver 127.0.0.11 ipv6=off valid=10s;
+
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
 
-        proxy_pass http://prometheus:9090/;
+        set $prometheus_upstream prometheus:9090;
+        proxy_pass http://$prometheus_upstream/;
     }
 
     location = /prometheus {

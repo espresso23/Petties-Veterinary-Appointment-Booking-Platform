@@ -124,6 +124,27 @@
 
 ---
 
+### Production WebSocket Proxy Fix (Backend `/api` Context Path) (Code-based Evidence - 2026-05-07)
+
+**Scope:** Fix production WebSocket handshake routing through Nginx for both browser (`/ws`) and native mobile (`/ws-native`) STOMP connections.
+
+**Root cause:**
+- Backend runs with context path `/api` in production (evidence: health endpoint at `/api/actuator/health`).
+- Nginx previously proxied:
+  - `/ws/` → `http://backend:8080/ws/`
+  - `/ws-native/` → `http://backend:8080/ws-native/`
+  which misses `/api` prefix and can cause WS handshake to fail.
+
+**Implemented changes:**
+- Updated Nginx WS upstream routes:
+  - `/ws/` → `http://backend:8080/api/ws/`
+  - `/ws-native/` → `http://backend:8080/api/ws-native/`
+
+**Changed files (evidence):**
+- `nginx/templates/default.conf.template`
+
+---
+
 ### Production Backend Memory Tuning (Code-based Evidence - 2026-05-07)
 
 **Scope:** Reduce Spring Boot restart loops during production startup/health-check windows by increasing backend runtime memory headroom in production compose defaults.
