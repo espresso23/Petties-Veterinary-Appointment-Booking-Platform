@@ -72,6 +72,23 @@
 
 ---
 
+### Production Port-Conflict Prevention (Code-based Evidence - 2026-05-07)
+
+**Scope:** Prevent recurring CI/CD failures caused by `address already in use` on host ports `80/443` when starting production Nginx container.
+
+**Implemented changes:**
+- Added deploy preflight for published Nginx ports:
+  - Exports `NGINX_HTTPS_PORT` explicitly (default `443`) alongside `NGINX_HOST_PORT`.
+  - Stops host `nginx` service if active before compose up.
+  - Detects/removes foreign Docker containers publishing target ports.
+  - Fails fast with `ss -ltnp` diagnostics if ports remain occupied by host processes.
+- Keeps deployment safety model: port conflicts are handled before `docker-compose up` to avoid mid-deploy failure.
+
+**Changed files (evidence):**
+- `.github/workflows/deploy-ec2.yml`
+
+---
+
 ### Metrics-based Monitoring Stack (Code-based Evidence - 2026-04-20)
 
 **Scope:** Upgrade observability from log-derived monitoring to metrics-based monitoring using Prometheus + Grafana.

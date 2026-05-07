@@ -90,6 +90,7 @@ jobs:
             export BACKEND_HOST_PORT=${BACKEND_HOST_PORT:-8080}
             export AI_HOST_PORT=${AI_HOST_PORT:-8000}
             export NGINX_HOST_PORT=${NGINX_HOST_PORT:-80}
+            export NGINX_HTTPS_PORT=${NGINX_HTTPS_PORT:-443}
             export NGINX_SERVER_NAME=${NGINX_SERVER_NAME:-api.petties.world}
             export NGINX_FRONTEND_UPSTREAM=${NGINX_FRONTEND_UPSTREAM:-https://www.petties.world}
             export NGINX_FRONTEND_HOST=${NGINX_FRONTEND_HOST:-www.petties.world}
@@ -111,6 +112,38 @@ jobs:
 
             echo "🛑 Stopping production containers..."
             docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" down --remove-orphans
+
+            echo "🔎 Port preflight for Nginx (${NGINX_HOST_PORT}/${NGINX_HTTPS_PORT})..."
+            if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet nginx; then
+              echo "⚠️ Host nginx service is active. Stopping to avoid port conflict..."
+              sudo systemctl stop nginx || true
+            fi
+
+            free_port_or_fail() {
+              _port="$1"
+
+              # Remove foreign Docker containers that publish the target port.
+              foreign_ids="$(docker ps -q --filter "publish=${_port}")"
+              if [ -n "$foreign_ids" ]; then
+                for cid in $foreign_ids; do
+                  cname="$(docker inspect --format '{{.Name}}' "$cid" | sed 's#^/##')"
+                  if [[ "$cname" != ${COMPOSE_PROJECT}_* ]]; then
+                    echo "⚠️ Removing foreign container using port ${_port}: ${cname}"
+                    docker rm -f "$cid" || true
+                  fi
+                done
+              fi
+
+              # If still busy by host process, fail fast with diagnostics.
+              if ss -ltn "( sport = :${_port} )" | grep -q ":${_port}"; then
+                echo "❌ Port ${_port} is still occupied by host process."
+                ss -ltnp "( sport = :${_port} )" || true
+                exit 1
+              fi
+            }
+
+            free_port_or_fail "$NGINX_HOST_PORT"
+            free_port_or_fail "$NGINX_HTTPS_PORT"
             
             echo "🔨 Building and starting production containers..."
             docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build
