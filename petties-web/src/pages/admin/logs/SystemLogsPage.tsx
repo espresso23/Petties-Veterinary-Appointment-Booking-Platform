@@ -5,6 +5,9 @@ import { env } from '../../../config/env'
 import { backendSystemLogApi, type AuditLogItem } from '../../../services/agentService'
 
 const PAGE_SIZE = 20
+// Admin logs page: show full client IP for incident response / spam tracing.
+// If you ever need to re-enable redaction, change this flag to true.
+const SHOULD_REDACT_IP = false
 const REDACTED_IP = '[REDACTED_IP]'
 
 const IPV4_PATTERN = /\b(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\b/g
@@ -30,10 +33,12 @@ const isIpSensitiveKey = (key: string): boolean => {
 }
 
 const redactIpInString = (value: string): string => {
+  if (!SHOULD_REDACT_IP) return value
   return value.replace(IPV4_PATTERN, REDACTED_IP).replace(IPV6_PATTERN, REDACTED_IP)
 }
 
 const sanitizePayload = (value: unknown): unknown => {
+  if (!SHOULD_REDACT_IP) return value
   if (typeof value === 'string') {
     return redactIpInString(value)
   }

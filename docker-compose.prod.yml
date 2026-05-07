@@ -169,6 +169,7 @@ services:
       NGINX_SSL_KEY: ${NGINX_SSL_KEY:-/etc/letsencrypt/live/${NGINX_SERVER_NAME}/privkey.pem}
     volumes:
       - ./nginx/templates/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./nginx/monitoring.htpasswd:/etc/nginx/monitoring.htpasswd:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
     command: >
       /bin/sh -c "envsubst '$$NGINX_SERVER_NAME $$NGINX_FRONTEND_UPSTREAM $$NGINX_FRONTEND_HOST $$NGINX_RESOLVER $$NGINX_SSL_CERT $$NGINX_SSL_KEY'
@@ -193,6 +194,8 @@ services:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
       - "--web.enable-lifecycle"
+      - "--web.external-url=/prometheus"
+      - "--web.route-prefix=/prometheus"
     volumes:
       - ./monitoring/prometheus/prometheus.prod.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -212,6 +215,8 @@ services:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin123}
       GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-https://api.petties.world/grafana}
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro

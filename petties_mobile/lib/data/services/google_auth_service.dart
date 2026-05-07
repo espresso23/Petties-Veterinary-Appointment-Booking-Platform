@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../../config/env/environment.dart';
 
@@ -50,6 +51,28 @@ class GoogleAuthService {
         displayName: account.displayName,
         photoUrl: account.photoUrl,
       );
+    } on PlatformException catch (e) {
+      // Common cases:
+      // - ApiException: 10 => DEVELOPER_ERROR (SHA-1 / OAuth config mismatch)
+      // - sign_in_canceled => user closed dialog
+      debugPrint('Google Sign-In PlatformException: code=${e.code}, message=${e.message}, details=${e.details}');
+
+      final normalized = '${e.message ?? ''} ${e.details ?? ''}'.toLowerCase();
+      if (e.code.toLowerCase().contains('canceled') || normalized.contains('canceled') || normalized.contains('cancelled')) {
+        return GoogleSignInResult.cancelled();
+      }
+      // Google commonly returns DEVELOPER_ERROR (10) when OAuth/SHA-1 config mismatch.
+      if (e.code == '10' ||
+          e.code.toLowerCase().contains('developer_error') ||
+          normalized.contains('apiexception: 10') ||
+          normalized.contains('developer_error') ||
+          normalized.contains('10:') ||
+          normalized.contains('error_code=10')) {
+        return GoogleSignInResult.error(
+          'Google Sign-In bị lỗi cấu hình (SHA-1/Client ID). Vui lòng liên hệ admin để cập nhật SHA-1 lên Firebase/Google Cloud và tải lại google-services.json.',
+        );
+      }
+      return GoogleSignInResult.error('Không thể đăng nhập bằng Google. Vui lòng thử lại sau.');
     } catch (e) {
       debugPrint('Google Sign-In error: $e');
       return GoogleSignInResult.error(e.toString());

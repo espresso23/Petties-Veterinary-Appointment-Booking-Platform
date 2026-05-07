@@ -128,22 +128,22 @@ class _LoginScreenState extends State<LoginScreen> {
     if (error == null) return 'Đăng nhập thất bại. Vui lòng thử lại.';
     
     if (error.contains('SocketException') || error.contains('Failed host lookup')) {
-      return '❌ Không thể kết nối đến server. Kiểm tra backend đã chạy chưa?';
+      return 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng và cấu hình máy chủ.';
     }
     if (error.contains('401') || error.contains('Unauthorized')) {
-      return '❌ Sai username hoặc password. Vui lòng kiểm tra lại.';
+      return 'Sai tên đăng nhập hoặc mật khẩu. Vui lòng kiểm tra lại.';
     }
     if (error.contains('404')) {
-      return '❌ API endpoint không tìm thấy. Kiểm tra cấu hình server.';
+      return 'Không tìm thấy API. Vui lòng kiểm tra cấu hình máy chủ.';
     }
     if (error.contains('Timeout')) {
-      return '❌ Kết nối timeout. Kiểm tra kết nối mạng.';
+      return 'Kết nối quá thời gian. Vui lòng thử lại.';
     }
     if (error.contains('Connection refused')) {
-      return '❌ Server từ chối kết nối. Backend có đang chạy không?';
+      return 'Máy chủ từ chối kết nối. Vui lòng thử lại sau.';
     }
     
-    return error.length > 100 ? '❌ ${error.substring(0, 100)}...' : '❌ $error';
+    return error.length > 160 ? '${error.substring(0, 160)}...' : error;
   }
 
   Future<void> _handleGoogleSignIn() async {

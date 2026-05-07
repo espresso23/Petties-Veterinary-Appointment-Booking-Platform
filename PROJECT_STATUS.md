@@ -6,6 +6,49 @@
 
 ---
 
+### HOME_VISIT Overlap Protection (Range-based DB Constraint) (Code-based Evidence - 2026-05-07)
+
+**Scope:** Implement timeline-aware conflict prevention for `HOME_VISIT` bookings instead of exact-slot uniqueness only.
+
+**Implemented changes:**
+- Added Flyway migration to enforce non-overlap by pet on active `HOME_VISIT` bookings:
+  - Enables `btree_gist` extension for UUID equality support in GiST.
+  - Cleans duplicate active rows at same start time before applying constraint.
+  - Adds `EXCLUDE USING gist` constraint on:
+    - `pet_id =`
+    - `tsrange(start_time, start_time + 30 minutes) &&`
+  - Applies only to active statuses (`PENDING`, `SEARCHING`, `PENDING_CLINIC_CONFIRM`, `CONFIRMED`, `IN_PROGRESS`).
+- Keeps existing `IN_CLINIC` unique-index strategy unchanged.
+
+**Changed files (evidence):**
+- `backend-spring/petties/src/main/resources/db/migration/V202605071210__add_home_visit_overlap_exclusion.sql`
+
+---
+
+### Production Monitoring Public Access (Grafana/Prometheus) (Code-based Evidence - 2026-05-07)
+
+**Scope:** Allow admins to access production Grafana and Prometheus securely via the unified gateway domain, without exposing raw ports to the internet.
+
+**Implemented changes:**
+- Published monitoring UIs through Nginx with Basic Auth:
+  - Grafana: `/grafana/`
+  - Prometheus: `/prometheus/`
+- Kept Prometheus/Grafana container ports bound to `127.0.0.1` and routed via internal Docker network only.
+- Enabled subpath compatibility:
+  - Grafana configured with `GF_SERVER_ROOT_URL` and `GF_SERVER_SERVE_FROM_SUB_PATH=true`.
+  - Prometheus configured with `--web.route-prefix` and `--web.external-url`.
+- Deployment automation:
+  - Deploy workflow generates `nginx/monitoring.htpasswd` using `GRAFANA_ADMIN_USER/GRAFANA_ADMIN_PASSWORD`.
+  - Deploy uses `--profile monitoring` to start monitoring services in production.
+
+**Changed files (evidence):**
+- `nginx/templates/default.conf.template`
+- `docker-compose.prod.yml`
+- `.github/workflows/deploy-ec2.yml`
+- `PROJECT_STATUS.md`
+
+---
+
 ### Master Service Pet Type Alignment (Code-based Evidence - 2026-05-07)
 
 **Scope:** Align `master service` pet type behavior with regular service flow and prevent non-standard English tokens (`DOG`, `CAT`) from being stored.
@@ -1182,6 +1225,63 @@ Note: `07_COUNCIL_PRESENTATION_GUIDE.md` has been fully rewritten in Vietnamese 
 - Deadcode sweep follow-up (booking scope):
   - Removed legacy references in tests (`test_booking_context_prompt.py`, `test_presentation_builder.py`, `test_websocket_chat.py`) so no runtime import/call path points to deleted booking-session tools.
   - Re-run verification: `cd petties-agent-serivce && python -m pytest tests/test_booking_tools.py tests/test_presentation_builder.py tests/test_booking_context_prompt.py tests/test_context_policy.py tests/test_websocket_chat.py -q` -> 97 passed, 1 skipped
+
+---
+
+### Production Data Seed — Clinic External Image URLs (Code-based Evidence - 2026-05-07)
+
+**Scope:** Reseed clinic logo/image data to use external URLs only (no internal placeholder endpoint) so FE can render from direct HTTP(S) sources.
+
+**Implemented changes:**
+- Re-seeded `clinics.logo` for all clinic rows to external Wikimedia image URLs.
+- Re-seeded `clinic_images.image_url` for all clinic image rows to external Wikimedia image URLs.
+- Removed dependency on internal placeholder URL strategy in seed data.
+
+**Validation evidence:**
+- SQL update result: `clinics_logo_updated=14`, `clinic_images_updated=27`.
+- Post-check result: `clinics_logo_external=14`, `clinic_images_external=27`.
+
+**Follow-up fix (same day):**
+- Root cause found: Wikimedia `thumb/...` URLs used for `clinic_images` returned `403`, causing broken primary image in FE map popup while some logos still loaded.
+- Re-seeded all `clinic_images.image_url` to verified external Unsplash URLs returning `200 image/jpeg`.
+- Verification: `clinic_images_updated=27`, `clinic_images_unsplash=27`.
+
+---
+
+### Production Data Seed — PetOwner Pets + Clinic Operating Hours (Code-based Evidence - 2026-05-07)
+
+**Scope:** Seed data for `petOwner` (2 dog pets with images) and add operating hours for all seeded clinics.
+
+**Implemented changes (DB seed):**
+- Seeded 2 pets for user `petOwner`:
+  - Species: `DOG`
+  - Images: external Unsplash URLs (verified `200 image/jpeg`)
+- Updated `clinics.operating_hours` for all non-deleted clinics.
+
+**Validation evidence:**
+- Seed result: `pets_inserted=2`, `pet_owner_pets_total=2`.
+- Operating hours update: `clinics_operating_hours_updated=13`, `clinics_with_hours=13`.
+- Fixed JSON keys to match `OperatingHours` model fields (`openTime`, `closeTime`, `breakStart`, `breakEnd`, `isClosed`).
+
+---
+
+### Production Data Seed — Clinic Services Diversity (Code-based Evidence - 2026-05-07)
+
+**Scope:** Seed diverse `clinic_services` for all seeded clinics so booking UI has meaningful service choices.
+
+**Seed strategy:**
+- Idempotent upsert by `(clinic_id, name)`.
+- `is_custom=true`, `master_service_id=NULL` (standalone clinic services for demo data).
+- Mixed categories and `pet_type` values aligned with UI standard (`Chó`, `Mèo`, `Cả chó và mèo`).
+- Includes a `VACCINATION` service with reminder schedule fields.
+- Includes a `HOME_VISIT`-capable service per clinic (`is_home_visit=true`).
+
+**Validation evidence:**
+- `clinics=13`
+- `services_inserted=91`
+- `clinic_services_total=91`
+- `home_visit_services=13`
+- `vaccination_services=13`
 
 ---
 
