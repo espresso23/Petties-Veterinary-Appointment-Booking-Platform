@@ -77,18 +77,26 @@ class NotificationModel {
   });
 
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
-    final rawActionData = json['actionData'] as String?;
+    final rawType = json['type'] as String?;
+    final notificationType = _parseNotificationType(rawType);
+    final rawActionData = json['actionData']?.toString().trim();
     String? bookingId;
     String? conversationId;
 
     if (rawActionData != null && rawActionData.isNotEmpty) {
       try {
-        final decoded = jsonDecode(rawActionData);
-        if (decoded is Map<String, dynamic>) {
-          final dynamic bookingIdValue = decoded['bookingId'];
-          final dynamic conversationIdValue = decoded['conversationId'];
-          bookingId = bookingIdValue?.toString();
-          conversationId = conversationIdValue?.toString();
+        if (rawActionData.startsWith('{') || rawActionData.startsWith('[')) {
+          final decoded = jsonDecode(rawActionData);
+          if (decoded is Map<String, dynamic>) {
+            final dynamic bookingIdValue = decoded['bookingId'];
+            final dynamic conversationIdValue = decoded['conversationId'];
+            bookingId = bookingIdValue?.toString();
+            conversationId = conversationIdValue?.toString();
+          }
+        } else if (_isBookingNotificationType(notificationType)) {
+          bookingId = rawActionData;
+        } else if (rawType == 'chat_message') {
+          conversationId = rawActionData;
         }
       } catch (e) {
         debugPrint('Error parsing notification actionData JSON: $e');
@@ -97,7 +105,7 @@ class NotificationModel {
 
     return NotificationModel(
       id: json['notificationId'] as String,
-      type: _parseNotificationType(json['type'] as String),
+      type: notificationType,
       message: json['message'] as String,
       reason: json['reason'] as String?,
       isRead: json['read'] as bool? ?? false,
@@ -159,5 +167,21 @@ class NotificationModel {
     } else {
       return DateFormat('dd/MM/yyyy').format(createdAt);
     }
+  }
+}
+
+bool _isBookingNotificationType(NotificationType type) {
+  switch (type) {
+    case NotificationType.BOOKING_CREATED:
+    case NotificationType.BOOKING_CONFIRMED:
+    case NotificationType.BOOKING_ASSIGNED:
+    case NotificationType.BOOKING_CANCELLED:
+    case NotificationType.BOOKING_CHECKIN:
+    case NotificationType.BOOKING_PAYMENT_REQUIRED:
+    case NotificationType.BOOKING_COMPLETED:
+    case NotificationType.STAFF_ON_WAY:
+      return true;
+    default:
+      return false;
   }
 }

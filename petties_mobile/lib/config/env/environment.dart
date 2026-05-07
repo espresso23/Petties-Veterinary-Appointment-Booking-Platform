@@ -6,6 +6,36 @@ class Environment {
   /// WebSocket URL override from --dart-define=WS_URL
   static const String _wsUrlOverride = String.fromEnvironment('WS_URL');
 
+  static String _normalizeWebSocketUrl(String value) {
+    final trimmed = value.trim().replaceAll(RegExp(r'/+$'), '');
+    final uri = Uri.tryParse(trimmed);
+
+    if (uri == null || uri.scheme.isEmpty) {
+      return trimmed;
+    }
+
+    final host = uri.host.isNotEmpty
+        ? uri.host
+        : trimmed.replaceFirst(RegExp(r'^[a-zA-Z]+://'), '').split('/').first;
+    final path =
+        uri.path.isNotEmpty && uri.path != '/' ? uri.path : '/ws-native/';
+    final normalizedPath = path.startsWith('/') ? path : '/$path';
+    final normalizedTrailingSlash =
+        normalizedPath.endsWith('/') ? normalizedPath : '$normalizedPath/';
+
+    if (uri.scheme == 'https' || uri.scheme == 'wss') {
+      final port = uri.hasPort ? uri.port : 443;
+      return 'wss://$host:$port$normalizedTrailingSlash';
+    }
+
+    if (uri.scheme == 'http' || uri.scheme == 'ws') {
+      final port = uri.hasPort ? uri.port : 80;
+      return 'ws://$host:$port$normalizedTrailingSlash';
+    }
+
+    return trimmed;
+  }
+
   /// Get the WebSocket URL
   /// IMPORTANT: Dart's Uri.parse() returns port 0 for 'wss://' scheme
   /// (it only recognizes http/https). This causes BAD_DECRYPT errors.
@@ -15,12 +45,12 @@ class Environment {
     if (dotenv.isInitialized &&
         dotenv.env['WS_URL'] != null &&
         dotenv.env['WS_URL']!.isNotEmpty) {
-      return dotenv.env['WS_URL']!;
+      return _normalizeWebSocketUrl(dotenv.env['WS_URL']!);
     }
 
     // 2. dart-define override (compile time)
     if (_wsUrlOverride.isNotEmpty) {
-      return _wsUrlOverride;
+      return _normalizeWebSocketUrl(_wsUrlOverride);
     }
 
     // 3. Derive from baseUrl (most reliable approach)
@@ -31,9 +61,10 @@ class Environment {
     if (serverUrl.startsWith('https://')) {
       // Extract host from https:// URL
       final host = serverUrl.replaceFirst('https://', '');
-      // Use wss:// — port 443 is implicit for wss, no need to hardcode
-      // Use /ws-native/ to match the dedicated nginx location block
-      return 'wss://$host/ws-native/';
+      // Use /ws-native/ to match the dedicated nginx location block.
+      // Keep an explicit port because the STOMP client can otherwise
+      // downgrade the parsed URI to port 0 on some Android devices.
+      return 'wss://$host:443/ws-native/';
     } else if (serverUrl.startsWith('http://')) {
       final host = serverUrl.replaceFirst('http://', '');
       // Local dev: ws:// with the port from the URL (usually 8080)
