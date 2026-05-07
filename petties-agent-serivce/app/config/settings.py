@@ -320,6 +320,11 @@ class Settings(BaseSettings):
         description="Max requests per session per hour",
     )
 
+    # ==================== Cloudinary Configuration ====================
+    CLOUDINARY_CLOUD_NAME: str = Field(default="", description="Cloudinary cloud name")
+    CLOUDINARY_API_KEY: str = Field(default="", description="Cloudinary API key")
+    CLOUDINARY_API_SECRET: str = Field(default="", description="Cloudinary API secret")
+
     # ==================== Redis (Optional) ====================
     REDIS_HOST: str = Field(default="localhost", description="Redis host")
     REDIS_PORT: int = Field(default=6379, description="Redis port")

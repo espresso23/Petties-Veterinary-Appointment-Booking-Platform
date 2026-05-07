@@ -55,7 +55,7 @@ const QUICK_ACTIONS_BY_ROUTE: Array<{ match: RegExp; actions: QuickAction[] }> =
     actions: [
       { key: 'staff_summary', label: 'Tóm tắt công việc hôm nay', prompt: 'Tóm tắt lịch làm việc và lịch hẹn hôm nay cho tôi.' },
       { key: 'staff_tasks', label: 'Liệt kê việc cần xử lý', prompt: 'Hãy liệt kê các việc cần ưu tiên xử lý trong ca hôm nay.' },
-      { key: 'staff_patients', label: 'Tổng hợp bệnh nhân cần lưu ý', prompt: 'Tổng hợp các bệnh nhân cần theo dõi đặc biệt hôm nay.' },
+      { key: 'staff_patients', label: 'Tổng hợp bệnh nhân cần lưu ý', prompt: 'Tổng hợp các bệnh nhân cần theo dõi đặc biệt hôm nay. Nếu hệ thống chưa có cờ đặc biệt riêng, hãy dựa vào lịch tái khám, booking status, lần khám gần nhất và ghi chú lâm sàng để tóm tắt.' },
     ],
   },
   {

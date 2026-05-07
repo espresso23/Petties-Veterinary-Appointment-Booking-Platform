@@ -18,6 +18,19 @@ from sqlalchemy import select
 from app.db.postgres.models import KnowledgeDocument
 from app.db.postgres.session import AsyncSessionLocal
 
+def file_url_masked(url: str) -> str:
+    """Mask sensitive parts of URL for logging"""
+    if not url or "http" not in url:
+        return url
+    try:
+        # Keep only domain and last part of path
+        parts = url.split("/")
+        if len(parts) > 4:
+            return f"{parts[0]}//{parts[2]}/.../{parts[-1]}"
+    except:
+        pass
+    return url[:30] + "..."
+
 
 class DocumentProcessingService:
     """Singleton service for sequential document indexing via Task Queue."""
@@ -106,9 +119,32 @@ class DocumentProcessingService:
                     from app.core.rag.rag_engine import get_rag_engine
                     rag = get_rag_engine()
 
-                    file_path = Path(doc.file_path)
-                    if not file_path.exists():
-                        raise FileNotFoundError(f"File not found: {file_path}")
+                    file_path_str = doc.file_path
+                    is_url = file_path_str.startswith("http")
+                    temp_file_path = None
+
+                    if is_url:
+                        # Download file from URL to temporary location
+                        import httpx
+                        import tempfile
+                        
+                        logger.info(f"Downloading document from URL: {file_url_masked(file_path_str)}")
+                        suffix = f".{doc.file_type}" if doc.file_type else ""
+                        
+                        fd, temp_file_path = tempfile.mkstemp(suffix=suffix)
+                        os.close(fd)
+                        
+                        async with httpx.AsyncClient() as client:
+                            response = await client.get(file_path_str)
+                            response.raise_for_status()
+                            with open(temp_file_path, "wb") as f:
+                                f.write(response.content)
+                        
+                        file_path = Path(temp_file_path)
+                    else:
+                        file_path = Path(file_path_str)
+                        if not file_path.exists():
+                            raise FileNotFoundError(f"File not found: {file_path}")
 
                     # Execute Indexing
                     index_result = await rag.index_document(
@@ -121,6 +157,10 @@ class DocumentProcessingService:
                             "notes": doc.notes,
                         },
                     )
+
+                    # Cleanup temp file if created
+                    if temp_file_path and os.path.exists(temp_file_path):
+                        os.remove(temp_file_path)
 
                     # Validate
                     if index_result.text_chunks == 0:

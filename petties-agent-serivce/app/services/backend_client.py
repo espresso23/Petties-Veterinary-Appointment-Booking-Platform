@@ -111,6 +111,10 @@ class SpringBackendClient:
         # Since PetController uses /me for current user, we prefer that
         return await self._request("GET", "/api/pets/me", token=token)
 
+    async def get_current_user_profile(self, token: str) -> Any:
+        """Fetch the current authenticated user's profile from Spring backend."""
+        return await self._request("GET", "/api/users/profile", token=token)
+
     async def get_my_pets(self, token: str) -> Any:
         return await self._request("GET", "/api/pets/me", token=token)
 

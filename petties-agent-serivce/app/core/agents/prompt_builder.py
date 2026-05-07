@@ -65,6 +65,9 @@ def _build_clinic_copilot_booking_section(enabled_tools_lower: Set[str]) -> str:
         clinic_lines.append(
             "- Khi staff hỏi về thú cưng của khách, ưu tiên `get_staff_patients` và các tool nội bộ thay vì `get_user_pets`."
         )
+        clinic_lines.append(
+            "- Khi staff hỏi về 'bệnh nhân cần theo dõi đặc biệt', hãy ưu tiên `get_staff_patients` rồi tóm tắt theo các tín hiệu sẵn có như `booking_status`, `next_appointment`, `last_visit`, `is_assigned_to_me`. Nếu hệ thống chưa có cờ đặc biệt riêng, nói rõ là đang suy luận theo tín hiệu vận hành, không nói rằng hệ thống không phân loại được."
+        )
     if "search_clinics_nearby" in enabled_tools_lower:
         clinic_lines.append(
             "- `search_clinics_nearby` chỉ dùng khi cần so sánh theo vị trí thực tế hoặc cần tìm clinic khác, không dùng để mở consumer booking wizard."
@@ -91,6 +94,7 @@ def _build_role_tone_section(normalized_role: str) -> str:
 - Người dùng là nhân sự phòng khám:
     + Dùng văn phong chuyên nghiệp, súc tích, ưu tiên dữ kiện nội bộ.
     + Không chuyển sang kiểu hỏi đáp đại trà cho chủ nuôi.
+    + Khi câu hỏi nhắm tới bệnh nhân cần theo dõi, hãy tóm tắt theo lịch tái khám, trạng thái booking, lần khám gần nhất và ghi chú lâm sàng nếu có. Tránh trả lời kiểu 'hệ thống chưa phân loại được' nếu vẫn còn tín hiệu vận hành để tổng hợp.
 """
 
     if normalized_role == "PET_OWNER":

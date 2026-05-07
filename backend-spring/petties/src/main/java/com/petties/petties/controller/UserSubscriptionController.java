@@ -53,7 +53,7 @@ public class UserSubscriptionController {
      * Clinic Owner: Get detailed subscription status (active + pending)
      */
     @GetMapping("/my-clinic/{clinicId}/status")
-    @PreAuthorize("hasRole('CLINIC_OWNER')")
+    @PreAuthorize("hasRole('CLINIC_OWNER') or hasRole('CLINIC_MANAGER')")
     public ResponseEntity<ClinicSubscriptionStatusDto> getClinicSubscriptionStatus(@PathVariable UUID clinicId) {
         return ResponseEntity.ok(userSubscriptionService.getClinicSubscriptionStatus(clinicId));
     }

@@ -129,6 +129,10 @@ services:
       LOG_LEVEL: ${AI_LOG_LEVEL:-INFO}
       LOG_FILE: ${AI_LOG_FILE:-./logs/agent_service.log}
       SENTRY_DSN: ${SENTRY_AI_SERVICE_DSN:-}
+      # Cloudinary Configuration
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
     ports:
       - 127.0.0.1:${AI_HOST_PORT:-8000}:8000
     networks:
@@ -147,7 +151,7 @@ services:
           memory: ${AI_MEMORY_RESERVATION:-256M}
     volumes:
       - ai_storage_data:/app/storage
-      - ai_uploads_data:/app/uploads
+      # - ai_uploads_data:/app/uploads  # Switched to Cloudinary for Stateless Scale-Out
     logging:
       driver: json-file
       options:

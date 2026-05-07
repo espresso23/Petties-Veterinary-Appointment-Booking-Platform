@@ -82,6 +82,9 @@ prometheus-client>=0.21.1
 loguru>=0.7.3
 sentry-sdk[fastapi]>=2.19.0  # Error monitoring & alerting
 
+# ==================== Cloud Storage ====================
+cloudinary>=1.41.0  # Cloudinary SDK for image and document upload
+
 # ==================== Computer Vision & ML ====================
 # torch>=2.1.0  # PyTorch for model training
 # torchvision>=0.16.0  # Pre-trained models & transforms

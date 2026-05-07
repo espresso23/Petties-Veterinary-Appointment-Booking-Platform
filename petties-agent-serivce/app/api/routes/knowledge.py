@@ -37,6 +37,7 @@ import uuid
 from app.api.middleware.auth import get_admin_user
 from app.api.middleware.subscription_guard import check_active_subscription
 from app.config.settings import settings
+from app.core.services.cloudinary_service import get_cloudinary_service
 
 from app.api.schemas.knowledge_schemas import (
     DocumentResponse,
@@ -163,21 +164,27 @@ async def upload_document(
                 detail=f"File too large. Maximum size: {MAX_FILE_SIZE / 1024 / 1024}MB",
             )
 
-        storage_dir = get_storage_dir()
+        # Upload to Cloudinary
+        cloudinary_service = get_cloudinary_service()
+        upload_result = await cloudinary_service.upload_file(
+            content, 
+            filename, 
+            folder="knowledge_base",
+            resource_type="auto"
+        )
 
-        # Generate unique filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        safe_filename = f"{timestamp}_{filename}"
-        file_path = storage_dir / safe_filename
+        if not upload_result:
+            raise HTTPException(
+                status_code=500,
+                detail="Khong the tai tai lieu len Cloudinary"
+            )
 
-        # Save file
-        with open(file_path, "wb") as f:
-            f.write(content)
+        file_url = upload_result.get("secure_url")
 
         # Create database record
         document = KnowledgeDocument(
             filename=filename,
-            file_path=str(file_path),
+            file_path=file_url,  # Store Cloudinary URL instead of local path
             file_type=extension,
             file_size=file_size,
             processed=False,
@@ -400,13 +407,7 @@ CONTENT_TYPE_MAP = {
 )
 async def download_document(document_id: int, db: AsyncSession = Depends(get_db)):
     """
-    Serve original document file for frontend preview
-
-    Path params:
-        - document_id: ID of the document
-
-    Returns:
-        FileResponse with the original file
+    Serve original document file for frontend preview (Cloudinary Redirect or Local File)
     """
     try:
         result = await db.execute(
@@ -416,14 +417,26 @@ async def download_document(document_id: int, db: AsyncSession = Depends(get_db)
 
         if not document:
             raise HTTPException(
-                status_code=404, detail=f"Không tìm thấy tài liệu {document_id}"
+                status_code=404, detail=f"Khong tim thay tai lieu {document_id}"
             )
 
-        file_path = document.file_path
-        if not file_path or not os.path.exists(file_path):
+        file_url = document.file_path
+        if not file_url:
             raise HTTPException(
                 status_code=404,
-                detail=f"Không tìm thấy file trên đĩa cho tài liệu {document_id}",
+                detail=f"Khong tim thay link tai lieu cho {document_id}",
+            )
+
+        # If it's a Cloudinary URL, redirect to it
+        from fastapi.responses import RedirectResponse
+        if file_url.startswith("http"):
+            return RedirectResponse(url=file_url)
+
+        # Fallback for old local files
+        if not os.path.exists(file_url):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Khong tim thay file cho tai lieu {document_id}",
             )
 
         # Determine content type
@@ -431,12 +444,8 @@ async def download_document(document_id: int, db: AsyncSession = Depends(get_db)
             document.file_type or "", "application/octet-stream"
         )
 
-        logger.info(
-            f"Serving document {document_id}: {document.filename} ({content_type})"
-        )
-
         return FileResponse(
-            path=file_path,
+            path=file_url,
             media_type=content_type,
             filename=document.filename,
             headers={
@@ -463,10 +472,7 @@ async def download_document(document_id: int, db: AsyncSession = Depends(get_db)
 )
 async def delete_document(document_id: int, db: AsyncSession = Depends(get_db)):
     """
-    Delete document:
-    1. Remove file from storage
-    2. Remove vectors from Qdrant (when implemented)
-    3. Remove database record
+    Delete document from Cloudinary and database
     """
     try:
         result = await db.execute(
@@ -476,7 +482,7 @@ async def delete_document(document_id: int, db: AsyncSession = Depends(get_db)):
 
         if not document:
             raise HTTPException(
-                status_code=404, detail=f"Không tìm thấy tài liệu {document_id}"
+                status_code=404, detail=f"Khong tim thay tai lieu {document_id}"
             )
 
         filename = document.filename
@@ -484,36 +490,42 @@ async def delete_document(document_id: int, db: AsyncSession = Depends(get_db)):
         file_path = document.file_path
         vectors_actually_deleted = 0
 
-        # Delete vectors from Qdrant FIRST (most critical operation)
-        # If this fails, we abort the entire delete operation
+        # 1. Delete vectors from Qdrant
         if document.processed and vector_count > 0:
             try:
                 rag = get_rag_engine()
                 vectors_actually_deleted = await rag.delete_document(document_id)
-                logger.info(
-                    f"Deleted {vectors_actually_deleted} vectors from Qdrant for document {document_id}"
-                )
+                logger.info(f"Deleted {vectors_actually_deleted} vectors from Qdrant")
             except Exception as e:
-                # CRITICAL: If Qdrant delete fails, abort entire operation
-                error_msg = f"Failed to delete vectors from Qdrant: {str(e)}. Aborting document deletion to prevent orphaned data."
-                logger.error(error_msg)
-                raise HTTPException(status_code=500, detail=error_msg)
+                logger.error(f"Failed to delete vectors: {e}")
 
-        # Only proceed with file and DB deletion if Qdrant delete succeeded
-        # Delete file from storage
-        if file_path and os.path.exists(file_path):
+        # 2. Delete from Cloudinary if it's a URL
+        if file_path and file_path.startswith("http"):
+            try:
+                parts = file_path.split("/")
+                if "upload" in parts:
+                    idx = parts.index("upload")
+                    public_id_parts = parts[idx+2:] 
+                    public_id_with_ext = "/".join(public_id_parts)
+                    public_id = public_id_with_ext.rsplit(".", 1)[0]
+                    
+                    cloudinary_service = get_cloudinary_service()
+                    await cloudinary_service.delete_file(public_id, resource_type="auto")
+                    logger.info(f"Deleted from Cloudinary: {public_id}")
+            except Exception as e:
+                logger.error(f"Failed to delete from Cloudinary: {e}")
+
+        # 3. Fallback: Delete local file if exists
+        elif file_path and os.path.exists(file_path):
             os.remove(file_path)
-            logger.info(f"Deleted file: {file_path}")
 
-        # Delete database record
+        # 4. Delete database record
         await db.delete(document)
         await db.commit()
 
-        logger.info(f"Deleted document: {filename} (ID: {document_id})")
-
         return DeleteDocumentResponse(
             success=True,
-            message=f"Tài liệu '{filename}' và {vectors_actually_deleted} vectors đã xóa thành công",
+            message=f"Tai lieu '{filename}' da xoa thanh cong",
             document_id=document_id,
             filename=filename,
             vectors_deleted=vectors_actually_deleted,
