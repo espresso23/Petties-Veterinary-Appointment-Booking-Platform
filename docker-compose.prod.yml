@@ -72,6 +72,11 @@ services:
           memory: ${BACKEND_MEMORY_LIMIT:-512M}
         reservations:
           memory: ${BACKEND_MEMORY_RESERVATION:-384M}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
   ai-service:
     build:
@@ -141,21 +146,30 @@ services:
     volumes:
       - ai_storage_data:/app/storage
       - ai_uploads_data:/app/uploads
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "10"
 
   nginx:
     image: nginx:alpine
     restart: unless-stopped
     ports:
       - ${NGINX_HOST_PORT:-80}:80
+      - ${NGINX_HTTPS_PORT:-443}:443
     environment:
       NGINX_SERVER_NAME: ${NGINX_SERVER_NAME:-api.petties.world}
       NGINX_FRONTEND_UPSTREAM: ${NGINX_FRONTEND_UPSTREAM:-https://www.petties.world}
       NGINX_FRONTEND_HOST: ${NGINX_FRONTEND_HOST:-www.petties.world}
       NGINX_RESOLVER: ${NGINX_RESOLVER:-8.8.8.8}
+      NGINX_SSL_CERT: ${NGINX_SSL_CERT:-/etc/letsencrypt/live/${NGINX_SERVER_NAME}/fullchain.pem}
+      NGINX_SSL_KEY: ${NGINX_SSL_KEY:-/etc/letsencrypt/live/${NGINX_SERVER_NAME}/privkey.pem}
     volumes:
       - ./nginx/templates/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     command: >
-      /bin/sh -c "envsubst '$$NGINX_SERVER_NAME $$NGINX_FRONTEND_UPSTREAM $$NGINX_FRONTEND_HOST $$NGINX_RESOLVER'
+      /bin/sh -c "envsubst '$$NGINX_SERVER_NAME $$NGINX_FRONTEND_UPSTREAM $$NGINX_FRONTEND_HOST $$NGINX_RESOLVER $$NGINX_SSL_CERT $$NGINX_SSL_KEY'
       < /etc/nginx/templates/default.conf.template
       > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
     depends_on:
@@ -163,6 +177,11 @@ services:
       - ai-service
     networks:
       - petties-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
   prometheus:
     image: prom/prometheus:v2.54.1

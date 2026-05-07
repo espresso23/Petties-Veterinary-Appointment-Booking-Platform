@@ -32,6 +32,7 @@ Petties is a veterinary appointment booking platform connecting pet owners with 
 
 - Luồng structured booking và `requestSlotRefresh` nằm trong `petties_mobile/lib/ui/chat/ai_chat/ai_chat_screen.dart`; widget/util hỗ trợ trong `petties_mobile/lib/ui/chat/ai_chat/utils/`.
 - AI service (read-only resource redirect): cần khớp tên tool giữa router hậu xử lý và registry — ví dụ `tool_routing.py` có thể tham chiếu `get_clinic_services` / `check_available_slots` trong khi `resource_registry.py` map backing tool là `list_clinic_services` / `get_slot_availability`; lệch tên khiến redirect read-only không ổn định cho một số tool booking.
+- Routing production qua Nginx phụ thuộc `NGINX_SERVER_NAME`; với cấu hình hiện tại cần thống nhất gateway `api.petties.world` và path chuẩn: backend `/api`, AI `/ai`, websocket `/ws`.
 
 ## Architecture
 

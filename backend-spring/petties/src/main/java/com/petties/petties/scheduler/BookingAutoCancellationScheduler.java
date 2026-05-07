@@ -24,6 +24,7 @@ public class BookingAutoCancellationScheduler {
 
     private final BookingRepository bookingRepository;
     private final NotificationService notificationService;
+    private final com.petties.petties.service.StaffAssignmentService staffAssignmentService;
 
     private static final int PENDING_TIMEOUT_MINUTES = 30;
 
@@ -60,6 +61,14 @@ public class BookingAutoCancellationScheduler {
     private void cancelBooking(Booking booking) {
         log.info("Auto-cancelling booking {} (created at {})",
                 booking.getBookingCode(), booking.getCreatedAt());
+
+        // Release slots back to AVAILABLE before cancelling
+        try {
+            staffAssignmentService.releaseSlotsForBooking(booking);
+        } catch (Exception e) {
+            log.warn("Failed to release slots during auto-cancel for booking {}: {}",
+                    booking.getBookingCode(), e.getMessage());
+        }
 
         // Update status to CANCELLED
         booking.setStatus(BookingStatus.CANCELLED);

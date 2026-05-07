@@ -320,7 +320,11 @@ public class GlobalExceptionHandler {
                 String rootCause = ex.getMostSpecificCause().getMessage();
 
                 if (rootCause != null) {
-                        if (rootCause.contains("users_username_key") || rootCause.contains("users_email_key") || rootCause.contains("uk_users_email") || rootCause.contains("uk_users_username")) {
+                        if (rootCause.contains("null value in column \"booking_id\"")) {
+                                message = "Lỗi hệ thống: Thiếu thông tin mã lịch hẹn khi gán lịch.";
+                        } else if (rootCause.contains("violates not-null constraint")) {
+                                message = "Dữ liệu không đầy đủ. Vui lòng kiểm tra lại.";
+                        } else if (rootCause.contains("users_username_key") || rootCause.contains("users_email_key") || rootCause.contains("uk_users_email") || rootCause.contains("uk_users_username")) {
                                 message = "Email này đã được đăng ký. Vui lòng đăng nhập hoặc sử dụng email khác.";
                         } else if (rootCause.contains("users_phone_key") || rootCause.contains("uk_users_phone")) {
                                 message = "Số điện thoại này đã được sử dụng.";

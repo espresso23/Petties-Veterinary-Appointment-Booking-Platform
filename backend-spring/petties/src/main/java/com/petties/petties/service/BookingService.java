@@ -915,7 +915,7 @@ public class BookingService {
 
                                 // Push SSE event to assigned staff and clinic managers for real-time sync
                                 bookingNotificationService.pushBookingUpdateToUsers(booking, "CONFIRMED");
-                        } else {
+                                } else {
                                 // Auto-assign staff based on service specialty (now slot-aware)
                                 Map<UUID, User> assignments = staffAssignmentService.assignStaffToAllServices(booking);
 
@@ -923,15 +923,13 @@ public class BookingService {
 
                                 if (allAssigned) {
                                         booking.setStatus(BookingStatus.CONFIRMED);
-                                        // Reserve slots for the booking
-                                        staffAssignmentService.reserveSlotsForBooking(booking);
+
                                         // Send notification to all assigned staff
                                         notificationService.sendBookingAssignedNotificationToStaff(booking);
 
                                         // Push SSE event to assigned staff and clinic managers for real-time sync
                                         bookingNotificationService.pushBookingUpdateToUsers(booking, "CONFIRMED");
-                                } else if (allowPartial && !assignments.isEmpty()) {
-                                        // Partial assignment allowed
+                                } else if (allowPartial && !assignments.isEmpty()) {                                        // Partial assignment allowed
                                         booking.setStatus(BookingStatus.CONFIRMED);
                                         log.info("Partial assignment: {} of {} services assigned",
                                                         assignments.size(), booking.getBookingServices().size());

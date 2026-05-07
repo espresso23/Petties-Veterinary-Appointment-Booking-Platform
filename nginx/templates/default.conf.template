@@ -5,6 +5,19 @@ server {
     listen 80;
     server_name ${NGINX_SERVER_NAME};
 
+    # Redirect all HTTP to HTTPS
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name ${NGINX_SERVER_NAME};
+
+    ssl_certificate ${NGINX_SSL_CERT};
+    ssl_certificate_key ${NGINX_SSL_KEY};
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+
     client_max_body_size 60M;
     resolver ${NGINX_RESOLVER} ipv6=off valid=30s;
     limit_req_status 429;
@@ -36,7 +49,7 @@ server {
         proxy_read_timeout 300s;
     }
 
-    location /api/auth {
+    location /auth {
         limit_req zone=auth_limit burst=10 nodelay;
         proxy_pass http://backend:8080;
         proxy_http_version 1.1;

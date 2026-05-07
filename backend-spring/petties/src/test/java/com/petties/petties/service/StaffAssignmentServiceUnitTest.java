@@ -169,6 +169,48 @@ public class StaffAssignmentServiceUnitTest {
         }
 
         @Nested
+        @DisplayName("reserveSlotsForBooking")
+        class ReserveSlotsForBookingTests {
+                @Test
+                @DisplayName("Should save BookingSlot with correct booking_id")
+                void shouldSaveBookingSlotWithCorrectBookingId() {
+                        // Arrange
+                        Booking booking = new Booking();
+                        booking.setBookingId(UUID.randomUUID());
+                        booking.setBookingCode("BK001");
+                        booking.setBookingDate(testDate);
+                        booking.setBookingTime(testTime);
+
+                        com.petties.petties.model.ClinicService service = new com.petties.petties.model.ClinicService();
+                        service.setDurationTime(30);
+
+                        BookingServiceItem item = new BookingServiceItem();
+                        item.setBooking(booking);
+                        item.setService(service);
+                        item.setAssignedStaff(staff1);
+                        booking.setBookingServices(List.of(item));
+
+                        StaffShift shift = createMockShift(staff1, testDate, LocalTime.of(8, 0), LocalTime.of(17, 0));
+                        when(staffShiftRepository.findByStaff_UserIdAndWorkDate(staff1Id, testDate))
+                                        .thenReturn(List.of(shift));
+
+                        Slot slot = createMockSlot(shift.getShiftId(), testTime, testTime.plusMinutes(30), SlotStatus.AVAILABLE);
+                        when(slotRepository.findByShift_ShiftIdAndStatusOrderByStartTime(shift.getShiftId(), SlotStatus.AVAILABLE))
+                                        .thenReturn(List.of(slot));
+
+                        // Act
+                        staffAssignmentService.reserveSlotsForBooking(booking);
+
+                        // Assert
+                        verify(bookingSlotRepository).save(argThat(bs -> 
+                                bs.getBooking() != null && 
+                                bs.getBooking().getBookingId().equals(booking.getBookingId()) &&
+                                bs.getSlot().getSlotId().equals(slot.getSlotId())
+                        ));
+                }
+        }
+
+        @Nested
         @DisplayName("reassignStaffForService - Specialty Validation")
         class SpecialtyValidationTests {
                 private UUID serviceItemId;

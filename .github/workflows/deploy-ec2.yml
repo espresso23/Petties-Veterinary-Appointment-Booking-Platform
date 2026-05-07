@@ -90,15 +90,105 @@ jobs:
             export BACKEND_HOST_PORT=${BACKEND_HOST_PORT:-8080}
             export AI_HOST_PORT=${AI_HOST_PORT:-8000}
             export NGINX_HOST_PORT=${NGINX_HOST_PORT:-80}
-            export NGINX_SERVER_NAME=${NGINX_SERVER_NAME:-petties.world}
+            export NGINX_SERVER_NAME=${NGINX_SERVER_NAME:-api.petties.world}
             export NGINX_FRONTEND_UPSTREAM=${NGINX_FRONTEND_UPSTREAM:-https://www.petties.world}
             export NGINX_FRONTEND_HOST=${NGINX_FRONTEND_HOST:-www.petties.world}
             export NGINX_RESOLVER=${NGINX_RESOLVER:-8.8.8.8}
 
             COMPOSE_PROJECT=${COMPOSE_PROJECT_NAME:-petties-prod}
+
+            echo "🔍 Checking external dependencies (PostgreSQL/MongoDB/Redis/Qdrant)..."
+            python3 - <<'PY'
+            import os
+            import socket
+            import sys
+            import urllib.parse
+            import urllib.request
+
+            def fail(msg: str) -> None:
+                print(f"❌ {msg}")
+                sys.exit(1)
+
+            def ok(msg: str) -> None:
+                print(f"✅ {msg}")
+
+            def check_tcp(name: str, host: str, port: int, timeout: float = 5.0) -> None:
+                if not host:
+                    fail(f"{name}: missing host configuration")
+                try:
+                    with socket.create_connection((host, port), timeout=timeout):
+                        ok(f"{name}: TCP {host}:{port} reachable")
+                except Exception as exc:
+                    fail(f"{name}: cannot connect to {host}:{port} ({exc})")
+
+            # PostgreSQL
+            db_host = os.getenv("DB_HOST", "").strip()
+            db_port = int(os.getenv("DB_PORT", "5432"))
+            check_tcp("PostgreSQL", db_host, db_port)
+
+            # Redis
+            redis_host = os.getenv("REDIS_HOST", "").strip()
+            redis_port = int(os.getenv("REDIS_PORT", "6379"))
+            check_tcp("Redis", redis_host, redis_port)
+
+            # MongoDB (supports mongodb:// and mongodb+srv:// forms)
+            mongo_uri = os.getenv("MONGO_URI", "").strip()
+            if not mongo_uri:
+                fail("MongoDB: MONGO_URI is empty")
+
+            parsed_mongo = urllib.parse.urlparse(mongo_uri)
+            mongo_netloc = parsed_mongo.netloc or parsed_mongo.path
+            if "@" in mongo_netloc:
+                mongo_netloc = mongo_netloc.split("@", 1)[1]
+            mongo_seed = mongo_netloc.split(",")[0]
+            mongo_host = mongo_seed.split(":")[0].strip()
+            if not mongo_host:
+                fail("MongoDB: cannot parse host from MONGO_URI")
+
+            mongo_port = 27017
+            if ":" in mongo_seed:
+                try:
+                    mongo_port = int(mongo_seed.rsplit(":", 1)[1])
+                except ValueError:
+                    mongo_port = 27017
+            check_tcp("MongoDB", mongo_host, mongo_port)
+
+            # Qdrant TCP + HTTP health
+            qdrant_url = os.getenv("QDRANT_URL", "").strip()
+            if not qdrant_url:
+                fail("Qdrant: QDRANT_URL is empty")
+
+            if "://" not in qdrant_url:
+                qdrant_url = f"http://{qdrant_url}"
+            parsed_qdrant = urllib.parse.urlparse(qdrant_url)
+            qdrant_host = (parsed_qdrant.hostname or "").strip()
+            qdrant_port = parsed_qdrant.port or (443 if parsed_qdrant.scheme == "https" else 6333)
+            check_tcp("Qdrant", qdrant_host, qdrant_port)
+
+            qdrant_base = f"{parsed_qdrant.scheme}://{parsed_qdrant.netloc}"
+            qdrant_health_url = f"{qdrant_base}/health"
+            req = urllib.request.Request(qdrant_health_url, method="GET")
+            qdrant_api_key = os.getenv("QDRANT_API_KEY", "").strip()
+            if qdrant_api_key:
+                req.add_header("api-key", qdrant_api_key)
+            try:
+                with urllib.request.urlopen(req, timeout=8) as resp:
+                    status = resp.getcode()
+                    if status >= 400:
+                        fail(f"Qdrant: /health returned status {status}")
+                    ok(f"Qdrant: HTTP health check passed ({status})")
+            except Exception as exc:
+                fail(f"Qdrant: HTTP health check failed ({exc})")
+            PY
             
             echo "📋 Current commit:"
             git log --oneline -1
+
+            echo "🧹 Pre-deployment cleanup (Safe for Data)..."
+            # Loại bỏ toàn bộ các image không còn container nào sử dụng và build cache cũ
+            # KHÔNG sử dụng flag --volumes để bảo vệ dữ liệu database/uploads của Prod
+            docker image prune -af
+            docker builder prune -af
 
             echo "🧽 Removing conflicting containers (if any)..."
             docker rm -f ${COMPOSE_PROJECT}_backend-1 ${COMPOSE_PROJECT}_ai-service-1 || true
@@ -113,20 +203,21 @@ jobs:
             sleep 15
             
             echo "🏥 Checking backend health (port ${BACKEND_HOST_PORT:-8080})..."
-            curl -f "http://127.0.0.1:${BACKEND_HOST_PORT:-8080}/api/actuator/health" || echo "⚠️ Backend health check failed"
+            curl -fsS "http://127.0.0.1:${BACKEND_HOST_PORT:-8080}/api/actuator/health"
             
             echo "🤖 Checking AI service health (port ${AI_HOST_PORT:-8000})..."
-            curl -f "http://127.0.0.1:${AI_HOST_PORT:-8000}/health" || echo "⚠️ AI service health check failed"
+            curl -fsS "http://127.0.0.1:${AI_HOST_PORT:-8000}/health"
             
             echo "📜 Showing recent logs..."
             docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs --tail=30
             
-            echo "🧹 Cleaning up Docker resources..."
-            docker system prune -a --volumes -f || true
+            echo "🧹 Cleaning up Docker resources (safe mode, no volumes)..."
+            docker image prune -af || true
+            docker builder prune -af || true
             
             echo "🚀 ============================================"
             echo "✅ Production Deployment complete!"
             echo "🌐 FE: https://www.petties.world"
-            echo "🔌 BE: https://petties.world/api (unified domain)"
-            echo "🤖 AI:  https://petties.world/ai (unified domain)"
+            echo "🔌 BE: https://api.petties.world/api (unified domain)"
+            echo "🤖 AI:  https://api.petties.world/ai (unified domain)"
             echo "🚀 ============================================"

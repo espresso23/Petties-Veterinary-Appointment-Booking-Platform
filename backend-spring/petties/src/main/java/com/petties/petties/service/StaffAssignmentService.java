@@ -513,6 +513,7 @@ public class StaffAssignmentService {
                 BookingSlot bs = new BookingSlot();
                 bs.setSlot(s);
                 bs.setBookingServiceItem(item);
+                bs.setBooking(item.getBooking());
                 bookingSlotRepository.save(bs);
             }
         }

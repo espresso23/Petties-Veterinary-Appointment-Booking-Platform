@@ -1,8 +1,59 @@
 # 🐾 PETTIES Project Status
 
-> **Last Updated:** 2026-04-20
+> **Last Updated:** 2026-05-07
 > **Current Sprint:** Post Sprint 13 - Production Hardening & AI Enhancement
 > **Overall Progress:** ~95% (code-based scan)
+
+---
+
+### Production Deploy Safety Hardening (Code-based Evidence - 2026-05-07)
+
+**Scope:** Align production gateway domain with `api.petties.world`, fail deployment on unhealthy services, and remove destructive Docker cleanup behavior that could risk production data.
+
+**Implemented changes:**
+- Updated deploy workflow default gateway domain:
+  - `NGINX_SERVER_NAME` default changed from `petties.world` to `api.petties.world`.
+- Enforced strict health gates in deployment:
+  - Backend/AI health checks now use `curl -fsS` without fallback echo, so failed health checks fail the workflow.
+- Hardened Docker cleanup policy:
+  - Removed `docker system prune -a --volumes -f`.
+  - Replaced with non-volume cleanup (`docker image prune -af`, `docker builder prune -af`) to reduce risk of production data loss.
+
+**Changed files (evidence):**
+- `.github/workflows/deploy-ec2.yml`
+
+---
+
+### Production Docker Log Rotation Hardening (Code-based Evidence - 2026-05-07)
+
+**Scope:** Prevent EC2 disk growth from unbounded Docker container logs during CI/CD redeploy cycles and high-traffic runtime.
+
+**Implemented changes:**
+- Added container log rotation limits in production compose:
+  - `backend`: `json-file` with `max-size=10m`, `max-file=5`
+  - `ai-service`: `json-file` with `max-size=20m`, `max-file=10`
+  - `nginx`: `json-file` with `max-size=10m`, `max-file=5`
+- Kept existing non-volume cleanup policy to avoid production data-loss risk while reducing log bloat risk at source.
+
+**Changed files (evidence):**
+- `docker-compose.prod.yml`
+
+---
+
+### Production Dependency Health Gates (Code-based Evidence - 2026-05-07)
+
+**Scope:** Add pre-deploy dependency health gates for managed data services so production rollout fails fast when external infra is unreachable.
+
+**Implemented changes:**
+- Added strict pre-deploy checks in `deploy-ec2.yml` for:
+  - PostgreSQL (`DB_HOST`/`DB_PORT`) via TCP connectivity.
+  - Redis (`REDIS_HOST`/`REDIS_PORT`) via TCP connectivity.
+  - MongoDB (`MONGO_URI`) via parsed host/port TCP connectivity.
+  - Qdrant (`QDRANT_URL`) via TCP connectivity + HTTP `/health` probe (with optional `QDRANT_API_KEY` header).
+- All checks are fail-fast (`sys.exit(1)`), so deployment stops before `docker-compose up` if any dependency is unhealthy/unreachable.
+
+**Changed files (evidence):**
+- `.github/workflows/deploy-ec2.yml`
 
 ---
 
