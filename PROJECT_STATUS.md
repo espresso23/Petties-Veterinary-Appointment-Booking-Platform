@@ -85,6 +85,25 @@
 
 ---
 
+### Production Deploy Pipeline Hardening (Env Load + Sequential Build) (Code-based Evidence - 2026-05-07)
+
+**Scope:** Prevent deploy failures caused by malformed env parsing for JVM options and low-disk errors during concurrent image builds on EC2.
+
+**Implemented changes:**
+- Updated `.env.prod` loading in deploy workflow:
+  - Replaced line-by-line `export "$line"` logic with `set -a` + `source` from filtered env content.
+  - Preserves values containing spaces (notably `JAVA_OPTS`), avoiding broken variable export behavior.
+- Changed build strategy from single `up --build` to sequential image builds:
+  - Build `backend` first, prune dangling images.
+  - Build `ai-service` next, prune again.
+  - Start services afterward with `up -d --remove-orphans --profile monitoring`.
+- Increased initial startup wait before health checks from `10s` to `30s` to reduce early false negatives while Spring Boot initializes.
+
+**Changed files (evidence):**
+- `.github/workflows/deploy-ec2.yml`
+
+---
+
 ### Production Backend Memory Tuning (Code-based Evidence - 2026-05-07)
 
 **Scope:** Reduce Spring Boot restart loops during production startup/health-check windows by increasing backend runtime memory headroom in production compose defaults.

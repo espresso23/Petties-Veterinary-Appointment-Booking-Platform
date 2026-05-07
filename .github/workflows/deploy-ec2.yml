@@ -73,17 +73,12 @@ jobs:
               fi
             fi
 
-            # Load only valid KEY=VALUE lines from env file (ignore JVM args or other non-assignment lines)
+            # Load env safely, preserving values with spaces (e.g. JAVA_OPTS).
             if [ -f "$ENV_FILE" ]; then
-              while IFS= read -r _line || [ -n "$_line" ]; do
-                line="$_line"
-                case "$line" in
-                  ''|\#*) continue ;;
-                esac
-                if printf '%s' "$line" | grep -qE '^[A-Za-z_][A-Za-z0-9_]*='; then
-                  export "$line"
-                fi
-              done < "$ENV_FILE"
+              set -a
+              # shellcheck disable=SC1090
+              source <(grep -v '^[[:space:]]*#' "$ENV_FILE" | grep -v '^[[:space:]]*$')
+              set +a
             fi
 
             export COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-petties-prod}
@@ -157,11 +152,19 @@ jobs:
             free_port_or_fail "$NGINX_HOST_PORT"
             free_port_or_fail "$NGINX_HTTPS_PORT"
             
-            echo "🔨 Building and starting production containers..."
-            docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" --profile monitoring up -d --build
+            echo "🔨 Building backend image..."
+            docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build backend
+            docker image prune -f
+
+            echo "🔨 Building ai-service image..."
+            docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build ai-service
+            docker image prune -f
+
+            echo "🚀 Starting production containers..."
+            docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" --profile monitoring up -d --remove-orphans
             
             echo "⏳ Waiting for services to start..."
-            sleep 10
+            sleep 30
 
             wait_for_http_health() {
               _name="$1"
