@@ -119,17 +119,17 @@ class _MyBookingsTabState extends State<MyBookingsTab>
                     // Tab 3: Đang diễn ra (IN_PROGRESS)
                     _buildStatusSection(
                       myBookings:
-                        _filterByStatuses(_bookings, const ['IN_PROGRESS']),
+                          _filterByStatuses(_bookings, const ['IN_PROGRESS']),
                       proxyBookings: _filterByStatuses(
-                        _proxyBookings, const ['IN_PROGRESS']),
+                          _proxyBookings, const ['IN_PROGRESS']),
                     ),
 
                     // Tab 4: Hoàn thành
                     _buildStatusSection(
                       myBookings:
-                        _filterByStatuses(_bookings, const ['COMPLETED']),
+                          _filterByStatuses(_bookings, const ['COMPLETED']),
                       proxyBookings: _filterByStatuses(
-                        _proxyBookings, const ['COMPLETED']),
+                          _proxyBookings, const ['COMPLETED']),
                     ),
 
                     // Tab 5: Đã hủy (CANCELLED, REJECTED, NO_SHOW)
@@ -309,57 +309,75 @@ class _MyBookingsTabState extends State<MyBookingsTab>
                   ),
                 ),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: Row(
-                        children: [
-                          _buildStatusBadge(booking.status),
-                          if (booking.paymentStatus != null) ...[
-                            const SizedBox(width: 8),
-                            _buildPaymentBadge(booking.paymentStatus!),
-                          ],
-                          if (booking.type == 'SOS') ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.red.shade100,
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                    color: Colors.red.shade400, width: 1),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.emergency,
-                                      size: 12, color: Colors.red.shade700),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'SOS',
-                                    style: TextStyle(
-                                      color: Colors.red.shade700,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: 0.5,
-                                    ),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildStatusBadge(booking.status),
+                              if (booking.paymentStatus != null) ...[
+                                const SizedBox(width: 6),
+                                _buildPaymentBadge(booking.paymentStatus!),
+                              ],
+                              if (booking.type == 'SOS') ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 7, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red.shade100,
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                        color: Colors.red.shade400, width: 1),
                                   ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ],
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.emergency,
+                                          size: 11, color: Colors.red.shade700),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        'SOS',
+                                        style: TextStyle(
+                                          color: Colors.red.shade700,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: 0.3,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      FormatUtils.formatCurrency(booking.totalPrice ?? 0),
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: statusColor,
-                        letterSpacing: 0.5,
+                    Flexible(
+                      fit: FlexFit.loose,
+                      child: Align(
+                        alignment: Alignment.topRight,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            FormatUtils.formatCurrency(booking.totalPrice ?? 0),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: statusColor,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -421,12 +439,16 @@ class _MyBookingsTabState extends State<MyBookingsTab>
                                   const Icon(Icons.calendar_month_rounded,
                                       size: 14, color: AppColors.stone500),
                                   const SizedBox(width: 4),
-                                  Text(
-                                    '${_formatDateString(booking.bookingDate)} • ${_formatTime(booking.bookingTime)}',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: AppColors.stone600,
-                                      fontWeight: FontWeight.w500,
+                                  Flexible(
+                                    child: Text(
+                                      '${_formatDateString(booking.bookingDate)} • ${_formatTime(booking.bookingTime)}',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: AppColors.stone600,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                 ],
@@ -526,214 +548,184 @@ class _MyBookingsTabState extends State<MyBookingsTab>
                     color: AppColors.stone50,
                     border: Border(top: BorderSide(color: AppColors.stone200)),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                  child: Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      // === LEFT SIDE ACTIONS (Rating, Report, Track, Cancel, Contact) ===
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Track button moved to left side
-                          if (booking.type == 'SOS' &&
-                              ['CONFIRMED', 'IN_PROGRESS']
-                                  .contains(booking.status)) ...[
-                            _buildActionButton(
-                              label: 'THEO DÕI',
-                              color: Colors.blue.shade700,
-                              isFilled: true,
-                              onTap: () => context.push(
-                                  '/sos/tracking/${booking.bookingId}',
-                                  extra: booking),
+                      if (booking.type == 'SOS' &&
+                          ['CONFIRMED', 'IN_PROGRESS'].contains(booking.status))
+                        _buildActionButton(
+                          label: 'THEO DÕI',
+                          color: Colors.blue.shade700,
+                          isFilled: true,
+                          onTap: () => context.push(
+                              '/sos/tracking/${booking.bookingId}',
+                              extra: booking),
+                        ),
+                      if (booking.status == 'COMPLETED' &&
+                          booking.isReviewed != true)
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.of(context)
+                                .push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    WriteReviewScreen(booking: booking),
+                              ),
+                            )
+                                .then((value) {
+                              if (value == true) {
+                                _fetchBookings();
+                              }
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                  color: Colors.amber.shade300, width: 1),
                             ),
-                            const SizedBox(height: 8),
-                          ],
-
-                          // Rating Display / Review Button
-                          if (booking.status == 'COMPLETED')
-                            if (booking.isReviewed != true)
-                              GestureDetector(
-                                onTap: () {
-                                  Navigator.of(context)
-                                      .push(
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          WriteReviewScreen(booking: booking),
-                                    ),
-                                  )
-                                      .then((value) {
-                                    if (value == true) {
-                                      _fetchBookings();
-                                    }
-                                  });
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: Colors.amber.withOpacity(0.05),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                        color: Colors.amber.shade300, width: 1),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.star_border_rounded,
-                                          size: 16, color: Colors.amber),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        'Đánh giá',
-                                        style: TextStyle(
-                                          color: Colors.amber.shade700,
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.star_border_rounded,
+                                    size: 16, color: Colors.amber),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Đánh giá',
+                                  style: TextStyle(
+                                    color: Colors.amber.shade700,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12,
                                   ),
                                 ),
-                              )
-                            else if (booking.rating != null)
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  GestureDetector(
-                                    onTap: () =>
-                                        _openClinicReviewSection(booking),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 10, vertical: 8),
-                                      decoration: BoxDecoration(
-                                        color: Colors.amber.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(
-                                            color: Colors.amber, width: 1),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          const Icon(Icons.star_rounded,
-                                              size: 16, color: Colors.amber),
-                                          const SizedBox(width: 6),
-                                          const Text(
-                                            'Xem đánh giá',
-                                            style: TextStyle(
-                                              color: Colors.amber,
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ],
+                              ],
+                            ),
+                          ),
+                        )
+                      else if (booking.status == 'COMPLETED' &&
+                          booking.rating != null)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            GestureDetector(
+                              onTap: () => _openClinicReviewSection(booking),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: Colors.amber.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border:
+                                      Border.all(color: Colors.amber, width: 1),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.star_rounded,
+                                        size: 16, color: Colors.amber),
+                                    const SizedBox(width: 6),
+                                    const Text(
+                                      'Xem đánh giá',
+                                      style: TextStyle(
+                                        color: Colors.amber,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12,
                                       ),
                                     ),
-                                  ),
-                                  InkWell(
-                                    onTap: () {
-                                      Navigator.of(context)
-                                          .push(
-                                        MaterialPageRoute(
-                                          builder: (_) => WriteReviewScreen(
-                                              booking: booking,
-                                              isEditMode: true),
-                                        ),
-                                      )
-                                          .then((value) {
-                                        if (value == true) {
-                                          _fetchBookings();
-                                        }
-                                      });
-                                    },
-                                    borderRadius: BorderRadius.circular(20),
-                                    child: const Padding(
-                                      padding: EdgeInsets.all(4.0),
-                                      child: Icon(Icons.edit_rounded,
-                                          size: 15, color: AppColors.stone400),
-                                    ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-
-                          // Report button always on the left for symmetry
-                          if (booking.status == 'COMPLETED') ...[
-                            const SizedBox(height: 8),
-                            _buildActionButton(
-                              label: 'BÁO CÁO',
-                              color: AppColors.error,
-                              isOutlined: true,
-                              onTap: () =>
-                                  showReportBookingDialog(context, booking),
                             ),
-                          ],
-
-                          if (booking.status == 'PENDING') ...[
-                            _buildActionButton(
-                              label: 'LIÊN HỆ',
-                              color: AppColors.stone500,
-                              isOutlined: true,
+                            InkWell(
                               onTap: () {
-                                if (booking.clinicId != null) {
-                                  context.push(Uri(
-                                      path: '/chat/detail',
-                                      queryParameters: {
-                                        'clinicId': booking.clinicId
-                                      }).toString());
-                                }
+                                Navigator.of(context)
+                                    .push(
+                                  MaterialPageRoute(
+                                    builder: (_) => WriteReviewScreen(
+                                        booking: booking, isEditMode: true),
+                                  ),
+                                )
+                                    .then((value) {
+                                  if (value == true) {
+                                    _fetchBookings();
+                                  }
+                                });
                               },
-                            ),
-                            const SizedBox(height: 8),
-                            _buildActionButton(
-                              label: booking.type == 'SOS' ? 'HỦY SOS' : 'HỦY LỊCH',
-                              color: AppColors.coral,
-                              isOutlined: true,
-                              onTap: () => booking.type == 'SOS'
-                                  ? _showSosCancelDialog(context, booking)
-                                  : _showCancelDialog(context, booking),
+                              borderRadius: BorderRadius.circular(20),
+                              child: const Padding(
+                                padding: EdgeInsets.all(4.0),
+                                child: Icon(Icons.edit_rounded,
+                                    size: 15, color: AppColors.stone400),
+                              ),
                             ),
                           ],
-
-                          if (booking.type == 'SOS' && booking.status == 'CONFIRMED') ...[
-                            _buildActionButton(
-                              label: 'HỦY SOS',
-                              color: Colors.red.shade700,
-                              isOutlined: true,
-                              onTap: () => _showSosCancelDialog(context, booking),
-                            ),
-                          ],
-                        ],
-                      ),
-
-                      // === RIGHT SIDE ACTIONS (QR, Rebook) ===
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (_isQrPaymentVisible(booking)) ...[
-                            _buildActionButton(
-                              label: 'THANH TOÁN QR',
-                              color: Colors.indigo.shade700,
-                              isFilled: true,
-                              onTap: () => _showQrPaymentDialog(booking),
-                            ),
-                            const SizedBox(height: 8),
-                          ],
-
-                          if ([
-                            'CANCELLED',
-                            'REJECTED',
-                            'NO_SHOW',
-                            'COMPLETED',
-                            'IN_PROGRESS'
-                          ].contains(booking.status))
-                            _buildActionButton(
-                              label: 'ĐẶT LẠI',
-                              color: AppColors.primary,
-                              isFilled: true,
-                              onTap: () => _handleRebook(context, booking),
-                            ),
-                        ],
-                      ),
+                        ),
+                      if (booking.status == 'COMPLETED')
+                        _buildActionButton(
+                          label: 'BÁO CÁO',
+                          color: AppColors.error,
+                          isOutlined: true,
+                          onTap: () =>
+                              showReportBookingDialog(context, booking),
+                        ),
+                      if (booking.status == 'PENDING')
+                        _buildActionButton(
+                          label: 'LIÊN HỆ',
+                          color: AppColors.stone500,
+                          isOutlined: true,
+                          onTap: () {
+                            if (booking.clinicId != null) {
+                              context.push(Uri(
+                                  path: '/chat/detail',
+                                  queryParameters: {
+                                    'clinicId': booking.clinicId
+                                  }).toString());
+                            }
+                          },
+                        ),
+                      if (booking.status == 'PENDING')
+                        _buildActionButton(
+                          label: booking.type == 'SOS' ? 'HỦY SOS' : 'HỦY LỊCH',
+                          color: AppColors.coral,
+                          isOutlined: true,
+                          onTap: () => booking.type == 'SOS'
+                              ? _showSosCancelDialog(context, booking)
+                              : _showCancelDialog(context, booking),
+                        ),
+                      if (booking.type == 'SOS' &&
+                          booking.status == 'CONFIRMED')
+                        _buildActionButton(
+                          label: 'HỦY SOS',
+                          color: Colors.red.shade700,
+                          isOutlined: true,
+                          onTap: () => _showSosCancelDialog(context, booking),
+                        ),
+                      if (_isQrPaymentVisible(booking))
+                        _buildActionButton(
+                          label: 'THANH TOÁN QR',
+                          color: Colors.indigo.shade700,
+                          isFilled: true,
+                          onTap: () => _showQrPaymentDialog(booking),
+                        ),
+                      if ([
+                        'CANCELLED',
+                        'REJECTED',
+                        'NO_SHOW',
+                        'COMPLETED',
+                        'IN_PROGRESS'
+                      ].contains(booking.status))
+                        _buildActionButton(
+                          label: 'ĐẶT LẠI',
+                          color: AppColors.primary,
+                          isFilled: true,
+                          onTap: () => _handleRebook(context, booking),
+                        ),
                     ],
                   ),
                 ),
@@ -774,7 +766,7 @@ class _MyBookingsTabState extends State<MyBookingsTab>
     final label = isPaid ? 'ĐÃ THANH TOÁN' : 'CHƯA THANH TOÁN';
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(20),
@@ -784,9 +776,9 @@ class _MyBookingsTabState extends State<MyBookingsTab>
         label,
         style: TextStyle(
           color: textColor,
-          fontSize: 10,
+          fontSize: 9,
           fontWeight: FontWeight.w900,
-          letterSpacing: 0.4,
+          letterSpacing: 0.3,
         ),
       ),
     );
@@ -1147,7 +1139,8 @@ class _MyBookingsTabState extends State<MyBookingsTab>
           builder: (ctx, setDialogState) {
             void startPolling() {
               pollTimer?.cancel();
-              pollTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
+              pollTimer =
+                  Timer.periodic(const Duration(seconds: 10), (_) async {
                 try {
                   final result =
                       await _qrPaymentService.checkQrStatus(booking.bookingId!);
@@ -1156,7 +1149,8 @@ class _MyBookingsTabState extends State<MyBookingsTab>
                   if (status == 'PAID') {
                     pollTimer?.cancel();
                     paid = true;
-                    if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+                    if (dialogContext.mounted)
+                      Navigator.of(dialogContext).pop();
                   }
                 } catch (_) {
                   pollTimer?.cancel();
@@ -1168,7 +1162,8 @@ class _MyBookingsTabState extends State<MyBookingsTab>
             if (pollTimer == null && !paid) startPolling();
 
             final qrUrl = booking.qrImageUrl;
-            final description = booking.paymentDescription ?? 'Thanh toán đặt lịch khám';
+            final description =
+                booking.paymentDescription ?? 'Thanh toán đặt lịch khám';
             final amount = booking.totalPrice ?? 0;
 
             return WillPopScope(
@@ -1197,7 +1192,8 @@ class _MyBookingsTabState extends State<MyBookingsTab>
                       Text(
                         description,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 13, color: Colors.grey),
+                        style:
+                            const TextStyle(fontSize: 13, color: Colors.grey),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -1232,8 +1228,8 @@ class _MyBookingsTabState extends State<MyBookingsTab>
                               errorBuilder: (_, __, ___) => const SizedBox(
                                 width: 220,
                                 height: 220,
-                                child: Center(
-                                    child: Text('Không tải được mã QR')),
+                                child:
+                                    Center(child: Text('Không tải được mã QR')),
                               ),
                             ),
                           ),
@@ -1287,9 +1283,8 @@ class _MyBookingsTabState extends State<MyBookingsTab>
                               ),
                               onPressed: () async {
                                 try {
-                                  final result =
-                                      await _qrPaymentService.checkQrStatus(
-                                          booking.bookingId!);
+                                  final result = await _qrPaymentService
+                                      .checkQrStatus(booking.bookingId!);
                                   final status = (result['status'] ?? '')
                                       .toString()
                                       .trim()
@@ -1392,7 +1387,7 @@ class _MyBookingsTabState extends State<MyBookingsTab>
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(20), // Pill shape
@@ -1402,21 +1397,21 @@ class _MyBookingsTabState extends State<MyBookingsTab>
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 6,
-            height: 6,
+            width: 5,
+            height: 5,
             decoration: BoxDecoration(
               color: color,
               shape: BoxShape.circle,
             ),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 5),
           Text(
             label.toUpperCase(),
             style: TextStyle(
               color: color,
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: FontWeight.w800,
-              letterSpacing: 0.5,
+              letterSpacing: 0.4,
             ),
           ),
         ],
