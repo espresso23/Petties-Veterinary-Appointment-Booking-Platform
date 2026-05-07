@@ -120,18 +120,11 @@ FROM base AS prod
 
 LABEL environment="production"
 
-# Run application với JVM settings tối ưu cho 512MB RAM
-# MaxRAMPercentage=70 để chừa RAM cho OS (EC2 free tier)
-CMD ["java", \
-     "-XX:+UseContainerSupport", \
-     "-XX:MaxRAMPercentage=70.0", \
-     "-XX:+UseG1GC", \
-     "-XX:+UseStringDeduplication", \
-     "-XX:+OptimizeStringConcat", \
-     "-Xss256k", \
-     "-Djava.security.egd=file:/dev/./urandom", \
-     "-Dspring.profiles.active=${SPRING_PROFILES_ACTIVE:-prod}", \
-     "-jar", "app.jar"]
+# Default JVM options for production. Can be overridden by JAVA_OPTS.
+ENV APP_JAVA_DEFAULT_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=70.0 -XX:+UseG1GC -XX:+UseStringDeduplication -XX:+OptimizeStringConcat -Xss256k -Djava.security.egd=file:/dev/./urandom"
+
+# Use shell form so JAVA_OPTS from compose/env is actually applied.
+CMD ["sh", "-c", "exec java ${JAVA_OPTS:-$APP_JAVA_DEFAULT_OPTS} -Dspring.profiles.active=${SPRING_PROFILES_ACTIVE:-prod} -jar app.jar"]
 
 # ============================================
 # Final stage selection based on BUILD_ENV

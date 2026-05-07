@@ -6,6 +6,24 @@
 
 ---
 
+### Production Health Check Retry Hardening (Code-based Evidence - 2026-05-07)
+
+**Scope:** Reduce false-negative deployment failures caused by transient startup windows where services are still initializing when first health probe is sent.
+
+**Implemented changes:**
+- Replaced single-shot production health probes in deploy workflow with retry-based checks:
+  - Backend: retry up to 30 attempts, 3 seconds interval.
+  - AI service: retry up to 20 attempts, 3 seconds interval.
+- Added fail-path diagnostics:
+  - On backend health failure, automatically print backend logs (`--tail=200`) before exiting.
+  - On AI health failure, automatically print AI service logs (`--tail=200`) before exiting.
+- Kept strict fail-fast behavior after retries to preserve production safety gate.
+
+**Changed files (evidence):**
+- `.github/workflows/deploy-ec2.yml`
+
+---
+
 ### Production Backend Memory Tuning (Code-based Evidence - 2026-05-07)
 
 **Scope:** Reduce Spring Boot restart loops during production startup/health-check windows by increasing backend runtime memory headroom in production compose defaults.
@@ -17,9 +35,13 @@
 - Increased backend container memory defaults:
   - `BACKEND_MEMORY_LIMIT` from `512M` to `1024M`.
   - `BACKEND_MEMORY_RESERVATION` from `384M` to `512M`.
+- Ensured runtime memory settings are actually applied:
+  - Backend production `Dockerfile` now runs Java via shell form so `JAVA_OPTS` from compose/env is honored.
+  - Added `mem_limit`/`mem_reservation` in compose for non-swarm `docker-compose` compatibility.
 
 **Changed files (evidence):**
 - `docker-compose.prod.yml`
+- `backend-spring/petties/Dockerfile`
 
 ---
 

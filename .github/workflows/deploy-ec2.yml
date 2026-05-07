@@ -149,13 +149,41 @@ jobs:
             docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build
             
             echo "⏳ Waiting for services to start..."
-            sleep 15
-            
-            echo "🏥 Checking backend health (port ${BACKEND_HOST_PORT:-8080})..."
-            curl -fsS "http://127.0.0.1:${BACKEND_HOST_PORT:-8080}/api/actuator/health"
-            
-            echo "🤖 Checking AI service health (port ${AI_HOST_PORT:-8000})..."
-            curl -fsS "http://127.0.0.1:${AI_HOST_PORT:-8000}/health"
+            sleep 10
+
+            wait_for_http_health() {
+              _name="$1"
+              _url="$2"
+              _max_attempts="${3:-30}"
+              _sleep_seconds="${4:-3}"
+
+              echo "🏥 Checking ${_name} health: ${_url}"
+              _attempt=1
+              while [ "$_attempt" -le "$_max_attempts" ]; do
+                if curl -fsS "$_url" >/dev/null 2>&1; then
+                  echo "✅ ${_name} healthy (attempt ${_attempt}/${_max_attempts})"
+                  return 0
+                fi
+                echo "⏳ ${_name} not ready yet (${_attempt}/${_max_attempts}), retrying in ${_sleep_seconds}s..."
+                _attempt=$((_attempt + 1))
+                sleep "$_sleep_seconds"
+              done
+
+              echo "❌ ${_name} health check failed after ${_max_attempts} attempts."
+              return 1
+            }
+
+            if ! wait_for_http_health "Backend" "http://127.0.0.1:${BACKEND_HOST_PORT:-8080}/api/actuator/health" 30 3; then
+              echo "📜 Backend logs (last 200 lines):"
+              docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs --tail=200 backend || true
+              exit 1
+            fi
+
+            if ! wait_for_http_health "AI service" "http://127.0.0.1:${AI_HOST_PORT:-8000}/health" 20 3; then
+              echo "📜 AI service logs (last 200 lines):"
+              docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs --tail=200 ai-service || true
+              exit 1
+            fi
             
             echo "📜 Showing recent logs..."
             docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs --tail=30
