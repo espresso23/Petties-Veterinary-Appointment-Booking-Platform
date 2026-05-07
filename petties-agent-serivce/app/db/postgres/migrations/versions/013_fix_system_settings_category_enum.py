@@ -15,6 +15,9 @@ depends_on = None
 
 def upgrade() -> None:
     # 1) Ensure enum type exists (and has WEB_SEARCH).
+    # asyncpg không cho phép DO $$ block với multiple statements trong 1 op.execute
+    # nên dùng CREATE TYPE IF NOT EXISTS (PostgreSQL 9.1+)
+    # Tuy nhiên CREATE TYPE không có IF NOT EXISTS → dùng DO $$ nhưng tách riêng
     op.execute(
         """
         DO $$
@@ -31,7 +34,6 @@ def upgrade() -> None:
     )
 
     # 2) Normalize existing string categories to enum labels.
-    #    Old schema stored free-form strings (often 'general' lowercase).
     op.execute(
         """
         UPDATE system_settings
@@ -44,38 +46,43 @@ def upgrade() -> None:
             WHEN lower(category) IN ('vector_db', 'vector', 'vectordb') THEN 'VECTOR_DB'
             WHEN lower(category) IN ('web_search', 'websearch') THEN 'WEB_SEARCH'
             ELSE upper(category)
-        END;
+        END
         """
     )
 
-    # 3) Alter column type to enum.
+    # 3) Alter column type to enum — mỗi ALTER TABLE là 1 op.execute riêng biệt
+    #    asyncpg không cho phép multiple statements trong 1 prepared statement
+    op.execute(
+        "ALTER TABLE system_settings ALTER COLUMN category DROP DEFAULT"
+    )
+
     op.execute(
         """
         ALTER TABLE system_settings
-        ALTER COLUMN category DROP DEFAULT;
-
-        ALTER TABLE system_settings
         ALTER COLUMN category TYPE settingcategory
-        USING category::settingcategory;
-
-        ALTER TABLE system_settings
-        ALTER COLUMN category SET DEFAULT 'GENERAL';
+        USING category::settingcategory
         """
+    )
+
+    op.execute(
+        "ALTER TABLE system_settings ALTER COLUMN category SET DEFAULT 'GENERAL'"
     )
 
 
 def downgrade() -> None:
-    # Downgrade back to string column (safe).
+    # Tách riêng từng statement — cùng lý do asyncpg
+    op.execute(
+        "ALTER TABLE system_settings ALTER COLUMN category DROP DEFAULT"
+    )
+
     op.execute(
         """
         ALTER TABLE system_settings
-        ALTER COLUMN category DROP DEFAULT;
-
-        ALTER TABLE system_settings
         ALTER COLUMN category TYPE varchar(20)
-        USING category::text;
-
-        ALTER TABLE system_settings
-        ALTER COLUMN category SET DEFAULT 'general';
+        USING category::text
         """
+    )
+
+    op.execute(
+        "ALTER TABLE system_settings ALTER COLUMN category SET DEFAULT 'general'"
     )
