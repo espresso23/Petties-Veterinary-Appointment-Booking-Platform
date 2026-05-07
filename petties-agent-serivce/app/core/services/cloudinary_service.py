@@ -8,7 +8,6 @@ Version: v1.0.0
 
 import cloudinary
 import cloudinary.uploader
-from cloudinary.utils import ObjectUtils
 from loguru import logger
 from typing import Optional, Dict, Any
 from app.config.settings import settings
