@@ -92,8 +92,10 @@ from app.core.agents.enrichment_strategy import (
     build_final_answer_from_tool_result,
 )
 from app.core.agents.fast_path import (
+    build_fast_product_web_search_call,
     build_web_search_fallback_call,
     build_fast_pet_care_tool_call,
+    should_prefer_web_search_for_product_query,
     should_auto_fallback_empty_kb_to_web_search,
     should_fast_path_pet_care_from_conversation,
     should_fast_finalize_simple_pet_care_answer,
@@ -679,8 +681,6 @@ class SingleAgent:
                 "should_end": True,
             }
 
-        logger.debug(f"DEBUG: react_steps type: {type(react_steps)}")
-
         if not isinstance(react_steps, list):
             logger.error(f"react_steps is not a list: {react_steps}")
 
@@ -759,6 +759,42 @@ class SingleAgent:
         user_role = runtime_context.get("user_role")
 
         if iteration == 0:
+            product_search_call = None
+            if should_prefer_web_search_for_product_query(
+                latest_user_message,
+                user_role=user_role,
+                enabled_tools_lower=self._enabled_tools_lower,
+                has_active_booking=has_active_booking,
+                has_images=bool(images),
+            ):
+                product_search_call = build_fast_product_web_search_call(
+                    latest_user_message
+                )
+            if product_search_call:
+                thought = str(
+                    product_search_call.get("thought")
+                    or "Mình sẽ tìm thêm nguồn web để gợi ý sản phẩm phù hợp cho bạn."
+                ).strip()
+                pending_tool_call = {
+                    "name": product_search_call["name"],
+                    "arguments": product_search_call["arguments"],
+                }
+                step = ReActStep(
+                    step_type="thought",
+                    content=thought,
+                    tool_name=pending_tool_call["name"],
+                    tool_params=pending_tool_call["arguments"],
+                    tool_result=None,
+                )
+                return {
+                    "react_steps": [step],
+                    "current_thought": thought,
+                    "pending_tool_call": pending_tool_call,
+                    "should_end": False,
+                    "final_answer": None,
+                    "iteration": iteration + 1,
+                }
+
             fast_tool_call = build_fast_pet_care_tool_call(
                 latest_user_message,
                 user_role=user_role,
@@ -1171,7 +1207,7 @@ class SingleAgent:
                 tool_result=result,
             )
 
-            logger.info(f"ACTION: Called {tool_name} with {tool_params}")
+            logger.info(f"ACTION: Called {tool_name}")
 
             return {
                 "react_steps": [step],
@@ -1312,7 +1348,7 @@ class SingleAgent:
             tool_result=tool_result,
         )
 
-        logger.info(f"OBSERVATION: {observation[:100]}...")
+        logger.info("OBSERVATION: Tool result processed")
 
         latest_user_message = extract_latest_user_message(
             state.get("messages", []) or []

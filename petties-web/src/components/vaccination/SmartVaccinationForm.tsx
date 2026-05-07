@@ -15,6 +15,7 @@ registerLocale('vi', vi)
 export interface VaccinationFormData {
     vaccineName: string
     vaccineTemplateId?: string
+    clinicServiceId?: string
     vaccinationDate: Date
     nextDueDate?: Date
     doseSequence: string
@@ -48,6 +49,7 @@ export const SmartVaccinationForm = ({
     // Form State
     const [vaccineName, setVaccineName] = useState('')
     const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
+    const [selectedClinicServiceId, setSelectedClinicServiceId] = useState<string | null>(null)
     const [doseSequence, setDoseSequence] = useState<string>('1')
     const [vaccinationDate, setVaccinationDate] = useState<Date>(new Date())
     const [nextDueDate, setNextDueDate] = useState<Date | null>(null)
@@ -55,6 +57,7 @@ export const SmartVaccinationForm = ({
 
     // Modal State
     const [templateModalOpen, setTemplateModalOpen] = useState(false)
+    const [selectedServicePrice, setSelectedServicePrice] = useState<number | null>(null)
 
     // Clinic Services State
     const [errorServices, setErrorServices] = useState<string | null>(null)
@@ -87,6 +90,7 @@ export const SmartVaccinationForm = ({
             // eslint-disable-next-line react-hooks/set-state-in-effect
             setVaccineName(initialData.vaccineName || '')
             setSelectedTemplateId(initialData.vaccineTemplateId || null)
+            setSelectedClinicServiceId(initialData.clinicServiceId || null)
             setDoseSequence(initialData.doseSequence || '1')
             
             if (initialData.vaccinationDate) {
@@ -111,6 +115,30 @@ export const SmartVaccinationForm = ({
             setNotes('')
         }
     }, [initialData])
+
+    // Auto-calculate price when service or dose sequence changes
+    useEffect(() => {
+        if (!selectedClinicServiceId) {
+            setSelectedServicePrice(null);
+            return;
+        }
+
+        const service = clinicServices.find(s => s.serviceId === selectedClinicServiceId);
+        if (!service) return;
+
+        // Logic: Dose Sequence (1, 2, 3, ANNUAL)
+        let price = service.basePrice;
+        
+        if (service.dosePrices && service.dosePrices.length > 0) {
+            const seqNum = doseSequence === 'ANNUAL' ? 4 : parseInt(doseSequence);
+            const matchedDose = service.dosePrices.find(d => d.doseNumber === seqNum && d.isActive);
+            if (matchedDose) {
+                price = matchedDose.price;
+            }
+        }
+        
+        setSelectedServicePrice(price);
+    }, [doseSequence, selectedClinicServiceId, clinicServices])
 
     // Auto-calculate next due date when dose sequence or vaccination date changes
     useEffect(() => {
@@ -147,6 +175,7 @@ export const SmartVaccinationForm = ({
     // Handle selecting a clinic service
     const handleSelectClinicService = (service: ClinicServiceResponse) => {
         setVaccineName(service.name)
+        setSelectedClinicServiceId(service.serviceId)
         // If service has a linked template, use that
         if (service.vaccineTemplateId) {
             setSelectedTemplateId(service.vaccineTemplateId)
@@ -195,6 +224,7 @@ export const SmartVaccinationForm = ({
         onSubmit({
             vaccineName,
             vaccineTemplateId: selectedTemplateId || undefined,
+            clinicServiceId: selectedClinicServiceId || undefined,
             vaccinationDate,
             nextDueDate: nextDueDate || undefined,
             doseSequence,
@@ -244,26 +274,20 @@ export const SmartVaccinationForm = ({
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-x-8 gap-y-6">
                     {/* Vaccine Type */}
                     <div className="md:col-span-12 lg:col-span-6 space-y-3">
-                        <label className="block text-[11px] font-black text-stone-400 uppercase tracking-widest pl-1 mb-1">Loại Vaccine *</label>
+                        <label className="block text-[11px] font-black text-stone-400 uppercase tracking-widest pl-1 mb-1">Dịch Vụ Tiêm Phòng *</label>
                         <div className="group relative flex items-stretch gap-2">
-                            <div className="flex-1 relative">
+                            <div className="flex-1 relative" onClick={() => setTemplateModalOpen(true)}>
                                 <input
                                     type="text"
                                     value={vaccineName}
-                                    onChange={(e) => setVaccineName(e.target.value)}
-                                    placeholder="Nhập tên hoặc chọn từ danh mục..."
-                                    className="w-full px-5 py-4 bg-white border-2 border-stone-100 rounded-2xl focus:outline-none focus:border-orange-400 focus:ring-4 focus:ring-orange-50 transition-all font-bold text-stone-800 placeholder:text-stone-300 placeholder:font-medium shadow-sm hover:border-stone-200"
+                                    readOnly
+                                    placeholder="Chọn dịch vụ từ danh mục phòng khám..."
+                                    className="w-full px-5 py-4 bg-stone-50 border-2 border-stone-100 rounded-2xl focus:outline-none focus:border-orange-400 focus:ring-4 focus:ring-orange-50 transition-all font-bold text-stone-800 placeholder:text-stone-300 placeholder:font-medium shadow-sm hover:border-stone-200 cursor-pointer"
                                     required
                                 />
-                                {vaccineName && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setVaccineName('')}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-stone-100 rounded-full text-stone-300 hover:text-stone-500 transition-colors"
-                                    >
-                                        <XMarkIcon className="w-4 h-4" />
-                                    </button>
-                                )}
+                                <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                                    <ListBulletIcon className="w-5 h-5 text-stone-400 group-hover:text-orange-500 transition-colors" />
+                                </div>
                             </div>
                             <button
                                 type="button"
@@ -271,9 +295,21 @@ export const SmartVaccinationForm = ({
                                 className="px-5 bg-orange-600 text-white rounded-2xl hover:bg-orange-700 active:scale-95 transition-all flex items-center justify-center shadow-lg shadow-orange-200 border-2 border-orange-600 hover:border-orange-700"
                                 title="Mở danh mục dịch vụ"
                             >
-                                <ListBulletIcon className="w-6 h-6" />
+                                <span className="text-xs font-black tracking-widest px-2">CHỌN</span>
                             </button>
                         </div>
+                        {selectedClinicServiceId && (
+                            <div className="flex items-center justify-between px-1 animate-in slide-in-from-top-1">
+                                <p className="text-[10px] text-green-600 font-bold">
+                                    ✓ Đã liên kết với dịch vụ của phòng khám
+                                </p>
+                                {selectedServicePrice !== null && (
+                                    <p className="text-xs font-black text-orange-600">
+                                        Giá: {selectedServicePrice.toLocaleString('vi-VN')}đ
+                                    </p>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Date Administered */}

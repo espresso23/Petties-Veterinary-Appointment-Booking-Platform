@@ -89,10 +89,7 @@ class ToolExecutor:
         if parameters is None:
             parameters = {}
 
-        logger.info(f"🔧 [EXECUTOR] ===== START: {tool_name} =====")
-        logger.info(
-            f"  ├─ Raw parameters: {json.dumps(parameters, ensure_ascii=False)[:500]}"
-        )
+        logger.debug(f"🔧 [EXECUTOR] START: {tool_name}")
 
         # Step 1: Load tool from database
         tool = await self._load_tool(tool_name)
@@ -105,27 +102,23 @@ class ToolExecutor:
             logger.error(f"  └─ ❌ Tool '{tool_name}' is not enabled")
             raise Exception(f"Tool '{tool_name}' is not enabled")
 
-        logger.info(f"  ├─ Tool loaded: enabled={tool.enabled}")
+        logger.debug(f"  ├─ Tool loaded: enabled={tool.enabled}")
         if tool.input_schema:
             schema_keys = list(tool.input_schema.get("properties", {}).keys())
-            logger.info(f"  ├─ Schema keys: {schema_keys}")
+            logger.debug(f"  ├─ Schema keys: {schema_keys}")
         else:
-            logger.info(f"  ├─ No input schema")
+            logger.debug("  ├─ No input schema")
 
         # Normalize parameter keys: strip whitespace from keys
         # LLM sometimes outputs { "query ": "..." } with trailing space in key names
         if parameters and isinstance(parameters, dict):
             parameters = {k.strip(): v for k, v in parameters.items()}
-            logger.info(
-                f"  ├─ After key strip: {json.dumps(parameters, ensure_ascii=False)[:500]}"
-            )
+            logger.debug(f"  ├─ After key strip: {list(parameters.keys())}")
 
         # Normalize aliases/coercions BEFORE schema filtering so we do not drop
         # clinicId/serviceIds/lat keys that the LLM may output.
         parameters = normalize_tool_input(tool_name, parameters)
-        logger.info(
-            f"  ├─ After normalize: {json.dumps(parameters, ensure_ascii=False)[:500]}"
-        )
+        logger.debug(f"  ├─ After normalize: {list(parameters.keys())}")
 
         # Track dropped parameters for better error reporting
         # Instead of silent drop, we return error info so LLM can recover
@@ -148,8 +141,8 @@ class ToolExecutor:
                     )
                     dropped_params = dropped
                 parameters = filtered_parameters
-                logger.info(
-                    f"  ├─ After schema filter: {json.dumps(parameters, ensure_ascii=False)[:500]} (dropped: {list(dropped_params.keys())})"
+                logger.debug(
+                    f"  ├─ After schema filter: keys={list(parameters.keys())}, dropped={list(dropped_params.keys())}"
                 )
 
         # Store dropped params in result for LLM to see (via async context)
@@ -161,9 +154,7 @@ class ToolExecutor:
         # Context injection happens after the first schema filter, so normalize
         # and filter once more before calling FastMCP.
         parameters = self._inject_contextual_parameters(tool_name, parameters)
-        logger.info(
-            f"  ├─ After context injection: {json.dumps(parameters, ensure_ascii=False)[:500]}"
-        )
+        logger.debug(f"  ├─ After context injection: {list(parameters.keys())}")
         parameters = normalize_tool_input(tool_name, parameters)
         if tool.input_schema and isinstance(tool.input_schema, dict):
             properties = tool.input_schema.get("properties")
@@ -177,9 +168,7 @@ class ToolExecutor:
 
         # Step 2: Filter out None/null values to prevent Pydantic validation errors
         parameters = {k: v for k, v in parameters.items() if v is not None}
-        logger.info(
-            f"  ├─ Final params: {json.dumps(parameters, ensure_ascii=False)[:500]}"
-        )
+        logger.debug(f"  ├─ Final params keys: {list(parameters.keys())}")
 
         # Step 3: Validate parameters
         self._validate_parameters(tool, parameters)
@@ -307,9 +296,9 @@ class ToolExecutor:
                 )
 
             if isinstance(response, dict):
-                logger.info(f"  ├─ Response keys: {list(response.keys())}")
+                logger.debug(f"  ├─ Response keys: {list(response.keys())}")
                 if isinstance(response.get("data"), dict):
-                    logger.info(f"  ├─ Data keys: {list(response['data'].keys())}")
+                    logger.debug(f"  ├─ Data keys: {list(response['data'].keys())}")
 
             # Clear dropped params after use
             executor_state.clear_dropped_params()

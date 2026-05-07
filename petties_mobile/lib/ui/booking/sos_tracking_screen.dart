@@ -239,13 +239,19 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
 
   void _stopTrackingSubscription() {
     if (_booking?.bookingId != null && _trackingHandler != null) {
-      trackingWebsocket.unsubscribeFromTracking(
+      _websocketService.unsubscribeFromTracking(
         _booking!.bookingId!,
         _trackingHandler!,
       );
       _trackingHandler = null;
     }
     _vetAnimationTimer?.cancel();
+  }
+
+  Future<void> _restartTrackingSubscriptionOnResume() async {
+    if (_booking?.bookingId == null || _staffArrived) return;
+    _stopTrackingSubscription();
+    _startTracking();
   }
 
   Future<void> _handleStaffArrivedAndExit() async {
@@ -809,14 +815,7 @@ class _SosTrackingScreenState extends State<SosTrackingScreen>
       // - Đã subscribe WebSocket nếu trước đó bị mất kết nối
       if (_booking?.bookingId != null) {
         _loadInitialStaffLocation();
-
-        // Nếu vì lý do nào đó handler đã bị huỷ (ví dụ do lỗi trước đó),
-        // khởi tạo lại tracking an toàn.
-        if (_trackingHandler == null) {
-          if (!_staffArrived) {
-            _startTracking();
-          }
-        }
+        _restartTrackingSubscriptionOnResume();
       }
     }
   }

@@ -64,8 +64,68 @@ class TrackingWebsocketService {
   bool _isConnected = false;
   bool _isConnecting = false;
   Completer<void>? _connectionCompleter;
+  Timer? _healthCheckTimer;
+  DateTime? _lastMessageAt;
+  DateTime? _lastReconnectAttemptAt;
+
+  static const Duration _healthCheckInterval = Duration(seconds: 15);
+  static const Duration _staleThreshold = Duration(seconds: 45);
+  static const Duration _reconnectCooldown = Duration(seconds: 20);
 
   TrackingWebsocketService._internal();
+
+  void _recordMessageActivity() {
+    _lastMessageAt = DateTime.now();
+  }
+
+  void _startHealthCheck() {
+    _healthCheckTimer?.cancel();
+    _healthCheckTimer = Timer.periodic(_healthCheckInterval, (_) {
+      _checkConnectionHealth();
+    });
+  }
+
+  void _stopHealthCheck() {
+    _healthCheckTimer?.cancel();
+    _healthCheckTimer = null;
+  }
+
+  bool _canReconnectNow() {
+    final lastAttempt = _lastReconnectAttemptAt;
+    if (lastAttempt == null) return true;
+    return DateTime.now().difference(lastAttempt) >= _reconnectCooldown;
+  }
+
+  Future<void> _checkConnectionHealth() async {
+    if (!_isConnected || _isConnecting || _client == null) return;
+    if (_handlers.isEmpty) return;
+
+    final lastMessage = _lastMessageAt;
+    if (lastMessage == null) return;
+
+    final inactiveFor = DateTime.now().difference(lastMessage);
+    if (inactiveFor < _staleThreshold) return;
+
+    if (!_canReconnectNow()) {
+      _logger.w(
+          'Tracking socket appears stale (${inactiveFor.inSeconds}s) but in reconnect cooldown');
+      return;
+    }
+
+    _lastReconnectAttemptAt = DateTime.now();
+    _logger.w(
+        'Tracking socket appears stale (${inactiveFor.inSeconds}s), forcing reconnect');
+
+    try {
+      _isConnected = false;
+      _isConnecting = false;
+      _subscriptions.clear();
+      _client?.deactivate();
+      await connect();
+    } catch (e) {
+      _logger.e('Failed to recover stale tracking socket: $e');
+    }
+  }
 
   void _resubscribeAllActiveBookings() {
     if (!_isConnected || _client == null) return;
@@ -84,6 +144,7 @@ class TrackingWebsocketService {
         destination: destination,
         callback: (frame) {
           if (frame.body != null) {
+            _recordMessageActivity();
             final json = jsonDecode(frame.body!);
             final location = TrackingLocation.fromJson(json);
             for (final h in _handlers[bookingId] ?? {}) {
@@ -135,6 +196,8 @@ class TrackingWebsocketService {
           _logger.i('Tracking WebSocket connected');
           _isConnected = true;
           _isConnecting = false;
+          _recordMessageActivity();
+          _startHealthCheck();
           _resubscribeAllActiveBookings();
           if (!(_connectionCompleter?.isCompleted ?? true)) {
             _connectionCompleter?.complete();
@@ -144,6 +207,7 @@ class TrackingWebsocketService {
           _logger.w('Tracking WebSocket disconnected');
           _isConnected = false;
           _isConnecting = false;
+          _stopHealthCheck();
           // Force re-subscribe after reconnect (STOMP subscriptions do not persist)
           _subscriptions.clear();
         },
@@ -151,6 +215,7 @@ class TrackingWebsocketService {
           _logger.e('WebSocket error: $error');
           _isConnected = false;
           _isConnecting = false;
+          _stopHealthCheck();
           // Force re-subscribe after reconnect (STOMP subscriptions do not persist)
           _subscriptions.clear();
           if (!(_connectionCompleter?.isCompleted ?? true)) {
@@ -177,6 +242,7 @@ class TrackingWebsocketService {
   }
 
   void disconnect() {
+    _stopHealthCheck();
     for (final unsubscribe in _subscriptions.values) {
       unsubscribe?.call();
     }
@@ -212,6 +278,7 @@ class TrackingWebsocketService {
           destination: destination,
           callback: (frame) {
             if (frame.body != null) {
+              _recordMessageActivity();
               final json = jsonDecode(frame.body!);
               final location = TrackingLocation.fromJson(json);
               for (final h in _handlers[bookingId] ?? {}) {

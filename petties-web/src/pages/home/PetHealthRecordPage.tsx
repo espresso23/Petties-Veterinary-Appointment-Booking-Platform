@@ -12,22 +12,25 @@ export function PetHealthRecordPage() {
 
     const [pet, setPet] = useState<Pet | null>(null)
     const [vaccinations, setVaccinations] = useState<VaccinationRecord[]>([])
+    const [upcomingVaccinations, setUpcomingVaccinations] = useState<VaccinationRecord[]>([])
     const [emrs, setEmrs] = useState<EmrRecord[]>([])
-    const [isLoading, setIsLoading] = useState(true)
     const [expandedEmr, setExpandedEmr] = useState<string | null>(null)
+    const [isLoading, setIsLoading] = useState(true)
 
     useEffect(() => {
         if (!petId) return
 
         const loadData = async () => {
             try {
-                const [petData, vaccineData, emrData] = await Promise.all([
+                const [petData, vaccineData, upcomingData, emrData] = await Promise.all([
                     petService.getPetById(petId),
                     vaccinationService.getVaccinationsByPet(petId),
+                    vaccinationService.getUpcomingVaccinations(petId),
                     emrService.getEmrsByPetId(petId)
                 ])
                 setPet(petData)
                 setVaccinations(vaccineData)
+                setUpcomingVaccinations(upcomingData)
                 setEmrs(emrData)
             } catch (error) {
                 console.error("Failed to load health record", error)
@@ -92,7 +95,7 @@ export function PetHealthRecordPage() {
 
             {/* Content Rendering */}
             {activeTab === 'vaccine' ? (
-                <VaccinationList history={vaccinations} today={today} />
+                <VaccinationList history={vaccinations} upcoming={upcomingVaccinations} today={today} />
             ) : (
                 <EmrList history={emrs} expandedId={expandedEmr} onToggle={(id) => setExpandedEmr(expandedEmr === id ? null : id)} />
             )}
@@ -100,8 +103,8 @@ export function PetHealthRecordPage() {
     )
 }
 
-function VaccinationList({ history, today }: { history: VaccinationRecord[], today: string }) {
-    if (history.length === 0) {
+function VaccinationList({ history, upcoming, today }: { history: VaccinationRecord[], upcoming: VaccinationRecord[], today: string }) {
+    if (history.length === 0 && upcoming.length === 0) {
         return (
             <div className="text-center py-12 bg-stone-50 rounded-xl border border-dashed text-stone-500">
                 Chưa có ghi nhận tiêm phòng nào.
@@ -110,47 +113,82 @@ function VaccinationList({ history, today }: { history: VaccinationRecord[], tod
     }
 
     return (
-        <div className="space-y-4">
-            {history.map(record => {
-                const isUpcoming = record.nextDueDate && record.nextDueDate >= today
-                const isOverdue = record.nextDueDate && record.nextDueDate < today
-
-                return (
-                    <div key={record.id} className="bg-white border border-stone-200 rounded-xl p-5 shadow-sm">
-                        <div className="flex justify-between items-start mb-2">
-                            <h3 className="font-bold text-stone-900 text-lg">{record.vaccineName}</h3>
-                            <span className="text-xs font-mono text-stone-400 bg-stone-50 px-2 py-1 rounded">
-                                {record.vaccinationDate}
-                            </span>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 text-sm text-stone-600 mb-4">
-                            <div className="flex items-center gap-1.5 line-clamp-1">
-                                <div className="w-1.5 h-1.5 rounded-full bg-blue-300"></div>
-                                <span className="font-medium">BS: {record.staffName}</span>
+        <div className="space-y-8">
+            {/* Upcoming Suggestions Section */}
+            {upcoming.length > 0 && (
+                <div className="space-y-3">
+                    <h3 className="text-xs font-black text-orange-600 uppercase tracking-[0.2em] px-1 flex items-center gap-2">
+                        <ClockIcon className="w-4 h-4" />
+                        Mũi tiêm nên có tiếp theo
+                    </h3>
+                    <div className="grid gap-3">
+                        {upcoming.map((rec, idx) => (
+                            <div key={`up-${idx}`} className="bg-orange-50/50 border border-orange-100 rounded-xl p-4 flex justify-between items-center group">
+                                <div>
+                                    <div className="font-bold text-stone-800 text-sm">{rec.vaccineName}</div>
+                                    <div className="text-[11px] font-bold text-orange-600 mt-0.5">
+                                        {rec.doseNumber === 4 ? 'Nhắc lại hàng năm' : `Mũi ${rec.doseNumber}`} • {vaccinationService.formatDate(rec.nextDueDate)}
+                                    </div>
+                                </div>
+                                <div className="text-[10px] bg-white text-orange-700 px-2 py-1 rounded-lg border border-orange-200 font-black uppercase tracking-tighter">
+                                    Gợi ý
+                                </div>
                             </div>
-                            <div className="flex items-center gap-1.5 line-clamp-1">
-                                <div className="w-1.5 h-1.5 rounded-full bg-stone-300"></div>
-                                {record.clinicName}
-                            </div>
-                        </div>
-
-                        {record.nextDueDate && (
-                            <div className={`mt-3 pt-3 border-t border-stone-100 flex items-center justify-between text-sm ${isUpcoming ? 'text-blue-700' : isOverdue ? 'text-red-600' : 'text-stone-500'
-                                }`}>
-                                <span className="font-medium flex items-center gap-1.5">
-                                    {isUpcoming ? <ClockIcon className="w-4 h-4" /> :
-                                        isOverdue ? <ExclamationCircleIcon className="w-4 h-4" /> :
-                                            <CheckCircleIcon className="w-4 h-4" />}
-                                    Tái chủng: {record.nextDueDate}
-                                </span>
-                                {isUpcoming && <span className="bg-blue-100 px-2 py-0.5 rounded textxs font-bold uppercase tracking-wider">Sáp tới</span>}
-                                {isOverdue && <span className="bg-red-100 px-2 py-0.5 rounded textxs font-bold uppercase tracking-wider">Quá hạn</span>}
-                            </div>
-                        )}
+                        ))}
                     </div>
-                )
-            })}
+                </div>
+            )}
+
+            {/* History Section */}
+            <div className="space-y-3">
+                {history.length > 0 && (
+                    <h3 className="text-xs font-black text-stone-400 uppercase tracking-[0.2em] px-1">
+                        Lịch sử tiêm chủng
+                    </h3>
+                )}
+                <div className="space-y-4">
+                    {history.map(record => {
+                        const isUpcoming = record.nextDueDate && record.nextDueDate >= today
+                        const isOverdue = record.nextDueDate && record.nextDueDate < today
+
+                        return (
+                            <div key={record.id} className="bg-white border border-stone-200 rounded-xl p-5 shadow-sm">
+                                <div className="flex justify-between items-start mb-2">
+                                    <h3 className="font-bold text-stone-900 text-lg">{record.vaccineName}</h3>
+                                    <span className="text-xs font-mono text-stone-400 bg-stone-50 px-2 py-1 rounded">
+                                        {vaccinationService.formatDate(record.vaccinationDate)}
+                                    </span>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2 text-sm text-stone-600 mb-4">
+                                    <div className="flex items-center gap-1.5 line-clamp-1">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-blue-300"></div>
+                                        <span className="font-medium">BS: {record.staffName}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 line-clamp-1">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-stone-300"></div>
+                                        {record.clinicName}
+                                    </div>
+                                </div>
+
+                                {record.nextDueDate && (
+                                    <div className={`mt-3 pt-3 border-t border-stone-100 flex items-center justify-between text-sm ${isUpcoming ? 'text-blue-700' : isOverdue ? 'text-red-600' : 'text-stone-500'
+                                        }`}>
+                                        <span className="font-medium flex items-center gap-1.5">
+                                            {isUpcoming ? <ClockIcon className="w-4 h-4" /> :
+                                                isOverdue ? <ExclamationCircleIcon className="w-4 h-4" /> :
+                                                    <CheckCircleIcon className="w-4 h-4" />}
+                                            Tái chủng: {vaccinationService.formatDate(record.nextDueDate)}
+                                        </span>
+                                        {isUpcoming && <span className="bg-blue-100 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Sắp tới</span>}
+                                        {isOverdue && <span className="bg-red-100 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Quá hạn</span>}
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    })}
+                </div>
+            </div>
         </div>
     )
 }

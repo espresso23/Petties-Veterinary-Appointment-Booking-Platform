@@ -27,6 +27,7 @@ public class VaccinationResponse {
 
     private String vaccineName;
     private UUID vaccineTemplateId;
+    private UUID clinicServiceId;
     private Integer doseNumber;
     private UUID seriesId;
     private Integer totalDoses;

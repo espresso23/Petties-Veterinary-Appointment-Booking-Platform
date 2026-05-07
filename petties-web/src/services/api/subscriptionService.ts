@@ -48,6 +48,18 @@ export interface PaymentStatusResponse {
     transactionId?: string
 }
 
+export interface MySubscriptionStatus {
+    status: 'ACTIVE' | 'CANCELLED' | 'PENDING_PAYMENT' | 'EXPIRED' | 'NOT_SUBSCRIBED'
+    planName?: string | null
+    userRole?: string
+    clinicId?: string | null
+    clinicName?: string | null
+    startDate?: string | null
+    endDate?: string | null
+    isPetOwner?: boolean
+    isDevMode?: boolean
+}
+
 export const subscriptionService = {
     getAllPlans: async (): Promise<SubscriptionPlan[]> => {
         const response = await apiClient.get('/subscriptions/plans')
@@ -94,7 +106,7 @@ export const subscriptionService = {
         return response.data
     },
 
-    getMySubscriptionStatus: async (): Promise<UserSubscription> => {
+    getMySubscriptionStatus: async (): Promise<MySubscriptionStatus> => {
         const response = await apiClient.get('/subscriptions/my-status')
         return response.data
     },

@@ -96,7 +96,8 @@ export const ClinicOwnerLayout = () => {
     const handleExitSandbox = async () => {
         try {
             await exitSandbox()
-            navigate('/clinic-owner/clinics', { replace: true })
+            // Force full reload to clear stale sandbox-derived UI state.
+            window.location.replace('/clinic-owner/clinics')
         } catch (error) {
             console.error('Lỗi thoát chế độ dùng thử:', error)
         }

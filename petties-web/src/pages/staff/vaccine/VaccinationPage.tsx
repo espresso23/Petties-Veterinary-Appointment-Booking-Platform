@@ -157,7 +157,7 @@ const VaccinationPage = () => {
 
         setIsSubmitting(true)
         try {
-            const { vaccineName, vaccineTemplateId, vaccinationDate, nextDueDate, doseSequence, notes } = data
+            const { vaccineName, vaccineTemplateId, clinicServiceId, vaccinationDate, nextDueDate, doseSequence, notes } = data
 
             if (editingId) {
                 // UPDATE mode
@@ -165,6 +165,7 @@ const VaccinationPage = () => {
                     petId,
                     vaccineName,
                     vaccineTemplateId,
+                    clinicServiceId,
                     vaccinationDate: vaccinationDate.toISOString().split('T')[0],
                     nextDueDate: nextDueDate ? nextDueDate.toISOString().split('T')[0] : undefined,
                     doseSequence,
@@ -179,6 +180,7 @@ const VaccinationPage = () => {
                     bookingId: bookingId || undefined,
                     vaccineName,
                     vaccineTemplateId,
+                    clinicServiceId,
                     vaccinationDate: vaccinationDate.toISOString().split('T')[0],
                     nextDueDate: nextDueDate ? nextDueDate.toISOString().split('T')[0] : undefined,
                     doseSequence,
@@ -209,6 +211,7 @@ const VaccinationPage = () => {
         setFormInitialData({
             vaccineName: record.vaccineName,
             vaccineTemplateId: record.vaccineTemplateId || undefined,
+            clinicServiceId: record.clinicServiceId || undefined,
             vaccinationDate: record.vaccinationDate ? new Date(record.vaccinationDate) : new Date(),
             nextDueDate: record.nextDueDate ? new Date(record.nextDueDate) : undefined,
             doseSequence: record.doseNumber === 4 ? 'ANNUAL' : String(record.doseNumber || 1),
@@ -368,18 +371,21 @@ const VaccinationPage = () => {
                             <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {combinedFutures.map((rec, idx) => {
                                     const isPending = 'workflowStatus' in rec && rec.workflowStatus === 'PENDING';
+                                    const hasActualBooking = isPending && !!rec.bookingId;
+
                                     return (
-                                        <div key={idx} className={`flex items-center justify-between p-4 rounded-xl border transition-all group ${isPending ? 'bg-amber-50/40 border-amber-200 hover:border-amber-400' : 'bg-orange-50/30 border-orange-100 hover:border-orange-300'
+                                        <div key={idx} className={`flex items-center justify-between p-4 rounded-xl border transition-all ${isPending ? 'bg-amber-50/40 border-amber-200 hover:border-amber-400 shadow-sm' : 'bg-stone-50/50 border-stone-100 opacity-90'
                                             }`}>
-                                            <div>
+                                            <div className="flex-1">
                                                 <div
-                                                    className="font-bold text-stone-800 flex items-center gap-2 hover:text-orange-600 cursor-pointer transition-colors"
+                                                    className={`font-bold text-stone-800 flex items-center gap-2 ${isPending ? 'hover:text-orange-600 cursor-pointer' : ''} transition-colors`}
                                                     onClick={() => {
-                                                        if (isPending && rec.id) {
-                                                            setEditingId(rec.id);
-                                                        } else {
-                                                            setEditingId(null);
+                                                        if (!isPending) {
+                                                            showToast('info', 'Đây là gợi ý dựa trên lộ trình y khoa. Hãy chọn dịch vụ tương ứng để tiêm.');
+                                                            return;
                                                         }
+
+                                                        if (rec.id) setEditingId(rec.id);
 
                                                         const newVaccDate = rec.nextDueDate ? new Date(rec.nextDueDate) : new Date();
                                                         let nextDueDateObj = undefined;
@@ -396,68 +402,36 @@ const VaccinationPage = () => {
                                                         setFormInitialData({
                                                             vaccineName: rec.vaccineName,
                                                             vaccineTemplateId: rec.vaccineTemplateId || undefined,
+                                                            clinicServiceId: rec.clinicServiceId || undefined,
                                                             doseSequence: rec.doseNumber === 4 ? 'ANNUAL' : String(rec.doseNumber || 1),
                                                             vaccinationDate: newVaccDate,
                                                             nextDueDate: nextDueDateObj,
-                                                            notes: isPending ? (rec.notes || '') : ''
+                                                            notes: rec.notes || ''
                                                         });
 
                                                         window.scrollTo({ top: 0, behavior: 'smooth' });
-                                                        if (isPending) showToast('info', 'Đã tải thông tin lịch hẹn.');
+                                                        showToast('info', 'Đã tải thông tin lịch hẹn.');
                                                     }}
                                                 >
                                                     {rec.vaccineName}
-                                                    {isPending && (
-                                                        <span className="text-[9px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded uppercase font-black">Chờ Tiêm</span>
+                                                    {hasActualBooking && (
+                                                        <span className="text-[9px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded uppercase font-black">Lịch Hẹn</span>
+                                                    )}
+                                                    {!isPending && (
+                                                        <span className="text-[9px] bg-stone-200 text-stone-600 px-1.5 py-0.5 rounded uppercase font-black">Gợi Ý</span>
                                                     )}
                                                 </div>
-                                                <div className={`text-xs font-bold mt-1 ${isPending ? 'text-amber-700' : 'text-orange-600'}`}>
-                                                    {rec.doseNumber === 4 ? 'Hàng năm' : `Mũi ${rec.doseNumber}`} • {vaccinationService.formatDate(rec.nextDueDate)}
+                                                <div className={`text-xs font-bold mt-1 ${isPending ? 'text-amber-700' : 'text-stone-500'}`}>
+                                                    {rec.doseNumber === 4 ? 'Nhắc lại hàng năm' : `Mũi ${rec.doseNumber}`} • {vaccinationService.formatDate(rec.nextDueDate)}
                                                 </div>
-                                                <div className="text-[10px] text-stone-400 mt-0.5 italic line-clamp-1">
-                                                    {rec.notes || (isPending ? 'Mũi tiêm đã được đặt lịch' : 'Theo lộ trình dự kiến')}
+                                                <div className="text-[10px] text-stone-400 mt-1 italic leading-relaxed">
+                                                    {isPending ? (hasActualBooking ? 'Khách đã đặt lịch cho dịch vụ này' : 'Dự kiến thực hiện tiếp theo') : 'Lộ trình khuyến nghị cho sức khỏe thú cưng'}
                                                 </div>
                                             </div>
-                                            <button
-                                                onClick={() => {
-                                                    if (isPending && rec.id) {
-                                                        setEditingId(rec.id);
-                                                    } else {
-                                                        setEditingId(null);
-                                                    }
-
-                                                    const newVaccDate = rec.nextDueDate ? new Date(rec.nextDueDate) : new Date();
-                                                    let nextDueDateObj = undefined;
-
-                                                    if (rec.vaccineTemplateId) {
-                                                        const tpl = templates.find(t => t.id === rec.vaccineTemplateId);
-                                                        if (tpl && tpl.repeatIntervalDays) {
-                                                            const nextDate = new Date(newVaccDate);
-                                                            nextDate.setDate(nextDate.getDate() + tpl.repeatIntervalDays);
-                                                            nextDueDateObj = nextDate;
-                                                        }
-                                                    }
-
-                                                    setFormInitialData({
-                                                        vaccineName: rec.vaccineName,
-                                                        vaccineTemplateId: rec.vaccineTemplateId || undefined,
-                                                        doseSequence: rec.doseNumber === 4 ? 'ANNUAL' : String(rec.doseNumber || 1),
-                                                        vaccinationDate: newVaccDate,
-                                                        nextDueDate: nextDueDateObj,
-                                                        notes: isPending ? (rec.notes || '') : ''
-                                                    });
-
-                                                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                                                    if (isPending) showToast('info', 'Đã tải thông tin lịch hẹn.');
-                                                }}
-                                                className={`p-2 rounded-lg border shadow-sm transition-all opacity-0 group-hover:opacity-100 ${isPending
-                                                    ? 'bg-white text-amber-600 border-amber-200 hover:bg-amber-600 hover:text-white'
-                                                    : 'bg-white text-orange-600 border-orange-200 hover:bg-orange-600 hover:text-white'
-                                                    }`}
-                                                title={isPending ? "Xác nhận thực hiện mũi tiêm này" : "Ghi nhận theo gợi ý"}
-                                            >
-                                                <PlusIcon className="w-4 h-4" />
-                                            </button>
+                                            
+                                            <div className="ml-4 p-2.5 bg-stone-100 text-stone-300 rounded-xl">
+                                                <ListBulletIcon className="w-5 h-5 opacity-40" />
+                                            </div>
                                         </div>
                                     );
                                 })}

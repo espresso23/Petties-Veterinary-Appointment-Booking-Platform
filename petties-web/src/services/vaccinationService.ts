@@ -12,6 +12,7 @@ export interface VaccinationRecord {
 
     vaccineName: string;
     vaccineTemplateId?: string;
+    clinicServiceId?: string;
     doseNumber?: number;
     totalDoses?: number;
     seriesId?: string;
@@ -31,6 +32,7 @@ export interface CreateVaccinationRequest {
     bookingId?: string
     vaccineName: string
     vaccineTemplateId?: string
+    clinicServiceId?: string
     vaccinationDate: string
     nextDueDate?: string
     doseSequence?: string
@@ -141,3 +143,4 @@ export const vaccinationService = {
 }
 
 export default vaccinationService
+

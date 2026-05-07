@@ -79,6 +79,24 @@ _MEDICAL_OR_CARE_HINTS = {
     "dinh duong",
 }
 
+_PRODUCT_SEARCH_HINTS = {
+    "san pham",
+    "thuong hieu",
+    "brand",
+    "hat",
+    "pate",
+    "dry food",
+    "wet food",
+    "thuc an",
+    "do an",
+    "review",
+    "mua o dau",
+    "gia tot",
+    "tot nhat",
+    "top",
+    "goi y san pham",
+}
+
 _PET_TYPE_HINTS = {
     "cho": "dog",
     "dog": "dog",
@@ -103,6 +121,44 @@ def infer_general_pet_type(message: str) -> Optional[str]:
         if token in normalized:
             return pet_type
     return None
+
+
+def should_prefer_web_search_for_product_query(
+    message: str,
+    *,
+    user_role: Optional[str],
+    enabled_tools_lower: Set[str],
+    has_active_booking: bool,
+    has_images: bool,
+) -> bool:
+    normalized = normalize_vietnamese_text(message)
+    normalized_role = str(user_role or "PET_OWNER").strip().upper()
+
+    if normalized_role not in {"PET_OWNER", "ADMIN"}:
+        return False
+    if has_active_booking or has_images:
+        return False
+    if "web_search" not in enabled_tools_lower:
+        return False
+    if not normalized:
+        return False
+    if infer_general_pet_type(normalized) is None:
+        return False
+    return any(token in normalized for token in _PRODUCT_SEARCH_HINTS)
+
+
+def build_fast_product_web_search_call(message: str) -> Optional[Dict[str, Any]]:
+    query = str(message or "").strip()
+    if not query:
+        return None
+    return {
+        "name": "web_search",
+        "arguments": {
+            "query": query,
+            "max_results": 4,
+        },
+        "thought": "Mình sẽ tìm nhanh sản phẩm phù hợp từ nguồn web đáng tin cậy rồi tóm tắt cho bạn.",
+    }
 
 
 def should_fast_path_pet_care_query(

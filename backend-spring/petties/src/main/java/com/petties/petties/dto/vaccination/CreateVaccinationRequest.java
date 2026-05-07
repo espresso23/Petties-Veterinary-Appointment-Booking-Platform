@@ -23,6 +23,8 @@ public class CreateVaccinationRequest {
 
     private UUID vaccineTemplateId; // Optional: Link to master data
 
+    private UUID clinicServiceId; // Link to specific clinic service
+
     @NotBlank(message = "Vaccine name is required")
     private String vaccineName;
 

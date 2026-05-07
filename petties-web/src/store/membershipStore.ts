@@ -4,6 +4,10 @@ import { subscriptionService, type UserSubscription } from '../services/api/subs
 const isDevMode = import.meta.env.VITE_APP_ENV === 'development' || import.meta.env.VITE_ENV === 'dev'
 const forceVipEnv = import.meta.env.VITE_FORCE_VIP === 'true'
 const shouldForceVip = isDevMode || forceVipEnv
+const membershipStatuses = ['ACTIVE', 'CANCELLED', 'PENDING_PAYMENT', 'EXPIRED'] as const
+type MembershipStatus = (typeof membershipStatuses)[number]
+const isMembershipStatus = (value: string): value is MembershipStatus =>
+    membershipStatuses.includes(value as MembershipStatus)
 
 interface MembershipState {
     membership: UserSubscription | null
@@ -64,7 +68,40 @@ export const useMembershipStore = create<MembershipState>((set, get) => ({
                 set({ membership: status.active || status.pending, isLoading: false })
             } else {
                 const status = await subscriptionService.getMySubscriptionStatus()
-                set({ membership: status, isLoading: false })
+                if (!status || status.status === 'NOT_SUBSCRIBED') {
+                    set({ membership: null, isLoading: false })
+                    return
+                }
+
+                if (!isMembershipStatus(status.status)) {
+                    set({ membership: null, isLoading: false })
+                    return
+                }
+
+                const planName = status.planName?.trim()
+                set({
+                    membership: {
+                        subscriptionId: 'my-status-subscription',
+                        clinicId: status.clinicId || clinicId || '',
+                        clinicName: status.clinicName || 'Phòng khám',
+                        status: status.status,
+                        paymentMethod: 'CASH',
+                        plan: {
+                            planId: 'my-status-plan',
+                            name: planName || 'GÓI MIỄN PHÍ',
+                            price: 0,
+                            description: 'Thông tin gói từ trạng thái hội viên',
+                            durationDays: 0,
+                            features: '',
+                            isActive: true,
+                            totalPurchases: 0
+                        },
+                        startDate: status.startDate || undefined,
+                        endDate: status.endDate || undefined,
+                        cancelAtPeriodEnd: false
+                    },
+                    isLoading: false
+                })
             }
         } catch (err: unknown) {
             // If 404, it means no subscription, which is a valid state (None)

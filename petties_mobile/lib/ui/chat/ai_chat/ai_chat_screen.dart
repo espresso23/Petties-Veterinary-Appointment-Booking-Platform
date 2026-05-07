@@ -3560,7 +3560,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   Widget _buildThinkingBubble() {
     final label = (_agentStatus ?? _thinkingLabel).trim();
-    final trace = List<Map<String, dynamic>>.from(_liveReactTrace);
+    final trace = _bookingAssistantEnabled
+        ? <Map<String, dynamic>>[]
+        : List<Map<String, dynamic>>.from(_liveReactTrace);
     return AiChatThinkingBubble(
       label: label,
       trace: trace,
@@ -4156,7 +4158,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
                                   message.multiPetBookingCreated!),
                             ),
                           ],
-                          if (!isUser && trace.isNotEmpty) ...[
+                          if (!isUser &&
+                              !_bookingAssistantEnabled &&
+                              trace.isNotEmpty) ...[
                             const SizedBox(height: 10),
                             AiChatTracePanel(trace: trace),
                           ],

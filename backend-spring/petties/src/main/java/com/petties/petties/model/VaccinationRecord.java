@@ -36,6 +36,9 @@ public class VaccinationRecord {
     private UUID staffId;
     private UUID clinicId;
 
+    // NEW: Link to specific Clinic Service
+    private UUID clinicServiceId;
+
     // Denormalized for display
     private String clinicName;
     private String staffName;

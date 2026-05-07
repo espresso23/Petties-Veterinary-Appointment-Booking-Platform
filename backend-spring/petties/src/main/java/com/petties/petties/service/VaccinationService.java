@@ -31,6 +31,7 @@ public class VaccinationService {
     private final PetRepository petRepository;
     private final UserRepository userRepository;
     private final com.petties.petties.repository.VaccineTemplateRepository vaccineTemplateRepository;
+    private final com.petties.petties.repository.ClinicServiceRepository clinicServiceRepository;
 
     @Transactional
     public VaccinationResponse createVaccination(CreateVaccinationRequest request, UUID staffId) {
@@ -42,27 +43,28 @@ public class VaccinationService {
         Pet pet = petRepository.findById(request.getPetId())
                 .orElseThrow(() -> new ResourceNotFoundException("Pet not found"));
 
-        // 1. Check if Template is used
+        // 1. Resolve Vaccine Details from ClinicService or Template
         com.petties.petties.model.VaccineTemplate template = null;
-        if (request.getVaccineTemplateId() != null) {
+        String vaccineName = request.getVaccineName();
+
+        if (request.getClinicServiceId() != null) {
+            com.petties.petties.model.ClinicService service = clinicServiceRepository.findById(request.getClinicServiceId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Clinic Service not found"));
+
+            // Validate service belongs to clinic
+            if (clinic != null && !service.getClinic().getClinicId().equals(clinic.getClinicId())) {
+                throw new IllegalArgumentException("Dịch vụ này không thuộc về phòng khám của bạn.");
+            }
+
+            vaccineName = service.getName();
+            template = service.getVaccineTemplate();
+            log.info("Resolved vaccination from clinic service: {}", vaccineName);
+        } else if (request.getVaccineTemplateId() != null) {
             template = vaccineTemplateRepository.findById(request.getVaccineTemplateId())
                     .orElse(null);
-        } else if (request.getVaccineName() != null) {
-            // Fuzzy match by name
-            String normalizedInput = normalizeName(request.getVaccineName());
-            if (!normalizedInput.isEmpty()) {
-                List<com.petties.petties.model.VaccineTemplate> all = vaccineTemplateRepository.findAll();
-                template = all.stream()
-                        .filter(t -> {
-                            String normalizedT = normalizeName(t.getName());
-                            return normalizedT.contains(normalizedInput) || normalizedInput.contains(normalizedT);
-                        })
-                        .findFirst()
-                        .orElse(null);
-            }
         }
-        if (template != null) {
-            log.info("Matched vaccine template: {} (ID: {})", template.getName(), template.getId());
+
+        if (template != null) {            log.info("Matched vaccine template: {} (ID: {})", template.getName(), template.getId());
             // Species suitability check
             if (!isTemplateSuitableForPet(template, pet)) {
                 throw new IllegalArgumentException("Loại vắc-xin này không phù hợp với loài của thú cưng.");
@@ -153,11 +155,12 @@ public class VaccinationService {
         VaccinationRecord record = VaccinationRecord.builder()
                 .petId(request.getPetId())
                 .bookingId(request.getBookingId())
+                .clinicServiceId(request.getClinicServiceId())
                 .staffId(staffId)
                 .clinicId(clinic != null ? clinic.getClinicId() : null)
                 .clinicName(clinic != null ? clinic.getName() : "N/A")
                 .staffName(staff.getFullName())
-                .vaccineName(template != null ? template.getName() : request.getVaccineName())
+                .vaccineName(vaccineName)
                 .vaccineTemplateId(template != null ? template.getId() : null)
                 .batchNumber(request.getBatchNumber())
                 .vaccinationDate(request.getVaccinationDate())
@@ -165,7 +168,7 @@ public class VaccinationService {
                 .notes(request.getNotes())
                 .status("COMPLETED")
                 .doseNumber(doseNumber)
-                .totalDoses(template != null ? template.getSeriesDoses() : (request.getVaccineName() != null ? 1 : 0))
+                .totalDoses(template != null ? template.getSeriesDoses() : (vaccineName != null ? 1 : 0))
                 .seriesId(seriesId)
                 .createdAt(LocalDateTime.now())
                 .build();
@@ -232,6 +235,7 @@ public class VaccinationService {
         VaccinationRecord record = VaccinationRecord.builder()
                 .petId(booking.getPet().getId())
                 .bookingId(booking.getBookingId())
+                .clinicServiceId(item.getService().getServiceId())
                 .staffId(booking.getAssignedStaff() != null ? booking.getAssignedStaff().getUserId() : null)
                 .staffName(booking.getAssignedStaff() != null ? booking.getAssignedStaff().getFullName() : null)
                 .clinicId(booking.getClinic().getClinicId())
@@ -482,6 +486,7 @@ public class VaccinationService {
                 .staffName(record.getStaffName())
                 .vaccineName(record.getVaccineName())
                 .vaccineTemplateId(record.getVaccineTemplateId())
+                .clinicServiceId(record.getClinicServiceId())
                 .doseNumber(record.getDoseNumber())
                 .totalDoses(record.getTotalDoses())
                 .seriesId(record.getSeriesId())

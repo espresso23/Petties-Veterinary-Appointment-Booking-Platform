@@ -129,16 +129,8 @@ class _PetHealthRecordScreenState extends State<PetHealthRecordScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Roadmap Grid
-              const Text(
-                'LỘ TRÌNH TIÊM CHỦNG',
-                style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 14,
-                  color: AppColors.stone500,
-                  letterSpacing: 1,
-                ),
-              ),
+              // Roadmap Grid Section
+              const _SectionHeader(title: 'LỘ TRÌNH TIÊM CHỦNG'),
               const SizedBox(height: 12),
               VaccinationRoadmapTable(
                 records: history,
@@ -146,17 +138,21 @@ class _PetHealthRecordScreenState extends State<PetHealthRecordScreen>
               ),
               const SizedBox(height: 24),
 
-              // Recent History List
-              if (history.isNotEmpty) ...[
-                const Text(
-                  'LỊCH SỬ TIÊM CHỦNG',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 14,
-                    color: AppColors.stone500,
-                    letterSpacing: 1,
-                  ),
+              // Upcoming Suggested Vaccines Section (Info Only)
+              if (upcoming.isNotEmpty) ...[
+                const _SectionHeader(
+                  title: 'MŨI TIÊM NÊN CÓ TIẾP THEO',
+                  color: Colors.orange,
+                  icon: Icons.tips_and_updates,
                 ),
+                const SizedBox(height: 12),
+                ...upcoming.map((rec) => _UpcomingSuggestionCard(record: rec)),
+                const SizedBox(height: 24),
+              ],
+
+              // History List Section
+              if (history.isNotEmpty) ...[
+                const _SectionHeader(title: 'LỊCH SỬ TIÊM CHỦNG'),
                 const SizedBox(height: 12),
                 ...history.map((record) => _VaccinationCard(record: record)),
               ],
@@ -733,6 +729,101 @@ class _EmrCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(content,
               style: const TextStyle(fontSize: 14, color: AppColors.stone800)),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final Color color;
+  final IconData? icon;
+
+  const _SectionHeader({
+    required this.title,
+    this.color = AppColors.stone500,
+    this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        if (icon != null) ...[
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+        ],
+        Text(
+          title,
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 12,
+            color: color,
+            letterSpacing: 1.2,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _UpcomingSuggestionCard extends StatelessWidget {
+  final VaccinationRecord record;
+  const _UpcomingSuggestionCard({required this.record});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.orange.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.orange.withOpacity(0.2)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  record.vaccineName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: AppColors.stone800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${record.doseNumber == 4 ? "Nhắc lại hàng năm" : "Mũi ${record.doseNumber}"} • ${record.nextDueDate != null ? DateFormat('dd/MM/yyyy').format(record.nextDueDate!) : "N/A"}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    color: Colors.orange,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange.withOpacity(0.3)),
+            ),
+            child: const Text(
+              'GỢI Ý',
+              style: TextStyle(
+                color: Colors.orange,
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
         ],
       ),
     );
