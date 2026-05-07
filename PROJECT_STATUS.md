@@ -6,6 +6,24 @@
 
 ---
 
+### Master Service Pet Type Alignment (Code-based Evidence - 2026-05-07)
+
+**Scope:** Align `master service` pet type behavior with regular service flow and prevent non-standard English tokens (`DOG`, `CAT`) from being stored.
+
+**Implemented changes:**
+- Updated Clinic Owner master service UI:
+  - Added `Cả chó và mèo` option in master service pet type selector to match regular service UX.
+  - Removed strict pet-type-required validation in master service modal to align with regular service behavior.
+- Added backend normalization in `MasterServiceService`:
+  - Auto-maps `DOG -> Chó`, `CAT -> Mèo`, and `DOG,CAT/BOTH -> Cả chó và mèo` during create/update.
+  - Keeps null/blank as null and preserves valid Vietnamese values.
+
+**Changed files (evidence):**
+- `petties-web/src/components/clinic-owner/MasterServiceModal.tsx`
+- `backend-spring/petties/src/main/java/com/petties/petties/service/MasterServiceService.java`
+
+---
+
 ### Production Health Check Retry Hardening (Code-based Evidence - 2026-05-07)
 
 **Scope:** Reduce false-negative deployment failures caused by transient startup windows where services are still initializing when first health probe is sent.

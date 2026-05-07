@@ -45,7 +45,6 @@ export function MasterServiceModal({
   const [isHomeVisit, setIsHomeVisit] = useState(false)
   const [errors, setErrors] = useState<{
     serviceCategory?: string
-    petType?: string
   }>({})
 
   // Use centralized categories from constants
@@ -54,6 +53,7 @@ export function MasterServiceModal({
   const petTypes = [
     { id: 'Chó', label: 'Chó' },
     { id: 'Mèo', label: 'Mèo' },
+    { id: 'Cả chó và mèo', label: 'Cả chó và mèo' },
     { id: 'Khác', label: 'Khác (Tự nhập)' },
   ]
 
@@ -132,18 +132,10 @@ export function MasterServiceModal({
     if (isSubmitting) return
 
     // Validation
-    const newErrors: { serviceCategory?: string; petType?: string } = {}
+    const newErrors: { serviceCategory?: string } = {}
 
     if (!serviceCategory) {
       newErrors.serviceCategory = 'Vui lòng chọn loại dịch vụ'
-    }
-
-    if (!petType) {
-      newErrors.petType = 'Vui lòng chọn loại thú nuôi'
-    }
-
-    if (petType === 'Khác' && !customPetType.trim()) {
-      newErrors.petType = 'Vui lòng nhập loại thú nuôi'
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -517,7 +509,7 @@ export function MasterServiceModal({
                       if (pet.id !== 'Khác') {
                         setCustomPetType('')
                       }
-                      setErrors(prev => ({ ...prev, petType: undefined }))
+                      setErrors(prev => ({ ...prev }))
                     }}
                     className={`w-full p-4 flex items-center justify-between hover:bg-gray-100 transition-colors border-b-2 border-black last:border-b-0 text-left ${petType === pet.id ? 'bg-orange-50' : ''}`}
                   >
@@ -532,12 +524,6 @@ export function MasterServiceModal({
               </div>
             )}
 
-            {errors.petType && (
-              <p className="text-sm font-bold text-red-600 mt-2 flex items-center gap-1">
-                <ExclamationCircleIcon className="w-4 h-4" />
-                {errors.petType}
-              </p>
-            )}
           </div>
 
           {/* Custom Pet Type Input */}

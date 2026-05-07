@@ -26,6 +26,20 @@ public class MasterServiceService {
     private final MasterServiceRepository masterServiceRepository;
     private final AuthService authService;
 
+    private String normalizePetType(String petType) {
+        if (petType == null || petType.isBlank()) {
+            return null;
+        }
+
+        String normalized = petType.trim();
+        return switch (normalized.toUpperCase()) {
+            case "DOG" -> "Chó";
+            case "CAT" -> "Mèo";
+            case "DOG,CAT", "DOG_CAT", "BOTH", "ALL" -> "Cả chó và mèo";
+            default -> normalized;
+        };
+    }
+
     /**
      * Validate that current user is CLINIC_OWNER
      */
@@ -48,7 +62,7 @@ public class MasterServiceService {
         masterService.setSlotsRequired(request.getSlotsRequired());
         masterService.setIsHomeVisit(request.getIsHomeVisit() != null ? request.getIsHomeVisit() : false);
         masterService.setServiceCategory(request.getServiceCategory());
-        masterService.setPetType(request.getPetType());
+        masterService.setPetType(normalizePetType(request.getPetType()));
         masterService.setIcon(request.getIcon());
 
         // Bổ sung: nhận và lưu weightPrices
@@ -118,7 +132,7 @@ public class MasterServiceService {
             service.setServiceCategory(request.getServiceCategory());
         }
         if (request.getPetType() != null) {
-            service.setPetType(request.getPetType());
+            service.setPetType(normalizePetType(request.getPetType()));
         }
         if (request.getIcon() != null) {
             service.setIcon(request.getIcon());
