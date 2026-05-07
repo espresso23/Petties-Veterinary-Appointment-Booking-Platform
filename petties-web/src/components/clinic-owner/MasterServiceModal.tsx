@@ -485,8 +485,7 @@ export function MasterServiceModal({
             <button
               type="button"
               onClick={() => setIsPetTypeOpen(!isPetTypeOpen)}
-              className={`w-full p-4 border-4 border-black bg-white flex items-center justify-between shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all ${errors.petType ? 'border-red-500' : ''
-                }`}
+              className="w-full p-4 border-4 border-black bg-white flex items-center justify-between shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
             >
               <span className={`font-bold ${selectedPetType ? 'text-black' : 'text-gray-400'}`}>
                 {selectedPetType ? selectedPetType.label : '-- Chọn loại thú nuôi --'}
