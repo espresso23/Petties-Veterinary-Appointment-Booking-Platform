@@ -189,15 +189,6 @@ export const ClinicManagerDashboardPage = () => {
                 <p className="text-stone-600 mt-1">Xin chào, {user?.fullName || 'Quản lý'}</p>
             </header>
 
-            {partialWarnings.length > 0 && (
-                <div
-                    className="mb-4 border-2 border-amber-800 bg-amber-50 px-4 py-3 text-sm font-bold text-stone-800 shadow-[3px_3px_0_#1c1917]"
-                    role="status"
-                >
-                    Dữ liệu không đầy đủ: không tải được {partialWarnings.join(', ')}.
-                </div>
-            )}
-
             {clinicId && (
                 <>
                     <DashboardSection title="Tổng quan hôm nay">

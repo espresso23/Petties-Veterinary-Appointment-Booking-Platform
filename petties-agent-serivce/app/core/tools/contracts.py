@@ -290,7 +290,9 @@ def normalize_tool_input(tool_name: str, parameters: Dict[str, Any]) -> Dict[str
         cid = p.get("clinic_id")
         if cid and not _is_uuid(cid) and p.get("clinic_name_hint") is None:
             p["clinic_name_hint"] = cid
-            p["clinic_id"] = None
+            # Keep clinic_id as is, do not set to None, so tools don't fail validation
+            # The tool implementation will handle the non-UUID case via _resolve_clinic_reference
+            p["clinic_id"] = str(cid).strip()
 
         if "clinic_id" in p and p["clinic_id"] is not None:
             p["clinic_id"] = str(p["clinic_id"]).strip()
@@ -304,7 +306,9 @@ def normalize_tool_input(tool_name: str, parameters: Dict[str, Any]) -> Dict[str
         cid = p.get("clinic_id")
         if cid and not _is_uuid(cid) and p.get("clinic_name_hint") is None:
             p["clinic_name_hint"] = cid
-            p["clinic_id"] = None
+            # Keep clinic_id as is, do not set to None, so tools don't fail validation
+            # The tool implementation will handle the non-UUID case via _resolve_clinic_reference
+            p["clinic_id"] = str(cid).strip()
 
         if p.get("service_ids") is None and p.get("serviceIds") is not None:
             p["service_ids"] = p.get("serviceIds")

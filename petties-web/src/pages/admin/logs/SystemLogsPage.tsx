@@ -322,8 +322,10 @@ const resolveObservabilityUrl = (
 
   if (typeof window !== 'undefined') {
     const host = window.location.hostname
+    const protocol = window.location.protocol
+
     if (host === 'localhost' || host === '127.0.0.1') {
-      return `${window.location.protocol}//${host}:${fallbackPort}`
+      return `${protocol}//${host}:${fallbackPort}`
     }
 
     // Tunnel hosts typically expose only the tunneled upstream port.
@@ -332,7 +334,12 @@ const resolveObservabilityUrl = (
       return `http://localhost:${fallbackPort}`
     }
 
-    return `${window.location.protocol}//${host}:${fallbackPort}`
+    // Production logic: Use the unified gateway domain with subpaths
+    const subpath = envKey === 'VITE_GRAFANA_URL' ? '/grafana' : '/prometheus'
+    
+    // api.petties.world is our primary gateway for monitoring
+    const gatewayHost = 'api.petties.world'
+    return `${protocol}//${gatewayHost}${subpath}`
   }
 
   return `http://localhost:${fallbackPort}`

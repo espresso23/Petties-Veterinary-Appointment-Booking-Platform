@@ -928,6 +928,16 @@ def _select_resolved_clinic(
         if len(filtered_matches) == 1:
             return filtered_matches[0]
 
+    # If multiple clinics match or no hint provided, pick the best rated one
+    if len(clinics) > 1:
+        # Sort by rating (desc), then by total_reviews (desc)
+        sorted_clinics = sorted(
+            clinics,
+            key=lambda c: (float(c.get("rating") or 0.0), int(c.get("total_reviews") or 0)),
+            reverse=True,
+        )
+        return sorted_clinics[0]
+
     return clinics[0] if len(clinics) == 1 else None
 
 
@@ -2424,6 +2434,67 @@ async def get_clinic_detail(
         "message": None,
     }
     logger.info(f"  └─ ✅ Returning: {json.dumps(result, ensure_ascii=False)[:500]}")
+    return result
+
+
+@mcp_server.tool
+@_standardize_booking_tool_response
+async def get_clinic_reviews(
+    clinic_id: str,
+) -> Dict[str, Any]:
+    """Lấy danh sách đánh giá chi tiết của phòng khám.
+
+    Sử dụng khi:
+    - Người dùng hỏi về chất lượng phòng khám.
+    - Cần biết khách hàng khác nói gì về dịch vụ, bác sĩ, hoặc cơ sở vật chất.
+    - Muốn đưa ra gợi ý cá nhân hóa dựa trên trải nghiệm thực tế của người khác.
+
+    Params:
+        clinic_id: ID phòng khám (bắt buộc).
+
+    Returns:
+        reviews: Danh sách các đánh giá (rating, comment, user_name, date).
+        total_reviews: Tổng số lượng đánh giá.
+        average_rating: Điểm đánh giá trung bình.
+    """
+    logger.info(f"🔧 [TOOL] get_clinic_reviews: clinic_id={clinic_id}")
+    client = get_backend_client()
+    try:
+        reviews = await client.get_clinic_reviews(clinic_id)
+    except BackendClientError as exc:
+        logger.error(f"  └─ ❌ Backend error: {exc}")
+        return {
+            "clinic_id": clinic_id,
+            "reviews": [],
+            "total_reviews": 0,
+            "message": f"Không thể lấy đánh giá lúc này: {exc}",
+        }
+
+    formatted_reviews = [
+        {
+            "rating": r.get("rating"),
+            "comment": r.get("comment"),
+            "user_name": r.get("userName") or r.get("user_name") or "Khách hàng",
+            "date": r.get("createdAt") or r.get("created_at"),
+        }
+        for r in reviews if isinstance(r, dict)
+    ]
+
+    # Limit to top 10 most recent/relevant reviews to save context window
+    formatted_reviews = formatted_reviews[:10]
+
+    avg_rating = 0.0
+    if formatted_reviews:
+        avg_rating = sum(r.get("rating") or 0 for r in formatted_reviews) / len(formatted_reviews)
+
+    result = {
+        "clinic_id": clinic_id,
+        "reviews": formatted_reviews,
+        "total_reviews": len(formatted_reviews),
+        "average_rating": round(avg_rating, 1),
+    }
+
+    logger.info(f"  └─ ✅ Returning {len(formatted_reviews)} reviews")
     return result
 
 

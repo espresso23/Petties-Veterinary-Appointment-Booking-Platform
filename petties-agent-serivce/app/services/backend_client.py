@@ -471,6 +471,13 @@ class SpringBackendClient:
         """
         return await self._request("GET", f"/api/clinics/{clinic_id}")
 
+    async def get_clinic_reviews(self, clinic_id: str) -> List[Dict[str, Any]]:
+        """Fetch detailed reviews for a clinic. Public access.
+        Maps to GET /api/reviews/clinic/{clinicId}
+        """
+        response = await self._request("GET", f"/api/reviews/clinic/{clinic_id}")
+        return response if isinstance(response, list) else []
+
 
 
 _backend_client = SpringBackendClient()

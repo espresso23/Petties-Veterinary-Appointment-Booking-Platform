@@ -72,6 +72,11 @@ DEFAULT_POLICIES = {
         requires_context=True,
         description="Get clinic services - requires clinic_id",
     ),
+    "get_clinic_reviews": ToolPolicy(
+        allow_empty_params=False,
+        requires_context=True,
+        description="Get detailed clinic reviews - requires clinic_id",
+    ),
     "search_clinics_nearby": ToolPolicy(
         allow_empty_params=False,
         requires_context=True,

@@ -113,6 +113,25 @@ server {
     location /api {
         limit_req zone=api_limit burst=40 nodelay;
         proxy_pass http://backend:8080;
+
+        # CORS Handling
+        add_header 'Access-Control-Allow-Origin' '$cors_origin' always;
+        add_header 'Access-Control-Allow-Credentials' 'true' always;
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD' always;
+        add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization,X-Total-Count,Accept,Origin' always;
+        add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range,Authorization,X-Total-Count' always;
+
+        if ($request_method = 'OPTIONS') {
+            add_header 'Access-Control-Allow-Origin' '$cors_origin' always;
+            add_header 'Access-Control-Allow-Credentials' 'true' always;
+            add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD' always;
+            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization,X-Total-Count,Accept,Origin' always;
+            add_header 'Access-Control-Max-Age' 1728000;
+            add_header 'Content-Type' 'text/plain; charset=utf-8';
+            add_header 'Content-Length' 0;
+            return 204;
+        }
+
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -121,7 +140,6 @@ server {
         proxy_connect_timeout 60s;
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
-
     }
 
     location /ws/chat/ {
@@ -169,6 +187,25 @@ server {
     location /ai/ {
         limit_req zone=api_limit burst=40 nodelay;
         proxy_pass http://ai-service:8000/;
+
+        # CORS Handling
+        add_header 'Access-Control-Allow-Origin' '$cors_origin' always;
+        add_header 'Access-Control-Allow-Credentials' 'true' always;
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD' always;
+        add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization,X-Total-Count,Accept,Origin' always;
+        add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range,Authorization,X-Total-Count' always;
+
+        if ($request_method = 'OPTIONS') {
+            add_header 'Access-Control-Allow-Origin' '$cors_origin' always;
+            add_header 'Access-Control-Allow-Credentials' 'true' always;
+            add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD' always;
+            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization,X-Total-Count,Accept,Origin' always;
+            add_header 'Access-Control-Max-Age' 1728000;
+            add_header 'Content-Type' 'text/plain; charset=utf-8';
+            add_header 'Content-Length' 0;
+            return 204;
+        }
+
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -189,7 +226,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         set $grafana_upstream grafana:3000;
-        proxy_pass http://$grafana_upstream/;
+        proxy_pass http://$grafana_upstream;
     }
 
     location = /grafana {
@@ -205,7 +242,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         set $prometheus_upstream prometheus:9090;
-        proxy_pass http://$prometheus_upstream/;
+        proxy_pass http://$prometheus_upstream;
     }
 
     location = /prometheus {
