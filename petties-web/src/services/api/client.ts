@@ -4,12 +4,18 @@ import { useAuthStore } from '../../store/authStore'
 import { useSandboxStore } from '../../store/sandboxStore'
 import { parseApiError } from '../../utils/errorHandler'
 
+const isTunnel = typeof window !== 'undefined' && (
+  window.location.hostname.includes('ngrok') ||
+  window.location.hostname.endsWith('.trycloudflare.com') ||
+  window.location.hostname.endsWith('.local')
+)
+
 export const apiClient = axios.create({
   baseURL: env.API_BASE_URL,
   timeout: 60_000, // Increased for image uploads
   headers: {
     'Content-Type': 'application/json',
-    'ngrok-skip-browser-warning': 'true',
+    ...(isTunnel && { 'ngrok-skip-browser-warning': 'true' }),
   },
 })
 
