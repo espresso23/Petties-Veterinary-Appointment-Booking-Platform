@@ -108,6 +108,22 @@
 
 ---
 
+### Production SSE CORS Fix (nginx /api) (Code-based Evidence - 2026-05-07)
+
+**Scope:** Fix browser CORS error when subscribing SSE:
+- `GET /api/sse/subscribe`
+- Error: `No 'Access-Control-Allow-Origin' header is present`
+
+**Implemented changes:**
+- Updated `nginx/templates/default.conf.template`:
+  - Added `Access-Control-Allow-*` headers under `location /api`
+  - Added basic handling for `OPTIONS` requests (return `204`)
+
+**Changed files (evidence):**
+- `nginx/templates/default.conf.template`
+
+---
+
 ### HOME_VISIT Overlap Protection (Range-based DB Constraint) (Code-based Evidence - 2026-05-07)
 
 **Scope:** Implement timeline-aware conflict prevention for `HOME_VISIT` bookings instead of exact-slot uniqueness only.

@@ -6,7 +6,7 @@ const fallback = {
   AGENT_SERVICE_URL: 'http://localhost:8000',
 }
 
-const stripTrailingSlash = (url: string): string => url.replace(/\/+$/, '')
+const stripTrailingSlash = (url: string): string => url.trim().replace(/\/+$/, '')
 
 const toWebSocketUrl = (url: string): string => {
   const normalizedUrl = stripTrailingSlash(url)
