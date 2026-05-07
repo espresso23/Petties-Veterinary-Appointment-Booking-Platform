@@ -73,12 +73,32 @@ jobs:
               fi
             fi
 
-            # Load env safely, preserving values with spaces (e.g. JAVA_OPTS).
+            # Load .env safely without executing shell code.
+            # Supports values with spaces (e.g. JAVA_OPTS) and avoids `source` risks.
             if [ -f "$ENV_FILE" ]; then
-              set -a
-              # shellcheck disable=SC1090
-              source <(grep -v '^[[:space:]]*#' "$ENV_FILE" | grep -v '^[[:space:]]*$')
-              set +a
+              while IFS= read -r raw_line || [ -n "$raw_line" ]; do
+                line="${raw_line%$'\r'}"
+                case "$line" in
+                  ''|[[:space:]]*'#'*) continue ;;
+                esac
+
+                if printf '%s' "$line" | grep -qE '^[A-Za-z_][A-Za-z0-9_]*='; then
+                  key="${line%%=*}"
+                  value="${line#*=}"
+
+                  # Trim matching surrounding quotes only.
+                  if [ "${value#\"}" != "$value" ] && [ "${value%\"}" != "$value" ]; then
+                    value="${value#\"}"
+                    value="${value%\"}"
+                  elif [ "${value#\'}" != "$value" ] && [ "${value%\'}" != "$value" ]; then
+                    value="${value#\'}"
+                    value="${value%\'}"
+                  fi
+
+                  printf -v "$key" '%s' "$value"
+                  export "$key"
+                fi
+              done < "$ENV_FILE"
             fi
 
             export COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-petties-prod}

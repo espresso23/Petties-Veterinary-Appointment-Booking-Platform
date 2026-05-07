@@ -104,6 +104,26 @@
 
 ---
 
+### Production Deploy Env Parsing Fix (Code-based Evidence - 2026-05-07)
+
+**Scope:** Fix deploy crash caused by shell executing malformed/unquoted `.env.prod` content when loading environment variables.
+
+**Incident evidence:**
+- CI deploy failed with: `/dev/fd/63: line 40: vhvu: command not found` (exit code `127`) while loading env.
+- Root cause: `source`-based env loading executed file content as shell commands.
+
+**Implemented changes:**
+- Replaced `source <(...)` env loading with a strict parser loop:
+  - Only accepts lines matching `^[A-Za-z_][A-Za-z0-9_]*=`.
+  - Ignores comments/blank lines.
+  - Preserves values containing spaces (e.g. `JAVA_OPTS`).
+  - Trims only matching surrounding quotes and exports via `printf -v` (no eval/source execution).
+
+**Changed files (evidence):**
+- `.github/workflows/deploy-ec2.yml`
+
+---
+
 ### Production Backend Memory Tuning (Code-based Evidence - 2026-05-07)
 
 **Scope:** Reduce Spring Boot restart loops during production startup/health-check windows by increasing backend runtime memory headroom in production compose defaults.
