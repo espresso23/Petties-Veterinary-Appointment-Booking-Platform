@@ -139,39 +139,54 @@ export default function SosAlertModal({ clinicId }: SosAlertModalProps) {
         }
     }, [countdown, currentAlert, handleDecline])
 
-    // Fetch staff list when alert appears (#7: with loading state)
+    // Fetch staff list when alert appears (#7: with loading state + retry to avoid race with booking creation)
     useEffect(() => {
-        if (currentAlert && clinicId) {
-            let cancelled = false
-            setIsLoadingStaff(true)
+        if (!currentAlert || !clinicId) {
             setAvailableStaff([])
             setSelectedStaffId('')
-            bookingService.getAvailableStaffForConfirm(currentAlert.bookingId)
-                .then(staff => {
-                    if (cancelled) return
-                    setAvailableStaff(staff)
-                    // Auto-select suggested staff if any
-                    const suggested = staff.find((s: AvailableStaff) => s.isSuggested)
-                    if (suggested) {
-                        setSelectedStaffId(suggested.staffId)
-                    } else if (staff.length > 0) {
-                        setSelectedStaffId(staff[0].staffId)
-                    }
-                })
-                .catch(err => console.error('Error fetching staff for SOS:', err))
-                .finally(() => {
-                    if (!cancelled) {
-                        setIsLoadingStaff(false)
-                    }
-                })
+            return
+        }
 
-            return () => {
-                cancelled = true
+        let cancelled = false
+        setIsLoadingStaff(true)
+        setAvailableStaff([])
+        setSelectedStaffId('')
+
+        const fetchWithRetry = async (attemptsLeft: number): Promise<void> => {
+            try {
+                const staff = await bookingService.getAvailableStaffForConfirm(currentAlert.bookingId)
+                if (cancelled) return
+                setAvailableStaff(staff)
+                const suggested = staff.find((s: AvailableStaff) => s.isSuggested)
+                if (suggested) {
+                    setSelectedStaffId(suggested.staffId)
+                } else if (staff.length > 0) {
+                    setSelectedStaffId(staff[0].staffId)
+                }
+            } catch (err: any) {
+                if (cancelled) return
+                const is404 = err?.response?.status === 404
+                if (is404 && attemptsLeft > 0) {
+                    console.warn(`[SOS] Booking chưa sẵn sàng, retry sau 1.5s (còn ${attemptsLeft} lần)`)
+                    await new Promise(res => setTimeout(res, 1500))
+                    if (!cancelled) {
+                        return fetchWithRetry(attemptsLeft - 1)
+                    }
+                } else {
+                    console.error('Error fetching staff for SOS:', err)
+                }
+            } finally {
+                if (!cancelled) {
+                    setIsLoadingStaff(false)
+                }
             }
         }
 
-        setAvailableStaff([])
-        setSelectedStaffId('')
+        fetchWithRetry(4)
+
+        return () => {
+            cancelled = true
+        }
     }, [currentAlert, clinicId])
 
     const handleAccept = async () => {

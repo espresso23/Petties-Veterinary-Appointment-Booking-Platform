@@ -25,23 +25,23 @@ class Environment {
 
     // 3. Derive from baseUrl (most reliable approach)
     // baseUrl is always https:// or http://, which Dart handles correctly
-    final base = baseUrl; // e.g. https://ngrok-domain/api
-    final serverUrl = base.replaceAll('/api', ''); // https://ngrok-domain
+    final base = baseUrl; // e.g. https://api.petties.world/api
+    final serverUrl = base.replaceAll('/api', ''); // https://api.petties.world
 
     if (serverUrl.startsWith('https://')) {
       // Extract host from https:// URL
       final host = serverUrl.replaceFirst('https://', '');
-      // Use wss:// with explicit port 443 to avoid Dart port 0 bug
-      return 'wss://$host:443/api/ws-native';
+      // Use wss:// — port 443 is implicit for wss, no need to hardcode
+      // Use /ws-native/ to match the dedicated nginx location block
+      return 'wss://$host/ws-native/';
     } else if (serverUrl.startsWith('http://')) {
       final host = serverUrl.replaceFirst('http://', '');
       // Local dev: ws:// with the port from the URL (usually 8080)
-      // If host already has port (e.g., localhost:8080), don't add another
-      return 'ws://$host/api/ws-native';
+      return 'ws://$host/ws-native/';
     }
 
     // 4. Fallback
-    return 'ws://localhost:8080/api/ws-native';
+    return 'ws://localhost:8080/ws-native/';
   }
 
   Environment._();
@@ -105,7 +105,7 @@ class Environment {
   }
 
   /// AI Service URL
-  /// Priority: AI_SERVICE_URL from .env > same as baseUrl (for ngrok/nginx setup) > default localhost
+  /// Priority: AI_SERVICE_URL from .env > unified proxy /ai path > default localhost
   static String get _devAiServiceUrl {
     // 1. Priority: AI_SERVICE_URL from .env file
     if (dotenv.isInitialized &&
@@ -117,11 +117,12 @@ class Environment {
       return 'http://10.0.2.2:8000';
     }
 
-    // 2. If using ngrok with nginx reverse proxy, AI service uses same base URL
-    // Backend: /api/*, AI: /* (root paths)
+    // 2. If using ngrok/nginx reverse proxy, AI service is served under /ai path
+    // e.g. https://api.petties.world/ai  or  https://abc.ngrok.io/ai
     final base = _devBaseUrl.replaceAll('/api', '');
     if (!base.contains('localhost') && !base.contains('10.0.2.2')) {
-      return base;
+      // FIX: append /ai so nginx routes to ai-service instead of frontend
+      return '$base/ai';
     }
 
     // 3. Fallback to localhost
@@ -180,6 +181,8 @@ class Environment {
     print('Base URL: $baseUrl');
     // ignore: avoid_print
     print('AI Service URL: $aiServiceUrl');
+    // ignore: avoid_print
+    print('WS URL: $wsUrl');
     // ignore: avoid_print
     print('================================');
   }

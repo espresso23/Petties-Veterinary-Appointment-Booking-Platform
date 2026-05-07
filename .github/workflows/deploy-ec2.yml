@@ -27,6 +27,10 @@ jobs:
           script: |
             set -euo pipefail
 
+            # Enable BuildKit for better layer caching
+            export DOCKER_BUILDKIT=1
+            export COMPOSE_DOCKER_CLI_BUILD=1
+
             REPO_DIR="$HOME/petties-backend/Petties-Veterinary-Appointment-Booking-Platform"
             REPO_URL="https://github.com/espresso23/Petties-Veterinary-Appointment-Booking-Platform.git"
             BRANCH="main"
@@ -171,12 +175,14 @@ jobs:
 
             # Build tuần tự để tránh hết disk giữa chừng.
             # Layer cache được giữ lại → lần sau chỉ rebuild layer có code thay đổi.
+            # KHÔNG prune giữa các build — intermediate layers là build cache, xóa sẽ làm mất cache.
             echo "🔨 Building backend image (reusing layer cache)..."
             docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build backend
-            docker image prune -f || true
 
             echo "🔨 Building ai-service image (reusing layer cache)..."
             docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build ai-service
+
+            echo "🧹 Pruning dangling images after all builds complete..."
             docker image prune -f || true
 
             echo "🚀 Starting core services (backend + ai-service + nginx)..."

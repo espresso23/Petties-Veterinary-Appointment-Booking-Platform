@@ -40,6 +40,21 @@
 
 ---
 
+### SOS Staff Fetch Retry (Race Condition Fix) (Code-based Evidence - 2026-05-07)
+
+**Scope:** Giảm trường hợp Clinic Manager mở popup SOS thấy thông báo “Không có nhân viên” do FE gọi API trước khi booking SOS được commit xong trong database.
+
+**Implemented changes:**
+- Cập nhật `SosAlertModal` để khi gọi `GET /bookings/{bookingId}/available-staff-for-confirm`:
+  - Nếu nhận 404 (booking chưa sẵn sàng) sẽ retry tối đa 4 lần, mỗi lần cách nhau 1.5s (tổng ~6s).
+  - Chỉ log lỗi khi hết lượt retry hoặc lỗi khác 404.
+  - Giữ loading state đúng và hủy retry an toàn khi modal bị unmount.
+
+**Changed files (evidence):**
+- `petties-web/src/components/booking/SosAlertModal.tsx`
+
+---
+
 ### HOME_VISIT Overlap Protection (Range-based DB Constraint) (Code-based Evidence - 2026-05-07)
 
 **Scope:** Implement timeline-aware conflict prevention for `HOME_VISIT` bookings instead of exact-slot uniqueness only.
