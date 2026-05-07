@@ -397,9 +397,7 @@ class AiChatService {
 
   Future<IOWebSocketChannel> connectToSession(String sessionId) async {
     final token = await _requireToken();
-    final wsBase = _rootUrl.startsWith('https://')
-        ? _rootUrl.replaceFirst('https://', 'wss://')
-        : _rootUrl.replaceFirst('http://', 'ws://');
+    final wsBase = Environment.aiWsBaseUrl;
 
     final uri = Uri.parse(
       '$wsBase/ws/chat/$sessionId?token=${Uri.encodeComponent(token)}&context_type=$_contextType',

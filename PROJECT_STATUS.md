@@ -55,6 +55,27 @@
 
 ---
 
+### AI Chat WebSocket URL Fix (Remove `/ai`, Use `wss://`) (Code-based Evidence - 2026-05-07)
+
+**Scope:** Sửa URL WebSocket cho AI chat trên mobile:
+- Tránh ghép sai path kiểu `.../ai/ws/chat/...`
+- Đảm bảo dùng `wss://` và host đúng theo Nginx route `/ws/chat/`
+- Giảm nguy cơ lỗi parse WS scheme (port 0)
+
+**Implemented changes:**
+- Thêm getter `Environment.aiWsBaseUrl` để:
+  - derive từ `AI_SERVICE_URL` bằng cách strip suffix `/ai` (nếu có)
+  - chuyển `https://` -> `wss://` và thêm `:443` khi thiếu port
+- Sửa `AiChatService.connectToSession()`:
+  - dùng `Environment.aiWsBaseUrl` thay vì ghép trực tiếp từ `_rootUrl`
+  - kết nối tới `.../ws/chat/{sessionId}`
+
+**Changed files (evidence):**
+- `petties_mobile/lib/config/env/environment.dart`
+- `petties_mobile/lib/data/services/ai_chat_service.dart`
+
+---
+
 ### HOME_VISIT Overlap Protection (Range-based DB Constraint) (Code-based Evidence - 2026-05-07)
 
 **Scope:** Implement timeline-aware conflict prevention for `HOME_VISIT` bookings instead of exact-slot uniqueness only.

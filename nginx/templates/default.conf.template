@@ -4,26 +4,33 @@ limit_req_zone $binary_remote_addr zone=api_limit:10m rate=120r/m;
 server {
     listen 80;
     server_name ${NGINX_SERVER_NAME};
-
-    # Redirect all HTTP to HTTPS
     return 301 https://$host$request_uri;
 }
 
 server {
-    listen 443 ssl;
+    listen 443 ssl http2;
     server_name ${NGINX_SERVER_NAME};
 
     ssl_certificate ${NGINX_SSL_CERT};
     ssl_certificate_key ${NGINX_SSL_KEY};
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_proxied any;
+    gzip_types application/json application/javascript text/css text/plain text/xml;
 
     client_max_body_size 60M;
-    resolver ${NGINX_RESOLVER} ipv6=off valid=30s;
     limit_req_status 429;
 
-    location /api/ws-native {
-        proxy_pass http://backend:8080/api/ws-native;
+    # WebSocket: ws-native (backend) — regex để match cả có và không có trailing slash
+    location ~ ^/api/ws-native(/.*)?$ {
+        proxy_pass http://backend:8080/api/ws-native$1;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -90,8 +97,6 @@ server {
     }
 
     location /ws/ {
-        # Backend runs under /api context-path in production.
-        # Proxy WS handshake to the correct backend endpoint.
         proxy_pass http://backend:8080/api/ws/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -106,7 +111,6 @@ server {
     }
 
     location /ws-native/ {
-        # Backend runs under /api context-path in production.
         proxy_pass http://backend:8080/api/ws-native/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -134,27 +138,14 @@ server {
         proxy_request_buffering off;
     }
 
-    # ===========================
-    # Monitoring (Admin only)
-    # Public via Nginx with Basic Auth.
-    # Paths:
-    #   https://<domain>/grafana
-    #   https://<domain>/prometheus
-    # ===========================
-
     location ^~ /grafana/ {
         auth_basic "Petties Monitoring";
         auth_basic_user_file /etc/nginx/monitoring.htpasswd;
-
-        # Avoid nginx startup failure when grafana container isn't resolvable yet.
-        # Use Docker DNS resolver and runtime resolution via variable proxy_pass.
         resolver 127.0.0.11 ipv6=off valid=10s;
-
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-
         set $grafana_upstream grafana:3000;
         proxy_pass http://$grafana_upstream/;
     }
@@ -166,15 +157,11 @@ server {
     location ^~ /prometheus/ {
         auth_basic "Petties Monitoring";
         auth_basic_user_file /etc/nginx/monitoring.htpasswd;
-
-        # Avoid nginx startup failure when prometheus container isn't resolvable yet.
         resolver 127.0.0.11 ipv6=off valid=10s;
-
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-
         set $prometheus_upstream prometheus:9090;
         proxy_pass http://$prometheus_upstream/;
     }
@@ -184,6 +171,7 @@ server {
     }
 
     location / {
+        resolver ${NGINX_RESOLVER} ipv6=off valid=30s;
         proxy_pass ${NGINX_FRONTEND_UPSTREAM};
         proxy_http_version 1.1;
         proxy_set_header Host ${NGINX_FRONTEND_HOST};

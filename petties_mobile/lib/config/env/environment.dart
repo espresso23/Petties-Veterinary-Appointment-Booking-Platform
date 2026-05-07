@@ -133,6 +133,40 @@ class Environment {
     return _devAiServiceUrl;
   }
 
+  /// WebSocket base URL for AI chat (nginx location is `/ws/chat/`)
+  /// IMPORTANT: Nginx route for AI WS does NOT include `/ai` prefix.
+  /// Ví dụ:
+  /// - AI service URL (REST): `https://api.petties.world/ai`
+  /// - AI WS URL (WS): `wss://api.petties.world/ws/chat/{session_id}`
+  /// - Không dùng `https://...:0` vì Dart parse WS scheme có vấn đề.
+  static String get aiWsBaseUrl {
+    // 1. Highest priority: explicit override from .env
+    if (dotenv.isInitialized &&
+        dotenv.env['AI_WS_URL'] != null &&
+        dotenv.env['AI_WS_URL']!.isNotEmpty) {
+      return dotenv.env['AI_WS_URL']!;
+    }
+
+    // 2. Derive from aiServiceUrl by stripping `/ai` suffix
+    final raw = aiServiceUrl.trim().replaceFirst(RegExp(r'/+$'), '');
+    final withoutAiPrefix = raw.replaceFirst(RegExp(r'/ai$'), '');
+
+    if (withoutAiPrefix.startsWith('https://')) {
+      final host = withoutAiPrefix.replaceFirst('https://', '');
+      // Ensure an explicit port to avoid Dart `wss://` port=0 parsing issues.
+      final hostWithPort = host.contains(':') ? host : '$host:443';
+      return 'wss://$hostWithPort';
+    }
+
+    if (withoutAiPrefix.startsWith('http://')) {
+      final host = withoutAiPrefix.replaceFirst('http://', '');
+      return host.contains(':') ? 'ws://$host' : 'ws://$host:80';
+    }
+
+    // 3. Fallback
+    return 'wss://api.petties.world:443';
+  }
+
   // ============================================================
   // Google OAuth Configuration
   // ============================================================
