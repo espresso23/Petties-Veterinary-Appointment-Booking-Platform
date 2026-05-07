@@ -81,16 +81,6 @@ server {
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
 
-        # CORS for browser clients (SSE/axios). Ensure SSE GET responses include
-        # Access-Control-Allow-Origin so EventSource/fetch aren't blocked.
-        add_header Access-Control-Allow-Origin $http_origin always;
-        add_header Access-Control-Allow-Credentials "true" always;
-        add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
-        add_header Access-Control-Allow-Headers "Authorization, Content-Type, Accept, Origin, User-Agent, ngrok-skip-browser-warning" always;
-
-        if ($request_method = OPTIONS) {
-            return 204;
-        }
     }
 
     location /ws/chat/ {
