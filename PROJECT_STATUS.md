@@ -6,6 +6,23 @@
 
 ---
 
+### Production Backend Memory Tuning (Code-based Evidence - 2026-05-07)
+
+**Scope:** Reduce Spring Boot restart loops during production startup/health-check windows by increasing backend runtime memory headroom in production compose defaults.
+
+**Implemented changes:**
+- Increased backend JVM defaults for production runtime:
+  - `BACKEND_JAVA_OPTS` default from `-Xmx320m -Xms256m -XX:+UseSerialGC -XX:MaxMetaspaceSize=128m`
+  - to `-Xmx512m -Xms256m -XX:+UseG1GC -XX:MaxMetaspaceSize=192m`.
+- Increased backend container memory defaults:
+  - `BACKEND_MEMORY_LIMIT` from `512M` to `1024M`.
+  - `BACKEND_MEMORY_RESERVATION` from `384M` to `512M`.
+
+**Changed files (evidence):**
+- `docker-compose.prod.yml`
+
+---
+
 ### Production Deploy Safety Hardening (Code-based Evidence - 2026-05-07)
 
 **Scope:** Align production gateway domain with `api.petties.world`, fail deployment on unhealthy services, and remove destructive Docker cleanup behavior that could risk production data.
