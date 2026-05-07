@@ -75,7 +75,9 @@ class SosWebSocketService {
         this.subscriptions.clear()
 
         return new Promise((resolve, reject) => {
-            const wsUrl = `${env.API_BASE_URL.replace('/api', '')}/api/ws`
+            const wsUrl = env.WS_URL
+                .replace(/^wss:\/\//, 'https://')
+                .replace(/^ws:\/\//, 'http://')
             const accessToken = useAuthStore.getState().accessToken
 
             if (!accessToken) {

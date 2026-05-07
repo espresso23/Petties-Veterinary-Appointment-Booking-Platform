@@ -32,8 +32,10 @@ class ChatWebSocketService {
     this.isConnecting = true
 
     return new Promise((resolve, reject) => {
-      // WebSocket endpoint is at /api/ws due to backend context path
-      const wsUrl = `${env.API_BASE_URL.replace('/api', '')}/api/ws`
+      // Use normalized WS URL from env config to avoid malformed /api/api/ws cases.
+      const wsUrl = env.WS_URL
+        .replace(/^wss:\/\//, 'https://')
+        .replace(/^ws:\/\//, 'http://')
       const accessToken = useAuthStore.getState().accessToken
 
       // Only log connection success, not every attempt

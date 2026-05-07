@@ -22,6 +22,35 @@ const toWebSocketUrl = (url: string): string => {
   return normalizedUrl
 }
 
+const hasBrokenHostname = (url: string): boolean => {
+  try {
+    const parsed = new URL(url)
+    return !parsed.hostname || parsed.hostname.startsWith('.')
+  } catch {
+    return true
+  }
+}
+
+const normalizeApiBaseUrl = (input: string): string => {
+  const trimmed = stripTrailingSlash(input)
+  if (!trimmed) return 'https://api.petties.world/api'
+
+  // If env accidentally sets invalid host like https://.petties.world/api
+  if (hasBrokenHostname(trimmed)) return 'https://api.petties.world/api'
+
+  return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`
+}
+
+const normalizeWsUrl = (input: string): string => {
+  const trimmed = stripTrailingSlash(input)
+  if (!trimmed) return 'wss://api.petties.world/ws'
+  if (hasBrokenHostname(trimmed)) return 'wss://api.petties.world/ws'
+
+  // Ensure ws endpoint suffix exists
+  if (trimmed.endsWith('/ws')) return trimmed
+  return `${trimmed}/ws`
+}
+
 const isUnifiedProxyAiSetup = (agentServiceUrl: string): boolean => {
   if (typeof window === 'undefined') return false
 
@@ -129,9 +158,9 @@ export const env = {
   APP_NAME: import.meta.env.VITE_APP_NAME ?? fallback.APP_NAME,
   
   // Priority: Env var > Environment detection > Fallback
-  API_BASE_URL: rawApiBaseUrl,
+  API_BASE_URL: normalizeApiBaseUrl(rawApiBaseUrl),
   
-  WS_URL: rawWsUrl,
+  WS_URL: normalizeWsUrl(rawWsUrl),
   
   AGENT_SERVICE_URL: stripTrailingSlash(rawAgentServiceUrl),
   AGENT_API_BASE_URL: stripTrailingSlash(rawAgentApiBaseUrl),

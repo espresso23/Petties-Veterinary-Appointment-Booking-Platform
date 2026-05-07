@@ -11,12 +11,19 @@ class Environment {
   /// (it only recognizes http/https). This causes BAD_DECRYPT errors.
   /// Solution: Always derive WS URL from baseUrl and set port explicitly.
   static String get wsUrl {
-    // 1. dart-define override (compile time) - used for specific overrides
+    // 1. Priority cao nhất: .env WS_URL
+    if (dotenv.isInitialized &&
+        dotenv.env['WS_URL'] != null &&
+        dotenv.env['WS_URL']!.isNotEmpty) {
+      return dotenv.env['WS_URL']!;
+    }
+
+    // 2. dart-define override (compile time)
     if (_wsUrlOverride.isNotEmpty) {
       return _wsUrlOverride;
     }
 
-    // 2. Derive from baseUrl (most reliable approach)
+    // 3. Derive from baseUrl (most reliable approach)
     // baseUrl is always https:// or http://, which Dart handles correctly
     final base = baseUrl; // e.g. https://ngrok-domain/api
     final serverUrl = base.replaceAll('/api', ''); // https://ngrok-domain
@@ -33,7 +40,7 @@ class Environment {
       return 'ws://$host/api/ws-native';
     }
 
-    // Fallback
+    // 4. Fallback
     return 'ws://localhost:8080/api/ws-native';
   }
 
@@ -46,15 +53,21 @@ class Environment {
   // Nếu chạy trên điện thoại thật (Real Device) thì PHẢI dùng IP LAN của máy tính (ví dụ: 192.168.1.5)
   // Mở CMD gõ 'ipconfig' để xem IP
   static String get _devBaseUrl {
-    // 1. Priority: .env file
-    // Check if .env is loaded and has the key
+    // 1. Priority cao nhất: API_URL trong .env (đã full path)
+    if (dotenv.isInitialized &&
+        dotenv.env['API_URL'] != null &&
+        dotenv.env['API_URL']!.isNotEmpty) {
+      return _ensureApiPath(dotenv.env['API_URL']!);
+    }
+
+    // 2. Priority: API_BASE_URL trong .env (auto append /api)
     if (dotenv.isInitialized &&
         dotenv.env['API_BASE_URL'] != null &&
         dotenv.env['API_BASE_URL']!.isNotEmpty) {
-      return '${dotenv.env['API_BASE_URL']}/api';
+      return _ensureApiPath(dotenv.env['API_BASE_URL']!);
     }
 
-    // 2. Fallback if .env missing
+    // 3. Fallback if .env missing
     if (Platform.isAndroid) {
       // Default for Android Emulator
       return 'http://10.0.2.2:8080/api';
@@ -65,28 +78,30 @@ class Environment {
 
   static const String _apiUrlOverride = String.fromEnvironment('API_URL');
 
+  static String _ensureApiPath(String value) {
+    final trimmed = value.trim().replaceAll(RegExp(r'/+$'), '');
+    if (trimmed.endsWith('/api')) return trimmed;
+    return '$trimmed/api';
+  }
+
   /// Get the base URL (dart-define -> .env -> local fallback)
   static String get baseUrl {
-    // 1. Priority: API_URL passed via --dart-define (compile time)
+    // 1. Priority cao nhất: .env
+    if (dotenv.isInitialized) {
+      final envApiUrl = (dotenv.env['API_URL'] ?? '').trim();
+      if (envApiUrl.isNotEmpty) return _ensureApiPath(envApiUrl);
+
+      final envApiBaseUrl = (dotenv.env['API_BASE_URL'] ?? '').trim();
+      if (envApiBaseUrl.isNotEmpty) return _ensureApiPath(envApiBaseUrl);
+    }
+
+    // 2. dart-define (chỉ dùng khi .env không có)
     if (_apiUrlOverride.isNotEmpty) {
-      return _apiUrlOverride;
+      return _ensureApiPath(_apiUrlOverride);
     }
 
-    // 2. Priority: API_BASE_URL from .env file (auto-appends /api)
-    // This is the primary way for Local Dev and CodeMagic
-    final envBase = _devBaseUrl;
-    if (!envBase.contains('localhost') && !envBase.contains('10.0.2.2')) {
-      return envBase;
-    }
-
-    // 3. Fallback: Check if there's a specific API_URL in .env
-    try {
-      final envUrl = dotenv.env['API_URL'] ?? '';
-      if (envUrl.isNotEmpty) return envUrl;
-    } catch (_) {}
-
-    // 4. Final fallback: local dev values (localhost/10.0.2.2)
-    return envBase;
+    // 3. Final fallback: local dev values (localhost/10.0.2.2)
+    return _devBaseUrl;
   }
 
   /// AI Service URL

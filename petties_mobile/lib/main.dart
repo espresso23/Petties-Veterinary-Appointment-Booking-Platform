@@ -17,6 +17,7 @@ import 'config/theme/app_theme.dart';
 import 'utils/storage_service.dart';
 import 'core/services/sentry_service.dart';
 import 'utils/fcm_service.dart';
+import 'config/env/environment.dart';
 
 import 'package:intl/date_symbol_data_local.dart';
 
@@ -34,6 +35,11 @@ void main() async {
   try {
     await dotenv.load(fileName: '.env');
     debugPrint('✅ Loaded .env file');
+    // Print resolved runtime configuration for debugging (API/WS)
+    Environment.printConfig();
+    debugPrint('Dotenv API_BASE_URL: ${dotenv.env['API_BASE_URL']}');
+    debugPrint('Dotenv API_URL: ${dotenv.env['API_URL']}');
+    debugPrint('Dotenv WS_URL: ${dotenv.env['WS_URL']}');
   } catch (e) {
     debugPrint('⚠️ Could not load .env file: $e');
   }

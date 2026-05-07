@@ -77,21 +77,16 @@ jobs:
             # Handles values with spaces (e.g. BACKEND_JAVA_OPTS=-Xmx1024m -Xms512m ...)
             if [ -f "$ENV_FILE" ]; then
               while IFS= read -r raw_line || [ -n "$raw_line" ]; do
-                # Strip Windows carriage return
                 line="${raw_line%$'\r'}"
-                # Skip blank lines and comment lines (with or without leading spaces)
                 case "$line" in
                   ''|'#'*|[[:space:]]*'#'*|[[:space:]]*) continue ;;
                 esac
-                # Only process valid KEY=VALUE lines
                 if printf '%s' "$line" | grep -qE '^[A-Za-z_][A-Za-z0-9_]*='; then
                   key="${line%%=*}"
                   value="${line#*=}"
-                  # Strip matching surrounding double quotes
                   if [ "${value#\"}" != "$value" ] && [ "${value%\"}" != "$value" ]; then
                     value="${value#\"}"
                     value="${value%\"}"
-                  # Strip matching surrounding single quotes
                   elif [ "${value#\'}" != "$value" ] && [ "${value%\'}" != "$value" ]; then
                     value="${value#\'}"
                     value="${value%\'}"
@@ -135,15 +130,16 @@ jobs:
             fi
             echo "✅ Disk space OK: ${AVAIL_GB}GB available"
 
-            echo "🧹 Pre-deployment cleanup (safe for data — no volumes removed)..."
-            docker image prune -af
-            docker builder prune -af
+            echo "🧹 Pre-deployment cleanup (preserve build cache for faster builds)..."
+            # Chỉ xóa dangling images (untagged) — KHÔNG xóa builder cache
+            # Builder cache giúp tái sử dụng Maven/pip layers → deploy nhanh hơn nhiều
+            docker image prune -f || true
 
-            echo "🧽 Removing conflicting containers (if any)..."
-            docker rm -f ${COMPOSE_PROJECT}-backend-1 ${COMPOSE_PROJECT}-ai-service-1 2>/dev/null || true
-
-            echo "🛑 Stopping production containers..."
-            docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" down --remove-orphans
+            echo "🛑 Stopping and removing all production containers..."
+            docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" down --remove-orphans 2>/dev/null || true
+            # Force remove container còn sót (tránh name conflict)
+            docker ps -aq --filter "name=${COMPOSE_PROJECT}" | xargs -r docker rm -f 2>/dev/null || true
+            sleep 3
 
             echo "🔎 Port preflight for Nginx (${NGINX_HOST_PORT}/${NGINX_HTTPS_PORT})..."
             if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet nginx; then
@@ -173,15 +169,15 @@ jobs:
             free_port_or_fail "$NGINX_HOST_PORT"
             free_port_or_fail "$NGINX_HTTPS_PORT"
 
-            # Build services sequentially to avoid disk exhaustion.
-            # Prune intermediate layers between builds.
-            echo "🔨 Building backend image..."
+            # Build tuần tự để tránh hết disk giữa chừng.
+            # Layer cache được giữ lại → lần sau chỉ rebuild layer có code thay đổi.
+            echo "🔨 Building backend image (reusing layer cache)..."
             docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build backend
-            docker image prune -f
+            docker image prune -f || true
 
-            echo "🔨 Building ai-service image..."
+            echo "🔨 Building ai-service image (reusing layer cache)..."
             docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build ai-service
-            docker image prune -f
+            docker image prune -f || true
 
             echo "🚀 Starting core services (backend + ai-service + nginx)..."
             docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans
@@ -229,9 +225,12 @@ jobs:
             echo "📜 Showing recent logs..."
             docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs --tail=30
 
-            echo "🧹 Post-deployment cleanup (safe mode, no volumes)..."
-            docker image prune -af || true
-            docker builder prune -af || true
+            echo "🧹 Post-deployment cleanup (dangling images only — cache preserved)..."
+            docker image prune -f || true
+
+            echo "💾 Disk usage after deploy:"
+            df -h /
+            docker system df
 
             echo "🚀 ============================================"
             echo "✅ Production Deployment complete!"

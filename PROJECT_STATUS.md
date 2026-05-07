@@ -6,6 +6,40 @@
 
 ---
 
+### Mobile Env Priority Update (ENV Highest) (Code-based Evidence - 2026-05-07)
+
+**Scope:** Ensure Flutter mobile runtime always prioritizes `.env` values over `--dart-define` to prevent accidental localhost overrides during production testing.
+
+**Implemented changes:**
+- Updated mobile environment resolution order in `Environment`:
+  - `baseUrl`: `.env (API_URL/API_BASE_URL)` → `--dart-define API_URL` → local fallback.
+  - `wsUrl`: `.env (WS_URL)` → `--dart-define WS_URL` → derive from `baseUrl` → local fallback.
+- Added URL normalization helper to enforce `/api` suffix consistently and avoid duplicate/missing API path issues.
+
+**Changed files (evidence):**
+- `petties_mobile/lib/config/env/environment.dart`
+
+---
+
+### WebSocket URL Guard for Production (Code-based Evidence - 2026-05-07)
+
+**Scope:** Fix repeated production WebSocket failures caused by malformed host (`https://.petties.world/...`) and duplicated path (`/api/api/ws`) when environment variables are misconfigured.
+
+**Implemented changes:**
+- Hardened frontend env normalization in `env.ts`:
+  - Added safe fallback to `https://api.petties.world/api` when host is invalid/empty.
+  - Added safe fallback to `wss://api.petties.world/ws` for malformed WS host.
+  - Ensures `API_BASE_URL` always ends with `/api` and `WS_URL` always ends with `/ws`.
+- Updated WebSocket clients to use normalized `env.WS_URL` (converted to SockJS http/https base) instead of string replace logic from `API_BASE_URL`.
+- Removed fragile URL construction path that could generate `/api/api/ws`.
+
+**Changed files (evidence):**
+- `petties-web/src/config/env.ts`
+- `petties-web/src/services/websocket/chatWebSocket.ts`
+- `petties-web/src/services/websocket/sosWebSocket.ts`
+
+---
+
 ### HOME_VISIT Overlap Protection (Range-based DB Constraint) (Code-based Evidence - 2026-05-07)
 
 **Scope:** Implement timeline-aware conflict prevention for `HOME_VISIT` bookings instead of exact-slot uniqueness only.
