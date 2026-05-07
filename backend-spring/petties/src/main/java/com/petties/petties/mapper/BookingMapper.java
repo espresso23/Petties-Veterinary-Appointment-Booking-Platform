@@ -224,6 +224,7 @@ public class BookingMapper {
                     .sosFee(booking.getSosFee())
                     .symptoms(booking.getSymptoms())
                     .createdAt(booking.getCreatedAt())
+                    .arrivedAt(booking.getArrivedAt())
                     .build();
         } catch (Exception e) {
             log.error("Error mapping booking {} to response: {}", booking.getBookingId(), e.getMessage(), e);
@@ -289,6 +290,7 @@ public class BookingMapper {
                 .primaryServiceName(primaryService)
                 .servicesCount(servicesCount)
                 .homeAddress(booking.getHomeAddress())
+                .arrivedAt(booking.getArrivedAt())
                 .build();
     }
 
