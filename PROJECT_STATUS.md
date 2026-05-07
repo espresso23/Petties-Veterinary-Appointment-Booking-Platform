@@ -57,6 +57,21 @@
 
 ---
 
+### Mongo Config Unification (Single Source Variable) (Code-based Evidence - 2026-05-07)
+
+**Scope:** Eliminate dual Mongo connection variable drift between backend and AI service by enforcing a single production source variable.
+
+**Implemented changes:**
+- Updated production compose mapping so AI service `MONGODB_URL` is sourced from `MONGO_URI`.
+- Removed redundant `MONGODB_URL` entry from `.env.prod`; runtime now uses one Mongo URI variable only.
+- Kept `MONGODB_DATABASE` for explicit DB naming in AI service settings.
+
+**Changed files (evidence):**
+- `docker-compose.prod.yml`
+- `.env.prod`
+
+---
+
 ### Metrics-based Monitoring Stack (Code-based Evidence - 2026-04-20)
 
 **Scope:** Upgrade observability from log-derived monitoring to metrics-based monitoring using Prometheus + Grafana.

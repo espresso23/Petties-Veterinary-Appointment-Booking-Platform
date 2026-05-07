@@ -95,7 +95,7 @@ services:
       PORT: 8000
       WORKERS: ${AI_WORKERS:-2}
       DATABASE_URL: ${DATABASE_URL:-}
-      MONGODB_URL: ${MONGODB_URL:-}
+      MONGODB_URL: ${MONGO_URI:-}
       MONGODB_DATABASE: ${MONGODB_DATABASE:-petties_nosql}
       JWT_SECRET: ${JWT_SECRET:-}
       SECRET_KEY: ${JWT_SECRET:-}
