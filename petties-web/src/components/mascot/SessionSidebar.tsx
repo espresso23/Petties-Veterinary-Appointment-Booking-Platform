@@ -8,6 +8,7 @@ import {
 import { useAIChatStore } from '../../store/aiChatStore'
 import type { ChatSession } from '../../store/aiChatStore'
 import { useAuthStore } from '../../store/authStore'
+import { env } from '../../config/env'
 import { ConfirmModal } from '../ConfirmModal'
 import { useToast } from '../Toast'
 
@@ -38,7 +39,7 @@ export const SessionSidebar = ({
 
     try {
       setLoading(true)
-      const baseUrl = import.meta.env.VITE_AGENT_API_BASE_URL || 'http://localhost:8000'
+      const baseUrl = env.AGENT_API_BASE_URL
       const response = await fetch(`${baseUrl}/api/v1/chat/sessions?limit=20&context_type=BUSINESS_CHAT`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`

@@ -114,7 +114,8 @@ export const useMembershipStore = create<MembershipState>((set, get) => ({
 
         const membership = get().membership
         if (!get().isVIP()) return 'GÓI MIỄN PHÍ'
-        return membership?.plan.name.toUpperCase() || 'GÓI MIỄN PHÍ'
+        const planName = membership?.plan?.name?.trim()
+        return planName ? planName.toUpperCase() : 'GÓI MIỄN PHÍ'
     },
 
     getRemainingDays: () => {

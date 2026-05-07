@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/authStore'
 import { useAIChatStore } from '../../store/aiChatStore'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { UIAction, UISchemaV1 } from '../../types/chat-copilot'
+import { env } from '../../config/env'
 import { useToast } from '../Toast'
 import { MascotLauncher } from './MascotLauncher'
 import { MascotDockPanel } from './MascotDockPanel'
@@ -73,7 +74,7 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
     const wsRef = useRef<WebSocket | null>(null)
     const streamBufferRef = useRef('')
     const [bookingAlert, setBookingAlert] = useState<{ bookingId: string; bookingCode?: string } | null>(null)
-    const AGENT_WS_BASE_URL = import.meta.env.VITE_AGENT_WS_BASE_URL || 'ws://localhost:8000'
+    const AGENT_WS_BASE_URL = env.AGENT_WS_BASE_URL
     const canUseMascot = Boolean(
         accessToken &&
         user &&
@@ -272,7 +273,7 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
             if (!accessToken || !isOpen || sessionId) return
 
             try {
-                const baseUrl = import.meta.env.VITE_AGENT_API_BASE_URL || 'http://localhost:8000'
+                const baseUrl = env.AGENT_API_BASE_URL
                 const response = await fetch(`${baseUrl}/api/v1/chat/sessions`, {
                     method: 'POST',
                     headers: {
@@ -482,7 +483,7 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
         }
 
         try {
-            const baseUrl = import.meta.env.VITE_AGENT_API_BASE_URL || 'http://localhost:8000'
+            const baseUrl = env.AGENT_API_BASE_URL
             const response = await fetch(`${baseUrl}/api/v1/chat/sessions/${sessionId}`, {
                 method: 'DELETE',
                 headers: {
@@ -549,7 +550,7 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
             setConnectionStatus('connecting')
 
             // Load session with messages
-            const baseUrl = import.meta.env.VITE_AGENT_API_BASE_URL || 'http://localhost:8000'
+            const baseUrl = env.AGENT_API_BASE_URL
             const response = await fetch(`${baseUrl}/api/v1/chat/sessions/${targetSessionId}`, {
                 headers: {
                     'Authorization': `Bearer ${accessToken}`
@@ -601,7 +602,7 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
             deleteSession()
 
             // Create new session
-            const baseUrl = import.meta.env.VITE_AGENT_API_BASE_URL || 'http://localhost:8000'
+            const baseUrl = env.AGENT_API_BASE_URL
             const response = await fetch(`${baseUrl}/api/v1/chat/sessions`, {
                 method: 'POST',
                 headers: {
