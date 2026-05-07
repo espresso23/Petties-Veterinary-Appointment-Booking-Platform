@@ -35,7 +35,6 @@ jobs:
 
             echo "📁 Preparing production repository..."
             mkdir -p "$HOME/petties-backend"
-            # Ensure GitHub host fingerprint is trusted to avoid host key verification failures
             mkdir -p "$HOME/.ssh"
             chmod 700 "$HOME/.ssh"
             ssh-keyscan github.com >> "$HOME/.ssh/known_hosts" 2>/dev/null || true
@@ -46,22 +45,23 @@ jobs:
             fi
 
             cd "$REPO_DIR"
-            
+
             echo "🚀 ============================================"
             echo "🚀 Deploying PRODUCTION environment..."
             echo "🚀 ============================================"
-            
+
             echo "📥 Fetching latest code from origin..."
             git fetch origin
-            
+
             echo "🔄 Resetting to origin/main (ensures exact sync)..."
             git checkout "$BRANCH"
             git reset --hard "origin/$BRANCH"
 
+            # Write Firebase credentials (no indent to preserve valid JSON)
             mkdir -p backend-spring/petties/src/main/resources/
-            cat <<EOF > backend-spring/petties/src/main/resources/firebase-service-account.json
+            cat > backend-spring/petties/src/main/resources/firebase-service-account.json << 'FIREBASE_EOF'
             ${{ secrets.FIREBASE_JSON }}
-            EOF
+            FIREBASE_EOF
 
             if [ ! -f "$ENV_FILE" ]; then
               if [ -f ".env.example" ]; then
@@ -73,28 +73,29 @@ jobs:
               fi
             fi
 
-            # Load .env safely without executing shell code.
-            # Supports values with spaces (e.g. JAVA_OPTS) and avoids `source` risks.
+            # Load .env safely: strip comments, blank lines, and surrounding quotes.
+            # Handles values with spaces (e.g. BACKEND_JAVA_OPTS=-Xmx1024m -Xms512m ...)
             if [ -f "$ENV_FILE" ]; then
               while IFS= read -r raw_line || [ -n "$raw_line" ]; do
+                # Strip Windows carriage return
                 line="${raw_line%$'\r'}"
+                # Skip blank lines and comment lines (with or without leading spaces)
                 case "$line" in
-                  ''|[[:space:]]*'#'*) continue ;;
+                  ''|'#'*|[[:space:]]*'#'*|[[:space:]]*) continue ;;
                 esac
-
+                # Only process valid KEY=VALUE lines
                 if printf '%s' "$line" | grep -qE '^[A-Za-z_][A-Za-z0-9_]*='; then
                   key="${line%%=*}"
                   value="${line#*=}"
-
-                  # Trim matching surrounding quotes only.
+                  # Strip matching surrounding double quotes
                   if [ "${value#\"}" != "$value" ] && [ "${value%\"}" != "$value" ]; then
                     value="${value#\"}"
                     value="${value%\"}"
+                  # Strip matching surrounding single quotes
                   elif [ "${value#\'}" != "$value" ] && [ "${value%\'}" != "$value" ]; then
                     value="${value#\'}"
                     value="${value%\'}"
                   fi
-
                   printf -v "$key" '%s' "$value"
                   export "$key"
                 fi
@@ -114,28 +115,32 @@ jobs:
             COMPOSE_PROJECT=${COMPOSE_PROJECT_NAME:-petties-prod}
 
             echo "🔐 Preparing Monitoring Basic Auth (Grafana/Prometheus)..."
-            # Use existing Grafana admin credentials from env file for basic auth.
-            # This keeps monitoring endpoints protected while avoiding extra secrets wiring.
             mkdir -p nginx
             if [ -z "${GRAFANA_ADMIN_USER:-}" ] || [ -z "${GRAFANA_ADMIN_PASSWORD:-}" ]; then
               echo "❌ Missing GRAFANA_ADMIN_USER/GRAFANA_ADMIN_PASSWORD in ${ENV_FILE}"
               exit 1
             fi
-            # Generate htpasswd (apr1). Avoid printing password in logs.
             MONITORING_HTPASSWD_HASH="$(openssl passwd -apr1 "${GRAFANA_ADMIN_PASSWORD}")"
             printf "%s:%s\n" "${GRAFANA_ADMIN_USER}" "${MONITORING_HTPASSWD_HASH}" > nginx/monitoring.htpasswd
-            
+
             echo "📋 Current commit:"
             git log --oneline -1
 
-            echo "🧹 Pre-deployment cleanup (Safe for Data)..."
-            # Loại bỏ toàn bộ các image không còn container nào sử dụng và build cache cũ
-            # KHÔNG sử dụng flag --volumes để bảo vệ dữ liệu database/uploads của Prod
+            echo "💾 Checking disk space..."
+            AVAIL_GB=$(df / | awk 'NR==2 {printf "%.0f", $4/1024/1024}')
+            if [ "$AVAIL_GB" -lt 5 ]; then
+              echo "❌ Insufficient disk space: ${AVAIL_GB}GB available, need at least 5GB"
+              df -h /
+              exit 1
+            fi
+            echo "✅ Disk space OK: ${AVAIL_GB}GB available"
+
+            echo "🧹 Pre-deployment cleanup (safe for data — no volumes removed)..."
             docker image prune -af
             docker builder prune -af
 
             echo "🧽 Removing conflicting containers (if any)..."
-            docker rm -f ${COMPOSE_PROJECT}_backend-1 ${COMPOSE_PROJECT}_ai-service-1 || true
+            docker rm -f ${COMPOSE_PROJECT}-backend-1 ${COMPOSE_PROJECT}-ai-service-1 2>/dev/null || true
 
             echo "🛑 Stopping production containers..."
             docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" down --remove-orphans
@@ -148,20 +153,16 @@ jobs:
 
             free_port_or_fail() {
               _port="$1"
-
-              # Remove foreign Docker containers that publish the target port.
               foreign_ids="$(docker ps -q --filter "publish=${_port}")"
               if [ -n "$foreign_ids" ]; then
                 for cid in $foreign_ids; do
                   cname="$(docker inspect --format '{{.Name}}' "$cid" | sed 's#^/##')"
-                  if [[ "$cname" != ${COMPOSE_PROJECT}_* ]]; then
+                  if [[ "$cname" != ${COMPOSE_PROJECT}* ]]; then
                     echo "⚠️ Removing foreign container using port ${_port}: ${cname}"
                     docker rm -f "$cid" || true
                   fi
                 done
               fi
-
-              # If still busy by host process, fail fast with diagnostics.
               if ss -ltn "( sport = :${_port} )" | grep -q ":${_port}"; then
                 echo "❌ Port ${_port} is still occupied by host process."
                 ss -ltnp "( sport = :${_port} )" || true
@@ -171,7 +172,9 @@ jobs:
 
             free_port_or_fail "$NGINX_HOST_PORT"
             free_port_or_fail "$NGINX_HTTPS_PORT"
-            
+
+            # Build services sequentially to avoid disk exhaustion.
+            # Prune intermediate layers between builds.
             echo "🔨 Building backend image..."
             docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build backend
             docker image prune -f
@@ -180,17 +183,17 @@ jobs:
             docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build ai-service
             docker image prune -f
 
-            echo "🚀 Starting production containers..."
-            docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" --profile monitoring up -d --remove-orphans
-            
-            echo "⏳ Waiting for services to start..."
+            echo "🚀 Starting core services (backend + ai-service + nginx)..."
+            docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans
+
+            echo "⏳ Waiting for Spring Boot to initialize (30s)..."
             sleep 30
 
             wait_for_http_health() {
               _name="$1"
               _url="$2"
-              _max_attempts="${3:-30}"
-              _sleep_seconds="${4:-3}"
+              _max_attempts="${3:-40}"
+              _sleep_seconds="${4:-5}"
 
               echo "🏥 Checking ${_name} health: ${_url}"
               _attempt=1
@@ -208,28 +211,32 @@ jobs:
               return 1
             }
 
-            if ! wait_for_http_health "Backend" "http://127.0.0.1:${BACKEND_HOST_PORT:-8080}/api/actuator/health" 30 3; then
+            if ! wait_for_http_health "Backend" "http://127.0.0.1:${BACKEND_HOST_PORT:-8080}/api/actuator/health" 40 5; then
               echo "📜 Backend logs (last 200 lines):"
               docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs --tail=200 backend || true
               exit 1
             fi
 
-            if ! wait_for_http_health "AI service" "http://127.0.0.1:${AI_HOST_PORT:-8000}/health" 20 3; then
+            if ! wait_for_http_health "AI service" "http://127.0.0.1:${AI_HOST_PORT:-8000}/health" 20 5; then
               echo "📜 AI service logs (last 200 lines):"
               docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs --tail=200 ai-service || true
               exit 1
             fi
-            
+
+            echo "📊 Starting monitoring stack (Prometheus + Grafana)..."
+            docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" --profile monitoring up -d
+
             echo "📜 Showing recent logs..."
             docker-compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs --tail=30
-            
-            echo "🧹 Cleaning up Docker resources (safe mode, no volumes)..."
+
+            echo "🧹 Post-deployment cleanup (safe mode, no volumes)..."
             docker image prune -af || true
             docker builder prune -af || true
-            
+
             echo "🚀 ============================================"
             echo "✅ Production Deployment complete!"
             echo "🌐 FE: https://www.petties.world"
-            echo "🔌 BE: https://api.petties.world/api (unified domain)"
-            echo "🤖 AI:  https://api.petties.world/ai (unified domain)"
+            echo "🔌 BE: https://api.petties.world/api"
+            echo "🤖 AI: https://api.petties.world/ai"
+            echo "📊 Grafana: https://api.petties.world/grafana"
             echo "🚀 ============================================"
