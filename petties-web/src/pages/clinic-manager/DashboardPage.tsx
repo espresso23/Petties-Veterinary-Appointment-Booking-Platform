@@ -33,16 +33,6 @@ function aggregateBookingSegments(bookings: Booking[]): { name: string; value: n
     return Array.from(map.entries()).map(([name, value]) => ({ name, value }))
 }
 
-const FETCH_KEYS = [
-    'Doanh thu ngày',
-    'Doanh thu tuần',
-    'Doanh thu tháng',
-    'Lịch hẹn',
-    'Hoàn tiền',
-    'Thanh toán chờ',
-    'Cảnh báo SOS',
-] as const
-
 export const ClinicManagerDashboardPage = () => {
     const { user } = useAuthStore()
     const { clinics, getMyClinics, isLoading: isClinicsLoading } = useClinicStore()
@@ -51,7 +41,6 @@ export const ClinicManagerDashboardPage = () => {
     const clinicId = currentClinic?.clinicId
 
     const [loading, setLoading] = useState(false)
-    const [partialWarnings, setPartialWarnings] = useState<string[]>([])
     const [dayRevenue, setDayRevenue] = useState<number | null>(null)
     const [pendingAssign, setPendingAssign] = useState<number | null>(null)
     const [completedToday, setCompletedToday] = useState<number | null>(null)
@@ -74,7 +63,6 @@ export const ClinicManagerDashboardPage = () => {
     const loadData = useCallback(async () => {
         if (!clinicId) return
         setLoading(true)
-        setPartialWarnings([])
         const day = todayIsoDate()
 
         const settled = await Promise.allSettled([
@@ -86,12 +74,6 @@ export const ClinicManagerDashboardPage = () => {
             getClinicPayments(clinicId, 100, 'PENDING'),
             getActiveSosAlerts(),
         ])
-
-        const w: string[] = []
-        settled.forEach((r, i) => {
-            if (r.status === 'rejected') w.push(FETCH_KEYS[i])
-        })
-        setPartialWarnings(w)
 
         const rev = settled[0].status === 'fulfilled' ? settled[0].value : null
         const weekRes = settled[1].status === 'fulfilled' ? settled[1].value : null
