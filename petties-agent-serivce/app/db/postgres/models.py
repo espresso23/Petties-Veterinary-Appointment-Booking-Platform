@@ -476,12 +476,4 @@ DEFAULT_SETTINGS = [
         "is_sensitive": False,
         "description": "Max Tavily search results per query",
     },
-    # ===== General Settings =====
-    {
-        "key": "JWT_SECRET",
-        "value": "",
-        "category": "general",
-        "is_sensitive": True,
-        "description": "JWT Secret Key for token verification (Must match Spring Boot)",
-    },
 ]

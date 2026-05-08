@@ -3,6 +3,7 @@ import { useGlobalHotkey } from '../../hooks/useGlobalHotkey'
 import { useMascotPanel } from '../../hooks/useMascotPanel'
 import { useAuthStore } from '../../store/authStore'
 import { useAIChatStore } from '../../store/aiChatStore'
+import { useClinicStore } from '../../store/clinicStore'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { UIAction, UISchemaV1 } from '../../types/chat-copilot'
 import { env } from '../../config/env'
@@ -81,6 +82,14 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
         ['STAFF', 'CLINIC_MANAGER', 'CLINIC_OWNER'].includes(user.role),
     )
 
+    const resolveActiveClinicId = useCallback((): string | null => {
+        const selectedClinicId = useClinicStore.getState().selectedClinicId
+        const selectedClinicFromChat = useAIChatStore.getState().selectedClinic?.clinicId
+        const workingClinicId = user?.workingClinicId ?? null
+
+        return selectedClinicId ?? selectedClinicFromChat ?? workingClinicId ?? null
+    }, [user?.workingClinicId])
+
     const buildBaseContext = useCallback((): Record<string, unknown> => {
         const selectedClinic = useAIChatStore.getState().selectedClinic
         return {
@@ -99,13 +108,22 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
             return
         }
 
+        const role = user?.role
+        if (role === 'CLINIC_OWNER' || role === 'CLINIC_MANAGER') {
+            const activeClinicId = resolveActiveClinicId()
+            if (!activeClinicId) {
+                showToast('error', 'Vui lòng chọn phòng khám trước khi sử dụng trợ lý AI.')
+                return
+            }
+        }
+
         const mergedContext = {
             ...buildBaseContext(),
             ...(extraContext || {}),
         }
 
         open(mergedContext)
-    }, [buildBaseContext, canUseMascot, open, showToast])
+    }, [buildBaseContext, canUseMascot, open, resolveActiveClinicId, showToast, user?.role])
 
     const toggleMascot = useCallback(() => {
         if (isOpen) {
@@ -274,11 +292,13 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
 
             try {
                 const baseUrl = env.AGENT_API_BASE_URL
+                const activeClinicId = resolveActiveClinicId()
                 const response = await fetch(`${baseUrl}/api/v1/chat/sessions`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${accessToken}`
+                        'Authorization': `Bearer ${accessToken}`,
+                        ...(activeClinicId ? { 'X-Clinic-Id': activeClinicId } : {}),
                     },
                     body: JSON.stringify({
                         context_type: 'BUSINESS_CHAT',
@@ -291,6 +311,9 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
                     const newSessionId = data.session_id
                     setSessionId(newSessionId)
                     connectWebSocket(newSessionId)
+                } else if (response.status === 403) {
+                    const errorData = await response.json().catch(() => ({}))
+                    showToast('error', errorData.detail || 'Bạn không có quyền tạo phiên trò chuyện.')
                 }
             } catch (error) {
                 console.error('[Mascot] Failed to create session:', error)
@@ -300,7 +323,7 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
         if (isOpen && !sessionId) {
             initMascotSession()
         }
-    }, [isOpen, accessToken, sessionId, buildBaseContext])
+    }, [isOpen, accessToken, sessionId, buildBaseContext, resolveActiveClinicId, setSessionId, showToast])
 
     // Reconnect WebSocket when session becomes available
     useEffect(() => {
@@ -484,10 +507,12 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
 
         try {
             const baseUrl = env.AGENT_API_BASE_URL
+            const activeClinicId = resolveActiveClinicId()
             const response = await fetch(`${baseUrl}/api/v1/chat/sessions/${sessionId}`, {
                 method: 'DELETE',
                 headers: {
-                    'Authorization': `Bearer ${accessToken}`
+                    'Authorization': `Bearer ${accessToken}`,
+                    ...(activeClinicId ? { 'X-Clinic-Id': activeClinicId } : {}),
                 }
             })
 
@@ -503,11 +528,13 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
                 showToast('success', 'Đã xóa lịch sử trò chuyện')
 
                 // Create new session
+                const newSessionClinicId = resolveActiveClinicId()
                 const newSessionResponse = await fetch(`${baseUrl}/api/v1/chat/sessions`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${accessToken}`
+                        'Authorization': `Bearer ${accessToken}`,
+                        ...(newSessionClinicId ? { 'X-Clinic-Id': newSessionClinicId } : {}),
                     },
                     body: JSON.stringify({
                         context_type: 'BUSINESS_CHAT',
@@ -520,6 +547,9 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
                     const newSessionId = data.session_id
                     setSessionId(newSessionId)
                     connectWebSocket(newSessionId)
+                } else if (newSessionResponse.status === 403) {
+                    const errorData = await newSessionResponse.json().catch(() => ({}))
+                    showToast('error', errorData.detail || 'Bạn không có quyền tạo phiên trò chuyện.')
                 }
             } else {
                 const errorData = await response.json().catch(() => ({}))
@@ -529,7 +559,7 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
             console.error('[Mascot] Failed to delete conversation:', error)
             showToast('error', 'Không thể xóa lịch sử trò chuyện')
         }
-    }, [sessionId, accessToken, buildBaseContext, deleteSession, setSessionId, showToast])
+    }, [sessionId, accessToken, buildBaseContext, deleteSession, resolveActiveClinicId, setSessionId, showToast])
 
     const handleLoadSession = useCallback(async (targetSessionId: string) => {
         if (!accessToken) {
@@ -551,9 +581,11 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
 
             // Load session with messages
             const baseUrl = env.AGENT_API_BASE_URL
+            const activeClinicId = resolveActiveClinicId()
             const response = await fetch(`${baseUrl}/api/v1/chat/sessions/${targetSessionId}`, {
                 headers: {
-                    'Authorization': `Bearer ${accessToken}`
+                    'Authorization': `Bearer ${accessToken}`,
+                    ...(activeClinicId ? { 'X-Clinic-Id': activeClinicId } : {}),
                 }
             })
 
@@ -583,7 +615,7 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
             console.error('[Mascot] Failed to load session:', error)
             showToast('error', 'Không thể tải phiên trò chuyện')
         }
-    }, [accessToken, setSessionId, setMessages, setConnectionStatus, showToast])
+    }, [accessToken, resolveActiveClinicId, setSessionId, setMessages, setConnectionStatus, showToast])
 
     const handleNewChat = useCallback(async () => {
         if (!accessToken) {
@@ -603,11 +635,13 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
 
             // Create new session
             const baseUrl = env.AGENT_API_BASE_URL
+            const activeClinicId = resolveActiveClinicId()
             const response = await fetch(`${baseUrl}/api/v1/chat/sessions`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${accessToken}`
+                    'Authorization': `Bearer ${accessToken}`,
+                    ...(activeClinicId ? { 'X-Clinic-Id': activeClinicId } : {}),
                 },
                 body: JSON.stringify({
                     context_type: 'BUSINESS_CHAT',
@@ -628,7 +662,7 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
             console.error('[Mascot] Failed to create new chat:', error)
             showToast('error', 'Không thể tạo cuộc trò chuyện mới')
         }
-    }, [accessToken, buildBaseContext, deleteSession, setSessionId, showToast])
+    }, [accessToken, buildBaseContext, deleteSession, resolveActiveClinicId, setSessionId, showToast])
 
     return (
         <>

@@ -90,8 +90,9 @@ async def decode_jwt_token(token: str) -> Optional[CurrentUser]:
     """
     Decode JWT token directly (for development without Gateway)
 
-    1. Tries to get JWT_SECRET from DB
-    2. Falls back to JWT_SECRET from settings (.env)
+    Source of truth: environment variable (settings.JWT_SECRET).
+    Note: In production/test, the API gateway should inject X-User-* headers and
+    this fallback path should not be relied on.
     """
     # Use secret key from environment variables (settings.py)
     # This is more stable and prevents DB connection issues in middleware
