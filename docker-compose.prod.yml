@@ -107,7 +107,7 @@ services:
       QDRANT_URL: ${QDRANT_URL:-}
       QDRANT_API_KEY: ${QDRANT_API_KEY:-}
       LLM_PROVIDER: ${LLM_PROVIDER:-openrouter}
-      CORS_ORIGINS: ${CORS_ORIGINS:-https://www.petties.world}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://www.petties.world,https://petties.world,http://localhost:5173}
       # OpenRouter (LLM) - CRITICAL
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-google/gemini-2.0-flash-exp:free}

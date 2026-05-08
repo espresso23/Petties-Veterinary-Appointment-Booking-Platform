@@ -61,12 +61,20 @@ async def verify_subscription_logic(user: CurrentUser, db: AsyncSession, request
         return True
 
     # 4. Ensure clinic context exists for staff/owner roles.
-    # If the token/context is missing clinic_id, try to recover it from backend profile.
+    # Priority: context -> X-Clinic-Id header -> backend lookup (for owners)
     resolved_clinic_id = user.clinic_id
+    
+    if not resolved_clinic_id and request:
+        # Try from explicit header (forwarded by Nginx)
+        resolved_clinic_id = request.headers.get("X-Clinic-Id")
+        if resolved_clinic_id:
+            logger.info(f"Resolved clinic_id={resolved_clinic_id} from X-Clinic-Id header")
+
     if not resolved_clinic_id and request:
         token = _extract_bearer_token(request)
         if token:
             try:
+                # 4.1 Try profile first (standard for staff)
                 profile = await get_backend_client().get_current_user_profile(token)
                 resolved_clinic_id = (
                     profile.get("workingClinicId")
@@ -74,9 +82,18 @@ async def verify_subscription_logic(user: CurrentUser, db: AsyncSession, request
                     or profile.get("clinicId")
                     or profile.get("clinic_id")
                 )
+                
+                # 4.2 If still missing and user is owner/manager, fetch their clinics list
+                if not resolved_clinic_id and user.role in ("CLINIC_OWNER", "CLINIC_MANAGER"):
+                    clinics = await get_backend_client().get_my_clinics(token)
+                    if clinics and isinstance(clinics, list):
+                        # Use the first clinic found as fallback context
+                        resolved_clinic_id = clinics[0].get("clinicId") or clinics[0].get("id")
+                        logger.info(f"Resolved clinic_id={resolved_clinic_id} from owner's clinic list")
+
                 if resolved_clinic_id:
                     logger.info(
-                        f"Resolved missing clinic_id for user {user.user_id} ({user.role}) from backend profile: {resolved_clinic_id}"
+                        f"Resolved missing clinic_id for user {user.user_id} ({user.role}) from backend: {resolved_clinic_id}"
                     )
             except BackendClientError as e:
                 logger.warning(
