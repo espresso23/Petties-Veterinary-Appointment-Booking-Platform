@@ -102,7 +102,7 @@ async def verify_subscription_logic(user: CurrentUser, db: AsyncSession, request
 
     if not resolved_clinic_id:
         logger.warning(
-            f"User {user.user_id} ({user.role}) attempted to use AI without clinic_id"
+            f"User {user.user_id} ({user.role}) attempted to use AI without clinic_id. Context info: user.clinic_id={user.clinic_id}"
         )
         raise HTTPException(
             status_code=403,
@@ -113,6 +113,7 @@ async def verify_subscription_logic(user: CurrentUser, db: AsyncSession, request
         )
 
     # 4. Query PostgreSQL for active subscription
+    logger.info(f"Checking subscription for clinic_id: {resolved_clinic_id}")
     query = text("""
         SELECT status, end_date 
         FROM user_subscriptions 
@@ -128,7 +129,7 @@ async def verify_subscription_logic(user: CurrentUser, db: AsyncSession, request
 
         if not subscription:
             logger.info(
-                f"Clinic {resolved_clinic_id} blocked: No active subscription record found"
+                f"Clinic {resolved_clinic_id} blocked: No ACTIVE/CANCELLED subscription record found in user_subscriptions"
             )
             raise HTTPException(
                 status_code=402,

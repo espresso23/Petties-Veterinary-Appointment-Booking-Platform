@@ -8,6 +8,7 @@
  */
 
 import { useAuthStore } from '../store/authStore'
+import { useClinicStore } from '../store/clinicStore'
 import { env } from '../config/env'
 
 // Direct AI Service URL (no gateway)
@@ -15,10 +16,15 @@ import { env } from '../config/env'
 const AGENT_API_BASE_URL = env.AGENT_API_BASE_URL
 const AGENT_WS_BASE_URL = env.AGENT_WS_BASE_URL
 
-// Get auth token from authStore (single source of truth)
+// Get auth token and clinic context
 const getAuthHeaders = (): Record<string, string> => {
     const token = useAuthStore.getState().accessToken
-    return token ? { 'Authorization': `Bearer ${token}` } : {}
+    const clinicId = useClinicStore.getState().selectedClinicId
+    
+    return {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        ...(clinicId ? { 'X-Clinic-Id': clinicId } : {})
+    }
 }
 
 // Fetch with auth
