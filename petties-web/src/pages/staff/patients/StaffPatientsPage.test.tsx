@@ -155,7 +155,3 @@ describe('StaffPatientsPage', () => {
         })
     })
 })
-')).toBeInTheDocument()
-        })
-    })
-})

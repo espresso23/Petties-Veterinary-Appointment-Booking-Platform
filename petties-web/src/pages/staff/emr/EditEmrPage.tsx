@@ -55,6 +55,7 @@ export const EditEmrPage = () => {
     const trimmedEmrId = emrId?.trim() || ''
     const navigate = useNavigate()
     const { showToast } = useToast()
+    const { user } = useAuth()
 
     // State
     const [isLoading, setIsLoading] = useState(true)
@@ -1252,12 +1253,6 @@ const timeLabel = (value: string) => ({ sang: 'Sáng', trua: 'Trưa', chieu: 'Ch
                     onLoadingChange={setIsAiAnalyzing}
                 />
             </Modal>
-        </div>
-    )
-}
-  )
-}
-           </Modal>
         </div>
     )
 }

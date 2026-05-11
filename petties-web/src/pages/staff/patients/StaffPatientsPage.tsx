@@ -1141,8 +1141,3 @@ export const StaffPatientsPage = () => {
 }
 
 export default StaffPatientsPage
-
-    )
-}
-
-export default StaffPatientsPage

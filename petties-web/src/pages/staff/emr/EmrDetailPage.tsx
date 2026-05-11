@@ -4,7 +4,7 @@ import { ArrowLeftIcon, PencilIcon, CalendarDaysIcon } from '@heroicons/react/24
 import { emrService } from '../../../services/emrService'
 import type { EmrRecord, EmrImage } from '../../../services/emrService'
 import { petService } from '../../../services/api/petService'
-import { tokenStorage } from '../../../services/authService'
+import { useAuth } from '../../../hooks/useAuth'
 
 /**
  * VET - EMR Detail Page (Read-only EMR view)
@@ -22,6 +22,7 @@ export const EmrDetailPage = () => {
     const [error, setError] = useState<string | null>(null)
     const [previewImage, setPreviewImage] = useState<EmrImage | null>(null)
     const [allergies, setAllergies] = useState('')
+    const { user } = useAuth()
     const timeLabel = (value: string) => ({ sang: 'Sáng', trua: 'Trưa', chieu: 'Chiều' }[value] || value)
 
     const [petInfo, setPetInfo] = useState<{
@@ -442,10 +443,6 @@ export const EmrDetailPage = () => {
             )}
         </div>
     )
-}
-
-export default EmrDetailPage
-   )
 }
 
 export default EmrDetailPage
