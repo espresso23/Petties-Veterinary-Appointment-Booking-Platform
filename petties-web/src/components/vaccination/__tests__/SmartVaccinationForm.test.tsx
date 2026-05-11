@@ -102,7 +102,7 @@ describe('SmartVaccinationForm', () => {
             />
         )
 
-        expect(screen.getByPlaceholderText(/Nhập tên hoặc chọn từ danh mục/i)).toBeInTheDocument()
+        expect(screen.getByPlaceholderText(/Chọn dịch vụ từ danh mục phòng khám.../i)).toBeInTheDocument()
         expect(screen.getByText('MŨI 1')).toHaveClass('bg-white')
     })
 
@@ -222,14 +222,15 @@ describe('SmartVaccinationForm', () => {
             />
         )
 
-        const nameInput = screen.getByPlaceholderText(/Nhập tên hoặc chọn từ danh mục/i)
-        fireEvent.change(nameInput, { target: { value: 'Custom Vaccine' } })
+        fireEvent.click(screen.getByTitle('Mở danh mục dịch vụ'))
+        await waitFor(() => expect(screen.getByText('Tiêm 5 bệnh')).toBeInTheDocument())
+        fireEvent.click(screen.getByText('Tiêm 5 bệnh'))
 
         const submitBtn = screen.getByText('LƯU HỒ SƠ TIÊM')
         fireEvent.click(submitBtn)
 
         expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
-            vaccineName: 'Custom Vaccine',
+            vaccineName: 'Tiêm 5 bệnh',
             doseSequence: '1'
         }))
     })

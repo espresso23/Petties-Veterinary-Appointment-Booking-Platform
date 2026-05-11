@@ -15,7 +15,7 @@ import { ConfirmModal } from '../../../components/ConfirmModal'
 import { Modal } from '../../../components/Modal'
 import { emrService } from '../../../services/emrService'
 import { petService } from '../../../services/api/petService'
-import { tokenStorage } from '../../../services/authService'
+import { useAuth } from '../../../hooks/useAuth'
 import DatePicker, { registerLocale } from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { vi } from 'date-fns/locale';
@@ -154,7 +154,7 @@ const timeLabel = (value: string) => ({ sang: 'Sáng', trua: 'Trưa', chieu: 'Ch
                 const emr = await emrService.getEmrById(trimmedEmrId)
 
                 // Security check on client side (also checked on backend)
-                const currentUser = tokenStorage.getUser()
+                const currentUser = user
                 if (emr.isLocked) {
                     showToast('warning', 'Bệnh án này đã bị khoá và không thể chỉnh sửa.')
                     navigate(-1)
@@ -1252,6 +1252,12 @@ const timeLabel = (value: string) => ({ sang: 'Sáng', trua: 'Trưa', chieu: 'Ch
                     onLoadingChange={setIsAiAnalyzing}
                 />
             </Modal>
+        </div>
+    )
+}
+  )
+}
+           </Modal>
         </div>
     )
 }

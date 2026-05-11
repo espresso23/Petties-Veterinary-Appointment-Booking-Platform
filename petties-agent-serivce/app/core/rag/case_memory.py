@@ -176,7 +176,6 @@ class CaseMemoryService:
             # Ensure collection exists (named vectors: text + image)
             try:
                 # Use robust check if available, else get_collection
-                from qdrant_client.http.exceptions import UnexpectedResponse
 
                 try:
                     exists = self._qdrant_client.collection_exists(
@@ -361,7 +360,7 @@ class CaseMemoryService:
                 if base64_embeddings:
                     image_vector = base64_embeddings[0]
                     self._image_enabled = True
-                    logger.info(f"[CaseMemory] Generated embedding from base64 image")
+                    logger.info("[CaseMemory] Generated embedding from base64 image")
             except Exception as e:
                 logger.error(f"Failed to generate image embedding from base64: {e}")
 
@@ -732,7 +731,6 @@ class CaseMemoryService:
                 Filter,
                 FieldCondition,
                 MatchValue,
-                MatchAny,
             )
 
             # Build filter conditions

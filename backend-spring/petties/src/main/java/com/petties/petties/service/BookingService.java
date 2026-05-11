@@ -144,13 +144,22 @@ public class BookingService {
          * Normalize payment method preference from client request.
          * Only accept QR/CASH to avoid storing invalid values.
          */
-        private String normalizePreferredPaymentMethod(String paymentMethod) {
+        private PaymentMethod normalizePreferredPaymentMethod(String paymentMethod) {
                 if (paymentMethod == null || paymentMethod.isBlank()) {
                         return null;
                 }
-                String normalized = paymentMethod.trim().toUpperCase();
-                if (!"QR".equals(normalized) && !"CASH".equals(normalized)) {
+                try {
+                        PaymentMethod method = PaymentMethod.valueOf(paymentMethod.trim().toUpperCase());
+                        return method == PaymentMethod.QR || method == PaymentMethod.CASH ? method : null;
+                } catch (IllegalArgumentException ex) {
                         return null;
+                }
+        }
+
+        private PaymentMethod parsePaymentMethodOrThrow(String paymentMethod) {
+                PaymentMethod normalized = normalizePreferredPaymentMethod(paymentMethod);
+                if (normalized == null) {
+                        throw new BadRequestException("Phương thức thanh toán không hợp lệ");
                 }
                 return normalized;
         }
@@ -159,12 +168,12 @@ public class BookingService {
          * Merge existing notes with preferred payment method line.
          */
         private String mergeBookingNotesWithPreferredPayment(String notes, String paymentMethod) {
-                String normalized = normalizePreferredPaymentMethod(paymentMethod);
+                PaymentMethod normalized = normalizePreferredPaymentMethod(paymentMethod);
                 if (normalized == null) {
                         return notes;
                 }
 
-                String label = "QR".equals(normalized) ? "Chuyển khoản QR" : "Tiền mặt";
+                String label = normalized == PaymentMethod.QR ? "Chuyển khoản QR" : "Tiền mặt";
                 String preferenceLine = PREFERRED_PAYMENT_PREFIX + " " + label;
 
                 if (notes == null || notes.isBlank()) {
@@ -538,8 +547,8 @@ public class BookingService {
                                 log.error("Failed to send notification (non-blocking): {}", e.getMessage());
                         }
 
-                        String preferredPaymentMethod = normalizePreferredPaymentMethod(request.getPaymentMethod());
-                        if ("QR".equals(preferredPaymentMethod)) {
+                        PaymentMethod preferredPaymentMethod = normalizePreferredPaymentMethod(request.getPaymentMethod());
+                        if (preferredPaymentMethod == PaymentMethod.QR) {
                                 log.info("Booking {} selected QR at creation, initializing QR payment", savedBooking.getBookingCode());
                                 return buildBookingResponseWithQrPayment(savedBooking);
                         }
@@ -714,8 +723,8 @@ public class BookingService {
                                 log.error("Failed to send notification (non-blocking): {}", e.getMessage());
                         }
 
-                        String preferredPaymentMethod = normalizePreferredPaymentMethod(request.getPaymentMethod());
-                        if ("QR".equals(preferredPaymentMethod)) {
+                        PaymentMethod preferredPaymentMethod = normalizePreferredPaymentMethod(request.getPaymentMethod());
+                        if (preferredPaymentMethod == PaymentMethod.QR) {
                                 log.info("Proxy booking {} selected QR at creation, initializing QR payment",
                                                 savedBooking.getBookingCode());
                                 return buildBookingResponseWithQrPayment(savedBooking);
@@ -1508,7 +1517,7 @@ public class BookingService {
                 Payment payment = paymentRepository.findByBookingBookingId(bookingId).orElse(null);
                 
                 if (reqMethodStr != null && !reqMethodStr.isBlank()) {
-                        method = PaymentMethod.valueOf(reqMethodStr.trim().toUpperCase());
+                        method = parsePaymentMethodOrThrow(reqMethodStr);
                 } else {
                         // Lấy phương thức thanh toán gốc của booking thay vì mặc định ép CASH
                         if (payment != null && payment.getMethod() != null) {
@@ -2128,7 +2137,7 @@ public class BookingService {
                         return bookingMapper.mapToResponse(booking);
                 }
 
-                PaymentMethod method = PaymentMethod.valueOf(request.getPaymentMethod());
+                PaymentMethod method = parsePaymentMethodOrThrow(request.getPaymentMethod());
 
                 // Check if payment already exists for this booking (1-1 relationship)
                 Payment existingPayment = paymentRepository.findByBookingBookingId(bookingId).orElse(null);

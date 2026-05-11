@@ -10,7 +10,7 @@ import asyncio
 import os
 import time
 from pathlib import Path
-from typing import Dict, Optional, Set
+from typing import Optional, Set
 
 from loguru import logger
 from sqlalchemy import select
@@ -194,7 +194,7 @@ class DocumentProcessingService:
                     # Auto-retry logic for specific Qdrant errors
                     if "text-sparse-new" in error_msg or ("vector" in error_msg and "not existing" in error_msg):
                         try:
-                            logger.warning(f"Vector mismatch detected in worker, recreating collection...")
+                            logger.warning("Vector mismatch detected in worker, recreating collection...")
                             from app.core.rag.rag_engine import get_rag_engine
                             rag = get_rag_engine()
                             await rag.recreate_collection()

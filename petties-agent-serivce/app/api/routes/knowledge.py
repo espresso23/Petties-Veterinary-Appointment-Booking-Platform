@@ -28,12 +28,8 @@ from sqlalchemy import select, func
 from typing import List, Optional, Dict, Any
 from loguru import logger
 from pathlib import Path
-import asyncio
 import os
-import shutil
 import tempfile
-from datetime import datetime
-import uuid
 from app.api.middleware.auth import get_admin_user
 from app.api.middleware.subscription_guard import check_active_subscription
 from app.config.settings import settings
@@ -44,8 +40,6 @@ from app.api.schemas.knowledge_schemas import (
     DocumentListResponse,
     DocumentDetailResponse,
     UploadDocumentResponse,
-    UploadErrorResponse,
-    ProcessDocumentRequest,
     ProcessDocumentResponse,
     QueryKnowledgeRequest,
     QueryKnowledgeResponse,
@@ -54,7 +48,7 @@ from app.api.schemas.knowledge_schemas import (
     KnowledgeBaseStatusResponse,
 )
 from app.db.postgres.models import KnowledgeDocument
-from app.db.postgres.session import get_db, AsyncSessionLocal
+from app.db.postgres.session import get_db
 from app.core.services.document_processing_service import get_document_processing_service
 
 # Initialize router - no global auth, add individually per endpoint
@@ -607,7 +601,7 @@ async def query_knowledge(
             # Check if there are any processed documents
             result = await db.execute(
                 select(func.count(KnowledgeDocument.id)).where(
-                    KnowledgeDocument.processed == True
+                    KnowledgeDocument.processed
                 )
             )
             processed_count = result.scalar() or 0
@@ -707,7 +701,7 @@ async def recreate_collection(db: AsyncSession = Depends(get_db)):
 
         return {
             "success": True,
-            "message": f"Tái tạo collection thành công",
+            "message": "Tái tạo collection thành công",
             "collection_name": status.get("collection_name"),
             "dimension": COHERE_EMBED_DIMENSION,
             "documents_reset": len(documents),
@@ -798,7 +792,7 @@ async def get_status(db: AsyncSession = Depends(get_db)):
         # Count processed
         processed_result = await db.execute(
             select(func.count(KnowledgeDocument.id)).where(
-                KnowledgeDocument.processed == True
+                KnowledgeDocument.processed
             )
         )
         processed_documents = processed_result.scalar() or 0

@@ -593,7 +593,7 @@ export const MascotProvider = ({ children }: MascotProviderProps) => {
                 const data = await response.json()
 
                 // Map messages to store format
-                const mappedMessages = (data.messages || []).map((msg: any) => ({
+                const mappedMessages = (data.messages || []).map((msg: Record<string, any>) => ({
                     id: msg.message_id || `msg-${msg.id || Date.now()}`,
                     role: msg.role === 'user' ? 'user' : 'assistant',
                     content: msg.content || '',

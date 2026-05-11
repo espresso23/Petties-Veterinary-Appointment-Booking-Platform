@@ -11,6 +11,7 @@ import {
   ConfirmationCard
 } from './cards'
 import { createService } from '../../../services/endpoints/service'
+import type { ClinicServiceRequest } from '../../../types/service'
 import ReactApexChart from 'react-apexcharts'
 import type { ApexOptions } from 'apexcharts'
 import { useToast } from '../../Toast'
@@ -439,7 +440,7 @@ function ServiceCard({
         })
       }
 
-      await createService(payload as any)
+      await createService(payload as unknown as ClinicServiceRequest)
       setIsSaved(true)
       showToast('success', `Đã lưu dịch vụ "${name}" thành công`)
     } catch (error: unknown) {

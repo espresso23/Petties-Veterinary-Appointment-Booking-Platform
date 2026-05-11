@@ -695,7 +695,7 @@ Tool nay dung DuckDuckGo search va tu dong loc ket qua theo pham vi thu cung/thu
                             "home_lat": {"type": "number"},
                             "home_long": {"type": "number"},
                             "distance_km": {"type": "number"},
-                            "confirmed": {"type": "boolean", "default": false},
+                            "confirmed": {"type": "boolean", "default": False},
                         },
                         "required": [
                             "pet_id",

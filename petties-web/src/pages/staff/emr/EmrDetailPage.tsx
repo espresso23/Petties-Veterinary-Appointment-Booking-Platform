@@ -130,7 +130,7 @@ export const EmrDetailPage = () => {
     // Check edit permission
     // Logic: Backend 'isLocked' is the source of truth for time window.
     // Use loose equality for IDs to handle string/number mismatch.
-    const currentUserId = tokenStorage.getUser()?.userId;
+    const currentUserId = user?.userId;
     // DEBUG: Inspect permission values
     console.log('[EmrDetail] Permissions Check:', {
         isLocked: emr.isLocked,
@@ -442,6 +442,10 @@ export const EmrDetailPage = () => {
             )}
         </div>
     )
+}
+
+export default EmrDetailPage
+   )
 }
 
 export default EmrDetailPage

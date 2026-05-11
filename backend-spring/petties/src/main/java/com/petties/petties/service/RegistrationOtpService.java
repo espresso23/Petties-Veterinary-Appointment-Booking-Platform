@@ -7,6 +7,7 @@ import com.petties.petties.dto.auth.SendOtpResponse;
 import com.petties.petties.dto.auth.VerifyOtpRequest;
 import com.petties.petties.dto.otp.PendingRegistrationData;
 import com.petties.petties.exception.BadRequestException;
+import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.exception.ResourceAlreadyExistsException;
 import com.petties.petties.exception.ResourceNotFoundException;
 import com.petties.petties.model.RefreshToken;
@@ -91,6 +92,8 @@ public class RegistrationOtpService {
      */
     public Object sendRegistrationOtp(SendOtpRequest request) {
         String email = request.getEmail().toLowerCase().trim();
+
+        validatePublicRegistrationRole(request.getRole());
 
         // 1. Check username khong ton tai trong User table
         if (userRepository.existsByUsername(request.getUsername())) {
@@ -259,6 +262,8 @@ public class RegistrationOtpService {
         user.setFullName(pending.getFullName());
         user.setRole(Role.valueOf(pending.getRole()));
 
+        validatePublicRegistrationRole(user.getRole());
+
         User savedUser = userRepository.save(user);
 
         // 6. Xoa pending registration tu Redis
@@ -289,6 +294,12 @@ public class RegistrationOtpService {
                 .fullName(savedUser.getFullName())
                 .role(savedUser.getRole().name())
                 .build();
+    }
+
+    private void validatePublicRegistrationRole(Role role) {
+        if (role != Role.PET_OWNER && role != Role.CLINIC_OWNER) {
+            throw new ForbiddenException("Chỉ tài khoản chủ thú cưng hoặc chủ phòng khám mới được đăng ký qua form công khai.");
+        }
     }
 
     /**

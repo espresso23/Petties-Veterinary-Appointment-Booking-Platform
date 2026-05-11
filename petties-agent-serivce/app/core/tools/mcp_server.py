@@ -12,7 +12,6 @@ Reference: Section 8 - Tech Stack (Tool Framework: FastMCP)
 Version: v2.0.0 - FastMCP 2.x Compatible
 """
 
-from fastmcp import FastMCP
 from typing import Any, Dict, List
 import logging
 import asyncio
@@ -389,9 +388,8 @@ def get_server_info() -> Dict[str, Any]:
 # ===== TRIGGER TOOL DISCOVERY =====
 # Import mcp_tools package to trigger @mcp_server.tool decorators
 try:
-    from app.core.tools import mcp_tools
 
-    logger.info(f"🚀 MCP tools module imported successfully")
+    logger.info("🚀 MCP tools module imported successfully")
 except Exception as e:
     logger.error(f"❌ Failed to import mcp_tools: {e}")
 

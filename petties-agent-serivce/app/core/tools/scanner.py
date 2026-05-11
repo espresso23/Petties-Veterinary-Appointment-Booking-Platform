@@ -196,7 +196,7 @@ class ToolScanner:
     async def get_new_tools(self) -> List[Dict[str, Any]]:
         """Return newly discovered tools that are still disabled."""
         async with AsyncSessionLocal() as session:
-            result = await session.execute(select(Tool).where(Tool.enabled == False))
+            result = await session.execute(select(Tool).where(not Tool.enabled))
             new_tools = result.scalars().all()
 
         return [

@@ -3,8 +3,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest'
 import EmrDetailPage from './EmrDetailPage'
 import { emrService } from '../../../services/emrService'
 import { petService } from '../../../services/api/petService'
-import { tokenStorage } from '../../../services/authService'
-import type { User } from '../../../services/authService'
+import { useAuth } from '../../../hooks/useAuth'
 
 // Mock dependencies
 vi.mock('react-router-dom', () => ({
@@ -18,10 +17,8 @@ vi.mock('../../../services/emrService', () => ({
     }
 }))
 
-vi.mock('../../../services/authService', () => ({
-    tokenStorage: {
-        getUser: vi.fn()
-    }
+vi.mock('../../../hooks/useAuth', () => ({
+    useAuth: vi.fn()
 }))
 
 vi.mock('../../../services/api/petService', () => ({
@@ -63,14 +60,16 @@ describe('EmrDetailPage', () => {
     beforeEach(() => {
         vi.clearAllMocks()
         // Default staff is NOT different from viewer
-        vi.mocked(tokenStorage.getUser).mockReturnValue({
-            userId: 'staff-999',
-            role: 'STAFF',
-            username: 'staff999',
-            fullName: 'Test Staff',
-            email: 'staff@petties.com',
-            enabled: true
-        } as User)
+        vi.mocked(useAuth).mockReturnValue({
+            user: {
+                userId: 'staff-999',
+                role: 'STAFF',
+                username: 'staff999',
+                fullName: 'Test Staff',
+                email: 'staff@petties.com',
+                enabled: true
+            }
+        } as any)
     })
 
     it('renders loading state initially', () => {

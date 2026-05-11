@@ -6,9 +6,7 @@ Tests taxonomy classification, loading, and integration with disease mapping.
 
 import pytest
 from app.core.services.disease_taxonomy_service import (
-    DiseaseTaxonomyService,
     get_disease_taxonomy_service,
-    TaxonomyClassification,
 )
 
 

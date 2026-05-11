@@ -48,7 +48,7 @@ async def get_agents(
         result = await db.execute(query)
         agents = result.scalars().all()
 
-        tools_result = await db.execute(select(Tool).where(Tool.enabled == True))
+        tools_result = await db.execute(select(Tool).where(Tool.enabled))
         enabled_tool_names = [tool.name for tool in tools_result.scalars().all()]
 
         agent_responses = []
@@ -99,7 +99,7 @@ async def get_agent(agent_id: int, db: AsyncSession = Depends(get_db)):
             updated_at=agent.updated_at,
         )
 
-        tools_result = await db.execute(select(Tool).where(Tool.enabled == True))
+        tools_result = await db.execute(select(Tool).where(Tool.enabled))
         tools = tools_result.scalars().all()
         tools = [
             {

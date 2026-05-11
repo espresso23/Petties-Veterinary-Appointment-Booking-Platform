@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from datetime import date as date_cls, datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 from zoneinfo import ZoneInfo
 
 from loguru import logger

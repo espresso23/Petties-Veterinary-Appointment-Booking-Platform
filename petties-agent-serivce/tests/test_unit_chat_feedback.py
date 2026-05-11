@@ -1,8 +1,7 @@
 import sys
 from pathlib import Path
 import unittest
-from unittest.mock import patch, MagicMock, AsyncMock
-from datetime import datetime, timezone
+from unittest.mock import patch, AsyncMock
 import uuid
 import types
 
@@ -22,12 +21,11 @@ sys.modules.setdefault("motor.motor_asyncio", motor_asyncio_module)
 from fastapi import HTTPException
 from app.api.middleware.auth import CurrentUser
 from app.api.routes import chat as chat_routes
-from app.core.chat_context import BUSINESS_CHAT, PLAYGROUND_TEST
+from app.core.chat_context import BUSINESS_CHAT
 from app.api.schemas.feedback_schemas import (
     FeedbackRequest, 
     FeedbackType, 
-    FeedbackCategory, 
-    FeedbackReason
+    FeedbackCategory
 )
 
 class ChatFeedbackUnitTests(unittest.IsolatedAsyncioTestCase):

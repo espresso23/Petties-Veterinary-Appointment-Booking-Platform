@@ -21,8 +21,6 @@ from app.core.agents.single_agent import SingleAgent
 from app.core.context_policy import ContextPolicyService
 from app.services.llm_client import (
     create_llm_client_from_db,
-    LLMConfig,
-    OpenRouterClient,
 )
 from app.db.postgres.models import Agent as AgentModel, Tool
 from app.core.tools.mcp_resources import list_resources_metadata
@@ -88,7 +86,7 @@ class AgentFactory:
 
         # 1. Load enabled agent tu DB
         result = await db_session.execute(
-            select(AgentModel).where(AgentModel.enabled == True).limit(1)
+            select(AgentModel).where(AgentModel.enabled).limit(1)
         )
         agent_config = result.scalar_one_or_none()
 
@@ -302,7 +300,7 @@ class AgentFactory:
     ) -> List[Tool]:
         """Load enabled tools and apply role/context whitelist."""
         tools_result = await db_session.execute(
-            select(Tool).where(Tool.enabled == True)
+            select(Tool).where(Tool.enabled)
         )
         tools_list = tools_result.scalars().all()
 
@@ -351,7 +349,7 @@ class AgentFactory:
         """
         # Load agent
         result = await db_session.execute(
-            select(AgentModel).where(AgentModel.enabled == True).limit(1)
+            select(AgentModel).where(AgentModel.enabled).limit(1)
         )
         agent_config = result.scalar_one_or_none()
 
@@ -360,7 +358,7 @@ class AgentFactory:
 
         # Load enabled tools
         tools_result = await db_session.execute(
-            select(Tool).where(Tool.enabled == True)
+            select(Tool).where(Tool.enabled)
         )
         enabled_tools = [t.name for t in tools_result.scalars().all()]
 
@@ -390,7 +388,7 @@ async def get_enabled_tools(db_session: AsyncSession) -> List[str]:
     Returns:
         List of enabled tool names
     """
-    result = await db_session.execute(select(Tool.name).where(Tool.enabled == True))
+    result = await db_session.execute(select(Tool.name).where(Tool.enabled))
     return [row[0] for row in result.fetchall()]
 
 
@@ -406,6 +404,6 @@ async def is_tool_enabled(tool_name: str, db_session: AsyncSession) -> bool:
         True if tool is enabled, False otherwise
     """
     result = await db_session.execute(
-        select(Tool).where(Tool.name == tool_name, Tool.enabled == True)
+        select(Tool).where(Tool.name == tool_name, Tool.enabled)
     )
     return result.scalar_one_or_none() is not None

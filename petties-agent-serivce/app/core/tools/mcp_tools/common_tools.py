@@ -375,7 +375,7 @@ async def _perform_tavily_search(
             title = _clean_rag_text(str(item.get("title", "")))
             snippet = _clean_rag_text(str(item.get("content", "")))
             url = str(item.get("url", ""))
-            combined_text = f"{title} {snippet}".lower()
+            f"{title} {snippet}".lower()
 
             if not _result_has_pet_relevance(query, title, snippet, url):
                 logger.debug(f"web_search: SKIP (no pet keyword): {title[:60]}")

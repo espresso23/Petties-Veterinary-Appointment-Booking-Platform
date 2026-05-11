@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
-from typing import Any, Dict, Generator, List, Optional, AsyncGenerator
+from typing import Any, Dict, List, Optional, AsyncGenerator
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 

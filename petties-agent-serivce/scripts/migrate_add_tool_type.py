@@ -37,7 +37,7 @@ async def run_migration():
     if "postgresql://" in database_url and "asyncpg" not in database_url:
         database_url = database_url.replace("postgresql://", "postgresql+asyncpg://")
 
-    print(f"Connecting to database...")
+    print("Connecting to database...")
 
     engine = create_async_engine(database_url, echo=True)
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

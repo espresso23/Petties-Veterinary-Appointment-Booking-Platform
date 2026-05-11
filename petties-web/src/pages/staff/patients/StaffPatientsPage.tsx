@@ -14,7 +14,6 @@ import {
 } from '@heroicons/react/24/outline'
 import { emrService } from '../../../services/emrService'
 import { getStaffPatients, type StaffPatient } from '../../../services/api/petService'
-import { tokenStorage } from '../../../services/authService'
 import type { EmrRecord } from '../../../services/emrService'
 import { vaccinationService, type VaccinationRecord } from '../../../services/vaccinationService'
 import { vaccineTemplateService, type VaccineTemplate } from '../../../services/api/vaccineTemplateService'
@@ -768,7 +767,7 @@ export const StaffPatientsPage = () => {
                                                                 {/* Edit Button-Only if not locked and owned by current staff */}
                                                                 {(() => {
                                                                     const isWithin24h = (new Date().getTime() - new Date(emr.createdAt).getTime()) < 24 * 60 * 60 * 1000;
-                                                                    const isOwner = String(tokenStorage.getUser()?.userId) === String(emr.staffId);
+                                                                    const isOwner = String(user?.userId) === String(emr.staffId);
                                                                     const canEdit = !emr.isLocked && isOwner && isWithin24h;
 
                                                                     return canEdit ? (
@@ -1138,6 +1137,11 @@ export const StaffPatientsPage = () => {
                 onCancel={() => setIsDeleteModalOpen(false)}
             />
         </div>
+    )
+}
+
+export default StaffPatientsPage
+
     )
 }
 

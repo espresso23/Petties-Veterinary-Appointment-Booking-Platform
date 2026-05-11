@@ -12,7 +12,7 @@ Version: v1.0.0
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 
 # Tool name to Vietnamese readable name
@@ -308,7 +308,6 @@ def chunk_for_streaming(text: str, chunk_size: int = 20) -> List[str]:
     i = 0
     while i < len(text):
         # Random-ish chunk size between chunk_size/2 and chunk_size
-        import random
 
         if not observation or observation.strip() == "":
             return ""

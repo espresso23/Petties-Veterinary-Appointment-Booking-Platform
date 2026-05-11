@@ -188,7 +188,6 @@ class LlamaIndexRAGEngine:
                 raise
 
             # Detect collection configuration (Safe Mode: Always prioritize dense)
-            use_hybrid = False
             try:
                 collection_info = self.qdrant_client.get_collection(self._collection_name)
                 # We could detect hybrid here, but per safety request, we disable it.
@@ -449,7 +448,7 @@ class LlamaIndexRAGEngine:
             # Delete by filter
             from qdrant_client.models import Filter, FieldCondition, MatchValue
 
-            result = self.qdrant_client.delete(
+            self.qdrant_client.delete(
                 collection_name=self._collection_name,
                 points_selector=Filter(
                     must=[
@@ -569,7 +568,7 @@ class LlamaIndexRAGEngine:
                     ),
                 }
             )
-            logger.info(f"Created dense-only collection with named vector 'text-dense'")
+            logger.info("Created dense-only collection with named vector 'text-dense'")
 
             # Create payload index for document_id (required for filtering/deletion)
             from qdrant_client.models import PayloadSchemaType

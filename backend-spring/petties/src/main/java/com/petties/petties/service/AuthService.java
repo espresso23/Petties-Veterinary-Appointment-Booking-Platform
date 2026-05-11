@@ -50,12 +50,13 @@ public class AuthService {
         public AuthResponse register(RegisterRequest request) {
                 // Check if username or email already exists
                 if (userRepository.existsByUsername(request.getUsername())) {
-                        throw new ResourceAlreadyExistsException("Username already exists");
+                        throw new ResourceAlreadyExistsException("Tên đăng nhập đã tồn tại");
                 }
 
                 if (userRepository.existsByEmail(request.getEmail())) {
-                        throw new ResourceAlreadyExistsException("Email already exists");
+                        throw new ResourceAlreadyExistsException("Email đã tồn tại");
                 }
+                validatePublicRegistrationRole(request.getRole());
 
                 // Create new user
                 User user = new User();
@@ -446,6 +447,13 @@ public class AuthService {
                                         ? "Tài khoản PET_OWNER chỉ có thể sử dụng ứng dụng mobile. Vui lòng tải ứng dụng Petties trên điện thoại."
                                         : "Tài khoản này chỉ có thể đăng nhập trên trang web.";
                         throw new ForbiddenException(message);
+                }
+        }
+
+        private void validatePublicRegistrationRole(Role role) {
+                if (role != Role.PET_OWNER && role != Role.CLINIC_OWNER) {
+                        throw new ForbiddenException(
+                                        "Chỉ tài khoản chủ thú cưng hoặc chủ phòng khám mới được đăng ký qua form công khai.");
                 }
         }
 }

@@ -114,7 +114,7 @@ def upgrade() -> None:
 
     # 7. System Settings table
     # Handle Enum Category
-    setting_category = sa.Enum('LLM', 'RAG', 'EMBEDDINGS', 'VECTOR_DB', 'GENERAL', name='settingcategory')
+    sa.Enum('LLM', 'RAG', 'EMBEDDINGS', 'VECTOR_DB', 'GENERAL', name='settingcategory')
     op.create_table(
         'system_settings',
         sa.Column('id', sa.Integer(), nullable=False),

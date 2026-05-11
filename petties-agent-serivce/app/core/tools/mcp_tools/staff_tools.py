@@ -3,9 +3,8 @@ PETTIES AGENT SERVICE - Staff & Scheduling Tools
 Tools for clinic managers and owners to manage staff schedules and slot availability.
 """
 
-from typing import Any, Dict, Optional, List
-import logging
-from datetime import datetime, timezone, timedelta, date as date_cls
+from typing import Any, Dict, Optional
+from datetime import datetime, timezone, timedelta
 
 from app.core.tools.contracts import (
     build_tool_success_response,
@@ -16,17 +15,401 @@ from app.core.tools.mcp_server import mcp_server
 from app.core.tool_runtime_context import require_tool_runtime_context
 from app.core.tools.auth_deps import _require_auth_token
 from app.services.backend_client import BackendClientError, get_backend_client
+from app.core.tools.booking_helpers import (
+    _standardize_booking_tool_response,
+    _attach_booking_error_metadata,
+)
+from app.core.tools.mcp_tools.appointment_tools import get_my_booking_info
+from loguru import logger
 from app.core.tools.tool_policy import get_tool_policy
-
-logger = logging.getLogger(__name__)
-
 
 def _is_tool_available(tool_name: str) -> bool:
     """Check if tool is registered in policy."""
     return get_tool_policy(tool_name) is not None
 
+@mcp_server.tool
+@_standardize_booking_tool_response
+async def get_available_staff_for_reassign(
+    booking_id: str,
+    service_id: str,
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    clinic_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Lấy danh sách nhân viên khả dụng để phân công lại cho một dịch vụ cụ thể trong lịch hẹn.
 
-# Refactored: authentication helpers moved to app.core.tools.auth_deps
+    Sử dụng khi:
+    - User (Clinic Manager/Owner) muốn thay đổi nhân viên thực hiện một dịch vụ trong lịch hẹn.
+    - Cần xem danh sách nhân viên rảnh vào thời gian của dịch vụ đó.
+
+    Params:
+        booking_id: ID của lịch hẹn
+        service_id: ID của dịch vụ (thuộc clinic_service_id)
+
+    Returns:
+        staff_list: Danh sách nhân viên khả dụng
+        ui_card: Tên UI card hiển thị
+    """
+    logger.info("🔧 [TOOL] ===== get_available_staff_for_reassign =====")
+    logger.info(f"  ├─ Input: booking_id={booking_id}, service_id={service_id}")
+
+    try:
+        token = _require_auth_token()
+    except Exception as e:
+        return {
+            "staff_list": [],
+            "message": str(e),
+            "requires_auth": True,
+        }
+
+    client = get_backend_client()
+    try:
+        response = await client.get_available_staff_for_reassign(
+            token, booking_id, service_id
+        )
+    except BackendClientError as exc:
+        logger.error(f"get_available_staff_for_reassign failed: {exc}")
+        return _attach_booking_error_metadata(
+            {
+                "staff_list": [],
+                "message": f"Không thể lấy danh sách nhân viên lúc này: {exc}",
+            },
+            error_code="INTERNAL_ERROR",
+            suggestion="Vui lòng thử lại sau.",
+            recoverable=True,
+        )
+
+    return {
+        "staff_list": response,
+        "ui_card": "staff_list_card",
+        "message": "Đã lấy danh sách nhân viên khả dụng.",
+    }
+
+
+@mcp_server.tool
+@_standardize_booking_tool_response
+async def reassign_staff_for_service(
+    booking_id: str,
+    service_id: str,
+    booking_service_item_id: str,
+    new_staff_id: str,
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    clinic_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Phân công lại nhân viên cho một dịch vụ cụ thể trong lịch hẹn.
+
+    Sử dụng khi:
+    - User (Clinic Manager/Owner) đã chọn một nhân viên mới để thay thế cho nhân viên cũ của dịch vụ đó.
+
+    Params:
+        booking_id: ID của lịch hẹn
+        service_id: ID của dịch vụ (clinic_service_id)
+        booking_service_item_id: ID cụ thể của dịch vụ trong lịch hẹn (BookingServiceItemResponse.bookingServiceId)
+        new_staff_id: ID của nhân viên mới sẽ thực hiện dịch vụ
+
+    Returns:
+        booking: Thông tin lịch hẹn sau khi đã cập nhật
+        ui_card: Tên UI card hiển thị
+    """
+    logger.info("🔧 [TOOL] ===== reassign_staff_for_service =====")
+    logger.info(
+        f"  ├─ Input: booking_id={booking_id}, service_id={service_id}, booking_service_item_id={booking_service_item_id}, new_staff_id={new_staff_id}"
+    )
+
+    try:
+        token = _require_auth_token()
+    except Exception as e:
+        return {
+            "success": False,
+            "message": str(e),
+            "requires_auth": True,
+        }
+
+    client = get_backend_client()
+    payload = {
+        "bookingServiceItemId": booking_service_item_id,
+        "newStaffId": new_staff_id,
+    }
+
+    try:
+        response = await client.reassign_staff_for_service(
+            token, booking_id, service_id, payload
+        )
+    except BackendClientError as exc:
+        logger.error(f"reassign_staff_for_service failed: {exc}")
+        return _attach_booking_error_metadata(
+            {
+                "success": False,
+                "message": f"Không thể phân công lại nhân viên lúc này: {exc}",
+            },
+            error_code="INTERNAL_ERROR",
+            suggestion="Vui lòng thử lại sau.",
+            recoverable=True,
+        )
+
+    return {
+        "success": True,
+        "booking": response,
+        "ui_card": "booking_detail_card",
+        "message": "Đã phân công lại nhân viên thành công.",
+    }
+
+
+@mcp_server.tool
+@_standardize_booking_tool_response
+async def confirm_booking_manager(
+    booking_id: str,
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    clinic_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Xác nhận lịch hẹn (chỉ dành cho Quản lý/Chủ phòng khám).
+
+    Sử dụng khi:
+    - Quản lý/Chủ phòng khám muốn xác nhận một lịch hẹn đang ở trạng thái PENDING.
+
+    Params:
+        booking_id: ID của lịch hẹn cần xác nhận
+
+    Returns:
+        booking: Thông tin lịch hẹn sau khi xác nhận
+        ui_card: Tên UI card hiển thị
+        success: Trạng thái thành công
+    """
+    logger.info("🔧 [TOOL] ===== confirm_booking_manager =====")
+    logger.info(f"  ├─ Input: booking_id={booking_id}")
+
+    try:
+        token = _require_auth_token()
+    except Exception as e:
+        return {
+            "success": False,
+            "message": str(e),
+            "requires_auth": True,
+        }
+
+    client = get_backend_client()
+    try:
+        response = await client.confirm_booking(token, booking_id)
+    except BackendClientError as exc:
+        logger.error(f"confirm_booking_manager failed: {exc}")
+        return _attach_booking_error_metadata(
+            {
+                "success": False,
+                "message": f"Không thể xác nhận lịch hẹn lúc này: {exc}",
+            },
+            error_code="INTERNAL_ERROR",
+            suggestion="Vui lòng thử lại sau.",
+            recoverable=True,
+        )
+
+    return {
+        "success": True,
+        "booking": response,
+        "ui_card": "booking_detail_card",
+        "message": "Đã xác nhận lịch hẹn thành công.",
+    }
+
+
+@mcp_server.tool
+@_standardize_booking_tool_response
+async def cancel_booking_manager(
+    booking_id: Optional[str] = None,
+    booking_code_hint: Optional[str] = None,
+    reason: str = "Huỷ bởi quản lý/AI",
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    clinic_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Hủy lịch hẹn (chỉ dành cho Quản lý/Chủ phòng khám).
+
+    Sử dụng khi:
+    - Quản lý/Chủ phòng khám muốn hủy một lịch hẹn.
+    - Có thể cung cấp booking_id hoặc booking_code_hint (mã booking).
+
+    Params:
+        booking_id: ID của lịch hẹn cần hủy (UUID). Ưu tiên dùng ID.
+        booking_code_hint: Mã lịch hẹn để tra cứu nếu không có booking_id.
+        reason: Lý do hủy lịch hẹn (bắt buộc)
+
+    Returns:
+        booking: Thông tin lịch hẹn sau khi hủy
+        ui_card: Tên UI card hiển thị
+        success: Trạng thái thành công
+    """
+    logger.info("🔧 [TOOL] ===== cancel_booking_manager =====")
+    logger.info(
+        f"  ├─ Input: booking_id={booking_id}, booking_code={booking_code_hint}, reason={reason}"
+    )
+
+    client = get_backend_client()
+    try:
+        token = _require_auth_token()
+    except Exception as e:
+        return build_tool_error_response(
+            error_code="UNAUTHORIZED",
+            message=str(e),
+            recoverable=True,
+            suggestion="Vui lòng đăng nhập lại.",
+        )
+
+    # Resolve booking_id from booking_code_hint if needed
+    if not booking_id and booking_code_hint:
+        try:
+            booking_info = await get_my_booking_info(booking_code=booking_code_hint)
+            if booking_info.get("success") and booking_info.get("booking"):
+                booking_id = booking_info["booking"].get("id")
+        except Exception as e:
+            logger.warning(f"Failed to resolve booking code {booking_code_hint}: {e}")
+
+    if not booking_id:
+        return build_tool_error_response(
+            error_code="BOOKING_NOT_FOUND",
+            message=f"Không tìm thấy lịch hẹn có mã '{booking_code_hint}'.",
+            recoverable=True,
+            suggestion="Vui lòng kiểm tra lại mã hoặc xem danh sách đặt lịch của bạn.",
+        )
+
+    if not str(reason or "").strip():
+        return _attach_booking_error_metadata(
+            {
+                "success": False,
+                "message": "Vui lòng cung cấp lý do hủy lịch hẹn.",
+                "needs_clarification": True,
+            },
+            error_code="INVALID_INPUT",
+            suggestion="Lý do hủy là bắt buộc.",
+            recoverable=True,
+        )
+
+    client = get_backend_client()
+    try:
+        response = await client.cancel_booking(token, booking_id, reason)
+    except BackendClientError as exc:
+        logger.error(f"cancel_booking_manager failed: {exc}")
+        return _attach_booking_error_metadata(
+            {
+                "success": False,
+                "message": f"Không thể hủy lịch hẹn lúc này: {exc}",
+            },
+            error_code="INTERNAL_ERROR",
+            suggestion="Vui lòng thử lại sau.",
+            recoverable=True,
+        )
+
+    return {
+        "success": True,
+        "booking": response,
+        "ui_card": "booking_detail_card",
+        "message": "Đã hủy lịch hẹn thành công.",
+    }
+
+
+@mcp_server.tool
+@_standardize_booking_tool_response
+async def view_clinic_bookings(
+    clinic_id: str,
+    status: Optional[str] = None,
+    booking_type: Optional[str] = None,
+    date_hint: Optional[str] = None,
+    page: int = 0,
+    size: int = 20,
+) -> Dict[str, Any]:
+    """Xem danh sách lịch hẹn của phòng khám (dành cho Quản lý/Chủ phòng khám).
+
+    Sử dụng khi:
+    - Manager hoặc Clinic Owner muốn xem danh sách lịch khám của phòng khám mình quản lý.
+    - Cần lọc lịch hẹn theo trạng thái hoặc loại lịch.
+
+    Params:
+        clinic_id: ID của phòng khám (bắt buộc)
+        status: Trạng thái booking (PENDING, CONFIRMED, IN_PROGRESS, COMPLETED, CANCELLED)
+        booking_type: Loại lịch (IN_CLINIC, HOME_VISIT)
+        date_hint: (Tương lai) lọc theo ngày
+        page: Trang hiện tại (mặc định 0)
+        size: Số lượng kết quả mỗi trang (mặc định 20)
+
+    Returns:
+        bookings: Danh sách booking
+        total_elements: Tổng số booking
+        total_pages: Tổng số trang
+        current_page: Trang hiện tại
+        ui_card: Tên thẻ giao diện đề xuất hiển thị
+    """
+    logger.info("🔧 [TOOL] ===== view_clinic_bookings =====")
+    logger.info(
+        f"  ├─ Input: clinic_id={clinic_id}, status={status}, booking_type={booking_type}, page={page}, size={size}"
+    )
+
+    try:
+        token = _require_auth_token()
+    except Exception as e:
+        logger.warning(f"  └─ ❌ Auth required: {e}")
+        return {
+            "bookings": [],
+            "message": str(e),
+            "requires_auth": True,
+        }
+
+    client = get_backend_client()
+    try:
+        response = await client.get_clinic_bookings(
+            token=token,
+            clinic_id=clinic_id,
+            status=status,
+            booking_type=booking_type,
+            page=page,
+            size=size,
+        )
+    except BackendClientError as exc:
+        logger.error(f"  └─ ❌ Backend error: {exc}")
+        return _attach_booking_error_metadata(
+            {
+                "bookings": [],
+                "total_elements": 0,
+                "total_pages": 0,
+                "current_page": page,
+                "message": f"Không thể lấy danh sách lịch hẹn lúc này: {exc}",
+            },
+            error_code="INTERNAL_ERROR",
+            suggestion="Vui lòng thử lại sau ít phút.",
+            recoverable=True,
+        )
+
+    raw_bookings = response.get("content") or []
+
+    formatted_bookings = []
+    for b in raw_bookings:
+        if not isinstance(b, dict):
+            continue
+        formatted_bookings.append(
+            {
+                "id": b.get("id") or b.get("bookingId"),
+                "booking_code": b.get("bookingCode"),
+                "pet_name": b.get("petName"),
+                "owner_name": b.get("ownerName"),
+                "date": b.get("bookingDate"),
+                "time": b.get("bookingTime"),
+                "status": b.get("status"),
+                "type": b.get("type") or b.get("bookingType"),
+                "total_price": b.get("totalPrice"),
+                "assigned_staff_name": b.get("assignedStaffName") or b.get("staffName"),
+                "services": b.get("services", []),
+            }
+        )
+
+    result = {
+        "bookings": formatted_bookings,
+        "total_elements": response.get("totalElements") or len(formatted_bookings),
+        "total_pages": response.get("totalPages") or 1,
+        "current_page": page,
+        "ui_card": "booking_list_card",
+        "message": None if formatted_bookings else "Chưa có lịch hẹn nào.",
+    }
+    logger.info(f"  └─ ✅ Returning {len(formatted_bookings)} bookings")
+    return result
+
 
 
 @mcp_server.tool

@@ -34,62 +34,23 @@ def _build_pet_owner_booking_section(
     *,
     enabled_tools_lower: Set[str],
 ) -> str:
-    return f"""
-=== CHẾ ĐỘ PET_OWNER CHATBOT ===
-- Bạn là AI hỗ trợ PET_OWNER. Mục tiêu tối thượng là: **FORM-FIRST, ĐƠN GIẢN VÀ NHANH**.
-- **Cá nhân hóa theo Thú cưng**: 
-    + Nếu người dùng nói "bé nhà tôi", "thú cưng của tôi" hoặc đề cập đến tên pet mà bạn chưa biết, hãy gọi `get_user_pets` ngay lập tức.
-    + Luôn ưu tiên sử dụng thông tin từ danh sách pet (loài, tên) để lọc dịch vụ và tư vấn chính xác.
-- **Ưu tiên Phòng khám chất lượng**:
-    + Khi tìm kiếm phòng khám, hãy luôn chú ý đến thông số `rating` (số sao) và `total_reviews`.
-    + Nếu người dùng hỏi phòng khám "tốt nhất", "đánh giá cao" hoặc muốn biết tại sao nên chọn phòng khám đó, hãy gọi `get_clinic_reviews` để đọc các bình luận thực tế.
-    + **Sáng tạo từ Review**: Sử dụng các chi tiết trong review (VD: bác sĩ nhiệt tình, không gian sạch, chuyên trị mèo dữ) để đưa ra lời khuyên thuyết phục và cá nhân hóa.
-    + Nếu người dùng hỏi phòng khám "tốt nhất", "đánh giá cao" hoặc không chỉ định rõ, hãy ưu tiên gợi ý phòng khám có `rating` cao nhất trong danh sách.
-    + Không bao giờ gợi ý phòng khám có 0 sao hoặc đánh giá thấp nếu có lựa chọn tốt hơn ở gần đó, trừ khi người dùng chỉ đích danh.
-- **Ưu tiên UI Card**: sau khi có dữ liệu đủ dùng, mời người dùng chọn/chỉnh trên thẻ đặt lịch thay vì hỏi đáp dài dòng.
-- Khi hiển thị danh sách phòng khám, hãy tóm tắt ngắn gọn lý do tại sao bạn chọn phòng khám đó (VD: "Được đánh giá 5 sao từ nhiều chủ nuôi").
-- Không lộ các tên tool hoặc khái niệm lập trình trong câu trả lời cuối.
+    return """
+=== PET_OWNER CHATBOT MODE ===
+- GOAL: Help user book appointments efficiently (FORM-FIRST).
+- STRATEGY: Use `quick_booking_search` immediately if pets/clinics/slots are unknown.
+- DATA: Prefer quality clinics (high rating/reviews). Use `get_clinic_reviews` for specific quality questions.
+- UI: Always guide user towards using UI Cards for final confirmation.
 """
 
 
 def _build_clinic_copilot_booking_section(enabled_tools_lower: Set[str]) -> str:
-    clinic_lines = [
-        "=== CHẾ ĐỘ CLINIC COPILOT ===",
-        "- Bạn đang đóng vai AI copilot cho nhân sự phòng khám, không phải consumer chatbot cho PET_OWNER.",
-        "- Mục tiêu chính: hỗ trợ vận hành, tra cứu nội bộ, tóm tắt thông tin và đề xuất thao tác tiếp theo cho clinic roles.",
-        "- Không tự động đẩy hội thoại thành consumer flow kiểu pet -> dịch vụ -> phòng khám -> giờ nếu người dùng chỉ đang hỏi thông tin.",
-        "- Không lộ khái niệm nội bộ như booking draft, booking session, runtime state hoặc tên tool trong câu trả lời cuối.",
-    ]
+    return """
+=== CLINIC COPILOT MODE ===
+- GOAL: Support internal clinic operations.
+- TONE: Professional, data-driven, concise.
+- FOCUS: Use internal tools (get_staff_patients, get_my_clinics) over public ones.
+"""
 
-    if "get_my_clinics" in enabled_tools_lower:
-        clinic_lines.append(
-            "- Ưu tiên `get_my_clinics` để xác định phòng khám mà người dùng đang quản lý hoặc làm việc."
-        )
-    if "get_staff_patients" in enabled_tools_lower:
-        clinic_lines.append(
-            "- Khi staff hỏi về thú cưng của khách, ưu tiên `get_staff_patients` và các tool nội bộ thay vì `get_user_pets`."
-        )
-        clinic_lines.append(
-            "- Khi staff hỏi về 'bệnh nhân cần theo dõi đặc biệt', hãy ưu tiên `get_staff_patients` rồi tóm tắt theo các tín hiệu sẵn có như `booking_status`, `next_appointment`, `last_visit`, `is_assigned_to_me`. Nếu hệ thống chưa có cờ đặc biệt riêng, nói rõ là đang suy luận theo tín hiệu vận hành, không nói rằng hệ thống không phân loại được."
-        )
-    if "search_clinics_nearby" in enabled_tools_lower:
-        clinic_lines.append(
-            "- `search_clinics_nearby` chỉ dùng khi cần so sánh theo vị trí thực tế hoặc cần tìm clinic khác, không dùng để mở consumer booking wizard."
-        )
-    if "check_available_slots" in enabled_tools_lower:
-        clinic_lines.append(
-            "- `check_available_slots` là tool tra cứu availability cho copilot. Chỉ dùng để tra cứu và tóm tắt, không biến mỗi lần tra cứu thành bước chốt booking."
-        )
-    if "create_booking_for_user" in enabled_tools_lower:
-        clinic_lines.append(
-            "- Nếu và chỉ nếu tool tạo booking được whitelist, hãy xem nó là thao tác nghiệp vụ có xác nhận rõ ràng, không phải mặc định của mọi cuộc hội thoại."
-        )
-
-    clinic_lines.append(
-        "- Nếu người dùng yêu cầu không thực hiện một thao tác (ví dụ: không xác nhận, không tạo, dừng, hủy), phải dừng thao tác ngay và chuyển sang hỏi phương án thay thế phù hợp."
-    )
-
-    return "\n".join(clinic_lines)
 
 
 def _build_role_tone_section(normalized_role: str) -> str:

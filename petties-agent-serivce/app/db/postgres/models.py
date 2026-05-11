@@ -27,7 +27,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy.sql import func
-from datetime import datetime
 import enum
 
 Base = declarative_base()

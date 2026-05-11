@@ -369,7 +369,7 @@ Trả về JSON format:
         assessment = latest_emr.get("assessment", "")
         plan = latest_emr.get("plan", "")
         subjective = latest_emr.get("subjective", "")
-        objective = latest_emr.get("objective", "")
+        latest_emr.get("objective", "")
 
         warnings = []
         if assessment and (

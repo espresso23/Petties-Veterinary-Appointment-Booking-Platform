@@ -2,7 +2,6 @@ import sys
 from pathlib import Path
 import unittest
 from unittest.mock import patch, MagicMock, AsyncMock, mock_open
-from datetime import datetime
 import types
 
 # Setup path to import app

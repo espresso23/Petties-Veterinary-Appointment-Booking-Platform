@@ -1,220 +1,52 @@
 /**
- * Auth Service - Authentication API calls to Spring Boot
+ * DEPRECATED: Use src/services/endpoints/auth.ts and useAuthStore instead.
  * 
- * Routes through API Gateway:
- * - /api/auth/login
- * - /api/auth/register
- * - /api/auth/me
- * - /api/auth/refresh
- * - /api/auth/logout
+ * This service is kept for backward compatibility during refactoring.
+ * It now proxies all calls to the unified useAuthStore (Zustand).
  */
 
-import { env } from '../config/env'
-
-// Define AUTH_BASE từ env (env.API_BASE_URL đã có /api rồi)
-const AUTH_BASE = `${env.API_BASE_URL}/auth`
+import { useAuthStore } from '../store/authStore'
+import * as unifiedAuth from './endpoints/auth'
+import type { User, AuthResponse } from '../types'
+import type { LoginRequest, RegisterRequest } from './endpoints/auth'
 
 // ===== TYPES =====
+export type { User, LoginRequest, RegisterRequest, AuthResponse }
 
-export interface User {
-    userId: string
-    username: string
-    email: string
-    fullName: string
-    phoneNumber?: string
-    role: 'ADMIN' | 'STAFF' | 'CLINIC_MANAGER' | 'CLINIC_OWNER' | 'PET_OWNER'
-    enabled: boolean
-    workingClinicId?: string    // For CLINIC_MANAGER and STAFF
-    workingClinicName?: string  // Clinic name for display
-    avatar?: string             // Profile picture URL
-    specialty?: string          // For STAFF (VET, GROOMER)
-    createdAt?: string
-}
-
-export interface LoginRequest {
-    email: string
-    password: string
-}
-
-export interface RegisterRequest {
-    email: string
-    password: string
-    fullName: string
-    phoneNumber?: string
-    role?: string
-}
-
-export interface AuthResponse {
-    accessToken: string
-    refreshToken: string
-    tokenType: string
-    expiresIn: number
-    user: User
-}
-
-// ===== TOKEN STORAGE =====
-
-const TOKEN_KEY = 'accessToken'
-const REFRESH_TOKEN_KEY = 'refreshToken'
-const USER_KEY = 'user'
-
+/**
+ * DEPRECATED: Access user and tokens via useAuthStore or useAuth hook.
+ */
 export const tokenStorage = {
-    getAccessToken: (): string | null => localStorage.getItem(TOKEN_KEY),
-    getRefreshToken: (): string | null => localStorage.getItem(REFRESH_TOKEN_KEY),
-    getUser: (): User | null => {
-        const user = localStorage.getItem(USER_KEY)
-        return user ? JSON.parse(user) : null
-    },
+    getAccessToken: (): string | null => useAuthStore.getState().accessToken,
+    getRefreshToken: (): string | null => useAuthStore.getState().refreshToken,
+    getUser: () => useAuthStore.getState().user,
 
-    setTokens: (response: AuthResponse) => {
-        localStorage.setItem(TOKEN_KEY, response.accessToken)
-        localStorage.setItem(REFRESH_TOKEN_KEY, response.refreshToken)
-        localStorage.setItem(USER_KEY, JSON.stringify(response.user))
+    setTokens: (response: any) => {
+        useAuthStore.getState().setTokens(response.accessToken, response.refreshToken)
+        if (response.user) {
+            useAuthStore.getState().setUser(response.user)
+        }
     },
 
     clearTokens: () => {
-        localStorage.removeItem(TOKEN_KEY)
-        localStorage.removeItem(REFRESH_TOKEN_KEY)
-        localStorage.removeItem(USER_KEY)
+        useAuthStore.getState().clearAuth()
     },
 
     isAuthenticated: (): boolean => {
-        return !!localStorage.getItem(TOKEN_KEY)
+        return useAuthStore.getState().isAuthenticated
     }
 }
 
-// ===== HELPER =====
-
-const getAuthHeaders = (): Record<string, string> => {
-    const token = tokenStorage.getAccessToken()
-    return {
-        'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-    }
-}
-
-// ===== API CALLS =====
-
+/**
+ * DEPRECATED: Use src/services/endpoints/auth.ts functions directly.
+ */
 export const authApi = {
-    /**
-     * Login with email and password
-     */
-    async login(credentials: LoginRequest): Promise<AuthResponse> {
-        const response = await fetch(`${AUTH_BASE}/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(credentials)
-        })
-
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({}))
-            throw new Error(error.message || 'Login failed')
-        }
-
-        const data: AuthResponse = await response.json()
-        tokenStorage.setTokens(data)
-        return data
-    },
-
-    /**
-     * Register new user
-     */
-    async register(data: RegisterRequest): Promise<AuthResponse> {
-        const response = await fetch(`${AUTH_BASE}/register`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        })
-
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({}))
-            throw new Error(error.message || 'Registration failed')
-        }
-
-        const result: AuthResponse = await response.json()
-        tokenStorage.setTokens(result)
-        return result
-    },
-
-    /**
-     * Get current user info
-     */
-    async getCurrentUser(): Promise<User> {
-        const response = await fetch(`${AUTH_BASE}/me`, {
-            headers: getAuthHeaders()
-        })
-
-        if (!response.ok) {
-            if (response.status === 401) {
-                tokenStorage.clearTokens()
-            }
-            throw new Error('Failed to get user info')
-        }
-
-        return response.json()
-    },
-
-    /**
-     * Refresh access token
-     */
-    async refreshToken(): Promise<AuthResponse> {
-        const refreshToken = tokenStorage.getRefreshToken()
-        if (!refreshToken) {
-            throw new Error('No refresh token')
-        }
-
-        const response = await fetch(`${AUTH_BASE}/refresh`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${refreshToken}` }
-        })
-
-        if (!response.ok) {
-            tokenStorage.clearTokens()
-            throw new Error('Token refresh failed')
-        }
-
-        const data: AuthResponse = await response.json()
-        tokenStorage.setTokens(data)
-        return data
-    },
-
-    /**
-     * Logout
-     */
-    async logout(): Promise<void> {
-        try {
-            await fetch(`${AUTH_BASE}/logout`, {
-                method: 'POST',
-                headers: getAuthHeaders()
-            })
-        } finally {
-            tokenStorage.clearTokens()
-        }
-    },
-
-    /**
-     * Login with Google ID Token
-     * Platform "web" → CLINIC_OWNER role
-     */
-    async googleSignIn(idToken: string): Promise<AuthResponse> {
-        const response = await fetch(`${AUTH_BASE}/google`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                idToken,
-                platform: 'web'  // Web → CLINIC_OWNER
-            })
-        })
-
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({}))
-            throw new Error(error.message || 'Google Sign-In failed')
-        }
-
-        const data: AuthResponse = await response.json()
-        tokenStorage.setTokens(data)
-        return data
-    }
+    login: unifiedAuth.login,
+    register: unifiedAuth.register,
+    getCurrentUser: unifiedAuth.getCurrentUser,
+    refreshToken: unifiedAuth.refreshToken,
+    logout: unifiedAuth.logout,
+    googleSignIn: unifiedAuth.googleSignIn
 }
 
 export default authApi

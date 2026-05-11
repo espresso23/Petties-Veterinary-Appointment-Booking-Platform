@@ -4,7 +4,6 @@ import { StaffPatientsPage } from './StaffPatientsPage'
 import { emrService } from '../../../services/emrService'
 import { vaccinationService } from '../../../services/vaccinationService'
 import * as petService from '../../../services/api/petService'
-import { tokenStorage } from '../../../services/authService'
 import { useAuthStore } from '../../../store/authStore'
 
 // Mock dependencies
@@ -40,12 +39,6 @@ vi.mock('../../../services/vaccinationService', () => ({
 
 vi.mock('../../../services/api/petService', () => ({
     getStaffPatients: vi.fn()
-}))
-
-vi.mock('../../../services/authService', () => ({
-    tokenStorage: {
-        getUser: vi.fn()
-    }
 }))
 
 vi.mock('../../../store/authStore', () => ({
@@ -122,12 +115,6 @@ describe('StaffPatientsPage', () => {
                 role: 'STAFF'
             }
         } as ReturnType<typeof useAuthStore>)
-
-        // Mock tokenStorage
-        vi.mocked(tokenStorage.getUser).mockReturnValue({
-            userId: 'staff-001',
-            role: 'STAFF'
-        } as ReturnType<typeof tokenStorage.getUser>)
     })
 
     it('renders list of patients and opens vaccination tab correctly', async () => {
@@ -165,6 +152,10 @@ describe('StaffPatientsPage', () => {
             // The component renders: NV. {staffName.split(' ').pop()}
             // "Trần Văn B" -> "B" -> "NV. B"
             expect(screen.getByText('NV. B')).toBeInTheDocument()
+        })
+    })
+})
+')).toBeInTheDocument()
         })
     })
 })

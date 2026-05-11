@@ -16,8 +16,6 @@ from pydantic import BaseModel
 import logging
 
 from app.config.settings import settings
-from app.core.config_helper import get_setting
-from app.db.postgres.session import get_db, AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
 

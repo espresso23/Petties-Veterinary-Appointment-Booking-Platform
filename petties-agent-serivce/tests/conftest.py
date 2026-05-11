@@ -1,5 +1,4 @@
 import pytest
-from unittest.mock import patch
 from app.core.services.disease_mapping_service import DiseaseCatalogEntry, DiseaseAliasEntry
 
 # Mock data for ALL tests to maintain stability after removing defaults

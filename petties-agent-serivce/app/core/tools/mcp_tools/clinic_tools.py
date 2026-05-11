@@ -12,7 +12,6 @@ from app.services.backend_client import (
     BackendClientError,
 )
 from app.services.llm_client import get_llm_client
-from app.services.llm_client import get_llm_client
 
 
 def _normalize_text(value: Optional[str]) -> str:

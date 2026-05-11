@@ -201,7 +201,7 @@ def setup_logging(
     
     logging.info(f"✅ Logging configured: level={log_level}, file={log_file}")
     if sentry_dsn:
-        logging.info(f"✅ Error tracking: Sentry → Discord #monitoring")
+        logging.info("✅ Error tracking: Sentry → Discord #monitoring")
 
     logging.info(
         "Structured logging context initialized",

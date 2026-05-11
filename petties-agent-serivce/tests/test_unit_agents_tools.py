@@ -36,15 +36,24 @@ class AgentsToolsUnitTests(unittest.IsolatedAsyncioTestCase):
         # Mock DB find agent
         mock_agent = MagicMock()
         mock_agent.id = 1
+        mock_agent.name = "Test Agent"
+        mock_agent.description = "Test Description"
+        mock_agent.temperature = 0.5
+        mock_agent.model = "gpt-3.5"
+        mock_agent.enabled = True
+        mock_agent.max_tokens = 1000
+        mock_agent.top_p = 0.9
+        mock_agent.created_at = None
+        mock_agent.updated_at = None
+
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = mock_agent
         self.mock_db.execute.return_value = mock_result
-        
+
         from app.api.routes.agents import UpdateAgentRequest
         request = UpdateAgentRequest(temperature=0.7, model="gpt-4")
-        
-        response = await agents_routes.update_agent(1, request, self.mock_db)
-        
+
+        await agents_routes.update_agent(1, request, self.mock_db)
         self.assertEqual(mock_agent.temperature, 0.7)
         self.assertEqual(mock_agent.model, "gpt-4")
         self.mock_db.commit.assert_called_once()
@@ -68,17 +77,22 @@ class AgentsToolsUnitTests(unittest.IsolatedAsyncioTestCase):
         """UTCID04-01 - Happy Path: Bật/Tắt tool thành công"""
         mock_tool = MagicMock()
         mock_tool.id = 1
+        mock_tool.name = "test_tool"
         mock_tool.enabled = False
-        
+
         # Mock DB lookup
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = mock_tool
         self.mock_db.execute.return_value = mock_result
-        
+
+        from app.api.schemas.tool_schemas import EnableToolRequest
+        request = EnableToolRequest(enabled=True)
+
         # Gọi API toggle
-        response = await tools_routes.toggle_tool(1, enabled=True, db=self.mock_db)
-        
+        await tools_routes.toggle_tool_enabled(1, request, db=self.mock_db)
+        self.mock_db.commit.assert_called_once()
         self.assertTrue(mock_tool.enabled)
+
         self.mock_db.commit.assert_called_once()
 
     # --- USE CASE 12: View aggregate feedback stats ---

@@ -88,9 +88,6 @@ from app.core.agents.response_formatter import format_tool_observation
 from app.core.agents.tool_routing import apply_booking_tool_routing
 
 
-from app.core.agents.enrichment_strategy import (
-    build_final_answer_from_tool_result,
-)
 from app.core.agents.fast_path import (
     build_fast_product_web_search_call,
     build_web_search_fallback_call,
@@ -99,7 +96,6 @@ from app.core.agents.fast_path import (
     should_auto_fallback_empty_kb_to_web_search,
     should_fast_path_pet_care_from_conversation,
     should_fast_finalize_simple_pet_care_answer,
-    should_fast_path_pet_care_query,
 )
 
 
@@ -873,56 +869,18 @@ class SingleAgent:
                 "iteration": iteration + 1,
             }
 
-        # --- Pre-LLM auto-finalize check (fail-closed on tool error or test/no-LLM mode) ---
-
-        auto_final_answer = build_final_answer_from_tool_result(
-            tool_name=last_action.get("tool_name") if last_action else None,
-            tool_result=last_tool_result,
-            react_steps=react_steps,
-            messages=messages,
-            llm_client=self.llm_client,
-            enabled_tools_lower=self._enabled_tools_lower,
-        )
-
-        if auto_final_answer:
-            logger.info(
-                f"Auto-finalized response from tool result: "
-                f"{last_action.get('tool_name') if last_action else 'unknown'}"
-            )
-
-            step = ReActStep(
-                step_type="thought",
-                content=auto_final_answer,
-                tool_name=None,
-                tool_params={},
-                tool_result=None,
-            )
-
-            return {
-                "react_steps": [step],
-                "current_thought": auto_final_answer,
-                "pending_tool_call": None,
-                "should_end": True,
-                "final_answer": auto_final_answer,
-                "iteration": iteration + 1,
-            }
-
-        # --- Post-observation guidance suffix ---
+        # --- Call LLM ---
+        # LLM will now naturally synthesize the answer from tools like quick_booking_search.
+        # Manual fast-path builders are removed to favor LLM's personality consistency.
 
         warning_suffix = ""
-
         if last_action and iteration > 0:
             remaining = self.max_iterations - iteration
-
             warning_suffix = (
                 f"\n\nBạn vừa gọi '{last_action.get('tool_name')}'. "
                 f"Nếu còn thiếu thông tin thì gọi thêm tool phù hợp (còn {remaining} lượt), "
                 f"nếu đã đủ thì viết Final Answer."
             )
-
-        # --- Call LLM ---
-
-        # Prompt assembly delegated to prompt_builder
 
         think_prompt = (
             create_think_prompt(
@@ -936,6 +894,7 @@ class SingleAgent:
             )
             + warning_suffix
         )
+
 
         try:
             response = await asyncio.wait_for(
@@ -1981,12 +1940,13 @@ class SingleAgent:
 
                 elif event_type == "on_chain_end":
                     data = event.get("data", {})
-
                     output = data.get("output", {})
-
                     if isinstance(output, dict):
                         last_state_output = output
-
+                        # Sync booking state from tool runtime context
+                        ctx = get_tool_runtime_context()
+                        if ctx and ctx.booking_state:
+                            last_state_output["booking_state"] = ctx.booking_state
             if not final_answer_emitted and isinstance(last_state_output, dict):
                 final_text = (last_state_output.get("final_answer") or "").strip()
 

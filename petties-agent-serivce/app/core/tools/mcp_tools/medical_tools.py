@@ -25,7 +25,6 @@ from loguru import logger
 import re
 import time
 
-from app.config.settings import settings
 from app.core.tool_runtime_context import get_tool_runtime_context
 from app.core.tools.contracts import (
     build_tool_error_response,

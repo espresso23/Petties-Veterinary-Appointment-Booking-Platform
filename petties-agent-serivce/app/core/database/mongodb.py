@@ -328,7 +328,7 @@ async def save_chat_session(session_data: dict) -> str:
         db = await get_mongodb_database()
         sessions = db[settings.MONGODB_CHAT_SESSIONS_COLLECTION]
 
-        result = await sessions.insert_one(session_data)
+        await sessions.insert_one(session_data)
         logger.info(f"💾 Saved chat session: {session_data.get('session_id')}")
 
         return session_data.get("session_id")
@@ -352,7 +352,7 @@ async def save_chat_message(message_data: dict) -> str:
         db = await get_mongodb_database()
         messages = db[settings.MONGODB_CHAT_MESSAGES_COLLECTION]
 
-        result = await messages.insert_one(message_data)
+        await messages.insert_one(message_data)
         logger.info(f"💾 Saved chat message: {message_data.get('message_id')}")
 
         return message_data.get("message_id")
@@ -502,7 +502,7 @@ if __name__ == "__main__":
 
         # Test health check
         health = await mongodb_health_check()
-        print(f"\n📊 Health Check Result:")
+        print("\n📊 Health Check Result:")
         print(f"  Status: {health['status']}")
         print(f"  Database: {health['database']}")
         print(f"  URL: {health['url']}")

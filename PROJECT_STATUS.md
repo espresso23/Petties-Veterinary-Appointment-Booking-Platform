@@ -1,5 +1,77 @@
 # 🐾 PETTIES Project Status
 
+> **Last Updated:** 2026-05-09
+> **Current Sprint:** Post Sprint 13 - Production Hardening & AI Enhancement
+> **Overall Progress:** ~97% (code-based scan)
+
+---
+
+### AI Chatbot Modular Refactor & Goal-Oriented Strategy (Code-based Evidence - 2026-05-09)
+
+**Scope:** Chuyển đổi hệ thống AI Chatbot sang kiến trúc Modular (DDD) và hướng mục tiêu (Goal-Oriented) để tăng khả năng bảo trì và hiệu suất.
+
+**Implemented changes:**
+- **Backend Modularization:**
+  - Tách `booking_tools.py` (3800 dòng) thành các module nhỏ: `pet_tools.py`, `clinic_search_tools.py`, `scheduling_tools.py`, `appointment_tools.py`.
+  - Triển khai `booking_helpers.py` chứa logic dùng chung cho việc chuẩn hóa dữ liệu và xử lý lỗi.
+  - Xây dựng Siêu Tool `quick_booking_search` sử dụng `asyncio.gather` để fetch song song thông tin Pet và Clinic.
+- **Goal-Oriented AI:**
+  - Refactor `booking_flow.py` và `single_agent.py` để AI hoạt động dựa trên "Mục tiêu & Ràng buộc" thay vì State Machine cứng nhắc.
+  - Loại bỏ các bước chuyển trạng thái (state transitions) phức tạp, giúp giảm số vòng lặp ReAct và tăng tốc độ phản hồi.
+- **Sync State BE-FE:**
+  - Triển khai sự kiện WebSocket `booking_state_update` để gửi snapshot trạng thái đặt lịch (BookingTracker) từ Backend về Frontend theo thời gian thực.
+
+**Changed files (evidence):**
+- `petties-agent-serivce/app/core/tools/mcp_tools/pet_tools.py`
+- `petties-agent-serivce/app/core/tools/mcp_tools/clinic_search_tools.py`
+- `petties-agent-serivce/app/core/tools/mcp_tools/scheduling_tools.py`
+- `petties-agent-serivce/app/core/tools/mcp_tools/appointment_tools.py`
+- `petties-agent-serivce/app/core/tools/booking_helpers.py`
+- `petties-agent-serivce/app/core/agents/booking_flow.py`
+
+---
+
+### Web Unified Authentication (Zustand Migration) (Code-based Evidence - 2026-05-09)
+
+**Scope:** Hợp nhất toàn bộ logic xác thực (Authentication) về một nguồn duy nhất (Single Source of Truth) sử dụng Zustand để đảm bảo tính nhất quán trên toàn bộ Web app.
+
+**Implemented changes:**
+- **Auth Store Consolidation:**
+  - Di chuyển toàn bộ state (user, roles, permissions) từ `tokenStorage` và local state vào `authStore`.
+  - Refactor `authService.ts` để đóng vai trò như một Proxy, tự động đồng bộ hóa với `authStore`.
+- **Legacy Cleanup:**
+  - Cập nhật các component (`StaffLayout`, `ClinicManagerLayout`, v.v.) sang dùng hook `useAuth` thay vì đọc trực tiếp từ `localStorage`.
+  - Sửa lỗi đồng bộ state khi token hết hạn hoặc khi user chuyển đổi vai trò.
+
+**Changed files (evidence):**
+- `petties-web/src/stores/authStore.ts`
+- `petties-web/src/services/authService.ts`
+- `petties-web/src/hooks/useAuth.ts`
+
+---
+
+### Mobile AI Chat "Brain" (`AiChatProvider`) (Code-based Evidence - 2026-05-09)
+
+**Scope:** Xây dựng `AiChatProvider` đóng vai trò trung tâm xử lý logic Chat AI trên Mobile, tách biệt hoàn toàn khỏi UI layer.
+
+**Implemented changes:**
+- **Centralized Logic:**
+  - `AiChatProvider` quản lý kết nối WebSocket, Streaming Buffer, và trạng thái `BookingTracker` (giỏ hàng đặt lịch).
+  - Tự động xử lý và merge `ui_schema` vào danh sách tin nhắn để hiển thị các Card tương tác (Clinic, Service, v.v.).
+- **Module-based Widgets:**
+  - Tách và module hóa các Card UI (`AiClinicSuggestionCard`, `AiServiceOptionCard`) giúp giảm kích thước file `ai_chat_screen.dart` từ >2000 dòng xuống <800 dòng.
+- **Stability Fixes:**
+  - Sửa lỗi escape docstring (`\u5c`) và mismatch kiểu dữ liệu boolean (JSON `false` vs Python `False`) trong quá trình đồng bộ state.
+
+**Changed files (evidence):**
+- `petties_mobile/lib/providers/ai_chat_provider.dart`
+- `petties_mobile/lib/ui/chat/ai_chat/widgets/ai_clinic_suggestion_card.dart`
+- `petties_mobile/lib/ui/chat/ai_chat/ai_chat_screen.dart`
+
+---
+
+# 🐾 PETTIES Project Status
+
 > **Last Updated:** 2026-05-07
 > **Current Sprint:** Post Sprint 13 - Production Hardening & AI Enhancement
 > **Overall Progress:** ~95% (code-based scan)

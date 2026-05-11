@@ -10,7 +10,6 @@ Version: v0.0.3 - Enhanced logging for debugging
 from typing import Dict, List, Any, Optional
 from sqlalchemy import select
 from loguru import logger
-import json
 
 from app.db.postgres.models import Tool
 from app.db.postgres.session import AsyncSessionLocal
@@ -48,7 +47,7 @@ class ToolExecutor:
         if ToolExecutor._cache_loaded:
             return
         async with AsyncSessionLocal() as session:
-            result = await session.execute(select(Tool).where(Tool.enabled == True))
+            result = await session.execute(select(Tool).where(Tool.enabled))
             tools = result.scalars().all()
             ToolExecutor._tool_cache = {tool.name: tool for tool in tools}
             ToolExecutor._cache_loaded = True
@@ -393,7 +392,7 @@ async def get_enabled_tools() -> List[Tool]:
         List of enabled Tool objects
     """
     async with AsyncSessionLocal() as session:
-        result = await session.execute(select(Tool).where(Tool.enabled == True))
+        result = await session.execute(select(Tool).where(Tool.enabled))
         return result.scalars().all()
 
 

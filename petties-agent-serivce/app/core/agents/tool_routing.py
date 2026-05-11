@@ -501,60 +501,26 @@ def apply_booking_tool_routing(
         react_steps,
     )
 
-    if normalized_tool == "search_clinics_nearby":
-        has_explicit_target = bool(
-            str(tool_params.get("clinic_hint") or "").strip()
-            or str(tool_params.get("address") or "").strip()
-        )
-        if (
-            tool_params.get("latitude") is None or tool_params.get("longitude") is None
-        ) and not has_explicit_target:
-            return {
-                **parsed,
-                **_build_missing_input_response(
-                    "Minh can vi tri hien tai cua ban de tim phong kham gan nhat. Ban bat GPS hoac gui khu vuc/quan giup minh nhe."
-                ),
-            }
-
-    if (
-        normalized_tool == "get_clinic_services"
-        and not str(tool_params.get("clinic_id") or "").strip()
-    ):
-        return {
-            **parsed,
-            **_build_missing_input_response(
-                "Minh chua xac dinh duoc phong kham can xem dich vu. Ban cho minh biet phong kham cu the nhe."
-            ),
-        }
-
-    if (
-        normalized_tool == "check_available_slots"
-        and not str(tool_params.get("clinic_id") or "").strip()
-    ):
-        return {
-            **parsed,
-            **_build_missing_input_response(
-                "Minh chua xac dinh duoc phong kham can kiem tra slot. Ban cho minh biet phong kham cu the nhe."
-            ),
-        }
+    # Minimal guards for critical missing parameters to avoid tool errors/loops
+    if normalized_tool in {"get_clinic_services", "check_available_slots", "create_booking_for_user"}:
+        if not str(tool_params.get("clinic_id") or "").strip():
+            return _build_missing_input_response(
+                "Bạn muốn đặt lịch ở phòng khám nào vậy? Hãy cho mình biết tên phòng khám nhé."
+            )
 
     if normalized_tool == "create_booking_for_user":
-        missing_fields: List[str] = []
-        booking_items = tool_params.get("items")
-        has_multi_pet_items = isinstance(booking_items, list) and bool(booking_items)
-        if not has_multi_pet_items and not str(tool_params.get("pet_id") or "").strip():
-            missing_fields.append("thu cung")
-        if not str(tool_params.get("clinic_id") or "").strip():
-            missing_fields.append("phong kham")
-        if missing_fields:
-            return {
-                **parsed,
-                **_build_missing_input_response(
-                    "Minh chua xac dinh duoc "
-                    + ", ".join(missing_fields)
-                    + " de tao yeu cau booking."
-                ),
-            }
+        if not str(tool_params.get("pet_id") or "").strip():
+            return _build_missing_input_response(
+                "Bạn đặt lịch khám cho bé nào nhỉ? Hãy chọn một bé trong danh sách của bạn."
+            )
+        if not tool_params.get("service_ids"):
+            return _build_missing_input_response(
+                "Bạn cần thực hiện dịch vụ nào cho bé? Hãy chọn dịch vụ từ danh mục phòng khám."
+            )
+        if not str(tool_params.get("booking_date") or "").strip() or not str(tool_params.get("start_time") or "").strip():
+            return _build_missing_input_response(
+                "Bạn muốn đặt lịch vào lúc nào? Hãy chọn ngày và giờ cụ thể giúp mình."
+            )
 
     if (
         normalized_tool in _READONLY_TOOL_RESOURCE_CANDIDATES

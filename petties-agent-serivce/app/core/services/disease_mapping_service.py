@@ -19,7 +19,7 @@ from difflib import SequenceMatcher
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from loguru import logger
-from sqlalchemy import select, desc, func, insert
+from sqlalchemy import select, desc, func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 
